@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-test-pack:
+    runs-on: ubuntu-latest
+
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.100
+
+      - name: Restore
+        run: dotnet restore SimpleMediator.sln
+
+      - name: Build
+        run: dotnet build SimpleMediator.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test SimpleMediator.sln --configuration Release --no-build --verbosity normal
+
+      - name: Pack
+        run: dotnet pack SimpleMediator.csproj --configuration Release --no-build --output artifacts
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: simplemediator-nuget
+          path: artifacts/*.nupkg
+
+      - name: Publish to GitHub Packages
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITHUB_PACKAGES_SOURCE: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+          NUGET_API_KEY: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: |
+          dotnet nuget push artifacts/*.nupkg \
+            --source "$GITHUB_PACKAGES_SOURCE" \
+            --api-key "$NUGET_API_KEY" \
+            --skip-duplicate

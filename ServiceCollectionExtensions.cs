@@ -13,6 +13,18 @@ namespace SimpleMediator;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
+    /// Alias legacy para <see cref="AddSimpleMediator(IServiceCollection, Assembly[])"/>.
+    /// </summary>
+    public static IServiceCollection AddApplicationMessaging(this IServiceCollection services, params Assembly[] assemblies)
+        => services.AddSimpleMediator(assemblies);
+
+    /// <summary>
+    /// Alias legacy para <see cref="AddSimpleMediator(IServiceCollection, Action{SimpleMediatorConfiguration}?, Assembly[])"/>.
+    /// </summary>
+    public static IServiceCollection AddApplicationMessaging(this IServiceCollection services, Action<SimpleMediatorConfiguration>? configure, params Assembly[] assemblies)
+        => services.AddSimpleMediator(configure, assemblies);
+
+    /// <summary>
     /// Registra el mediador usando la configuración por defecto.
     /// </summary>
     /// <param name="services">Contenedor de servicios.</param>

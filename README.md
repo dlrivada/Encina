@@ -1,6 +1,6 @@
 # SimpleMediator
 
-![.NET 8.0](https://img.shields.io/badge/.NET-8.0-512BD4.svg)
+![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4.svg)
 ![Status](https://img.shields.io/badge/status-internal-blue.svg)
 ![License](https://img.shields.io/badge/license-private-important.svg)
 
@@ -31,10 +31,21 @@ SimpleMediator is a lightweight mediator abstraction for .NET applications that 
 
 ## Quick Start
 
-### 1. Reference the Project
+### 1. Reference the Package
+
+Add the GitHub Packages feed once per environment:
 
 ```bash
-dotnet add <YourProject>.csproj reference src/SimpleMediator/SimpleMediator.csproj
+dotnet nuget add source "https://nuget.pkg.github.com/dlrivada/index.json" \
+    --name dlrivada-github \
+    --username <your-gh-username> \
+    --password <PAT-with-write-packages>
+```
+
+Then reference the package from your project:
+
+```bash
+dotnet add <YourProject>.csproj package SimpleMediator --version 0.1.0
 ```
 
 ### 2. Configure Dependency Injection
