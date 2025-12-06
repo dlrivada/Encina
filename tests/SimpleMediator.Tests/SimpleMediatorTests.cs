@@ -117,6 +117,37 @@ public sealed class SimpleMediatorTests
     }
 
     [Fact]
+    public async Task Publish_AllowsHandlersReturningNullTasks()
+    {
+        var services = BuildServiceCollection();
+        services.AddScoped<INotificationHandler<SampleNotification>, NullReturningNotificationHandler>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        await mediator.Publish(new SampleNotification(99), CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Publish_HonorsCancellationRequests()
+    {
+        var services = new ServiceCollection();
+        services.AddApplicationMessaging(typeof(EchoRequest).Assembly);
+        services.RemoveAll(typeof(INotificationHandler<SampleNotification>));
+        services.AddScoped<INotificationHandler<SampleNotification>, CancellableNotificationHandler>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var action = () => mediator.Publish(new SampleNotification(5), cts.Token);
+
+        await Should.ThrowAsync<OperationCanceledException>(action);
+    }
+
+    [Fact]
     public async Task Send_WritesDiagnosticLogs()
     {
         var loggerCollector = new LoggerCollector();
@@ -281,6 +312,21 @@ public sealed class SimpleMediatorTests
     {
         public Task Handle(SampleNotification notification, CancellationToken cancellationToken)
             => throw new InvalidOperationException("notify-failure");
+    }
+
+    private sealed class NullReturningNotificationHandler : INotificationHandler<SampleNotification>
+    {
+        public Task Handle(SampleNotification notification, CancellationToken cancellationToken)
+            => null!;
+    }
+
+    private sealed class CancellableNotificationHandler : INotificationHandler<SampleNotification>
+    {
+        public Task Handle(SampleNotification notification, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
     }
 
     private sealed record MissingHandlerRequest : IRequest<int>;

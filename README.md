@@ -59,21 +59,25 @@ var services = new ServiceCollection();
 
 services.AddSimpleMediator(cfg =>
 {
-    cfg.AddPipelineBehavior(typeof(ActivityPipelineBehavior<,>))
-       .AddPipelineBehavior(typeof(MetricsPipelineBehavior<,>))
-       .AddFunctionalFailureDetector<DefaultFunctionalFailureDetector>();
-}, typeof(ApplicationAssemblyMarker).Assembly);
+    cfg.RegisterServicesFromAssemblyContaining<ApplicationAssemblyMarker>()
+       .AddPipelineBehavior(typeof(CommandActivityPipelineBehavior<,>))
+       .AddPipelineBehavior(typeof(QueryActivityPipelineBehavior<,>))
+       .AddPipelineBehavior(typeof(CommandMetricsPipelineBehavior<,>))
+       .AddPipelineBehavior(typeof(QueryMetricsPipelineBehavior<,>));
+});
 
-var provider = services.BuildServiceProvider();
+services.AddSingleton<IFunctionalFailureDetector, AppFunctionalFailureDetector>();
+
+await using var provider = services.BuildServiceProvider();
 var mediator = provider.GetRequiredService<IMediator>();
 ```
 
 ### 3. Send a Command
 
 ```csharp
-public sealed record RegisterUser(string Email, string Password) : ICommand<Unit>;
+public sealed record RegisterUser(string Email, string Password) : ICommand<Either<Error, Unit>>;
 
-public sealed class RegisterUserHandler : ICommandHandler<RegisterUser, Unit>
+public sealed class RegisterUserHandler : ICommandHandler<RegisterUser, Either<Error, Unit>>
 {
     public async Task<Either<Error, Unit>> Handle(RegisterUser command, CancellationToken ct)
     {
@@ -93,9 +97,9 @@ result.Match(
 ### 4. Query Data
 
 ```csharp
-public sealed record GetUserProfile(string Email) : IQuery<UserProfile>;
+public sealed record GetUserProfile(string Email) : IQuery<Either<Error, UserProfile>>;
 
-public sealed class GetUserProfileHandler : IQueryHandler<GetUserProfile, UserProfile>
+public sealed class GetUserProfileHandler : IQueryHandler<GetUserProfile, Either<Error, UserProfile>>
 {
     public Task<Either<Error, UserProfile>> Handle(GetUserProfile query, CancellationToken ct)
         => Users.FindAsync(query.Email, ct);
@@ -165,23 +169,23 @@ services.AddSimpleMediator(cfg =>
 
 | Behavior | Responsibility |
 | --- | --- |
-| `ActivityPipelineBehavior<,>` | Creates OpenTelemetry `Activity` scopes per request. |
-| `MetricsPipelineBehavior<,>` | Emits meters for handler duration and outcome. |
-| `ValidationPipelineBehavior<,>` | Runs registered validators before handler execution. |
-| `LoggingPipelineBehavior<,>` | Logs request execution details with structured properties. |
+| `CommandActivityPipelineBehavior<,>` | Creates OpenTelemetry `Activity` scopes for commands and annotates functional failures. |
+| `QueryActivityPipelineBehavior<,>` | Emits tracing spans for queries and records failure metadata. |
+| `CommandMetricsPipelineBehavior<,>` | Updates mediator counters/histograms after each command. |
+| `QueryMetricsPipelineBehavior<,>` | Tracks success/failure metrics for queries, including functional errors. |
 
 ### Custom Behavior Example
 
 ```csharp
 public sealed class TimeoutPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : notnull
+    where TRequest : IRequest<TResponse>
 {
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(5);
 
     public async Task<TResponse> Handle(
         TRequest request,
-        RequestHandlerDelegate<TResponse> next,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        RequestHandlerDelegate<TResponse> next)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(DefaultTimeout);
@@ -199,20 +203,28 @@ Functional failure detection inspects handler results to translate domain-specif
 ```csharp
 public sealed class AppFunctionalFailureDetector : IFunctionalFailureDetector
 {
-    public Either<Error, T> DetectFailure<T>(Either<Error, T> result)
+    public bool TryExtractFailure(object? response, out string reason, out object? error)
     {
-        return result.Match(
-            Right: value => Validate(value),
-            Left: error => Either<Error, T>.Left(error));
+        if (response is OperationResult result && !result.IsSuccess)
+        {
+            reason = result.Code ?? "operation.failed";
+            error = result;
+            return true;
+        }
+
+        reason = string.Empty;
+        error = null;
+        return false;
     }
 
-    private Either<Error, T> Validate<T>(T value)
-        => value is ValidationError validation
-            ? Either<Error, T>.Left(validation.ToError())
-            : value;
+    public string? TryGetErrorCode(object? error)
+        => (error as OperationResult)?.Code;
+
+    public string? TryGetErrorMessage(object? error)
+        => (error as OperationResult)?.Message;
 }
 
-cfg.AddFunctionalFailureDetector<AppFunctionalFailureDetector>();
+services.AddSingleton<IFunctionalFailureDetector, AppFunctionalFailureDetector>();
 ```
 
 ## Diagnostics and Metrics
@@ -223,8 +235,8 @@ cfg.AddFunctionalFailureDetector<AppFunctionalFailureDetector>();
 
 ```csharp
 services.AddOpenTelemetry()
-    .WithTracing(b => b.AddSource(MediatorDiagnostics.ActivitySourceName))
-    .WithMetrics(b => b.AddMeter(MediatorMetrics.MeterName));
+    .WithTracing(b => b.AddSource("SimpleMediator"))
+    .WithMetrics(b => b.AddMeter("SimpleMediator"));
 ```
 
 ## Configuration Reference
@@ -232,31 +244,45 @@ services.AddOpenTelemetry()
 ```csharp
 services.AddSimpleMediator(cfg =>
 {
-    cfg.Assemblies.Add(typeof(ApplicationAssemblyMarker).Assembly);
-    cfg.AddPipelineBehavior(typeof(ActivityPipelineBehavior<,>));
-    cfg.AddRequestPreProcessor(typeof(ValidationPreProcessor<>));
-    cfg.AddRequestPostProcessor(typeof(AuditTrailPostProcessor<,>));
-    cfg.AddStreamingHandler(typeof(StreamNotificationHandler<>));
-    cfg.AddFunctionalFailureDetector<AppFunctionalFailureDetector>();
+    cfg.RegisterServicesFromAssemblyContaining<ApplicationAssemblyMarker>()
+       .AddPipelineBehavior(typeof(CommandActivityPipelineBehavior<,>))
+       .AddPipelineBehavior(typeof(QueryActivityPipelineBehavior<,>))
+       .AddRequestPreProcessor(typeof(ValidationPreProcessor<>))
+       .AddRequestPostProcessor(typeof(AuditTrailPostProcessor<,>))
+       .WithHandlerLifetime(ServiceLifetime.Scoped);
 });
 ```
 
 | API | Description |
 | --- | --- |
-| `Assemblies` | Assemblies scanned for handlers, behaviors, processors, and notifications. |
-| `AddPipelineBehavior` | Registers a scoped pipeline behavior. |
-| `AddRequestPreProcessor` | Executes before handler invocation. |
-| `AddRequestPostProcessor` | Executes after handler success or failure. |
-| `AddFunctionalFailureDetector` | Registers a singleton detector (defaults to `DefaultFunctionalFailureDetector`). |
-| `AddStreamingHandler` | Enables streaming or notification handlers discovered by assembly scanning. |
+| `RegisterServicesFromAssembly(assembly)` | Adds one assembly to scan for handlers, notifications, and processors. |
+| `RegisterServicesFromAssemblies(params Assembly[])` | Adds several assemblies at once, ignoring `null` entries. |
+| `RegisterServicesFromAssemblyContaining<T>()` | Convenience helper that adds the assembly where `T` is defined. |
+| `AddPipelineBehavior(Type)` | Registers a scoped pipeline behavior (open or closed generic). |
+| `AddRequestPreProcessor(Type)` | Registers a scoped pre-processor executed before the handler. |
+| `AddRequestPostProcessor(Type)` | Registers a scoped post-processor executed after the handler. |
+| `WithHandlerLifetime(ServiceLifetime)` | Overrides the lifetime used for handlers discovered during scanning. |
 
 ## Testing
 
 ```bash
-dotnet test
+dotnet test --configuration Release
 ```
 
-Tests cover mediator behaviors, pipeline orchestration, and functional failure scenarios. Integrate the mediator in your solution tests to validate request flow and ensure custom behaviors execute as expected.
+To generate coverage (powered by `coverlet.collector`), run:
+
+```bash
+dotnet test --configuration Release --collect:"XPlat Code Coverage"
+```
+
+The coverage report is saved under `TestResults/<timestamp>/coverage.cobertura.xml`, ready to ingest with ReportGenerator, SonarQube, or Azure Pipelines.
+
+The suite exercises:
+
+- Mediator orchestration across happy-path and exceptional flows.
+- Command/query telemetry behaviors (activities, metrics, cancellation, functional failures).
+- Service registration helpers and configuration guards.
+- Default implementations such as `MediatorMetrics` and the null functional failure detector.
 
 ## FAQ
 
