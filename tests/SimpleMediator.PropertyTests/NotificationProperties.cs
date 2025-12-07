@@ -6,7 +6,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using FsCheck;
 using FsCheck.Xunit;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using SimpleMediator;
 
 namespace SimpleMediator.PropertyTests;
 
@@ -21,7 +23,7 @@ public sealed class NotificationProperties
         Cancellation
     }
 
-    private sealed record ExecutionResult(IReadOnlyList<string> Events, Exception? Exception);
+    private sealed record ExecutionResult(Either<Error, Unit> Outcome, IReadOnlyList<string> Events);
 
     [Property(MaxTest = 120)]
     public bool Publish_NotifiesHandlersInRegistrationOrder(PositiveInt countSeed)
@@ -32,7 +34,7 @@ public sealed class NotificationProperties
         var result = ExecutePublish(outcomes, cancelBeforePublish: false);
         var expected = Enumerable.Range(0, handlerCount).Select(i => $"handler:{i}").ToArray();
 
-        return result.Exception is null && result.Events.SequenceEqual(expected);
+        return result.Outcome.IsRight && result.Events.SequenceEqual(expected);
     }
 
     [Property(MaxTest = 120)]
@@ -47,7 +49,11 @@ public sealed class NotificationProperties
         var result = ExecutePublish(outcomes, cancelBeforePublish: false);
         var expected = Enumerable.Range(0, failingIndex + 1).Select(i => $"handler:{i}").ToArray();
 
-        return result.Exception is InvalidOperationException && result.Events.SequenceEqual(expected);
+        return result.Outcome.Match(
+            Left: err => err.Exception.Match(Some: ex => ex is InvalidOperationException, None: () => false)
+                             && err.GetMediatorCode() == "mediator.notification.invoke_exception"
+                             && result.Events.SequenceEqual(expected),
+            Right: _ => false);
     }
 
     [Property(MaxTest = 120)]
@@ -60,24 +66,28 @@ public sealed class NotificationProperties
         var result = ExecutePublish(outcomes, cancelBeforePublish: true);
         var expected = new[] { "handler:0" };
 
-        return result.Exception is OperationCanceledException && result.Events.SequenceEqual(expected);
+        return result.Outcome.Match(
+            Left: err => err.GetMediatorCode() == "mediator.notification.cancelled"
+                             && err.Exception.Match(Some: ex => ex is OperationCanceledException, None: () => false)
+                             && result.Events.SequenceEqual(expected),
+            Right: _ => false);
     }
 
     private static ExecutionResult ExecutePublish(IReadOnlyList<HandlerOutcome> outcomes, bool cancelBeforePublish)
     {
         var services = new ServiceCollection();
         services.AddSingleton<CallRecorder>();
-        services.AddSimpleMediator(Array.Empty<Assembly>());
+        services.AddSimpleMediator(System.Array.Empty<Assembly>());
 
         for (var index = 0; index < outcomes.Count; index++)
         {
             var handlerIndex = index;
-            var outcome = outcomes[index];
+            var handlerOutcome = outcomes[index];
             services.AddSingleton<INotificationHandler<TrackedNotification>>(sp =>
                 new RecordingNotificationHandler(
                     sp.GetRequiredService<CallRecorder>(),
                     label: handlerIndex,
-                    outcome));
+                    handlerOutcome));
         }
 
         using var provider = services.BuildServiceProvider();
@@ -89,20 +99,12 @@ public sealed class NotificationProperties
         var tokenSource = cancelBeforePublish ? new CancellationTokenSource() : null;
         tokenSource?.Cancel();
 
-        Exception? captured = null;
-        try
-        {
-            mediator.Publish(notification, tokenSource?.Token ?? CancellationToken.None)
-                .GetAwaiter()
-                .GetResult();
-        }
-        catch (Exception ex)
-        {
-            captured = ex;
-        }
+        var outcome = mediator.Publish(notification, tokenSource?.Token ?? CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
 
         var events = recorder.Snapshot();
-        return new ExecutionResult(events, captured);
+        return new ExecutionResult(outcome, events);
     }
 
     private static int NormalizeCount(int seed)

@@ -3,8 +3,16 @@
 ![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4.svg)
 ![Status](https://img.shields.io/badge/status-internal-blue.svg)
 ![License](https://img.shields.io/badge/license-private-important.svg)
+![Coverage](https://img.shields.io/badge/coverage-90%25-4C934C.svg)
 
 SimpleMediator is a lightweight mediator abstraction for .NET applications that lean on functional programming principles. It keeps request and response contracts explicit, integrates naturally with [LanguageExt](https://github.com/louthy/language-ext), and embraces pipeline behaviors so cross-cutting concerns stay composable.
+
+> ℹ️ Repository layout
+>
+> - `src/SimpleMediator` – library source code and packaging assets.
+> - `tests/*` – unit, property, and contract test suites.
+> - `benchmarks/*` – BenchmarkDotNet harness.
+> - `docs/` – architecture notes, RFCs, and policies.
 
 ## Table of Contents
 
@@ -23,11 +31,16 @@ SimpleMediator is a lightweight mediator abstraction for .NET applications that 
 
 ## Why SimpleMediator
 
-- Built for functional error handling with `Either` and `Option` from LanguageExt.
+- Built for functional error handling with `Either` and `Option` from LanguageExt, backed by the mediator's `Error` wrapper for rich metadata.
 - Lightweight dependency footprint: `LanguageExt.Core` and `Microsoft.Extensions.*` abstractions.
 - Pipelines, pre-processors, and post-processors make cross-cutting concerns pluggable.
 - Provides telemetry hooks (logging, metrics, activity tracing) without coupling to specific vendors.
 - Ships with guardrails such as functional failure detection to keep domain invariants explicit.
+- En ruta hacia una política Zero Exceptions para que los fallos operativos fluyan mediante Railway Oriented Programming (ROP) en lugar de excepciones.
+
+## Zero Exceptions Initiative
+
+SimpleMediator evoluciona hacia una política Zero Exceptions en la que las operaciones del mediador no propaguen excepciones en escenarios operativos habituales. El objetivo es que handlers, behaviors y el propio mediador comuniquen fallos mediante resultados funcionales (`Either<Error, TValue>`, `Option<T>`, etc.) manteniendo el flujo en los raíles del ROP. Durante la transición se registran los puntos que aún lanzan excepciones y se trabaja para encapsular esos errores dentro de los resultados funcionales, reservando las excepciones para situaciones realmente excepcionales. `MediatorErrors` ofrece fábricas predefinidas para encapsular excepciones dentro de `Error`.
 
 ## Quick Start
 
@@ -75,14 +88,17 @@ var mediator = provider.GetRequiredService<IMediator>();
 ### 3. Send a Command
 
 ```csharp
-public sealed record RegisterUser(string Email, string Password) : ICommand<Either<Error, Unit>>;
+using LanguageExt;
+using static LanguageExt.Prelude;
 
-public sealed class RegisterUserHandler : ICommandHandler<RegisterUser, Either<Error, Unit>>
+public sealed record RegisterUser(string Email, string Password) : ICommand<Unit>;
+
+public sealed class RegisterUserHandler : ICommandHandler<RegisterUser, Unit>
 {
-    public async Task<Either<Error, Unit>> Handle(RegisterUser command, CancellationToken ct)
+    public async Task<Unit> Handle(RegisterUser command, CancellationToken ct)
     {
-        var hashed = await Hashing.HashPassword(command.Password, ct);
-        await Users.StoreAsync(command.Email, hashed, ct);
+        var hashed = await Hashing.HashPassword(command.Password, ct).ConfigureAwait(false);
+        await Users.StoreAsync(command.Email, hashed, ct).ConfigureAwait(false);
         return Unit.Default;
     }
 }
@@ -90,22 +106,26 @@ public sealed class RegisterUserHandler : ICommandHandler<RegisterUser, Either<E
 var result = await mediator.Send(new RegisterUser("user@example.com", "Pass@123"), cancellationToken);
 
 result.Match(
-    _ => Console.WriteLine("User registered"),
-    err => Console.WriteLine(err.Message));
+    Left: error => Console.WriteLine($"Registration failed: {error.GetMediatorCode()}"),
+    Right: _ => Console.WriteLine("User registered"));
 ```
 
 ### 4. Query Data
 
 ```csharp
-public sealed record GetUserProfile(string Email) : IQuery<Either<Error, UserProfile>>;
+public sealed record GetUserProfile(string Email) : IQuery<UserProfile>;
 
-public sealed class GetUserProfileHandler : IQueryHandler<GetUserProfile, Either<Error, UserProfile>>
+public sealed class GetUserProfileHandler : IQueryHandler<GetUserProfile, UserProfile>
 {
-    public Task<Either<Error, UserProfile>> Handle(GetUserProfile query, CancellationToken ct)
+    public Task<UserProfile> Handle(GetUserProfile query, CancellationToken ct)
         => Users.FindAsync(query.Email, ct);
 }
 
-var profile = await mediator.Send(new GetUserProfile("user@example.com"), cancellationToken);
+var profileResult = await mediator.Send(new GetUserProfile("user@example.com"), cancellationToken);
+
+profileResult.Match(
+    Left: error => Console.WriteLine($"Lookup failed: {error.Message}"),
+    Right: profile => Console.WriteLine(profile.DisplayName));
 ```
 
 ## Request Lifecycle
@@ -122,7 +142,7 @@ sequenceDiagram
     Caller->>Mediator: Send(request)
     Mediator->>Pipeline: Execute(request)
     Pipeline->>Handler: Handle(request, ct)
-    Handler-->>Pipeline: Either<Error, TValue>
+    Handler-->>Pipeline: TValue
     Pipeline->>FailureDetector: Inspect(result)
     FailureDetector-->>Pipeline: Either<Error, TValue>
     Pipeline-->>Mediator: Either<Error, TValue>
@@ -135,8 +155,8 @@ SimpleMediator relies on explicit interfaces and result types so each operation 
 
 | Contract | Purpose | Default Expectations |
 | --- | --- | --- |
-| `ICommand<TResult>` | Mutation or side effect returning `TResult`. | Handler returns `Either<Error, TResult>`. |
-| `IQuery<TResult>` | Read operation returning `TResult`. | Handler returns `Either<Error, TResult>`. |
+| `ICommand<TResult>` | Mutation or side effect returning `TResult`. | Handler returns `TResult`; mediator lifts to `Either<Error, TResult>`. |
+| `IQuery<TResult>` | Read operation returning `TResult`. | Handler returns `TResult`; mediator lifts to `Either<Error, TResult>`. |
 | `INotification` | Fire-and-forget signals. | Zero or more notification handlers. |
 
 ```csharp
@@ -144,11 +164,15 @@ public sealed record SendWelcomeEmail(string Email) : INotification;
 
 public sealed class SendWelcomeEmailHandler : INotificationHandler<SendWelcomeEmail>
 {
-    public Task<Unit> Handle(SendWelcomeEmail notification, CancellationToken ct)
-        => EmailGateway.SendAsync(notification.Email, ct).Map(_ => Unit.Default);
+    public Task Handle(SendWelcomeEmail notification, CancellationToken ct)
+        => EmailGateway.SendAsync(notification.Email, ct);
 }
 
-await mediator.Publish(new SendWelcomeEmail("user@example.com"), cancellationToken);
+var publishResult = await mediator.Publish(new SendWelcomeEmail("user@example.com"), cancellationToken);
+
+publishResult.Match(
+    Left: error => Console.WriteLine($"Notification failed: {error.Message}"),
+    Right: _ => Console.WriteLine("Welcome email dispatched"));
 ```
 
 ## Pipeline Behaviors
@@ -177,19 +201,29 @@ services.AddSimpleMediator(cfg =>
 ### Custom Behavior Example
 
 ```csharp
+using LanguageExt;
+
 public sealed class TimeoutPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(5);
 
-    public async Task<TResponse> Handle(
+    public async Task<Either<Error, TResponse>> Handle(
         TRequest request,
         CancellationToken cancellationToken,
         RequestHandlerDelegate<TResponse> next)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(DefaultTimeout);
-        return await next().WaitAsync(cts.Token);
+
+        try
+        {
+            return await next().WaitAsync(cts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex) when (cts.IsCancellationRequested)
+        {
+            return MediatorErrors.FromException("mediator.timeout", ex, $"Timeout ejecutando {typeof(TRequest).Name}.");
+        }
     }
 }
 
@@ -266,16 +300,18 @@ services.AddSimpleMediator(cfg =>
 ## Testing
 
 ```bash
-dotnet test --configuration Release
+dotnet test SimpleMediator.slnx --configuration Release
 ```
 
-To generate coverage (powered by `coverlet.collector`), run:
+To generate coverage (powered by `coverlet.collector`) and produce HTML/Text summaries locally:
 
 ```bash
-dotnet test --configuration Release --collect:"XPlat Code Coverage"
+dotnet test SimpleMediator.slnx --configuration Release --collect:"XPlat Code Coverage" --results-directory artifacts/test-results
+dotnet tool restore
+dotnet tool run reportgenerator -reports:"artifacts/test-results/**/coverage.cobertura.xml" -targetdir:"artifacts/coverage" -reporttypes:"Html;HtmlSummary;TextSummary"
 ```
 
-The coverage report is saved under `TestResults/<timestamp>/coverage.cobertura.xml`, ready to ingest with ReportGenerator, SonarQube, or Azure Pipelines.
+The HTML dashboard (`artifacts/coverage/index.html`) and condensed summary (`artifacts/coverage/Summary.txt`) highlight hot spots—currently `SimpleMediator.SimpleMediator` sits at ~77% line coverage, so deeper send/publish edge cases would provide the biggest gain. The CI workflow runs the same commands and publishes the output as a downloadable artifact.
 
 The suite exercises:
 

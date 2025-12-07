@@ -1,6 +1,9 @@
+using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using LanguageExt;
+using static LanguageExt.Prelude;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using SimpleMediator;
@@ -45,6 +48,23 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddSimpleMediator_ThrowsWhenServicesNull()
+    {
+        Should.Throw<ArgumentNullException>(() => ServiceCollectionExtensions.AddSimpleMediator(null!, typeof(PingCommand).Assembly));
+    }
+
+    [Fact]
+    public void AddSimpleMediator_DoesNotInvokeConfigurationWhenServicesNull()
+    {
+        var invoked = false;
+
+        Should.Throw<ArgumentNullException>(() =>
+            ServiceCollectionExtensions.AddSimpleMediator(null!, _ => invoked = true, typeof(PingCommand).Assembly));
+
+        invoked.ShouldBeFalse();
+    }
+
+    [Fact]
     public void AddApplicationMessaging_IsAliasOfAddSimpleMediator()
     {
         var services = new ServiceCollection();
@@ -65,6 +85,42 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddSimpleMediator_RegistersMetricsAsSingleton()
+    {
+        var services = new ServiceCollection();
+        services.AddSimpleMediator(typeof(PingCommand).Assembly);
+
+        services.ShouldContain(descriptor =>
+            descriptor.ServiceType == typeof(IMediatorMetrics)
+            && descriptor.ImplementationType == typeof(MediatorMetrics)
+            && descriptor.Lifetime == ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public void AddSimpleMediator_RegistersDiscoveredRequestPreProcessors()
+    {
+        var services = new ServiceCollection();
+        services.AddSimpleMediator(typeof(PingCommand).Assembly);
+
+        using var provider = services.BuildServiceProvider();
+        var preProcessors = provider.GetServices<IRequestPreProcessor<PingCommand>>().ToList();
+
+        preProcessors.ShouldContain(processor => processor.GetType() == typeof(SamplePreProcessor));
+    }
+
+    [Fact]
+    public void AddSimpleMediator_RegistersDiscoveredRequestPostProcessors()
+    {
+        var services = new ServiceCollection();
+        services.AddSimpleMediator(typeof(PingCommand).Assembly);
+
+        using var provider = services.BuildServiceProvider();
+        var postProcessors = provider.GetServices<IRequestPostProcessor<PingCommand, string>>().ToList();
+
+        postProcessors.ShouldContain(processor => processor.GetType() == typeof(SamplePostProcessor));
+    }
+
+    [Fact]
     public async Task AddSimpleMediator_UsesLibraryAssemblyWhenNoneProvided()
     {
         var services = new ServiceCollection();
@@ -79,10 +135,25 @@ public sealed class ServiceCollectionExtensionsTests
         ReferenceEquals(detectorA, detectorB).ShouldBeTrue();
     }
 
+    [Fact]
+    public void AddSimpleMediator_RegistersBuiltInPipelineBehaviorsWhenAssembliesMissing()
+    {
+        var services = new ServiceCollection();
+        services.AddSimpleMediator();
+
+        services.ShouldContain(descriptor =>
+            descriptor.ServiceType == typeof(IPipelineBehavior<,>)
+            && descriptor.ImplementationType == typeof(CommandMetricsPipelineBehavior<,>));
+
+        services.ShouldContain(descriptor =>
+            descriptor.ServiceType == typeof(IPipelineBehavior<,>)
+            && descriptor.ImplementationType == typeof(QueryMetricsPipelineBehavior<,>));
+    }
+
     private sealed class ConfiguredPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
-        public Task<TResponse> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
+        public Task<Either<Error, TResponse>> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
             => next();
     }
 
@@ -94,7 +165,7 @@ public sealed class ServiceCollectionExtensionsTests
 
     private sealed class ConfiguredPostProcessor<TRequest, TResponse> : IRequestPostProcessor<TRequest, TResponse>
     {
-        public Task Process(TRequest request, TResponse response, CancellationToken cancellationToken)
+        public Task Process(TRequest request, Either<Error, TResponse> response, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 }

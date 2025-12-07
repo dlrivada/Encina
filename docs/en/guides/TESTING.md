@@ -15,7 +15,7 @@ This guide explains how to exercise the automated test suites that protect Simpl
 Execute every suite with one command from the repository root:
 
 ```pwsh
-dotnet test SimpleMediator.sln --configuration Release
+dotnet test SimpleMediator.slnx --configuration Release
 ```
 
 Use the following filters for a specific layer:
@@ -47,12 +47,23 @@ dotnet tool run reportgenerator -reports:"TestResults/**/*.xml" -targetdir:"arti
 
 The latest HTML and summary output lives under `artifacts/coverage/latest/`.
 
+## Mutation Testing
+
+Run the Stryker.NET sweep through the single-file helper to keep tooling consistent across environments:
+
+```pwsh
+dotnet run --file scripts/run-stryker.cs
+```
+
+Reports land under the timestamped folder in `StrykerOutput/` alongside HTML and JSON summaries. The latest full run (2025-12-07) killed all mutants and reached a 92.37% score, raising the README badge to 90% line coverage in tandem.
+
 ## Property-Based Testing Notes
 
 Property tests limit selector list sizes to keep execution time predictable. When extending the suite, prefer shrinking-aware generators and keep assertions free of side effects so FsCheck can explore counterexamples efficiently.
 
 ## Next Steps
 
+- Publish Stryker reports in CI and gate on the 85 / 70 / 60 threshold configuration.
 - Add notification pipeline properties to guarantee ordering and error semantics.
 - Expand contract tests to cover `ServiceCollectionExtensions` registration expectations.
-- Automate coverage publication in CI once the contract suite stabilises.
+- Capture and document the next BenchmarkDotNet baseline once mediator edge cases settle.

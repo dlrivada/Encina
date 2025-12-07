@@ -229,21 +229,16 @@ public sealed class SimpleMediatorConfiguration
 
     private static Type ResolveServiceType(Type implementationType, Type genericInterface)
     {
-        if (implementationType.IsGenericTypeDefinition)
-        {
-            return genericInterface;
-        }
-
         var interfaceType = implementationType
             .GetInterfaces()
             .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == genericInterface);
 
-        if (interfaceType is null)
+        if (implementationType.IsGenericTypeDefinition || interfaceType is null || interfaceType.ContainsGenericParameters)
         {
             return genericInterface;
         }
 
-        return interfaceType.ContainsGenericParameters ? genericInterface : interfaceType;
+        return interfaceType;
     }
 }
 
@@ -267,11 +262,6 @@ internal static class TypeExtensions
         if (!genericInterface.IsInterface || !genericInterface.IsGenericType)
         {
             return genericInterface.IsAssignableFrom(candidate);
-        }
-
-        if (candidate.IsGenericTypeDefinition)
-        {
-            return candidate.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == genericInterface);
         }
 
         return candidate

@@ -6,7 +6,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using FsCheck;
 using FsCheck.Xunit;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using SimpleMediator;
 
 namespace SimpleMediator.PropertyTests;
 
@@ -232,11 +234,11 @@ public sealed class ConfigurationProperties
         _ => HandlerExecution.Success
     };
 
-    private sealed record ExecutionResult(int? Response, IReadOnlyList<string> Events, Exception? Exception);
+    private sealed record ExecutionResult(Either<Error, int> Outcome, IReadOnlyList<string> Events);
 
     private static IReadOnlyList<Type> OrderedDistinct(IEnumerable<Type> sequence)
     {
-        var seen = new HashSet<Type>();
+        var seen = new System.Collections.Generic.HashSet<Type>();
         var ordered = new List<Type>();
 
         foreach (var type in sequence)
@@ -296,7 +298,9 @@ public sealed class ConfigurationProperties
         var result = ExecuteMediator(pipeline, preProcessors, postProcessors, HandlerExecution.Success);
         var expected = BuildExpectedTimeline(pipeline, preProcessors, postProcessors, HandlerExecution.Success);
 
-        return result.Exception is null && result.Response == DeterministicValue && result.Events.SequenceEqual(expected);
+        return result.Outcome.Match(
+            Left: static _ => false,
+            Right: value => value == DeterministicValue && result.Events.SequenceEqual(expected));
     }
 
     [Property(MaxTest = 150)]
@@ -316,22 +320,24 @@ public sealed class ConfigurationProperties
 
         return outcome switch
         {
-            HandlerExecution.Success => result.Exception is null
-                                          && result.Response == DeterministicValue
-                                          && result.Events.SequenceEqual(expected),
-            HandlerExecution.Exception => result.Exception is InvalidOperationException
-                                            && result.Response is null
-                                            && result.Events.SequenceEqual(expected),
-            HandlerExecution.Cancellation => result.Exception is OperationCanceledException
-                                               && result.Response is null
-                                               && result.Events.SequenceEqual(expected),
+            HandlerExecution.Success => result.Outcome.Match(
+                Left: static _ => false,
+                Right: value => value == DeterministicValue && result.Events.SequenceEqual(expected)),
+            HandlerExecution.Exception => result.Outcome.Match(
+                Left: err => err.Exception.Match(Some: ex => ex is InvalidOperationException, None: () => false)
+                                 && result.Events.SequenceEqual(expected),
+                Right: static _ => false),
+            HandlerExecution.Cancellation => result.Outcome.Match(
+                Left: err => err.Exception.Match(Some: ex => ex is OperationCanceledException, None: () => false)
+                                 && result.Events.SequenceEqual(expected),
+                Right: static _ => false),
             _ => false
         };
     }
 
     private static IReadOnlyList<(Type Type, string Label)> SelectCandidates(IEnumerable<int> indices, (Type Type, string Label)[] pool)
     {
-        var seen = new HashSet<Type>();
+        var seen = new System.Collections.Generic.HashSet<Type>();
         var ordered = new List<(Type, string)>();
 
         foreach (var index in indices)
@@ -388,19 +394,9 @@ public sealed class ConfigurationProperties
         var tokenSource = execution == HandlerExecution.Cancellation ? new CancellationTokenSource() : null;
         tokenSource?.Cancel();
 
-        int? response = null;
-        Exception? captured = null;
-        try
-        {
-            response = mediator.Send(request, tokenSource?.Token ?? CancellationToken.None).GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            captured = ex;
-        }
-
+        var outcome = mediator.Send(request, tokenSource?.Token ?? CancellationToken.None).GetAwaiter().GetResult();
         var events = recorder.Snapshot();
-        return new ExecutionResult(response, events, captured);
+        return new ExecutionResult(outcome, events);
     }
 
     private static Type CloseGeneric(Type type, params Type[] arguments)
@@ -493,7 +489,7 @@ public sealed class ConfigurationProperties
 
         protected abstract string Label { get; }
 
-        public async Task<TResponse> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
+        public async Task<Either<Error, TResponse>> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
         {
             _recorder.Add($"behavior:{Label}:enter");
             try
@@ -597,9 +593,12 @@ public sealed class ConfigurationProperties
 
         protected abstract string Label { get; }
 
-        public Task Process(TRequest request, TResponse response, CancellationToken cancellationToken)
+        public Task Process(TRequest request, Either<Error, TResponse> response, CancellationToken cancellationToken)
         {
-            _recorder.Add($"post:{Label}");
+            if (response.IsRight)
+            {
+                _recorder.Add($"post:{Label}");
+            }
             return Task.CompletedTask;
         }
     }

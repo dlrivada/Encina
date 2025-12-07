@@ -1,9 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Xunit;
+using SimpleMediator;
 
 namespace SimpleMediator.ContractTests;
 
@@ -152,7 +156,7 @@ public sealed class ServiceRegistrationContracts
     private sealed class SamplePipelineBehavior<TRequest, TResponse> : global::SimpleMediator.IPipelineBehavior<TRequest, TResponse>
         where TRequest : global::SimpleMediator.IRequest<TResponse>
     {
-        public Task<TResponse> Handle(TRequest request, CancellationToken cancellationToken, global::SimpleMediator.RequestHandlerDelegate<TResponse> next)
+        public Task<Either<Error, TResponse>> Handle(TRequest request, CancellationToken cancellationToken, global::SimpleMediator.RequestHandlerDelegate<TResponse> next)
         {
             return next();
         }
@@ -161,7 +165,7 @@ public sealed class ServiceRegistrationContracts
     private sealed class SampleCommandPipelineBehavior<TCommand, TResponse> : global::SimpleMediator.ICommandPipelineBehavior<TCommand, TResponse>
         where TCommand : global::SimpleMediator.ICommand<TResponse>
     {
-        public Task<TResponse> Handle(TCommand request, CancellationToken cancellationToken, global::SimpleMediator.RequestHandlerDelegate<TResponse> next)
+        public Task<Either<Error, TResponse>> Handle(TCommand request, CancellationToken cancellationToken, global::SimpleMediator.RequestHandlerDelegate<TResponse> next)
         {
             return next();
         }
@@ -170,7 +174,7 @@ public sealed class ServiceRegistrationContracts
     private sealed class SampleQueryPipelineBehavior<TQuery, TResponse> : global::SimpleMediator.IQueryPipelineBehavior<TQuery, TResponse>
         where TQuery : global::SimpleMediator.IQuery<TResponse>
     {
-        public Task<TResponse> Handle(TQuery request, CancellationToken cancellationToken, global::SimpleMediator.RequestHandlerDelegate<TResponse> next)
+        public Task<Either<Error, TResponse>> Handle(TQuery request, CancellationToken cancellationToken, global::SimpleMediator.RequestHandlerDelegate<TResponse> next)
         {
             return next();
         }
@@ -186,7 +190,7 @@ public sealed class ServiceRegistrationContracts
 
     private sealed class SampleRequestPostProcessor<TRequest, TResponse> : global::SimpleMediator.IRequestPostProcessor<TRequest, TResponse>
     {
-        public Task Process(TRequest request, TResponse response, CancellationToken cancellationToken)
+        public Task Process(TRequest request, Either<Error, TResponse> response, CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
         }

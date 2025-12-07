@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 using Microsoft.Extensions.DependencyInjection;
+using LanguageExt;
 
 namespace SimpleMediator.Benchmarks;
 
@@ -16,7 +17,7 @@ public static class Program
 }
 
 [MemoryDiagnoser]
-public sealed class MediatorBenchmarks
+public class MediatorBenchmarks
 {
     private IServiceProvider _provider = default!;
 
@@ -46,7 +47,10 @@ public sealed class MediatorBenchmarks
         using var scope = _provider.CreateScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         var command = new SampleCommand(Guid.NewGuid());
-        return await mediator.Send(command).ConfigureAwait(false);
+        var outcome = await mediator.Send(command).ConfigureAwait(false);
+        return outcome.Match(
+            Left: error => throw new InvalidOperationException($"Sample command failed: {error.Message}"),
+            Right: value => value);
     }
 
     [Benchmark]
@@ -103,7 +107,7 @@ public sealed class MediatorBenchmarks
 
         public TracingPipelineBehavior(CallRecorder recorder) => _recorder = recorder;
 
-        public async Task<TResponse> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
+        public async Task<Either<Error, TResponse>> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
         {
             _recorder.Register("pipeline:enter");
             try
@@ -136,7 +140,7 @@ public sealed class MediatorBenchmarks
 
         public TracingPostProcessor(CallRecorder recorder) => _recorder = recorder;
 
-        public Task Process(TRequest request, TResponse response, CancellationToken cancellationToken)
+        public Task Process(TRequest request, Either<Error, TResponse> response, CancellationToken cancellationToken)
         {
             _recorder.Register("post");
             return Task.CompletedTask;

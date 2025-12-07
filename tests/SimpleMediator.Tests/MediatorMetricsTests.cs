@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
+using System.Reflection;
 using Shouldly;
 using SimpleMediator;
 
@@ -8,6 +9,17 @@ namespace SimpleMediator.Tests;
 
 public sealed class MediatorMetricsTests
 {
+    [Fact]
+    public void MeterConfiguration_UsesExpectedNameAndVersion()
+    {
+        var meterField = typeof(MediatorMetrics).GetField("Meter", BindingFlags.NonPublic | BindingFlags.Static);
+        meterField.ShouldNotBeNull();
+
+        var meter = meterField.GetValue(null).ShouldBeOfType<Meter>();
+        meter.Name.ShouldBe("SimpleMediator");
+        meter.Version.ShouldBe("1.0");
+    }
+
     [Fact]
     public void TrackSuccess_EmitsCounterAndDurationHistogram()
     {
@@ -33,14 +45,17 @@ public sealed class MediatorMetricsTests
 
         metrics.TrackSuccess("command", "Ping", TimeSpan.FromMilliseconds(42));
 
-        successMeasurements.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
-            item => item.value.ShouldBe(1),
-            item => item.tags["request.kind"].ShouldBe("command"),
-            item => item.tags["request.name"].ShouldBe("Ping"));
+        successMeasurements.Count.ShouldBe(1);
+        var success = successMeasurements[0];
+        success.value.ShouldBe(1);
+        success.tags["request.kind"].ShouldBe("command");
+        success.tags["request.name"].ShouldBe("Ping");
 
-        durationMeasurements.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
-            item => item.value.ShouldBe(42),
-            item => item.tags["request.kind"].ShouldBe("command"));
+        durationMeasurements.Count.ShouldBe(1);
+        var successDuration = durationMeasurements[0];
+        successDuration.value.ShouldBe(42);
+        successDuration.tags["request.kind"].ShouldBe("command");
+        successDuration.tags["request.name"].ShouldBe("Ping");
     }
 
     [Fact]
@@ -48,6 +63,7 @@ public sealed class MediatorMetricsTests
     {
         var metrics = new MediatorMetrics();
         var failureMeasurements = new List<(long value, Dictionary<string, object?> tags)>();
+        var durationMeasurements = new List<(double value, Dictionary<string, object?> tags)>();
 
         using var listener = CreateListener(
             onLongMeasurement: (instrument, measurement, tags) =>
@@ -56,14 +72,42 @@ public sealed class MediatorMetricsTests
                 {
                     failureMeasurements.Add((measurement, tags));
                 }
+            },
+            onDoubleMeasurement: (instrument, measurement, tags) =>
+            {
+                if (instrument.Name == "simplemediator.request.duration")
+                {
+                    durationMeasurements.Add((measurement, tags));
+                }
             });
 
         metrics.TrackFailure("query", "FindOrders", TimeSpan.FromMilliseconds(10), "timeout");
 
-        failureMeasurements.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
-            item => item.value.ShouldBe(1),
-            item => item.tags["request.kind"].ShouldBe("query"),
-            item => item.tags["failure.reason"].ShouldBe("timeout"));
+        failureMeasurements.Count.ShouldBe(1);
+        var failure = failureMeasurements[0];
+        failure.value.ShouldBe(1);
+        failure.tags["request.kind"].ShouldBe("query");
+        failure.tags["request.name"].ShouldBe("FindOrders");
+        failure.tags["failure.reason"].ShouldBe("timeout");
+
+        durationMeasurements.Count.ShouldBe(1);
+        var failureDuration = durationMeasurements[0];
+        failureDuration.value.ShouldBe(10);
+        failureDuration.tags["request.kind"].ShouldBe("query");
+        failureDuration.tags["request.name"].ShouldBe("FindOrders");
+        failureDuration.tags["failure.reason"].ShouldBe("timeout");
+    }
+
+    [Fact]
+    public void DurationHistogram_UsesMillisecondsUnit()
+    {
+        var histogramField = typeof(MediatorMetrics)
+            .GetField("_durationHistogram", BindingFlags.NonPublic | BindingFlags.Instance);
+        histogramField.ShouldNotBeNull();
+
+        var metrics = new MediatorMetrics();
+        var histogram = histogramField.GetValue(metrics).ShouldBeOfType<Histogram<double>>();
+        histogram.Unit.ShouldBe("ms");
     }
 
     private static MeterListener CreateListener(

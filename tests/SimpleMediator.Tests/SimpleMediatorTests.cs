@@ -1,7 +1,12 @@
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
+using LanguageExt;
+using static LanguageExt.Prelude;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -22,98 +27,421 @@ public sealed class SimpleMediatorTests
         {
             cfg.AddPipelineBehavior(typeof(TrackingBehavior<,>))
                .AddPipelineBehavior(typeof(SecondTrackingBehavior<,>));
-        }, typeof(EchoRequest).Assembly);
+        });
+        services.AddScoped<IRequestHandler<EchoRequest, string>, EchoRequestHandler>();
         services.AddScoped(_ => tracker);
 
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        var response = await mediator.Send(new EchoRequest("hola"), CancellationToken.None);
+        var result = await mediator.Send(new EchoRequest("hola"), CancellationToken.None);
 
+        var response = ExpectSuccess(result);
         response.ShouldBe("hola");
         tracker.Events.ShouldBe(new[] { "tracking:before", "second:before", "handler", "second:after", "tracking:after" });
     }
 
     [Fact]
-    public async Task Send_ThrowsInvalidOperation_WhenHandlerNotRegistered()
+    public async Task Send_ReturnsFailureWhenRequestIsNull()
     {
-        var services = new ServiceCollection();
-        services.AddApplicationMessaging(typeof(EchoRequest).Assembly);
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(loggerCollector: loggerCollector);
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        var action = async () => await mediator.Send(new MissingHandlerRequest(), CancellationToken.None);
+        var result = await mediator.Send<string>(null!, CancellationToken.None);
 
-        var exception = await Should.ThrowAsync<InvalidOperationException>(action);
-        exception.Message.ShouldContain("No se encontró un IRequestHandler registrado");
-        exception.Message.ShouldContain(nameof(MissingHandlerRequest));
+        var error = ExpectFailure(result, "mediator.request.null");
+        error.Message.ShouldContain("no puede ser nula");
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Message.Contains("La solicitud no puede ser nula."));
     }
 
     [Fact]
-    public async Task Send_PropagatesHandlerExceptions()
+    public async Task Send_ReturnsFailure_WhenHandlerNotRegistered()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = new ServiceCollection();
+        services.AddApplicationMessaging(typeof(EchoRequest).Assembly);
+        services.AddSingleton(loggerCollector);
+        services.AddSingleton<ILogger<SimpleMediator>>(sp => new ListLogger<SimpleMediator>(sp.GetRequiredService<LoggerCollector>()));
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Send(new MissingHandlerRequest(), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.handler.missing");
+        error.Message.ShouldContain("No se encontró un IRequestHandler registrado");
+        error.Message.ShouldContain(nameof(MissingHandlerRequest));
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Message.Contains("No se encontró un IRequestHandler registrado para")
+            && entry.Message.Contains(nameof(MissingHandlerRequest)));
+    }
+
+    [Fact]
+    public async Task Send_ReturnsFailure_WhenHandlerThrows()
     {
         var services = BuildServiceCollection();
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        var action = async () => await mediator.Send(new FaultyRequest(), CancellationToken.None);
+        var result = await mediator.Send(new FaultyRequest(), CancellationToken.None);
 
-        var exception = await Should.ThrowAsync<InvalidOperationException>(action);
-        exception.Message.ShouldBe("boom");
+        var error = ExpectFailure(result, "mediator.handler.exception");
+        error.Message.ShouldContain("Error ejecutando");
+        var exception = ExtractException(error);
+        exception.ShouldNotBeNull();
+        exception!.Message.ShouldBe("boom");
     }
 
     [Fact]
     public async Task Send_DetectsCancellation()
     {
-        var services = BuildServiceCollection();
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(pipelineTracker: new PipelineTracker(), loggerCollector: loggerCollector);
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var action = async () => await mediator.Send(new CancellableRequest(), cts.Token);
+        var result = await mediator.Send(new CancellableRequest(), cts.Token);
 
-        await Should.ThrowAsync<OperationCanceledException>(action);
+        var error = ExpectFailure(result, "mediator.handler.cancelled");
+        error.Message.ShouldContain("canceló la solicitud");
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Warning
+            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains(nameof(CancellableRequest)));
+    }
+
+    [Fact]
+    public async Task Send_DoesNotLogCancellation_WhenHandlerCancelsWithoutToken()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(loggerCollector: loggerCollector);
+        services.RemoveAll(typeof(IRequestHandler<AccidentalCancellationRequest, string>));
+        services.AddScoped<IRequestHandler<AccidentalCancellationRequest, string>, AccidentalCancellationRequestHandler>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Send(new AccidentalCancellationRequest(), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.handler.exception");
+        ExtractException(error).ShouldBeOfType<OperationCanceledException>();
+        loggerCollector.Entries.Any(entry =>
+            entry.LogLevel == LogLevel.Warning
+            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains(nameof(AccidentalCancellationRequest))).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Send_LogsWarning_WhenErrorCodeEqualsCancelled()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(loggerCollector: loggerCollector);
+        services.AddScoped<IRequestHandler<CancelledOutcomeRequest, string>, CancelledOutcomeRequestHandler>();
+        services.AddScoped<IPipelineBehavior<CancelledOutcomeRequest, string>, CancelledOutcomeBehavior>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Send(new CancelledOutcomeRequest(), CancellationToken.None);
+
+        var error = ExpectFailure(result, "cancelled");
+        error.Message.ShouldBe("Explicit cancellation.");
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Warning
+            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains(nameof(CancelledOutcomeRequest))
+            && entry.Message.Contains("cancelled"));
+        loggerCollector.Entries.ShouldNotContain(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Message.Contains("La solicitud")
+            && entry.Message.Contains(nameof(CancelledOutcomeRequest)));
+    }
+
+    [Fact]
+    public async Task LogSendOutcome_EmitsWarningWithoutErrorForCancelledPrefix()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(loggerCollector: loggerCollector);
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = (SimpleMediator)provider.GetRequiredService<IMediator>();
+
+        var logSendOutcome = typeof(SimpleMediator)
+            .GetMethod("LogSendOutcome", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .MakeGenericMethod(typeof(string));
+
+        var cancelledError = MediatorErrors.Create("cancelled.flow", "Flow stopped");
+        var outcome = Left<Error, string>(cancelledError);
+
+        logSendOutcome.Invoke(mediator, new object[]
+        {
+            typeof(CancelledOutcomeRequest),
+            typeof(CancelledOutcomeRequestHandler),
+            outcome
+        });
+
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Warning
+            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains("cancelled.flow"));
+        loggerCollector.Entries.ShouldNotContain(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Message.Contains("cancelled.flow"));
+    }
+
+    [Fact]
+    public async Task LogSendOutcome_LogsDebugOnSuccessfulOutcome()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(loggerCollector: loggerCollector);
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = (SimpleMediator)provider.GetRequiredService<IMediator>();
+
+        var logSendOutcome = typeof(SimpleMediator)
+            .GetMethod("LogSendOutcome", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .MakeGenericMethod(typeof(string));
+
+        var outcome = Right<Error, string>("ok");
+
+        logSendOutcome.Invoke(mediator, new object[]
+        {
+            typeof(EchoRequest),
+            typeof(EchoRequestHandler),
+            outcome
+        });
+
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Debug
+            && entry.Message.Contains("Solicitud EchoRequest completada"));
+        loggerCollector.Entries.ShouldNotContain(entry =>
+            entry.LogLevel == LogLevel.Warning
+            || entry.LogLevel == LogLevel.Error
+            || entry.LogLevel == LogLevel.Critical);
+    }
+
+    [Theory]
+    [InlineData("cancelled", true)]
+    [InlineData("cancelled.flow", true)]
+    [InlineData("mediator.handler.cancelled", true)]
+    [InlineData("Mediator.Behavior.Cancelled", true)]
+    [InlineData("mediator.handler.exception", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsCancellationCode_DetectsSubstring(string? code, bool expected)
+    {
+        SimpleMediator.IsCancellationCode(code ?? string.Empty).ShouldBe(expected);
     }
 
     [Fact]
     public async Task Publish_InvokesAllNotificationHandlers_AndAllowsNullResult()
     {
         var tracker = new NotificationTracker();
-        var services = BuildServiceCollection(notificationTracker: tracker);
+        var loggerCollector = new LoggerCollector();
+        using var activityCollector = new ActivityCollector();
+        var services = BuildServiceCollection(notificationTracker: tracker, loggerCollector: loggerCollector);
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        await mediator.Publish(new SampleNotification(42), CancellationToken.None);
+        var result = await mediator.Publish(new SampleNotification(42), CancellationToken.None);
 
+        ExpectSuccess(result);
         tracker.Handled.ShouldBe(new[] { "A:42", "B:42" });
+        loggerCollector.Entries.Count(entry => entry.Message.Contains("Enviando notificación")).ShouldBe(2);
+        activityCollector.Activities.ShouldNotBeEmpty();
+        var activity = activityCollector.Activities.Last(a => a.DisplayName == "SimpleMediator.Publish");
+        activity.DisplayName.ShouldBe("SimpleMediator.Publish");
+        activity.Status.ShouldBe(ActivityStatusCode.Ok);
+        activity.GetTagItem("mediator.notification_type").ShouldBe(typeof(SampleNotification).FullName);
     }
 
     [Fact]
     public async Task Publish_SwallowsWhenNoHandlersRegistered()
     {
+        var loggerCollector = new LoggerCollector();
+        using var activityCollector = new ActivityCollector();
         var services = new ServiceCollection();
         services.AddApplicationMessaging(typeof(SimpleMediatorTests).Assembly);
+        services.RemoveAll(typeof(INotificationHandler<UnhandledNotification>));
+        services.AddSingleton(loggerCollector);
+        services.AddSingleton<ILogger<SimpleMediator>>(sp => new ListLogger<SimpleMediator>(sp.GetRequiredService<LoggerCollector>()));
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        await mediator.Publish(new UnhandledNotification(), CancellationToken.None);
+        var result = await mediator.Publish(new UnhandledNotification(), CancellationToken.None);
+
+        ExpectSuccess(result);
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Debug
+            && entry.Message.Contains("No se encontraron handlers para la notificación")
+            && entry.Message.Contains(nameof(UnhandledNotification)));
+        var activity = activityCollector.Activities.Last(a => a.DisplayName == "SimpleMediator.Publish");
+        activity.Status.ShouldBe(ActivityStatusCode.Ok);
+    }
+
+    [Fact]
+    public async Task Publish_ReturnsFailureWhenNotificationIsNull()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(loggerCollector: loggerCollector);
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Publish<SampleNotification>(null!, CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.notification.null");
+        error.Message.ShouldContain("no puede ser nula");
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Message.Contains("La notificación no puede ser nula."));
+    }
+
+    [Fact]
+    public async Task Publish_ReportsRuntimeTypeWhenHandlerCancelsWithToken()
+    {
+        var services = new ServiceCollection();
+        services.AddSimpleMediator();
+        services.AddScoped<INotificationHandler<ExplicitNotification>, CancellingExplicitNotificationHandler>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var result = await mediator.Publish<INotification>(new ExplicitNotification(), cts.Token);
+
+        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        error.Message.ShouldContain($"La publicación de {nameof(ExplicitNotification)}");
+        error.Message.ShouldNotContain("La publicación de INotification");
+    }
+
+    [Fact]
+    public void MediatorErrors_FromException_PopulatesMetadata()
+    {
+        var inner = new InvalidOperationException("failure");
+
+        var error = MediatorErrors.FromException("mediator.test", inner, "boom", new { Value = 42 });
+
+        error.Message.ShouldBe("boom");
+        ExtractException(error).ShouldBe(inner);
+        error.GetMediatorCode().ShouldBe("mediator.test");
+        error.GetMediatorDetails().ShouldNotBeNull();
+        error.GetMediatorDetails()!.ShouldBeAssignableTo<object>();
+    }
+
+    [Fact]
+    public void MediatorErrors_Unknown_ExposesDefaultMessage()
+    {
+        var error = MediatorErrors.Unknown;
+
+        error.GetMediatorCode().ShouldBe("mediator.unknown");
+        error.Message.ShouldBe("Se produjo un error inesperado en SimpleMediator.");
+    }
+
+
+    [Fact]
+    public void Error_New_WithNullException_DoesNotExposeException()
+    {
+        var error = Error.New("mensaje", (Exception?)null);
+
+        error.Exception.IsSome.ShouldBeFalse();
+        error.MetadataException.IsSome.ShouldBeFalse();
+        error.Message.ShouldBe("mensaje");
+    }
+    [Fact]
+    public void Error_NewString_UsesDefaultMessageWhenBlank()
+    {
+        var error = Error.New(string.Empty);
+
+        error.Message.ShouldBe("Se produjo un error");
+        error.Exception.IsSome.ShouldBeFalse();
+        error.GetMediatorDetails().ShouldBeNull();
+    }
+
+    [Fact]
+    public void Error_NewException_ReturnsDefaultWhenNull()
+    {
+        var error = Error.New((Exception)null!);
+
+        error.Message.ShouldBe("Se produjo un error");
+        error.Exception.IsSome.ShouldBeFalse();
+        error.GetMediatorDetails().ShouldBeNull();
+    }
+
+    [Fact]
+    public void Error_NewException_NormalizesMediatorExceptionInner()
+    {
+        var inner = new InvalidOperationException("inner");
+        var mediatorException = new MediatorException("mediator.code", "outer", inner, details: null);
+
+        var error = Error.New(mediatorException);
+
+        error.Message.ShouldBe("outer");
+        ExtractException(error).ShouldBe(inner);
+        error.GetMediatorCode().ShouldBe("mediator.code");
+        error.GetMediatorDetails().ShouldBeNull();
+    }
+
+    [Fact]
+    public void Error_NewExceptionWithOverride_PreservesMetadata()
+    {
+        var mediatorException = new MediatorException("mediator.override", "outer", innerException: null, details: 99);
+
+        var error = Error.New(mediatorException, "override message");
+
+        error.Message.ShouldBe("override message");
+        ExtractException(error).ShouldBe(mediatorException);
+        error.GetMediatorCode().ShouldBe("mediator.override");
+        error.GetMediatorDetails().ShouldBe(99);
+    }
+
+    [Fact]
+    public void Error_NewMessageAndException_PreservesException()
+    {
+        var exception = new ApplicationException("oops");
+
+        var error = Error.New("boom", exception);
+
+        error.Message.ShouldBe("boom");
+        ExtractException(error).ShouldBe(exception);
+        error.GetMediatorCode().ShouldBe(nameof(ApplicationException));
+        error.GetMediatorDetails().ShouldBeNull();
     }
 
     [Fact]
     public async Task Publish_PropagatesHandlerFailures()
     {
         var tracker = new NotificationTracker();
-        var services = BuildServiceCollection(notificationTracker: tracker);
+        var loggerCollector = new LoggerCollector();
+        using var activityCollector = new ActivityCollector();
+        var services = BuildServiceCollection(notificationTracker: tracker, loggerCollector: loggerCollector);
         services.AddScoped<INotificationHandler<SampleNotification>, FaultyNotificationHandler>();
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        var action = async () => await mediator.Publish(new SampleNotification(7), CancellationToken.None);
+        var result = await mediator.Publish(new SampleNotification(7), CancellationToken.None);
 
-        var exception = await Should.ThrowAsync<InvalidOperationException>(action);
-        exception.Message.ShouldBe("notify-failure");
+        var error = ExpectFailure(result, "mediator.notification.exception");
+        var publishException = ExtractException(error);
+        publishException.ShouldNotBeNull();
+        publishException!.Message.ShouldBe("notify-failure");
+        loggerCollector.Entries.Any(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Exception != null
+            && entry.Exception.Message == "notify-failure"
+            && entry.Message.Contains("Error al publicar la notificación")
+            && entry.Message.Contains(nameof(SampleNotification))).ShouldBeTrue();
+        var activity = activityCollector.Activities.Last(a => a.DisplayName == "SimpleMediator.Publish");
+        activity.Status.ShouldBe(ActivityStatusCode.Error);
+        activity.StatusDescription.ShouldBe(error.Message);
     }
 
     [Fact]
@@ -125,14 +453,47 @@ public sealed class SimpleMediatorTests
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        await mediator.Publish(new SampleNotification(99), CancellationToken.None);
+        var result = await mediator.Publish(new SampleNotification(99), CancellationToken.None);
+
+        ExpectSuccess(result);
     }
 
     [Fact]
     public async Task Publish_HonorsCancellationRequests()
     {
+        var loggerCollector = new LoggerCollector();
+        using var activityCollector = new ActivityCollector();
         var services = new ServiceCollection();
         services.AddApplicationMessaging(typeof(EchoRequest).Assembly);
+        services.RemoveAll(typeof(INotificationHandler<SampleNotification>));
+        services.AddScoped<INotificationHandler<SampleNotification>, CancellableNotificationHandler>();
+        services.AddSingleton(loggerCollector);
+        services.AddSingleton<ILogger<SimpleMediator>>(sp => new ListLogger<SimpleMediator>(sp.GetRequiredService<LoggerCollector>()));
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var result = await mediator.Publish(new SampleNotification(5), cts.Token);
+
+        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        error.Message.ShouldContain("fue cancelada");
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Warning
+            && entry.Message.Contains("Se canceló la publicación")
+            && entry.Message.Contains(nameof(SampleNotification)));
+        var activity = activityCollector.Activities.Last(a => a.DisplayName == "SimpleMediator.Publish");
+        activity.Status.ShouldBe(ActivityStatusCode.Error);
+        activity.StatusDescription.ShouldBe(error.Message);
+    }
+
+    [Fact]
+    public async Task Publish_LogsWarningWithoutError_WhenCancelledBeforeHandlersRun()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(loggerCollector: loggerCollector);
         services.RemoveAll(typeof(INotificationHandler<SampleNotification>));
         services.AddScoped<INotificationHandler<SampleNotification>, CancellableNotificationHandler>();
 
@@ -142,9 +503,270 @@ public sealed class SimpleMediatorTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var action = () => mediator.Publish(new SampleNotification(5), cts.Token);
+        var result = await mediator.Publish(new SampleNotification(27), cts.Token);
 
-        await Should.ThrowAsync<OperationCanceledException>(action);
+        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        error.Message.ShouldContain("fue cancelada");
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Warning
+            && entry.Message.Contains("Se canceló la publicación")
+            && entry.Message.Contains(nameof(SampleNotification)));
+        loggerCollector.Entries.Any(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Message.Contains("Error al publicar la notificación")
+            && entry.Message.Contains(nameof(SampleNotification))).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Publish_DoesNotLogCancellation_WhenHandlerCancelsWithoutToken()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(loggerCollector: loggerCollector);
+        services.RemoveAll(typeof(INotificationHandler<AccidentalCancellationNotification>));
+        services.AddScoped<INotificationHandler<AccidentalCancellationNotification>, AccidentalCancellationNotificationHandler>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Publish(new AccidentalCancellationNotification(), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.notification.exception");
+        ExtractException(error).ShouldBeOfType<OperationCanceledException>();
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Message.Contains("Error al publicar la notificación")
+            && entry.Message.Contains(nameof(AccidentalCancellationNotification)));
+        loggerCollector.Entries.Any(entry =>
+            entry.LogLevel == LogLevel.Warning
+            && entry.Message.Contains("Se canceló la publicación")
+            && entry.Message.Contains(nameof(AccidentalCancellationNotification))).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Publish_ReturnsFailureWhenHandlerDoesNotExposePublicHandle()
+    {
+        var services = new ServiceCollection();
+        services.AddApplicationMessaging(typeof(SimpleMediatorTests).Assembly);
+        services.RemoveAll(typeof(INotificationHandler<ExplicitNotification>));
+        services.AddScoped<INotificationHandler<ExplicitNotification>, ExplicitInterfaceNotificationHandler>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Publish(new ExplicitNotification(), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.notification.missing_handle");
+        error.Message.ShouldContain(nameof(ExplicitInterfaceNotificationHandler));
+        error.Message.ShouldContain("no expone un método Handle");
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_ReportsFailureWhenHandlerThrowsSynchronously()
+    {
+        var method = typeof(SimpleMediator)
+            .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!.
+            MakeGenericMethod(typeof(ExplicitNotification));
+        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<Error, Unit>>>)method.CreateDelegate(typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<Error, Unit>>>));
+
+        var handler = new ThrowingExplicitNotificationHandler();
+        var result = await invoke(handler, new ExplicitNotification(), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.notification.exception");
+        var explicitException = ExtractException(error);
+        explicitException.ShouldNotBeNull();
+        explicitException!.Message.ShouldBe("explicit boom");
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_ReportsFailureWhenResultIsUnexpected()
+    {
+        var method = typeof(SimpleMediator)
+            .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!.
+            MakeGenericMethod(typeof(ExplicitNotification));
+        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<Error, Unit>>>)method.CreateDelegate(typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<Error, Unit>>>));
+
+        var handler = new InvalidNotificationResultHandler();
+        var result = await invoke(handler, new ExplicitNotification(), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.notification.invalid_return");
+        error.Message.ShouldContain("devolvió un tipo inesperado");
+        error.Message.ShouldContain(nameof(InvalidNotificationResultHandler));
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_UsesRuntimeType_WhenInterfacePublishReturnsUnexpectedResult()
+    {
+        var invoke = CreateInvokeNotificationDelegate<INotification>();
+        INotification notification = new ExplicitNotification();
+
+        var handler = new InvalidNotificationResultHandler();
+        var result = await invoke(handler, notification, CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.notification.invalid_return");
+        error.Message.ShouldContain(nameof(ExplicitNotification));
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_UsesRuntimeType_WhenInterfacePublishCancelsInsideHandler()
+    {
+        var invoke = CreateInvokeNotificationDelegate<INotification>();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        INotification notification = new AccidentalCancellationNotification();
+        var handler = new AccidentalCancellationNotificationHandler();
+        var result = await invoke(handler, notification, cts.Token);
+
+        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        error.Message.ShouldContain(nameof(AccidentalCancellationNotification));
+        ExtractException(error).ShouldBeAssignableTo<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_UsesRuntimeType_WhenInnerExceptionIsRaised()
+    {
+        var invoke = CreateInvokeNotificationDelegate<INotification>();
+        INotification notification = new ExplicitNotification();
+
+        var handler = new ThrowingExplicitNotificationHandler();
+        var result = await invoke(handler, notification, CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.notification.exception");
+        error.Message.ShouldContain(nameof(ExplicitNotification));
+        var exception = ExtractException(error);
+        exception.ShouldBeOfType<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_UsesRuntimeType_WhenTaskCancelsAfterInvocation()
+    {
+        var invoke = CreateInvokeNotificationDelegate<INotification>();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        INotification notification = new ExplicitNotification();
+        var handler = new TaskCancellingExplicitNotificationHandler();
+        var result = await invoke(handler, notification, cts.Token);
+
+        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        error.Message.ShouldContain($"La publicación de {nameof(ExplicitNotification)}");
+        error.Message.ShouldNotContain("La publicación de INotification");
+        ExtractException(error).ShouldBeAssignableTo<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_UsesGenericTypeName_WhenNotificationInstanceIsNull()
+    {
+        var invoke = CreateInvokeNotificationDelegate<INotification>();
+        var handler = new InvalidNotificationResultHandler();
+
+        var result = await invoke(handler, null!, CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.notification.invalid_return");
+        error.Message.ShouldContain(nameof(INotification));
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_UsesGenericTypeName_WhenHandlerCancelsWithTargetInvocation()
+    {
+        var invoke = CreateInvokeNotificationDelegate<INotification>();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var handler = new AccidentalCancellationNotificationHandler();
+        var result = await invoke(handler, null!, cts.Token);
+
+        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        error.Message.ShouldContain(nameof(INotification));
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_UsesGenericTypeName_WhenAwaitedTaskCancels()
+    {
+        var invoke = CreateInvokeNotificationDelegate<INotification>();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var handler = new TaskCancellingExplicitNotificationHandler();
+        var result = await invoke(handler, null!, cts.Token);
+
+        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        error.Message.ShouldContain(nameof(INotification));
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_ReportsInvocationFailure_IncludesHandlerName()
+    {
+        var method = typeof(SimpleMediator)
+            .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(typeof(ExplicitNotification));
+        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<Error, Unit>>>)method.CreateDelegate(
+            typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<Error, Unit>>>));
+
+        var handler = new MissingCancellationTokenNotificationHandler();
+        var result = await invoke(handler, new ExplicitNotification(), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.notification.invoke_exception");
+        error.Message.ShouldContain(nameof(MissingCancellationTokenNotificationHandler));
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_ReturnsSuccessWhenHandlerReturnsNull()
+    {
+        var method = typeof(SimpleMediator)
+            .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!.
+            MakeGenericMethod(typeof(SampleNotification));
+        var invoke = (Func<object, SampleNotification, CancellationToken, Task<Either<Error, Unit>>>)method.CreateDelegate(typeof(Func<object, SampleNotification, CancellationToken, Task<Either<Error, Unit>>>));
+
+        var handler = new NullReturningNotificationHandler();
+        var result = await invoke(handler, new SampleNotification(33), CancellationToken.None);
+
+        ExpectSuccess(result);
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_CancelledInnerException_UsesRuntimeTypeName()
+    {
+        var invoke = CreateInvokeNotificationDelegate<INotification>();
+        var handler = new ThrowingCancelledExplicitNotificationHandler();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var notification = new ExplicitNotification();
+
+        var result = await invoke(handler, notification, cts.Token);
+
+        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        error.Message.ShouldContain(nameof(ExplicitNotification));
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_Exception_UsesRuntimeTypeName()
+    {
+        var invoke = CreateInvokeNotificationDelegate<INotification>();
+        var handler = new ThrowingExplicitNotificationHandler();
+        var notification = new ExplicitNotification();
+
+        var result = await invoke(handler, notification, CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.notification.exception");
+        error.Message.ShouldContain($"Error procesando {nameof(ExplicitNotification)}");
+        error.Message.ShouldNotContain("Error procesando INotification");
+    }
+
+    [Fact]
+    public async Task InvokeNotificationHandler_CancellationDuringAwait_UsesRuntimeTypeName()
+    {
+        var invoke = CreateInvokeNotificationDelegate<INotification>();
+        var handler = new TaskCancellingExplicitNotificationHandler();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var notification = new ExplicitNotification();
+
+        var result = await invoke(handler, notification, cts.Token);
+
+        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        error.Message.ShouldContain($"La publicación de {nameof(ExplicitNotification)}");
+        error.Message.ShouldNotContain("La publicación de INotification");
     }
 
     [Fact]
@@ -155,10 +777,16 @@ public sealed class SimpleMediatorTests
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        await mediator.Send(new EchoRequest("hola"), CancellationToken.None);
+        var result = await mediator.Send(new EchoRequest("hola"), CancellationToken.None);
 
-        loggerCollector.Entries.ShouldContain(entry => entry.LogLevel == LogLevel.Debug && entry.Message.Contains("Procesando EchoRequest"));
-        loggerCollector.Entries.ShouldContain(entry => entry.LogLevel == LogLevel.Debug && entry.Message.Contains("Solicitud EchoRequest completada."));
+        ExpectSuccess(result);
+
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Debug
+            && entry.Message.Contains("Procesando EchoRequest con"));
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Debug
+            && entry.Message.Contains("Solicitud EchoRequest completada por"));
     }
 
     [Fact]
@@ -171,10 +799,31 @@ public sealed class SimpleMediatorTests
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        var response = await mediator.Send(new LifecycleRequest("in"), CancellationToken.None);
+        var result = await mediator.Send(new LifecycleRequest("in"), CancellationToken.None);
 
+        var response = ExpectSuccess(result);
         response.ShouldBe("in:ok");
         lifecycleTracker.Events.ShouldBe(new[] { "pre", "handler", "post" });
+    }
+
+    [Fact]
+    public async Task Send_ReturnsSuccess_WhenPostProcessorsDoNotFail()
+    {
+        var tracker = new PostProcessorTracker();
+        var services = new ServiceCollection();
+        services.AddSimpleMediator();
+        services.AddScoped(_ => tracker);
+        services.AddScoped<IRequestHandler<PostProcessorRequest, string>, PostProcessorRequestHandler>();
+        services.AddScoped<IRequestPostProcessor<PostProcessorRequest, string>, RecordingPostProcessor>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Send(new PostProcessorRequest("value"), CancellationToken.None);
+
+        var response = ExpectSuccess(result);
+        response.ShouldBe("value:handled");
+        tracker.Events.ShouldBe(new[] { "handler", "post:value:handled" });
     }
 
     [Fact]
@@ -185,10 +834,381 @@ public sealed class SimpleMediatorTests
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        var action = () => mediator.Send(new FaultyRequest(), CancellationToken.None);
-        await Should.ThrowAsync<InvalidOperationException>(action);
+        var result = await mediator.Send(new FaultyRequest(), CancellationToken.None);
 
-        loggerCollector.Entries.ShouldContain(entry => entry.LogLevel == LogLevel.Error && entry.Message.Contains("Error inesperado procesando FaultyRequest"));
+        var error = ExpectFailure(result, "mediator.handler.exception");
+        ExtractException(error).ShouldBeOfType<InvalidOperationException>();
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Message.Contains("La solicitud FaultyRequest falló (mediator.handler.exception)")
+            && entry.Message.Contains("FaultyRequestHandler"));
+    }
+
+    [Fact]
+    public async Task Send_ReturnsFailureWhenHandlerReturnsNullTask()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(loggerCollector: loggerCollector);
+        services.RemoveAll(typeof(IRequestHandler<NullTaskRequest, string>));
+        services.AddScoped<IRequestHandler<NullTaskRequest, string>, NullTaskRequestHandler>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Send(new NullTaskRequest("oops"), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.handler.exception");
+        ExtractException(error).ShouldBeOfType<InvalidOperationException>();
+        error.Message.ShouldContain("devolvió una tarea nula");
+        error.Message.ShouldContain(nameof(NullTaskRequestHandler));
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Message.Contains("mediator.handler.exception")
+            && entry.Message.Contains(nameof(NullTaskRequestHandler)));
+    }
+
+    [Fact]
+    public async Task Send_LogsWarning_WhenPipelineCancelsWithExplicitCode()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(
+            loggerCollector: loggerCollector,
+            configuration: cfg => cfg.AddPipelineBehavior(typeof(CancelledOutcomeBehavior)));
+        services.RemoveAll(typeof(IRequestHandler<CancelledOutcomeRequest, string>));
+        services.AddScoped<IRequestHandler<CancelledOutcomeRequest, string>, CancelledOutcomeRequestHandler>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Send(new CancelledOutcomeRequest(), CancellationToken.None);
+
+        var error = ExpectFailure(result, "cancelled");
+        error.Message.ShouldContain("Explicit cancellation");
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Warning
+            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains(nameof(CancelledOutcomeRequest)));
+        loggerCollector.Entries.Any(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains(nameof(CancelledOutcomeRequest))).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Send_ReturnsFailure_WhenBehaviorCancelsBeforeHandler()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(
+            loggerCollector: loggerCollector,
+            configuration: cfg => cfg.AddPipelineBehavior(typeof(CancellingPipelineBehavior<,>)));
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var result = await mediator.Send(new EchoRequest("value"), cts.Token);
+
+        var error = ExpectFailure(result, "mediator.behavior.cancelled");
+        error.Message.ShouldContain("canceló la solicitud");
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Warning
+            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains(nameof(EchoRequest)));
+    }
+
+    [Fact]
+    public async Task Send_ReturnsFailure_WhenBehaviorThrowsException()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(
+            loggerCollector: loggerCollector,
+            configuration: cfg => cfg.AddPipelineBehavior(typeof(ThrowingPipelineBehavior<,>)));
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Send(new EchoRequest("boom"), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.behavior.exception");
+        error.Message.ShouldContain("Error ejecutando");
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Message.Contains("mediator.behavior.exception")
+            && entry.Message.Contains("ThrowingPipelineBehavior"));
+    }
+
+    [Fact]
+    public async Task Send_ReturnsFailure_WhenPreProcessorThrows()
+    {
+        var services = BuildServiceCollection(configuration: cfg => cfg.AddRequestPreProcessor(typeof(ThrowingEchoPreProcessor)));
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Send(new EchoRequest("value"), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.preprocessor.exception");
+        error.Message.ShouldContain("Error ejecutando");
+    }
+
+    [Fact]
+    public async Task Send_ReturnsFailure_WhenPreProcessorCancels()
+    {
+        var services = BuildServiceCollection(configuration: cfg => cfg.AddRequestPreProcessor(typeof(CancellingEchoPreProcessor)));
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var result = await mediator.Send(new EchoRequest("value"), cts.Token);
+
+        var error = ExpectFailure(result, "mediator.preprocessor.cancelled");
+        error.Message.ShouldContain("canceló la solicitud");
+    }
+
+    [Fact]
+    public async Task Send_ReturnsFailure_WhenPostProcessorThrows()
+    {
+        var services = BuildServiceCollection(configuration: cfg => cfg.AddRequestPostProcessor(typeof(ThrowingEchoPostProcessor)));
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Send(new EchoRequest("value"), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.postprocessor.exception");
+        error.Message.ShouldContain("Error ejecutando");
+    }
+
+    [Fact]
+    public async Task Send_ReturnsFailure_WhenPostProcessorCancels()
+    {
+        var services = BuildServiceCollection(configuration: cfg => cfg.AddRequestPostProcessor(typeof(CancellingEchoPostProcessor)));
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var result = await mediator.Send(new EchoRequest("value"), cts.Token);
+
+        var error = ExpectFailure(result, "mediator.postprocessor.cancelled");
+        error.Message.ShouldContain("canceló la solicitud");
+    }
+
+    [Fact]
+    public async Task Send_TreatsPostProcessorCancellationWithoutTokenAsException()
+    {
+        var services = BuildServiceCollection();
+        services.AddScoped<IRequestPostProcessor<EchoRequest, string>, AccidentallyCancellingPostProcessor>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Send(new EchoRequest("value"), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.postprocessor.exception");
+        ExtractException(error).ShouldBeOfType<OperationCanceledException>();
+        error.Message.ShouldContain(nameof(AccidentallyCancellingPostProcessor));
+        error.Message.ShouldContain(nameof(EchoRequest));
+    }
+
+    [Fact]
+    public async Task ExecutePostProcessorAsync_ReturnsExceptionWhenTokenNotCancelled()
+    {
+        var method = typeof(SimpleMediator)
+            .GetMethod("ExecutePostProcessorAsync", BindingFlags.NonPublic | BindingFlags.Static)!.
+            MakeGenericMethod(typeof(EchoRequest), typeof(string));
+
+        var postProcessor = new AccidentallyCancellingPostProcessor();
+        var response = Right<Error, string>("ok");
+
+        var invocation = (Task<Option<Error>>)method.Invoke(null, new object[]
+        {
+            postProcessor,
+            new EchoRequest("request"),
+            response,
+            CancellationToken.None
+        })!;
+
+        var failure = await invocation.ConfigureAwait(false);
+
+        failure.IsSome.ShouldBeTrue();
+        var error = failure.Match(err => err, () => MediatorErrors.Unknown);
+        error.GetMediatorCode().ShouldBe("mediator.postprocessor.exception");
+        error.Message.ShouldContain(nameof(AccidentallyCancellingPostProcessor));
+        error.Message.ShouldContain(nameof(EchoRequest));
+    }
+
+    [Fact]
+    public async Task Publish_LogsErrorWhenHandlerReturnsInvalidType()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(loggerCollector: loggerCollector);
+        services.RemoveAll(typeof(INotificationHandler<SampleNotification>));
+        services.AddScoped<INotificationHandler<SampleNotification>, MisleadingNotificationHandler>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Publish(new SampleNotification(11), CancellationToken.None);
+
+        var error = ExpectFailure(result, "mediator.notification.invalid_return");
+        error.Message.ShouldContain("tipo inesperado");
+        loggerCollector.Entries.ShouldContain(entry =>
+            entry.LogLevel == LogLevel.Error
+            && entry.Message.Contains("Error al publicar la notificación")
+            && entry.Message.Contains(nameof(MisleadingNotificationHandler)));
+    }
+
+    [Fact]
+    public async Task Send_DoesNotCaptureSynchronizationContext()
+    {
+        var services = new ServiceCollection();
+        services.AddApplicationMessaging(typeof(SimpleMediatorTests).Assembly);
+        services.RemoveAll(typeof(IRequestHandler<AsyncRequest, string>));
+        services.AddScoped<IRequestHandler<AsyncRequest, string>, AsyncRequestHandler>();
+        services.RemoveAll(typeof(IPipelineBehavior<,>));
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TrackingBehavior<,>));
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(SecondTrackingBehavior<,>));
+        services.AddScoped<PipelineTracker>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        using var context = new RecordingSynchronizationContext();
+        var originalContext = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(context);
+        try
+        {
+            var request = new AsyncRequest("value");
+#pragma warning disable xUnit1030
+            var result = await mediator.Send(request, CancellationToken.None).ConfigureAwait(false);
+#pragma warning restore xUnit1030
+            var response = ExpectSuccess(result);
+            response.ShouldBe("value:async");
+            context.PostCallCount.ShouldBe(0);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(originalContext);
+        }
+    }
+
+    [Fact]
+    public async Task Publish_DoesNotCaptureSynchronizationContext()
+    {
+        var tracker = new NotificationTracker();
+        var services = new ServiceCollection();
+        services.AddApplicationMessaging(typeof(SimpleMediatorTests).Assembly);
+        services.RemoveAll(typeof(INotificationHandler<SampleNotification>));
+        services.AddScoped(_ => tracker);
+        services.AddScoped<INotificationHandler<SampleNotification>, AsyncSampleNotificationHandler>();
+        services.AddScoped<PipelineTracker>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        using var context = new RecordingSynchronizationContext();
+        var originalContext = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(context);
+        try
+        {
+#pragma warning disable xUnit1030
+            var publishResult = await mediator.Publish(new SampleNotification(10), CancellationToken.None).ConfigureAwait(false);
+#pragma warning restore xUnit1030
+            ExpectSuccess(publishResult);
+            tracker.Handled.ShouldBe(new[] { "Async:10" });
+            context.PostCallCount.ShouldBe(0);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(originalContext);
+        }
+    }
+
+    [Fact]
+    public async Task Send_PipelineStages_DoNotCaptureSynchronizationContext()
+    {
+        var tracker = new AsyncPipelineTracker();
+        var services = new ServiceCollection();
+        services.AddApplicationMessaging(typeof(SimpleMediatorTests).Assembly);
+        services.RemoveAll(typeof(IRequestHandler<AsyncPipelineRequest, string>));
+        services.AddScoped(_ => tracker);
+        services.AddScoped<IRequestPreProcessor<AsyncPipelineRequest>, AsyncPreProcessor>();
+        services.AddScoped<IRequestHandler<AsyncPipelineRequest, string>, AsyncPipelineRequestHandler>();
+        services.AddScoped<IRequestPostProcessor<AsyncPipelineRequest, string>, AsyncPostProcessor>();
+        services.RemoveAll(typeof(IPipelineBehavior<,>));
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TrackingBehavior<,>));
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(SecondTrackingBehavior<,>));
+        services.AddScoped<PipelineTracker>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        using var context = new RecordingSynchronizationContext();
+        var originalContext = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(context);
+        try
+        {
+#pragma warning disable xUnit1030
+            var result = await mediator.Send(new AsyncPipelineRequest("stage"), CancellationToken.None).ConfigureAwait(false);
+#pragma warning restore xUnit1030
+            var response = ExpectSuccess(result);
+            response.ShouldBe("stage:async");
+            tracker.Events.ShouldContain("pre");
+            tracker.Events.ShouldContain("handler");
+            tracker.Events.ShouldContain("post");
+            tracker.Events.IndexOf("pre").ShouldBeLessThan(tracker.Events.IndexOf("handler"));
+            tracker.Events.LastIndexOf("handler").ShouldBeLessThan(tracker.Events.LastIndexOf("post"));
+            context.PostCallCount.ShouldBe(0);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(originalContext);
+        }
+    }
+
+    [Fact]
+    public async Task Send_PipelineStages_DoNotPostToSynchronizationContext()
+    {
+        var tracker = new AsyncPipelineTracker();
+        var services = new ServiceCollection();
+        services.AddApplicationMessaging(typeof(SimpleMediatorTests).Assembly);
+        services.RemoveAll(typeof(IRequestHandler<AsyncPipelineRequest, string>));
+        services.AddScoped(_ => tracker);
+        services.AddScoped<IRequestPreProcessor<AsyncPipelineRequest>, AsyncPreProcessor>();
+        services.AddScoped<IRequestHandler<AsyncPipelineRequest, string>, AsyncPipelineRequestHandler>();
+        services.AddScoped<IRequestPostProcessor<AsyncPipelineRequest, string>, AsyncPostProcessor>();
+        services.RemoveAll(typeof(IPipelineBehavior<,>));
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TrackingBehavior<,>));
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(SecondTrackingBehavior<,>));
+        services.AddScoped<PipelineTracker>();
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        using var context = new RecordingSynchronizationContext();
+        var originalContext = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(context);
+        try
+        {
+#pragma warning disable xUnit1030
+            var result = await mediator.Send(new AsyncPipelineRequest("stage"), CancellationToken.None).ConfigureAwait(false);
+#pragma warning restore xUnit1030
+            var response = ExpectSuccess(result);
+            response.ShouldBe("stage:async");
+            context.PostCallCount.ShouldBe(0);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(originalContext);
+        }
     }
 
     private static ServiceCollection BuildServiceCollection(
@@ -198,8 +1218,25 @@ public sealed class SimpleMediatorTests
         Action<SimpleMediatorConfiguration>? configuration = null)
     {
         var services = new ServiceCollection();
-        services.AddApplicationMessaging(configuration, typeof(EchoRequest).Assembly);
-        services.RemoveAll(typeof(INotificationHandler<SampleNotification>));
+        services.AddSimpleMediator(cfg => configuration?.Invoke(cfg));
+
+        services.AddScoped<IRequestHandler<EchoRequest, string>, EchoRequestHandler>();
+        services.AddScoped<IRequestHandler<FaultyRequest, string>, FaultyRequestHandler>();
+        services.AddScoped<IRequestHandler<CancellableRequest, string>, CancellableRequestHandler>();
+        services.AddScoped<IRequestHandler<NullTaskRequest, string>, NullTaskRequestHandler>();
+        services.AddScoped<IRequestHandler<AccidentalCancellationRequest, string>, AccidentalCancellationRequestHandler>();
+        services.AddScoped<IRequestHandler<LifecycleRequest, string>, LifecycleRequestHandler>();
+        services.AddScoped<IRequestHandler<AsyncRequest, string>, AsyncRequestHandler>();
+        services.AddScoped<IRequestHandler<AsyncPipelineRequest, string>, AsyncPipelineRequestHandler>();
+
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TrackingBehavior<,>));
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(SecondTrackingBehavior<,>));
+
+        services.AddScoped<IRequestPreProcessor<LifecycleRequest>, LifecyclePreProcessor>();
+        services.AddScoped<IRequestPostProcessor<LifecycleRequest, string>, LifecyclePostProcessor>();
+        services.AddScoped<IRequestPreProcessor<AsyncPipelineRequest>, AsyncPreProcessor>();
+        services.AddScoped<IRequestPostProcessor<AsyncPipelineRequest, string>, AsyncPostProcessor>();
+
         services.AddScoped<INotificationHandler<SampleNotification>, FirstSampleNotificationHandler>();
         services.AddScoped<INotificationHandler<SampleNotification>, SecondSampleNotificationHandler>();
 
@@ -254,6 +1291,36 @@ public sealed class SimpleMediatorTests
         }
     }
 
+    private sealed record NullTaskRequest(string Value) : IRequest<string>;
+
+    private sealed class NullTaskRequestHandler : IRequestHandler<NullTaskRequest, string>
+    {
+        public Task<string> Handle(NullTaskRequest request, CancellationToken cancellationToken)
+            => null!;
+    }
+
+    private sealed record AccidentalCancellationRequest() : IRequest<string>;
+
+    private sealed class AccidentalCancellationRequestHandler : IRequestHandler<AccidentalCancellationRequest, string>
+    {
+        public Task<string> Handle(AccidentalCancellationRequest request, CancellationToken cancellationToken)
+            => throw new OperationCanceledException("forced cancellation without linked token");
+    }
+
+    private sealed record CancelledOutcomeRequest() : IRequest<string>;
+
+    private sealed class CancelledOutcomeRequestHandler : IRequestHandler<CancelledOutcomeRequest, string>
+    {
+        public Task<string> Handle(CancelledOutcomeRequest request, CancellationToken cancellationToken)
+            => Task.FromResult("ok");
+    }
+
+    private sealed class CancelledOutcomeBehavior : IPipelineBehavior<CancelledOutcomeRequest, string>
+    {
+        public Task<Either<Error, string>> Handle(CancelledOutcomeRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<string> next)
+            => Task.FromResult(Left<Error, string>(MediatorErrors.Create("cancelled", "Explicit cancellation.")));
+    }
+
     private sealed record LifecycleRequest(string Value) : IRequest<string>;
 
     private sealed class LifecycleRequestHandler : IRequestHandler<LifecycleRequest, string>
@@ -275,6 +1342,10 @@ public sealed class SimpleMediatorTests
     private sealed record SampleNotification(int Value) : INotification;
 
     private sealed record UnhandledNotification() : INotification;
+
+    private sealed record AccidentalCancellationNotification() : INotification;
+
+    private sealed record ExplicitNotification() : INotification;
 
     private sealed class FirstSampleNotificationHandler : INotificationHandler<SampleNotification>
     {
@@ -329,7 +1400,133 @@ public sealed class SimpleMediatorTests
         }
     }
 
+    private sealed class AccidentalCancellationNotificationHandler : INotificationHandler<AccidentalCancellationNotification>
+    {
+        public Task Handle(AccidentalCancellationNotification notification, CancellationToken cancellationToken)
+            => throw new OperationCanceledException("forced cancellation without linked token");
+    }
+
+    private sealed class ExplicitInterfaceNotificationHandler : INotificationHandler<ExplicitNotification>
+    {
+        Task INotificationHandler<ExplicitNotification>.Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+    }
+
+    private sealed class ThrowingExplicitNotificationHandler
+    {
+        public Task Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("explicit boom");
+    }
+
+    private sealed class InvalidNotificationResultHandler
+    {
+        public string Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+            => "invalid";
+    }
+
+    private sealed class ThrowingCancelledExplicitNotificationHandler
+    {
+        public Task Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new OperationCanceledException("explicit cancellation", cancellationToken);
+        }
+    }
+
+    private sealed class TaskCancellingExplicitNotificationHandler
+    {
+        public Task Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+            => Task.FromCanceled(cancellationToken);
+    }
+
+    private sealed record PostProcessorRequest(string Value) : IRequest<string>;
+
+    private sealed class PostProcessorRequestHandler : IRequestHandler<PostProcessorRequest, string>
+    {
+        private readonly PostProcessorTracker _tracker;
+
+        public PostProcessorRequestHandler(PostProcessorTracker tracker)
+        {
+            _tracker = tracker;
+        }
+
+        public Task<string> Handle(PostProcessorRequest request, CancellationToken cancellationToken)
+        {
+            _tracker.Events.Add("handler");
+            return Task.FromResult(request.Value + ":handled");
+        }
+    }
+
+    private sealed class RecordingPostProcessor : IRequestPostProcessor<PostProcessorRequest, string>
+    {
+        private readonly PostProcessorTracker _tracker;
+
+        public RecordingPostProcessor(PostProcessorTracker tracker)
+        {
+            _tracker = tracker;
+        }
+
+        public Task Process(PostProcessorRequest request, Either<Error, string> response, CancellationToken cancellationToken)
+        {
+            response.IfRight(value => _tracker.Events.Add($"post:{value}"));
+            response.IfLeft(_ => _tracker.Events.Add("post:error"));
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class PostProcessorTracker
+    {
+        public List<string> Events { get; } = new();
+    }
+
+    private sealed class AccidentallyCancellingPostProcessor : IRequestPostProcessor<EchoRequest, string>
+    {
+        public Task Process(EchoRequest request, Either<Error, string> response, CancellationToken cancellationToken)
+            => throw new OperationCanceledException("accidental cancellation");
+    }
+
+    private sealed class CancellingExplicitNotificationHandler : INotificationHandler<ExplicitNotification>
+    {
+        public Task Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+            => throw new OperationCanceledException("explicit cancellation", cancellationToken);
+    }
+
+    private sealed class MissingCancellationTokenNotificationHandler
+    {
+        public Task Handle(ExplicitNotification notification)
+            => Task.CompletedTask;
+    }
+
+    private sealed class AsyncSampleNotificationHandler : INotificationHandler<SampleNotification>
+    {
+        private readonly NotificationTracker _tracker;
+
+        public AsyncSampleNotificationHandler(NotificationTracker tracker)
+        {
+            _tracker = tracker;
+        }
+
+        public async Task Handle(SampleNotification notification, CancellationToken cancellationToken)
+        {
+            await Task.Delay(1, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            _tracker.Handled.Add($"Async:{notification.Value}");
+        }
+    }
+
     private sealed record MissingHandlerRequest : IRequest<int>;
+
+    private sealed record AsyncRequest(string Value) : IRequest<string>;
+
+    private sealed class AsyncRequestHandler : IRequestHandler<AsyncRequest, string>
+    {
+        public async Task<string> Handle(AsyncRequest request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(1, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return request.Value + ":async";
+        }
+    }
 
     private sealed class TrackingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
@@ -341,7 +1538,7 @@ public sealed class SimpleMediatorTests
             _tracker = tracker;
         }
 
-        public async Task<TResponse> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
+        public async Task<Either<Error, TResponse>> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
         {
             _tracker.Events.Add("tracking:before");
             var response = await next().ConfigureAwait(false);
@@ -360,7 +1557,7 @@ public sealed class SimpleMediatorTests
             _tracker = tracker;
         }
 
-        public async Task<TResponse> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
+        public async Task<Either<Error, TResponse>> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
         {
             _tracker.Events.Add("second:before");
             var response = await next().ConfigureAwait(false);
@@ -394,9 +1591,12 @@ public sealed class SimpleMediatorTests
             _tracker = tracker;
         }
 
-        public Task Process(LifecycleRequest request, string response, CancellationToken cancellationToken)
+        public Task Process(LifecycleRequest request, Either<Error, string> response, CancellationToken cancellationToken)
         {
-            _tracker.Events.Add("post");
+            if (response.IsRight)
+            {
+                _tracker.Events.Add("post");
+            }
             return Task.CompletedTask;
         }
     }
@@ -416,9 +1616,98 @@ public sealed class SimpleMediatorTests
         public List<string> Handled { get; } = new();
     }
 
+    private sealed class AsyncPipelineTracker
+    {
+        public List<string> Events { get; } = new();
+    }
+
     private sealed class LoggerCollector
     {
         public ConcurrentBag<LogEntry> Entries { get; } = new();
+    }
+
+    private sealed class CancellingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+        where TRequest : IRequest<TResponse>
+    {
+        public Task<Either<Error, TResponse>> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
+            => Task.FromCanceled<Either<Error, TResponse>>(cancellationToken);
+    }
+
+    private sealed class ThrowingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+        where TRequest : IRequest<TResponse>
+    {
+        public Task<Either<Error, TResponse>> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
+            => throw new InvalidOperationException($"behavior failure for {typeof(TRequest).Name}");
+    }
+
+    private sealed class ThrowingEchoPreProcessor : IRequestPreProcessor<EchoRequest>
+    {
+        public Task Process(EchoRequest request, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("pre failure");
+    }
+
+    private sealed class CancellingEchoPreProcessor : IRequestPreProcessor<EchoRequest>
+    {
+        public Task Process(EchoRequest request, CancellationToken cancellationToken)
+            => Task.FromCanceled(cancellationToken);
+    }
+
+    private sealed class ThrowingEchoPostProcessor : IRequestPostProcessor<EchoRequest, string>
+    {
+        public Task Process(EchoRequest request, Either<Error, string> response, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("post failure");
+    }
+
+    private sealed class CancellingEchoPostProcessor : IRequestPostProcessor<EchoRequest, string>
+    {
+        public Task Process(EchoRequest request, Either<Error, string> response, CancellationToken cancellationToken)
+            => Task.FromCanceled(cancellationToken);
+    }
+
+    private sealed class MisleadingNotificationHandler : INotificationHandler<SampleNotification>
+    {
+        Task INotificationHandler<SampleNotification>.Handle(SampleNotification notification, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public string Handle(SampleNotification notification, CancellationToken cancellationToken)
+            => "invalid";
+    }
+
+    private static T ExpectSuccess<T>(Either<Error, T> result)
+    {
+        var failureMessage = result.Match(
+            Left: err => $"Se esperaba éxito pero se obtuvo fallo: {err.GetMediatorCode()} - {err.Message}",
+            Right: _ => string.Empty);
+
+        result.IsRight.ShouldBeTrue(failureMessage);
+
+        return result.Match(
+            Left: _ => throw new InvalidOperationException("ExpectSuccess recibió un Either en estado de fallo."),
+            Right: value => value!);
+    }
+
+    private static Error ExpectFailure<T>(Either<Error, T> result, string expectedCode)
+    {
+        result.IsLeft.ShouldBeTrue();
+        var error = result.Match(
+            Left: err => err,
+            Right: _ => MediatorErrors.Unknown);
+        error.GetMediatorCode().ShouldBe(expectedCode);
+        return error;
+    }
+
+    private static Exception ExtractException(Error error)
+        => error.Exception.Match(
+            Some: ex => ex,
+            None: () => throw new InvalidOperationException("Expected the error to carry an exception."));
+
+    private static Func<object, TNotification, CancellationToken, Task<Either<Error, Unit>>> CreateInvokeNotificationDelegate<TNotification>()
+    {
+        var method = typeof(SimpleMediator)
+            .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!.
+            MakeGenericMethod(typeof(TNotification));
+        return (Func<object, TNotification, CancellationToken, Task<Either<Error, Unit>>>)method.CreateDelegate(
+            typeof(Func<object, TNotification, CancellationToken, Task<Either<Error, Unit>>>));
     }
 
     private sealed record LogEntry(LogLevel LogLevel, string Message, Exception? Exception);
@@ -455,4 +1744,111 @@ public sealed class SimpleMediatorTests
             }
         }
     }
+
+    private sealed class ActivityCollector : IDisposable
+    {
+        private readonly ActivityListener _listener;
+
+        public ActivityCollector()
+        {
+            _listener = new ActivityListener
+            {
+                ShouldListenTo = _ => true,
+                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+                SampleUsingParentId = (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllDataAndRecorded,
+                ActivityStopped = activity => Activities.Add(activity)
+            };
+            ActivitySource.AddActivityListener(_listener);
+        }
+
+        public List<Activity> Activities { get; } = new();
+
+        public void Dispose()
+        {
+            _listener.Dispose();
+        }
+    }
+
+    private sealed record AsyncPipelineRequest(string Value) : IRequest<string>;
+
+    private sealed class AsyncPreProcessor : IRequestPreProcessor<AsyncPipelineRequest>
+    {
+        private readonly AsyncPipelineTracker _tracker;
+
+        public AsyncPreProcessor(AsyncPipelineTracker tracker)
+        {
+            _tracker = tracker;
+        }
+
+        public async Task Process(AsyncPipelineRequest request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(1, cancellationToken).ConfigureAwait(false);
+            _tracker.Events.Add("pre");
+        }
+    }
+
+    private sealed class AsyncPipelineRequestHandler : IRequestHandler<AsyncPipelineRequest, string>
+    {
+        private readonly AsyncPipelineTracker _tracker;
+
+        public AsyncPipelineRequestHandler(AsyncPipelineTracker tracker)
+        {
+            _tracker = tracker;
+        }
+
+        public async Task<string> Handle(AsyncPipelineRequest request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(1, cancellationToken).ConfigureAwait(false);
+            _tracker.Events.Add("handler");
+            return request.Value + ":async";
+        }
+    }
+
+    private sealed class AsyncPostProcessor : IRequestPostProcessor<AsyncPipelineRequest, string>
+    {
+        private readonly AsyncPipelineTracker _tracker;
+
+        public AsyncPostProcessor(AsyncPipelineTracker tracker)
+        {
+            _tracker = tracker;
+        }
+
+        public async Task Process(AsyncPipelineRequest request, Either<Error, string> response, CancellationToken cancellationToken)
+        {
+            await Task.Delay(1, cancellationToken).ConfigureAwait(false);
+            if (response.IsRight)
+            {
+                _tracker.Events.Add("post");
+            }
+        }
+    }
+
+    private sealed class RecordingSynchronizationContext : SynchronizationContext, IDisposable
+    {
+        private int _postCallCount;
+
+        public int PostCallCount => Volatile.Read(ref _postCallCount);
+
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            Interlocked.Increment(ref _postCallCount);
+            ThreadPool.QueueUserWorkItem(static tuple =>
+            {
+                var (callback, callbackState) = ((SendOrPostCallback, object?))tuple!;
+                callback(callbackState);
+            }, (d, state));
+        }
+
+        public override void Send(SendOrPostCallback d, object? state)
+        {
+            Interlocked.Increment(ref _postCallCount);
+            d(state);
+        }
+
+        public void Dispose()
+        {
+            // No resources to clean up; interface implemented for using pattern symmetry.
+        }
+    }
+
 }

@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using LanguageExt;
 
 namespace SimpleMediator;
 
@@ -17,7 +18,14 @@ namespace SimpleMediator;
 /// var mediator = services.BuildServiceProvider().GetRequiredService&lt;IMediator&gt;();
 ///
 /// var result = await mediator.Send(new CreateReservation(/* ... */), cancellationToken);
-/// await mediator.Publish(new ReservationCreatedNotification(result.Value), cancellationToken);
+///
+/// await result.Match(
+///     Left: error =>
+///     {
+///         Console.WriteLine($"Reservation failed: {error.GetMediatorCode()} - {error.Message}");
+///         return Task.CompletedTask;
+///     },
+///     Right: reservation => mediator.Publish(new ReservationCreatedNotification(reservation), cancellationToken));
 /// </code>
 /// </example>
 public interface IMediator
@@ -29,7 +37,7 @@ public interface IMediator
     /// <param name="request">Solicitud a procesar.</param>
     /// <param name="cancellationToken">Token opcional para cancelar la operación.</param>
     /// <returns>Respuesta producida por el handler tras pasar por el pipeline.</returns>
-    Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default);
+    Task<Either<Error, TResponse>> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Publica una notificación que puede ser manejada por cero o más handlers.
@@ -37,6 +45,6 @@ public interface IMediator
     /// <typeparam name="TNotification">Tipo de notificación distribuida.</typeparam>
     /// <param name="notification">Instancia a propagar.</param>
     /// <param name="cancellationToken">Token opcional para cancelar la difusión.</param>
-    Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+    Task<Either<Error, Unit>> Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
         where TNotification : INotification;
 }

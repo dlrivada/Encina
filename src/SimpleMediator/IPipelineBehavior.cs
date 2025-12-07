@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using LanguageExt;
 
 namespace SimpleMediator;
 
@@ -17,7 +18,7 @@ namespace SimpleMediator;
 /// public sealed class LoggingBehavior&lt;TRequest, TResponse&gt; : IPipelineBehavior&lt;TRequest, TResponse&gt;
 ///     where TRequest : IRequest&lt;TResponse&gt;
 /// {
-///     public async Task&lt;TResponse&gt; Handle(
+///     public async Task&lt;Either&lt;MediatorError, TResponse&gt;&gt; Handle(
 ///         TRequest request,
 ///         CancellationToken cancellationToken,
 ///         RequestHandlerDelegate&lt;TResponse&gt; next)
@@ -40,5 +41,5 @@ public interface IPipelineBehavior<TRequest, TResponse>
     /// <param name="cancellationToken">Token para cancelar el flujo.</param>
     /// <param name="next">Delegado al siguiente behavior o handler.</param>
     /// <returns>Resultado final o alterado por el behavior.</returns>
-    Task<TResponse> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next);
+    Task<Either<Error, TResponse>> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next);
 }

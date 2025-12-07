@@ -7,20 +7,21 @@ namespace SimpleMediator;
 /// </summary>
 /// <typeparam name="TResponse">Tipo devuelto por el manejador cuando el comando concluye.</typeparam>
 /// <remarks>
-/// Los comandos suelen mutar estado o provocar efectos secundarios. Se recomienda modelar el
-/// resultado con tipos explícitos (por ejemplo, <c>Either&lt;Error, Unit&gt;</c>) para mantener el
-/// flujo funcional.
+/// Los comandos suelen mutar estado o provocar efectos secundarios. Mantenga respuestas explícitas
+/// (por ejemplo, <c>Unit</c> o DTOs de dominio) para que el mediador pueda encapsular los fallos
+/// como <c>Either&lt;MediatorError, TResponse&gt;</c> dentro de la política Zero Exceptions.
 /// </remarks>
 /// <example>
 /// <code>
-/// public sealed record CreateReservation(Guid Id, ReservationDraft Draft)
-///     : ICommand&lt;Either&lt;Error, Unit&gt;&gt;;
+/// public sealed record CreateReservation(Guid Id, ReservationDraft Draft) : ICommand&lt;Unit&gt;;
 ///
-/// public sealed class CreateReservationHandler : ICommandHandler&lt;CreateReservation, Either&lt;Error, Unit&gt;&gt;
+/// public sealed class CreateReservationHandler : ICommandHandler&lt;CreateReservation, Unit&gt;
 /// {
-///     public Task&lt;Either&lt;Error, Unit&gt;&gt; Handle(CreateReservation command, CancellationToken cancellationToken)
+///     public async Task&lt;Unit&gt; Handle(CreateReservation command, CancellationToken cancellationToken)
 ///     {
-///         // Implementación de dominio...
+///         await reservations.SaveAsync(command.Id, command.Draft, cancellationToken);
+///         await outbox.EnqueueAsync(command.Id, cancellationToken);
+///         return Unit.Default;
 ///     }
 /// }
 /// </code>

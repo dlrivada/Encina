@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using LanguageExt;
 
 namespace SimpleMediator;
 
@@ -15,9 +16,9 @@ namespace SimpleMediator;
 /// </remarks>
 /// <example>
 /// <code>
-/// public sealed class PublishEmailOnSuccess : IRequestPostProcessor&lt;SendEmailCommand, Either&lt;Error, Unit&gt;&gt;
+/// public sealed class PublishEmailOnSuccess : IRequestPostProcessor&lt;SendEmailCommand, Unit&gt;
 /// {
-///     public Task Process(SendEmailCommand request, Either&lt;Error, Unit&gt; response, CancellationToken cancellationToken)
+///     public Task Process(SendEmailCommand request, Either&lt;MediatorError, Unit&gt; response, CancellationToken cancellationToken)
 ///     {
 ///         if (response.IsRight)
 ///         {
@@ -28,7 +29,7 @@ namespace SimpleMediator;
 /// }
 /// </code>
 /// </example>
-public interface IRequestPostProcessor<in TRequest, in TResponse>
+public interface IRequestPostProcessor<in TRequest, TResponse>
 {
     /// <summary>
     /// Ejecuta la lógica posterior utilizando el request y la respuesta final.
@@ -36,5 +37,5 @@ public interface IRequestPostProcessor<in TRequest, in TResponse>
     /// <param name="request">Solicitud original.</param>
     /// <param name="response">Respuesta devuelta por el pipeline.</param>
     /// <param name="cancellationToken">Token de cancelación.</param>
-    Task Process(TRequest request, TResponse response, CancellationToken cancellationToken);
+    Task Process(TRequest request, Either<Error, TResponse> response, CancellationToken cancellationToken);
 }

@@ -14,11 +14,13 @@ namespace SimpleMediator;
 /// </remarks>
 /// <example>
 /// <code>
-/// public sealed class RefundPaymentHandler : IRequestHandler&lt;RefundPayment, Either&lt;Error, Unit&gt;&gt;
+/// public sealed class RefundPaymentHandler : IRequestHandler&lt;RefundPayment, Unit&gt;
 /// {
-///     public Task&lt;Either&lt;Error, Unit&gt;&gt; Handle(RefundPayment request, CancellationToken cancellationToken)
+///     public async Task&lt;Unit&gt; Handle(RefundPayment request, CancellationToken cancellationToken)
 ///     {
-///         // Invocar gateway, registrar eventos, etc.
+///         await paymentGateway.RefundAsync(request.PaymentId, cancellationToken);
+///         await auditTrail.RecordAsync(request.PaymentId, cancellationToken);
+///         return Unit.Default;
 ///     }
 /// }
 /// </code>
