@@ -4,6 +4,7 @@
 ![Status](https://img.shields.io/badge/status-internal-blue.svg)
 ![License](https://img.shields.io/badge/license-private-important.svg)
 ![Coverage](https://img.shields.io/badge/coverage-90%25-4C934C.svg)
+![Mutation](https://img.shields.io/badge/mutation-92.37%25-4C934C.svg)
 
 SimpleMediator is a lightweight mediator abstraction for .NET applications that lean on functional programming principles. It keeps request and response contracts explicit, integrates naturally with [LanguageExt](https://github.com/louthy/language-ext), and embraces pipeline behaviors so cross-cutting concerns stay composable.
 
@@ -311,7 +312,15 @@ dotnet tool restore
 dotnet tool run reportgenerator -reports:"artifacts/test-results/**/coverage.cobertura.xml" -targetdir:"artifacts/coverage" -reporttypes:"Html;HtmlSummary;TextSummary"
 ```
 
-The HTML dashboard (`artifacts/coverage/index.html`) and condensed summary (`artifacts/coverage/Summary.txt`) highlight hot spots—currently `SimpleMediator.SimpleMediator` sits at ~77% line coverage, so deeper send/publish edge cases would provide the biggest gain. The CI workflow runs the same commands and publishes the output as a downloadable artifact.
+The HTML dashboard (`artifacts/coverage/index.html`) and condensed summary (`artifacts/coverage/Summary.txt`) highlight hot spots—`SimpleMediator.SimpleMediator` now sits just above 90% line coverage after the latest hardening pass, so incremental gains hinge on rare cancellation/error permutations. The CI workflow runs the same commands and publishes the output as a downloadable artifact.
+
+Mutation testing is exercised via Stryker.NET. Run the full sweep using the single-file helper (the same command the CI workflow executes):
+
+```bash
+dotnet run --file scripts/run-stryker.cs
+```
+
+Reports are written to `StrykerOutput/<timestamp>/reports/` and include HTML plus text summaries; the badge reflects the most recent 92.37% score.
 
 The suite exercises:
 

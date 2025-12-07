@@ -27,6 +27,15 @@ The first Release run captured the following medians on the local dev rig (Core 
 
 CSV/HTML summaries live at `artifacts/performance/2025-12-08.000205/` and should be updated whenever the mediator pipeline changes materially.
 
+## Proposed Regression Thresholds
+
+Use the initial baseline as guard rails while we gather more samples. Treat runs that exceed these limits as regressions requiring investigation:
+
+- `Send_Command_WithInstrumentation`: alert when mean ≥ 2.25 μs _or_ allocations ≥ 5.25 KB.
+- `Publish_Notification_WithMultipleHandlers`: alert when mean ≥ 1.15 μs _or_ allocations ≥ 2.75 KB.
+
+Once additional datapoints exist, refine the thresholds to include percentile-based limits and document any environment-specific adjustments.
+
 ## Follow-Up
 
 - Capture baseline numbers and attach CSV/markdown summaries alongside HTML results.

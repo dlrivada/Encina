@@ -66,11 +66,13 @@ Status legend: ✅ Done · 🚧 In progress · ⏳ Planned · ⚠️ Blocked
 - **2025-12-07** — Full Stryker sweep now reports 92.37% mutation score (448 killed / 0 survived / 0 timeout); survivors isolated earlier in `SimpleMediator.cs` have been addressed.
 - **2025-12-08** — CI workflow runs Stryker via `scripts/run-stryker.cs`, publishes the mutation summary to the job log, and uploads the HTML/JSON reports as artifacts.
 - **2025-12-08** — Benchmark baseline recorded (Send ≈2.02 μs, Publish ≈1.01 μs) with CSV/HTML artifacts stored in `artifacts/performance/2025-12-08.000205` for future regressions.
+- **2025-12-08** — README now surfaces the latest mutation score via a static badge and documents the local Stryker workflow alongside coverage guidance.
+- **2025-12-08** — Performance guide captures proposed regression thresholds so CI gates can key off the initial benchmark baseline.
 
 ## Upcoming Actions
 
-1. Monitor the first few CI mutation runs and surface the latest score via README badge automation.
-2. Summarise the 2025-12-08 BenchmarkDotNet baseline in `docs/en/guides/PERFORMANCE_TESTING.md` and define regression thresholds for CI adoption.
+1. Automate the mutation badge update in CI so the README reflects the latest score without manual tweaks.
+2. Wire the proposed benchmark thresholds into CI (fail the job when limits are exceeded) and track trends over multiple runs.
 3. Extend requirements mapping with links from roadmap items to scenario identifiers.
 4. Hold line coverage at ≥90% by deepening `SimpleMediator.SimpleMediator` send/publish edge cases and pairing new unit tests with property-based explorations.
 
