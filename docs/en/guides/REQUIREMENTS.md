@@ -52,7 +52,7 @@ Last updated: 2025-12-08
 | Coverage | `dotnet test` + reportgenerator | ≥90% line coverage |
 | Mutation | `scripts/run-stryker.cs` | ≥93.74% mutation score |
 | Benchmarks | `scripts/check-benchmarks.cs` | ≤15% latency regression, ≤25% allocation regression |
-| Load (console) | `scripts/check-load-metrics.cs -- --config ci/load-thresholds.json` | CPU ≤2%, peak working set ≤160 MB, send/publish throughput ≥ configured mins |
+| Load (console) | `scripts/check-load-metrics.cs -- --config ci/load-thresholds.json` | CPU ≤3%, peak working set ≤160 MB, send/publish throughput ≥ configured mins |
 | Load (NBomber) | `scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json` | Send-burst throughput ≥6.75M ops/sec, latency ≤0.85 ms |
 
 ## Maintainer Checklist
