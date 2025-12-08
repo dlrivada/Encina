@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 string[] arguments = Environment.GetCommandLineArgs().Skip(1).ToArray();
 string? directory = null;
@@ -72,11 +74,12 @@ if (methodIndex < 0 || meanIndex < 0 || allocatedIndex < 0)
     Environment.Exit(1);
 }
 
-var thresholds = new Dictionary<string, (double maxMeanMicroseconds, double maxAllocatedKb)>(StringComparer.Ordinal)
-{
-    ["Send_Command_WithInstrumentation"] = (maxMeanMicroseconds: 1.56, maxAllocatedKb: 5.63),
-    ["Publish_Notification_WithMultipleHandlers"] = (maxMeanMicroseconds: 1.14, maxAllocatedKb: 2.98)
-};
+var thresholds = LoadThresholds()
+    ?? new Dictionary<string, (double maxMeanMicroseconds, double maxAllocatedKb)>(StringComparer.Ordinal)
+    {
+        ["Send_Command_WithInstrumentation"] = (maxMeanMicroseconds: 1.56, maxAllocatedKb: 5.63),
+        ["Publish_Notification_WithMultipleHandlers"] = (maxMeanMicroseconds: 1.14, maxAllocatedKb: 2.98)
+    };
 
 var results = new List<BenchmarkResult>();
 var violations = new List<string>();
@@ -150,6 +153,43 @@ if (violations.Count > 0)
     }
 
     Environment.Exit(1);
+}
+
+static Dictionary<string, (double maxMeanMicroseconds, double maxAllocatedKb)>? LoadThresholds()
+{
+    const string configPath = "ci/benchmark-thresholds.json";
+    if (!File.Exists(configPath))
+    {
+        return null;
+    }
+
+    try
+    {
+        using var stream = File.OpenRead(configPath);
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver()
+        };
+
+        var payload = JsonSerializer.Deserialize<BenchmarkThresholds>(stream, options);
+        if (payload?.Benchmarks is null)
+        {
+            return null;
+        }
+
+        return payload.Benchmarks
+            .ToDictionary(
+                pair => pair.Key,
+                pair => (pair.Value.MaxMeanMicroseconds, pair.Value.MaxAllocatedKb),
+                StringComparer.Ordinal);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Failed to read benchmark thresholds from '{configPath}': {ex.Message}");
+        Environment.Exit(1);
+        return null;
+    }
 }
 
 static string? LocateLatestPerformanceDirectory()
@@ -269,3 +309,7 @@ record BenchmarkResult(string Method, double MeanMicroseconds, double AllocatedK
             LimitAllocatedKb);
     }
 }
+
+sealed record BenchmarkThresholds(Dictionary<string, Threshold> Benchmarks);
+
+sealed record Threshold(double MaxMeanMicroseconds, double MaxAllocatedKb);
