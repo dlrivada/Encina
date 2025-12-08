@@ -96,6 +96,7 @@ Status legend: ✅ Done · 🚧 In progress · ⏳ Planned · ⚠️ Blocked
 - **2025-12-08** — Introduced `ci/load-thresholds.json`; the checker now accepts `--config` to load baseline guardrails before applying env/CLI overrides, and CI consumes this config instead of hardcoded thresholds.
 - **2025-12-08** — `scripts/run-benchmarks.cs` now copies BenchmarkDotNet CSV/HTML reports into the artifact root so CI guardrails can locate exported metrics without additional plumbing.
 - **2025-12-08** — Relaxed benchmark latency thresholds (2.60 µs send / 2.40 µs publish) to reflect the slower hosted Windows 2025 agents while keeping allocation limits unchanged.
+- **2025-12-08** — Mutation summary tool now persists `mutation-report.txt` alongside the JSON/HTML outputs so CI can surface text results without relying on Stryker’s cleartext reporter.
 
 ## Upcoming Actions
 

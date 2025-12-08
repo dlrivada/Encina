@@ -20,6 +20,7 @@ using (reportJson)
 
     var summary = summaryResult;
     PrintSummary(reportPath, summary);
+    PersistTextSummary(reportPath, summary);
 
     var readmePath = FindFile("README.md");
     if (readmePath is null)
@@ -162,6 +163,32 @@ static void PrintSummary(string reportPath, MutationSummary summary)
     Console.WriteLine($"RuntimeErr : {summary.RuntimeErrors}");
     Console.WriteLine($"CompileErr : {summary.CompileErrors}");
     Console.WriteLine($"Ignored    : {summary.Ignored}");
+}
+
+static void PersistTextSummary(string reportPath, MutationSummary summary)
+{
+    var reportsDirectory = Path.GetDirectoryName(reportPath);
+    if (string.IsNullOrEmpty(reportsDirectory))
+    {
+        return;
+    }
+
+    var summaryPath = Path.Combine(reportsDirectory, "mutation-report.txt");
+    var lines = new[]
+    {
+        $"Mutation Score: {summary.MutationScore.ToString("F2", CultureInfo.InvariantCulture)}%",
+        $"Total Mutants : {summary.Total}",
+        $"Detected      : {summary.Detected}",
+        $"Killed        : {summary.Killed}",
+        $"Survived      : {summary.Survived}",
+        $"No Coverage   : {summary.NoCoverage}",
+        $"Timeouts      : {summary.Timeouts}",
+        $"Runtime Errors: {summary.RuntimeErrors}",
+        $"Compile Errors: {summary.CompileErrors}",
+        $"Ignored       : {summary.Ignored}"
+    };
+
+    File.WriteAllLines(summaryPath, lines);
 }
 
 static void UpdateBadge(string readmePath, MutationSummary summary)
