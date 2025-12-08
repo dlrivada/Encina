@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,7 +25,7 @@ namespace SimpleMediator;
 public sealed class SimpleMediator : IMediator
 {
     private static readonly ConcurrentDictionary<(Type Request, Type Response), RequestHandlerBase> RequestHandlerCache = new();
-    private static readonly ConcurrentDictionary<Type, MethodInfo?> NotificationHandleMethodCache = new();
+    private static readonly ConcurrentDictionary<(Type Handler, Type Notification), Func<object, object, CancellationToken, Task>> NotificationHandlerInvokerCache = new();
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SimpleMediator> _logger;
@@ -132,7 +133,7 @@ public sealed class SimpleMediator : IMediator
         foreach (var handler in handlers)
         {
             _logger.LogDebug("Sending notification {NotificationType} to {HandlerType}.", notificationType.Name, handler.GetType().Name);
-            var result = await InvokeNotificationHandler(handler, notification, cancellationToken).ConfigureAwait(false);
+            var result = await InvokeNotificationHandler(handler, notification, notificationType, cancellationToken).ConfigureAwait(false);
             if (TryHandleNotificationFailure(result, handler))
             {
                 return result;
@@ -412,51 +413,84 @@ public sealed class SimpleMediator : IMediator
         }
     }
 
-    private static async Task<Either<Error, Unit>> InvokeNotificationHandler<TNotification>(object handler, TNotification notification, CancellationToken cancellationToken)
+    private static async Task<Either<Error, Unit>> InvokeNotificationHandler<TNotification>(object handler, TNotification notification, Type notificationType, CancellationToken cancellationToken)
         where TNotification : INotification
     {
         var handlerType = handler.GetType();
-        var method = GetHandleMethod(handlerType);
-        if (method is null)
+        var key = (Handler: handlerType, Notification: notificationType);
+        var notificationName = notification?.GetType().Name ?? notificationType.Name;
+
+        if (!NotificationHandlerInvokerCache.TryGetValue(key, out var executor))
         {
-            var message = $"Handler {handlerType.Name} does not expose a compatible Handle method.";
-            return Left<Error, Unit>(MediatorErrors.Create("mediator.notification.missing_handle", message));
+            var method = handlerType.GetMethod(
+                "Handle",
+                BindingFlags.Instance | BindingFlags.Public,
+                binder: null,
+                types: new[] { notificationType, typeof(CancellationToken) },
+                modifiers: null);
+
+            if (method is null)
+            {
+                var message = $"Handler {handlerType.Name} does not expose a compatible Handle method.";
+                return Left<Error, Unit>(MediatorErrors.Create("mediator.notification.missing_handle", message));
+            }
+
+            if (!typeof(Task).IsAssignableFrom(method.ReturnType))
+            {
+                var message = $"Handler {handlerType.Name} returned an unexpected type while processing {notificationName}.";
+                return Left<Error, Unit>(MediatorErrors.Create("mediator.notification.invalid_return", message));
+            }
+
+            executor = CreateNotificationInvoker(method, handlerType, notificationType);
+            NotificationHandlerInvokerCache.TryAdd(key, executor);
+        }
+
+        Task? execution;
+        try
+        {
+            execution = executor(handler, notification!, cancellationToken);
+        }
+        catch (OperationCanceledException ex)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                var message = $"Publishing {notificationName} was cancelled by {handlerType.Name}.";
+                return Left<Error, Unit>(MediatorErrors.Create("mediator.notification.cancelled", message, ex));
+            }
+
+            var error = MediatorErrors.FromException("mediator.notification.exception", ex, $"Error processing {notificationName} with {handlerType.Name}.");
+            return Left<Error, Unit>(error);
+        }
+        catch (Exception ex)
+        {
+            var error = MediatorErrors.FromException("mediator.notification.exception", ex, $"Error processing {notificationName} with {handlerType.Name}.");
+            return Left<Error, Unit>(error);
+        }
+
+        if (execution is null)
+        {
+            return Right<Error, Unit>(Unit.Default);
         }
 
         try
         {
-            var result = method.Invoke(handler, new object[] { notification!, cancellationToken });
-            switch (result)
-            {
-                case Task task:
-                    await task.ConfigureAwait(false);
-                    return Right<Error, Unit>(Unit.Default);
-                case null:
-                    return Right<Error, Unit>(Unit.Default);
-                default:
-                    var message = $"Handler {handlerType.Name} returned an unexpected type while processing {notification?.GetType().Name ?? typeof(TNotification).Name}.";
-                    return Left<Error, Unit>(MediatorErrors.Create("mediator.notification.invalid_return", message));
-            }
+            await execution.ConfigureAwait(false);
+            return Right<Error, Unit>(Unit.Default);
         }
-        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        catch (OperationCanceledException ex)
         {
-            if (ex.InnerException is OperationCanceledException cancelled && cancellationToken.IsCancellationRequested)
+            if (cancellationToken.IsCancellationRequested)
             {
-                var message = $"Publishing {notification?.GetType().Name ?? typeof(TNotification).Name} was cancelled by {handlerType.Name}.";
-                return Left<Error, Unit>(MediatorErrors.Create("mediator.notification.cancelled", message, cancelled));
+                var message = $"Publishing {notificationName} was cancelled by {handlerType.Name}.";
+                return Left<Error, Unit>(MediatorErrors.Create("mediator.notification.cancelled", message, ex));
             }
 
-            var error = MediatorErrors.FromException("mediator.notification.exception", ex.InnerException, $"Error processing {notification?.GetType().Name ?? typeof(TNotification).Name} with {handlerType.Name}.");
+            var error = MediatorErrors.FromException("mediator.notification.exception", ex, $"Error processing {notificationName} with {handlerType.Name}.");
             return Left<Error, Unit>(error);
-        }
-        catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
-        {
-            var message = $"Publishing {notification?.GetType().Name ?? typeof(TNotification).Name} was cancelled by {handlerType.Name}.";
-            return Left<Error, Unit>(MediatorErrors.Create("mediator.notification.cancelled", message, ex));
         }
         catch (Exception ex)
         {
-            var error = MediatorErrors.FromException("mediator.notification.invoke_exception", ex, $"Error invoking {handlerType.Name}.Handle.");
+            var error = MediatorErrors.FromException("mediator.notification.exception", ex, $"Error processing {notificationName} with {handlerType.Name}.");
             return Left<Error, Unit>(error);
         }
     }
@@ -471,8 +505,26 @@ public sealed class SimpleMediator : IMediator
         return errorCode.IndexOf("cancelled", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
-    private static MethodInfo? GetHandleMethod(Type handlerType)
-        => NotificationHandleMethodCache.GetOrAdd(
-            handlerType,
-            static type => type.GetMethod("Handle", BindingFlags.Instance | BindingFlags.Public));
+    private static Func<object, object, CancellationToken, Task> CreateNotificationInvoker(MethodInfo method, Type handlerType, Type notificationType)
+    {
+        var handlerParameter = Expression.Parameter(typeof(object), "handler");
+        var notificationParameter = Expression.Parameter(typeof(object), "notification");
+        var cancellationTokenParameter = Expression.Parameter(typeof(CancellationToken), "cancellationToken");
+
+        var castHandler = Expression.Convert(handlerParameter, handlerType);
+        var castNotification = Expression.Convert(notificationParameter, notificationType);
+
+        var call = Expression.Call(castHandler, method, castNotification, cancellationTokenParameter);
+        Expression body = method.ReturnType == typeof(Task)
+            ? call
+            : Expression.Convert(call, typeof(Task));
+
+        var lambda = Expression.Lambda<Func<object, object, CancellationToken, Task>>(
+            body,
+            handlerParameter,
+            notificationParameter,
+            cancellationTokenParameter);
+
+        return lambda.Compile();
+    }
 }
