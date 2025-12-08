@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -22,8 +23,7 @@ namespace SimpleMediator;
 /// </remarks>
 public sealed class SimpleMediator : IMediator
 {
-    private static readonly MethodInfo? SendCoreMethod = typeof(SimpleMediator)
-        .GetMethod(nameof(SendCore), BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly ConcurrentDictionary<(Type Request, Type Response), RequestHandlerBase> RequestHandlerCache = new();
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SimpleMediator> _logger;
@@ -53,8 +53,11 @@ public sealed class SimpleMediator : IMediator
         var serviceProvider = scope.ServiceProvider;
 
         var requestType = request.GetType();
-        var handlerType = typeof(IRequestHandler<,>).MakeGenericType(requestType, typeof(TResponse));
-        var handler = serviceProvider.GetService(handlerType);
+        var dispatcher = RequestHandlerCache.GetOrAdd(
+            (requestType, typeof(TResponse)),
+            static key => CreateRequestHandlerWrapper(key.Request, key.Response));
+
+        var handler = dispatcher.ResolveHandler(serviceProvider);
 
         if (handler is null)
         {
@@ -63,46 +66,23 @@ public sealed class SimpleMediator : IMediator
             return Left<Error, TResponse>(MediatorErrors.Create("mediator.handler.missing", message));
         }
 
-        if (SendCoreMethod is null)
-        {
-            const string message = "No se localizó la operación interna SendCore.";
-            _logger.LogCritical(message);
-            return Left<Error, TResponse>(MediatorErrors.Create("mediator.internal_missing", message));
-        }
-
-        MethodInfo typedMethod;
-        try
-        {
-            typedMethod = SendCoreMethod.MakeGenericMethod(requestType, typeof(TResponse));
-        }
-        catch (Exception ex)
-        {
-            var error = MediatorErrors.FromException("mediator.reflection_failure", ex, $"No se pudo preparar el pipeline para {requestType.Name}.");
-            _logger.LogError(ex, error.Message);
-            return Left<Error, TResponse>(error);
-        }
-
         try
         {
             _logger.LogDebug("Procesando {RequestType} con {HandlerType}.", requestType.Name, handler.GetType().Name);
+            var boxedOutcome = await dispatcher
+                .Handle(this, request, handler, serviceProvider, cancellationToken)
+                .ConfigureAwait(false);
 
-            var result = typedMethod.Invoke(this, new object[] { request, handler, serviceProvider, cancellationToken });
-            if (result is Task<Either<Error, TResponse>> task)
+            if (boxedOutcome is not Either<Error, TResponse> outcome)
             {
-                var outcome = await task.ConfigureAwait(false);
-                LogSendOutcome(requestType, handler.GetType(), outcome);
-                return outcome;
+                var message = $"El handler {handler.GetType().Name} devolvió un tipo inesperado al procesar {requestType.Name}.";
+                _logger.LogError(message);
+                return Left<Error, TResponse>(MediatorErrors.Create("mediator.handler.invalid_result", message));
             }
 
-            var message = $"El handler {handler.GetType().Name} devolvió un tipo inesperado al procesar {requestType.Name}.";
-            _logger.LogError(message);
-            return Left<Error, TResponse>(MediatorErrors.Create("mediator.handler.invalid_result", message));
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is not null)
-        {
-            var error = MediatorErrors.FromException("mediator.pipeline.exception", ex.InnerException, $"Error procesando {requestType.Name}.");
-            _logger.LogError(ex.InnerException, error.Message);
-            return Left<Error, TResponse>(error);
+            var resultInfo = ExtractOutcome(outcome);
+            LogSendOutcomeCore(requestType, handler.GetType(), resultInfo.IsSuccess, resultInfo.Error);
+            return outcome;
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
@@ -186,18 +166,22 @@ public sealed class SimpleMediator : IMediator
 
     private void LogSendOutcome<TResponse>(Type requestType, Type handlerType, Either<Error, TResponse> outcome)
     {
-        if (outcome.IsRight)
+        var resultInfo = ExtractOutcome(outcome);
+        LogSendOutcomeCore(requestType, handlerType, resultInfo.IsSuccess, resultInfo.Error);
+    }
+
+    private void LogSendOutcomeCore(Type requestType, Type handlerType, bool isSuccess, Error? error)
+    {
+        if (isSuccess)
         {
             _logger.LogDebug("Solicitud {RequestType} completada por {HandlerType}.", requestType.Name, handlerType.Name);
             return;
         }
 
-        var error = outcome.Match(
-            Left: err => err,
-            Right: _ => MediatorErrors.Unknown);
+        var effectiveError = error ?? MediatorErrors.Unknown;
 
-        var errorCode = error.GetMediatorCode();
-        var exception = error.Exception.Match(
+        var errorCode = effectiveError.GetMediatorCode();
+        var exception = effectiveError.Exception.Match(
             Some: ex => (Exception?)ex,
             None: () => null);
 
@@ -207,14 +191,54 @@ public sealed class SimpleMediator : IMediator
             return;
         }
 
-        _logger.LogError(exception, "La solicitud {RequestType} falló ({Reason}): {Message}", requestType.Name, errorCode, error.Message);
+        _logger.LogError(exception, "La solicitud {RequestType} falló ({Reason}): {Message}", requestType.Name, errorCode, effectiveError.Message);
     }
 
-    private Task<Either<Error, TResponse>> SendCore<TRequest, TResponse>(TRequest request, object handler, IServiceProvider serviceProvider, CancellationToken cancellationToken)
+    private static (bool IsSuccess, Error? Error) ExtractOutcome<TResponse>(Either<Error, TResponse> outcome)
+        => outcome.Match(
+            Left: err => (IsSuccess: false, Error: (Error?)err),
+            Right: _ => (IsSuccess: true, Error: (Error?)null));
+
+    private static RequestHandlerBase CreateRequestHandlerWrapper(Type requestType, Type responseType)
+    {
+        var wrapperType = typeof(RequestHandlerWrapper<,>).MakeGenericType(requestType, responseType);
+        return (RequestHandlerBase)Activator.CreateInstance(wrapperType)!;
+    }
+
+    private abstract class RequestHandlerBase
+    {
+        public abstract Type HandlerServiceType { get; }
+        public abstract object? ResolveHandler(IServiceProvider provider);
+        public abstract Task<object> Handle(SimpleMediator mediator, object request, object handler, IServiceProvider provider, CancellationToken cancellationToken);
+    }
+
+    private sealed class RequestHandlerWrapper<TRequest, TResponse> : RequestHandlerBase
         where TRequest : IRequest<TResponse>
     {
-        var typedHandler = (IRequestHandler<TRequest, TResponse>)handler;
-        RequestHandlerDelegate<TResponse> current = () => ExecuteHandlerAsync(typedHandler, request, cancellationToken);
+        private static readonly Type HandlerType = typeof(IRequestHandler<TRequest, TResponse>);
+
+        public override Type HandlerServiceType => HandlerType;
+
+        public override object? ResolveHandler(IServiceProvider provider)
+            => provider.GetService(HandlerType);
+
+        public override async Task<object> Handle(SimpleMediator mediator, object request, object handler, IServiceProvider provider, CancellationToken cancellationToken)
+        {
+            var typedRequest = (TRequest)request;
+            var typedHandler = (IRequestHandler<TRequest, TResponse>)handler;
+            var outcome = await mediator.SendCore(typedRequest, typedHandler, provider, cancellationToken).ConfigureAwait(false);
+            return outcome;
+        }
+    }
+
+    private Task<Either<Error, TResponse>> SendCore<TRequest, TResponse>(
+        TRequest request,
+        IRequestHandler<TRequest, TResponse> handler,
+        IServiceProvider serviceProvider,
+        CancellationToken cancellationToken)
+        where TRequest : IRequest<TResponse>
+    {
+        RequestHandlerDelegate<TResponse> current = () => ExecuteHandlerAsync(handler, request, cancellationToken);
 
         var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>()?.ToArray();
         if (behaviors?.Any() == true)

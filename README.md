@@ -320,7 +320,15 @@ Mutation testing is exercised via Stryker.NET. Run the full sweep using the sing
 dotnet run --file scripts/run-stryker.cs
 ```
 
-Reports are written to `StrykerOutput/<timestamp>/reports/` and include HTML plus text summaries; the badge reflects the most recent 92.37% score.
+Reports land in `StrykerOutput/<timestamp>/reports/` with HTML/JSON payloads. After a run, refresh the mutation badge and emit a concise summary by executing:
+
+```bash
+dotnet run --file scripts/update-mutation-summary.cs
+```
+
+The helper mirrors Stryker's scoring (compile errors are excluded from the denominator) and colors the badge according to configured thresholds. It edits `README.md` in place when the standard badge pattern is present and will simply print a suggested badge if the section has been customized.
+
+Use `scripts/analyze-mutation-report.cs <filter>` to inspect survivors by file fragment when triaging regressions.
 
 The suite exercises:
 

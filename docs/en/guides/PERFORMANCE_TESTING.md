@@ -13,8 +13,8 @@
 ## Execution
 
 - Restore dependencies: `dotnet restore SimpleMediator.slnx`.
-- Run suites with `dotnet run -c Release --project benchmarks/SimpleMediator.Benchmarks/SimpleMediator.Benchmarks.csproj`.
-- Persist results under `artifacts/performance/<timestamp>/` for historical comparison.
+- Run suites with `dotnet run --file scripts/run-benchmarks.cs` to generate a timestamped artifact directory.
+- Persist results under `artifacts/performance/<timestamp>/` for historical comparison (script handles directory creation and logs the path).
 
 ## Baseline Snapshot (2025-12-08)
 
@@ -27,17 +27,43 @@ The first Release run captured the following medians on the local dev rig (Core 
 
 CSV/HTML summaries live at `artifacts/performance/2025-12-08.000205/` and should be updated whenever the mediator pipeline changes materially.
 
-## Proposed Regression Thresholds
+### Trend History
 
-Use the initial baseline as guard rails while we gather more samples. Treat runs that exceed these limits as regressions requiring investigation:
+- **Aggregated table**: `docs/data/benchmark-history.md` lists every captured run (timestamp, scenario, mean, allocations). Regenerate it with `dotnet run --file scripts/aggregate-performance-history.cs` after uploading fresh CSV snapshots.
+- **CI linkage**: when the workflow publishes the `benchmark-report` artifact, download the CSVs or wire a follow-up job to run the aggregator so the Markdown stays current without manual intervention.
+- **Annotation tip**: prepend notable environment changes (SDK bump, hardware swap) to the Markdown entry before committing so deviations remain explainable at a glance.
 
-- `Send_Command_WithInstrumentation`: alert when mean ≥ 2.25 μs _or_ allocations ≥ 5.25 KB.
-- `Publish_Notification_WithMultipleHandlers`: alert when mean ≥ 1.15 μs _or_ allocations ≥ 2.75 KB.
+## Regression Thresholds & Enforcement
 
-Once additional datapoints exist, refine the thresholds to include percentile-based limits and document any environment-specific adjustments.
+Thresholds leverage the initial baseline and are currently enforced inside CI via `scripts/check-benchmarks.cs`. Any run exceeding the limits fails the pipeline and writes a Markdown summary to the job log for quick triage:
+
+- `Send_Command_WithInstrumentation`: mean must stay < 2.25 μs and allocations < 5.25 KB.
+- `Publish_Notification_WithMultipleHandlers`: mean must stay < 1.15 μs and allocations < 2.75 KB.
+
+Both limits apply to the `Mean` and `Allocated` columns exported by BenchmarkDotNet’s CSV reporter. The check script accepts `--directory <path>` when validating a historical run.
+
+Over time we plan to refine the limits with percentile-based thresholds once enough datapoints exist, documenting any environment-specific adjustments here.
+
+### CI Integration
+
+The CI workflow executes:
+
+```pwsh
+dotnet run --file scripts/run-benchmarks.cs
+dotnet run --file scripts/check-benchmarks.cs -- --directory $env:BENCHMARK_DIR
+```
+
+The first command emits `benchmark-dir=<full path>` to `GITHUB_OUTPUT`. The second consumes the directory, enforces the limits, and appends per-scenario results to `GITHUB_STEP_SUMMARY`. Artifacts are uploaded under the `benchmark-report` name for later comparison.
+
+### Capturing Trends
+
+- Download the `benchmark-report` artifact from successive CI runs and append CSV snapshots into `artifacts/performance/`.
+- Execute `dotnet run --file scripts/aggregate-performance-history.cs` (locally or as a CI post-step) to regenerate the Markdown tables under `docs/data/` for both benchmarks and load harness runs.
+- Review `docs/data/benchmark-history.md` during code review to quickly spot latency/allocation drift and decide whether thresholds should tighten or a regression investigation is needed.
+- Update this guide’s baseline section once the history shows sustained improvements so the documented expectations stay aligned with reality.
 
 ## Follow-Up
 
-- Capture baseline numbers and attach CSV/markdown summaries alongside HTML results.
-- Add perf regression thresholds to CI once baseline data exists.
+- Automate wiring of `scripts/aggregate-performance-history.cs` inside CI so trend Markdown refreshes without manual intervention.
 - Document tuning recommendations (DI scope reuse, behavior ordering) based on findings.
+- Pair benchmark data with the new load harness (see `LOAD_TESTING.md`) to correlate latency regressions with throughput drops.

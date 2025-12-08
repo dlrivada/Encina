@@ -7,23 +7,27 @@
 
 ## Coverage Matrix
 
-- Requests
-  - `REQ-REQ-LIFECYCLE`: Command handling lifecycle → unit tests (`SimpleMediator.Tests`)
-  - `REQ-REQ-QUERY`: Query behavior invariants → property tests (`ConfigurationProperties`)
-  - `REQ-REQ-PIPELINE`: Pipeline wiring contracts → contract tests (`PipelineBehaviorContracts`)
-- Notifications
-  - `REQ-NOT-ORDER`: Publish ordering and cancellation behavior → property tests (`NotificationProperties`)
-  - `REQ-NOT-MULTI`: Multi-handler registration expectations → contract tests (`HandlerRegistrationContracts`)
-- Configuration
-  - `REQ-CONF-LIFETIME`: Service registration lifetimes → contract tests (`ServiceRegistrationContracts`)
-  - `REQ-CONF-SCAN`: Assembly scanning cache behavior → unit tests (`SimpleMediator.Tests` pending refactor)
-  - `REQ-CONF-EDGE`: Custom configuration edge cases → contract tests (`ConfigurationEdgeCaseContracts`)
+| Requirement ID | Description | Coverage |
+|----------------|-------------|----------|
+| `REQ-REQ-LIFECYCLE` | Command handler lifecycle, error and cancellation flows | Unit tests in `tests/SimpleMediator.Tests/SimpleMediatorTests.cs` |
+| `REQ-REQ-QUERY` | Query determinism and pipeline ordering | Property tests in `tests/SimpleMediator.PropertyTests/ConfigurationProperties.cs` |
+| `REQ-REQ-PIPELINE` | Pipeline behavior registration contracts | Contract tests in `tests/SimpleMediator.ContractTests/ServiceRegistrationContracts.cs` |
+| `REQ-REQ-CONCURRENCY` | Concurrent publish guarantees for requests and notifications | Property tests in `tests/SimpleMediator.PropertyTests/NotificationProperties.cs` |
+| `REQ-NOT-ORDER` | Notification ordering, cancellation, and error propagation | Property tests in `tests/SimpleMediator.PropertyTests/NotificationProperties.cs` |
+| `REQ-NOT-MULTI` | Multi-handler notification registration | Contract tests in `tests/SimpleMediator.ContractTests/ServiceRegistrationContracts.cs` |
+| `REQ-INF-METRICS` | Metrics emission and failure tagging | Unit tests in `tests/SimpleMediator.Tests/MediatorMetricsTests.cs` |
+| `REQ-CONF-LIFETIME` | Handler lifetime configuration | Contract tests in `tests/SimpleMediator.ContractTests/ServiceRegistrationContracts.cs` |
+| `REQ-CONF-SCAN` | Assembly scanning fallbacks and caching | Unit tests in `tests/SimpleMediator.Tests/SimpleMediatorTests.cs` |
+| `REQ-CONF-EDGE` | Configuration extension edge cases | Contract tests in `tests/SimpleMediator.ContractTests/ServiceRegistrationContracts.cs` |
+| `REQ-QUAL-MUTATION` | Maintain ≥92.37% mutation score | CI step `scripts/run-stryker.cs` + summary `scripts/update-mutation-summary.cs`; documented in `MUTATION_TESTING.md` |
+| `REQ-PERF-BASELINE` | Benchmark latencies and allocations within thresholds | Benchmarks project + CI gate `scripts/run-benchmarks.cs`/`scripts/check-benchmarks.cs`; documented in `PERFORMANCE_TESTING.md` |
+| `REQ-LOAD-THROUGHPUT` | Sustained throughput under configurable load | Harness `load/SimpleMediator.LoadTests` via `scripts/run-load-harness.cs`; documented in `LOAD_TESTING.md` |
 
 ## Gaps & Planned Work
 
-- Document mutation testing thresholds and actionable metrics (pending `MUTATION_TESTING.md`).
-- Capture performance targets once BenchmarkDotNet suite lands.
-- Link each roadmap item to a corresponding scenario identifier for quick lookup.
+- Record CPU/memory envelopes for the load harness and note tuning guidance in `LOAD_TESTING.md`.
+- Link roadmap entries to requirement IDs so status updates map back to this matrix.
+- Add traceability for future integration or end-to-end test suites as they come online.
 
 ## Maintenance
 

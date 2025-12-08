@@ -99,6 +99,31 @@ public sealed class MediatorMetricsTests
     }
 
     [Fact]
+    public void TrackFailure_OmitsReasonTagWhenBlank()
+    {
+        var metrics = new MediatorMetrics();
+        var failureMeasurements = new List<(long value, Dictionary<string, object?> tags)>();
+
+        using var listener = CreateListener(
+            onLongMeasurement: (instrument, measurement, tags) =>
+            {
+                if (instrument.Name == "simplemediator.request.failure")
+                {
+                    failureMeasurements.Add((measurement, tags));
+                }
+            });
+
+        metrics.TrackFailure("command", "Ping", TimeSpan.Zero, string.Empty);
+
+        failureMeasurements.Count.ShouldBe(1);
+        var failure = failureMeasurements[0];
+        failure.value.ShouldBe(1);
+        failure.tags["request.kind"].ShouldBe("command");
+        failure.tags["request.name"].ShouldBe("Ping");
+        failure.tags.ContainsKey("failure.reason").ShouldBeFalse();
+    }
+
+    [Fact]
     public void DurationHistogram_UsesMillisecondsUnit()
     {
         var histogramField = typeof(MediatorMetrics)

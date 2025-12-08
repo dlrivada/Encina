@@ -14,17 +14,17 @@ This roadmap tracks the effort to bring SimpleMediator to the same multi-layered
 
 ## Workstreams & Status
 
-| Area | Scope | Owner | Status | Notes |
-|------|-------|-------|--------|-------|
-| Foundation | Relocate imported reference docs, update `.gitignore`, create roadmap doc | Copilot | ✅ Done | Zip moved to `.backup/`, roadmap created |
-| Coverage Baseline | Collect current `dotnet test` coverage report and archive results | Copilot | ✅ Done | Release run (2025-12-06) reached 89.1% line / 68.4% branch; targeted Error tests on 2025-12-07 pushed line coverage to 90% and the CI workflow now publishes HTML/Text summaries plus the README badge sourced from `artifacts/coverage` |
-| Unit Expansion | Increase coverage for mediator core, behaviors, metrics | Copilot | ⏳ Planned | Target ≥90% lines for `SimpleMediator` namespace |
-| Property Tests | Create `SimpleMediator.PropertyTests` with FsCheck generators | Copilot | 🚧 In progress | Configuration, pipeline determinism, and notification publish ordering covered |
-| Contract Tests | Ensure handlers/behaviors honor interfaces across implementations | Copilot | 🚧 In progress | DI registrations cover pipelines, handlers, processors, and multi-assembly edge cases |
-| Mutation Testing | Configure Stryker.NET thresholds and CI integration | Copilot | 🚧 In progress | CI pipeline now runs `scripts/run-stryker.cs`, publishes the latest report artifact, and enforces the 92.37% baseline (448 killed / 0 survived). |
-| Performance Benchmarks | Add BenchmarkDotNet project & publish results doc | Copilot | 🚧 In progress | Baseline run captured 2025-12-08 with reports under `artifacts/performance/2025-12-08.000205`; next step is documenting guidance. |
-| Load Harness | Prototype NBomber (or console) throughput tests | Copilot | ⏳ Planned | Document CPU/memory requirements |
-| Documentation | Publish guides (`docs/en/guides`) & requirements mapping | Copilot | 🚧 In progress | Testing, requirements, mutation, and performance guide skeletons committed; automation scripts must be single-file C# apps executed via `dotnet run --file script.cs` |
+| Area | Scope | Owner | Requirement IDs | Status | Notes |
+|------|-------|-------|-----------------|--------|-------|
+| Foundation | Relocate imported reference docs, update `.gitignore`, create roadmap doc | Copilot | — | ✅ Done | Zip moved to `.backup/`, roadmap created |
+| Coverage Baseline | Collect current `dotnet test` coverage report and archive results | Copilot | `REQ-REQ-LIFECYCLE` | ✅ Done | Release run (2025-12-06) reached 89.1% line / 68.4% branch; targeted Error tests on 2025-12-07 pushed line coverage to 90% and the CI workflow now publishes HTML/Text summaries plus the README badge sourced from `artifacts/coverage` |
+| Unit Expansion | Increase coverage for mediator core, behaviors, metrics | Copilot | `REQ-REQ-LIFECYCLE`, `REQ-INF-METRICS` | ✅ Done | `SimpleMediator` send/publish edge cases and metrics failure tagging covered by unit suite |
+| Property Tests | Create `SimpleMediator.PropertyTests` with FsCheck generators | Copilot | `REQ-REQ-CONCURRENCY`, `REQ-NOT-ORDER` | ✅ Done | Configuration, pipeline determinism, notification publish ordering, and concurrent publish guarantees covered |
+| Contract Tests | Ensure handlers/behaviors honor interfaces across implementations | Copilot | `REQ-NOT-MULTI`, `REQ-CONF-LIFETIME`, `REQ-CONF-EDGE` | ✅ Done | DI registrations cover pipelines, handlers, processors, functional failure detector defaults, and multi-assembly edge cases |
+| Mutation Testing | Configure Stryker.NET thresholds and CI integration | Copilot | `REQ-QUAL-MUTATION` | ✅ Done | CI pipeline runs `scripts/run-stryker.cs`, invokes `scripts/update-mutation-summary.cs`, publishes HTML/JSON artifacts, and enforces the 92.37% baseline (448 killed / 0 survived). |
+| Performance Benchmarks | Add BenchmarkDotNet project & publish results doc | Copilot | `REQ-PERF-BASELINE` | ✅ Done | Baseline run captured 2025-12-08 with reports under `artifacts/performance/2025-12-08.000205`; CI now executes benchmarks and enforces regression thresholds. |
+| Load Harness | Prototype NBomber (or console) throughput tests | Copilot | `REQ-LOAD-THROUGHPUT` | 🚧 In progress | Console harness with metrics collection committed; CI runs a high-concurrency pass with guardrails; load history + CI summary now track throughput P50/P95 alongside CPU/memory and respect configurable min throughput thresholds |
+| Documentation | Publish guides (`docs/en/guides`) & requirements mapping | Copilot | — | 🚧 In progress | Testing, requirements, mutation, and performance guide skeletons committed; automation scripts must be single-file C# apps executed via `dotnet run --file script.cs` |
 
 Status legend: ✅ Done · 🚧 In progress · ⏳ Planned · ⚠️ Blocked
 
@@ -68,13 +68,58 @@ Status legend: ✅ Done · 🚧 In progress · ⏳ Planned · ⚠️ Blocked
 - **2025-12-08** — Benchmark baseline recorded (Send ≈2.02 μs, Publish ≈1.01 μs) with CSV/HTML artifacts stored in `artifacts/performance/2025-12-08.000205` for future regressions.
 - **2025-12-08** — README now surfaces the latest mutation score via a static badge and documents the local Stryker workflow alongside coverage guidance.
 - **2025-12-08** — Performance guide captures proposed regression thresholds so CI gates can key off the initial benchmark baseline.
+- **2025-12-08** — CI now runs `scripts/update-mutation-summary.cs` after Stryker, adding the computed metrics to the workflow summary while keeping the README badge in sync.
+- **2025-12-08** — Authored `scripts/update-mutation-summary.cs` so the latest Stryker run can drive README badge updates and surface totals/killed/no-coverage counts straight from `mutation-report.json`.
+- **2025-12-08** — Added concurrency-focused notification property ensuring parallel publish operations invoke every registered handler without losses.
+- **2025-12-08** — Hardened `SimpleMediator.LogSendOutcome` failure logging with dedicated unit tests covering mediator-generated and wrapped exceptions.
+- **2025-12-08** — Testing guide documents the `scripts/update-mutation-summary.cs` workflow so badge refreshes stay consistent.
+- **2025-12-08** — Added MediatorMetrics regression check ensuring blank failure reasons do not emit misleading tags.
+- **2025-12-08** — Property test suite declared complete for Phase 1 after adding concurrency, cancellation, and pipeline composition invariants.
+- **2025-12-08** — Contract suite now verifies functional failure detector defaults and override behavior during registration.
+- **2025-12-08** — Unit suite now exercises `SimpleMediator` send/publish guards alongside metrics logging, lifting namespace coverage above the 90% target.
+- **2025-12-08** — Mutation badge refresh automated via `scripts/update-mutation-summary.cs`, confirming the 92.37% baseline remains stable (448 killed / 0 survived).
+- **2025-12-08** — Added `SimpleMediator.LoadTests` console harness plus `scripts/run-load-harness.cs`, enabling configurable send/publish stress runs with aggregated throughput metrics.
+- **2025-12-08** — Added `scripts/collect-load-metrics.cs` to capture harness CPU usage and private memory snapshots into CSV artifacts alongside harness logs.
+- **2025-12-08** — Authored `scripts/aggregate-performance-history.cs` to consolidate benchmark/load CSVs into Markdown tables under `docs/data/` for quick trend checks.
+- **2025-12-08** — Documented load harness CPU/memory baselines (including AccessViolation guardrails) inside `docs/en/guides/LOAD_TESTING.md`.
+- **2025-12-08** — Updated performance guide to surface `docs/data/benchmark-history.md` and clarify the regeneration workflow via `scripts/aggregate-performance-history.cs`.
+- **2025-12-08** — CI executes benchmarks via `scripts/run-benchmarks.cs`, enforces thresholds with `scripts/check-benchmarks.cs`, and uploads artifacts for regression analysis.
+- **2025-12-08** — CI now runs `scripts/aggregate-performance-history.cs` after benchmarks, publishing the regenerated benchmark/load tables into the workflow summary for release notes.
+- **2025-12-08** — Stabilized `SimpleMediator.LoadTests` at 32×16 workers after caching request handler wrappers; metrics capture now records the run (CPU <0.2%, peak working set ≈69 MB) and updates the load-history table.
+- **2025-12-08** — Load harness hooked into CI via `scripts/collect-load-metrics.cs` (30 s, 32×16); `scripts/check-load-metrics.cs` enforces the 1% CPU / 100 MB guard and artifacts are uploaded for history aggregation.
+- **2025-12-08** — `scripts/aggregate-performance-history.cs` now parses harness logs so `docs/data/load-history.md` reports send/publish throughput alongside CPU and memory.
+- **2025-12-08** — `scripts/check-load-metrics.cs` honors `SIMPLEMEDIATOR_LOAD_MAX_MEAN_CPU` and `SIMPLEMEDIATOR_LOAD_MAX_PEAK_MB`, enabling environment-specific guardrails while keeping CLI overrides available.
+- **2025-12-08** — Load harness samples per-second throughput to compute P50/P95 percentiles; history aggregation and guides now surface the percentile data for trend analysis.
+- **2025-12-08** — `scripts/check-load-metrics.cs` now parses the matching harness log to echo send/publish mean + percentile throughput in CI summaries alongside the CPU/memory guardrails.
+- **2025-12-08** — CI summaries now include sample send/publish error snippets sourced from the harness log, enabling quick diagnosis when load failures surface.
+- **2025-12-08** — Throughput guardrails added: `scripts/check-load-metrics.cs` accepts env/CLI minimums for mean/P50/P95 send & publish throughput and fails the run when rates dip below expectations.
+- **2025-12-08** — Introduced `ci/load-thresholds.json`; the checker now accepts `--config` to load baseline guardrails before applying env/CLI overrides, and CI consumes this config instead of hardcoded thresholds.
 
 ## Upcoming Actions
 
-1. Automate the mutation badge update in CI so the README reflects the latest score without manual tweaks.
-2. Wire the proposed benchmark thresholds into CI (fail the job when limits are exceeded) and track trends over multiple runs.
-3. Extend requirements mapping with links from roadmap items to scenario identifiers.
-4. Hold line coverage at ≥90% by deepening `SimpleMediator.SimpleMediator` send/publish edge cases and pairing new unit tests with property-based explorations.
+1. Hold line coverage at ≥90% by deepening `SimpleMediator.SimpleMediator` send/publish edge cases and pairing new unit tests with property-based explorations.
+2. Evaluate guardrail defaults after a few CI runs to confirm the percentile data stays within acceptable variance.
+3. Promote vetted throughput thresholds into CI defaults (or baseline files) once variance windows are established.
+
+## Execution Plan
+
+### Phase 1 – Mutation & Coverage Hardening
+
+- Pair new mediator edge-case unit tests with mutation-driven survivors to keep the 92.37% score resilient to future refactors.
+- Add property-based scenarios that stress cancellation, concurrent notifications, and pipeline reorderings; ensure generators live in `SimpleMediator.PropertyTests` and share factories with unit suites.
+- Document the expected workflow for running `scripts/update-mutation-summary.cs` locally so contributors refresh the badge prior to merging.
+
+### Phase 2 – Benchmark & Load Gates
+
+- Capture a comparative benchmark run on CI using the baseline settings, then implement threshold checks that fail when latency regresses by >15% or allocations exceed baseline by 25%.
+- Stand up a lightweight NBomber harness focused on command throughput and cancellation churn; commit scripts plus README instructions for local execution.
+- Publish the benchmark guidance under `docs/en/guides/PERFORMANCE.md`, including interpretation of counters and expected trend reporting.
+
+### Phase 3 – Requirements & Documentation Closure
+
+- Map each roadmap line item to a concrete requirement identifier and reference those IDs within the testing guides and CI summaries.
+- Flesh out `docs/en/guides/REQUIREMENTS.md` with traceability tables tying scenarios to unit/property/contract/integration suites.
+- Add a “quality checklist” snippet to the README that highlights coverage, mutation, performance, and load entry points so the project advertises full testing maturity.
 
 ---
 

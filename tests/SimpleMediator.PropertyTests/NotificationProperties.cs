@@ -15,6 +15,7 @@ namespace SimpleMediator.PropertyTests;
 public sealed class NotificationProperties
 {
     private const int MaxHandlers = 6;
+    private const int MaxConcurrentPublishes = 4;
 
     private enum HandlerOutcome
     {
@@ -73,11 +74,76 @@ public sealed class NotificationProperties
             Right: _ => false);
     }
 
+    [Property(MaxTest = 80)]
+    public bool Publish_AllHandlersInvokedUnderConcurrency(PositiveInt handlerSeed, PositiveInt publishSeed)
+    {
+        var handlerCount = NormalizeCount(handlerSeed.Get);
+
+        var publishIterations = publishSeed.Get % MaxConcurrentPublishes;
+        if (publishIterations < 2)
+        {
+            publishIterations += 2;
+        }
+        var publishCount = Math.Clamp(publishIterations, 2, MaxConcurrentPublishes);
+
+        var services = new ServiceCollection();
+        services.AddSingleton<CallRecorder>();
+        services.AddSimpleMediator(Array.Empty<Assembly>());
+
+        for (var index = 0; index < handlerCount; index++)
+        {
+            var handlerIndex = index;
+            services.AddSingleton<INotificationHandler<TrackedNotification>>(sp =>
+                new RecordingNotificationHandler(
+                    sp.GetRequiredService<CallRecorder>(),
+                    label: handlerIndex,
+                    outcome: HandlerOutcome.Success));
+        }
+
+        using var provider = services.BuildServiceProvider();
+        var recorder = provider.GetRequiredService<CallRecorder>();
+        recorder.Clear();
+
+        var mediator = new global::SimpleMediator.SimpleMediator(provider.GetRequiredService<IServiceScopeFactory>());
+
+        var publishTasks = Enumerable.Range(0, publishCount)
+            .Select(iteration => mediator.Publish(
+                new TrackedNotification(Guid.NewGuid().ToString("N")),
+                CancellationToken.None))
+            .ToArray();
+
+        var outcomes = Task.WhenAll(publishTasks).GetAwaiter().GetResult();
+
+        if (outcomes.Any(o => o.IsLeft))
+        {
+            return false;
+        }
+
+        var events = recorder.Snapshot();
+        if (events.Count != handlerCount * publishCount)
+        {
+            return false;
+        }
+
+        for (var handlerIndex = 0; handlerIndex < handlerCount; handlerIndex++)
+        {
+            var expectedOccurrences = publishCount;
+            var label = $"handler:{handlerIndex}";
+            var actualOccurrences = events.Count(evt => evt == label);
+            if (actualOccurrences != expectedOccurrences)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static ExecutionResult ExecutePublish(IReadOnlyList<HandlerOutcome> outcomes, bool cancelBeforePublish)
     {
         var services = new ServiceCollection();
         services.AddSingleton<CallRecorder>();
-        services.AddSimpleMediator(System.Array.Empty<Assembly>());
+        services.AddSimpleMediator(Array.Empty<Assembly>());
 
         for (var index = 0; index < outcomes.Count; index++)
         {

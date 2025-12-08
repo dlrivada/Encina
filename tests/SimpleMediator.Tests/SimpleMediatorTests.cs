@@ -227,6 +227,70 @@ public sealed class SimpleMediatorTests
             || entry.LogLevel == LogLevel.Critical);
     }
 
+    [Fact]
+    public async Task LogSendOutcome_LogsErrorWithException_OnFailure()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(loggerCollector: loggerCollector);
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = (SimpleMediator)provider.GetRequiredService<IMediator>();
+
+        var logSendOutcome = typeof(SimpleMediator)
+            .GetMethod("LogSendOutcome", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .MakeGenericMethod(typeof(string));
+
+        var exception = new InvalidOperationException("failure");
+        var error = MediatorErrors.FromException("mediator.failure", exception, "falló la operación");
+        var outcome = Left<Error, string>(error);
+
+        logSendOutcome.Invoke(mediator, new object[]
+        {
+            typeof(EchoRequest),
+            typeof(EchoRequestHandler),
+            outcome
+        });
+
+        var failureEntry = loggerCollector.Entries.Single(entry => entry.LogLevel == LogLevel.Error);
+        failureEntry.Message.Contains("La solicitud EchoRequest falló (mediator.failure)").ShouldBeTrue();
+        failureEntry.Message.Contains("falló la operación").ShouldBeTrue();
+        failureEntry.Exception.ShouldNotBeNull();
+        ReferenceEquals(failureEntry.Exception, exception).ShouldBeTrue();
+        loggerCollector.Entries.Any(entry => entry.LogLevel == LogLevel.Warning).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task LogSendOutcome_LogsErrorWithoutException_OnFailure()
+    {
+        var loggerCollector = new LoggerCollector();
+        var services = BuildServiceCollection(loggerCollector: loggerCollector);
+
+        await using var provider = services.BuildServiceProvider();
+        var mediator = (SimpleMediator)provider.GetRequiredService<IMediator>();
+
+        var logSendOutcome = typeof(SimpleMediator)
+            .GetMethod("LogSendOutcome", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .MakeGenericMethod(typeof(string));
+
+        var error = MediatorErrors.Create("mediator.failure", "falló la operación");
+        var outcome = Left<Error, string>(error);
+
+        logSendOutcome.Invoke(mediator, new object[]
+        {
+            typeof(EchoRequest),
+            typeof(EchoRequestHandler),
+            outcome
+        });
+
+        var failureEntry = loggerCollector.Entries.Single(entry => entry.LogLevel == LogLevel.Error);
+        failureEntry.Message.ShouldContain("La solicitud EchoRequest falló (mediator.failure)");
+        failureEntry.Exception.ShouldNotBeNull();
+        failureEntry.Exception!.GetType().Name.ShouldBe("MediatorException");
+        failureEntry.Exception.InnerException.ShouldBeNull();
+        error.Exception.IsSome.ShouldBeTrue();
+        loggerCollector.Entries.Any(entry => entry.LogLevel == LogLevel.Warning).ShouldBeFalse();
+    }
+
     [Theory]
     [InlineData("cancelled", true)]
     [InlineData("cancelled.flow", true)]

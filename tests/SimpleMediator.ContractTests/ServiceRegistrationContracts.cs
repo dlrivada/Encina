@@ -126,6 +126,34 @@ public sealed class ServiceRegistrationContracts
             && d.Lifetime == ServiceLifetime.Scoped);
     }
 
+    [Fact]
+    public void DefaultRegistrationUsesNullFunctionalFailureDetector()
+    {
+        var services = new ServiceCollection();
+
+        services.AddSimpleMediator(typeof(global::SimpleMediator.SimpleMediator).Assembly);
+
+        using var provider = services.BuildServiceProvider();
+        var detector = provider.GetRequiredService<global::SimpleMediator.IFunctionalFailureDetector>();
+
+        detector.ShouldNotBeNull();
+        detector.GetType().Name.ShouldBe("NullFunctionalFailureDetector");
+    }
+
+    [Fact]
+    public void CustomFunctionalFailureDetectorOverridesDefault()
+    {
+        var services = new ServiceCollection();
+
+        services.AddSingleton<global::SimpleMediator.IFunctionalFailureDetector, SampleFunctionalFailureDetector>();
+        services.AddSimpleMediator(typeof(global::SimpleMediator.SimpleMediator).Assembly);
+
+        using var provider = services.BuildServiceProvider();
+        var detector = provider.GetRequiredService<global::SimpleMediator.IFunctionalFailureDetector>();
+
+        detector.ShouldBeOfType<SampleFunctionalFailureDetector>();
+    }
+
     private static bool IsPipelineDescriptor(ServiceDescriptor descriptor)
     {
         return descriptor.ServiceType.IsGenericType
@@ -194,5 +222,19 @@ public sealed class ServiceRegistrationContracts
         {
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class SampleFunctionalFailureDetector : global::SimpleMediator.IFunctionalFailureDetector
+    {
+        public bool TryExtractFailure(object? response, out string reason, out object? error)
+        {
+            reason = string.Empty;
+            error = null;
+            return false;
+        }
+
+        public string? TryGetErrorCode(object? error) => null;
+
+        public string? TryGetErrorMessage(object? error) => null;
     }
 }
