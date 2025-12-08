@@ -37,7 +37,7 @@ CSV/HTML summaries live at `artifacts/performance/2025-12-08.000205/` and should
 
 Thresholds leverage the initial baseline and are currently enforced inside CI via `scripts/check-benchmarks.cs`. Any run exceeding the limits fails the pipeline and writes a Markdown summary to the job log for quick triage:
 
-- `Send_Command_WithInstrumentation`: mean must stay < 2.60 μs and allocations < 5.25 KB.
+- `Send_Command_WithInstrumentation`: mean must stay < 2.80 μs and allocations < 5.25 KB.
 - `Publish_Notification_WithMultipleHandlers`: mean must stay < 2.40 μs and allocations < 2.75 KB.
 
 Both limits apply to the `Mean` and `Allocated` columns exported by BenchmarkDotNet’s CSV reporter. The check script accepts `--directory <path>` when validating a historical run.

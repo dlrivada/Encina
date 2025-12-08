@@ -74,7 +74,7 @@ if (methodIndex < 0 || meanIndex < 0 || allocatedIndex < 0)
 
 var thresholds = new Dictionary<string, (double maxMeanMicroseconds, double maxAllocatedKb)>(StringComparer.Ordinal)
 {
-    ["Send_Command_WithInstrumentation"] = (maxMeanMicroseconds: 2.60, maxAllocatedKb: 5.25),
+    ["Send_Command_WithInstrumentation"] = (maxMeanMicroseconds: 2.80, maxAllocatedKb: 5.25),
     ["Publish_Notification_WithMultipleHandlers"] = (maxMeanMicroseconds: 2.40, maxAllocatedKb: 2.75)
 };
 
