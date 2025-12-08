@@ -24,13 +24,22 @@
 - Raw console output remains the primary log; redirect the helper script if a persistent log file is required.
 - Console summary highlights surviving mutants; treat anything above the break threshold as a failure condition.
 
-### Baseline (2025-12-06)
+### Current Baseline (2025-12-08)
 
-- Mutation score: **70.63%** (429 tested mutants; 327 killed, 102 survived).
-- Hotspots: `SimpleMediator` orchestration logic and `MediatorAssemblyScanner` reflection paths keep the bulk of survivors.
-- Action items: strengthen mediator core tests (handler resolution, exception paths) and add targeted coverage for scanner edge cases.
+- Mutation score: **93.74%** (449 killed, 2 survived, 0 timeout mutants) using `dotnet tool run dotnet-stryker` with the repo configuration.
+- CI runs `scripts/run-stryker.cs` and enforces the baseline; refresh the README badge via `scripts/update-mutation-summary.cs` right after local runs.
+- Survivors mainly sit in historical reports; the live suite is green. Keep future contributions paired with targeted tests so surviving mutants stay at zero.
+
+### Paused Hardening Tasks
+
+The dedicated mutation-hardening initiative is paused until new feature work settles. When ready to resume:
+
+1. Re-run `dotnet stryker --project src/SimpleMediator/SimpleMediator.csproj --test-projects tests/SimpleMediator.Tests/SimpleMediator.Tests.csproj` to focus on the mediator core mutants (previously IDs 280–366).
+2. Investigate any survivors and add unit or property tests around metrics pipeline integration and handler result validation.
+3. Update the mutation badge and dashboard via `scripts/update-mutation-summary.cs` once the new score is recorded.
 
 ## Next Steps
 
-- Integrate Stryker runs into CI once execution time is acceptable.
-- Add targeted ignore patterns once hotspots are identified.
+- Keep the 93.74% baseline intact by refreshing the badge after every Stryker run.
+- Resume the hardening plan when feature development stabilises, starting with the paused tasks above.
+- Only introduce ignore patterns after confirming mutants are either equivalent or unreachable by design.

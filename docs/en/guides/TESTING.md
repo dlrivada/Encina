@@ -78,6 +78,7 @@ Property tests limit selector list sizes to keep execution time predictable. Whe
 ## Next Steps
 
 - Keep the Stryker baseline green (≥93.74%) by pairing new unit/property scenarios with badge refreshes through `scripts/update-mutation-summary.cs`.
+- Guard the Zero Exceptions policy by verifying new send/publish scenarios return functional results (`Either`, `Option`) instead of throwing.
 - Share notification/property generators with unit fixtures so cancellation and pipeline scenarios reuse the same builders.
 - Monitor the tightened 15%/25% benchmark guardrails and load throughput limits so regressions from the latest baseline flow straight into the roadmap log.
 - Link roadmap workstreams to requirement IDs in `docs/en/guides/REQUIREMENTS.md` for full traceability.

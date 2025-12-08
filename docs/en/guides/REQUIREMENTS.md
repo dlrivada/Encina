@@ -19,6 +19,7 @@ Last updated: 2025-12-08
 | `REQ-NOT-ORDER` | Functional | Notifications honour handler ordering rules and cancellation semantics. | Core Team |
 | `REQ-NOT-MULTI` | Functional | Multiple notification handlers can be registered without duplication. | Core Team |
 | `REQ-INF-METRICS` | Quality-of-Service | Metrics capture success/failure outcomes and relevant tags. | Observability WG |
+| `REQ-ERR-ZEROEXC` | Quality-of-Service | Mediator operations surface expected failures through functional results rather than exceptions. | Reliability WG |
 | `REQ-CONF-LIFETIME` | Quality-of-Service | Dependency injection lifetimes and resolution semantics are configurable. | Core Team |
 | `REQ-CONF-SCAN` | Quality-of-Service | Assembly scanning falls back gracefully and caches discoveries safely. | Core Team |
 | `REQ-CONF-EDGE` | Quality-of-Service | Configuration extensions handle nulls, duplicates, and multi-assembly scenarios. | Core Team |
@@ -32,6 +33,7 @@ Last updated: 2025-12-08
 
 - **Unit & property suites** – execute via `dotnet test SimpleMediator.slnx --configuration Release`. Coverage results must stay ≥90% line coverage (see `docs/en/guides/TESTING.md`).
 - **Mutation testing** – run `dotnet run --file scripts/run-stryker.cs`; refresh the badge with `scripts/update-mutation-summary.cs`. CI enforces the 93.74% baseline.
+- **Zero Exceptions policy** – unit suites in `tests/SimpleMediator.Tests` (for example, `SimpleMediatorTests` and `PipelineBehaviorsTests`) assert mediator operations return functional results instead of throwing for expected failures; property suites reuse the same result patterns when exploring pipeline invariants.
 - **Benchmarks** – launch `scripts/run-benchmarks.cs`, then fail builds if `scripts/check-benchmarks.cs` detects regressions against the baseline snapshots.
 - **Load harnesses** – the console harness uses `scripts/check-load-metrics.cs -- --config ci/load-thresholds.json`; NBomber profiles are summarised via `scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json`.
 

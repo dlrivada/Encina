@@ -16,6 +16,7 @@
 | `REQ-NOT-ORDER` | Notification ordering, cancellation, and error propagation | Property tests in `tests/SimpleMediator.PropertyTests/NotificationProperties.cs` |
 | `REQ-NOT-MULTI` | Multi-handler notification registration | Contract tests in `tests/SimpleMediator.ContractTests/ServiceRegistrationContracts.cs` |
 | `REQ-INF-METRICS` | Metrics emission and failure tagging | Unit tests in `tests/SimpleMediator.Tests/MediatorMetricsTests.cs` |
+| `REQ-ERR-ZEROEXC` | Zero Exceptions policy – mediator operations surface expected failures as functional results | Unit tests in `tests/SimpleMediator.Tests/SimpleMediatorTests.cs` and `tests/SimpleMediator.Tests/PipelineBehaviorsTests.cs` |
 | `REQ-CONF-LIFETIME` | Handler lifetime configuration | Contract tests in `tests/SimpleMediator.ContractTests/ServiceRegistrationContracts.cs` |
 | `REQ-CONF-SCAN` | Assembly scanning fallbacks and caching | Unit tests in `tests/SimpleMediator.Tests/SimpleMediatorTests.cs` |
 | `REQ-CONF-EDGE` | Configuration extension edge cases | Contract tests in `tests/SimpleMediator.ContractTests/ServiceRegistrationContracts.cs` |
