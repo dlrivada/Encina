@@ -8,13 +8,13 @@ using static LanguageExt.Prelude;
 namespace SimpleMediator;
 
 /// <summary>
-/// Emite actividades de trazado para consultas y etiqueta fallos funcionales.
+/// Emits tracing activities for queries and labels functional failures.
 /// </summary>
-/// <typeparam name="TQuery">Tipo de consulta observada.</typeparam>
-/// <typeparam name="TResponse">Tipo devuelto por el handler.</typeparam>
+/// <typeparam name="TQuery">Query type being observed.</typeparam>
+/// <typeparam name="TResponse">Response type returned by the handler.</typeparam>
 /// <remarks>
-/// Igual que <see cref="CommandActivityPipelineBehavior{TCommand,TResponse}"/> pero orientado a
-/// consultas, lo que facilita correlacionar lecturas dentro de distribuciones OpenTelemetry.
+/// Similar to <see cref="CommandActivityPipelineBehavior{TCommand,TResponse}"/> but focused on
+/// queries, which helps correlate reads across OpenTelemetry traces.
 /// </remarks>
 /// <example>
 /// <code>
@@ -28,7 +28,7 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse> : IQueryPip
     private readonly IFunctionalFailureDetector _failureDetector;
 
     /// <summary>
-    /// Inicializa el behavior con el detector de fallos funcionales.
+    /// Initializes the behavior with the functional failure detector.
     /// </summary>
     public QueryActivityPipelineBehavior(IFunctionalFailureDetector failureDetector)
     {
@@ -40,13 +40,13 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse> : IQueryPip
     {
         if (request is null)
         {
-            var message = $"{GetType().Name} recibió un request nulo.";
+            var message = $"{GetType().Name} received a null request.";
             return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.null_request", message));
         }
 
         if (next is null)
         {
-            var message = $"{GetType().Name} recibió un delegado nulo.";
+            var message = $"{GetType().Name} received a null delegate.";
             return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.null_next", message));
         }
 
@@ -71,14 +71,14 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse> : IQueryPip
         {
             activity?.SetStatus(ActivityStatusCode.Error, "cancelled");
             activity?.SetTag("mediator.cancelled", true);
-            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.cancelled", $"El behavior {GetType().Name} canceló la solicitud {typeof(TQuery).Name}.", ex));
+            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.cancelled", $"Behavior {GetType().Name} cancelled the {typeof(TQuery).Name} request.", ex));
         }
         catch (Exception ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             activity?.SetTag("exception.type", ex.GetType().FullName);
             activity?.SetTag("exception.message", ex.Message);
-            var error = MediatorErrors.FromException("mediator.behavior.exception", ex, $"Error ejecutando {GetType().Name} para {typeof(TQuery).Name}.");
+            var error = MediatorErrors.FromException("mediator.behavior.exception", ex, $"Error running {GetType().Name} for {typeof(TQuery).Name}.");
             return Left<Error, TResponse>(error);
         }
         outcome.Match(

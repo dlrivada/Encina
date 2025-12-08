@@ -3,10 +3,10 @@ using System;
 namespace SimpleMediator;
 
 /// <summary>
-/// Implementación nula de <see cref="IFunctionalFailureDetector"/> que nunca detecta fallos.
+/// Null implementation of <see cref="IFunctionalFailureDetector"/> that never reports failures.
 /// </summary>
 /// <remarks>
-/// Se usa como valor por defecto para evitar comprobaciones de <c>null</c> en behaviors.
+/// Used as the default value to avoid <c>null</c> checks inside behaviors.
 /// </remarks>
 internal sealed class NullFunctionalFailureDetector : IFunctionalFailureDetector
 {

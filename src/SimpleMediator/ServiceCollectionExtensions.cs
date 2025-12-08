@@ -8,38 +8,38 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace SimpleMediator;
 
 /// <summary>
-/// Extensiones para registrar SimpleMediator en un <see cref="IServiceCollection"/>.
+/// Extensions for registering SimpleMediator in an <see cref="IServiceCollection"/>.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Alias legacy para <see cref="AddSimpleMediator(IServiceCollection, Assembly[])"/>.
+    /// Legacy alias for <see cref="AddSimpleMediator(IServiceCollection, Assembly[])"/>.
     /// </summary>
     public static IServiceCollection AddApplicationMessaging(this IServiceCollection services, params Assembly[] assemblies)
         => services.AddSimpleMediator(assemblies);
 
     /// <summary>
-    /// Alias legacy para <see cref="AddSimpleMediator(IServiceCollection, Action{SimpleMediatorConfiguration}?, Assembly[])"/>.
+    /// Legacy alias for <see cref="AddSimpleMediator(IServiceCollection, Action{SimpleMediatorConfiguration}?, Assembly[])"/>.
     /// </summary>
     public static IServiceCollection AddApplicationMessaging(this IServiceCollection services, Action<SimpleMediatorConfiguration>? configure, params Assembly[] assemblies)
         => services.AddSimpleMediator(configure, assemblies);
 
     /// <summary>
-    /// Registra el mediador usando la configuración por defecto.
+    /// Registers the mediator using the default configuration.
     /// </summary>
-    /// <param name="services">Contenedor de servicios.</param>
-    /// <param name="assemblies">Ensamblados que se escanearán en busca de handlers y behaviors.</param>
-    /// <returns>La misma instancia de <see cref="IServiceCollection"/> para encadenar registros.</returns>
+    /// <param name="services">Service container.</param>
+    /// <param name="assemblies">Assemblies to scan for handlers and behaviors.</param>
+    /// <returns>The same <see cref="IServiceCollection"/> instance to allow chaining.</returns>
     public static IServiceCollection AddSimpleMediator(this IServiceCollection services, params Assembly[] assemblies)
         => AddSimpleMediator(services, configure: null, assemblies);
 
     /// <summary>
-    /// Registra el mediador permitiendo personalizar la configuración.
+    /// Registers the mediator while allowing custom configuration.
     /// </summary>
-    /// <param name="services">Contenedor de servicios.</param>
-    /// <param name="configure">Acción opcional para ajustar el escaneo y behaviors.</param>
-    /// <param name="assemblies">Ensamblados que contienen contratos y handlers.</param>
-    /// <returns>La colección de servicios pasada como argumento.</returns>
+    /// <param name="services">Service container.</param>
+    /// <param name="configure">Optional action to adjust scanning and behaviors.</param>
+    /// <param name="assemblies">Assemblies that contain contracts and handlers.</param>
+    /// <returns>The <see cref="IServiceCollection"/> passed as input.</returns>
     public static IServiceCollection AddSimpleMediator(this IServiceCollection services, Action<SimpleMediatorConfiguration>? configure, params Assembly[] assemblies)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -79,7 +79,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registra los handlers encontrados en el escaneo respetando el ciclo de vida configurado.
+    /// Registers discovered request handlers honoring the configured lifetime.
     /// </summary>
     private static void RegisterHandlers(IServiceCollection services, IEnumerable<TypeRegistration> registrations, ServiceLifetime lifetime)
     {
@@ -91,7 +91,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registra los handlers de notificación encontrados.
+    /// Registers discovered notification handlers.
     /// </summary>
     private static void RegisterNotificationHandlers(IServiceCollection services, IEnumerable<TypeRegistration> registrations, ServiceLifetime lifetime)
     {
@@ -103,7 +103,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registra behaviors genéricos aplicables al pipeline.
+    /// Registers generic pipeline behaviors.
     /// </summary>
     private static void RegisterPipelineBehaviors(IServiceCollection services, IEnumerable<TypeRegistration> registrations)
     {
@@ -115,7 +115,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registra los pre-procesadores descubiertos durante el escaneo.
+    /// Registers pre-processors discovered during scanning.
     /// </summary>
     private static void RegisterRequestPreProcessors(IServiceCollection services, IEnumerable<TypeRegistration> registrations)
     {
@@ -127,7 +127,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registra los post-procesadores descubiertos durante el escaneo.
+    /// Registers post-processors discovered during scanning.
     /// </summary>
     private static void RegisterRequestPostProcessors(IServiceCollection services, IEnumerable<TypeRegistration> registrations)
     {

@@ -34,10 +34,10 @@ public sealed class SimpleMediatorTests
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        var result = await mediator.Send(new EchoRequest("hola"), CancellationToken.None);
+        var result = await mediator.Send(new EchoRequest("hello"), CancellationToken.None);
 
         var response = ExpectSuccess(result);
-        response.ShouldBe("hola");
+        response.ShouldBe("hello");
         tracker.Events.ShouldBe(new[] { "tracking:before", "second:before", "handler", "second:after", "tracking:after" });
     }
 
@@ -52,10 +52,10 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Send<string>(null!, CancellationToken.None);
 
         var error = ExpectFailure(result, "mediator.request.null");
-        error.Message.ShouldContain("no puede ser nula");
+        error.Message.ShouldContain("cannot be null");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("La solicitud no puede ser nula."));
+            && entry.Message.Contains("The request cannot be null."));
     }
 
     [Fact]
@@ -72,11 +72,11 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Send(new MissingHandlerRequest(), CancellationToken.None);
 
         var error = ExpectFailure(result, "mediator.handler.missing");
-        error.Message.ShouldContain("No se encontró un IRequestHandler registrado");
+        error.Message.ShouldContain("No registered IRequestHandler was found");
         error.Message.ShouldContain(nameof(MissingHandlerRequest));
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("No se encontró un IRequestHandler registrado para")
+            && entry.Message.Contains("No registered IRequestHandler was found for")
             && entry.Message.Contains(nameof(MissingHandlerRequest)));
     }
 
@@ -90,7 +90,7 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Send(new FaultyRequest(), CancellationToken.None);
 
         var error = ExpectFailure(result, "mediator.handler.exception");
-        error.Message.ShouldContain("Error ejecutando");
+        error.Message.ShouldContain("Error running");
         var exception = ExtractException(error);
         exception.ShouldNotBeNull();
         exception!.Message.ShouldBe("boom");
@@ -110,10 +110,10 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Send(new CancellableRequest(), cts.Token);
 
         var error = ExpectFailure(result, "mediator.handler.cancelled");
-        error.Message.ShouldContain("canceló la solicitud");
+        error.Message.ShouldContain($"cancelled the {nameof(CancellableRequest)} request.");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Warning
-            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains("was cancelled")
             && entry.Message.Contains(nameof(CancellableRequest)));
     }
 
@@ -134,7 +134,7 @@ public sealed class SimpleMediatorTests
         ExtractException(error).ShouldBeOfType<OperationCanceledException>();
         loggerCollector.Entries.Any(entry =>
             entry.LogLevel == LogLevel.Warning
-            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains("was cancelled")
             && entry.Message.Contains(nameof(AccidentalCancellationRequest))).ShouldBeFalse();
     }
 
@@ -155,12 +155,12 @@ public sealed class SimpleMediatorTests
         error.Message.ShouldBe("Explicit cancellation.");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Warning
-            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains("was cancelled")
             && entry.Message.Contains(nameof(CancelledOutcomeRequest))
             && entry.Message.Contains("cancelled"));
         loggerCollector.Entries.ShouldNotContain(entry =>
             entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("La solicitud")
+            && entry.Message.Contains("The request")
             && entry.Message.Contains(nameof(CancelledOutcomeRequest)));
     }
 
@@ -189,7 +189,7 @@ public sealed class SimpleMediatorTests
 
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Warning
-            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains("was cancelled")
             && entry.Message.Contains("cancelled.flow"));
         loggerCollector.Entries.ShouldNotContain(entry =>
             entry.LogLevel == LogLevel.Error
@@ -220,7 +220,7 @@ public sealed class SimpleMediatorTests
 
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Debug
-            && entry.Message.Contains("Solicitud EchoRequest completada"));
+            && entry.Message.Contains("Request EchoRequest completed"));
         loggerCollector.Entries.ShouldNotContain(entry =>
             entry.LogLevel == LogLevel.Warning
             || entry.LogLevel == LogLevel.Error
@@ -241,7 +241,7 @@ public sealed class SimpleMediatorTests
             .MakeGenericMethod(typeof(string));
 
         var exception = new InvalidOperationException("failure");
-        var error = MediatorErrors.FromException("mediator.failure", exception, "falló la operación");
+        var error = MediatorErrors.FromException("mediator.failure", exception, "the operation failed");
         var outcome = Left<Error, string>(error);
 
         logSendOutcome.Invoke(mediator, new object[]
@@ -252,8 +252,8 @@ public sealed class SimpleMediatorTests
         });
 
         var failureEntry = loggerCollector.Entries.Single(entry => entry.LogLevel == LogLevel.Error);
-        failureEntry.Message.Contains("La solicitud EchoRequest falló (mediator.failure)").ShouldBeTrue();
-        failureEntry.Message.Contains("falló la operación").ShouldBeTrue();
+        failureEntry.Message.Contains("The EchoRequest request failed (mediator.failure)").ShouldBeTrue();
+        failureEntry.Message.Contains("the operation failed").ShouldBeTrue();
         failureEntry.Exception.ShouldNotBeNull();
         ReferenceEquals(failureEntry.Exception, exception).ShouldBeTrue();
         loggerCollector.Entries.Any(entry => entry.LogLevel == LogLevel.Warning).ShouldBeFalse();
@@ -272,7 +272,7 @@ public sealed class SimpleMediatorTests
             .GetMethod("LogSendOutcome", BindingFlags.Instance | BindingFlags.NonPublic)!
             .MakeGenericMethod(typeof(string));
 
-        var error = MediatorErrors.Create("mediator.failure", "falló la operación");
+        var error = MediatorErrors.Create("mediator.failure", "the operation failed");
         var outcome = Left<Error, string>(error);
 
         logSendOutcome.Invoke(mediator, new object[]
@@ -283,7 +283,7 @@ public sealed class SimpleMediatorTests
         });
 
         var failureEntry = loggerCollector.Entries.Single(entry => entry.LogLevel == LogLevel.Error);
-        failureEntry.Message.ShouldContain("La solicitud EchoRequest falló (mediator.failure)");
+        failureEntry.Message.ShouldContain("The EchoRequest request failed (mediator.failure)");
         failureEntry.Exception.ShouldNotBeNull();
         failureEntry.Exception!.GetType().Name.ShouldBe("MediatorException");
         failureEntry.Exception.InnerException.ShouldBeNull();
@@ -318,7 +318,7 @@ public sealed class SimpleMediatorTests
 
         ExpectSuccess(result);
         tracker.Handled.ShouldBe(new[] { "A:42", "B:42" });
-        loggerCollector.Entries.Count(entry => entry.Message.Contains("Enviando notificación")).ShouldBe(2);
+        loggerCollector.Entries.Count(entry => entry.Message.Contains("Sending notification")).ShouldBe(2);
         activityCollector.Activities.ShouldNotBeEmpty();
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "SimpleMediator.Publish");
         activity.DisplayName.ShouldBe("SimpleMediator.Publish");
@@ -344,7 +344,7 @@ public sealed class SimpleMediatorTests
         ExpectSuccess(result);
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Debug
-            && entry.Message.Contains("No se encontraron handlers para la notificación")
+            && entry.Message.Contains("No handlers were found for the")
             && entry.Message.Contains(nameof(UnhandledNotification)));
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "SimpleMediator.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Ok);
@@ -361,10 +361,10 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Publish<SampleNotification>(null!, CancellationToken.None);
 
         var error = ExpectFailure(result, "mediator.notification.null");
-        error.Message.ShouldContain("no puede ser nula");
+        error.Message.ShouldContain("cannot be null");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("La notificación no puede ser nula."));
+            && entry.Message.Contains("The notification cannot be null."));
     }
 
     [Fact]
@@ -383,8 +383,8 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Publish<INotification>(new ExplicitNotification(), cts.Token);
 
         var error = ExpectFailure(result, "mediator.notification.cancelled");
-        error.Message.ShouldContain($"La publicación de {nameof(ExplicitNotification)}");
-        error.Message.ShouldNotContain("La publicación de INotification");
+        error.Message.ShouldContain($"Publishing {nameof(ExplicitNotification)}");
+        error.Message.ShouldNotContain("Publishing INotification");
     }
 
     [Fact]
@@ -407,25 +407,25 @@ public sealed class SimpleMediatorTests
         var error = MediatorErrors.Unknown;
 
         error.GetMediatorCode().ShouldBe("mediator.unknown");
-        error.Message.ShouldBe("Se produjo un error inesperado en SimpleMediator.");
+        error.Message.ShouldBe("An unexpected error occurred in SimpleMediator.");
     }
 
 
     [Fact]
     public void Error_New_WithNullException_DoesNotExposeException()
     {
-        var error = Error.New("mensaje", (Exception?)null);
+        var error = Error.New("message", (Exception?)null);
 
         error.Exception.IsSome.ShouldBeFalse();
         error.MetadataException.IsSome.ShouldBeFalse();
-        error.Message.ShouldBe("mensaje");
+        error.Message.ShouldBe("message");
     }
     [Fact]
     public void Error_NewString_UsesDefaultMessageWhenBlank()
     {
         var error = Error.New(string.Empty);
 
-        error.Message.ShouldBe("Se produjo un error");
+        error.Message.ShouldBe("An error occurred");
         error.Exception.IsSome.ShouldBeFalse();
         error.GetMediatorDetails().ShouldBeNull();
     }
@@ -435,7 +435,7 @@ public sealed class SimpleMediatorTests
     {
         var error = Error.New((Exception)null!);
 
-        error.Message.ShouldBe("Se produjo un error");
+        error.Message.ShouldBe("An error occurred");
         error.Exception.IsSome.ShouldBeFalse();
         error.GetMediatorDetails().ShouldBeNull();
     }
@@ -501,7 +501,7 @@ public sealed class SimpleMediatorTests
             entry.LogLevel == LogLevel.Error
             && entry.Exception != null
             && entry.Exception.Message == "notify-failure"
-            && entry.Message.Contains("Error al publicar la notificación")
+            && entry.Message.Contains("Error while publishing notification")
             && entry.Message.Contains(nameof(SampleNotification))).ShouldBeTrue();
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "SimpleMediator.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
@@ -528,7 +528,7 @@ public sealed class SimpleMediatorTests
         tracker.Handled.ShouldBeEmpty();
         loggerCollector.Entries.Count(entry =>
             entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("Error al publicar la notificación")
+            && entry.Message.Contains("Error while publishing notification")
             && entry.Message.Contains(nameof(SampleNotification))).ShouldBe(1);
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "SimpleMediator.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
@@ -570,10 +570,10 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Publish(new SampleNotification(5), cts.Token);
 
         var error = ExpectFailure(result, "mediator.notification.cancelled");
-        error.Message.ShouldContain("fue cancelada");
+        error.Message.ShouldContain("was cancelled");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Warning
-            && entry.Message.Contains("Se canceló la publicación")
+            && entry.Message.Contains("was cancelled")
             && entry.Message.Contains(nameof(SampleNotification)));
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "SimpleMediator.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
@@ -597,14 +597,14 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Publish(new SampleNotification(27), cts.Token);
 
         var error = ExpectFailure(result, "mediator.notification.cancelled");
-        error.Message.ShouldContain("fue cancelada");
+        error.Message.ShouldContain("was cancelled");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Warning
-            && entry.Message.Contains("Se canceló la publicación")
+            && entry.Message.Contains("was cancelled")
             && entry.Message.Contains(nameof(SampleNotification)));
         loggerCollector.Entries.Any(entry =>
             entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("Error al publicar la notificación")
+            && entry.Message.Contains("Error while publishing notification")
             && entry.Message.Contains(nameof(SampleNotification))).ShouldBeFalse();
     }
 
@@ -625,11 +625,11 @@ public sealed class SimpleMediatorTests
         ExtractException(error).ShouldBeOfType<OperationCanceledException>();
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("Error al publicar la notificación")
+            && entry.Message.Contains("Error while publishing notification")
             && entry.Message.Contains(nameof(AccidentalCancellationNotification)));
         loggerCollector.Entries.Any(entry =>
             entry.LogLevel == LogLevel.Warning
-            && entry.Message.Contains("Se canceló la publicación")
+            && entry.Message.Contains("was cancelled")
             && entry.Message.Contains(nameof(AccidentalCancellationNotification))).ShouldBeFalse();
     }
 
@@ -648,7 +648,7 @@ public sealed class SimpleMediatorTests
 
         var error = ExpectFailure(result, "mediator.notification.missing_handle");
         error.Message.ShouldContain(nameof(ExplicitInterfaceNotificationHandler));
-        error.Message.ShouldContain("no expone un método Handle");
+        error.Message.ShouldContain("does not expose a compatible Handle method");
     }
 
     [Fact]
@@ -680,7 +680,7 @@ public sealed class SimpleMediatorTests
         var result = await invoke(handler, new ExplicitNotification(), CancellationToken.None);
 
         var error = ExpectFailure(result, "mediator.notification.invalid_return");
-        error.Message.ShouldContain("devolvió un tipo inesperado");
+        error.Message.ShouldContain("returned an unexpected type");
         error.Message.ShouldContain(nameof(InvalidNotificationResultHandler));
     }
 
@@ -740,8 +740,8 @@ public sealed class SimpleMediatorTests
         var result = await invoke(handler, notification, cts.Token);
 
         var error = ExpectFailure(result, "mediator.notification.cancelled");
-        error.Message.ShouldContain($"La publicación de {nameof(ExplicitNotification)}");
-        error.Message.ShouldNotContain("La publicación de INotification");
+        error.Message.ShouldContain($"Publishing {nameof(ExplicitNotification)}");
+        error.Message.ShouldNotContain("Publishing INotification");
         ExtractException(error).ShouldBeAssignableTo<OperationCanceledException>();
     }
 
@@ -840,8 +840,8 @@ public sealed class SimpleMediatorTests
         var result = await invoke(handler, notification, CancellationToken.None);
 
         var error = ExpectFailure(result, "mediator.notification.exception");
-        error.Message.ShouldContain($"Error procesando {nameof(ExplicitNotification)}");
-        error.Message.ShouldNotContain("Error procesando INotification");
+        error.Message.ShouldContain($"Error processing {nameof(ExplicitNotification)}");
+        error.Message.ShouldNotContain("Error processing INotification");
     }
 
     [Fact]
@@ -856,8 +856,8 @@ public sealed class SimpleMediatorTests
         var result = await invoke(handler, notification, cts.Token);
 
         var error = ExpectFailure(result, "mediator.notification.cancelled");
-        error.Message.ShouldContain($"La publicación de {nameof(ExplicitNotification)}");
-        error.Message.ShouldNotContain("La publicación de INotification");
+        error.Message.ShouldContain($"Publishing {nameof(ExplicitNotification)}");
+        error.Message.ShouldNotContain("Publishing INotification");
     }
 
     [Fact]
@@ -868,16 +868,16 @@ public sealed class SimpleMediatorTests
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
 
-        var result = await mediator.Send(new EchoRequest("hola"), CancellationToken.None);
+        var result = await mediator.Send(new EchoRequest("hello"), CancellationToken.None);
 
         ExpectSuccess(result);
 
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Debug
-            && entry.Message.Contains("Procesando EchoRequest con"));
+            && entry.Message.Contains("Processing EchoRequest with"));
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Debug
-            && entry.Message.Contains("Solicitud EchoRequest completada por"));
+            && entry.Message.Contains("Request EchoRequest completed by"));
     }
 
     [Fact]
@@ -931,7 +931,7 @@ public sealed class SimpleMediatorTests
         ExtractException(error).ShouldBeOfType<InvalidOperationException>();
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("La solicitud FaultyRequest falló (mediator.handler.exception)")
+            && entry.Message.Contains("The FaultyRequest request failed (mediator.handler.exception)")
             && entry.Message.Contains("FaultyRequestHandler"));
     }
 
@@ -950,7 +950,7 @@ public sealed class SimpleMediatorTests
 
         var error = ExpectFailure(result, "mediator.handler.exception");
         ExtractException(error).ShouldBeOfType<InvalidOperationException>();
-        error.Message.ShouldContain("devolvió una tarea nula");
+        error.Message.ShouldContain("returned a null task");
         error.Message.ShouldContain(nameof(NullTaskRequestHandler));
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Error
@@ -1017,11 +1017,11 @@ public sealed class SimpleMediatorTests
         error.Message.ShouldContain("Explicit cancellation");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Warning
-            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains("was cancelled")
             && entry.Message.Contains(nameof(CancelledOutcomeRequest)));
         loggerCollector.Entries.Any(entry =>
             entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains("was cancelled")
             && entry.Message.Contains(nameof(CancelledOutcomeRequest))).ShouldBeFalse();
     }
 
@@ -1042,10 +1042,11 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Send(new EchoRequest("value"), cts.Token);
 
         var error = ExpectFailure(result, "mediator.behavior.cancelled");
-        error.Message.ShouldContain("canceló la solicitud");
+        error.Message.ShouldContain("cancelled");
+        error.Message.ShouldContain(nameof(EchoRequest));
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Warning
-            && entry.Message.Contains("Se canceló la solicitud")
+            && entry.Message.Contains("was cancelled")
             && entry.Message.Contains(nameof(EchoRequest)));
     }
 
@@ -1063,7 +1064,7 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Send(new EchoRequest("boom"), CancellationToken.None);
 
         var error = ExpectFailure(result, "mediator.behavior.exception");
-        error.Message.ShouldContain("Error ejecutando");
+        error.Message.ShouldContain("Error running");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Error
             && entry.Message.Contains("mediator.behavior.exception")
@@ -1081,7 +1082,7 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Send(new EchoRequest("value"), CancellationToken.None);
 
         var error = ExpectFailure(result, "mediator.preprocessor.exception");
-        error.Message.ShouldContain("Error ejecutando");
+        error.Message.ShouldContain("Error running");
     }
 
     [Fact]
@@ -1098,7 +1099,7 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Send(new EchoRequest("value"), cts.Token);
 
         var error = ExpectFailure(result, "mediator.preprocessor.cancelled");
-        error.Message.ShouldContain("canceló la solicitud");
+        error.Message.ShouldContain("cancelled");
     }
 
     [Fact]
@@ -1112,7 +1113,7 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Send(new EchoRequest("value"), CancellationToken.None);
 
         var error = ExpectFailure(result, "mediator.postprocessor.exception");
-        error.Message.ShouldContain("Error ejecutando");
+        error.Message.ShouldContain("Error running");
     }
 
     [Fact]
@@ -1129,7 +1130,7 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Send(new EchoRequest("value"), cts.Token);
 
         var error = ExpectFailure(result, "mediator.postprocessor.cancelled");
-        error.Message.ShouldContain("canceló la solicitud");
+        error.Message.ShouldContain("cancelled");
     }
 
     [Fact]
@@ -1190,10 +1191,10 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Publish(new SampleNotification(11), CancellationToken.None);
 
         var error = ExpectFailure(result, "mediator.notification.invalid_return");
-        error.Message.ShouldContain("tipo inesperado");
+        error.Message.ShouldContain("unexpected type");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("Error al publicar la notificación")
+            && entry.Message.Contains("Error while publishing notification")
             && entry.Message.Contains(nameof(MisleadingNotificationHandler)));
     }
 
@@ -1815,13 +1816,13 @@ public sealed class SimpleMediatorTests
     private static T ExpectSuccess<T>(Either<Error, T> result)
     {
         var failureMessage = result.Match(
-            Left: err => $"Se esperaba éxito pero se obtuvo fallo: {err.GetMediatorCode()} - {err.Message}",
+            Left: err => $"Expected success but got a failure: {err.GetMediatorCode()} - {err.Message}",
             Right: _ => string.Empty);
 
         result.IsRight.ShouldBeTrue(failureMessage);
 
         return result.Match(
-            Left: _ => throw new InvalidOperationException("ExpectSuccess recibió un Either en estado de fallo."),
+            Left: _ => throw new InvalidOperationException("ExpectSuccess received an Either in a failure state."),
             Right: value => value!);
     }
 

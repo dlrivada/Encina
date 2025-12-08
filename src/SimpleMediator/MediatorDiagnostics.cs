@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace SimpleMediator;
 
 /// <summary>
-/// Contiene la fuente de actividades utilizada por los behaviors de telemetría.
+/// Provides the activity source consumed by telemetry-oriented behaviors.
 /// </summary>
 internal static class MediatorDiagnostics
 {

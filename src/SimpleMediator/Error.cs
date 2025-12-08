@@ -9,7 +9,7 @@ namespace SimpleMediator;
 /// </summary>
 public readonly record struct Error
 {
-    private static readonly string DefaultMessage = "Se produjo un error";
+    private static readonly string DefaultMessage = "An error occurred";
 
     private Error(string message, Option<Exception> exposedException, Option<Exception> metadataException)
     {

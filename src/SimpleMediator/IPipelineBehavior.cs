@@ -5,13 +5,13 @@ using LanguageExt;
 namespace SimpleMediator;
 
 /// <summary>
-/// Interceptor que rodea la ejecución del handler, permitiendo lógica transversal.
+/// Intercepts handler execution to apply cross-cutting logic.
 /// </summary>
-/// <typeparam name="TRequest">Tipo de solicitud que atraviesa el pipeline.</typeparam>
-/// <typeparam name="TResponse">Tipo devuelto por el manejador final.</typeparam>
+/// <typeparam name="TRequest">Request type traversing the pipeline.</typeparam>
+/// <typeparam name="TResponse">Response type returned by the final handler.</typeparam>
 /// <remarks>
-/// Los behaviors se encadenan en orden inverso al registro. Cada uno decide si invoca a
-/// <paramref name="next"/> o corta el flujo devolviendo su propia respuesta.
+/// Behaviors are chained in reverse registration order. Each one decides whether to invoke
+/// <paramref name="next"/> or short-circuit the flow with its own response.
 /// </remarks>
 /// <example>
 /// <code>
@@ -35,11 +35,11 @@ public interface IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
     /// <summary>
-    /// Ejecuta la lógica del behavior en torno al siguiente elemento del pipeline.
+    /// Executes the behavior logic around the next pipeline element.
     /// </summary>
-    /// <param name="request">Solicitud procesada.</param>
-    /// <param name="cancellationToken">Token para cancelar el flujo.</param>
-    /// <param name="next">Delegado al siguiente behavior o handler.</param>
-    /// <returns>Resultado final o alterado por el behavior.</returns>
+    /// <param name="request">Request being processed.</param>
+    /// <param name="cancellationToken">Token to cancel the flow.</param>
+    /// <param name="next">Delegate to the next behavior or handler.</param>
+    /// <returns>Final result or the modified response from the behavior.</returns>
     Task<Either<Error, TResponse>> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next);
 }

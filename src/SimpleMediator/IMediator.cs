@@ -5,11 +5,11 @@ using LanguageExt;
 namespace SimpleMediator;
 
 /// <summary>
-/// Coordinador central para enviar comandos/consultas y publicar notificaciones.
+/// Central coordinator used to send commands/queries and publish notifications.
 /// </summary>
 /// <remarks>
-/// La implementación por defecto (<see cref="SimpleMediator"/>) crea un ámbito de DI por
-/// operación, ejecuta behaviors en cascada y delega en los handlers registrados.
+/// The default implementation (<see cref="SimpleMediator"/>) creates a DI scope per operation,
+/// runs behaviors in cascade, and delegates to the registered handlers.
 /// </remarks>
 /// <example>
 /// <code>
@@ -31,20 +31,20 @@ namespace SimpleMediator;
 public interface IMediator
 {
     /// <summary>
-    /// Envía una solicitud que espera una respuesta de tipo <typeparamref name="TResponse"/>.
+    /// Sends a request that expects a <typeparamref name="TResponse"/> response.
     /// </summary>
-    /// <typeparam name="TResponse">Tipo devuelto por el manejador asociado.</typeparam>
-    /// <param name="request">Solicitud a procesar.</param>
-    /// <param name="cancellationToken">Token opcional para cancelar la operación.</param>
-    /// <returns>Respuesta producida por el handler tras pasar por el pipeline.</returns>
+    /// <typeparam name="TResponse">Response type returned by the handler.</typeparam>
+    /// <param name="request">Request to process.</param>
+    /// <param name="cancellationToken">Optional token to cancel the operation.</param>
+    /// <returns>Response produced by the handler after flowing through the pipeline.</returns>
     Task<Either<Error, TResponse>> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Publica una notificación que puede ser manejada por cero o más handlers.
+    /// Publishes a notification that may be handled by zero or more handlers.
     /// </summary>
-    /// <typeparam name="TNotification">Tipo de notificación distribuida.</typeparam>
-    /// <param name="notification">Instancia a propagar.</param>
-    /// <param name="cancellationToken">Token opcional para cancelar la difusión.</param>
+    /// <typeparam name="TNotification">Notification type being distributed.</typeparam>
+    /// <param name="notification">Instance to propagate.</param>
+    /// <param name="cancellationToken">Optional token to cancel the dispatch.</param>
     Task<Either<Error, Unit>> Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
         where TNotification : INotification;
 }

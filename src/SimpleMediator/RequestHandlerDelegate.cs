@@ -4,7 +4,7 @@ using LanguageExt;
 namespace SimpleMediator;
 
 /// <summary>
-/// Representa la continuación del pipeline en un behavior bajo la política Zero Exceptions.
+/// Represents the continuation of the pipeline inside a behavior while honouring the Zero Exceptions policy.
 /// </summary>
-/// <typeparam name="TResponse">Tipo devuelto por el handler final.</typeparam>
+/// <typeparam name="TResponse">Type returned by the terminal handler.</typeparam>
 public delegate Task<Either<Error, TResponse>> RequestHandlerDelegate<TResponse>();

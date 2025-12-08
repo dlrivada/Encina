@@ -8,11 +8,11 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace SimpleMediator;
 
 /// <summary>
-/// Configura el escaneo y los componentes adicionales del mediador.
+/// Configures discovery and additional mediator components.
 /// </summary>
 /// <remarks>
-/// Se utiliza desde <see cref="ServiceCollectionExtensions.AddSimpleMediator(IServiceCollection, Action{SimpleMediatorConfiguration}, System.Reflection.Assembly[])"/>
-/// para ajustar el comportamiento del registro automático.
+/// Used by <see cref="ServiceCollectionExtensions.AddSimpleMediator(IServiceCollection, Action{SimpleMediatorConfiguration}, System.Reflection.Assembly[])"/>
+/// to fine-tune automatic registrations.
 /// </remarks>
 public sealed class SimpleMediatorConfiguration
 {
@@ -22,7 +22,7 @@ public sealed class SimpleMediatorConfiguration
     private readonly List<Type> _requestPostProcessorTypes = new();
 
     /// <summary>
-    /// Ciclo de vida que se aplicará a los handlers resueltos automáticamente.
+    /// Lifetime applied to handlers registered through scanning.
     /// </summary>
     public ServiceLifetime HandlerLifetime { get; private set; } = ServiceLifetime.Scoped;
 
@@ -32,7 +32,7 @@ public sealed class SimpleMediatorConfiguration
     internal IReadOnlyList<Type> RequestPostProcessorTypes => _requestPostProcessorTypes;
 
     /// <summary>
-    /// Establece el ciclo de vida que se utilizará para los handlers registrados automáticamente.
+    /// Sets the lifetime used for handlers registered through scanning.
     /// </summary>
     public SimpleMediatorConfiguration WithHandlerLifetime(ServiceLifetime lifetime)
     {
@@ -41,7 +41,7 @@ public sealed class SimpleMediatorConfiguration
     }
 
     /// <summary>
-    /// Incluye un ensamblado para el escaneo de handlers, behaviors y processors.
+    /// Adds an assembly to scan for handlers, behaviors, and processors.
     /// </summary>
     public SimpleMediatorConfiguration RegisterServicesFromAssembly(Assembly assembly)
     {
@@ -51,7 +51,7 @@ public sealed class SimpleMediatorConfiguration
     }
 
     /// <summary>
-    /// Incluye múltiples ensamblados en el escaneo.
+    /// Adds multiple assemblies to the scan list.
     /// </summary>
     public SimpleMediatorConfiguration RegisterServicesFromAssemblies(params Assembly[] assemblies)
     {
@@ -72,20 +72,20 @@ public sealed class SimpleMediatorConfiguration
     }
 
     /// <summary>
-    /// Incluye el ensamblado que contiene al tipo indicado.
+    /// Adds the assembly that contains the specified type.
     /// </summary>
     public SimpleMediatorConfiguration RegisterServicesFromAssemblyContaining<T>()
         => RegisterServicesFromAssembly(typeof(T).Assembly);
 
     /// <summary>
-    /// Agrega un behavior genérico al pipeline.
+    /// Adds a generic behavior to the pipeline.
     /// </summary>
     public SimpleMediatorConfiguration AddPipelineBehavior<TBehavior>()
         where TBehavior : class
         => AddPipelineBehavior(typeof(TBehavior));
 
     /// <summary>
-    /// Agrega un behavior específico al pipeline.
+    /// Adds a specific behavior to the pipeline.
     /// </summary>
     public SimpleMediatorConfiguration AddPipelineBehavior(Type pipelineBehaviorType)
     {
@@ -93,12 +93,12 @@ public sealed class SimpleMediatorConfiguration
 
         if (!pipelineBehaviorType.IsClass || pipelineBehaviorType.IsAbstract)
         {
-            throw new ArgumentException($"{pipelineBehaviorType.Name} debe ser un tipo de clase concreta.", nameof(pipelineBehaviorType));
+            throw new ArgumentException($"{pipelineBehaviorType.Name} must be a concrete class type.", nameof(pipelineBehaviorType));
         }
 
         if (!typeof(IPipelineBehavior<,>).IsAssignableFromGeneric(pipelineBehaviorType))
         {
-            throw new ArgumentException($"{pipelineBehaviorType.Name} no implementa IPipelineBehavior<,>.", nameof(pipelineBehaviorType));
+            throw new ArgumentException($"{pipelineBehaviorType.Name} does not implement IPipelineBehavior<,>.", nameof(pipelineBehaviorType));
         }
 
         if (!_pipelineBehaviorTypes.Contains(pipelineBehaviorType))
@@ -110,14 +110,14 @@ public sealed class SimpleMediatorConfiguration
     }
 
     /// <summary>
-    /// Agrega un pre-procesador genérico al pipeline.
+    /// Adds a generic pre-processor to the pipeline.
     /// </summary>
     public SimpleMediatorConfiguration AddRequestPreProcessor<TProcessor>()
         where TProcessor : class
         => AddRequestPreProcessor(typeof(TProcessor));
 
     /// <summary>
-    /// Agrega un pre-procesador específico al pipeline.
+    /// Adds a specific pre-processor to the pipeline.
     /// </summary>
     public SimpleMediatorConfiguration AddRequestPreProcessor(Type processorType)
     {
@@ -125,12 +125,12 @@ public sealed class SimpleMediatorConfiguration
 
         if (!processorType.IsClass || processorType.IsAbstract)
         {
-            throw new ArgumentException($"{processorType.Name} debe ser un tipo de clase concreta.", nameof(processorType));
+            throw new ArgumentException($"{processorType.Name} must be a concrete class type.", nameof(processorType));
         }
 
         if (!typeof(IRequestPreProcessor<>).IsAssignableFromGeneric(processorType))
         {
-            throw new ArgumentException($"{processorType.Name} no implementa IRequestPreProcessor<>.", nameof(processorType));
+            throw new ArgumentException($"{processorType.Name} does not implement IRequestPreProcessor<>.", nameof(processorType));
         }
 
         if (!_requestPreProcessorTypes.Contains(processorType))
@@ -142,14 +142,14 @@ public sealed class SimpleMediatorConfiguration
     }
 
     /// <summary>
-    /// Agrega un post-procesador genérico al pipeline.
+    /// Adds a generic post-processor to the pipeline.
     /// </summary>
     public SimpleMediatorConfiguration AddRequestPostProcessor<TProcessor>()
         where TProcessor : class
         => AddRequestPostProcessor(typeof(TProcessor));
 
     /// <summary>
-    /// Agrega un post-procesador específico al pipeline.
+    /// Adds a specific post-processor to the pipeline.
     /// </summary>
     public SimpleMediatorConfiguration AddRequestPostProcessor(Type processorType)
     {
@@ -157,12 +157,12 @@ public sealed class SimpleMediatorConfiguration
 
         if (!processorType.IsClass || processorType.IsAbstract)
         {
-            throw new ArgumentException($"{processorType.Name} debe ser un tipo de clase concreta.", nameof(processorType));
+            throw new ArgumentException($"{processorType.Name} must be a concrete class type.", nameof(processorType));
         }
 
         if (!typeof(IRequestPostProcessor<,>).IsAssignableFromGeneric(processorType))
         {
-            throw new ArgumentException($"{processorType.Name} no implementa IRequestPostProcessor<,>.", nameof(processorType));
+            throw new ArgumentException($"{processorType.Name} does not implement IRequestPostProcessor<,>.", nameof(processorType));
         }
 
         if (!_requestPostProcessorTypes.Contains(processorType))
@@ -245,7 +245,7 @@ public sealed class SimpleMediatorConfiguration
 internal static class TypeExtensions
 {
     /// <summary>
-    /// Determina si un tipo genérico es asignable considerando sus argumentos.
+    /// Determines whether a generic interface is assignable when considering its arguments.
     /// </summary>
     public static bool IsAssignableFromGeneric(this Type genericInterface, Type candidate)
     {

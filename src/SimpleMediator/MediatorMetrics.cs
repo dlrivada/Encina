@@ -5,41 +5,41 @@ using System.Diagnostics.Metrics;
 namespace SimpleMediator;
 
 /// <summary>
-/// Define las métricas expuestas por SimpleMediator.
+/// Defines the metrics exposed by SimpleMediator.
 /// </summary>
 /// <remarks>
-/// Puede personalizarse para integrar con sistemas de observabilidad distintos (Application
-/// Insights, Prometheus, etc.). La implementación por defecto usa <see cref="Meter"/>.
+/// Can be customized to integrate with other observability systems (Application
+/// Insights, Prometheus, and so on). The default implementation uses <see cref="Meter"/>.
 /// </remarks>
 public interface IMediatorMetrics
 {
     /// <summary>
-    /// Registra la ejecución exitosa de una solicitud.
+    /// Records a successful request execution.
     /// </summary>
-    /// <param name="requestKind">Tipo lógico del request (por ejemplo, <c>command</c> o <c>query</c>).</param>
-    /// <param name="requestName">Nombre amigable del request.</param>
-    /// <param name="duration">Tiempo total empleado por el pipeline.</param>
+    /// <param name="requestKind">Logical request kind (for example, <c>command</c> or <c>query</c>).</param>
+    /// <param name="requestName">Friendly name for the request.</param>
+    /// <param name="duration">Total time spent by the pipeline.</param>
     void TrackSuccess(string requestKind, string requestName, TimeSpan duration);
 
     /// <summary>
-    /// Registra una ejecución con fallo funcional o excepcional.
+    /// Records a failed request execution, either functional or exceptional.
     /// </summary>
-    /// <param name="requestKind">Tipo lógico del request.</param>
-    /// <param name="requestName">Nombre amigable del request.</param>
-    /// <param name="duration">Tiempo total antes del fallo.</param>
-    /// <param name="reason">Código o descripción de la causa.</param>
+    /// <param name="requestKind">Logical request kind.</param>
+    /// <param name="requestName">Friendly name for the request.</param>
+    /// <param name="duration">Elapsed time before the failure.</param>
+    /// <param name="reason">Code or description of the failure reason.</param>
     void TrackFailure(string requestKind, string requestName, TimeSpan duration, string reason);
 }
 
 /// <summary>
-/// Implementación por defecto que expone métricas mediante <see cref="System.Diagnostics.Metrics"/>.
+/// Default implementation that exposes metrics via <see cref="System.Diagnostics.Metrics"/>.
 /// </summary>
 /// <remarks>
-/// Los instrumentos creados son:
+/// The following instruments are created:
 /// <list type="bullet">
 /// <item><description><c>simplemediator.request.success</c> (Counter)</description></item>
 /// <item><description><c>simplemediator.request.failure</c> (Counter)</description></item>
-/// <item><description><c>simplemediator.request.duration</c> (Histogram en milisegundos)</description></item>
+/// <item><description><c>simplemediator.request.duration</c> (Histogram in milliseconds)</description></item>
 /// </list>
 /// </remarks>
 public sealed class MediatorMetrics : IMediatorMetrics

@@ -4,12 +4,12 @@ using System.Threading.Tasks;
 namespace SimpleMediator;
 
 /// <summary>
-/// Ejecuta lógica previa al pipeline principal para una solicitud.
+/// Executes logic before the main pipeline for a request.
 /// </summary>
-/// <typeparam name="TRequest">Tipo de solicitud procesada.</typeparam>
+/// <typeparam name="TRequest">Request type being processed.</typeparam>
 /// <remarks>
-/// Se ejecuta antes de cualquier behavior. Ideal para normalizar datos, enriquecer contexto o
-/// aplicar políticas de auditoría ligeras.
+/// Runs before any behavior. Ideal for normalizing data, enriching context, or enforcing light
+/// auditing policies.
 /// </remarks>
 /// <example>
 /// <code>
@@ -26,9 +26,9 @@ namespace SimpleMediator;
 public interface IRequestPreProcessor<in TRequest>
 {
     /// <summary>
-    /// Ejecuta la lógica previa usando el request recibido.
+    /// Executes the pre-processing logic using the received request.
     /// </summary>
-    /// <param name="request">Solicitud original.</param>
-    /// <param name="cancellationToken">Token de cancelación.</param>
+    /// <param name="request">Original request.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     Task Process(TRequest request, CancellationToken cancellationToken);
 }

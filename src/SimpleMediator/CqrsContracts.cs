@@ -3,13 +3,13 @@ using LanguageExt;
 namespace SimpleMediator;
 
 /// <summary>
-/// Representa un comando que fluye por el mediador.
+/// Represents a command flowing through the mediator.
 /// </summary>
-/// <typeparam name="TResponse">Tipo devuelto por el manejador cuando el comando concluye.</typeparam>
+/// <typeparam name="TResponse">Type returned by the handler when the command finishes.</typeparam>
 /// <remarks>
-/// Los comandos suelen mutar estado o provocar efectos secundarios. Mantenga respuestas explícitas
-/// (por ejemplo, <c>Unit</c> o DTOs de dominio) para que el mediador pueda encapsular los fallos
-/// como <c>Either&lt;MediatorError, TResponse&gt;</c> dentro de la política Zero Exceptions.
+/// Commands typically mutate state or trigger side effects. Keep responses explicit (for example
+/// <c>Unit</c> or domain DTOs) so the mediator can wrap failures in
+/// <c>Either&lt;MediatorError, TResponse&gt;</c> while honoring the Zero Exceptions policy.
 /// </remarks>
 /// <example>
 /// <code>
@@ -19,8 +19,8 @@ namespace SimpleMediator;
 /// {
 ///     public async Task&lt;Unit&gt; Handle(CreateReservation command, CancellationToken cancellationToken)
 ///     {
-///         await reservations.SaveAsync(command.Id, command.Draft, cancellationToken);
-///         await outbox.EnqueueAsync(command.Id, cancellationToken);
+///         await reservations.SaveAsync(command.Id, command.Draft, cancellationToken).ConfigureAwait(false);
+///         await outbox.EnqueueAsync(command.Id, cancellationToken).ConfigureAwait(false);
 ///         return Unit.Default;
 ///     }
 /// }
@@ -31,18 +31,18 @@ public interface ICommand<out TResponse> : IRequest<TResponse>
 }
 
 /// <summary>
-/// Variante de comando que no devuelve un contenido específico.
+/// Convenience command variant that does not return an explicit payload.
 /// </summary>
 public interface ICommand : ICommand<Unit>
 {
 }
 
 /// <summary>
-/// Representa una consulta inmutable que produce un resultado.
+/// Represents an immutable query that produces a result.
 /// </summary>
-/// <typeparam name="TResponse">Tipo producido por el manejador al resolver la consulta.</typeparam>
+/// <typeparam name="TResponse">Type produced by the handler when the query is resolved.</typeparam>
 /// <remarks>
-/// Las consultas no deberían mutar estado. El patrón fomenta respuestas puras y caché fácil.
+/// Queries should avoid mutating state. This pattern encourages pure responses that are easy to cache.
 /// </remarks>
 /// <example>
 /// <code>
@@ -52,7 +52,7 @@ public interface ICommand : ICommand<Unit>
 /// {
 ///     public Task&lt;Option&lt;AgendaReadModel&gt;&gt; Handle(GetAgendaById request, CancellationToken cancellationToken)
 ///     {
-///         // Recuperar datos y proyectar el modelo de lectura.
+///         // Look up the record and project it to the read model.
 ///     }
 /// }
 /// </code>
@@ -62,20 +62,19 @@ public interface IQuery<out TResponse> : IRequest<TResponse>
 }
 
 /// <summary>
-/// Variante de consulta que no devuelve un valor concreto.
+/// Convenience query variant that does not return a concrete value.
 /// </summary>
 public interface IQuery : IQuery<Unit>
 {
 }
 
 /// <summary>
-/// Maneja la ejecución de un comando concreto devolviendo una respuesta funcional.
+/// Handles a concrete command and returns a functional response.
 /// </summary>
-/// <typeparam name="TCommand">Tipo de comando atendido.</typeparam>
-/// <typeparam name="TResponse">Tipo devuelto al completar el flujo.</typeparam>
+/// <typeparam name="TCommand">Type of command being handled.</typeparam>
+/// <typeparam name="TResponse">Type returned once the flow completes.</typeparam>
 /// <remarks>
-/// Los manejadores deben ser puros siempre que sea posible, delegando efectos secundarios en
-/// otras colaboraciones inyectadas.
+/// Handlers should be pure where possible, delegating side effects to injected collaborators.
 /// </remarks>
 public interface ICommandHandler<TCommand, TResponse> : IRequestHandler<TCommand, TResponse>
     where TCommand : ICommand<TResponse>
@@ -83,7 +82,7 @@ public interface ICommandHandler<TCommand, TResponse> : IRequestHandler<TCommand
 }
 
 /// <summary>
-/// Conveniencia para comandos que no retornan un valor adicional.
+/// Convenience interface for commands that do not return an additional value.
 /// </summary>
 public interface ICommandHandler<TCommand> : ICommandHandler<TCommand, Unit>
     where TCommand : ICommand<Unit>
@@ -91,17 +90,17 @@ public interface ICommandHandler<TCommand> : ICommandHandler<TCommand, Unit>
 }
 
 /// <summary>
-/// Maneja la ejecución de una consulta produciendo la respuesta solicitada.
+/// Handles a query and produces the expected response.
 /// </summary>
-/// <typeparam name="TQuery">Tipo de consulta atendida.</typeparam>
-/// <typeparam name="TResponse">Tipo devuelto al resolver la consulta.</typeparam>
+/// <typeparam name="TQuery">Type of query being handled.</typeparam>
+/// <typeparam name="TResponse">Type returned once the query completes.</typeparam>
 public interface IQueryHandler<TQuery, TResponse> : IRequestHandler<TQuery, TResponse>
     where TQuery : IQuery<TResponse>
 {
 }
 
 /// <summary>
-/// Conveniencia para consultas que no devuelven datos adicionales.
+/// Convenience interface for queries that do not return additional data.
 /// </summary>
 public interface IQueryHandler<TQuery> : IQueryHandler<TQuery, Unit>
     where TQuery : IQuery<Unit>
@@ -109,7 +108,7 @@ public interface IQueryHandler<TQuery> : IQueryHandler<TQuery, Unit>
 }
 
 /// <summary>
-/// Especialización de <see cref="IPipelineBehavior{TRequest,TResponse}"/> para comandos.
+/// Specialises <see cref="IPipelineBehavior{TRequest,TResponse}"/> for commands.
 /// </summary>
 public interface ICommandPipelineBehavior<TCommand, TResponse> : IPipelineBehavior<TCommand, TResponse>
     where TCommand : ICommand<TResponse>
@@ -117,7 +116,7 @@ public interface ICommandPipelineBehavior<TCommand, TResponse> : IPipelineBehavi
 }
 
 /// <summary>
-/// Variante para comandos sin respuesta específica.
+/// Variant for commands without a specific response payload.
 /// </summary>
 public interface ICommandPipelineBehavior<TCommand> : ICommandPipelineBehavior<TCommand, Unit>
     where TCommand : ICommand<Unit>
@@ -125,7 +124,7 @@ public interface ICommandPipelineBehavior<TCommand> : ICommandPipelineBehavior<T
 }
 
 /// <summary>
-/// Especialización de <see cref="IPipelineBehavior{TRequest,TResponse}"/> para consultas.
+/// Specialises <see cref="IPipelineBehavior{TRequest,TResponse}"/> for queries.
 /// </summary>
 public interface IQueryPipelineBehavior<TQuery, TResponse> : IPipelineBehavior<TQuery, TResponse>
     where TQuery : IQuery<TResponse>
@@ -133,7 +132,7 @@ public interface IQueryPipelineBehavior<TQuery, TResponse> : IPipelineBehavior<T
 }
 
 /// <summary>
-/// Variante para consultas sin respuesta concreta.
+/// Variant for queries that do not return a concrete value.
 /// </summary>
 public interface IQueryPipelineBehavior<TQuery> : IQueryPipelineBehavior<TQuery, Unit>
     where TQuery : IQuery<Unit>

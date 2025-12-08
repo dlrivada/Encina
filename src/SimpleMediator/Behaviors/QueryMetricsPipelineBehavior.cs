@@ -8,13 +8,13 @@ using static LanguageExt.Prelude;
 namespace SimpleMediator;
 
 /// <summary>
-/// Registra métricas de duración y estado para consultas del mediador.
+/// Records duration and outcome metrics for mediator queries.
 /// </summary>
-/// <typeparam name="TQuery">Tipo de consulta observado.</typeparam>
-/// <typeparam name="TResponse">Tipo devuelto por el handler.</typeparam>
+/// <typeparam name="TQuery">Query type being observed.</typeparam>
+/// <typeparam name="TResponse">Response type returned by the handler.</typeparam>
 /// <remarks>
-/// Complementa a <see cref="CommandMetricsPipelineBehavior{TCommand,TResponse}"/> aportando visibilidad
-/// sobre lecturas, incluyendo fallos funcionales.
+/// Complements <see cref="CommandMetricsPipelineBehavior{TCommand,TResponse}"/> by exposing
+/// visibility into reads, including functional failures.
 /// </remarks>
 /// <example>
 /// <code>
@@ -29,7 +29,7 @@ public sealed class QueryMetricsPipelineBehavior<TQuery, TResponse> : IQueryPipe
     private readonly IFunctionalFailureDetector _failureDetector;
 
     /// <summary>
-    /// Crea el behavior con los servicios necesarios.
+    /// Builds the behavior with the required services.
     /// </summary>
     public QueryMetricsPipelineBehavior(IMediatorMetrics metrics, IFunctionalFailureDetector failureDetector)
     {
@@ -46,14 +46,14 @@ public sealed class QueryMetricsPipelineBehavior<TQuery, TResponse> : IQueryPipe
         if (request is null)
         {
             _metrics.TrackFailure(requestKind, requestName, TimeSpan.Zero, "null_request");
-            var message = $"{GetType().Name} recibió un request nulo.";
+            var message = $"{GetType().Name} received a null request.";
             return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.null_request", message));
         }
 
         if (next is null)
         {
             _metrics.TrackFailure(requestKind, requestName, TimeSpan.Zero, "null_next");
-            var message = $"{GetType().Name} recibió un delegado nulo.";
+            var message = $"{GetType().Name} received a null delegate.";
             return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.null_next", message));
         }
 
@@ -68,14 +68,14 @@ public sealed class QueryMetricsPipelineBehavior<TQuery, TResponse> : IQueryPipe
         {
             var elapsed = Stopwatch.GetElapsedTime(startedAt);
             _metrics.TrackFailure(requestKind, requestName, elapsed, "cancelled");
-            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.cancelled", $"El behavior {GetType().Name} canceló la solicitud {typeof(TQuery).Name}.", ex));
+            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.cancelled", $"Behavior {GetType().Name} cancelled the {typeof(TQuery).Name} request.", ex));
         }
         catch (Exception ex)
         {
             var elapsed = Stopwatch.GetElapsedTime(startedAt);
             var reason = ex.GetType().Name;
             _metrics.TrackFailure(requestKind, requestName, elapsed, reason);
-            var error = MediatorErrors.FromException("mediator.behavior.exception", ex, $"Error ejecutando {GetType().Name} para {typeof(TQuery).Name}.");
+            var error = MediatorErrors.FromException("mediator.behavior.exception", ex, $"Error running {GetType().Name} for {typeof(TQuery).Name}.");
             return Left<Error, TResponse>(error);
         }
 

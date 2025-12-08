@@ -1,13 +1,18 @@
 namespace SimpleMediator;
 
 /// <summary>
-/// Representa una solicitud direccionada a un único handler que devuelve una respuesta.
+/// Represents a request routed to a single handler that produces a response.
 /// </summary>
-/// <typeparam name="TResponse">Tipo que producirá el manejador al completar el flujo.</typeparam>
+/// <typeparam name="TResponse">Type produced by the handler when the flow completes.</typeparam>
 /// <remarks>
-/// Las implementaciones habituales son <see cref="ICommand{TResponse}"/> y
-/// <see cref="IQuery{TResponse}"/>. Use clases o records inmutables para facilitar pruebas.
+/// Typical implementations are <see cref="ICommand{TResponse}"/> and <see cref="IQuery{TResponse}"/>.
+/// Prefer immutable classes or records so requests remain deterministic and easy to test.
 /// </remarks>
+/// <example>
+/// <code>
+/// public sealed record GetInvoiceById(Guid InvoiceId) : IRequest&lt;Option&lt;InvoiceReadModel&gt;&gt;;
+/// </code>
+/// </example>
 public interface IRequest<out TResponse>
 {
 }

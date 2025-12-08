@@ -4,12 +4,12 @@ using System.Threading.Tasks;
 namespace SimpleMediator;
 
 /// <summary>
-/// Procesa una notificación publicada por el mediador.
+/// Processes a notification published by the mediator.
 /// </summary>
-/// <typeparam name="TNotification">Tipo de evento atendido.</typeparam>
+/// <typeparam name="TNotification">Notification type being handled.</typeparam>
 /// <remarks>
-/// Los handlers se ejecutan secuencialmente en el orden de resolución dentro del contenedor.
-/// Deben ser idempotentes y tolerar la existencia de múltiples consumidores.
+/// Handlers run sequentially following the container resolution order.
+/// They must be idempotent and tolerate the presence of multiple consumers.
 /// </remarks>
 /// <example>
 /// <code>
@@ -27,9 +27,9 @@ public interface INotificationHandler<in TNotification>
     where TNotification : INotification
 {
     /// <summary>
-    /// Ejecuta la lógica asociada a la notificación recibida.
+    /// Executes the logic associated with the received notification.
     /// </summary>
-    /// <param name="notification">Evento o señal propagada.</param>
-    /// <param name="cancellationToken">Token para cancelar la operación si es necesario.</param>
+    /// <param name="notification">Event or signal to process.</param>
+    /// <param name="cancellationToken">Token to cancel the operation when needed.</param>
     Task Handle(TNotification notification, CancellationToken cancellationToken);
 }

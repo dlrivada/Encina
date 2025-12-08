@@ -5,14 +5,13 @@ using LanguageExt;
 namespace SimpleMediator;
 
 /// <summary>
-/// Ejecuta lógica posterior al handler principal para una solicitud dada.
+/// Executes logic after the main handler for a given request.
 /// </summary>
-/// <typeparam name="TRequest">Tipo de solicitud observada.</typeparam>
-/// <typeparam name="TResponse">Tipo de respuesta emitida por el handler.</typeparam>
+/// <typeparam name="TRequest">Observed request type.</typeparam>
+/// <typeparam name="TResponse">Response type emitted by the handler.</typeparam>
 /// <remarks>
-/// Útil para emitir notificaciones, limpiar recursos o persistir resultados adicionales. Se
-/// ejecuta incluso cuando el handler devolvió un resultado funcional de error; la implementación
-/// decide cómo actuar ante ese escenario.
+/// Useful for emitting notifications, cleaning resources, or persisting additional results. Runs
+/// even when the handler returned a functional error; the implementation decides how to react.
 /// </remarks>
 /// <example>
 /// <code>
@@ -32,10 +31,10 @@ namespace SimpleMediator;
 public interface IRequestPostProcessor<in TRequest, TResponse>
 {
     /// <summary>
-    /// Ejecuta la lógica posterior utilizando el request y la respuesta final.
+    /// Executes the post-processing logic using the request and the final response.
     /// </summary>
-    /// <param name="request">Solicitud original.</param>
-    /// <param name="response">Respuesta devuelta por el pipeline.</param>
-    /// <param name="cancellationToken">Token de cancelación.</param>
+    /// <param name="request">Original request.</param>
+    /// <param name="response">Response returned by the pipeline.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     Task Process(TRequest request, Either<Error, TResponse> response, CancellationToken cancellationToken);
 }

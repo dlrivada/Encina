@@ -1,11 +1,11 @@
 namespace SimpleMediator;
 
 /// <summary>
-/// Señal o evento que puede ser publicado a múltiples handlers.
+/// Signal or event that can be published to multiple handlers.
 /// </summary>
 /// <remarks>
-/// A diferencia de <see cref="IRequest{TResponse}"/>, las notificaciones no esperan respuesta.
-/// Resultan útiles para propagar eventos de dominio o integrar procesos asíncronos.
+/// Unlike <see cref="IRequest{TResponse}"/>, notifications do not expect a response.
+/// They are handy to propagate domain events or integrate asynchronous processes.
 /// </remarks>
 /// <example>
 /// <code>
@@ -15,7 +15,7 @@ namespace SimpleMediator;
 /// {
 ///     public Task Handle(InvoiceIssuedNotification notification, CancellationToken cancellationToken)
 ///     {
-///         // Enviar mensaje al sistema contable...
+///         // Send a message to the accounting system...
 ///         return Task.CompletedTask;
 ///     }
 /// }

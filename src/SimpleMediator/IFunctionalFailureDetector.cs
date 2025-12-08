@@ -3,12 +3,12 @@ using System;
 namespace SimpleMediator;
 
 /// <summary>
-/// Permite a la aplicación identificar fallos funcionales en las respuestas del mediador.
+/// Allows the application to identify functional failures in mediator responses.
 /// </summary>
 /// <remarks>
-/// SimpleMediator delega en esta abstracción para no acoplarse a tipos de dominio concretos.
-/// Las implementaciones pueden inspeccionar <c>Either</c>, resultados discriminados u objetos
-/// específicos para obtener códigos y mensajes.
+/// SimpleMediator relies on this abstraction to avoid binding to specific domain types.
+/// Implementations can inspect <c>Either</c>, discriminated unions, or custom objects to extract
+/// codes and messages.
 /// </remarks>
 /// <example>
 /// <code>
@@ -39,25 +39,25 @@ namespace SimpleMediator;
 public interface IFunctionalFailureDetector
 {
     /// <summary>
-    /// Intenta determinar si la respuesta representa un fallo funcional.
+    /// Attempts to determine whether the response represents a functional failure.
     /// </summary>
-    /// <param name="response">Objeto devuelto por el handler.</param>
-    /// <param name="reason">Código o descripción del fallo, cuando se detecta.</param>
-    /// <param name="error">Instancia de error capturada para inspecciones posteriores.</param>
-    /// <returns><c>true</c> cuando se identificó un fallo funcional; en caso contrario <c>false</c>.</returns>
+    /// <param name="response">Object returned by the handler.</param>
+    /// <param name="reason">Code or description of the failure when detected.</param>
+    /// <param name="error">Captured error instance for further inspection.</param>
+    /// <returns><c>true</c> when a functional failure was identified; otherwise <c>false</c>.</returns>
     bool TryExtractFailure(object? response, out string reason, out object? error);
 
     /// <summary>
-    /// Obtiene un código de error estandarizado a partir del objeto capturado.
+    /// Gets a standardized error code from the captured object.
     /// </summary>
-    /// <param name="error">Instancia devuelta previamente por <see cref="TryExtractFailure"/>.</param>
-    /// <returns>El código interpretado o <c>null</c> si no aplica.</returns>
+    /// <param name="error">Instance previously returned by <see cref="TryExtractFailure"/>.</param>
+    /// <returns>The interpreted code or <c>null</c> when not applicable.</returns>
     string? TryGetErrorCode(object? error);
 
     /// <summary>
-    /// Obtiene un mensaje o detalle legible a partir del error capturado.
+    /// Gets a human-friendly message or detail from the captured error.
     /// </summary>
-    /// <param name="error">Instancia devuelta por <see cref="TryExtractFailure"/>.</param>
-    /// <returns>Mensaje a mostrar o <c>null</c> si no está disponible.</returns>
+    /// <param name="error">Instance returned by <see cref="TryExtractFailure"/>.</param>
+    /// <returns>Message to display or <c>null</c> when unavailable.</returns>
     string? TryGetErrorMessage(object? error);
 }

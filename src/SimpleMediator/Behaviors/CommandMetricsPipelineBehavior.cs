@@ -8,13 +8,13 @@ using static LanguageExt.Prelude;
 namespace SimpleMediator;
 
 /// <summary>
-/// Registra métricas de duración y estado para comandos ejecutados por el mediador.
+/// Records duration and outcome metrics for mediator commands.
 /// </summary>
-/// <typeparam name="TCommand">Tipo de comando observado.</typeparam>
-/// <typeparam name="TResponse">Tipo devuelto por el handler.</typeparam>
+/// <typeparam name="TCommand">Command type being observed.</typeparam>
+/// <typeparam name="TResponse">Response type returned by the handler.</typeparam>
 /// <remarks>
-/// Utiliza <see cref="IMediatorMetrics"/> para exponer contadores de éxito/fracaso y un histograma
-/// de duración. El detector de fallos permite identificar errores funcionales sin excepciones.
+/// Uses <see cref="IMediatorMetrics"/> to expose success/failure counters and a duration
+/// histogram. The failure detector identifies functional errors without exceptions.
 /// </remarks>
 /// <example>
 /// <code>
@@ -29,7 +29,7 @@ public sealed class CommandMetricsPipelineBehavior<TCommand, TResponse> : IComma
     private readonly IFunctionalFailureDetector _failureDetector;
 
     /// <summary>
-    /// Crea el behavior a partir de los servicios de métricas y detector de fallos.
+    /// Builds the behavior using the metrics service and failure detector.
     /// </summary>
     public CommandMetricsPipelineBehavior(IMediatorMetrics metrics, IFunctionalFailureDetector failureDetector)
     {
@@ -46,14 +46,14 @@ public sealed class CommandMetricsPipelineBehavior<TCommand, TResponse> : IComma
         if (request is null)
         {
             _metrics.TrackFailure(requestKind, requestName, TimeSpan.Zero, "null_request");
-            var message = $"{GetType().Name} recibió un request nulo.";
+            var message = $"{GetType().Name} received a null request.";
             return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.null_request", message));
         }
 
         if (next is null)
         {
             _metrics.TrackFailure(requestKind, requestName, TimeSpan.Zero, "null_next");
-            var message = $"{GetType().Name} recibió un delegado nulo.";
+            var message = $"{GetType().Name} received a null delegate.";
             return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.null_next", message));
         }
 
@@ -68,14 +68,14 @@ public sealed class CommandMetricsPipelineBehavior<TCommand, TResponse> : IComma
         {
             var elapsed = Stopwatch.GetElapsedTime(startedAt);
             _metrics.TrackFailure(requestKind, requestName, elapsed, "cancelled");
-            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.cancelled", $"El behavior {GetType().Name} canceló la solicitud {typeof(TCommand).Name}.", ex));
+            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.cancelled", $"Behavior {GetType().Name} cancelled the {typeof(TCommand).Name} request.", ex));
         }
         catch (Exception ex)
         {
             var elapsed = Stopwatch.GetElapsedTime(startedAt);
             var reason = ex.GetType().Name;
             _metrics.TrackFailure(requestKind, requestName, elapsed, reason);
-            var error = MediatorErrors.FromException("mediator.behavior.exception", ex, $"Error ejecutando {GetType().Name} para {typeof(TCommand).Name}.");
+            var error = MediatorErrors.FromException("mediator.behavior.exception", ex, $"Error running {GetType().Name} for {typeof(TCommand).Name}.");
             return Left<Error, TResponse>(error);
         }
 

@@ -8,14 +8,14 @@ using static LanguageExt.Prelude;
 namespace SimpleMediator;
 
 /// <summary>
-/// Crea actividades de diagnóstico para comandos y anota fallos funcionales.
+/// Creates diagnostic activities for commands and annotates functional failures.
 /// </summary>
-/// <typeparam name="TCommand">Tipo de comando observado.</typeparam>
-/// <typeparam name="TResponse">Tipo devuelto por el handler.</typeparam>
+/// <typeparam name="TCommand">Command type being observed.</typeparam>
+/// <typeparam name="TResponse">Response type returned by the handler.</typeparam>
 /// <remarks>
-/// Utiliza <see cref="IFunctionalFailureDetector"/> para etiquetar errores sin depender de tipos
-/// concretos. Las actividades se emiten con la fuente <c>SimpleMediator</c>, lista para ser consumida
-/// por OpenTelemetry.
+/// Leverages <see cref="IFunctionalFailureDetector"/> to tag errors without depending on concrete
+/// domain types. Activities are emitted with the <c>SimpleMediator</c> source ready for
+/// OpenTelemetry.
 /// </remarks>
 /// <example>
 /// <code>
@@ -32,9 +32,9 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse> : IComm
     private readonly IFunctionalFailureDetector _failureDetector;
 
     /// <summary>
-    /// Inicializa el behavior con el detector de fallos funcionales a emplear.
+    /// Initializes the behavior with the functional failure detector to use.
     /// </summary>
-    /// <param name="failureDetector">Detector que interpreta las respuestas del handler.</param>
+    /// <param name="failureDetector">Detector that interprets handler responses.</param>
     public CommandActivityPipelineBehavior(IFunctionalFailureDetector failureDetector)
     {
         _failureDetector = failureDetector ?? NullFunctionalFailureDetector.Instance;
@@ -45,13 +45,13 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse> : IComm
     {
         if (request is null)
         {
-            var message = $"{GetType().Name} recibió un request nulo.";
+            var message = $"{GetType().Name} received a null request.";
             return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.null_request", message));
         }
 
         if (next is null)
         {
-            var message = $"{GetType().Name} recibió un delegado nulo.";
+            var message = $"{GetType().Name} received a null delegate.";
             return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.null_next", message));
         }
 
@@ -76,14 +76,14 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse> : IComm
         {
             activity?.SetStatus(ActivityStatusCode.Error, "cancelled");
             activity?.SetTag("mediator.cancelled", true);
-            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.cancelled", $"El behavior {GetType().Name} canceló la solicitud {typeof(TCommand).Name}.", ex));
+            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.cancelled", $"Behavior {GetType().Name} cancelled the {typeof(TCommand).Name} request.", ex));
         }
         catch (Exception ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             activity?.SetTag("exception.type", ex.GetType().FullName);
             activity?.SetTag("exception.message", ex.Message);
-            var error = MediatorErrors.FromException("mediator.behavior.exception", ex, $"Error ejecutando {GetType().Name} para {typeof(TCommand).Name}.");
+            var error = MediatorErrors.FromException("mediator.behavior.exception", ex, $"Error running {GetType().Name} for {typeof(TCommand).Name}.");
             return Left<Error, TResponse>(error);
         }
         outcome.Match(

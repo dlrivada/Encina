@@ -44,7 +44,7 @@ public sealed class PipelineBehaviorsTests
         var result = await behavior.Handle(request: null!, CancellationToken.None, () => Success("ok"));
 
         var error = ExpectFailure(result, "mediator.behavior.null_request");
-        error.Message.ShouldContain("request nulo");
+        error.Message.ShouldContain("received a null request");
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class PipelineBehaviorsTests
         var result = await behavior.Handle(request, CancellationToken.None, next: null!);
 
         var error = ExpectFailure(result, "mediator.behavior.null_next");
-        error.Message.ShouldContain("delegado nulo");
+        error.Message.ShouldContain("received a null delegate");
     }
 
     [Fact]
@@ -248,7 +248,7 @@ public sealed class PipelineBehaviorsTests
         var result = await behavior.Handle(request: null!, CancellationToken.None, () => Success("ok"));
 
         var error = ExpectFailure(result, "mediator.behavior.null_request");
-        error.Message.ShouldContain("request nulo");
+        error.Message.ShouldContain("received a null request");
     }
 
     [Fact]
@@ -261,7 +261,7 @@ public sealed class PipelineBehaviorsTests
         var result = await behavior.Handle(request, CancellationToken.None, next: null!);
 
         var error = ExpectFailure(result, "mediator.behavior.null_next");
-        error.Message.ShouldContain("delegado nulo");
+        error.Message.ShouldContain("received a null delegate");
     }
 
     [Fact]
@@ -398,7 +398,7 @@ public sealed class PipelineBehaviorsTests
         var result = await behavior.Handle(request: null!, CancellationToken.None, () => Success("ok"));
 
         var error = ExpectFailure(result, "mediator.behavior.null_request");
-        error.Message.ShouldContain("request nulo");
+        error.Message.ShouldContain("received a null request");
         metrics.Failures.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
             failure => failure.requestKind.ShouldBe("command"),
             failure => failure.reason.ShouldBe("null_request"));
@@ -415,7 +415,7 @@ public sealed class PipelineBehaviorsTests
         var result = await behavior.Handle(request, CancellationToken.None, next: null!);
 
         var error = ExpectFailure(result, "mediator.behavior.null_next");
-        error.Message.ShouldContain("delegado nulo");
+        error.Message.ShouldContain("received a null delegate");
         metrics.Failures.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
             failure => failure.requestKind.ShouldBe("command"),
             failure => failure.reason.ShouldBe("null_next"));
@@ -505,7 +505,7 @@ public sealed class PipelineBehaviorsTests
         var result = await behavior.Handle(request: null!, CancellationToken.None, () => Success("ok"));
 
         var error = ExpectFailure(result, "mediator.behavior.null_request");
-        error.Message.ShouldContain("request nulo");
+        error.Message.ShouldContain("received a null request");
         metrics.Failures.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
             failure => failure.requestKind.ShouldBe("query"),
             failure => failure.reason.ShouldBe("null_request"));
@@ -522,7 +522,7 @@ public sealed class PipelineBehaviorsTests
         var result = await behavior.Handle(request, CancellationToken.None, next: null!);
 
         var error = ExpectFailure(result, "mediator.behavior.null_next");
-        error.Message.ShouldContain("delegado nulo");
+        error.Message.ShouldContain("received a null delegate");
         metrics.Failures.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
             failure => failure.requestKind.ShouldBe("query"),
             failure => failure.reason.ShouldBe("null_next"));
@@ -592,7 +592,7 @@ public sealed class PipelineBehaviorsTests
 
     private static T ExpectSuccess<T>(Either<Error, T> outcome)
     {
-        outcome.IsRight.ShouldBeTrue("Se esperaba un resultado exitoso del pipeline.");
+        outcome.IsRight.ShouldBeTrue("Expected the pipeline to succeed.");
         return outcome.Match(
             Left: static _ => throw new InvalidOperationException("Unexpected failure outcome."),
             Right: static value => value);
@@ -600,7 +600,7 @@ public sealed class PipelineBehaviorsTests
 
     private static Error ExpectFailure<T>(Either<Error, T> outcome, string expectedCode)
     {
-        outcome.IsLeft.ShouldBeTrue($"Se esperaba un fallo con código {expectedCode}.");
+        outcome.IsLeft.ShouldBeTrue($"Expected a failure with code {expectedCode}.");
         var error = outcome.Match(
             Left: static err => err,
             Right: _ => throw new InvalidOperationException("Unexpected successful outcome."));

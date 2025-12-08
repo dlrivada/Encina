@@ -4,30 +4,30 @@ using LanguageExt;
 namespace SimpleMediator;
 
 /// <summary>
-/// Factoría de errores estándar producidos por SimpleMediator.
+/// Factory for the standard errors produced by SimpleMediator.
 /// </summary>
 internal static class MediatorErrors
 {
     /// <summary>
-    /// Error inesperado de infraestructura.
+    /// Unexpected infrastructure error.
     /// </summary>
-    public static Error Unknown { get; } = Create("mediator.unknown", "Se produjo un error inesperado en SimpleMediator.");
+    public static Error Unknown { get; } = Create("mediator.unknown", "An unexpected error occurred in SimpleMediator.");
 
     /// <summary>
-    /// Crea un error con código y mensaje explícitos.
+    /// Creates an error with explicit code and message.
     /// </summary>
     public static Error Create(string code, string message, Exception? exception = null, object? details = null)
         => Error.FromMediatorException(new MediatorException(code, message, exception, details));
 
     /// <summary>
-    /// Envuelve una excepción en un error tipado.
+    /// Wraps an exception inside a typed error.
     /// </summary>
     public static Error FromException(string code, Exception exception, string? message = null, object? details = null)
         => Create(code, message ?? exception.Message, exception, details);
 }
 
 /// <summary>
-/// Excepción interna utilizada para conservar metadatos de fallos del mediador sin propagarlos.
+/// Internal exception used to capture mediator failure metadata without leaking it.
 /// </summary>
 internal sealed class MediatorException : Exception
 {
@@ -44,7 +44,7 @@ internal sealed class MediatorException : Exception
 }
 
 /// <summary>
-/// Extensiones auxiliares para extraer metadatos de <see cref="Error"/>.
+/// Helper extensions to extract metadata from <see cref="Error"/>.
 /// </summary>
 internal static class MediatorErrorExtensions
 {

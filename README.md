@@ -37,11 +37,11 @@ SimpleMediator is a lightweight mediator abstraction for .NET applications that 
 - Pipelines, pre-processors, and post-processors make cross-cutting concerns pluggable.
 - Provides telemetry hooks (logging, metrics, activity tracing) without coupling to specific vendors.
 - Ships with guardrails such as functional failure detection to keep domain invariants explicit.
-- En ruta hacia una política Zero Exceptions para que los fallos operativos fluyan mediante Railway Oriented Programming (ROP) en lugar de excepciones.
+- On track for a Zero Exceptions policy so operational failures travel through Railway Oriented Programming (ROP) patterns instead of bubbling up as exceptions.
 
 ## Zero Exceptions Initiative
 
-SimpleMediator evoluciona hacia una política Zero Exceptions en la que las operaciones del mediador no propaguen excepciones en escenarios operativos habituales. El objetivo es que handlers, behaviors y el propio mediador comuniquen fallos mediante resultados funcionales (`Either<Error, TValue>`, `Option<T>`, etc.) manteniendo el flujo en los raíles del ROP. Durante la transición se registran los puntos que aún lanzan excepciones y se trabaja para encapsular esos errores dentro de los resultados funcionales, reservando las excepciones para situaciones realmente excepcionales. `MediatorErrors` ofrece fábricas predefinidas para encapsular excepciones dentro de `Error`.
+SimpleMediator is evolving toward a Zero Exceptions policy, where mediator operations stop throwing in expected operational scenarios. Handlers, behaviors, and the mediator itself report failures through functional results (`Either<Error, TValue>`, `Option<T>`, etc.), keeping execution on the ROP rails. During the transition we track remaining throw sites and wrap them in functional results, reserving exceptions for truly exceptional failures. `MediatorErrors` exposes factory helpers to encapsulate exceptions inside `Error` instances.
 
 ## Quick Start
 
@@ -223,7 +223,7 @@ public sealed class TimeoutPipelineBehavior<TRequest, TResponse> : IPipelineBeha
         }
         catch (OperationCanceledException ex) when (cts.IsCancellationRequested)
         {
-            return MediatorErrors.FromException("mediator.timeout", ex, $"Timeout ejecutando {typeof(TRequest).Name}.");
+            return MediatorErrors.FromException("mediator.timeout", ex, $"Timeout while running {typeof(TRequest).Name}.");
         }
     }
 }

@@ -7,7 +7,7 @@ using System.Reflection;
 namespace SimpleMediator;
 
 /// <summary>
-/// Escanea ensamblados para localizar handlers, behaviors y processors del mediador.
+/// Scans assemblies to discover mediator handlers, behaviors, and processors.
 /// </summary>
 internal static class MediatorAssemblyScanner
 {
@@ -92,12 +92,12 @@ internal static class MediatorAssemblyScanner
 }
 
 /// <summary>
-/// Almacena la relación entre un servicio genérico y su implementación concreta.
+/// Stores the relationship between a generic service and its concrete implementation.
 /// </summary>
 internal sealed record TypeRegistration(Type ServiceType, Type ImplementationType);
 
 /// <summary>
-/// Resultado del escaneo de un ensamblado.
+/// Result of scanning an assembly.
 /// </summary>
 internal sealed record AssemblyScanResult(
     IReadOnlyCollection<TypeRegistration> HandlerRegistrations,

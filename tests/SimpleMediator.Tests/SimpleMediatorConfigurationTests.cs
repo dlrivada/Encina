@@ -64,11 +64,11 @@ public sealed class SimpleMediatorConfigurationTests
 
         var invalidImplementation = Should.Throw<ArgumentException>(() => configuration.AddPipelineBehavior(typeof(NotABehavior)));
         invalidImplementation.ParamName.ShouldBe("pipelineBehaviorType");
-        invalidImplementation.Message.ShouldContain("no implementa IPipelineBehavior<,>.");
+        invalidImplementation.Message.ShouldContain("does not implement IPipelineBehavior<,>.");
 
         var abstractType = Should.Throw<ArgumentException>(() => configuration.AddPipelineBehavior(typeof(AbstractBehavior)));
         abstractType.ParamName.ShouldBe("pipelineBehaviorType");
-        abstractType.Message.ShouldContain("debe ser un tipo de clase concreta.");
+        abstractType.Message.ShouldContain("must be a concrete class type.");
     }
 
     [Fact]
@@ -174,11 +174,11 @@ public sealed class SimpleMediatorConfigurationTests
 
         var invalidImplementation = Should.Throw<ArgumentException>(() => configuration.AddRequestPreProcessor(typeof(NotAPreProcessor)));
         invalidImplementation.ParamName.ShouldBe("processorType");
-        invalidImplementation.Message.ShouldContain("no implementa IRequestPreProcessor<>");
+        invalidImplementation.Message.ShouldContain("does not implement IRequestPreProcessor<>.");
 
         var abstractType = Should.Throw<ArgumentException>(() => configuration.AddRequestPreProcessor(typeof(AbstractPreProcessor)));
         abstractType.ParamName.ShouldBe("processorType");
-        abstractType.Message.ShouldContain("debe ser un tipo de clase concreta.");
+        abstractType.Message.ShouldContain("must be a concrete class type.");
     }
 
     [Fact]
@@ -270,11 +270,11 @@ public sealed class SimpleMediatorConfigurationTests
 
         var invalidImplementation = Should.Throw<ArgumentException>(() => configuration.AddRequestPostProcessor(typeof(NotAPostProcessor)));
         invalidImplementation.ParamName.ShouldBe("processorType");
-        invalidImplementation.Message.ShouldContain("no implementa IRequestPostProcessor<,>.");
+        invalidImplementation.Message.ShouldContain("does not implement IRequestPostProcessor<,>.");
 
         var abstractType = Should.Throw<ArgumentException>(() => configuration.AddRequestPostProcessor(typeof(AbstractPostProcessor)));
         abstractType.ParamName.ShouldBe("processorType");
-        abstractType.Message.ShouldContain("debe ser un tipo de clase concreta.");
+        abstractType.Message.ShouldContain("must be a concrete class type.");
     }
 
     [Fact]
