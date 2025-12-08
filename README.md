@@ -1,5 +1,11 @@
 # SimpleMediator
 
+[![.NET Quality Gate](https://github.com/dlrivada/SimpleMediator/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/dotnet-ci.yml)
+[![CodeQL](https://github.com/dlrivada/SimpleMediator/actions/workflows/codeql.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/codeql.yml)
+[![SBOM](https://github.com/dlrivada/SimpleMediator/actions/workflows/sbom.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/sbom.yml)
+[![Benchmarks](https://github.com/dlrivada/SimpleMediator/actions/workflows/benchmarks.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/benchmarks.yml)
+[![Dependabot](https://img.shields.io/badge/Dependabot-Enabled-025E8C?logo=dependabot&logoColor=white)](https://docs.github.com/code-security/dependabot)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196)](https://www.conventionalcommits.org/)
 ![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4.svg)
 ![Status](https://img.shields.io/badge/status-internal-blue.svg)
 ![License](https://img.shields.io/badge/license-private-important.svg)
@@ -26,6 +32,8 @@ SimpleMediator is a lightweight mediator abstraction for .NET applications that 
 - [Diagnostics and Metrics](#diagnostics-and-metrics)
 - [Configuration Reference](#configuration-reference)
 - [Testing](#testing)
+- [Quality Checklist](#quality-checklist)
+- [Quality & Security Roadmap](#quality--security-roadmap)
 - [FAQ](#faq)
 - [Future Work](#future-work)
 - [License](#license)
@@ -357,6 +365,15 @@ dotnet run --file scripts/run-load-harness.cs -- --nbomber send-burst --duration
 - Benchmarks within guardrails: `dotnet run --file scripts/run-benchmarks.cs` and `dotnet run --file scripts/check-benchmarks.cs`.
 - Load guardrails: console (`dotnet run --file scripts/check-load-metrics.cs -- --config ci/load-thresholds.json`), NBomber (`dotnet run --file scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json`).
 - Requirements documentation current: update `docs/en/guides/REQUIREMENTS.md` and `docs/en/guides/REQUIREMENTS_MAPPING.md` when adding scenarios or gates.
+
+## Quality & Security Roadmap
+
+The living roadmap in `QUALITY_SECURITY_ROADMAP.md` complements this README with quantified objectives, badge inventory, and an incremental plan covering immediate, short, medium, and long-term quality efforts. Highlights:
+
+- **Objectives:** analyzer clean builds, ≥95 % branch coverage on critical packages, guarded benchmarks, and SBOM currency for each release.
+- **Automation:** dedicated workflows (`dotnet-ci.yml`, `codeql.yml`, `sbom.yml`, `benchmarks.yml`) keep formatting, analysis, dependency hygiene, and performance on autopilot.
+- **Governance:** Dependabot, Conventional Commits, and release documentation combine to enforce predictable delivery.
+- **Follow-up:** the roadmap checklist tracks pending tasks such as expanding regression tests, instrumenting metrics, and pursuing SLSA provenance.
 
 ## FAQ
 

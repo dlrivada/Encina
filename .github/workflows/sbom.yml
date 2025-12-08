@@ -1,0 +1,41 @@
+name: SBOM
+
+on:
+    push:
+        tags: ["v*"]
+    workflow_dispatch:
+
+permissions:
+    contents: write
+    id-token: write
+
+jobs:
+    generate:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: 10.0.x
+
+            - name: Restore dependencies
+              run: dotnet restore SimpleMediator.slnx
+
+            - name: Generate SBOM
+              run: dotnet publish src/SimpleMediator/SimpleMediator.csproj --configuration Release --output artifacts/package
+
+            - name: Create SBOM with Syft
+              uses: anchore/sbom-action@v0.16.0
+              with:
+                  path: artifacts/package
+                  format: spdx-json
+                  output-file: artifacts/sbom/sbom.spdx.json
+
+            - name: Upload SBOM artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: sbom
+                  path: artifacts/sbom/sbom.spdx.json

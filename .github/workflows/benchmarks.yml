@@ -1,0 +1,41 @@
+name: Benchmarks
+
+on:
+    workflow_dispatch:
+    schedule:
+        - cron: "0 1 * * *"
+
+permissions:
+    contents: read
+
+jobs:
+    run-benchmarks:
+        runs-on: windows-latest
+        env:
+            DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+            DOTNET_NOLOGO: true
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: 10.0.x
+
+            - name: Restore
+              run: dotnet restore SimpleMediator.slnx
+
+            - name: Run Benchmark suite
+              id: run-benchmarks
+              run: dotnet run --file scripts/run-benchmarks.cs
+
+            - name: Enforce benchmark thresholds
+              run: dotnet run --file scripts/check-benchmarks.cs -- --directory "${{ steps.run-benchmarks.outputs.benchmark-dir }}"
+
+            - name: Upload benchmark artifacts
+              if: steps.run-benchmarks.outputs.benchmark-dir != ''
+              uses: actions/upload-artifact@v4
+              with:
+                  name: benchmarks
+                  path: ${{ steps.run-benchmarks.outputs.benchmark-dir }}
