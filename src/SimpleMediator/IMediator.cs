@@ -35,7 +35,7 @@ public interface IMediator
     /// <param name="request">Request to process.</param>
     /// <param name="cancellationToken">Optional token to cancel the operation.</param>
     /// <returns>Response produced by the handler after flowing through the pipeline.</returns>
-    Task<Either<Error, TResponse>> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default);
+    ValueTask<Either<MediatorError, TResponse>> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Publishes a notification that may be handled by zero or more handlers.
@@ -43,6 +43,6 @@ public interface IMediator
     /// <typeparam name="TNotification">Notification type being distributed.</typeparam>
     /// <param name="notification">Instance to propagate.</param>
     /// <param name="cancellationToken">Optional token to cancel the dispatch.</param>
-    Task<Either<Error, Unit>> Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+    ValueTask<Either<MediatorError, Unit>> Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
         where TNotification : INotification;
 }

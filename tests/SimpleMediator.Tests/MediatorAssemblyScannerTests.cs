@@ -96,18 +96,20 @@ public sealed class MediatorAssemblyScannerTests
 
     private sealed class ClosedPipelineBehavior : IPipelineBehavior<PingRequest, string>
     {
-        public Task<Either<Error, string>> Handle(PingRequest request, RequestHandlerDelegate<string> nextStep, CancellationToken cancellationToken) => nextStep();
+        public ValueTask<Either<MediatorError, string>> Handle(PingRequest request, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken)
+            => nextStep();
     }
 
     private sealed class OpenGenericPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
-        public Task<Either<Error, TResponse>> Handle(TRequest request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken) => nextStep();
+        public ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+            => nextStep();
     }
 
     private abstract class AbstractPipelineBehavior : IPipelineBehavior<PingRequest, string>
     {
-        public abstract Task<Either<Error, string>> Handle(PingRequest request, RequestHandlerDelegate<string> nextStep, CancellationToken cancellationToken);
+        public abstract ValueTask<Either<MediatorError, string>> Handle(PingRequest request, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken);
     }
 
     private sealed class ClosedPreProcessor : IRequestPreProcessor<PingRequest>
@@ -122,12 +124,12 @@ public sealed class MediatorAssemblyScannerTests
 
     private sealed class ClosedPostProcessor : IRequestPostProcessor<PingRequest, string>
     {
-        public Task Process(PingRequest request, Either<Error, string> response, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task Process(PingRequest request, Either<MediatorError, string> response, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class OpenGenericPostProcessor<TRequest, TResponse> : IRequestPostProcessor<TRequest, TResponse>
     {
-        public Task Process(TRequest request, Either<Error, TResponse> response, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task Process(TRequest request, Either<MediatorError, TResponse> response, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class UnrelatedGenericType : IComparable<int>

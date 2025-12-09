@@ -445,7 +445,7 @@ public sealed class SimpleMediatorConfigurationTests
 
     private abstract class AbstractBehavior : IPipelineBehavior<PingCommand, string>
     {
-        public Task<Either<Error, string>> Handle(PingCommand request, RequestHandlerDelegate<string> nextStep, CancellationToken cancellationToken)
+        public ValueTask<Either<MediatorError, string>> Handle(PingCommand request, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken)
             => nextStep();
     }
 
@@ -461,7 +461,7 @@ public sealed class SimpleMediatorConfigurationTests
 
     private sealed class ConfiguredPostProcessor : IRequestPostProcessor<PingCommand, string>
     {
-        public Task Process(PingCommand request, Either<Error, string> response, CancellationToken cancellationToken)
+        public Task Process(PingCommand request, Either<MediatorError, string> response, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 
@@ -477,14 +477,14 @@ public sealed class SimpleMediatorConfigurationTests
 
     private abstract class AbstractPostProcessor : IRequestPostProcessor<PingCommand, string>
     {
-        public Task Process(PingCommand request, Either<Error, string> response, CancellationToken cancellationToken)
+        public Task Process(PingCommand request, Either<MediatorError, string> response, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 
     private sealed class OpenGenericPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
-        public Task<Either<Error, TResponse>> Handle(TRequest request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken)
+        public ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
             => nextStep();
     }
 
@@ -496,13 +496,13 @@ public sealed class SimpleMediatorConfigurationTests
 
     private sealed class OpenGenericPostProcessor<TRequest, TResponse> : IRequestPostProcessor<TRequest, TResponse>
     {
-        public Task Process(TRequest request, Either<Error, TResponse> response, CancellationToken cancellationToken)
+        public Task Process(TRequest request, Either<MediatorError, TResponse> response, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 
     private sealed class DisposablePipelineBehavior : IPipelineBehavior<PingCommand, string>, IDisposable
     {
-        public Task<Either<Error, string>> Handle(PingCommand request, RequestHandlerDelegate<string> nextStep, CancellationToken cancellationToken)
+        public ValueTask<Either<MediatorError, string>> Handle(PingCommand request, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken)
             => nextStep();
 
         public void Dispose()

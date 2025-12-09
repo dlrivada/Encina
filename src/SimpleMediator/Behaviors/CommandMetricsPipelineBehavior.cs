@@ -29,27 +29,25 @@ public sealed class CommandMetricsPipelineBehavior<TCommand, TResponse>(IMediato
     private readonly IFunctionalFailureDetector _failureDetector = failureDetector ?? NullFunctionalFailureDetector.Instance;
 
     /// <inheritdoc />
-    public async Task<Either<Error, TResponse>> Handle(TCommand request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken)
+    public async ValueTask<Either<MediatorError, TResponse>> Handle(TCommand request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
     {
         var requestName = typeof(TCommand).Name;
         const string requestKind = "command";
 
-        if (request is null)
+        if (!MediatorBehaviorGuards.TryValidateRequest(GetType(), request, out var failure))
         {
-            _metrics.TrackFailure(requestKind, requestName, TimeSpan.Zero, "null_request");
-            var message = $"{GetType().Name} received a null request.";
-            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.null_request", message));
+            _metrics.TrackFailure(requestKind, requestName, TimeSpan.Zero, failure.GetMediatorCode());
+            return Left<MediatorError, TResponse>(failure);
         }
 
-        if (nextStep is null)
+        if (!MediatorBehaviorGuards.TryValidateNextStep(GetType(), nextStep, out failure))
         {
-            _metrics.TrackFailure(requestKind, requestName, TimeSpan.Zero, "null_next");
-            var message = $"{GetType().Name} received a null delegate.";
-            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.null_next", message));
+            _metrics.TrackFailure(requestKind, requestName, TimeSpan.Zero, failure.GetMediatorCode());
+            return Left<MediatorError, TResponse>(failure);
         }
 
         var startedAt = Stopwatch.GetTimestamp();
-        Either<Error, TResponse> outcome;
+        Either<MediatorError, TResponse> outcome;
 
         try
         {
@@ -59,7 +57,7 @@ public sealed class CommandMetricsPipelineBehavior<TCommand, TResponse>(IMediato
         {
             var elapsed = Stopwatch.GetElapsedTime(startedAt);
             _metrics.TrackFailure(requestKind, requestName, elapsed, "cancelled");
-            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.cancelled", $"Behavior {GetType().Name} cancelled the {typeof(TCommand).Name} request.", ex));
+            return Left<MediatorError, TResponse>(MediatorErrors.Create("mediator.behavior.cancelled", $"Behavior {GetType().Name} cancelled the {typeof(TCommand).Name} request.", ex));
         }
         catch (Exception ex)
         {
@@ -67,7 +65,7 @@ public sealed class CommandMetricsPipelineBehavior<TCommand, TResponse>(IMediato
             var reason = ex.GetType().Name;
             _metrics.TrackFailure(requestKind, requestName, elapsed, reason);
             var error = MediatorErrors.FromException("mediator.behavior.exception", ex, $"Error running {GetType().Name} for {typeof(TCommand).Name}.");
-            return Left<Error, TResponse>(error);
+            return Left<MediatorError, TResponse>(error);
         }
 
         var totalElapsed = Stopwatch.GetElapsedTime(startedAt);

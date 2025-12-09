@@ -15,7 +15,7 @@ public sealed class MediatorErrorExtensionsTests
     [Fact]
     public void GetMediatorCode_ReturnsExceptionTypeName_WhenMetadataIsNonMediator()
     {
-        var error = Error.New("boom", new InvalidOperationException("oops"));
+        var error = MediatorError.New("boom", new InvalidOperationException("oops"));
 
         error.GetMediatorCode().ShouldBe(nameof(InvalidOperationException));
     }
@@ -23,7 +23,7 @@ public sealed class MediatorErrorExtensionsTests
     [Fact]
     public void GetMediatorCode_DefaultsToUnknown_WhenMessageIsMissing()
     {
-        var error = default(Error);
+        var error = default(MediatorError);
 
         error.GetMediatorCode().ShouldBe("mediator.unknown");
     }
@@ -31,7 +31,7 @@ public sealed class MediatorErrorExtensionsTests
     [Fact]
     public void GetMediatorCode_UsesMessage_WhenNoMetadataAndMessagePresent()
     {
-        var error = Error.New("custom-code");
+        var error = MediatorError.New("custom-code");
 
         error.GetMediatorCode().ShouldBe("custom-code");
     }
@@ -48,7 +48,7 @@ public sealed class MediatorErrorExtensionsTests
     [Fact]
     public void GetMediatorDetails_ReturnsNull_ForNonMediatorMetadata()
     {
-        var error = Error.New("boom", new InvalidOperationException("oops"));
+        var error = MediatorError.New("boom", new InvalidOperationException("oops"));
 
         error.GetMediatorDetails().ShouldBeNull();
     }

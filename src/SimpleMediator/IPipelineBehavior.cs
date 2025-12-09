@@ -1,3 +1,4 @@
+using System.Threading;
 using LanguageExt;
 
 namespace SimpleMediator;
@@ -16,9 +17,9 @@ namespace SimpleMediator;
 /// public sealed class LoggingBehavior&lt;TRequest, TResponse&gt; : IPipelineBehavior&lt;TRequest, TResponse&gt;
 ///     where TRequest : IRequest&lt;TResponse&gt;
 /// {
-///     public async Task&lt;Either&lt;MediatorError, TResponse&gt;&gt; Handle(
+///     public async ValueTask&lt;Either&lt;Error, TResponse&gt;&gt; Handle(
 ///         TRequest request,
-///         RequestHandlerDelegate&lt;TResponse&gt; nextStep,
+///         RequestHandlerCallback&lt;TResponse&gt; nextStep,
 ///         CancellationToken cancellationToken)
 ///     {
 ///         logger.LogInformation("Handling {Request}", typeof(TRequest).Name);
@@ -36,8 +37,8 @@ public interface IPipelineBehavior<TRequest, TResponse>
     /// Executes the behavior logic around the next pipeline element.
     /// </summary>
     /// <param name="request">Request being processed.</param>
-    /// <param name="nextStep">Delegate to the next behavior or handler.</param>
+    /// <param name="nextStep">Callback to the next behavior or handler.</param>
     /// <param name="cancellationToken">Token to cancel the flow.</param>
     /// <returns>Final result or the modified response from the behavior.</returns>
-    Task<Either<Error, TResponse>> Handle(TRequest request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken);
+    ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken);
 }

@@ -34,5 +34,5 @@ public interface IRequestPostProcessor<in TRequest, TResponse>
     /// <param name="request">Original request.</param>
     /// <param name="response">Response returned by the pipeline.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task Process(TRequest request, Either<Error, TResponse> response, CancellationToken cancellationToken);
+    Task Process(TRequest request, Either<MediatorError, TResponse> response, CancellationToken cancellationToken);
 }

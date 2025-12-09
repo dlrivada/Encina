@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Reflection;
 using FsCheck;
 using FsCheck.Xunit;
@@ -18,7 +19,7 @@ public sealed class NotificationProperties
         Cancellation
     }
 
-    private sealed record ExecutionResult(Either<Error, Unit> Outcome, IReadOnlyList<string> Events);
+    private sealed record ExecutionResult(Either<MediatorError, Unit> Outcome, IReadOnlyList<string> Events);
 
     [Property(MaxTest = 120)]
     public bool Publish_NotifiesHandlersInRegistrationOrder(PositiveInt countSeed)
@@ -103,7 +104,7 @@ public sealed class NotificationProperties
         var publishTasks = Enumerable.Range(0, publishCount)
             .Select(iteration => mediator.Publish(
                 new TrackedNotification(Guid.NewGuid().ToString("N")),
-                CancellationToken.None))
+                CancellationToken.None).AsTask())
             .ToArray();
 
         var outcomes = Task.WhenAll(publishTasks).GetAwaiter().GetResult();
@@ -114,7 +115,7 @@ public sealed class NotificationProperties
         }
 
         var events = recorder.Snapshot();
-        if (events.Count != handlerCount * publishCount)
+        if (events.Length != handlerCount * publishCount)
         {
             return false;
         }
@@ -160,6 +161,7 @@ public sealed class NotificationProperties
         tokenSource?.Cancel();
 
         var outcome = mediator.Publish(notification, tokenSource?.Token ?? CancellationToken.None)
+            .AsTask()
             .GetAwaiter()
             .GetResult();
 
@@ -223,7 +225,7 @@ public sealed class NotificationProperties
             }
         }
 
-        public IReadOnlyList<string> Snapshot()
+        public string[] Snapshot()
         {
             lock (_lock)
             {

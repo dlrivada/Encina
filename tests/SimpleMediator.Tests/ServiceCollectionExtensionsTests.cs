@@ -147,7 +147,7 @@ public sealed class ServiceCollectionExtensionsTests
     private sealed class ConfiguredPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
-        public Task<Either<Error, TResponse>> Handle(TRequest request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken)
+        public ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
             => nextStep();
     }
 
@@ -159,7 +159,7 @@ public sealed class ServiceCollectionExtensionsTests
 
     private sealed class ConfiguredPostProcessor<TRequest, TResponse> : IRequestPostProcessor<TRequest, TResponse>
     {
-        public Task Process(TRequest request, Either<Error, TResponse> response, CancellationToken cancellationToken)
+        public Task Process(TRequest request, Either<MediatorError, TResponse> response, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 }

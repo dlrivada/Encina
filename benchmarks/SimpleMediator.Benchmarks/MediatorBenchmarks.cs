@@ -98,7 +98,7 @@ public class MediatorBenchmarks
     {
         private readonly CallRecorder _recorder = recorder;
 
-        public async Task<Either<Error, TResponse>> Handle(TRequest request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken)
+        public async ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
         {
             _recorder.Register("pipeline:enter");
             try
@@ -127,7 +127,7 @@ public class MediatorBenchmarks
     {
         private readonly CallRecorder _recorder = recorder;
 
-        public Task Process(TRequest request, Either<Error, TResponse> response, CancellationToken cancellationToken)
+        public Task Process(TRequest request, Either<MediatorError, TResponse> response, CancellationToken cancellationToken)
         {
             _recorder.Register("post");
             return Task.CompletedTask;

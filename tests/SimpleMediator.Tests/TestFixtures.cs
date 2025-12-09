@@ -35,19 +35,19 @@ internal sealed class DomainNotificationBetaHandler : INotificationHandler<Domai
 internal sealed class PassThroughPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
-    public Task<Either<Error, TResponse>> Handle(TRequest request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken)
+    public ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
         => nextStep();
 }
 
 internal sealed class ConcreteCommandBehavior : ICommandPipelineBehavior<PingCommand, string>
 {
-    public Task<Either<Error, string>> Handle(PingCommand request, RequestHandlerDelegate<string> nextStep, CancellationToken cancellationToken)
+    public ValueTask<Either<MediatorError, string>> Handle(PingCommand request, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken)
         => nextStep();
 }
 
 internal sealed class ConcreteQueryBehavior : IQueryPipelineBehavior<PongQuery, string>
 {
-    public Task<Either<Error, string>> Handle(PongQuery request, RequestHandlerDelegate<string> nextStep, CancellationToken cancellationToken)
+    public ValueTask<Either<MediatorError, string>> Handle(PongQuery request, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken)
         => nextStep();
 }
 
@@ -59,6 +59,6 @@ internal sealed class SamplePreProcessor : IRequestPreProcessor<PingCommand>
 
 internal sealed class SamplePostProcessor : IRequestPostProcessor<PingCommand, string>
 {
-    public Task Process(PingCommand request, Either<Error, string> response, CancellationToken cancellationToken)
+    public Task Process(PingCommand request, Either<MediatorError, string> response, CancellationToken cancellationToken)
         => Task.CompletedTask;
 }

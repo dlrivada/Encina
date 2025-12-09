@@ -8,18 +8,18 @@ internal static class MediatorErrors
     /// <summary>
     /// Unexpected infrastructure error.
     /// </summary>
-    public static Error Unknown { get; } = Create("mediator.unknown", "An unexpected error occurred in SimpleMediator.");
+    public static MediatorError Unknown { get; } = Create("mediator.unknown", "An unexpected error occurred in SimpleMediator.");
 
     /// <summary>
     /// Creates an error with explicit code and message.
     /// </summary>
-    public static Error Create(string code, string message, Exception? exception = null, object? details = null)
-        => Error.FromMediatorException(new MediatorException(code, message, exception, details));
+    public static MediatorError Create(string code, string message, Exception? exception = null, object? details = null)
+        => MediatorError.FromMediatorException(new MediatorException(code, message, exception, details));
 
     /// <summary>
     /// Wraps an exception inside a typed error.
     /// </summary>
-    public static Error FromException(string code, Exception exception, string? message = null, object? details = null)
+    public static MediatorError FromException(string code, Exception exception, string? message = null, object? details = null)
         => Create(code, message ?? exception.Message, exception, details);
 }
 
@@ -34,11 +34,11 @@ internal sealed class MediatorException(string code, string message, Exception? 
 }
 
 /// <summary>
-/// Helper extensions to extract metadata from <see cref="Error"/>.
+/// Helper extensions to extract metadata from <see cref="MediatorError"/>.
 /// </summary>
 internal static class MediatorErrorExtensions
 {
-    public static string GetMediatorCode(this Error error)
+    public static string GetMediatorCode(this MediatorError error)
     {
         return error.MetadataException.Match(
             Some: ex => ex switch
@@ -49,7 +49,7 @@ internal static class MediatorErrorExtensions
             None: () => string.IsNullOrWhiteSpace(error.Message) ? "mediator.unknown" : error.Message);
     }
 
-    public static object? GetMediatorDetails(this Error error)
+    public static object? GetMediatorDetails(this MediatorError error)
     {
         return error.MetadataException.MatchUnsafe(
             ex => ex switch

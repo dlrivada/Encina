@@ -28,18 +28,16 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse>(IFunctional
     private readonly IFunctionalFailureDetector _failureDetector = failureDetector ?? NullFunctionalFailureDetector.Instance;
 
     /// <inheritdoc />
-    public async Task<Either<Error, TResponse>> Handle(TQuery request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken)
+    public async ValueTask<Either<MediatorError, TResponse>> Handle(TQuery request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
     {
-        if (request is null)
+        if (!MediatorBehaviorGuards.TryValidateRequest(GetType(), request, out var failure))
         {
-            var message = $"{GetType().Name} received a null request.";
-            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.null_request", message));
+            return Left<MediatorError, TResponse>(failure);
         }
 
-        if (nextStep is null)
+        if (!MediatorBehaviorGuards.TryValidateNextStep(GetType(), nextStep, out failure))
         {
-            var message = $"{GetType().Name} received a null delegate.";
-            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.null_next", message));
+            return Left<MediatorError, TResponse>(failure);
         }
 
         using var activity = MediatorDiagnostics.ActivitySource.HasListeners()
@@ -54,7 +52,7 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse>(IFunctional
             activity.SetTag("mediator.response_type", typeof(TResponse).FullName);
         }
 
-        Either<Error, TResponse> outcome;
+        Either<MediatorError, TResponse> outcome;
 
         try
         {
@@ -64,7 +62,7 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse>(IFunctional
         {
             activity?.SetStatus(ActivityStatusCode.Error, "cancelled");
             activity?.SetTag("mediator.cancelled", true);
-            return Left<Error, TResponse>(MediatorErrors.Create("mediator.behavior.cancelled", $"Behavior {GetType().Name} cancelled the {typeof(TQuery).Name} request.", ex));
+            return Left<MediatorError, TResponse>(MediatorErrors.Create("mediator.behavior.cancelled", $"Behavior {GetType().Name} cancelled the {typeof(TQuery).Name} request.", ex));
         }
         catch (Exception ex)
         {
@@ -72,7 +70,7 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse>(IFunctional
             activity?.SetTag("exception.type", ex.GetType().FullName);
             activity?.SetTag("exception.message", ex.Message);
             var error = MediatorErrors.FromException("mediator.behavior.exception", ex, $"Error running {GetType().Name} for {typeof(TQuery).Name}.");
-            return Left<Error, TResponse>(error);
+            return Left<MediatorError, TResponse>(error);
         }
         _ = outcome.Match(
             Right: response =>

@@ -40,7 +40,7 @@ SimpleMediator is a lightweight mediator abstraction for .NET applications that 
 
 ## Why SimpleMediator
 
-- Built for functional error handling with `Either` and `Option` from LanguageExt, backed by the mediator's `Error` wrapper for rich metadata.
+- Built for functional error handling with `Either` and `Option` from LanguageExt, backed by the mediator's `MediatorError` wrapper for rich metadata.
 - Lightweight dependency footprint: `LanguageExt.Core` and `Microsoft.Extensions.*` abstractions.
 - Pipelines, pre-processors, and post-processors make cross-cutting concerns pluggable.
 - Provides telemetry hooks (logging, metrics, activity tracing) without coupling to specific vendors.
@@ -49,7 +49,7 @@ SimpleMediator is a lightweight mediator abstraction for .NET applications that 
 
 ## Zero Exceptions Initiative
 
-SimpleMediator is evolving toward a Zero Exceptions policy, where mediator operations stop throwing in expected operational scenarios. Handlers, behaviors, and the mediator itself report failures through functional results (`Either<Error, TValue>`, `Option<T>`, etc.), keeping execution on the ROP rails. During the transition we track remaining throw sites and wrap them in functional results, reserving exceptions for truly exceptional failures. `MediatorErrors` exposes factory helpers to encapsulate exceptions inside `Error` instances.
+SimpleMediator is evolving toward a Zero Exceptions policy, where mediator operations stop throwing in expected operational scenarios. Handlers, behaviors, and the mediator itself report failures through functional results (`Either<MediatorError, TValue>`, `Option<T>`, etc.), keeping execution on the ROP rails. During the transition we track remaining throw sites and wrap them in functional results, reserving exceptions for truly exceptional failures. `MediatorErrors` exposes factory helpers to encapsulate exceptions inside `MediatorError` instances.
 
 ## Quick Start
 
@@ -153,9 +153,9 @@ sequenceDiagram
     Pipeline->>Handler: Handle(request, ct)
     Handler-->>Pipeline: TValue
     Pipeline->>FailureDetector: Inspect(result)
-    FailureDetector-->>Pipeline: Either<Error, TValue>
-    Pipeline-->>Mediator: Either<Error, TValue>
-    Mediator-->>Caller: Either<Error, TValue>
+    FailureDetector-->>Pipeline: Either<MediatorError, TValue>
+    Pipeline-->>Mediator: Either<MediatorError, TValue>
+    Mediator-->>Caller: Either<MediatorError, TValue>
 ```
 
 ## Handlers and Contracts
@@ -164,8 +164,8 @@ SimpleMediator relies on explicit interfaces and result types so each operation 
 
 | Contract | Purpose | Default Expectations |
 | --- | --- | --- |
-| `ICommand<TResult>` | Mutation or side effect returning `TResult`. | Handler returns `TResult`; mediator lifts to `Either<Error, TResult>`. |
-| `IQuery<TResult>` | Read operation returning `TResult`. | Handler returns `TResult`; mediator lifts to `Either<Error, TResult>`. |
+| `ICommand<TResult>` | Mutation or side effect returning `TResult`. | Handler returns `TResult`; mediator lifts to `Either<MediatorError, TResult>`. |
+| `IQuery<TResult>` | Read operation returning `TResult`. | Handler returns `TResult`; mediator lifts to `Either<MediatorError, TResult>`. |
 | `INotification` | Fire-and-forget signals. | Zero or more notification handlers. |
 
 ```csharp
@@ -217,17 +217,17 @@ public sealed class TimeoutPipelineBehavior<TRequest, TResponse> : IPipelineBeha
 {
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(5);
 
-    public async Task<Either<Error, TResponse>> Handle(
+    public async ValueTask<Either<MediatorError, TResponse>> Handle(
         TRequest request,
-        CancellationToken cancellationToken,
-        RequestHandlerDelegate<TResponse> next)
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(DefaultTimeout);
 
         try
         {
-            return await next().WaitAsync(cts.Token).ConfigureAwait(false);
+            return await nextStep().WaitAsync(cts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException ex) when (cts.IsCancellationRequested)
         {

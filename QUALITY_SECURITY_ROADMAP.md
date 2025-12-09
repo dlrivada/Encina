@@ -33,7 +33,7 @@
 - Refactorizar `SimpleMediator.Send` y `Publish` para delegar la orquestación en helpers internos dedicados, reduciendo complejidad ciclomática y mejorando la testabilidad del flujo principal.
 - Extraer guard clauses reutilizables (`EnsureRequest`, `EnsureNextStep`, etc.) que encapsulen la creación de errores estándar (`mediator.behavior.null_*`).
 - Adoptar namespaces con ámbito de archivo en todo `src/SimpleMediator` para incrementar la legibilidad y coherencia de estilo.
-- Evolucionar `RequestHandlerDelegate<T>` y las implementaciones de comportamiento a `ValueTask<Either<Error,T>>`, evitando asignaciones innecesarias cuando los pasos se completan de forma sincrónica.
+- Evolucionar `RequestHandlerCallback<T>` y las implementaciones de comportamiento a `ValueTask<Either<MediatorError,T>>`, evitando asignaciones innecesarias cuando los pasos se completan de forma sincrónica.
 - Replantear las cachés (`RequestHandlerCache`, `NotificationHandlerInvokerCache`) para materializar funciones listas para ejecutar que eviten reflection y boxing en el camino crítico.
 - Introducir un `PipelineBuilder<TRequest,TResponse>` que construya una sola vez la cadena de behaviors/pre/post processors y devuelva un delegado compilado reutilizable.
 - Definir una envoltura `MediatorResult<T>` para expresar el resultado de forma más legible que los `Either.Match` dispersos, manteniendo compatibilidad con la política de cero excepciones.
@@ -59,7 +59,7 @@
 - Integrar cobertura con Coverlet + ReportGenerator; publicar badge SVG en `badges/dotnet-coverage.svg`.
 - Añadir pruebas de regresión para escenarios de notificaciones múltiples y manejo de fallos en pipelines.
 - Publicar SBOM automatizada (Syft, `dotnet sbom`) en workflow `sbom.yml` y adjuntar en releases.
-- Migrar `RequestHandlerDelegate<T>` y behaviors a `ValueTask` y validar el impacto en benchmarks.
+- Consolidar `RequestHandlerCallback<T>` y behaviors en `ValueTask<Either<MediatorError,T>>` y validar el impacto en benchmarks.
 - Implementar `PipelineBuilder<TRequest,TResponse>` para construir la cadena de behaviors y reducir complejidad en `SendCore`.
 - Introducir `MediatorErrorCodes` y actualizar referencias a códigos literales.
 

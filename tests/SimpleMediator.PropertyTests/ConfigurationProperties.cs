@@ -228,9 +228,9 @@ public sealed class ConfigurationProperties
         _ => HandlerExecution.Success
     };
 
-    private sealed record ExecutionResult(Either<Error, int> Outcome, IReadOnlyList<string> Events);
+    private sealed record ExecutionResult(Either<MediatorError, int> Outcome, IReadOnlyList<string> Events);
 
-    private static IReadOnlyList<Type> OrderedDistinct(IEnumerable<Type> sequence)
+    private static List<Type> OrderedDistinct(IEnumerable<Type> sequence)
     {
         var seen = new System.Collections.Generic.HashSet<Type>();
         var ordered = new List<Type>();
@@ -329,7 +329,7 @@ public sealed class ConfigurationProperties
         };
     }
 
-    private static IReadOnlyList<(Type Type, string Label)> SelectCandidates(IEnumerable<int> indices, (Type Type, string Label)[] pool)
+    private static List<(Type Type, string Label)> SelectCandidates(IEnumerable<int> indices, (Type Type, string Label)[] pool)
     {
         var seen = new System.Collections.Generic.HashSet<Type>();
         var ordered = new List<(Type, string)>();
@@ -388,7 +388,10 @@ public sealed class ConfigurationProperties
         var tokenSource = execution == HandlerExecution.Cancellation ? new CancellationTokenSource() : null;
         tokenSource?.Cancel();
 
-        var outcome = mediator.Send(request, tokenSource?.Token ?? CancellationToken.None).GetAwaiter().GetResult();
+        var outcome = mediator.Send(request, tokenSource?.Token ?? CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
         var events = recorder.Snapshot();
         return new ExecutionResult(outcome, events);
     }
@@ -396,7 +399,7 @@ public sealed class ConfigurationProperties
     private static Type CloseGeneric(Type type, params Type[] arguments)
         => type.IsGenericTypeDefinition ? type.MakeGenericType(arguments) : type;
 
-    private static IReadOnlyList<string> BuildExpectedTimeline(
+    private static List<string> BuildExpectedTimeline(
         IReadOnlyList<(Type Type, string Label)> pipeline,
         IReadOnlyList<(Type Type, string Label)> preProcessors,
         IReadOnlyList<(Type Type, string Label)> postProcessors,
@@ -463,7 +466,7 @@ public sealed class ConfigurationProperties
             }
         }
 
-        public IReadOnlyList<string> Snapshot()
+        public string[] Snapshot()
         {
             lock (_lock)
             {
@@ -479,7 +482,7 @@ public sealed class ConfigurationProperties
 
         protected abstract string Label { get; }
 
-        public async Task<Either<Error, TResponse>> Handle(TRequest request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken)
+        public async ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
         {
             _recorder.Add($"behavior:{Label}:enter");
             try
@@ -551,7 +554,7 @@ public sealed class ConfigurationProperties
 
         protected abstract string Label { get; }
 
-        public Task Process(TRequest request, Either<Error, TResponse> response, CancellationToken cancellationToken)
+        public Task Process(TRequest request, Either<MediatorError, TResponse> response, CancellationToken cancellationToken)
         {
             if (response.IsRight)
             {

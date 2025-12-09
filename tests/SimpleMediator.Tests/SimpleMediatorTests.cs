@@ -12,6 +12,8 @@ namespace SimpleMediator.Tests;
 
 public sealed class SimpleMediatorTests
 {
+    private static readonly string[] expected = new[] { "tracking:before", "second:before", "handler", "second:after", "tracking:after" };
+
     [Fact]
     public async Task Send_ExecutesHandlersThroughConfiguredPipeline()
     {
@@ -33,7 +35,7 @@ public sealed class SimpleMediatorTests
 
         var response = ExpectSuccess(result);
         response.ShouldBe("hello");
-        tracker.Events.ShouldBe(new[] { "tracking:before", "second:before", "handler", "second:after", "tracking:after" });
+        tracker.Events.ShouldBe(expected);
     }
 
     [Fact]
@@ -173,7 +175,7 @@ public sealed class SimpleMediatorTests
             .MakeGenericMethod(typeof(string));
 
         var cancelledError = MediatorErrors.Create("cancelled.flow", "Flow stopped");
-        var outcome = Left<Error, string>(cancelledError);
+        var outcome = Left<MediatorError, string>(cancelledError);
 
         logSendOutcome.Invoke(mediator, new object[]
         {
@@ -204,7 +206,7 @@ public sealed class SimpleMediatorTests
             .GetMethod("LogSendOutcome", BindingFlags.Instance | BindingFlags.NonPublic)!
             .MakeGenericMethod(typeof(string));
 
-        var outcome = Right<Error, string>("ok");
+        var outcome = Right<MediatorError, string>("ok");
 
         logSendOutcome.Invoke(mediator, new object[]
         {
@@ -237,7 +239,7 @@ public sealed class SimpleMediatorTests
 
         var exception = new InvalidOperationException("failure");
         var error = MediatorErrors.FromException("mediator.failure", exception, "the operation failed");
-        var outcome = Left<Error, string>(error);
+        var outcome = Left<MediatorError, string>(error);
 
         logSendOutcome.Invoke(mediator, new object[]
         {
@@ -268,7 +270,7 @@ public sealed class SimpleMediatorTests
             .MakeGenericMethod(typeof(string));
 
         var error = MediatorErrors.Create("mediator.failure", "the operation failed");
-        var outcome = Left<Error, string>(error);
+        var outcome = Left<MediatorError, string>(error);
 
         logSendOutcome.Invoke(mediator, new object[]
         {
@@ -299,6 +301,8 @@ public sealed class SimpleMediatorTests
         SimpleMediator.IsCancellationCode(code ?? string.Empty).ShouldBe(expected);
     }
 
+    private static readonly string[] expectedNotificationOrder = new[] { "A:42", "B:42" };
+
     [Fact]
     public async Task Publish_InvokesAllNotificationHandlers_AndAllowsNullResult()
     {
@@ -312,7 +316,7 @@ public sealed class SimpleMediatorTests
         var result = await mediator.Publish(new SampleNotification(42), CancellationToken.None);
 
         ExpectSuccess(result);
-        tracker.Handled.ShouldBe(new[] { "A:42", "B:42" });
+        tracker.Handled.ShouldBe(expectedNotificationOrder);
         loggerCollector.Entries.Count(entry => entry.Message.Contains("Sending notification")).ShouldBe(2);
         activityCollector.Activities.ShouldNotBeEmpty();
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "SimpleMediator.Publish");
@@ -409,7 +413,7 @@ public sealed class SimpleMediatorTests
     [Fact]
     public void Error_New_WithNullException_DoesNotExposeException()
     {
-        var error = Error.New("message", (Exception?)null);
+        var error = MediatorError.New("message", (Exception?)null);
 
         error.Exception.IsSome.ShouldBeFalse();
         error.MetadataException.IsSome.ShouldBeFalse();
@@ -418,7 +422,7 @@ public sealed class SimpleMediatorTests
     [Fact]
     public void Error_NewString_UsesDefaultMessageWhenBlank()
     {
-        var error = Error.New(string.Empty);
+        var error = MediatorError.New(string.Empty);
 
         error.Message.ShouldBe("An error occurred");
         error.Exception.IsSome.ShouldBeFalse();
@@ -428,7 +432,7 @@ public sealed class SimpleMediatorTests
     [Fact]
     public void Error_NewException_ReturnsDefaultWhenNull()
     {
-        var error = Error.New((Exception)null!);
+        var error = MediatorError.New((Exception)null!);
 
         error.Message.ShouldBe("An error occurred");
         error.Exception.IsSome.ShouldBeFalse();
@@ -441,7 +445,7 @@ public sealed class SimpleMediatorTests
         var inner = new InvalidOperationException("inner");
         var mediatorException = new MediatorException("mediator.code", "outer", inner, details: null);
 
-        var error = Error.New(mediatorException);
+        var error = MediatorError.New(mediatorException);
 
         error.Message.ShouldBe("outer");
         ExtractException(error).ShouldBe(inner);
@@ -454,7 +458,7 @@ public sealed class SimpleMediatorTests
     {
         var mediatorException = new MediatorException("mediator.override", "outer", innerException: null, details: 99);
 
-        var error = Error.New(mediatorException, "override message");
+        var error = MediatorError.New(mediatorException, "override message");
 
         error.Message.ShouldBe("override message");
         ExtractException(error).ShouldBe(mediatorException);
@@ -465,13 +469,13 @@ public sealed class SimpleMediatorTests
     [Fact]
     public void Error_NewMessageAndException_PreservesException()
     {
-        var exception = new ApplicationException("oops");
+        var exception = new InvalidOperationException("oops");
 
-        var error = Error.New("boom", exception);
+        var error = MediatorError.New("boom", exception);
 
         error.Message.ShouldBe("boom");
         ExtractException(error).ShouldBe(exception);
-        error.GetMediatorCode().ShouldBe(nameof(ApplicationException));
+        error.GetMediatorCode().ShouldBe(nameof(InvalidOperationException));
         error.GetMediatorDetails().ShouldBeNull();
     }
 
@@ -652,7 +656,7 @@ public sealed class SimpleMediatorTests
         var method = typeof(SimpleMediator)
             .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!.
             MakeGenericMethod(typeof(ExplicitNotification));
-        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<Error, Unit>>>)method.CreateDelegate(typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<Error, Unit>>>));
+        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<MediatorError, Unit>>>)method.CreateDelegate(typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<MediatorError, Unit>>>));
 
         var handler = new ThrowingExplicitNotificationHandler();
         var result = await invoke(handler, new ExplicitNotification(), CancellationToken.None);
@@ -669,7 +673,7 @@ public sealed class SimpleMediatorTests
         var method = typeof(SimpleMediator)
             .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!.
             MakeGenericMethod(typeof(ExplicitNotification));
-        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<Error, Unit>>>)method.CreateDelegate(typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<Error, Unit>>>));
+        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<MediatorError, Unit>>>)method.CreateDelegate(typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<MediatorError, Unit>>>));
 
         var handler = new InvalidNotificationResultHandler();
         var result = await invoke(handler, new ExplicitNotification(), CancellationToken.None);
@@ -786,8 +790,8 @@ public sealed class SimpleMediatorTests
         var method = typeof(SimpleMediator)
             .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!
             .MakeGenericMethod(typeof(ExplicitNotification));
-        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<Error, Unit>>>)method.CreateDelegate(
-            typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<Error, Unit>>>));
+        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<MediatorError, Unit>>>)method.CreateDelegate(
+            typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<MediatorError, Unit>>>));
 
         var handler = new MissingCancellationTokenNotificationHandler();
         var result = await invoke(handler, new ExplicitNotification(), CancellationToken.None);
@@ -802,7 +806,7 @@ public sealed class SimpleMediatorTests
         var method = typeof(SimpleMediator)
             .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!.
             MakeGenericMethod(typeof(SampleNotification));
-        var invoke = (Func<object, SampleNotification, CancellationToken, Task<Either<Error, Unit>>>)method.CreateDelegate(typeof(Func<object, SampleNotification, CancellationToken, Task<Either<Error, Unit>>>));
+        var invoke = (Func<object, SampleNotification, CancellationToken, Task<Either<MediatorError, Unit>>>)method.CreateDelegate(typeof(Func<object, SampleNotification, CancellationToken, Task<Either<MediatorError, Unit>>>));
 
         var handler = new NullReturningNotificationHandler();
         var result = await invoke(handler, new SampleNotification(33), CancellationToken.None);
@@ -875,6 +879,8 @@ public sealed class SimpleMediatorTests
             && entry.Message.Contains("Request EchoRequest completed by"));
     }
 
+    private static readonly string[] expectedLifecycleEvents = new[] { "pre", "handler", "post" };
+
     [Fact]
     public async Task Send_InvokesPreAndPostProcessors()
     {
@@ -889,8 +895,10 @@ public sealed class SimpleMediatorTests
 
         var response = ExpectSuccess(result);
         response.ShouldBe("in:ok");
-        lifecycleTracker.Events.ShouldBe(new[] { "pre", "handler", "post" });
+        lifecycleTracker.Events.ShouldBe(expectedLifecycleEvents);
     }
+
+    private static readonly string[] expectedPostProcessorEvents = new[] { "handler", "post:value:handled" };
 
     [Fact]
     public async Task Send_ReturnsSuccess_WhenPostProcessorsDoNotFail()
@@ -909,7 +917,7 @@ public sealed class SimpleMediatorTests
 
         var response = ExpectSuccess(result);
         response.ShouldBe("value:handled");
-        tracker.Events.ShouldBe(new[] { "handler", "post:value:handled" });
+        tracker.Events.ShouldBe(expectedPostProcessorEvents);
     }
 
     [Fact]
@@ -1153,9 +1161,9 @@ public sealed class SimpleMediatorTests
             MakeGenericMethod(typeof(EchoRequest), typeof(string));
 
         var postProcessor = new AccidentallyCancellingPostProcessor();
-        var response = Right<Error, string>("ok");
+        var response = Right<MediatorError, string>("ok");
 
-        var invocation = (Task<Option<Error>>)method.Invoke(null, new object[]
+        var invocation = (Task<Option<MediatorError>>)method.Invoke(null, new object[]
         {
             postProcessor,
             new EchoRequest("request"),
@@ -1227,6 +1235,8 @@ public sealed class SimpleMediatorTests
         }
     }
 
+    private static readonly string[] expectedAsyncNotification = new[] { "Async:10" };
+
     [Fact]
     public async Task Publish_DoesNotCaptureSynchronizationContext()
     {
@@ -1250,7 +1260,7 @@ public sealed class SimpleMediatorTests
             var publishResult = await mediator.Publish(new SampleNotification(10), CancellationToken.None).ConfigureAwait(false);
 #pragma warning restore xUnit1030
             ExpectSuccess(publishResult);
-            tracker.Handled.ShouldBe(new[] { "Async:10" });
+            tracker.Handled.ShouldBe(expectedAsyncNotification);
             context.PostCallCount.ShouldBe(0);
         }
         finally
@@ -1447,8 +1457,8 @@ public sealed class SimpleMediatorTests
 
     private sealed class CancelledOutcomeBehavior : IPipelineBehavior<CancelledOutcomeRequest, string>
     {
-        public Task<Either<Error, string>> Handle(CancelledOutcomeRequest request, RequestHandlerDelegate<string> nextStep, CancellationToken cancellationToken)
-            => Task.FromResult(Left<Error, string>(MediatorErrors.Create("cancelled", "Explicit cancellation.")));
+        public ValueTask<Either<MediatorError, string>> Handle(CancelledOutcomeRequest request, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken)
+            => ValueTask.FromResult(Left<MediatorError, string>(MediatorErrors.Create("cancelled", "Explicit cancellation.")));
     }
 
     private sealed record LifecycleRequest(string Value) : IRequest<string>;
@@ -1529,19 +1539,19 @@ public sealed class SimpleMediatorTests
 
     private sealed class ThrowingExplicitNotificationHandler
     {
-        public Task Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+        public static Task Handle(ExplicitNotification notification, CancellationToken cancellationToken)
             => throw new InvalidOperationException("explicit boom");
     }
 
     private sealed class InvalidNotificationResultHandler
     {
-        public string Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+        public static string Handle(ExplicitNotification notification, CancellationToken cancellationToken)
             => "invalid";
     }
 
     private sealed class ThrowingCancelledExplicitNotificationHandler
     {
-        public Task Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+        public static Task Handle(ExplicitNotification notification, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             throw new OperationCanceledException("explicit cancellation", cancellationToken);
@@ -1550,7 +1560,7 @@ public sealed class SimpleMediatorTests
 
     private sealed class TaskCancellingExplicitNotificationHandler
     {
-        public Task Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+        public static Task Handle(ExplicitNotification notification, CancellationToken cancellationToken)
             => Task.FromCanceled(cancellationToken);
     }
 
@@ -1571,7 +1581,7 @@ public sealed class SimpleMediatorTests
     {
         private readonly PostProcessorTracker _tracker = tracker;
 
-        public Task Process(PostProcessorRequest request, Either<Error, string> response, CancellationToken cancellationToken)
+        public Task Process(PostProcessorRequest request, Either<MediatorError, string> response, CancellationToken cancellationToken)
         {
             response.IfRight(value => _tracker.Events.Add($"post:{value}"));
             response.IfLeft(_ => _tracker.Events.Add("post:error"));
@@ -1586,7 +1596,7 @@ public sealed class SimpleMediatorTests
 
     private sealed class AccidentallyCancellingPostProcessor : IRequestPostProcessor<EchoRequest, string>
     {
-        public Task Process(EchoRequest request, Either<Error, string> response, CancellationToken cancellationToken)
+        public Task Process(EchoRequest request, Either<MediatorError, string> response, CancellationToken cancellationToken)
             => throw new OperationCanceledException("accidental cancellation");
     }
 
@@ -1598,7 +1608,7 @@ public sealed class SimpleMediatorTests
 
     private sealed class MissingCancellationTokenNotificationHandler
     {
-        public Task Handle(ExplicitNotification notification)
+        public static Task Handle(ExplicitNotification notification)
             => Task.CompletedTask;
     }
 
@@ -1633,7 +1643,7 @@ public sealed class SimpleMediatorTests
     {
         private readonly PipelineTracker _tracker = tracker;
 
-        public async Task<Either<Error, TResponse>> Handle(TRequest request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken)
+        public async ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
         {
             _tracker.Events.Add("tracking:before");
             var response = await nextStep().ConfigureAwait(false);
@@ -1647,7 +1657,7 @@ public sealed class SimpleMediatorTests
     {
         private readonly PipelineTracker _tracker = tracker;
 
-        public async Task<Either<Error, TResponse>> Handle(TRequest request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken)
+        public async ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
         {
             _tracker.Events.Add("second:before");
             var response = await nextStep().ConfigureAwait(false);
@@ -1671,7 +1681,7 @@ public sealed class SimpleMediatorTests
     {
         private readonly LifecycleTracker _tracker = tracker;
 
-        public Task Process(LifecycleRequest request, Either<Error, string> response, CancellationToken cancellationToken)
+        public Task Process(LifecycleRequest request, Either<MediatorError, string> response, CancellationToken cancellationToken)
         {
             if (response.IsRight)
             {
@@ -1709,14 +1719,14 @@ public sealed class SimpleMediatorTests
     private sealed class CancellingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
-        public Task<Either<Error, TResponse>> Handle(TRequest request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken)
-            => Task.FromCanceled<Either<Error, TResponse>>(cancellationToken);
+        public ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+            => ValueTask.FromCanceled<Either<MediatorError, TResponse>>(cancellationToken);
     }
 
     private sealed class ThrowingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
-        public Task<Either<Error, TResponse>> Handle(TRequest request, RequestHandlerDelegate<TResponse> nextStep, CancellationToken cancellationToken)
+        public ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
             => throw new InvalidOperationException($"behavior failure for {typeof(TRequest).Name}");
     }
 
@@ -1734,13 +1744,13 @@ public sealed class SimpleMediatorTests
 
     private sealed class ThrowingEchoPostProcessor : IRequestPostProcessor<EchoRequest, string>
     {
-        public Task Process(EchoRequest request, Either<Error, string> response, CancellationToken cancellationToken)
+        public Task Process(EchoRequest request, Either<MediatorError, string> response, CancellationToken cancellationToken)
             => throw new InvalidOperationException("post failure");
     }
 
     private sealed class CancellingEchoPostProcessor : IRequestPostProcessor<EchoRequest, string>
     {
-        public Task Process(EchoRequest request, Either<Error, string> response, CancellationToken cancellationToken)
+        public Task Process(EchoRequest request, Either<MediatorError, string> response, CancellationToken cancellationToken)
             => Task.FromCanceled(cancellationToken);
     }
 
@@ -1749,11 +1759,11 @@ public sealed class SimpleMediatorTests
         Task INotificationHandler<SampleNotification>.Handle(SampleNotification notification, CancellationToken cancellationToken)
             => Task.CompletedTask;
 
-        public string Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public static string Handle(SampleNotification notification, CancellationToken cancellationToken)
             => "invalid";
     }
 
-    private static T ExpectSuccess<T>(Either<Error, T> result)
+    private static T ExpectSuccess<T>(Either<MediatorError, T> result)
     {
         var failureMessage = result.Match(
             Left: err => $"Expected success but got a failure: {err.GetMediatorCode()} - {err.Message}",
@@ -1766,7 +1776,7 @@ public sealed class SimpleMediatorTests
             Right: value => value!);
     }
 
-    private static Error ExpectFailure<T>(Either<Error, T> result, string expectedCode)
+    private static MediatorError ExpectFailure<T>(Either<MediatorError, T> result, string expectedCode)
     {
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(
@@ -1776,18 +1786,18 @@ public sealed class SimpleMediatorTests
         return error;
     }
 
-    private static Exception ExtractException(Error error)
+    private static Exception ExtractException(MediatorError error)
         => error.Exception.Match(
             Some: ex => ex,
             None: () => throw new InvalidOperationException("Expected the error to carry an exception."));
 
-    private static Func<object, TNotification, CancellationToken, Task<Either<Error, Unit>>> CreateInvokeNotificationDelegate<TNotification>()
+    private static Func<object, TNotification, CancellationToken, Task<Either<MediatorError, Unit>>> CreateInvokeNotificationDelegate<TNotification>()
     {
         var method = typeof(SimpleMediator)
             .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!.
             MakeGenericMethod(typeof(TNotification));
-        return (Func<object, TNotification, CancellationToken, Task<Either<Error, Unit>>>)method.CreateDelegate(
-            typeof(Func<object, TNotification, CancellationToken, Task<Either<Error, Unit>>>));
+        return (Func<object, TNotification, CancellationToken, Task<Either<MediatorError, Unit>>>)method.CreateDelegate(
+            typeof(Func<object, TNotification, CancellationToken, Task<Either<MediatorError, Unit>>>));
     }
 
     private sealed record LogEntry(LogLevel LogLevel, string Message, Exception? Exception);
@@ -1873,7 +1883,7 @@ public sealed class SimpleMediatorTests
     {
         private readonly AsyncPipelineTracker _tracker = tracker;
 
-        public async Task Process(AsyncPipelineRequest request, Either<Error, string> response, CancellationToken cancellationToken)
+        public async Task Process(AsyncPipelineRequest request, Either<MediatorError, string> response, CancellationToken cancellationToken)
         {
             await Task.Delay(1, cancellationToken).ConfigureAwait(false);
             if (response.IsRight)
