@@ -56,20 +56,20 @@
 - [ ] Refactorizar `SimpleMediator.Publish` para delegar validaciones/guards en helpers internos (parcialmente: `Send` ya usa `PipelineBuilder` y se añadieron guards de notificación y behavior).
 - [ ] Extraer guard clauses reutilizables (`EnsureRequest`, `EnsureNextStep`, etc.) que encapsulen la creación de errores estándar (`mediator.behavior.null_*`).
 - [ ] Adoptar namespaces con ámbito de archivo en todo `src/SimpleMediator` para incrementar la legibilidad y coherencia de estilo.
-- [ ] Evolucionar `RequestHandlerCallback<T>` y las implementaciones de comportamiento a `ValueTask<Either<MediatorError,T>>`, evitando asignaciones innecesarias cuando los pasos se completan de forma sincrónica.
-- [ ] Replantear las cachés (`RequestHandlerCache`, `NotificationHandlerInvokerCache`) para materializar funciones listas para ejecutar que eviten reflection y boxing en el camino crítico.
-- [ ] Introducir un `PipelineBuilder<TRequest,TResponse>` que construya una sola vez la cadena de behaviors/pre/post processors y devuelva un delegado compilado reutilizable.
-- [ ] Definir una envoltura `MediatorResult<T>` para expresar el resultado de forma más legible que los `Either.Match` dispersos, manteniendo compatibilidad con la política de cero excepciones.
-- [ ] Centralizar los códigos de error en `MediatorErrorCodes` (constantes o enum) para prevenir incoherencias y facilitar documentación.
-- [ ] Encapsular la instrumentación (ActivitySource, logging) en un `MediatorDiagnostics` ampliado con métodos `SendStarted/Completed`, de manera que la capa de orquestación sólo delegue datos sin mezclar responsabilidades.
+ [x] Evolucionar `RequestHandlerCallback<T>` y las implementaciones de comportamiento a `ValueTask<Either<MediatorError,T>>`, evitando asignaciones innecesarias cuando los pasos se completan de forma sincrónica.
+ [ ] Replantear las cachés (`RequestHandlerCache`, `NotificationHandlerInvokerCache`) para materializar funciones listas para ejecutar que eviten reflection y boxing en el camino crítico.
+ [x] Introducir un `PipelineBuilder<TRequest,TResponse>` que construya una sola vez la cadena de behaviors/pre/post processors y devuelva un delegado compilado reutilizable.
+ [ ] Definir una envoltura `MediatorResult<T>` para expresar el resultado de forma más legible que los `Either.Match` dispersos, manteniendo compatibilidad con la política de cero excepciones.
+ [x] Centralizar los códigos de error en `MediatorErrorCodes` (constantes o enum) para prevenir incoherencias y facilitar documentación.
+ [x] Encapsular la instrumentación (ActivitySource, logging) en un `MediatorDiagnostics` ampliado con métodos `SendStarted/Completed`, de manera que la capa de orquestación sólo delegue datos sin mezclar responsabilidades.
 - [ ] Sustituir `object? Details` en `MediatorException` por un contenedor inmutable (p. ej. `ImmutableDictionary<string, object?>`) que permita consultas seguras y facilite la serialización de metadatos.
 - [ ] Completar la documentación XML del API público y habilitar analizadores de API pública para reforzar compatibilidad binaria en futuras versiones.
 - [ ] Considerar `CollectionsMarshal.AsSpan` y otros helpers de BCL moderna para iteraciones de alto rendimiento sobre colecciones resueltas desde DI.
 
 ### Fase 1 (próximo sprint)
 
-- [ ] Extraer `RequestDispatcher` paralelo al de notificaciones, reutilizando guard clauses y afinando cachés (RequestHandler/NotificationInvoker) para minimizar reflection/boxing; evaluar `CollectionsMarshal.AsSpan` donde aplique.
-- [ ] Exponer eventos `SendStarted/Completed` en diagnósticos/métricas y añadir pruebas que aserten tags/activities y métricas emitidas.
+- [x] Extraer `RequestDispatcher` paralelo al de notificaciones, reutilizando guard clauses y afinando cachés (RequestHandler/NotificationInvoker) para minimizar reflection/boxing; evaluar `CollectionsMarshal.AsSpan` donde aplique.
+- [x] Exponer eventos `SendStarted/Completed` en diagnósticos/métricas y añadir pruebas que aserten tags/activities y métricas emitidas.
 - [ ] Habilitar generación de XML docs + analizadores de API pública; preparar check de CI que falle ante cambios breaking no documentados y completar docstrings faltantes.
 - [ ] Agregar escaneo de calidad (SonarCloud o CodeFactor en modo read-only) y plantilla de protección de ramas (revisores + checks obligatorios); evaluar gate de dependencias de bajo riesgo con auto-merge tras CI verde.
 
