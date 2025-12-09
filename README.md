@@ -48,6 +48,108 @@ SimpleMediator is a lightweight mediator abstraction for .NET applications that 
 - Ships with guardrails such as functional failure detection to keep domain invariants explicit.
 - On track for a Zero Exceptions policy so operational failures travel through Railway Oriented Programming (ROP) patterns instead of bubbling up as exceptions.
 
+## Capabilities
+
+SimpleMediator takes cues from MediatR, Kommand, and Wolverine, but positions itself as a functional, observable application pipeline for CQRS-style work.
+
+- **Messaging model:** Commands, queries, and notifications with explicit contracts; `Send`/`Publish` return `ValueTask<Either<MediatorError, TValue>>` to keep async overhead low and failures explicit.
+- **Pipeline composition:** Ordered behaviors plus request pre/post processors to layer validation, retries, timeouts, audits, and tracing without touching handlers; works with open or closed generics.
+- **Discovery & DI integration:** Assembly scanning for handlers, notifications, behaviors, and processors; configurable handler lifetimes; legacy aliases (`AddApplicationMessaging`) for drop-in adoption; caches avoid repeated reflection.
+- **Observability first:** Built-in logging scopes and `ActivitySource` spans, metrics via `IMediatorMetrics` counters/histograms, and OTEL-ready defaults for traces and metrics.
+- **Functional failure handling:** `IFunctionalFailureDetector` lets you translate domain envelopes into `MediatorError` with consistent codes/messages; ships with a null detector for opt-in mapping.
+- **Notification fan-out:** Publishes to zero or many handlers with per-handler error logging, cancellation awareness, and functional results instead of exceptions.
+- **Quality & reliability toolchain:** Benchmarks, load harnesses, mutation testing, and coverage guardrails are baked into the repo to keep regressions visible.
+
+### Feature matrix
+
+| Área | Qué incluye | Dónde empezar |
+| --- | --- | --- |
+| Contratos CQRS | `ICommand`/`IQuery`/`INotification`, handlers y callbacks explícitos; resultados funcionales (`Either`, `Unit`). | [Handlers and Contracts](#handlers-and-contracts) |
+| Pipeline y cross-cutting | Behaviors ordenados, pre/post processors, soporta genéricos abiertos/cerrados y timeouts/reintentos vía behaviors personalizados. | [Pipeline Behaviors](#pipeline-behaviors) |
+| Observabilidad | `MediatorDiagnostics` (logging + ActivitySource), `IMediatorMetrics` (counters/histogram), behaviors de métricas y trazas listos para OTEL. | [Diagnostics and Metrics](#diagnostics-and-metrics) |
+| Gestión de errores | `MediatorError`, iniciativa Zero Exceptions, `IFunctionalFailureDetector` para mapear envelopes de dominio a códigos consistentes. | [Zero Exceptions Initiative](#zero-exceptions-initiative) y [Functional Failure Detection](#functional-failure-detection) |
+| Descubrimiento y DI | Escaneo de ensamblados, registro de handlers/behaviors/processors, control de lifetimes, alias `AddApplicationMessaging`. | [Configuration Reference](#configuration-reference) |
+| Notificaciones | Fan-out con múltiples handlers, registro de fallos por handler, cancelación y resultados funcionales en lugar de excepciones. | [Handlers and Contracts](#handlers-and-contracts) |
+| Calidad continua | Benchmarks, NBomber, Stryker, cobertura, umbrales en CI con scripts de apoyo y badges. | [Quality Checklist](#quality-checklist) |
+
+### Dónde leer código rápidamente
+
+- Mediador y contratos: `src/SimpleMediator/SimpleMediator.cs`, `IMediator.cs`, `IRequest.cs`, `INotification.cs`.
+- Registro y escaneo: `ServiceCollectionExtensions.cs`, `MediatorAssemblyScanner.cs`.
+- Pipelines y callbacks: `IPipelineBehavior.cs`, `IRequestPreProcessor.cs`, `IRequestPostProcessor.cs`, behaviors en `Behaviors/`.
+- Observabilidad y métricas: `MediatorDiagnostics.cs`, `MediatorMetrics.cs`.
+- Errores y ROP: `MediatorError.cs`, `MediatorResult.cs`, `IFunctionalFailureDetector.cs`, `NullFunctionalFailureDetector.cs`.
+
+### Snippets rápidos
+
+#### Enviar comando (ROP sobre Either)
+
+```csharp
+var result = await mediator.Send(new RegisterUser("user@example.com", "Pass@123"), ct);
+
+result.Match(
+    Left: err => logger.LogWarning("Registration failed {Code}", err.GetMediatorCode()),
+    Right: _ => logger.LogInformation("User registered"));
+```
+
+#### Publicar notificación fan-out
+
+```csharp
+await mediator.Publish(new SendWelcomeEmail("user@example.com"), ct);
+// Handlers run independently; failures surface as MediatorError instead of exceptions.
+```
+
+#### Behavior personalizado (timeout)
+
+```csharp
+public sealed class TimeoutBehavior<TReq, TRes> : IPipelineBehavior<TReq, TRes>
+    where TReq : IRequest<TRes>
+{
+    public async ValueTask<Either<MediatorError, TRes>> Handle(
+        TReq request,
+        RequestHandlerCallback<TRes> next,
+        CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+        try { return await next().WaitAsync(cts.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException ex) when (cts.IsCancellationRequested)
+        { return MediatorErrors.FromException("mediator.timeout", ex, "Timed out"); }
+    }
+}
+```
+
+#### Detección de fallos funcionales
+
+```csharp
+public sealed class AppFailureDetector : IFunctionalFailureDetector
+{
+    public bool TryExtractFailure(object? response, out string reason, out object? error)
+    {
+        if (response is OperationResult r && !r.IsSuccess)
+        { reason = r.Code ?? "operation.failed"; error = r; return true; }
+        reason = string.Empty; error = null; return false;
+    }
+
+    public string? TryGetErrorCode(object? error) => (error as OperationResult)?.Code;
+    public string? TryGetErrorMessage(object? error) => (error as OperationResult)?.Message;
+}
+```
+
+#### Registro en DI con behaviors
+
+```csharp
+services.AddSimpleMediator(cfg =>
+{
+    cfg.RegisterServicesFromAssemblyContaining<ApplicationAssemblyMarker>()
+       .AddPipelineBehavior(typeof(TimeoutBehavior<,>))
+       .AddPipelineBehavior(typeof(CommandMetricsPipelineBehavior<,>))
+       .AddPipelineBehavior(typeof(QueryActivityPipelineBehavior<,>));
+});
+
+services.AddSingleton<IFunctionalFailureDetector, AppFailureDetector>();
+```
+
 ## Zero Exceptions Initiative
 
 SimpleMediator is evolving toward a Zero Exceptions policy, where mediator operations stop throwing in expected operational scenarios. Handlers, behaviors, and the mediator itself report failures through functional results (`Either<MediatorError, TValue>`, `Option<T>`, etc.), keeping execution on the ROP rails. During the transition we track remaining throw sites and wrap them in functional results, reserving exceptions for truly exceptional failures. `MediatorErrors` exposes factory helpers to encapsulate exceptions inside `MediatorError` instances.
