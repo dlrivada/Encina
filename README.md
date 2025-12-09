@@ -9,7 +9,7 @@
 ![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4.svg)
 ![Status](https://img.shields.io/badge/status-internal-blue.svg)
 ![License](https://img.shields.io/badge/license-private-important.svg)
-![Coverage](https://img.shields.io/badge/coverage-90%25-4C934C.svg)
+[![.NET Coverage](./badges/dotnet-coverage.svg)](./badges/dotnet-coverage.svg)
 ![Mutation](https://img.shields.io/badge/mutation-93.74%25-4C934C.svg)
 
 SimpleMediator is a lightweight mediator abstraction for .NET applications that lean on functional programming principles. It keeps request and response contracts explicit, integrates naturally with [LanguageExt](https://github.com/louthy/language-ext), and embraces pipeline behaviors so cross-cutting concerns stay composable.
@@ -31,6 +31,7 @@ SimpleMediator is a lightweight mediator abstraction for .NET applications that 
 - [Pipeline Behaviors](#pipeline-behaviors)
 - [Functional Failure Detection](#functional-failure-detection)
 - [Diagnostics and Metrics](#diagnostics-and-metrics)
+- [Error Metadata](#error-metadata)
 - [Configuration Reference](#configuration-reference)
 - [Testing](#testing)
 - [Quality Checklist](#quality-checklist)
@@ -74,11 +75,11 @@ SimpleMediator takes cues from MediatR, Kommand, and Wolverine, but positions it
 
 ### Dónde leer código rápidamente
 
-- Mediador y contratos: `src/SimpleMediator/SimpleMediator.cs`, `IMediator.cs`, `IRequest.cs`, `INotification.cs`.
-- Registro y escaneo: `ServiceCollectionExtensions.cs`, `MediatorAssemblyScanner.cs`.
-- Pipelines y callbacks: `IPipelineBehavior.cs`, `IRequestPreProcessor.cs`, `IRequestPostProcessor.cs`, behaviors en `Behaviors/`.
-- Observabilidad y métricas: `MediatorDiagnostics.cs`, `MediatorMetrics.cs`.
-- Errores y ROP: `MediatorError.cs`, `MediatorResult.cs`, `IFunctionalFailureDetector.cs`, `NullFunctionalFailureDetector.cs`.
+- Mediador y contratos: [`SimpleMediator.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/SimpleMediator.cs), [`IMediator.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/IMediator.cs), [`IRequest.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/IRequest.cs), [`INotification.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/INotification.cs).
+- Registro y escaneo: [`ServiceCollectionExtensions.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/ServiceCollectionExtensions.cs), [`MediatorAssemblyScanner.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/MediatorAssemblyScanner.cs).
+- Pipelines y callbacks: [`IPipelineBehavior.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/IPipelineBehavior.cs), [`IRequestPreProcessor.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/IRequestPreProcessor.cs), [`IRequestPostProcessor.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/IRequestPostProcessor.cs), behaviors en [`Behaviors/`](https://github.com/dlrivada/SimpleMediator/tree/main/src/SimpleMediator/Behaviors).
+- Observabilidad y métricas: [`MediatorDiagnostics.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/MediatorDiagnostics.cs), [`MediatorMetrics.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/MediatorMetrics.cs).
+- Errores y ROP: [`MediatorError.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/MediatorError.cs), [`MediatorResult.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/MediatorResult.cs), [`IFunctionalFailureDetector.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/IFunctionalFailureDetector.cs), [`NullFunctionalFailureDetector.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/NullFunctionalFailureDetector.cs).
 
 ### Snippets rápidos
 
@@ -385,6 +386,35 @@ services.AddOpenTelemetry()
     .WithMetrics(b => b.AddMeter("SimpleMediator"));
 ```
 
+## Error Metadata
+
+`MediatorError` retains an internal `MetadataException` whose immutable metadata can be retrieved via `GetMediatorMetadata()`. Keys are consistent across the pipeline to aid diagnostics:
+
+- `handler`: fully qualified handler type when available.
+- `request` / `notification`: type involved in the failure.
+- `expectedNotification`: type expected when `Handle` is missing.
+- `stage`: pipeline stage (`handler`, `behavior`, `preprocessor`, `postprocessor`, `invoke`, `execute`).
+- `behavior` / `preProcessor` / `postProcessor`: fully qualified type names for cross-cutting components.
+- `returnType`: handler return type when the `Handle` signature is invalid.
+
+Usage example:
+
+```csharp
+var outcome = await mediator.Send(new DoSomething(), ct);
+
+outcome.Match(
+    Left: err =>
+    {
+        var metadata = err.GetMediatorMetadata();
+        var code = err.GetMediatorCode();
+        logger.LogWarning("Failure {Code} at {Stage} by {Handler}",
+            code,
+            metadata.TryGetValue("stage", out var stage) ? stage : "unknown",
+            metadata.TryGetValue("handler", out var handler) ? handler : "unknown");
+    },
+    Right: _ => { /* success */ });
+```
+
 ## Configuration Reference
 
 ```csharp
@@ -485,6 +515,21 @@ The living roadmap in `QUALITY_SECURITY_ROADMAP.md` complements this README with
 - **Can I use it without LanguageExt?** Handlers rely on `Either` and `Unit` from LanguageExt; alternative abstractions would require custom adapters.
 - **How do I handle retries?** Wrap logic inside a custom pipeline behavior or delegate to Polly policies executed inside the handler.
 - **Is streaming supported?** Streaming notifications are supported via processors that work with `IAsyncEnumerable` payloads.
+- **How do I log error metadata?** Use `GetMediatorCode()` for the canonical code and `GetMediatorMetadata()` for context (handler, stage, request/notification). Example:
+
+    ```csharp
+    var outcome = await mediator.Publish(notification, ct);
+    outcome.Match(
+            Left: err =>
+            {
+                    var meta = err.GetMediatorMetadata();
+                    logger.LogError("{Code} at {Stage} by {Handler}",
+                            err.GetMediatorCode(),
+                            meta.TryGetValue("stage", out var stage) ? stage : "n/a",
+                            meta.TryGetValue("handler", out var handler) ? handler : "n/a");
+            },
+            Right: _ => { });
+    ```
 
 ## Future Work
 

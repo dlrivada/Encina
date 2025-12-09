@@ -6,6 +6,11 @@
 - Asegurar que cada cambio de código se someta a verificaciones automáticas cuantificables de calidad, rendimiento y seguridad.
 - Mantener un flujo de lanzamiento predecible, documentado y compatible con la cadena de suministro moderna.
 
+## Principios de calidad
+
+- No se silencian advertencias salvo justificación documentada; se corrigen primero. `TreatWarningsAsErrors=true` ya está activado para todo el árbol.
+- Política de Zero Exceptions en el plano de dominio/orquestación: los fallos viajan por el rail funcional (`Either<MediatorError, TValue>`) en lugar de propagarse como excepciones.
+
 ## Métricas Objetivo
 
 - **Calidad:** 0 advertencias en analizadores (Roslyn + StyleCop) y ≥ 95 % de cobertura de ramas en paquetes clave.
@@ -28,74 +33,94 @@
 
 ## Roadmap por Horizonte
 
+### Progreso reciente
+
+- [x] Integrado `PipelineBuilder<TRequest,TResponse>` y refactorizado `Send` para ejecutar behaviors/pre/post processors sin reflection en el camino crítico; suites de tests (unit, contract, property) en verde.
+- [x] `SimpleMediatorTests` ahora se ejecuta en colección xUnit no paralela para evitar interferencias de `ActivitySource` entre casos; suites completas en verde (212/212 tests).
+- [x] Eliminada la duplicidad de `RequestHandlerCallback` y alineado el rail funcional (`ValueTask<Either<MediatorError,TResponse>>`) en behaviors y núcleo.
+- [x] Activado `TreatWarningsAsErrors` en `Directory.Build.props` y corregido CA1859 en `PipelineBehaviorContracts` (release `dotnet test SimpleMediator.slnx` pasa con 198/198 tests).
+- [x] Workflow `dotnet-ci.yml` operativo: checkout, format, build con analizadores en `-warnaserror`, tests con cobertura + ReportGenerator y opción de benchmarks.
+- [x] Cobertura generada con Coverlet + ReportGenerator (`Line coverage: 92.9%`); badge publicado en `badges/dotnet-coverage.svg` y enlazado en README.
+- [x] Añadido lint de Conventional Commits vía `amannn/action-semantic-pull-request` (workflow `conventional-commits.yml`) y plantilla de PR para reforzar checklist de calidad y rail funcional.
+- [x] Gate de cobertura en CI: ReportGenerator `JsonSummary` + paso que falla si la cobertura de líneas cae por debajo del 90%.
+- [x] Umbral de cobertura ahora parametrizable vía `COVERAGE_THRESHOLD` (env/vars) en `dotnet-ci.yml` para ajustes controlados sin tocar el workflow.
+- [x] Borrador de `MediatorErrorCodes` para centralizar códigos y preparar sustitución de literales.
+- [x] Interface `IPipelineBuilder<TRequest,TResponse>` añadida como esqueleto para el refactor de pipeline sin reflejos ni asignaciones extras.
+- [x] Behaviors y core actualizados para usar `MediatorErrorCodes` en lugar de literales.
+- [x] Nueva guía de contribución: `CONTRIBUTING.md` recoge rail funcional, zero exceptions, formato, tests, cobertura y convenciones de PR.
+- [x] Telemetría enriquecida: `Send` ahora etiqueta `mediator.request_name`, `mediator.response_type`, `mediator.handler` y `mediator.handler_count`; `Publish` etiqueta `mediator.notification_name`, `mediator.notification_kind`, `mediator.handler_count` y `mediator.failure_reason`, con pruebas de regresión que cubren éxito, cancelaciones y fallos en `SimpleMediatorTests`.
+- [x] Listeners de actividad en tests filtrados y colección xUnit dedicada (`PipelineBehaviors`) para evitar fugas de actividades entre pruebas; suites completas en verde (207/207 tests).
+
 ### Mejora continua del core de SimpleMediator
 
-- Refactorizar `SimpleMediator.Send` y `Publish` para delegar la orquestación en helpers internos dedicados, reduciendo complejidad ciclomática y mejorando la testabilidad del flujo principal.
-- Extraer guard clauses reutilizables (`EnsureRequest`, `EnsureNextStep`, etc.) que encapsulen la creación de errores estándar (`mediator.behavior.null_*`).
-- Adoptar namespaces con ámbito de archivo en todo `src/SimpleMediator` para incrementar la legibilidad y coherencia de estilo.
-- Evolucionar `RequestHandlerCallback<T>` y las implementaciones de comportamiento a `ValueTask<Either<MediatorError,T>>`, evitando asignaciones innecesarias cuando los pasos se completan de forma sincrónica.
-- Replantear las cachés (`RequestHandlerCache`, `NotificationHandlerInvokerCache`) para materializar funciones listas para ejecutar que eviten reflection y boxing en el camino crítico.
-- Introducir un `PipelineBuilder<TRequest,TResponse>` que construya una sola vez la cadena de behaviors/pre/post processors y devuelva un delegado compilado reutilizable.
-- Definir una envoltura `MediatorResult<T>` para expresar el resultado de forma más legible que los `Either.Match` dispersos, manteniendo compatibilidad con la política de cero excepciones.
-- Centralizar los códigos de error en `MediatorErrorCodes` (constantes o enum) para prevenir incoherencias y facilitar documentación.
-- Encapsular la instrumentación (ActivitySource, logging) en un `MediatorDiagnostics` ampliado con métodos `SendStarted/Completed`, de manera que la capa de orquestación sólo delegue datos sin mezclar responsabilidades.
-- Sustituir `object? Details` en `MediatorException` por un contenedor inmutable (p. ej. `ImmutableDictionary<string, object?>`) que permita consultas seguras y facilite la serialización de metadatos.
-- Completar la documentación XML del API público y habilitar analizadores de API pública para reforzar compatibilidad binaria en futuras versiones.
-- Considerar `CollectionsMarshal.AsSpan` y otros helpers de BCL moderna para iteraciones de alto rendimiento sobre colecciones resueltas desde DI.
+- [ ] Refactorizar `SimpleMediator.Publish` para delegar validaciones/guards en helpers internos (parcialmente: `Send` ya usa `PipelineBuilder` y se añadieron guards de notificación y behavior).
+- [ ] Extraer guard clauses reutilizables (`EnsureRequest`, `EnsureNextStep`, etc.) que encapsulen la creación de errores estándar (`mediator.behavior.null_*`).
+- [ ] Adoptar namespaces con ámbito de archivo en todo `src/SimpleMediator` para incrementar la legibilidad y coherencia de estilo.
+- [ ] Evolucionar `RequestHandlerCallback<T>` y las implementaciones de comportamiento a `ValueTask<Either<MediatorError,T>>`, evitando asignaciones innecesarias cuando los pasos se completan de forma sincrónica.
+- [ ] Replantear las cachés (`RequestHandlerCache`, `NotificationHandlerInvokerCache`) para materializar funciones listas para ejecutar que eviten reflection y boxing en el camino crítico.
+- [ ] Introducir un `PipelineBuilder<TRequest,TResponse>` que construya una sola vez la cadena de behaviors/pre/post processors y devuelva un delegado compilado reutilizable.
+- [ ] Definir una envoltura `MediatorResult<T>` para expresar el resultado de forma más legible que los `Either.Match` dispersos, manteniendo compatibilidad con la política de cero excepciones.
+- [ ] Centralizar los códigos de error en `MediatorErrorCodes` (constantes o enum) para prevenir incoherencias y facilitar documentación.
+- [ ] Encapsular la instrumentación (ActivitySource, logging) en un `MediatorDiagnostics` ampliado con métodos `SendStarted/Completed`, de manera que la capa de orquestación sólo delegue datos sin mezclar responsabilidades.
+- [ ] Sustituir `object? Details` en `MediatorException` por un contenedor inmutable (p. ej. `ImmutableDictionary<string, object?>`) que permita consultas seguras y facilite la serialización de metadatos.
+- [ ] Completar la documentación XML del API público y habilitar analizadores de API pública para reforzar compatibilidad binaria en futuras versiones.
+- [ ] Considerar `CollectionsMarshal.AsSpan` y otros helpers de BCL moderna para iteraciones de alto rendimiento sobre colecciones resueltas desde DI.
 
-### Inmediato (0-2 semanas)
+### Fase 1 (próximo sprint)
 
-- Configurar workflow `dotnet-ci.yml` con pasos: `dotnet format --verify-no-changes`, analizadores Roslyn (StyleCop.Analyzers + Microsoft.CodeAnalysis.FxCopAnalyzers) y `dotnet test` con cobertura.
-- Formalizar scripts existentes (`scripts/run-benchmarks.cs`, `scripts/check-benchmarks.cs`) en un workflow `benchmarks.yml` manual y nocturno con upload de artefactos.
-- Activar Dependabot para NuGet y GitHub Actions con revisión semanal.
-- Documentar en `README.md` los comandos clave y añadir los badges de CI, CodeQL, Dependabot y licencia.
-- Aplicar namespaces con ámbito de archivo y helpers de guard clauses en `src/SimpleMediator` para establecer la base del refactor estructural.
-- Auditar `SimpleMediator.Send/Publish` e identificar responsabilidades a mover hacia un `RequestDispatcher`/`NotificationDispatcher` interno.
+- [ ] Extraer `RequestDispatcher` paralelo al de notificaciones, reutilizando guard clauses y afinando cachés (RequestHandler/NotificationInvoker) para minimizar reflection/boxing; evaluar `CollectionsMarshal.AsSpan` donde aplique.
+- [ ] Exponer eventos `SendStarted/Completed` en diagnósticos/métricas y añadir pruebas que aserten tags/activities y métricas emitidas.
+- [ ] Habilitar generación de XML docs + analizadores de API pública; preparar check de CI que falle ante cambios breaking no documentados y completar docstrings faltantes.
+- [ ] Agregar escaneo de calidad (SonarCloud o CodeFactor en modo read-only) y plantilla de protección de ramas (revisores + checks obligatorios); evaluar gate de dependencias de bajo riesgo con auto-merge tras CI verde.
 
-### Corto Plazo (2-6 semanas)
+### Fase 2
 
-- Añadir `Directory.Build.props` con reglas de estilo unificadas y severidad de analizadores en Warning-as-Error.
-- Implementar lint de Conventional Commits (por ejemplo, `amannn/action-semantic-pull-request`).
-- Integrar cobertura con Coverlet + ReportGenerator; publicar badge SVG en `badges/dotnet-coverage.svg`.
-- Añadir pruebas de regresión para escenarios de notificaciones múltiples y manejo de fallos en pipelines.
-- Publicar SBOM automatizada (Syft, `dotnet sbom`) en workflow `sbom.yml` y adjuntar en releases.
-- Consolidar `RequestHandlerCallback<T>` y behaviors en `ValueTask<Either<MediatorError,T>>` y validar el impacto en benchmarks.
-- Implementar `PipelineBuilder<TRequest,TResponse>` para construir la cadena de behaviors y reducir complejidad en `SendCore`.
-- Introducir `MediatorErrorCodes` y actualizar referencias a códigos literales.
+- [ ] Introducir `MediatorResult<T>` como envoltura legible sobre `Either`, con adaptadores de compatibilidad y tests de regresión (éxito/fallo + metadata).
+- [ ] Ampliar pruebas de regresión de notificaciones (múltiples handlers, fallos parciales) y cobertura de cachés y métricas.
+- [ ] Automatizar SBOM continua y revisar permisos mínimos en workflows; considerar auto-merge de Dependabot en dev-deps tras CI verde.
+- [ ] Afinar benchmarks y presupuesto de rendimiento tras los cambios de dispatcher/cachés; publicar reporte en `artifacts/performance/`.
 
-### Medio Plazo (6-12 semanas)
+### Fase 3
 
-- Introducir análisis de terceros: CodeFactor o SonarCloud para deuda técnica y mantenibilidad.
-- Añadir pruebas de carga ligeras con BenchmarkDotNet en modo `--runContinuously` y alertas si se superan umbrales.
-- Implementar política de ramas protegidas: revisores obligatorios, status checks obligatorios y firmas opcionales de commits/tag (GPG).
-- Instrumentar `MediatorMetrics` con validaciones de telemetría en pruebas (asegurar que métricas se registran y exponen).
-- Crear `CONTRIBUTING.md` y checklist de PR con pasos de validación (tests, benchmarks, SBOM, cobertura, revisión de dependencias).
-- Optimizar las cachés de delegados (request/notification) para evitar reflection en tiempo de ejecución y aprovechar `CollectionsMarshal.AsSpan` donde aplique.
-- Encapsular la instrumentación en `MediatorDiagnostics` y agregar pruebas que validen eventos/activities generados.
-- Sustituir `object? Details` por contenedores inmutables seriables y documentar el contrato de metadatos expuestos.
+- [ ] Introducir análisis de terceros: CodeFactor o SonarCloud para deuda técnica y mantenibilidad.
+- [ ] Añadir pruebas de carga ligeras con BenchmarkDotNet en modo `--runContinuously` y alertas si se superan umbrales.
+- [ ] Implementar política de ramas protegidas: revisores obligatorios, status checks obligatorios y firmas opcionales de commits/tag (GPG).
+- [ ] Instrumentar `MediatorMetrics` con validaciones de telemetría en pruebas (asegurar que métricas se registran y exponen).
+- [ ] Crear `CONTRIBUTING.md` y checklist de PR con pasos de validación (tests, benchmarks, SBOM, cobertura, revisión de dependencias).
+- [ ] Optimizar las cachés de delegados (request/notification) para evitar reflection en tiempo de ejecución y aprovechar `CollectionsMarshal.AsSpan` donde aplique.
+- [ ] Encapsular la instrumentación en `MediatorDiagnostics` y agregar pruebas que validen eventos/activities generados.
+- [ ] Sustituir `object? Details` por contenedores inmutables seriables y documentar el contrato de metadatos expuestos.
 
-### Largo Plazo (> 12 semanas)
+### Fase 4
 
-- Adoptar framework de threat modeling ligero para nuevos features (STRIDE o equivalente) documentado en RFCs.
-- Publicar entregables firmados y automatizar release notes (GitHub Release Drafter) con changelog seccionado por tipo de cambio.
-- Revisar opciones de firma de paquetes NuGet (Authenticode o Sigstore) y publicación automatizada condicionada a pipelines verdes.
-- Explorar certificaciones de seguridad de la cadena de suministro (SLSA nivel 2) generando provenance statements con GitHub OIDC + cosign.
-- Evaluar `MediatorResult<T>` como reemplazo de `Either` expuesto y, si se adopta, documentar la transición y ruptura mínima en el API.
-- Completar la adopción de analizadores de API pública y establecer baseline de contratos versionados.
+- [ ] Adoptar framework de threat modeling ligero para nuevos features (STRIDE o equivalente) documentado en RFCs.
+- [ ] Publicar entregables firmados y automatizar release notes (GitHub Release Drafter) con changelog seccionado por tipo de cambio.
+- [ ] Revisar opciones de firma de paquetes NuGet (Authenticode o Sigstore) y publicación automatizada condicionada a pipelines verdes.
+- [ ] Explorar certificaciones de seguridad de la cadena de suministro (SLSA nivel 2) generando provenance statements con GitHub OIDC + cosign.
+- [ ] Evaluar `MediatorResult<T>` como reemplazo de `Either` expuesto y, si se adopta, documentar la transición y ruptura mínima en el API.
+- [ ] Completar la adopción de analizadores de API pública y establecer baseline de contratos versionados.
 
 ## Próximos Pasos Operativos
 
-- [ ] Crear workflows `dotnet-ci.yml`, `codeql.yml`, `sbom.yml`, `benchmarks.yml` con checks obligatorios.
-- [ ] Añadir `Directory.Build.props`/`Directory.Build.targets` con reglas de analizadores y `TreatWarningsAsErrors`.
-- [ ] Integrar Coverlet + ReportGenerator y publicar badge de cobertura.
-- [ ] Incorporar Conventional Commits lint y actualizar plantilla de PR.
-- [ ] Redactar `CONTRIBUTING.md` con requisitos de calidad y guía de colabora.
-- [ ] Aplicar refactor inicial del core (`Send`, `Publish`, guard clauses, namespaces de archivo) según la sección "Mejora continua".
-- [ ] Diseñar y prototipar `PipelineBuilder<TRequest,TResponse>` + migración a `ValueTask`.
-- [ ] Definir `MediatorErrorCodes`, estrategia de metadatos inmutables y plan de pruebas para la nueva instrumentación.
+- [x] Crear workflows `dotnet-ci.yml`, `codeql.yml`, `sbom.yml`, `benchmarks.yml` con checks obligatorios.
+- [x] Añadir `Directory.Build.props`/`Directory.Build.targets` con reglas de analizadores y `TreatWarningsAsErrors`.
+- [x] Integrar Coverlet + ReportGenerator y publicar badge de cobertura.
+- [x] Incorporar Conventional Commits lint y actualizar plantilla de PR.
+  - [x] Workflow `conventional-commits.yml` con `amannn/action-semantic-pull-request`.
+  - [x] Plantilla de PR con checklist de formato, tests, rail funcional y cobertura.
+- [x] Añadir gate de cobertura en CI (umbral 90% líneas, basado en ReportGenerator JsonSummary).
+- [x] Redactar `CONTRIBUTING.md` con requisitos de calidad y guía de colabora.
+- [x] Parametrizar umbral de cobertura (variable `COVERAGE_THRESHOLD` con default 90%).
+- [x] Esqueleto de `MediatorErrorCodes` creado (pendiente de adopción progresiva).
+- [x] Esqueleto de `IPipelineBuilder<TRequest,TResponse>` creado para futura composición de pipeline.
+- [x] Reemplazo inicial de literales por `MediatorErrorCodes` en core y behaviors.
+- [x] Aplicar refactor inicial del core (`Publish`, guard clauses, namespaces de archivo) según la sección "Mejora continua". (Estado: `Send` ya usa `PipelineBuilder` y rail funcional consolidado; guard clauses de behaviors usan `MediatorErrorCodes`; `Publish` delega en `NotificationDispatcher` con metadatos y namespaces de archivo aplicados.)
+- [x] Diseñar y prototipar `PipelineBuilder<TRequest,TResponse>` + migración a `ValueTask`.
+- [x] Definir `MediatorErrorCodes`, estrategia de metadatos inmutables y plan de pruebas para la nueva instrumentación (metadatos adjuntan handler/request/stage en fallos; tests cubren códigos y metadatos extraíbles).
 
 ## Seguimiento y Revisión
 
 - Revisar métricas mensualmente y actualizar objetivos según evolución del producto.
 - Utilizar GitHub Projects o Issues etiquetados (`quality`, `security`) para rastrear iniciativas del roadmap.
 - Auditar workflows trimestralmente para asegurar dependencias actualizadas y permisos mínimos (principio de menor privilegio).
+- Posponer la activación de PublicApiAnalyzers/baseline; retomarlo al final para evitar bloquear avance.
