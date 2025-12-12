@@ -185,30 +185,38 @@ public async ValueTask<Either<MediatorError, TResponse>> Handle(...)
 
 ### When Exceptions ARE Allowed
 
-1. **Startup and Configuration:**
-   - During service registration (`AddSimpleMediator`)
-   - Assembly scanning failures
-   - Invalid configuration (missing handlers, invalid behavior registration)
-   - These are fail-fast scenarios that prevent the application from starting
+**Only during startup and configuration (fail-fast scenarios):**
 
-2. **Programming Errors:**
-   - Null reference exceptions from bugs
-   - Argument validation in public APIs
-   - Contract violations (e.g., null parameters)
+1. **Service Registration:**
+   - During `AddSimpleMediator()` - DI setup errors
+   - Assembly scanning failures
+   - Invalid configuration (missing handlers, invalid behavior registrations)
+   - Null parameters in constructors (`ArgumentNullException`)
+   - Invalid behavior/processor types (`ArgumentException`)
+
+2. **These are fail-fast scenarios that prevent the application from starting incorrectly.**
 
 ### When Exceptions are NOT Allowed
 
-1. **Handler Execution:**
-   - Handlers must return `Left<MediatorError>` for expected failures
+**All runtime operations use Railway Oriented Programming:**
+
+1. **API Entry Points:**
+   - Null request/notification → `Left<MediatorError>` with code `request.null` or `notification.null`
+   - Missing handler → `Left<MediatorError>` with code `request.handler.missing`
+   - Type mismatches → `Left<MediatorError>` with code `request.handler.type_mismatch`
+
+2. **Handler Execution:**
+   - Handlers must return `Left<MediatorError>` for all failures
    - Validation errors → `Left`
    - Business rule violations → `Left`
    - Not found scenarios → `Left`
    - Unauthorized access → `Left`
 
-2. **Expected Operational Failures:**
+3. **Operational Failures:**
    - Database connection issues → `Left`
    - External API failures → `Left`
    - Timeout scenarios → `Left`
+   - Network errors → `Left`
 
 ### Exception Safety Net
 
