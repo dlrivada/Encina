@@ -10,7 +10,9 @@ public static class Program
 {
     public static void Main(string[] args)
     {
+        // Run both benchmark suites
         BenchmarkRunner.Run<MediatorBenchmarks>();
+        BenchmarkRunner.Run<DelegateInvocationBenchmarks>();
     }
 }
 

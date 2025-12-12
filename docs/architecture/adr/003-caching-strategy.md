@@ -219,7 +219,7 @@ internal sealed class RequestHandlerWrapper<TRequest, TResponse> : IRequestHandl
 
 ### Negative
 
-- **Warmup Cost:** First invocation of each handler type incurs expression compilation (estimated ~1-5ms, not measured)
+- **Warmup Cost:** First invocation of each handler type incurs expression compilation (~33 μs measured)
 - **Memory Retention:** Cache entries never evicted (acceptable for typical applications)
 - **Complexity:** Expression tree code is harder to understand and maintain than simple reflection
 - **Debugging Difficulty:** Compiled delegates are harder to step through in debugger
@@ -231,23 +231,26 @@ internal sealed class RequestHandlerWrapper<TRequest, TResponse> : IRequestHandl
 
 ## Performance Benchmarks
 
-**End-to-End Mediator Performance (BenchmarkDotNet, .NET 10):**
+**End-to-End Mediator Performance (BenchmarkDotNet, .NET 10, i9-13900KS):**
 
 | Scenario | Mean Latency | Allocated | Notes |
 |----------|-------------|-----------|-------|
-| Send with full pipeline | 1.4μs | 4.5 KB | Includes DI, behaviors, processors |
-| Publish to 2 handlers | 990 ns | 2.4 KB | Parallel notification dispatch |
+| Send with full pipeline | 1.63μs | 3.7 KB | Includes DI, behaviors, processors |
+| Publish to 2 handlers | 880 ns | 2.57 KB | Parallel notification dispatch |
 
-**Micro-Benchmark Estimates (delegate invocation only):**
+**Micro-Benchmarks - Delegate Invocation Overhead (Measured):**
 
-| Approach | Estimated Time | Ratio | Allocations |
-|----------|---------------|-------|-------------|
-| Direct method call | ~150 ns | 1.00x | 0 B |
-| Cached compiled delegate | ~180 ns | 1.20x | 0 B |
-| MethodInfo.Invoke | ~2,500 ns | 16.67x | 120 B |
-| MakeGenericType + Invoke | ~8,500 ns | 56.67x | 450 B |
+| Approach | Mean Time | Ratio | Allocated | Notes |
+|----------|-----------|-------|-----------|-------|
+| Direct method call | 13.07 ns | 1.00x | 112 B | Baseline - fastest possible |
+| Cached compiled delegate | 13.99 ns | 1.07x | 112 B | What SimpleMediator uses |
+| MethodInfo.Invoke | 32.17 ns | 2.46x | 176 B | Reflection without caching |
+| Expression compilation (first call) | 33.1 μs | 2,533x | 5.3 KB | One-time cost per handler type |
 
-**Note:** Micro-benchmark numbers are theoretical estimates based on .NET runtime characteristics. End-to-end performance is dominated by DI resolution and pipeline overhead (~1.2μs), not delegate invocation (~180ns).
+**Key Insights:**
+- Compiled delegate overhead: **0.92 ns** (7% slower than direct call)
+- Expression compilation cost: **~33 μs** (one-time, amortized over thousands of calls)
+- End-to-end latency dominated by DI + pipeline (~1.6μs), not delegate invocation (~14ns)
 
 ## Examples
 
@@ -356,6 +359,6 @@ private static readonly ConditionalWeakTable<Type, IRequestHandlerWrapper> WeakC
 
 The decision to use Expression trees over source generators was made to keep the library flexible and easy to debug. While source generators provide the best possible performance (identical to direct calls), they require compile-time knowledge of all handlers, which conflicts with the DI-based registration pattern.
 
-Expression trees provide near-native performance with full runtime flexibility. The estimated ~20% overhead of compiled delegates vs direct calls (~30ns difference) is negligible compared to end-to-end latency (1.4μs measured) and far outweighed by typical handler logic (database queries, HTTP calls, business logic - often 10-50ms).
+Expression trees provide near-native performance with full runtime flexibility. The measured overhead of compiled delegates vs direct calls is only **0.92 ns** (7% slower) - negligible compared to end-to-end latency (1.63μs measured) and far outweighed by typical handler logic (database queries, HTTP calls, business logic - often 10-50ms).
 
 Future consideration: Add a source generator as an **optional** optimization for applications where startup time is critical and all handlers are known at compile time. This would be a separate NuGet package (SimpleMediator.SourceGenerators) to keep the core library simple.

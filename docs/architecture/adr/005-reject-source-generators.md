@@ -25,9 +25,10 @@ SimpleMediator currently uses:
 
 Performance characteristics (measured with BenchmarkDotNet):
 
-- First invocation: ~1.4μs (includes cached delegate invocation + DI resolution + pipeline)
-- Subsequent invocations: ~1.4μs (cached delegate call)
-- Memory: 4.5 KB allocated per Send operation (includes DI scope + pipeline overhead)
+- End-to-end latency: 1.63μs (includes DI resolution + pipeline + delegate invocation)
+- Delegate invocation overhead: 13.99 ns (cached, compiled expression tree)
+- Expression compilation (first call): 33.1 μs (one-time cost per handler type)
+- Memory: 3.7 KB allocated per Send operation (includes DI scope + pipeline overhead)
 - Throughput: 10.3M ops/sec (NBomber load test)
 
 ### Proposed Source Generator Approach
@@ -72,20 +73,20 @@ We will continue using Expression tree compilation with runtime caching.
 
 ### 1. Performance Gain is Negligible
 
-**Benchmark Results (measured with BenchmarkDotNet on .NET 10):**
+**Benchmark Results (measured with BenchmarkDotNet on .NET 10, i9-13900KS):**
 
-| Approach | End-to-End Latency | Throughput | Memory per Operation |
-|----------|-------------------|------------|---------------------|
-| Expression Tree (current) | 1.4μs | 10.3M ops/sec | 4.5 KB |
-| Source Generator (estimated) | 1.3μs | ~10.5M ops/sec | 4.5 KB |
+| Approach | Delegate Overhead | End-to-End Latency | Throughput | Memory per Operation |
+|----------|------------------|-------------------|------------|---------------------|
+| Expression Tree (current) | 13.99 ns | 1.63μs | 10.3M ops/sec | 3.7 KB |
+| Source Generator (estimated) | 13.07 ns | 1.62μs | ~10.4M ops/sec | 3.7 KB |
 
 **Analysis:**
 
-- Source generators would save **~0.1μs** (100 nanoseconds) per operation
-- Expression tree compilation happens once and is cached - no per-call overhead
+- Source generators would save **0.92 ns** per operation (measured delegate overhead difference)
+- Expression tree compilation: **33.1 μs** one-time cost, amortized over thousands of calls
 - Current throughput: **10.3M operations/second** (NBomber load test)
-- Memory allocation dominated by DI scope creation, not delegate invocation
-- **Real-world impact:** Negligible improvement (<10% latency reduction)
+- End-to-end latency dominated by DI + pipeline (~1.6μs), not delegate invocation (~14ns)
+- **Real-world impact:** Negligible improvement (<0.06% latency reduction)
 
 ### 2. Significant Build Complexity
 
@@ -168,20 +169,22 @@ public class MediatorSourceGenerator : ISourceGenerator
 Expression tree compilation is highly optimized:
 
 ```csharp
-// Direct invocation
+// Direct invocation (micro-benchmark)
 var handler = new GetUserQueryHandler();
-var result = await handler.Handle(request, ct); // ~1.4μs (measured)
+var result = await handler.Handle(request, ct); // 13.07 ns (measured)
 
-// Expression tree compiled delegate - same performance
-var compiled = compiledDelegate(handler, request, ct); // ~1.4μs (measured)
+// Expression tree compiled delegate - 7% slower
+var compiled = compiledDelegate(handler, request, ct); // 13.99 ns (measured)
 ```
 
-The JIT compiles expression trees to identical native code as direct calls.
+The JIT compiles expression trees to near-identical native code as direct calls.
 
 **Measured with BenchmarkDotNet (.NET 10, i9-13900KS):**
-- Mean: 1,408 ns (1.4μs)
-- StdDev: 32.7 ns
-- Allocated: 4.5 KB
+- Direct call: 13.07 ns ± 0.14 ns
+- Compiled delegate: 13.99 ns ± 0.16 ns
+- Overhead: **0.92 ns** (7% slower)
+- End-to-end with full pipeline: 1.63 μs ± 21 ns
+- Allocated: 3.7 KB (end-to-end), 112 B (delegate only)
 
 ### 6. Caching Strategy is Proven
 
@@ -319,10 +322,12 @@ Real-world measurements from performance testing:
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Mean latency | 1.4μs | Full pipeline (pre/behavior/handler/post) |
-| StdDev | 32.7 ns | Very stable |
-| Memory | 4.5 KB | Per Send operation |
-| Gen0 | 0.24 collections/1k ops | Low GC pressure |
+| End-to-end latency | 1.63μs | Full pipeline (pre/behavior/handler/post) |
+| Delegate overhead | 13.99 ns | Compiled expression tree invocation |
+| Expression compilation | 33.1 μs | One-time cost per handler type |
+| StdDev | 21 ns | Very stable |
+| Memory | 3.7 KB | Per Send operation |
+| Gen0 | 0.20 collections/1k ops | Low GC pressure |
 
 **NBomber Load Test Results (sustained load):**
 
@@ -333,7 +338,7 @@ Real-world measurements from performance testing:
 | CPU usage | <1% | Efficient resource use |
 | Memory | 69 MB working set | Stable under load |
 
-**Conclusion:** Expression tree performance exceeds most application requirements.
+**Conclusion:** Expression tree performance (0.92 ns overhead) exceeds most application requirements. Source generators would save less than 1 nanosecond per call.
 
 ## Related Decisions
 
