@@ -28,6 +28,11 @@ internal interface IPipelineBuilder<TRequest, TResponse>
 /// Default pipeline builder that composes pre/post processors, behaviors and the handler
 /// into a single delegate per request execution.
 /// </summary>
+/// <remarks>
+/// <para><b>Pipeline Order:</b> PreProcessors → Behaviors → Handler → PostProcessors</para>
+/// <para><b>Behavior Composition:</b> Uses nested delegates (Russian doll pattern) to chain behaviors in registration order.</para>
+/// <para><b>Error Strategy:</b> Railway Oriented Programming - errors short-circuit via Either&lt;MediatorError, TResponse&gt;.</para>
+/// </remarks>
 internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
@@ -42,10 +47,18 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         _cancellationToken = cancellationToken;
     }
 
+    /// <summary>
+    /// Builds the execution pipeline by wrapping the handler with behaviors and processors.
+    /// </summary>
+    /// <remarks>
+    /// Behaviors are applied in reverse (right-to-left) to ensure left-to-right execution order.
+    /// Example: Register A, B → Execute PreProc → A → B → Handler → PostProc
+    /// </remarks>
     public RequestHandlerCallback<TResponse> Build(IServiceProvider serviceProvider)
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
+        // Resolve all pipeline components from DI (fall back to empty arrays)
         var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>()?.ToArray()
                         ?? System.Array.Empty<IPipelineBehavior<TRequest, TResponse>>();
         var preProcessors = serviceProvider.GetServices<IRequestPreProcessor<TRequest>>()?.ToArray()
@@ -53,18 +66,22 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         var postProcessors = serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>()?.ToArray()
                           ?? System.Array.Empty<IRequestPostProcessor<TRequest, TResponse>>();
 
+        // Start with the innermost delegate: handler invocation
         RequestHandlerCallback<TResponse> current = () => ExecuteHandlerAsync(_handler, _request, _cancellationToken);
 
+        // Wrap handler with behaviors in reverse order (creates nested delegates)
+        // This ensures behaviors execute in registration order when the pipeline runs
         if (behaviors.Length > 0)
         {
             for (var index = behaviors.Length - 1; index >= 0; index--)
             {
                 var behavior = behaviors[index];
-                var nextStep = current;
+                var nextStep = current; // Capture in closure
                 current = () => ExecuteBehaviorAsync(behavior, _request, nextStep, _cancellationToken);
             }
         }
 
+        // Wrap everything with pre/post processors (outermost layer)
         return () => ExecutePipelineAsync(preProcessors, postProcessors, current, _request, _cancellationToken);
     }
 
