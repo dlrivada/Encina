@@ -19,7 +19,7 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_SimpleMediator&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_SimpleMediator)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_SimpleMediator&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_SimpleMediator)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_SimpleMediator&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_SimpleMediator)
-![Mutation](https://img.shields.io/badge/mutation-93.74%25-4C934C.svg)
+![Mutation](https://img.shields.io/badge/mutation-73.87%25-E4B51C.svg)
 
 SimpleMediator is a lightweight mediator abstraction for .NET applications that lean on functional programming principles. It keeps request and response contracts explicit, integrates naturally with [LanguageExt](https://github.com/louthy/language-ext), and embraces pipeline behaviors so cross-cutting concerns stay composable.
 

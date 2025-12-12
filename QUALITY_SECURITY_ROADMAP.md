@@ -321,8 +321,11 @@
 
 - [x] Configurar SonarCloud y añadir quality gate al README ✅
 - [x] Auditar y completar XML documentation en todo el API público ✅ (100% completado)
-- [x] Elevar cobertura de tests a ≥90% ✅ (92.5% líneas, 83.3% ramas, 229 tests)
-- [ ] Elevar mutation score a ≥95% (actualmente 93.74%)
+- [x] Elevar cobertura de tests a ≥90% ✅ (92.5% líneas, 83.3% ramas, 235 tests)
+- [ ] Elevar mutation score a ≥95% (actualmente 73.87%, requiere trabajo extenso - movido a siguiente sprint)
+  - 506 mutantes killed, 126 survived de 685 totales
+  - Áreas críticas: PipelineBuilder (42.86%), MediatorBehaviorGuards (40%), NotificationDispatcher (60.48%)
+  - Estrategia: enfocarse en mutantes de alto impacto en próximo sprint
 - [x] Adoptar namespaces con ámbito de archivo ✅ (30/30 archivos)
 - [ ] Extraer guard clauses reutilizables
 - [x] Configurar DocFX para documentación API ✅
@@ -334,6 +337,10 @@
 
 ### Siguiente Sprint
 
+- [ ] **Elevar mutation score a ≥80%** (de 73.87%): Priorizar archivos con menor score
+  - PipelineBuilder.cs (42.86% - 39 killed, 76 survived)
+  - MediatorBehaviorGuards.cs (40% - 8 killed, 16 survived)
+  - SimpleMediator.NotificationDispatcher.cs (60.48% - 75 killed, 92 survived)
 - [ ] Crear Architecture Decision Records (ADRs)
 - [ ] Implementar `MediatorResult<T>`
 - [ ] Optimizar cachés de delegados
@@ -362,9 +369,9 @@
 |---------|-------------|----------|--------|
 | Cobertura de Líneas | **92.5%** | ≥90% | ✅ **SUPERADO** |
 | Cobertura de Ramas | 83.3% | ≥85% | 🟡 Cerca |
-| Mutation Score | 93.74% | ≥95% | 🟡 Cerca |
+| Mutation Score | **73.87%** | ≥95% | 🔴 Requiere mejora |
 | Build Warnings | **0** | 0 | ✅ **PERFECTO** |
-| Tests Passing | **229/229** | 100% | ✅ **PERFECTO** |
+| Tests Passing | **235/235** | 100% | ✅ **PERFECTO** |
 | XML Documentation | **100%** (108/108) | 100% | ✅ **PERFECTO** |
 | SonarCloud Quality Gate | Configurado | Pass | ⏳ Pendiente primer scan |
 | Technical Debt | Unknown | ≤5% | ⏳ Pendiente (SonarCloud) |
