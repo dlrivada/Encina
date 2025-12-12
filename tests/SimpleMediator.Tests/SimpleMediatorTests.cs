@@ -2222,4 +2222,52 @@ public sealed class SimpleMediatorTests
         }
     }
 
+    [Fact]
+    public void IsCancellationCode_ReturnsFalse_WhenCodeIsNull()
+    {
+        var method = typeof(SimpleMediator).GetMethod("IsCancellationCode", BindingFlags.NonPublic | BindingFlags.Static);
+        var result = (bool)method!.Invoke(null, [null!])!;
+        result.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsCancellationCode_ReturnsFalse_WhenCodeIsEmpty()
+    {
+        var method = typeof(SimpleMediator).GetMethod("IsCancellationCode", BindingFlags.NonPublic | BindingFlags.Static);
+        var result = (bool)method!.Invoke(null, [""])!;
+        result.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsCancellationCode_ReturnsFalse_WhenCodeIsWhitespace()
+    {
+        var method = typeof(SimpleMediator).GetMethod("IsCancellationCode", BindingFlags.NonPublic | BindingFlags.Static);
+        var result = (bool)method!.Invoke(null, ["   "])!;
+        result.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsCancellationCode_ReturnsTrue_WhenCodeContainsCancelled()
+    {
+        var method = typeof(SimpleMediator).GetMethod("IsCancellationCode", BindingFlags.NonPublic | BindingFlags.Static);
+        var result = (bool)method!.Invoke(null, ["operation.cancelled"])!;
+        result.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsCancellationCode_ReturnsTrue_WhenCodeContainsCancelledUpperCase()
+    {
+        var method = typeof(SimpleMediator).GetMethod("IsCancellationCode", BindingFlags.NonPublic | BindingFlags.Static);
+        var result = (bool)method!.Invoke(null, ["OPERATION.CANCELLED"])!;
+        result.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsCancellationCode_ReturnsFalse_WhenCodeDoesNotContainCancelled()
+    {
+        var method = typeof(SimpleMediator).GetMethod("IsCancellationCode", BindingFlags.NonPublic | BindingFlags.Static);
+        var result = (bool)method!.Invoke(null, ["operation.failed"])!;
+        result.ShouldBeFalse();
+    }
+
 }

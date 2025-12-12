@@ -10,7 +10,7 @@ try
     Environment.CurrentDirectory = repositoryRoot;
 
     Console.WriteLine("Restoring dotnet tools...");
-    RunOrThrow("dotnet", new[] { "tool", "restore" });
+    RunOrThrow("dotnet", ["tool", "restore"]);
 
     Console.WriteLine($"Executing Stryker mutation analysis (build configuration: {configuration})...");
 
