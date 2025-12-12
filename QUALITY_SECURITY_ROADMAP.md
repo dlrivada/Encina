@@ -74,14 +74,14 @@
   - Referencias cruzadas a tipos relacionados
   - Remarks para casos especiales o consideraciones de rendimiento
 - [ ] **Documentar patrones internos:** Añadir comentarios explicativos en código complejo (RequestDispatcher, NotificationDispatcher, PipelineBuilder)
-- [ ] **Reorganizar ficheros por responsabilidad (sin cambios de código):**
-  - `Abstractions/`: `IMediator.cs`, `IRequest.cs`, `IRequestHandler.cs`, `IRequestPreProcessor.cs`, `IRequestPostProcessor.cs`, `INotification.cs`, `INotificationHandler.cs`, `IFunctionalFailureDetector.cs`, `IPipelineBehavior.cs`, `RequestHandlerDelegate.cs`.
-  - `Pipeline/`: `PipelineBuilder.cs`, `MediatorBehaviorGuards.cs`, `MediatorNotificationGuards.cs`, carpeta `Behaviors/` completa.
-  - `Dispatchers/`: `SimpleMediator.RequestDispatcher.cs`, `SimpleMediator.NotificationDispatcher.cs`, `MediatorAssemblyScanner.cs`.
-  - `Core/`: `SimpleMediator.cs`, `SimpleMediatorConfiguration.cs`, `ServiceCollectionExtensions.cs`.
-  - `Diagnostics/`: `MediatorDiagnostics.cs`, `MediatorMetrics.cs`.
-  - `Errors/`: `MediatorError.cs`, `MediatorErrorCodes.cs`, `Error.cs` (si sigue vigente).
-  - `Results/`: `MediatorResult.cs`, `NullFunctionalFailureDetector.cs` (impl por defecto/stub).
+- [x] **Reorganizar ficheros por responsabilidad (sin cambios de código):** ✅ Completado
+  - `Abstractions/`: 11 archivos (IMediator, IRequest, IRequestHandler, IRequestPreProcessor, IRequestPostProcessor, INotification, INotificationHandler, IFunctionalFailureDetector, IPipelineBehavior, RequestHandlerDelegate, CqrsContracts)
+  - `Core/`: 3 archivos (SimpleMediator, SimpleMediatorConfiguration, ServiceCollectionExtensions)
+  - `Pipeline/`: 4 archivos + Behaviors/ (PipelineBuilder, MediatorBehaviorGuards, MediatorNotificationGuards, MediatorRequestGuards + 4 behaviors)
+  - `Dispatchers/`: 3 archivos (SimpleMediator.RequestDispatcher, SimpleMediator.NotificationDispatcher, MediatorAssemblyScanner)
+  - `Diagnostics/`: 2 archivos (MediatorDiagnostics, MediatorMetrics)
+  - `Errors/`: 2 archivos (MediatorError, MediatorErrorCodes)
+  - `Results/`: 2 archivos (MediatorResult, NullFunctionalFailureDetector)
 - [x] **Generar documentación API con DocFX:** ✅ Completado
   - DocFX 2.78.4 instalado y configurado
   - Sitio de documentación HTML generado (34 páginas API + guías existentes)
@@ -95,7 +95,7 @@
 #### 1.2 Código y Estilo
 
 - [x] **Adoptar namespaces con ámbito de archivo:** Ya aplicado en todo `src/SimpleMediator` (30/30 archivos usan file-scoped namespaces)
-- [ ] **Extraer guard clauses reutilizables:** Crear `EnsureRequest`, `EnsureNextStep`, etc. que encapsulen la creación de errores estándar
+- [x] **Extraer guard clauses reutilizables:** ✅ Completado - MediatorRequestGuards con 4 métodos de validación
 - [ ] **Refactorizar `SimpleMediator.Publish`:** Delegar validaciones/guards en helpers internos (parcialmente completado con `Send`)
 - [ ] **Optimizar cachés de delegados:** Minimizar reflection y boxing en `RequestHandlerCache` y `NotificationHandlerInvokerCache`
 - [ ] **Considerar `CollectionsMarshal.AsSpan`:** Aplicar en iteraciones de alto rendimiento sobre colecciones resueltas desde DI
@@ -327,7 +327,12 @@
   - Áreas críticas: PipelineBuilder (42.86%), MediatorBehaviorGuards (40%), NotificationDispatcher (60.48%)
   - Estrategia: enfocarse en mutantes de alto impacto en próximo sprint
 - [x] Adoptar namespaces con ámbito de archivo ✅ (30/30 archivos)
-- [ ] Extraer guard clauses reutilizables
+- [x] Extraer guard clauses reutilizables ✅
+  - Creado MediatorRequestGuards con 4 métodos de validación reutilizables
+  - Refactorizado SimpleMediator y RequestDispatcher para usar guards
+  - Nuevos error codes: RequestHandlerMissing, RequestHandlerTypeMismatch
+  - Todos los tests pasando (235/235)
+- [x] Reorganizar ficheros por responsabilidad ✅ (31 archivos organizados en 7 carpetas)
 - [x] Configurar DocFX para documentación API ✅
   - DocFX 2.78.4 instalado como herramienta local
   - Configuración docfx.json personalizada para SimpleMediator
