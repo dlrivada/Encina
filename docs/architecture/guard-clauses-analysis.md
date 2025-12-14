@@ -32,6 +32,7 @@
 ### 1. Validación de Input vs Defensive Programming
 
 #### Validación de Input (FluentValidation, etc.)
+
 ```csharp
 // ANTES del handler - valida input del usuario
 public record CreateUser(string Email, string Password) : ICommand<User>;
@@ -58,6 +59,7 @@ public class CreateUserHandler : ICommandHandler<CreateUser, User>
 ```
 
 #### Defensive Programming (Guard Clauses)
+
 ```csharp
 // DENTRO del handler - valida preconditions de métodos/constructores
 public class CreateUserHandler : ICommandHandler<CreateUser, User>
@@ -96,6 +98,7 @@ public class User
 ```
 
 **Diferencia clave**:
+
 - **Validación de input**: Protege contra usuarios malintencionados/errores de UX
 - **Guard Clauses**: Protege contra bugs de programación y violaciones de invariantes
 
@@ -119,6 +122,7 @@ public class GuardClausesBehavior<TRequest, TResponse> : IPipelineBehavior<TRequ
 ```
 
 **Por qué NO funciona**:
+
 - Guards son específicos del contexto (cada handler tiene diferentes preconditions)
 - No hay forma genérica de saber qué validar sin conocer la lógica del handler
 - Los guards se usan para validar estado interno, no input externo
@@ -228,12 +232,14 @@ public class CreateOrderHandler : ICommandHandler<CreateOrder, OrderId>
 ```
 
 **Ventajas**:
+
 - ✅ Integración natural con ROP
 - ✅ No modifica el API actual de SimpleMediator
 - ✅ Los developers eligen cuándo usar guards
 - ✅ Composable con Bind/Map de LanguageExt
 
 **Desventajas**:
+
 - ⚠️ Requiere estilo funcional (puede ser unfamiliar para algunos)
 - ⚠️ Más verboso que guards tradicionales
 
@@ -348,18 +354,21 @@ return await CreateUser(request.Email);
 ### ✅ Impacto MÍNIMO (Opción 2, 3, o 4)
 
 **Lo que NO cambia**:
+
 - ❌ NO requiere modificar `IPipelineBehavior`
 - ❌ NO requiere modificar `IRequestContext`
 - ❌ NO requiere modificar handlers existentes
 - ❌ NO requiere modificar el pipeline de SimpleMediator
 
 **Lo que se AGREGA**:
+
 - ✅ Nuevo package: `SimpleMediator.GuardClauses`
 - ✅ Extension methods para `Either<MediatorError, T>`
 - ✅ Helpers opcionales para estilo imperativo
 - ✅ Documentación y ejemplos
 
 **Compatibilidad**:
+
 - ✅ 100% compatible con código existente
 - ✅ Opt-in (solo se usa si el developer lo importa)
 - ✅ No afecta performance si no se usa
@@ -402,6 +411,7 @@ return await CreateUser(request.Email);
    - Riesgo de over-engineering
 
 2. **Duplicación de Validación**
+
    ```csharp
    // Ya validado por FluentValidation
    public record CreateUser(string Email) : ICommand<User>;
@@ -419,6 +429,7 @@ return await CreateUser(request.Email);
    ```
 
 3. **Los Guards Son Más Útiles en Domain Models**
+
    ```csharp
    // Aquí SÍ tiene sentido
    public class User
@@ -440,6 +451,7 @@ return await CreateUser(request.Email);
    - Hay que wrappear las exceptions → overhead
 
 5. **Overhead de Wrapping Exceptions**
+
    ```csharp
    // Cada guard tiene try-catch
    public static Either<MediatorError, T> GuardNotNull<T>(this T value, string name)
@@ -463,6 +475,7 @@ return await CreateUser(request.Email);
 ### ✅ Dónde SÍ Tiene Sentido Usar GuardClauses
 
 #### 1. Domain Models (Constructor Guards)
+
 ```csharp
 public class Order
 {
@@ -483,6 +496,7 @@ public class Order
 ```
 
 #### 2. Validación de Estado Recuperado de DB
+
 ```csharp
 public class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
 {
@@ -507,6 +521,7 @@ public class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
 ```
 
 #### 3. Preconditions en Domain Services
+
 ```csharp
 public class OrderDomainService
 {
@@ -529,6 +544,7 @@ public class OrderDomainService
 ### ❌ Dónde NO Tiene Tanto Sentido
 
 #### 1. Handlers con Validación de Input Ya Hecha
+
 ```csharp
 // ❌ Redundante - FluentValidation ya validó esto
 public class CreateUserHandler : ICommandHandler<CreateUser, UserId>
@@ -632,6 +648,7 @@ public class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 ```
 
 ✅ **Good** - Guards in domain models:
+
 ```csharp
 public class User
 {
@@ -645,6 +662,7 @@ public class User
 ```
 
 ✅ **Good** - Guards for state validation:
+
 ```csharp
 public class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
 {
@@ -667,6 +685,7 @@ public class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
     }
 }
 ```
+
 ```
 
 ---

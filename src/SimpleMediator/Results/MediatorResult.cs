@@ -5,7 +5,7 @@ namespace SimpleMediator;
 /// <summary>
 /// Factory for the standard errors produced by SimpleMediator.
 /// </summary>
-internal static class MediatorErrors
+public static class MediatorErrors
 {
     /// <summary>
     /// Unexpected infrastructure error.

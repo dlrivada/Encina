@@ -113,6 +113,7 @@ app.MapPost("/users", async (CreateUser request, IMediator mediator) =>
 ### Perfect for Minimal APIs
 
 MiniValidation was designed specifically for Minimal APIs where:
+
 - You want validation without ceremony
 - Package size matters (serverless, Lambda, containers)
 - You don't need complex validation logic
@@ -129,6 +130,7 @@ MiniValidation was designed specifically for Minimal APIs where:
 ### When to Use MiniValidation
 
 ✅ **Use MiniValidation When:**
+
 - Building **Minimal APIs** with ASP.NET Core
 - Package size is a constraint (serverless, Lambda)
 - Simple validation rules are sufficient
@@ -136,6 +138,7 @@ MiniValidation was designed specifically for Minimal APIs where:
 - Microservices where every KB counts
 
 ❌ **Consider FluentValidation When:**
+
 - Complex multi-field validation logic
 - Async validation (database checks, external APIs)
 - Composable validation rules
@@ -146,12 +149,14 @@ MiniValidation was designed specifically for Minimal APIs where:
 MiniValidation supports all standard Data Annotations attributes:
 
 ### Basic Validation
+
 - `[Required]` - Property must have a value
 - `[StringLength]` - String length constraints
 - `[MinLength]` / `[MaxLength]` - Length constraints
 - `[Range]` - Numeric range validation
 
 ### Format Validation
+
 - `[EmailAddress]` - Valid email format
 - `[Phone]` - Valid phone number format
 - `[Url]` - Valid URL format
@@ -159,9 +164,11 @@ MiniValidation supports all standard Data Annotations attributes:
 - `[RegularExpression]` - Pattern matching
 
 ### Comparison
+
 - `[Compare]` - Compare with another property
 
 ### Custom Validation
+
 - Custom `ValidationAttribute` implementations
 
 ## Advanced Usage
@@ -436,6 +443,7 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 ## Why "MiniValidation"?
 
 MiniValidation (by [@DamianEdwards](https://github.com/DamianEdwards)) is a minimalist validation library created specifically for .NET Minimal APIs. It's:
+
 - **Tiny** - ~20KB
 - **Fast** - Optimized for performance
 - **Simple** - Uses Data Annotations without ceremony
