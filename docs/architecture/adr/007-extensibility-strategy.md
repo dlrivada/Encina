@@ -1,10 +1,11 @@
 # ADR-007: Extensibility Strategy for External Library Integration
 
-**Status:** Accepted
+**Status:** Proposed (Pre-1.0)
 **Date:** 2025-12-14
 **Authors:** Architecture Team
 **Supersedes:** None
 **Related:** ADR-001 (Railway Oriented Programming), ADR-006 (Pure ROP)
+**Note:** This is a pre-1.0 architectural decision. We prioritize best technical solution over backward compatibility.
 
 ---
 
@@ -46,6 +47,7 @@ Users expect SimpleMediator to integrate seamlessly with these libraries **witho
 `SimpleMediator` (core) provides **extensibility mechanisms** only:
 
 ✅ **Included:**
+
 - `IPipelineBehavior<TRequest, TResponse>` - Cross-cutting concerns
 - `IRequestPreProcessor<TRequest>` - Pre-execution hooks
 - `IRequestPostProcessor<TRequest, TResponse>` - Post-execution hooks
@@ -55,6 +57,7 @@ Users expect SimpleMediator to integrate seamlessly with these libraries **witho
 - Dependency injection support via `IServiceCollection`
 
 ❌ **NOT Included:**
+
 - Concrete behaviors for validation, caching, logging, etc.
 - Dependencies on external libraries (FluentValidation, Polly, Redis, etc.)
 - ASP.NET Core-specific features
@@ -77,17 +80,18 @@ Integration with external libraries is provided via **optional NuGet packages**:
 | `SimpleMediator.Kafka` | Kafka producing | Confluent.Kafka |
 
 **Package Versioning:**
+
 - Each satellite package versions independently
 - Compatible with `SimpleMediator >= X.Y` (stated in package description)
 - Breaking changes in core require major version bump in satellites
 
-### 3. Request Metadata Enrichment
+### 3. Request Context (Ambient Metadata)
 
 **Problem:** No standard way to attach ambient context (correlation IDs, user info, idempotency keys).
 
-**Solution (Non-Breaking for 1.0):**
+**Solution (RECOMMENDED - Best Technical Approach):**
 
-Add **marker interface** for requests that need metadata:
+Add `IRequestContext` as **explicit parameter** to all pipeline interfaces:
 
 ```csharp
 namespace SimpleMediator;
@@ -168,6 +172,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
 ```
 
 **Trade-offs:**
+
 - ✅ Non-breaking (opt-in via interface)
 - ✅ No performance impact for requests that don't need metadata
 - ❌ Not all requests will have context (behaviors must check interface)
@@ -273,6 +278,7 @@ public sealed class CachingBehavior<TRequest, TResponse>
 ```
 
 **Trade-offs:**
+
 - ✅ Non-breaking (new service, opt-in)
 - ✅ Enables attribute-driven behavior configuration
 - ❌ Requires reflection (but cached)
@@ -285,26 +291,31 @@ public sealed class CachingBehavior<TRequest, TResponse>
 ### Positive
 
 ✅ **Minimal Core Package**
+
 - `SimpleMediator` has zero dependencies on external libraries
 - Small package size, fast installation
 - No versioning conflicts with user dependencies
 
 ✅ **Flexibility**
+
 - Users choose which integrations to install
 - Can use custom implementations (e.g., NLog instead of Serilog)
 - No forced dependencies
 
 ✅ **Discoverability**
+
 - Satellite packages appear in NuGet search
 - Clear naming convention: `SimpleMediator.{Integration}`
 - Package descriptions explain purpose
 
 ✅ **Non-Breaking Evolution**
+
 - Marker interfaces (`IHasMetadata`) are opt-in
 - Metadata provider is new service (doesn't affect existing code)
 - Breaking changes deferred to 2.0
 
 ✅ **Testability**
+
 - Behaviors can be tested independently
 - Mock implementations for `IRequestContext`, `IRequestHandlerMetadataProvider`
 - No hidden static state
@@ -312,21 +323,25 @@ public sealed class CachingBehavior<TRequest, TResponse>
 ### Negative
 
 ❌ **More Packages to Maintain**
+
 - Each satellite package needs documentation, tests, versioning
 - Updates to core may require updating satellites
 - More GitHub repos or monorepo complexity
 
 ❌ **Discovery Friction**
+
 - New users must discover satellite packages
 - Not as obvious as "batteries included" core
 - Requires better documentation
 
 ❌ **Migration Effort (2.0)**
+
 - Adding `IRequestContext` parameter will break all behaviors
 - Users will need to update custom behaviors
 - Migration guide required
 
 ❌ **Incomplete Metadata Support (1.0)**
+
 - `IHasMetadata` is opt-in (not all requests will have context)
 - Behaviors must check `if (request is IHasMetadata)`
 - Less ergonomic than built-in context parameter
@@ -340,11 +355,13 @@ public sealed class CachingBehavior<TRequest, TResponse>
 **Approach:** Include all common integrations in `SimpleMediator` package.
 
 **Pros:**
+
 - One package to install
 - Everything works out of the box
 - Easier for beginners
 
 **Cons:**
+
 - ❌ Massive dependency tree (FluentValidation + Polly + StackExchange.Redis + EF Core + ...)
 - ❌ Versioning conflicts inevitable
 - ❌ Forces upgrades when any dependency updates
@@ -357,10 +374,12 @@ public sealed class CachingBehavior<TRequest, TResponse>
 **Approach:** Load integration assemblies at runtime via `AssemblyLoadContext`.
 
 **Pros:**
+
 - No compile-time dependencies
 - True plugin isolation
 
 **Cons:**
+
 - ❌ Complex implementation
 - ❌ Performance overhead
 - ❌ Poor debugging experience
@@ -373,10 +392,12 @@ public sealed class CachingBehavior<TRequest, TResponse>
 **Approach:** Generate behaviors at compile time based on configuration.
 
 **Pros:**
+
 - Zero runtime overhead
 - Strong typing
 
 **Cons:**
+
 - ❌ Limited flexibility
 - ❌ Complex to maintain
 - ❌ Poor IDE experience (Roslyn can be slow)
@@ -388,11 +409,13 @@ public sealed class CachingBehavior<TRequest, TResponse>
 **Approach:** Add `IRequestContext` parameter to all interfaces immediately.
 
 **Pros:**
+
 - Best ergonomics
 - No marker interfaces needed
 - Context always available
 
 **Cons:**
+
 - ❌ Breaks all existing behaviors (even examples in docs)
 - ❌ Migration pain before 1.0 adoption
 - ❌ No escape hatch for users who don't need context
@@ -585,6 +608,7 @@ public sealed class GetProductByIdHandler : IRequestHandler<GetProductById, Prod
 ### IRequestContext Parameter
 
 **Current (1.0):**
+
 ```csharp
 public interface IPipelineBehavior<TRequest, TResponse>
 {
@@ -596,6 +620,7 @@ public interface IPipelineBehavior<TRequest, TResponse>
 ```
 
 **Future (2.0):**
+
 ```csharp
 public interface IPipelineBehavior<TRequest, TResponse>
 {
@@ -608,6 +633,7 @@ public interface IPipelineBehavior<TRequest, TResponse>
 ```
 
 **Migration:**
+
 1. Mark old signature `[Obsolete]` in 1.9
 2. Introduce new signature alongside old in 1.9
 3. Remove old signature in 2.0
@@ -616,6 +642,7 @@ public interface IPipelineBehavior<TRequest, TResponse>
 ### HandlerMetadata Parameter
 
 **Future (2.0):**
+
 ```csharp
 public interface IPipelineBehavior<TRequest, TResponse>
 {
