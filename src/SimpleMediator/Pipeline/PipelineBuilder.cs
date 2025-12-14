@@ -130,13 +130,13 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Since handlers now return <see cref="Either{L,R}"/>, they are already on the functional rail.
-    /// We only need a try-catch as a safety net for unexpected exceptions (bugs in handler code),
-    /// not for functional failures which should be returned as Left values.
+    /// Pure Railway Oriented Programming: Handlers return <see cref="Either{L,R}"/> and are responsible
+    /// for converting all expected errors to Left values. Any exception that escapes indicates a bug
+    /// in the handler and will propagate (fail-fast).
     /// </para>
     /// <para>
-    /// The handler is responsible for catching and converting expected errors to Either.
-    /// Any exception that escapes is treated as an unexpected bug and wrapped in HandlerException.
+    /// Cancellation is the only exception we handle, as it represents expected cooperative cancellation
+    /// rather than a programming error.
     /// </para>
     /// </remarks>
     private static async ValueTask<Either<MediatorError, TResponse>> ExecuteHandlerAsync(
@@ -146,8 +146,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
     {
         try
         {
-            var result = await handler.Handle(request, cancellationToken).ConfigureAwait(false);
-            return result;
+            return await handler.Handle(request, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
@@ -161,22 +160,8 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
             };
             return Left<MediatorError, TResponse>(MediatorErrors.Create(MediatorErrorCodes.HandlerCancelled, message, ex, metadata));
         }
-        catch (Exception ex)
-        {
-            // Unexpected exception - this indicates a bug in the handler
-            // Handlers should catch expected errors and return Left instead of throwing
-            var message = $"Unexpected exception in handler {handler.GetType().Name} for {typeof(TRequest).Name}. " +
-                          $"Handlers should return Left for expected failures instead of throwing exceptions.";
-            var metadata = new Dictionary<string, object?>
-            {
-                ["handler"] = handler.GetType().FullName,
-                ["request"] = typeof(TRequest).FullName,
-                ["stage"] = "handler",
-                ["exception_type"] = ex.GetType().FullName
-            };
-            var error = MediatorErrors.FromException(MediatorErrorCodes.HandlerException, ex, message, metadata);
-            return Left<MediatorError, TResponse>(error);
-        }
+        // Any other exception (e.g., NullReferenceException, InvalidOperationException) indicates
+        // a bug in the handler and will propagate to let the application crash (fail-fast)
     }
 
     private static async ValueTask<Either<MediatorError, TResponse>> ExecuteBehaviorAsync(
@@ -200,17 +185,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
             };
             return Left<MediatorError, TResponse>(MediatorErrors.Create(MediatorErrorCodes.BehaviorCancelled, message, ex, metadata));
         }
-        catch (Exception ex)
-        {
-            var metadata = new Dictionary<string, object?>
-            {
-                ["behavior"] = behavior.GetType().FullName,
-                ["request"] = typeof(TRequest).FullName,
-                ["stage"] = "behavior"
-            };
-            var error = MediatorErrors.FromException(MediatorErrorCodes.BehaviorException, ex, $"Error running {behavior.GetType().Name} for {typeof(TRequest).Name}.", metadata);
-            return Left<MediatorError, TResponse>(error);
-        }
+        // Pure ROP: Any other exception indicates a bug in the behavior and will propagate (fail-fast)
     }
 
     private static async Task<Option<MediatorError>> ExecutePreProcessorAsync(
@@ -234,17 +209,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
             };
             return Some(MediatorErrors.Create(MediatorErrorCodes.PreProcessorCancelled, message, ex, preCancellationMetadata));
         }
-        catch (Exception ex)
-        {
-            var preExceptionMetadata = new Dictionary<string, object?>
-            {
-                ["preProcessor"] = preProcessor.GetType().FullName,
-                ["request"] = typeof(TRequest).FullName,
-                ["stage"] = "preprocessor"
-            };
-            var error = MediatorErrors.FromException(MediatorErrorCodes.PreProcessorException, ex, $"Error running {preProcessor.GetType().Name} for {typeof(TRequest).Name}.", preExceptionMetadata);
-            return Some(error);
-        }
+        // Pure ROP: Any other exception indicates a bug in the preprocessor and will propagate (fail-fast)
     }
 
     private static async Task<Option<MediatorError>> ExecutePostProcessorAsync(
@@ -258,39 +223,17 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
             await postProcessor.Process(request, response, cancellationToken).ConfigureAwait(false);
             return Option<MediatorError>.None;
         }
-        catch (OperationCanceledException ex)
+        catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                var message = $"Post-processor {postProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
-                var postCancellationMetadata = new Dictionary<string, object?>
-                {
-                    ["postProcessor"] = postProcessor.GetType().FullName,
-                    ["request"] = typeof(TRequest).FullName,
-                    ["stage"] = "postprocessor"
-                };
-                return Some(MediatorErrors.Create(MediatorErrorCodes.PostProcessorCancelled, message, ex, postCancellationMetadata));
-            }
-
-            var postExceptionMetadata = new Dictionary<string, object?>
+            var message = $"Post-processor {postProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
+            var postCancellationMetadata = new Dictionary<string, object?>
             {
                 ["postProcessor"] = postProcessor.GetType().FullName,
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "postprocessor"
             };
-            var error = MediatorErrors.FromException(MediatorErrorCodes.PostProcessorException, ex, $"Error running {postProcessor.GetType().Name} for {typeof(TRequest).Name}.", postExceptionMetadata);
-            return Some(error);
+            return Some(MediatorErrors.Create(MediatorErrorCodes.PostProcessorCancelled, message, ex, postCancellationMetadata));
         }
-        catch (Exception ex)
-        {
-            var postFailureMetadata = new Dictionary<string, object?>
-            {
-                ["postProcessor"] = postProcessor.GetType().FullName,
-                ["request"] = typeof(TRequest).FullName,
-                ["stage"] = "postprocessor"
-            };
-            var error = MediatorErrors.FromException(MediatorErrorCodes.PostProcessorException, ex, $"Error running {postProcessor.GetType().Name} for {typeof(TRequest).Name}.", postFailureMetadata);
-            return Some(error);
-        }
+        // Pure ROP: Any other exception indicates a bug in the postprocessor and will propagate (fail-fast)
     }
 }

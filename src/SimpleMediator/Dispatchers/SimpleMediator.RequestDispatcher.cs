@@ -134,8 +134,7 @@ public sealed partial class SimpleMediator
             catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
             {
                 // --- CANCELLATION HANDLING ---
-                // Cancellation is expected behavior, not an error
-                // Track it separately for observability purposes
+                // Cancellation is expected cooperative behavior, not an error
                 var message = $"The {requestType.Name} request was cancelled.";
                 var metadata = new Dictionary<string, object?>
                 {
@@ -149,25 +148,9 @@ public sealed partial class SimpleMediator
                 MediatorDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: MediatorErrorCodes.RequestCancelled, errorMessage: message);
                 return Left<MediatorError, TResponse>(MediatorErrors.Create(MediatorErrorCodes.RequestCancelled, message, ex, metadata));
             }
-            catch (Exception ex)
-            {
-                // --- UNEXPECTED EXCEPTION HANDLING ---
-                // This is the safety net for any unhandled exceptions in the pipeline
-                // All expected errors should flow through Either<MediatorError, TResponse>
-                // If we reach here, it indicates a bug in a behavior, processor, or handler
-                var metadata = new Dictionary<string, object?>
-                {
-                    ["request"] = requestType.FullName,
-                    ["handler"] = handler!.GetType().FullName,
-                    ["stage"] = "pipeline"
-                };
-                var error = MediatorErrors.FromException(MediatorErrorCodes.PipelineException, ex, $"Unexpected error while processing {requestType.Name}.", metadata);
-                Log.RequestProcessingError(mediator._logger, requestType.Name, ex);
-                stopwatch.Stop();
-                metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, MediatorErrorCodes.PipelineException);
-                MediatorDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: error.GetMediatorCode(), errorMessage: error.Message);
-                return Left<MediatorError, TResponse>(error);
-            }
+            // Pure ROP: Any other exception (e.g., NullReferenceException, InvalidOperationException)
+            // indicates a bug in a handler, behavior, or processor and will propagate to crash the process (fail-fast).
+            // Well-written handlers/behaviors/processors return Either<MediatorError, T> for all expected errors.
         }
 
         /// <summary>

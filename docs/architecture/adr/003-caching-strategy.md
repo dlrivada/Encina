@@ -248,6 +248,7 @@ internal sealed class RequestHandlerWrapper<TRequest, TResponse> : IRequestHandl
 | Expression compilation (first call) | 33.1 μs | 2,533x | 5.3 KB | One-time cost per handler type |
 
 **Key Insights:**
+
 - Compiled delegate overhead: **0.92 ns** (7% slower than direct call)
 - Expression compilation cost: **~33 μs** (one-time, amortized over thousands of calls)
 - End-to-end latency dominated by DI + pipeline (~1.6μs), not delegate invocation (~14ns)
