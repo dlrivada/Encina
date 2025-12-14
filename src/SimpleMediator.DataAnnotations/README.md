@@ -122,12 +122,14 @@ result.Match(
 All built-in .NET validation attributes are supported:
 
 ### Basic Validation
+
 - `[Required]` - Property must have a value
 - `[StringLength]` - String length constraints (min/max)
 - `[MinLength]` / `[MaxLength]` - Length constraints
 - `[Range]` - Numeric range validation
 
 ### Format Validation
+
 - `[EmailAddress]` - Valid email format
 - `[Phone]` - Valid phone number format
 - `[Url]` - Valid URL format
@@ -135,9 +137,11 @@ All built-in .NET validation attributes are supported:
 - `[RegularExpression]` - Pattern matching
 
 ### Comparison Validation
+
 - `[Compare]` - Compare with another property (e.g., password confirmation)
 
 ### Custom Validation
+
 - Custom `ValidationAttribute` implementations
 
 ## Advanced Usage
@@ -290,7 +294,7 @@ app.MapPost("/users", async (CreateUser request, IMediator mediator) =>
 
 ## When to Use Data Annotations
 
-### ✅ Use Data Annotations When:
+### ✅ Use Data Annotations When
 
 - **Simple validation rules** - Required fields, email format, ranges
 - **Zero dependencies required** - You want built-in .NET validation
@@ -298,7 +302,7 @@ app.MapPost("/users", async (CreateUser request, IMediator mediator) =>
 - **Legacy code** - Your models already have Data Annotations
 - **Quick prototyping** - Fast setup with minimal code
 
-### ❌ Consider FluentValidation When:
+### ❌ Consider FluentValidation When
 
 - **Complex validation logic** - Multi-field validation, business rules
 - **Async validation** - Database checks, external API calls
