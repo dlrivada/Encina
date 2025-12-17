@@ -1,14 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <PackageId>SimpleMediator</PackageId>
+    <PackageId>SimpleMediator.AspNetCore</PackageId>
     <VersionPrefix>0.1.0</VersionPrefix>
     <Authors>David Lozano Rivada;Daniel Lozano Rivada</Authors>
     <Company>Consulta Psicologica</Company>
-    <Description>Mediator ligero para .NET con integracion funcional mediante LanguageExt y behaviors componibles.</Description>
+    <Description>ASP.NET Core integration for SimpleMediator with Railway Oriented Programming support. Middleware, authorization, and Problem Details.</Description>
     <RepositoryUrl>https://github.com/dlrivada/SimpleMediator</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>mediator;languageext;cqrs;pipelines</PackageTags>
+    <PackageTags>mediator;aspnetcore;authorization;middleware;problemdetails;languageext;cqrs;rop</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <IncludeSymbols>false</IncludeSymbols>
@@ -16,12 +16,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentAssertions" />
-    <PackageReference Include="LanguageExt.Core" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SimpleMediator\SimpleMediator.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,13 +31,7 @@
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>SimpleMediator.Tests</_Parameter1>
-    </AssemblyAttribute>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>SimpleMediator.PropertyTests</_Parameter1>
-    </AssemblyAttribute>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>SimpleMediator.ContractTests</_Parameter1>
+      <_Parameter1>SimpleMediator.AspNetCore.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 

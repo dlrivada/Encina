@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using LanguageExt;
+using static LanguageExt.Prelude;
 
 namespace SimpleMediator;
 
@@ -55,9 +57,59 @@ internal sealed class MediatorException(string code, string message, Exception? 
 /// <summary>
 /// Helper extensions to extract metadata from <see cref="MediatorError"/>.
 /// </summary>
-internal static class MediatorErrorExtensions
+public static class MediatorErrorExtensions
 {
-    public static string GetMediatorCode(this MediatorError error)
+    /// <summary>
+    /// Gets the error code from the mediator error.
+    /// </summary>
+    /// <param name="error">The mediator error.</param>
+    /// <returns>The error code if available.</returns>
+    public static Option<string> GetCode(this MediatorError error)
+    {
+        return error.MetadataException.Match(
+            Some: ex => ex switch
+            {
+                MediatorException mediatorException => Some(mediatorException.Code),
+                _ => None
+            },
+            None: () => None);
+    }
+
+    /// <summary>
+    /// Gets the error details from the mediator error.
+    /// </summary>
+    /// <param name="error">The mediator error.</param>
+    /// <returns>The error details if available.</returns>
+    public static Option<object> GetDetails(this MediatorError error)
+    {
+        return error.MetadataException.Bind(ex => ex switch
+        {
+            MediatorException mediatorException when mediatorException.Details is not null
+                => Some(mediatorException.Details),
+            _ => None
+        });
+    }
+
+    /// <summary>
+    /// Gets the error metadata dictionary from the mediator error.
+    /// </summary>
+    /// <param name="error">The mediator error.</param>
+    /// <returns>The error metadata dictionary, or empty if not available.</returns>
+    public static IReadOnlyDictionary<string, object?> GetMetadata(this MediatorError error)
+    {
+        var metadata = error.MetadataException.MatchUnsafe(
+            ex => ex switch
+            {
+                MediatorException mediatorException => mediatorException.Metadata,
+                _ => (IReadOnlyDictionary<string, object?>)ImmutableDictionary<string, object?>.Empty
+            },
+            () => ImmutableDictionary<string, object?>.Empty);
+
+        return metadata ?? ImmutableDictionary<string, object?>.Empty;
+    }
+
+    // Internal method for compatibility
+    internal static string GetMediatorCode(this MediatorError error)
     {
         return error.MetadataException.Match(
             Some: ex => ex switch
@@ -68,7 +120,8 @@ internal static class MediatorErrorExtensions
             None: () => string.IsNullOrWhiteSpace(error.Message) ? "mediator.unknown" : error.Message);
     }
 
-    public static object? GetMediatorDetails(this MediatorError error)
+    // Internal method for compatibility
+    internal static object? GetMediatorDetails(this MediatorError error)
     {
         return error.MetadataException.MatchUnsafe(
             ex => ex switch
@@ -79,7 +132,8 @@ internal static class MediatorErrorExtensions
             () => null);
     }
 
-    public static IReadOnlyDictionary<string, object?> GetMediatorMetadata(this MediatorError error)
+    // Internal method for compatibility
+    internal static IReadOnlyDictionary<string, object?> GetMediatorMetadata(this MediatorError error)
     {
         var metadata = error.MetadataException.MatchUnsafe(
             ex => ex switch

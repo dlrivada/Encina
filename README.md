@@ -1,4 +1,4 @@
-# SimpleMediator
+# 🌳 Encina Framework / SimpleMediator | Resiliencia y Confianza
 
 [![.NET Quality Gate](https://github.com/dlrivada/SimpleMediator/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/dotnet-ci.yml)
 [![SonarCloud](https://github.com/dlrivada/SimpleMediator/actions/workflows/sonarcloud.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/sonarcloud.yml)

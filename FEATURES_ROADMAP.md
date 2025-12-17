@@ -64,13 +64,13 @@ SimpleMediator aspira a ser el framework de mediación funcional para .NET que p
 
 ---
 
-### 🎯 SIGUIENTE: Stream Requests (Post-1.0)
+### 🎯 SIGUIENTE: Stream Requests (Pre-1.0)
 
 **Objetivo**: Soporte para `IAsyncEnumerable<T>` en queries grandes o real-time.
 
 **Prioridad**: ⭐⭐⭐⭐ (Alta)
 **Complejidad**: ⭐⭐⭐ (Media)
-**Timeline**: Post-1.0 (versión 1.1+)
+**Timeline**: Pre-1.0 (versión 1.1+)
 
 **Casos de uso**:
 
@@ -162,6 +162,7 @@ Estos packages extienden SimpleMediator con integraciones específicas. Siguen l
 **Timeline**: Pre-1.0
 
 **Implementado**:
+
 - `ValidationPipelineBehavior<TRequest, TResponse>` with ROP integration
 - `AddSimpleMediatorFluentValidation()` extension methods
 - Context enrichment (CorrelationId, UserId, TenantId)
@@ -243,6 +244,7 @@ services.AddSimpleMediator(cfg =>
 **Timeline**: Pre-1.0
 
 **Implementado**:
+
 - `DataAnnotationsValidationBehavior<TRequest, TResponse>` with ROP integration
 - `AddDataAnnotationsValidation()` extension method
 - Zero external dependencies (uses System.ComponentModel.DataAnnotations)
@@ -251,6 +253,7 @@ services.AddSimpleMediator(cfg =>
 - Full XML documentation and comprehensive README
 
 **Ventajas**:
+
 - Zero dependencies (built-in .NET)
 - Ideal para prototipos y aplicaciones simples
 - Atributos declarativos sobre propiedades
@@ -269,6 +272,7 @@ services.AddSimpleMediator(cfg =>
 **Timeline**: Pre-1.0
 
 **Implementado**:
+
 - `MiniValidationBehavior<TRequest, TResponse>` with ROP integration
 - `AddMiniValidation()` extension method
 - Lightweight dependency (MiniValidation ~20KB)
@@ -277,6 +281,7 @@ services.AddSimpleMediator(cfg =>
 - Full XML documentation and PublicAPI support
 
 **Ventajas**:
+
 - Ultra-lightweight (~20KB vs 500KB FluentValidation)
 - Perfect para Minimal APIs
 - Uses Data Annotations but más minimalista
@@ -284,13 +289,25 @@ services.AddSimpleMediator(cfg =>
 
 ---
 
-#### 2. SimpleMediator.AspNetCore ⭐⭐⭐⭐⭐
+#### ✅ 2. SimpleMediator.AspNetCore ⭐⭐⭐⭐⭐
+
+**Status**: ✅ COMPLETADO
 
 **Objetivo**: Integración con ASP.NET Core (HttpContext, Authorization, Correlation IDs).
 
 **Prioridad**: CRÍTICA (esencial para APIs)
 **Complejidad**: ⭐⭐⭐ (Media)
 **Timeline**: Pre-1.0
+
+**Implementado**:
+
+- `SimpleMediatorContextMiddleware` for IRequestContext enrichment from HttpContext
+- `AuthorizationPipelineBehavior` with [Authorize] attribute support (roles, policies)
+- `ProblemDetailsExtensions` for RFC 7807 Problem Details (intelligent error mapping)
+- `IRequestContextAccessor` with AsyncLocal storage for thread-safe context access
+- Comprehensive test suite (49 tests, 100% passing)
+- Full XML documentation and PublicAPI support
+- .NET 10 compatibility with latest ASP.NET Core APIs
 
 **Funcionalidad**:
 
@@ -404,7 +421,7 @@ services.AddOpenTelemetry()
 
 ---
 
-### 🎯 Fase 2: Enterprise Features (Post-1.0)
+### 🎯 Fase 2: Enterprise Features (Pre-1.0)
 
 #### 4. SimpleMediator.EntityFrameworkCore ⭐⭐⭐⭐⭐
 
@@ -412,7 +429,7 @@ services.AddOpenTelemetry()
 
 **Prioridad**: ALTA (patrón común en aplicaciones reales)
 **Complejidad**: ⭐⭐⭐⭐ (Alta - outbox es complejo)
-**Timeline**: Post-1.0 (versión 1.1)
+**Timeline**: Pre-1.0 (versión 1.1)
 
 **Funcionalidad**:
 
@@ -478,7 +495,7 @@ services.AddSimpleMediatorTenancy<AppDbContext>(options =>
 
 **Prioridad**: ALTA (performance boost significativo)
 **Complejidad**: ⭐⭐⭐ (Media - cache invalidation es difícil)
-**Timeline**: Post-1.0 (versión 1.1)
+**Timeline**: Pre-1.0 (versión 1.1)
 
 **Funcionalidad**:
 
@@ -539,7 +556,7 @@ public record UpdateCustomerCommand(int Id, ...) : ICommand<Customer>
 
 **Prioridad**: ALTA (resiliencia)
 **Complejidad**: ⭐⭐ (Baja - wrapper de Polly)
-**Timeline**: Post-1.0 (versión 1.1)
+**Timeline**: Pre-1.0 (versión 1.1)
 
 **Funcionalidad**:
 
@@ -585,7 +602,7 @@ services.AddSimpleMediatorPolly(options =>
 
 ---
 
-### 🎯 Fase 3: Advanced (Post-1.0 - versión 1.2+)
+### 🎯 Fase 3: Advanced (Pre-1.0 - versión 1.2+)
 
 #### 7. SimpleMediator.EventSourcing
 
@@ -593,7 +610,7 @@ services.AddSimpleMediatorPolly(options =>
 
 **Prioridad**: MEDIA
 **Complejidad**: ⭐⭐⭐⭐⭐ (Muy alta)
-**Timeline**: Post-1.0 (versión 1.2+)
+**Timeline**: Pre-1.0 (versión 1.2+)
 
 **Funcionalidad**:
 
@@ -610,7 +627,7 @@ services.AddSimpleMediatorPolly(options =>
 
 **Prioridad**: MEDIA (útil para SaaS)
 **Complejidad**: ⭐⭐⭐⭐ (Alta)
-**Timeline**: Post-1.0 (versión 1.2+)
+**Timeline**: Pre-1.0 (versión 1.2+)
 
 ---
 
@@ -618,7 +635,7 @@ services.AddSimpleMediatorPolly(options =>
 
 **Pre-1.0**: Cualquier feature puede ser agregada/modificada/removida sin restricciones.
 
-**Post-1.0**:
+**Pre-1.0**:
 
 1. Crear GitHub Issue con template "Feature Request"
 2. Discusión de diseño en issue
