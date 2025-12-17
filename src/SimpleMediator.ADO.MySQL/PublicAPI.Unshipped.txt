@@ -1,0 +1,128 @@
+#nullable enable
+SimpleMediator.ADO.MySQL.Inbox.IIdempotentRequest
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.ErrorMessage.get -> string?
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.ErrorMessage.set -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.ExpiresAtUtc.get -> System.DateTime
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.ExpiresAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.InboxMessage() -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.IsExpired() -> bool
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.IsProcessed.get -> bool
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.MessageId.get -> string!
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.MessageId.set -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.Metadata.get -> string?
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.Metadata.set -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.NextRetryAtUtc.get -> System.DateTime?
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.NextRetryAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.ProcessedAtUtc.get -> System.DateTime?
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.ProcessedAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.ReceivedAtUtc.get -> System.DateTime
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.ReceivedAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.RequestType.get -> string!
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.RequestType.set -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.Response.get -> string?
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.Response.set -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.RetryCount.get -> int
+SimpleMediator.ADO.MySQL.Inbox.InboxMessage.RetryCount.set -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxPipelineBehavior<TRequest, TResponse>
+SimpleMediator.ADO.MySQL.Inbox.InboxPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, SimpleMediator.IRequestContext! context, SimpleMediator.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<SimpleMediator.MediatorError, TResponse>>
+SimpleMediator.ADO.MySQL.Inbox.InboxPipelineBehavior<TRequest, TResponse>.InboxPipelineBehavior(SimpleMediator.Messaging.Inbox.IInboxStore! inboxStore, SimpleMediator.Messaging.Inbox.InboxOptions! options, Microsoft.Extensions.Logging.ILogger<SimpleMediator.ADO.MySQL.Inbox.InboxPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxStoreADO
+SimpleMediator.ADO.MySQL.Inbox.InboxStoreADO.AddAsync(SimpleMediator.Messaging.Inbox.IInboxMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.ADO.MySQL.Inbox.InboxStoreADO.GetExpiredMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<SimpleMediator.Messaging.Inbox.IInboxMessage!>!>!
+SimpleMediator.ADO.MySQL.Inbox.InboxStoreADO.GetMessageAsync(string! messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<SimpleMediator.Messaging.Inbox.IInboxMessage?>!
+SimpleMediator.ADO.MySQL.Inbox.InboxStoreADO.InboxStoreADO(System.Data.IDbConnection! connection, string! tableName = "InboxMessages") -> void
+SimpleMediator.ADO.MySQL.Inbox.InboxStoreADO.MarkAsFailedAsync(string! messageId, string! errorMessage, System.DateTime? nextRetryAt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.ADO.MySQL.Inbox.InboxStoreADO.MarkAsProcessedAsync(string! messageId, string? response, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.ADO.MySQL.Inbox.InboxStoreADO.RemoveExpiredMessagesAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.ADO.MySQL.Inbox.InboxStoreADO.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.ADO.MySQL.Outbox.IHasNotifications
+SimpleMediator.ADO.MySQL.Outbox.IHasNotifications.GetNotifications() -> System.Collections.Generic.IEnumerable<SimpleMediator.INotification!>!
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.Content.get -> string!
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.Content.set -> void
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.CreatedAtUtc.get -> System.DateTime
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.CreatedAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.ErrorMessage.get -> string?
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.ErrorMessage.set -> void
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.Id.get -> System.Guid
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.Id.set -> void
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.IsDeadLettered(int maxRetries) -> bool
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.IsProcessed.get -> bool
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.NextRetryAtUtc.get -> System.DateTime?
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.NextRetryAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.NotificationType.get -> string!
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.NotificationType.set -> void
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.OutboxMessage() -> void
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.ProcessedAtUtc.get -> System.DateTime?
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.ProcessedAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.RetryCount.get -> int
+SimpleMediator.ADO.MySQL.Outbox.OutboxMessage.RetryCount.set -> void
+SimpleMediator.ADO.MySQL.Outbox.OutboxPostProcessor<TRequest, TResponse>
+SimpleMediator.ADO.MySQL.Outbox.OutboxPostProcessor<TRequest, TResponse>.OutboxPostProcessor(SimpleMediator.Messaging.Outbox.IOutboxStore! outboxStore, Microsoft.Extensions.Logging.ILogger<SimpleMediator.ADO.MySQL.Outbox.OutboxPostProcessor<TRequest, TResponse>!>! logger) -> void
+SimpleMediator.ADO.MySQL.Outbox.OutboxPostProcessor<TRequest, TResponse>.Process(TRequest request, SimpleMediator.IRequestContext! context, LanguageExt.Either<SimpleMediator.MediatorError, TResponse> result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+SimpleMediator.ADO.MySQL.Outbox.OutboxProcessor
+SimpleMediator.ADO.MySQL.Outbox.OutboxProcessor.OutboxProcessor(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<SimpleMediator.ADO.MySQL.Outbox.OutboxProcessor!>! logger, SimpleMediator.Messaging.Outbox.OutboxOptions! options) -> void
+SimpleMediator.ADO.MySQL.Outbox.OutboxStoreADO
+SimpleMediator.ADO.MySQL.Outbox.OutboxStoreADO.AddAsync(SimpleMediator.Messaging.Outbox.IOutboxMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.ADO.MySQL.Outbox.OutboxStoreADO.GetPendingMessagesAsync(int batchSize, int maxRetries, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<SimpleMediator.Messaging.Outbox.IOutboxMessage!>!>!
+SimpleMediator.ADO.MySQL.Outbox.OutboxStoreADO.MarkAsFailedAsync(System.Guid messageId, string! errorMessage, System.DateTime? nextRetryAt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.ADO.MySQL.Outbox.OutboxStoreADO.MarkAsProcessedAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.ADO.MySQL.Outbox.OutboxStoreADO.OutboxStoreADO(System.Data.IDbConnection! connection, string! tableName = "OutboxMessages") -> void
+SimpleMediator.ADO.MySQL.Outbox.OutboxStoreADO.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.ADO.MySQL.Sagas.SagaState
+SimpleMediator.ADO.MySQL.Sagas.SagaState.CompletedAtUtc.get -> System.DateTime?
+SimpleMediator.ADO.MySQL.Sagas.SagaState.CompletedAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Sagas.SagaState.CurrentStep.get -> int
+SimpleMediator.ADO.MySQL.Sagas.SagaState.CurrentStep.set -> void
+SimpleMediator.ADO.MySQL.Sagas.SagaState.Data.get -> string!
+SimpleMediator.ADO.MySQL.Sagas.SagaState.Data.set -> void
+SimpleMediator.ADO.MySQL.Sagas.SagaState.ErrorMessage.get -> string?
+SimpleMediator.ADO.MySQL.Sagas.SagaState.ErrorMessage.set -> void
+SimpleMediator.ADO.MySQL.Sagas.SagaState.LastUpdatedAtUtc.get -> System.DateTime
+SimpleMediator.ADO.MySQL.Sagas.SagaState.LastUpdatedAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Sagas.SagaState.SagaId.get -> System.Guid
+SimpleMediator.ADO.MySQL.Sagas.SagaState.SagaId.set -> void
+SimpleMediator.ADO.MySQL.Sagas.SagaState.SagaState() -> void
+SimpleMediator.ADO.MySQL.Sagas.SagaState.SagaType.get -> string!
+SimpleMediator.ADO.MySQL.Sagas.SagaState.SagaType.set -> void
+SimpleMediator.ADO.MySQL.Sagas.SagaState.StartedAtUtc.get -> System.DateTime
+SimpleMediator.ADO.MySQL.Sagas.SagaState.StartedAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Sagas.SagaState.Status.get -> string!
+SimpleMediator.ADO.MySQL.Sagas.SagaState.Status.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.Content.get -> string!
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.Content.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.CreatedAtUtc.get -> System.DateTime
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.CreatedAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.CronExpression.get -> string?
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.CronExpression.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.ErrorMessage.get -> string?
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.ErrorMessage.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.Id.get -> System.Guid
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.Id.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.IsDeadLettered(int maxRetries) -> bool
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.IsDue() -> bool
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.IsProcessed.get -> bool
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.IsRecurring.get -> bool
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.IsRecurring.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.LastExecutedAtUtc.get -> System.DateTime?
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.LastExecutedAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.NextRetryAtUtc.get -> System.DateTime?
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.NextRetryAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.ProcessedAtUtc.get -> System.DateTime?
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.ProcessedAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.RequestType.get -> string!
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.RequestType.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.RetryCount.get -> int
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.RetryCount.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.ScheduledAtUtc.get -> System.DateTime
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.ScheduledAtUtc.set -> void
+SimpleMediator.ADO.MySQL.Scheduling.ScheduledMessage.ScheduledMessage() -> void
+SimpleMediator.ADO.MySQL.ServiceCollectionExtensions
+SimpleMediator.ADO.MySQL.TransactionPipelineBehavior<TRequest, TResponse>
+SimpleMediator.ADO.MySQL.TransactionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, SimpleMediator.IRequestContext! context, SimpleMediator.RequestHandlerCallback<TResponse>! next, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<SimpleMediator.MediatorError, TResponse>>
+SimpleMediator.ADO.MySQL.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(System.Data.IDbConnection! connection) -> void
+static SimpleMediator.ADO.MySQL.ServiceCollectionExtensions.AddSimpleMediatorADO(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<SimpleMediator.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static SimpleMediator.ADO.MySQL.ServiceCollectionExtensions.AddSimpleMediatorADO(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<SimpleMediator.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static SimpleMediator.ADO.MySQL.ServiceCollectionExtensions.AddSimpleMediatorADO(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, System.Data.IDbConnection!>! connectionFactory, System.Action<SimpleMediator.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
