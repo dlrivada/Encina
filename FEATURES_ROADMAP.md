@@ -646,7 +646,8 @@ services.AddSimpleMediatorPolly(options =>
 - `SimpleMediator.Dapper.SqlServer` - SQL Server (COMPLETED 2025-12-18)
 - `SimpleMediator.Dapper.PostgreSQL` - PostgreSQL (COMPLETED 2025-12-18)
 - `SimpleMediator.Dapper.MySQL` - MySQL/MariaDB (COMPLETED 2025-12-18)
-ánimo de las relacionales sólo tequeda SQLLite y Oracle- `SimpleMediator.Dapper.Sqlite` - SQLite (PLANNED)
+- `SimpleMediator.Dapper.Sqlite` - SQLite (COMPLETED 2025-12-18)
+- `SimpleMediator.Dapper.Oracle` - Oracle Database (PLANNED)
 
 ---
 
@@ -677,7 +678,8 @@ services.AddSimpleMediatorPolly(options =>
 - `SimpleMediator.ADO.SqlServer` - SQL Server (COMPLETED 2025-12-18)
 - `SimpleMediator.ADO.PostgreSQL` - PostgreSQL (COMPLETED 2025-12-18)
 - `SimpleMediator.ADO.MySQL` - MySQL/MariaDB (COMPLETED 2025-12-18)
-- `SimpleMediator.ADO.Sqlite` - SQLite (PLANNED)
+- `SimpleMediator.ADO.Sqlite` - SQLite (COMPLETED 2025-12-18)
+- `SimpleMediator.ADO.Oracle` - Oracle Database (PLANNED)
 
 ---
 
@@ -795,7 +797,8 @@ await _scheduler.ScheduleRequest<ProcessPaymentCommand, Receipt>(
 - ✅ SQL Server implementations completed (Dapper.SqlServer, ADO.SqlServer)
 - ✅ PostgreSQL implementations completed (Dapper.PostgreSQL, ADO.PostgreSQL) - 2025-12-18
 - ✅ MySQL/MariaDB implementations completed (Dapper.MySQL, ADO.MySQL) - 2025-12-18
-- ⏳ SQLite implementation (PLANNED - would complete relational DB coverage)
+- ✅ SQLite implementations completed (Dapper.Sqlite, ADO.Sqlite) - 2025-12-18
+- ⏳ Oracle implementation (PLANNED - enterprise database coverage)
 
 **Problem Statement**:
 
@@ -914,6 +917,7 @@ SimpleMediator.Cassandra/          # Distributed event log
 | **SQL Server** | SimpleMediator.Dapper.SqlServer | SimpleMediator.ADO.SqlServer | GETUTCDATE(), TOP N, UNIQUEIDENTIFIER |
 | **PostgreSQL** | SimpleMediator.Dapper.PostgreSQL | SimpleMediator.ADO.PostgreSQL | NOW() AT TIME ZONE 'UTC', LIMIT N, UUID |
 | **MySQL/MariaDB** | SimpleMediator.Dapper.MySQL | SimpleMediator.ADO.MySQL | UTC_TIMESTAMP(), LIMIT N, CHAR(36) |
+| **SQLite** | SimpleMediator.Dapper.Sqlite | SimpleMediator.ADO.Sqlite | datetime('now'), LIMIT N, TEXT (GUID as string) |
 
 All providers support:
 - ✅ Outbox Pattern (reliable event publishing)
@@ -925,20 +929,21 @@ All providers support:
 
 **SQL Dialect Translation Matrix**:
 
-| Feature | SQL Server | PostgreSQL | MySQL/MariaDB |
-|---------|-----------|------------|---------------|
-| UTC Timestamp | `GETUTCDATE()` | `NOW() AT TIME ZONE 'UTC'` | `UTC_TIMESTAMP()` |
-| Result Limit | `TOP N` | `LIMIT N` | `LIMIT N` |
-| GUID Type | `UNIQUEIDENTIFIER` | `UUID` | `CHAR(36)` |
-| Large Text | `NVARCHAR(MAX)` | `TEXT` | `TEXT` |
-| DateTime | `DATETIME2(7)` | `TIMESTAMP` | `DATETIME(6)` |
+| Feature | SQL Server | PostgreSQL | MySQL/MariaDB | SQLite |
+|---------|-----------|------------|---------------|--------|
+| UTC Timestamp | `GETUTCDATE()` | `NOW() AT TIME ZONE 'UTC'` | `UTC_TIMESTAMP()` | `datetime('now')` |
+| Result Limit | `TOP N` | `LIMIT N` | `LIMIT N` | `LIMIT N` |
+| GUID Type | `UNIQUEIDENTIFIER` | `UUID` | `CHAR(36)` | `TEXT` |
+| Large Text | `NVARCHAR(MAX)` | `TEXT` | `TEXT` | `TEXT` |
+| DateTime | `DATETIME2(7)` | `TIMESTAMP` | `DATETIME(6)` | `TEXT (ISO8601)` |
 
 **Package Dependencies**:
 - SQL Server: `Microsoft.Data.SqlClient 6.0.2`
 - PostgreSQL: `Npgsql 9.0.2`
 - MySQL: `MySqlConnector 2.4.0`
+- SQLite: `Microsoft.Data.Sqlite 10.0.1`
 
-**Next Step**: SQLite implementation would complete relational database coverage.
+**Status**: ✅ **All major relational databases supported!** Oracle remains as optional enterprise coverage.
 
 ---
 
