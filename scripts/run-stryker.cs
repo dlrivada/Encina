@@ -14,6 +14,7 @@ try
 
     Console.WriteLine($"Executing Stryker mutation analysis (build configuration: {configuration})...");
 
+    var outputPath = Path.Combine(repositoryRoot, "artifacts", "mutation");
     var strykerArguments = new List<string>
     {
         "tool",
@@ -21,6 +22,8 @@ try
         "dotnet-stryker",
         "--config-file",
         Path.Combine(repositoryRoot, "stryker-config.json"),
+        "--output",
+        outputPath,
         "--verbosity",
         "info"
     };
