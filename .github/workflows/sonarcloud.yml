@@ -41,7 +41,7 @@ jobs:
           sonarProjectName: SimpleMediator
           sonarOrganization: dlrivada
           dotnetBuildArguments: SimpleMediator.slnx --configuration Release
-          dotnetTestArguments: SimpleMediator.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --filter "FullyQualifiedName!~SimpleMediator.Dapper.SqlServer.Tests" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+          dotnetTestArguments: SimpleMediator.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
           sonarBeginArguments: /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" /d:sonar.coverage.exclusions="**/tests/**,**/benchmarks/**,**/load/**"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
