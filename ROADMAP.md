@@ -15,7 +15,6 @@
 - [Strategic Initiatives](#strategic-initiatives)
 - [Quality & Security](#quality--security)
 - [Not Implementing](#not-implementing)
-- [Timeline to 1.0](#timeline-to-10)
 
 ---
 
@@ -58,6 +57,7 @@ SimpleMediator (future: **Encina Framework**) aspires to be the functional media
 ### Test Status: 385 Tests Passing
 
 **Core Tests**: 225/225 passing (10 skipped for Pure ROP)
+
 - SimpleMediator.Tests: 194 tests
 - AspNetCore.Tests: 49 tests
 - FluentValidation.Tests: 18 tests
@@ -70,6 +70,7 @@ SimpleMediator (future: **Encina Framework**) aspires to be the functional media
 - Quartz.Tests: 18 tests
 
 **Database Provider Tests**: 160/160 passing
+
 - Dapper.Tests: 8 tests (using SQLite provider)
 - Dapper.SqlServer.Tests: pending migration
 - All other provider tests: covered by integration scenarios
@@ -149,10 +150,12 @@ SimpleMediator.Core/              # Core mediator (ROP, pipelines)
 ### ✅ Phase 1: Core & Validation (COMPLETED)
 
 #### SimpleMediator Core
+
 **Status**: ✅ Production Ready
 **Tests**: 194/194 passing
 
 **Features**:
+
 - Pure Railway Oriented Programming with `Either<MediatorError, T>`
 - Request/Notification dispatch with Expression tree compilation
 - Pipeline pattern (Behaviors, PreProcessors, PostProcessors)
@@ -163,10 +166,12 @@ SimpleMediator.Core/              # Core mediator (ROP, pipelines)
 - PublicAPI Analyzers compliance (107 public symbols documented)
 
 #### SimpleMediator.FluentValidation
+
 **Status**: ✅ Production Ready
 **Tests**: 18/18 passing
 
 **Features**:
+
 - Automatic validation before handler execution
 - ROP integration with `Either<MediatorError, T>`
 - Context enrichment (CorrelationId, UserId, TenantId)
@@ -174,30 +179,36 @@ SimpleMediator.Core/              # Core mediator (ROP, pipelines)
 - Comprehensive error metadata
 
 #### SimpleMediator.DataAnnotations
+
 **Status**: ✅ Production Ready
 **Tests**: 10/10 passing
 
 **Features**:
+
 - Zero external dependencies (built-in .NET)
 - Declarative attributes on properties
 - Perfect for prototypes and simple apps
 - Compatible with legacy code
 
 #### SimpleMediator.MiniValidator
+
 **Status**: ✅ Production Ready
 **Tests**: 10/10 passing
 
 **Features**:
+
 - Ultra-lightweight (~20KB vs 500KB FluentValidation)
 - Perfect for Minimal APIs
 - Uses Data Annotations under the hood
 - Growing trend in the community
 
 #### SimpleMediator.GuardClauses
+
 **Status**: ✅ Production Ready
 **Tests**: 262 passing
 
 **Features**:
+
 - Defensive programming with Ardalis.GuardClauses
 - Automatic MediatorError generation
 - ROP-friendly API
@@ -208,10 +219,12 @@ SimpleMediator.Core/              # Core mediator (ROP, pipelines)
 ### ✅ Phase 2: Web & Messaging (COMPLETED)
 
 #### SimpleMediator.AspNetCore
+
 **Status**: ✅ Production Ready
 **Tests**: 49/49 passing
 
 **Features**:
+
 - SimpleMediatorContextMiddleware for IRequestContext enrichment
 - AuthorizationPipelineBehavior with [Authorize] attribute support
 - ProblemDetailsExtensions for RFC 7807 (intelligent error mapping)
@@ -219,20 +232,24 @@ SimpleMediator.Core/              # Core mediator (ROP, pipelines)
 - .NET 10 compatibility
 
 #### SimpleMediator.Messaging (Abstractions)
+
 **Status**: ✅ Production Ready
 **Tests**: Covered by implementations
 
 **Features**:
+
 - IOutboxStore, IInboxStore, ISagaStore, IScheduledMessageStore interfaces
 - OutboxOptions, InboxOptions, SagaOptions, SchedulingOptions configuration
 - MessagingConfiguration for provider-agnostic setup
 - Shared entities and patterns
 
 #### SimpleMediator.EntityFrameworkCore
+
 **Status**: ✅ Production Ready
 **Tests**: 33/33 passing
 
 **Features**:
+
 - TransactionPipelineBehavior for automatic transaction management
 - Outbox pattern (reliable event publishing, at-least-once delivery)
 - Inbox pattern (idempotent processing, exactly-once semantics)
@@ -245,10 +262,12 @@ SimpleMediator.Core/              # Core mediator (ROP, pipelines)
 ### ✅ Phase 3: Job Scheduling (COMPLETED)
 
 #### SimpleMediator.Hangfire
+
 **Status**: ✅ Production Ready
 **Tests**: 15/15 passing
 
 **Features**:
+
 - Fire-and-forget job execution
 - Delayed job execution (schedule for later)
 - Recurring jobs with CRON expressions
@@ -257,10 +276,12 @@ SimpleMediator.Core/              # Core mediator (ROP, pipelines)
 - Simple setup, great for basic scenarios
 
 #### SimpleMediator.Quartz
+
 **Status**: ✅ Production Ready
 **Tests**: 18/18 passing
 
 **Features**:
+
 - Advanced CRON expression support
 - Clustering and persistent storage configuration
 - Misfire handling and concurrent execution control
@@ -298,6 +319,7 @@ All 10 database provider packages completed and tested:
 | **Oracle** | SimpleMediator.Dapper.Oracle | SimpleMediator.ADO.Oracle | SYS_EXTRACT_UTC(SYSTIMESTAMP), FETCH FIRST N ROWS ONLY, RAW(16) |
 
 All providers support:
+
 - ✅ Outbox Pattern (reliable event publishing)
 - ✅ Inbox Pattern (idempotent processing)
 - ✅ Saga Orchestration (distributed transactions)
@@ -306,6 +328,7 @@ All providers support:
 - ✅ PublicAPI Analyzers compliance
 
 **Package Dependencies**:
+
 - SQL Server: `Microsoft.Data.SqlClient 6.0.2`
 - PostgreSQL: `Npgsql 9.0.2`
 - MySQL: `MySqlConnector 2.4.0`
@@ -313,6 +336,7 @@ All providers support:
 - Oracle: `Oracle.ManagedDataAccess.Core 23.7.0`
 
 **Performance** (ADO.NET vs Dapper vs EF Core):
+
 - ADO.NET: 63ms (baseline - fastest)
 - Dapper: 100ms (1.59x slower)
 - EF Core: 180ms (2.86x slower)
@@ -326,6 +350,7 @@ All providers support:
 **Current Status**: Good coverage but needs polishing
 
 **Pending Tasks**:
+
 1. **Main README.md Enhancement**
    - Add comprehensive feature showcase
    - Include performance benchmarks comparison
@@ -362,18 +387,50 @@ All providers support:
 
 ---
 
-## Planned Features
+## Planned Features (Pre-1.0 Only)
 
-### 🎯 Pre-1.0 Features (Version 1.1-1.2)
+**IMPORTANT**: All features below are for BEFORE 1.0 release. No post-1.0 plans exist yet. Strategic initiatives (parallel execution, framework renaming) will be completed just before 1.0 release.
 
-#### 1. Stream Requests (IAsyncEnumerable Support)
+### 🎯 Critical Priorities
+
+#### 1. SimpleMediator.OpenTelemetry (CRITICAL - Observability)
+
+**Priority**: ⭐⭐⭐⭐⭐ (Critical)
+**Complexity**: ⭐⭐⭐ (Medium)
+
+**Objective**: Advanced observability with OpenTelemetry for production-ready monitoring.
+
+**Features**:
+
+```csharp
+services.AddOpenTelemetry()
+    .WithTracing(builder => builder
+        .AddSimpleMediatorInstrumentation()
+        .AddJaegerExporter())
+    .WithMetrics(builder => builder
+        .AddSimpleMediatorInstrumentation()
+        .AddPrometheusExporter());
+```
+
+**Automatic Instrumentation**:
+
+- Distributed traces with W3C TraceContext
+- Spans per request/behavior/handler
+- Metrics (duration, error rate, throughput)
+- Structured logging with correlation
+- Baggage propagation for custom context
+
+---
+
+#### 2. Stream Requests (IAsyncEnumerable Support)
+
 **Priority**: ⭐⭐⭐⭐ (High)
 **Complexity**: ⭐⭐⭐ (Medium)
-**Timeline**: Version 1.1
 
 **Objective**: Support for `IAsyncEnumerable<T>` in large queries or real-time scenarios.
 
 **Use Cases**:
+
 - Large queries with implicit pagination (millions of records)
 - Real-time/Server-Sent Events (SSE) scenarios
 - gRPC streaming in microservices
@@ -418,6 +475,7 @@ public class StreamLoggingBehavior<TRequest, TItem> : IStreamPipelineBehavior<TR
 ```
 
 **Challenges**:
+
 - Behaviors must intercept streams (more complex than regular requests)
 - Error handling: What to do if an item fails? (yield Left or cancel all)
 - Observability: tracking processed items, backpressure
@@ -425,37 +483,10 @@ public class StreamLoggingBehavior<TRequest, TItem> : IStreamPipelineBehavior<TR
 
 ---
 
-#### 2. SimpleMediator.OpenTelemetry
-**Priority**: ⭐⭐⭐⭐⭐ (Critical)
-**Complexity**: ⭐⭐⭐ (Medium)
-**Timeline**: Version 1.1
-
-**Objective**: Advanced observability with OpenTelemetry.
-
-**Features**:
-```csharp
-services.AddOpenTelemetry()
-    .WithTracing(builder => builder
-        .AddSimpleMediatorInstrumentation()
-        .AddJaegerExporter())
-    .WithMetrics(builder => builder
-        .AddSimpleMediatorInstrumentation()
-        .AddPrometheusExporter());
-```
-
-**Automatic Instrumentation**:
-- Distributed traces with W3C TraceContext
-- Spans per request/behavior/handler
-- Metrics (duration, error rate, throughput)
-- Structured logging with correlation
-- Baggage propagation for custom context
-
----
-
 #### 3. SimpleMediator.Caching
+
 **Priority**: ⭐⭐⭐⭐ (High)
 **Complexity**: ⭐⭐⭐ (Medium)
-**Timeline**: Version 1.2
 
 **Objective**: Query result caching and idempotency.
 
@@ -477,6 +508,7 @@ public record UpdateCustomerCommand(int Id, ...) : ICommand<Customer>;
 ```
 
 **Implementation**:
+
 - Uses IDistributedCache (Redis, InMemory, etc.)
 - Serialization with System.Text.Json
 - Key interpolation with expressions
@@ -485,9 +517,9 @@ public record UpdateCustomerCommand(int Id, ...) : ICommand<Customer>;
 ---
 
 #### 4. SimpleMediator.Polly
+
 **Priority**: ⭐⭐⭐⭐ (High)
 **Complexity**: ⭐⭐ (Low - wrapper around Polly)
-**Timeline**: Version 1.2
 
 **Objective**: Retry policies and circuit breakers.
 
@@ -510,23 +542,15 @@ services.AddSimpleMediatorPolly(options =>
 
 ---
 
-### 🎯 Post-1.0 Features (Version 2.0+)
+### 🎯 Additional Database Providers
 
-#### 5. NoSQL Providers
-**Priority**: ⭐⭐⭐⭐ (High for Redis, Medium for others)
-**Timeline**: Version 2.0
+#### 5. Redis Provider (CRITICAL - Caching + Pub/Sub)
 
-**Planned Providers**:
+**Priority**: ⭐⭐⭐⭐⭐ (Critical)
+**Complexity**: ⭐⭐⭐⭐ (High)
 
-| Database | Use Case | Priority |
-|----------|----------|----------|
-| **Redis** | Caching, pub/sub, distributed locks | ⭐⭐⭐⭐⭐ HIGH |
-| **EventStoreDB** | Event sourcing | ⭐⭐⭐⭐ MEDIUM |
-| **Marten** | PostgreSQL event sourcing | ⭐⭐⭐⭐ MEDIUM |
-| **MongoDB** | Document-based messaging | ⭐⭐⭐ LOW |
-| **Cassandra** | Massive scale event log | ⭐⭐ VERY LOW |
+**Features**:
 
-**Redis Package Features**:
 - Ultra-fast caching for query results
 - Pub/sub for notification broadcast
 - Distributed locks for idempotency
@@ -534,56 +558,170 @@ services.AddSimpleMediatorPolly(options =>
 
 ---
 
-#### 6. Legacy Database Support (ODBC)
-**Priority**: ⭐⭐⭐ (Low - niche use case)
-**Timeline**: On demand
+#### 6. ODBC Provider (Legacy Database Support)
+
+**Priority**: ⭐⭐⭐ (Medium - enterprise integration)
+**Complexity**: ⭐⭐⭐ (Medium)
 
 **Target Databases**:
-- IBM DB2 (legacy)
+
+- IBM DB2 (legacy enterprise systems)
 - Informix
 - Progress/OpenEdge
 - Firebird (legacy environments)
 
-**Note**: Only implement if there's real user demand. Most legacy systems can use direct providers.
-
 ---
 
+### 🎯 Event Sourcing & Advanced Patterns
+
 #### 7. Event Sourcing Package
-**Priority**: ⭐⭐⭐⭐ (Medium)
+
+**Priority**: ⭐⭐⭐⭐ (High - architectural pattern)
 **Complexity**: ⭐⭐⭐⭐⭐ (Very High)
-**Timeline**: Version 2.0+
 
 **Features**:
+
 - Event store integration (EventStoreDB, Marten)
 - Aggregate pattern with event sourcing
 - Projection handlers
 - Snapshot support
+- Event versioning strategies
+
+**Providers to Support**:
+- EventStoreDB (dedicated event store)
+- Marten (PostgreSQL event sourcing)
+- MongoDB (document-based event store)
 
 ---
 
-#### 8. Advanced Multi-tenancy
-**Priority**: ⭐⭐⭐ (Medium - useful for SaaS)
+### 🎯 Core Improvements (Before Other Features)
+
+#### 8. Refactor SimpleMediator.Publish with Guards
+
+**Priority**: ⭐⭐⭐⭐ (High - code quality)
+**Complexity**: ⭐⭐ (Low)
+
+**Objective**: Apply same guard clause pattern used in Send to Publish method.
+
+**Rationale**: Consistency across codebase, defensive programming.
+
+---
+
+#### 9. Optimize Delegate Caches
+
+**Priority**: ⭐⭐⭐⭐ (High - performance)
+**Complexity**: ⭐⭐⭐ (Medium)
+
+**Objective**: Minimize reflection and boxing in hot paths.
+
+**Techniques**:
+- Apply `CollectionsMarshal.AsSpan` for performance
+- Reduce allocations in handler resolution
+- Optimize expression tree compilation
+
+---
+
+#### 10. Replace `object? Details` with `ImmutableDictionary<string, object?>`
+
+**Priority**: ⭐⭐⭐ (Medium - type safety)
+**Complexity**: ⭐⭐⭐ (Medium)
+
+**Objective**: Improve type safety and immutability in error details.
+
+---
+
+### 🎯 Testing Excellence (Critical for Production)
+
+#### 11. Amplify Property-Based Testing
+
+**Priority**: ⭐⭐⭐⭐⭐ (Critical)
 **Complexity**: ⭐⭐⭐⭐ (High)
-**Timeline**: Version 2.0+
 
-**Features**:
-- Tenant-specific databases
-- Tenant-specific schemas
-- Tenant-specific connection strings
-- Automatic query filters per tenant
+**Focus Areas**:
+- Pipeline invariants (behaviors execute in order)
+- Cache behavior (expression tree compilation)
+- Error propagation through ROP chains
 
 ---
 
-## Strategic Initiatives
+#### 12. Elevate Mutation Score to ≥95%
 
-### 🔥 Parallel Execution Support (Pre-1.0 - Critical)
+**Priority**: ⭐⭐⭐⭐⭐ (Critical)
+**Complexity**: ⭐⭐⭐⭐ (High)
+**Current**: 79.75% → **Target**: ≥95%
+
+**Strategy**: Run Stryker.NET, identify surviving mutants, add tests.
+
+---
+
+#### 13. Load Testing with Strict Thresholds
+
+**Priority**: ⭐⭐⭐⭐ (High)
+**Complexity**: ⭐⭐⭐ (Medium)
+
+**Scenarios**:
+- High-throughput request processing
+- Concurrent pipeline execution
+- Memory pressure under load
+
+---
+
+#### 14. Telemetry Exhaustive Tests
+
+**Priority**: ⭐⭐⭐⭐ (High)
+**Complexity**: ⭐⭐⭐ (Medium)
+
+**Coverage**:
+- ActivitySource spans (distributed tracing)
+- Metrics collection (counters, histograms)
+- Logging correlation
+
+---
+
+### 🎯 Static Analysis & Security
+
+#### 15. Configure SONAR_TOKEN and Run First SonarCloud Scan
+
+**Priority**: ⭐⭐⭐⭐⭐ (Critical)
+**Complexity**: ⭐⭐ (Low)
+
+**Deliverables**:
+- Quality Gate passing
+- Zero code smells
+- Security vulnerabilities addressed
+
+---
+
+#### 16. Cyclomatic Complexity Analysis
+
+**Priority**: ⭐⭐⭐⭐ (High)
+**Complexity**: ⭐⭐ (Low)
+**Target**: ≤10 complexity per method
+
+---
+
+#### 17. Code Duplication Analysis
+
+**Priority**: ⭐⭐⭐⭐ (High)
+**Complexity**: ⭐⭐ (Low)
+**Target**: <3% duplication
+
+---
+
+## Strategic Initiatives (TO BE COMPLETED JUST BEFORE 1.0)
+
+**IMPORTANT**: These initiatives are essential for 1.0 but should be completed LAST, after all technical work above is done.
+
+### 🔥 Parallel Execution Support
 
 **Current State**: All execution is sequential
+
 - Request pipeline: PreProcessors → Behaviors → Handler → PostProcessors (sequential)
 - Notification handlers: Loop one by one (sequential)
 - Single request/notification stays on one thread unless handlers introduce parallelism
 
 **Multicore Usage Today**:
+
 - ✅ Multiple concurrent requests use multiple cores (via thread pool)
 - ❌ Single request/notification cannot use multiple cores (single-threaded execution)
 
@@ -617,11 +755,13 @@ if (options.Mode == PublishMode.Parallel)
 ```
 
 **Benefits**:
+
 - 🚀 Faster notification broadcast (use all CPU cores)
 - 🎯 Useful for high-throughput scenarios (IoT, real-time systems)
 - 🔧 Opt-in: backward compatible, users choose when to parallelize
 
 **Safety Considerations**:
+
 - ⚠️ Scoped services must be thread-safe if reused across parallel handlers
 - ⚠️ Ordering guarantees become weaker (can be mitigated with partitioning by key)
 - ⚠️ Failure handling: fail-fast (first error stops) vs collect-all (gather all errors)
@@ -641,6 +781,7 @@ if (options.Mode == PublishMode.Parallel)
 **Why Encina?**
 
 Encina is the Spanish word for the holm oak (Quercus ilex), a Mediterranean tree renowned for:
+
 - 💪 **Strength**: Robust and reliable foundation
 - 🌿 **Resilience**: Adapts to diverse environments
 - ⏳ **Longevity**: Endures over time, supporting rich ecosystems
@@ -648,6 +789,7 @@ Encina is the Spanish word for the holm oak (Quercus ilex), a Mediterranean tree
 Just as the encina tree anchors and nourishes its ecosystem, Encina Framework is designed to be the backbone of your applications.
 
 **Visual Identity**:
+
 - **Colors**: Green (#2E5E2A, #7A9D54) and warm brown (#8B5E3C)
 - **Logo**: Holm oak silhouette (strength and nature)
 - **Icon**: Available in SVG, PNG (32x32, 64x64, 128x128, 256x256, 512x512), ICO
@@ -724,6 +866,7 @@ Just as the encina tree anchors and nourishes its ecosystem, Encina Framework is
 ### Security & Supply Chain
 
 **Implemented**:
+
 - ✅ CodeQL scanning on every PR
 - ✅ SBOM generation workflow
 - ✅ Dependabot enabled (automatic dependency updates)
@@ -731,6 +874,7 @@ Just as the encina tree anchors and nourishes its ecosystem, Encina Framework is
 - ✅ PublicAPI Analyzers (tracks public API surface changes)
 
 **Planned**:
+
 - [ ] SLSA Level 2 compliance (provenance statements, artifact signing)
 - [ ] Automatic SBOM on every release
 - [ ] Supply chain security with Sigstore/cosign
@@ -740,24 +884,29 @@ Just as the encina tree anchors and nourishes its ecosystem, Encina Framework is
 ### Continuous Improvement
 
 **Daily**:
+
 - Verify CI/CD pipelines are green
 - Monitor for security alerts
 
 **Weekly**:
+
 - Review quality metrics (coverage, mutation, SonarCloud)
 - Triage new issues and PRs
 
 **Monthly**:
+
 - Audit dependencies
 - Update roadmap based on feedback
 - Review performance benchmarks
 
 **Quarterly**:
+
 - Audit workflows and permissions
 - Plan next phases
 - Review architecture decisions
 
 **Per Release**:
+
 - Validate all quality gates pass
 - Generate and publish SBOM
 - Publish detailed changelog
@@ -810,66 +959,23 @@ Just as the encina tree anchors and nourishes its ecosystem, Encina Framework is
 
 ---
 
-## Timeline to 1.0
-
-### Sprint 1 (Current - Documentation & Polishing)
-**Duration**: 2 weeks
-**Focus**: Documentation, quality metrics, final touches
-
-- [ ] Complete API documentation with DocFX (deploy to GitHub Pages)
-- [ ] Write comparison guides (databases, job schedulers, validation)
-- [ ] Improve main README with feature showcase
-- [ ] Run first SonarCloud scan and address findings
-- [ ] Create migration guide for MediatR users
-
-### Sprint 2 (Parallel Execution)
-**Duration**: 2 weeks
-**Focus**: Implement opt-in parallel notification dispatch
-
-- [ ] Implement PublishOptions with PublishMode enum
-- [ ] Add DegreeOfParallelism configuration
-- [ ] Write comprehensive tests for parallel execution
-- [ ] Document thread-safety requirements for scoped services
-- [ ] Update metrics to track parallel execution
-
-### Sprint 3 (Framework Renaming)
-**Duration**: 1 week
-**Focus**: Complete renaming to Encina Framework
-
-- [ ] Execute all items in renaming checklist
-- [ ] Update all namespaces and package names
-- [ ] Register new packages on NuGet.org
-- [ ] Publish migration guide
-- [ ] Announce the change
-
-### Sprint 4 (Final Polish & Release)
-**Duration**: 1 week
-**Focus**: Final validation and 1.0 release
-
-- [ ] Validate all 385 tests passing
-- [ ] Verify all quality metrics meet targets
-- [ ] Final documentation review
-- [ ] Performance benchmark validation
-- [ ] Publish 1.0 release
-- [ ] Announce publicly
-
-**Target 1.0 Release Date**: ~6 weeks from now (early February 2025)
-
----
-
 ## Feature Requests & Contributions
 
 ### Pre-1.0 Policy
+
 Any feature can be added/modified/removed without restrictions. This is the time for experimentation and finding the best design.
 
 ### Post-1.0 Policy
+
 1. Create GitHub Issue with "Feature Request" template
 2. Discussion of design in issue
 3. If breaking change: mark for next major version
 4. If non-breaking: can go in minor/patch
 
 ### Contributing
+
 See `CONTRIBUTING.md` for:
+
 - Code style guidelines
 - ROP and zero-exceptions policy
 - Testing requirements (≥90% coverage)
@@ -881,17 +987,20 @@ See `CONTRIBUTING.md` for:
 ## References
 
 ### Inspiration
+
 - [MediatR](https://github.com/jbogard/MediatR) - Original inspiration
 - [Wolverine](https://wolverine.netlify.app/) - Messaging patterns
 - [Kommand](https://github.com/NicoJuicy/Kommand) - CQRS patterns
 - [NestJS](https://nestjs.com/) - Philosophy of "framework handles plumbing"
 
 ### Concepts
+
 - [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/) - Scott Wlaschin
 - [Functional Error Handling](https://github.com/louthy/language-ext) - LanguageExt
 - [CQRS Pattern](https://martinfowler.com/bliki/CQRS.html) - Martin Fowler
 
 ### Tools & Standards
+
 - [Conventional Commits](https://www.conventionalcommits.org/)
 - [SLSA Framework](https://slsa.dev/)
 - [SonarCloud Quality Gates](https://docs.sonarcloud.io/improving/quality-gates/)
