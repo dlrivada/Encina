@@ -8,12 +8,48 @@ using System.Text.Json;
 
 var reportPath = args.Length > 0
     ? args[0]
-    : Path.Combine("StrykerOutput", "2025-12-07.22-45-26", "reports", "mutation-report.json");
+    : ResolveDefaultReportPath();
 
 if (!File.Exists(reportPath))
 {
     Console.Error.WriteLine($"No pude encontrar el archivo de reporte en '{reportPath}'.");
     return;
+}
+
+static string ResolveDefaultReportPath()
+{
+    var candidateRoots = new[]
+    {
+        Path.Combine("artifacts", "mutation", "StrykerOutput"),
+        "StrykerOutput"
+    };
+
+    foreach (var root in candidateRoots)
+    {
+        if (!Directory.Exists(root))
+        {
+            continue;
+        }
+
+        var latest = Directory
+            .EnumerateDirectories(root)
+            .OrderByDescending(path => path)
+            .FirstOrDefault();
+
+        if (latest is null)
+        {
+            continue;
+        }
+
+        var candidate = Path.Combine(latest, "reports", "mutation-report.json");
+        if (File.Exists(candidate))
+        {
+            return candidate;
+        }
+    }
+
+    // Legacy fallback so the caller still gets a meaningful error message.
+    return Path.Combine("artifacts", "mutation", "StrykerOutput", "latest", "reports", "mutation-report.json");
 }
 
 using var document = JsonDocument.Parse(File.ReadAllText(reportPath));

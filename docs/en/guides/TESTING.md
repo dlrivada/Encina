@@ -55,7 +55,7 @@ Run the Stryker.NET sweep through the single-file helper to keep tooling consist
 dotnet run --file scripts/run-stryker.cs
 ```
 
-Reports land under the timestamped folder in `StrykerOutput/` alongside HTML and JSON summaries. The latest full run (2025-12-08) killed 449 mutants, left 2 survivors, and reached a 93.74% score while keeping the README badge at 90% line coverage.
+Reports land under the timestamped folder in `artifacts/mutation/StrykerOutput/` alongside HTML and JSON summaries. The latest full run (2025-12-08) killed 449 mutants, left 2 survivors, and reached a 93.74% score while keeping the README badge at 90% line coverage.
 
 Refresh the mutation badge and surface the latest totals right after Stryker completes:
 
@@ -67,7 +67,7 @@ The helper consumes the newest `mutation-report.json`, writes a concise summary 
 
 ### Refreshing the Mutation Badge Locally
 
-1. Run `dotnet run --file scripts/run-stryker.cs` from the repository root to generate the latest mutation report under `StrykerOutput/`.
+1. Run `dotnet run --file scripts/run-stryker.cs` from the repository root to generate the latest mutation report under `artifacts/mutation/StrykerOutput/`.
 2. Execute `dotnet run --file scripts/update-mutation-summary.cs` so the README badge and `mutation-report.txt` reflect the new score.
 3. Review the console summary and stage the updated badge, report, and any touched docs before opening a pull request.
 

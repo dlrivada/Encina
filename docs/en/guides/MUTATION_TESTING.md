@@ -20,7 +20,7 @@
 
 ## Reporting
 
-- HTML report: `StrykerOutput/<timestamp>/reports/mutation-report.html` (generated automatically).
+- HTML report: `artifacts/mutation/StrykerOutput/<timestamp>/reports/mutation-report.html` (generated automatically).
 - Raw console output remains the primary log; redirect the helper script if a persistent log file is required.
 - Console summary highlights surviving mutants; treat anything above the break threshold as a failure condition.
 

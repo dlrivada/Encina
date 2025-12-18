@@ -588,6 +588,7 @@ services.AddSimpleMediatorPolly(options =>
 - Event versioning strategies
 
 **Providers to Support**:
+
 - EventStoreDB (dedicated event store)
 - Marten (PostgreSQL event sourcing)
 - MongoDB (document-based event store)
@@ -615,6 +616,7 @@ services.AddSimpleMediatorPolly(options =>
 **Objective**: Minimize reflection and boxing in hot paths.
 
 **Techniques**:
+
 - Apply `CollectionsMarshal.AsSpan` for performance
 - Reduce allocations in handler resolution
 - Optimize expression tree compilation
@@ -638,6 +640,7 @@ services.AddSimpleMediatorPolly(options =>
 **Complexity**: ⭐⭐⭐⭐ (High)
 
 **Focus Areas**:
+
 - Pipeline invariants (behaviors execute in order)
 - Cache behavior (expression tree compilation)
 - Error propagation through ROP chains
@@ -660,6 +663,7 @@ services.AddSimpleMediatorPolly(options =>
 **Complexity**: ⭐⭐⭐ (Medium)
 
 **Scenarios**:
+
 - High-throughput request processing
 - Concurrent pipeline execution
 - Memory pressure under load
@@ -672,6 +676,7 @@ services.AddSimpleMediatorPolly(options =>
 **Complexity**: ⭐⭐⭐ (Medium)
 
 **Coverage**:
+
 - ActivitySource spans (distributed tracing)
 - Metrics collection (counters, histograms)
 - Logging correlation
@@ -686,6 +691,7 @@ services.AddSimpleMediatorPolly(options =>
 **Complexity**: ⭐⭐ (Low)
 
 **Deliverables**:
+
 - Quality Gate passing
 - Zero code smells
 - Security vulnerabilities addressed

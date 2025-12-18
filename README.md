@@ -512,7 +512,7 @@ Mutation testing is exercised via Stryker.NET. Run the full sweep using the sing
 dotnet run --file scripts/run-stryker.cs
 ```
 
-Reports land in `StrykerOutput/<timestamp>/reports/` with HTML/JSON payloads. After a run, refresh the mutation badge and emit a concise summary by executing:
+Reports land in `artifacts/mutation/StrykerOutput/<timestamp>/reports/` with HTML/JSON payloads. After a run, refresh the mutation badge and emit a concise summary by executing:
 
 ```bash
 dotnet run --file scripts/update-mutation-summary.cs
