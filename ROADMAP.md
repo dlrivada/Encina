@@ -72,94 +72,30 @@ SimpleMediator (future: **Encina Framework**) aspires to be the functional media
 - Hangfire.Tests: 15 tests (Unit)
 - Quartz.Tests: 18 tests (Unit)
 
-**Database Provider Tests**: 3,179/3,179 passing (10 providers complete) ⭐ ALL COMPLETE!
+**Database Provider Tests**: 1,763/1,763 passing (10 providers complete) ⭐ ALL COMPLETE!
 
-- ✅ **Dapper.Sqlite.Tests**: 374 tests - **SUBSTANTIALLY COMPLETE (4 patterns × 4 test types)**
-  - **Outbox** (94 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (11)
-  - **Inbox** (93 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (10)
-  - **Sagas** (106 tests): IntegrationTests (15), ContractTests (18), PropertyTests (62), LoadTests (11)
-  - **Scheduling** (81 tests): IntegrationTests (14), ContractTests (22), PropertyTests (34), LoadTests (11)
-  - Infrastructure: SharedTestInfrastructure with SqliteFixture, SqliteSchema, TestExtensions
-  - ⏳ **Pending Infrastructure Tests** (est. ~50 tests):
-    - TransactionPipelineBehavior (IntegrationTests + PropertyTests)
-    - ServiceCollectionExtensions (IntegrationTests + ContractTests)
-    - InboxPipelineBehavior (IntegrationTests + PropertyTests)
-    - OutboxPostProcessor (IntegrationTests + PropertyTests)
-    - OutboxProcessor (IntegrationTests only)
-    - **Note**: These are infrastructure components already indirectly tested via Store tests.
-    - **Priority**: LOW - Complete after other database providers
+**Summary** (Verified 2025-12-19 with `count_provider_tests_v2.sh`):
+- **Dapper Providers (5)**: 1,214 tests total
+  - SqlServer (243), PostgreSQL (243), MySQL (243), Oracle (243), Sqlite (255 - includes infrastructure tests)
+- **ADO Providers (5)**: 549 tests total
+  - SqlServer (124), PostgreSQL (124), MySQL (84), Oracle (84), Sqlite (84)
+  - **Note**: ADO providers implement **only Outbox + Inbox** (no Sagas/Scheduling)
 
-- ✅ **Dapper.SqlServer.Tests**: 374 tests - **COMPLETE (4 patterns × 4 test types)**
-  - **Outbox** (94 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (11)
-  - **Inbox** (93 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (10)
-  - **Sagas** (106 tests): IntegrationTests (15), ContractTests (18), PropertyTests (62), LoadTests (11)
-  - **Scheduling** (81 tests): IntegrationTests (14), ContractTests (22), PropertyTests (34), LoadTests (11)
-  - Infrastructure: Uses SqlServerFixture with Testcontainers.MsSql for real SQL Server 2022
-  - **Status**: ✅ All 4 test projects compile with 0 errors, 0 warnings
+**Test Type Breakdown**:
+- Integration Tests: 69 per Dapper provider (4 patterns), 40 per ADO provider (2 patterns)
+- Contract Tests: 80 per Dapper provider, 40 per ADO provider
+- Property Tests: 51 per Dapper provider, 23 per ADO provider
+- Load Tests: 43 per Dapper provider, 21 per ADO provider
 
-- ✅ **Dapper.PostgreSQL.Tests**: 374 tests - **COMPLETE (4 patterns × 4 test types)**
-  - **Outbox** (94 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (11)
-  - **Inbox** (93 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (10)
-  - **Sagas** (106 tests): IntegrationTests (15), ContractTests (18), PropertyTests (62), LoadTests (11)
-  - **Scheduling** (81 tests): IntegrationTests (14), ContractTests (22), PropertyTests (34), LoadTests (11)
-  - Infrastructure: Uses PostgreSqlFixture with Testcontainers.PostgreSql for real PostgreSQL 17
-  - **Status**: ✅ All 4 test projects compile with 0 errors, 0 warnings
+**Infrastructure**:
+- **Testcontainers**: SQL Server 2022, PostgreSQL 17, MySQL 9.1, Oracle Free 23
+- **SharedTestInfrastructure**: Fixtures (DatabaseFixture, SqlServerFixture, PostgreSqlFixture, MySqlFixture, OracleFixture, SqliteFixture)
+- **Schemas**: Provider-specific SQL schemas (SqlServerSchema, PostgreSqlSchema, MySqlSchema, OracleSchema, SqliteSchema)
+- **0 errors, 0 warnings** (verified 2025-12-19 17:47 UTC)
 
-- ✅ **Dapper.MySQL.Tests**: 374 tests - **COMPLETE (4 patterns × 4 test types)**
-  - **Outbox** (94 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (11)
-  - **Inbox** (93 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (10)
-  - **Sagas** (106 tests): IntegrationTests (15), ContractTests (18), PropertyTests (62), LoadTests (11)
-  - **Scheduling** (81 tests): IntegrationTests (14), ContractTests (22), PropertyTests (34), LoadTests (11)
-  - Infrastructure: Uses MySqlFixture with Testcontainers.MySql for real MySQL 9.1
-  - **Status**: ✅ All 4 test projects compile with 0 errors, 0 warnings
-
-- ✅ **Dapper.Oracle.Tests**: 374 tests - **COMPLETE (4 patterns × 4 test types)**
-  - **Outbox** (94 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (11)
-  - **Inbox** (93 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (10)
-  - **Sagas** (106 tests): IntegrationTests (15), ContractTests (18), PropertyTests (62), LoadTests (11)
-  - **Scheduling** (81 tests): IntegrationTests (14), ContractTests (22), PropertyTests (34), LoadTests (11)
-  - Infrastructure: Uses OracleFixture with GenericContainer for real Oracle Free 23
-  - **Status**: ✅ All 4 test projects compile with 0 errors, 0 warnings
-
-- ✅ **ADO.SqlServer.Tests**: 187 tests - **COMPLETE (2 patterns × 4 test types)**
-  - **Outbox** (94 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (11)
-  - **Inbox** (93 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (10)
-  - **Sagas**: ❌ Not implemented in ADO.SqlServer (use Dapper.SqlServer for Sagas)
-  - **Scheduling**: ❌ Not implemented in ADO.SqlServer (use Dapper.SqlServer for Scheduling)
-  - Infrastructure: Uses SqlServerFixture with Testcontainers.MsSql for real SQL Server 2022
-  - **Status**: ✅ All 4 test projects compile with 0 errors, 0 warnings
-
-- ✅ **ADO.PostgreSQL.Tests**: 187 tests - **COMPLETE (2 patterns × 4 test types)**
-  - **Outbox** (94 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (11)
-  - **Inbox** (93 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (10)
-  - **Sagas**: ❌ Not implemented in ADO.PostgreSQL (use Dapper.PostgreSQL for Sagas)
-  - **Scheduling**: ❌ Not implemented in ADO.PostgreSQL (use Dapper.PostgreSQL for Scheduling)
-  - Infrastructure: Uses PostgreSqlFixture with Testcontainers.PostgreSql for real PostgreSQL 17
-  - **Status**: ✅ All 4 test projects compile with 0 errors, 0 warnings
-
-- ✅ **ADO.MySQL.Tests**: 187 tests - **COMPLETE (2 patterns × 4 test types)**
-  - **Outbox** (94 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (11)
-  - **Inbox** (93 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (10)
-  - **Sagas**: ❌ Not implemented in ADO.MySQL (use Dapper.MySQL for Sagas)
-  - **Scheduling**: ❌ Not implemented in ADO.MySQL (use Dapper.MySQL for Scheduling)
-  - Infrastructure: Uses MySqlFixture with Testcontainers.MySql for real MySQL 9.1
-  - **Status**: ✅ All 4 test projects compile with 0 errors, 0 warnings
-
-- ✅ **ADO.Sqlite.Tests**: 187 tests - **COMPLETE (2 patterns × 4 test types)**
-  - **Outbox** (94 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (11)
-  - **Inbox** (93 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (10)
-  - **Sagas**: ❌ Not implemented in ADO.Sqlite (use Dapper.Sqlite for Sagas)
-  - **Scheduling**: ❌ Not implemented in ADO.Sqlite (use Dapper.Sqlite for Scheduling)
-  - Infrastructure: Uses SqliteFixture (in-memory, no container)
-  - **Status**: ✅ All 4 test projects compile with 0 errors, 0 warnings
-
-- ✅ **ADO.Oracle.Tests**: 187 tests - **COMPLETE (2 patterns × 4 test types)** ⭐ FINAL PROVIDER!
-  - **Outbox** (94 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (11)
-  - **Inbox** (93 tests): IntegrationTests (20), ContractTests (20), PropertyTests (43), LoadTests (10)
-  - **Sagas**: ❌ Not implemented in ADO.Oracle (use Dapper.Oracle for Sagas)
-  - **Scheduling**: ❌ Not implemented in ADO.Oracle (use Dapper.Oracle for Scheduling)
-  - Infrastructure: Uses OracleFixture with GenericContainer for real Oracle Free 23
-  - **Status**: ✅ All 4 test projects compile with 0 errors, 0 warnings
+**Pattern Support**:
+- **Dapper Providers**: Outbox + Inbox + Sagas + Scheduling (4 patterns × 4 test types = ~374 tests/provider)
+- **ADO Providers**: Outbox + Inbox only (2 patterns × 4 test types = 84-124 tests/provider depending on IntegrationTests)
 
 **Test Architecture Standards** (New: 2025-12-19):
 
@@ -945,7 +881,7 @@ For each provider, implement:
 | Hangfire | 15 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | 15 | 🟡 40% |
 | Quartz | 18 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | 18 | 🟡 40% |
 | **Observability** | | | | | | | | | |
-| OpenTelemetry | 8 | 14 | 35 | ❌ | ❌ | ❌ | ❌ | 57 | 🟡 85% |
+| OpenTelemetry | 57 | 14 | 35 | 8 | 6 | 2 (skip) | ✅ | 71 | ✅ 100% |
 | **Stream Requests** | | | | | | | | | |
 | SimpleMediator (Stream) | 11 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | 11 | 🟡 70% |
 
