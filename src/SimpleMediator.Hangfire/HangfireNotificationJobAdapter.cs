@@ -21,6 +21,9 @@ public sealed class HangfireNotificationJobAdapter<TNotification>
         IMediator mediator,
         ILogger<HangfireNotificationJobAdapter<TNotification>> logger)
     {
+        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _mediator = mediator;
         _logger = logger;
     }
@@ -35,6 +38,8 @@ public sealed class HangfireNotificationJobAdapter<TNotification>
         TNotification notification,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(notification);
+
         try
         {
             _logger.LogInformation(

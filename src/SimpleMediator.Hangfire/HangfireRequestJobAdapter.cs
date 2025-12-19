@@ -23,6 +23,9 @@ public sealed class HangfireRequestJobAdapter<TRequest, TResponse>
         IMediator mediator,
         ILogger<HangfireRequestJobAdapter<TRequest, TResponse>> logger)
     {
+        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _mediator = mediator;
         _logger = logger;
     }
@@ -37,6 +40,8 @@ public sealed class HangfireRequestJobAdapter<TRequest, TResponse>
         TRequest request,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
             _logger.LogInformation(

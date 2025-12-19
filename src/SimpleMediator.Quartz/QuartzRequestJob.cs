@@ -24,6 +24,9 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
         IMediator mediator,
         ILogger<QuartzRequestJob<TRequest, TResponse>> logger)
     {
+        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _mediator = mediator;
         _logger = logger;
     }
@@ -35,6 +38,8 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task Execute(IJobExecutionContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         var requestObj = context.JobDetail.JobDataMap.Get(QuartzConstants.RequestKey);
 
         if (requestObj is not TRequest request)

@@ -23,6 +23,9 @@ public sealed class QuartzNotificationJob<TNotification> : IJob
         IMediator mediator,
         ILogger<QuartzNotificationJob<TNotification>> logger)
     {
+        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _mediator = mediator;
         _logger = logger;
     }
@@ -34,6 +37,8 @@ public sealed class QuartzNotificationJob<TNotification> : IJob
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task Execute(IJobExecutionContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         var notificationObj = context.JobDetail.JobDataMap.Get(QuartzConstants.NotificationKey);
 
         if (notificationObj is not TNotification notification)
