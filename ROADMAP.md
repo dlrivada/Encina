@@ -880,6 +880,10 @@ For each provider, implement:
 | **Job Scheduling** | | | | | | | | | |
 | Hangfire | 15 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 36 | ✅ 100% |
 | Quartz | 18 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 39 | ✅ 100% |
+| **Resilience** | | | | | | | | | |
+| Extensions.Resilience | 30 | 4 | 20 | 15 | 7 | 5 | ✅ | 81 | ✅ 100% |
+| Polly | 61 | 2 | 8 | 4 | 4 | 2 | ✅ | 81 | ✅ 100% |
+| Refit | 21 | 3 | 22 | 12 | 9 | 4 | ✅ | 71 | ✅ 100% |
 | **Observability** | | | | | | | | | |
 | OpenTelemetry | 57 | ✅ | ✅ | 8 | 6 | 2 (skip) | ✅ | 71 | ✅ 100% |
 | **Stream Requests** | | | | | | | | | |
