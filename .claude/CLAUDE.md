@@ -328,7 +328,7 @@ dotnet run --file scripts/run-integration-tests.cs
 dotnet run --file scripts/run-benchmarks.cs
 ```
 
-**CI/CD enforces**:
+**CI/CD enforces*3*:
 
 - ✅ All tests pass
 - ✅ 100% line coverage

@@ -18,15 +18,23 @@ public sealed class OutboxStoreDapper : IOutboxStore
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The outbox table name (default: OutboxMessages).</param>
+    /// <exception cref="ArgumentNullException">Thrown when connection or tableName is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when tableName is empty or whitespace.</exception>
     public OutboxStoreDapper(IDbConnection connection, string tableName = "OutboxMessages")
     {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
         _connection = connection;
         _tableName = tableName;
     }
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentNullException">Thrown when message is null.</exception>
     public async Task AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(message);
+
         var sql = $@"
             INSERT INTO {_tableName}
             (Id, NotificationType, Content, CreatedAtUtc, ProcessedAtUtc, ErrorMessage, RetryCount, NextRetryAtUtc)
@@ -37,11 +45,15 @@ public sealed class OutboxStoreDapper : IOutboxStore
     }
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when batchSize is less than 1 or maxRetries is negative.</exception>
     public async Task<IEnumerable<IOutboxMessage>> GetPendingMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
         var sql = $@"
             SELECT *
             FROM {_tableName}
@@ -59,8 +71,14 @@ public sealed class OutboxStoreDapper : IOutboxStore
     }
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentException">Thrown when messageId is empty Guid.</exception>
     public async Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
+        if (messageId == Guid.Empty)
+        {
+            throw new ArgumentException("Message ID cannot be empty GUID.", nameof(messageId));
+        }
+
         var sql = $@"
             UPDATE {_tableName}
             SET ProcessedAtUtc = datetime('now'),
@@ -71,12 +89,21 @@ public sealed class OutboxStoreDapper : IOutboxStore
     }
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentException">Thrown when messageId is empty Guid or errorMessage is empty/whitespace.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when errorMessage is null.</exception>
     public async Task MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
+        if (messageId == Guid.Empty)
+        {
+            throw new ArgumentException("Message ID cannot be empty GUID.", nameof(messageId));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+
         var sql = $@"
             UPDATE {_tableName}
             SET ErrorMessage = @ErrorMessage,
