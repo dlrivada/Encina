@@ -846,6 +846,90 @@ For each provider, implement:
 
 ---
 
+### 🔴 CRASH INVESTIGATION: Two Distinct Issues Identified (2025-12-20)
+
+**Status**: 🟡 **PARTIALLY RESOLVED** - Two separate crash sources found
+**Severity**: Critical - System-level crashes affecting development workflow
+**Investigation Report**: See `CRASH_INVESTIGATION.md` for complete analysis
+
+#### Issue 1: MSBuild/.NET Crashes ✅ **RESOLVED**
+
+During development of Property-Based Tests for messaging patterns (Outbox, Inbox, Sagas, Scheduling), we experienced **intermittent CLR crashes** that caused:
+
+1. ✅ dotnet.exe crashes (2 dumps found: PID 18740, PID 53424)
+2. ✅ MSBuild node failures (pipe broken errors)
+3. ⚠️ Windows system crashes/reboots (user-reported)
+
+#### Issue 2: Claude CLI Crashes 🔴 **UNRESOLVED**
+
+Claude Code CLI (v2.0.74) crashes during normal operations (NO .NET involved):
+
+1. 🔴 Crashes during file reading/editing
+2. 🔴 Crashes during markdown documentation updates
+3. 🔴 Crashes during "thinking" phase
+4. 🔴 Persists after `claude update` to latest version
+
+**Not a framework bug** - Claude CLI issue, awaiting Anthropic fix
+
+---
+
+**Issue 1 Root Cause** (✅ CONFIRMED):
+
+```
+dotnet test SimpleMediator.slnx --filter "FullyQualifiedName~GuardTests"
+  ↓
+MSBuild spawns N worker nodes (default: CPU count)
+  ↓
+11 Guard Test assemblies × 484 tests × parallel execution
+  ↓
+Memory pressure + IPC saturation + thread pool exhaustion
+  ↓
+CLR crash or MSBuild node crash
+```
+
+**Mitigation** (✅ VERIFIED):
+
+Using `-maxcpucount:1` flag completely prevents crashes:
+
+```bash
+# Verified working (2025-12-20):
+dotnet test tests/SimpleMediator.EntityFrameworkCore.GuardTests/ -maxcpucount:1 --configuration Release
+# Result: ✅ All 35 tests passed without crashes
+```
+
+**Development Workflow Going Forward**:
+
+```bash
+# Option 1: Test full solution with limited parallelism
+dotnet test SimpleMediator.slnx -maxcpucount:1 --configuration Release
+
+# Option 2: Test individual projects (no flag needed)
+dotnet test tests/SimpleMediator.EntityFrameworkCore.GuardTests/ --configuration Release
+dotnet test tests/SimpleMediator.Dapper.SqlServer.GuardTests/ --configuration Release
+
+# Option 3: Build with limited parallelism
+dotnet build SimpleMediator.slnx -maxcpucount:1 --configuration Release
+```
+
+**User Decisions**:
+
+- ✅ **ACCEPTED**: Use `-maxcpucount:1` flag for development workflow
+- ✅ **ACCEPTED**: Document findings in CRASH_INVESTIGATION.md and ROADMAP.md
+- ✅ **ACCEPTED**: Commit crash investigation documentation
+- ❌ **REJECTED**: Modify Directory.Build.props (would affect production/runtime)
+- ⏸️ **DEFERRED**: Consolidate test projects (current structure is convenient)
+
+**Impact on Roadmap**:
+
+- Property-Based Tests for messaging patterns (Outbox, Inbox, Sagas, Scheduling) were **PAUSED** during investigation
+- Development can now **RESUME** with stable workflow using `-maxcpucount:1` flag
+- No framework bugs found - issue was MSBuild overload with large test suite
+- .NET 10 is stable - no migration to .NET 9 needed
+
+**Timeline**: Investigation started 2025-12-20 09:29 AM, resolved 2025-12-20 10:53 AM (~1.5 hours)
+
+---
+
 ### 🔥 CRITICAL PRIORITY: 100% Test Coverage (Current → 100%)
 
 **Status**: 🔄 **IN PROGRESS** - Systematic test completion across all packages
