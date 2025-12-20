@@ -37,6 +37,55 @@ Compares Inbox pattern performance across three providers for idempotent message
 - `GetExpiredMessages_Batch10` - Query 10 expired messages for cleanup
 - `RemoveExpiredMessages_Batch10` - Delete 10 expired messages in batch
 
+### 3. SagaProviderComparisonBenchmarks
+
+Compares Saga pattern performance across two providers (Dapper and EF Core):
+
+**Important Note:** ADO.NET providers do NOT support Sagas. Only Dapper and EF Core implement the Saga pattern.
+
+**Operations Benchmarked:**
+
+- `AddAsync_Single` - Create new saga instance
+- `GetAsync_ById` - Retrieve saga by ID
+- `UpdateAsync_StateTransition` - Update saga state (single step transition)
+- `UpdateAsync_FiveSteps` - Progress saga through 5 steps sequentially
+- `GetStuckSagas_Batch10` - Query 10 stuck sagas needing intervention from 50 total
+
+**Use Cases:**
+
+Sagas are used for distributed transaction orchestration. Examples include:
+
+- Multi-step order processing (reserve inventory → charge customer → ship order)
+- Cross-service workflows with compensation on failure
+- Long-running business processes requiring state persistence
+
+### 4. SchedulingProviderComparisonBenchmarks
+
+Compares Scheduling pattern performance across two providers (Dapper and EF Core):
+
+**Important Note:** ADO.NET providers do NOT support Scheduling. Only Dapper and EF Core implement the Scheduling pattern.
+
+**Operations Benchmarked:**
+
+- `AddAsync_Single` - Schedule single message for future execution
+- `AddAsync_Batch10` - Schedule 10 messages in batch
+- `AddAsync_Batch100` - Schedule 100 messages in batch
+- `GetDueMessages_Batch10` - Query 10 due messages from 50 total
+- `GetDueMessages_Batch100` - Query 100 due messages from 500 total
+- `MarkAsProcessed` - Mark message as executed successfully
+- `MarkAsFailed` - Mark message as failed with retry scheduling
+- `RescheduleRecurringMessage` - Reschedule recurring message for next execution
+- `CancelScheduledMessage` - Cancel a scheduled message
+
+**Use Cases:**
+
+Scheduling is used for delayed/recurring domain command execution. Examples include:
+
+- Send reminder email 24 hours before appointment
+- Cancel unpaid order after 30 minutes
+- Archive old records every 90 days
+- Retry failed operations with exponential backoff
+
 ## Running the Benchmarks
 
 ### Run All Benchmarks
@@ -54,6 +103,12 @@ dotnet run -c Release --filter *OutboxProviderComparisonBenchmarks*
 
 # Inbox comparison only
 dotnet run -c Release --filter *InboxProviderComparisonBenchmarks*
+
+# Saga comparison only (Dapper and EF Core only)
+dotnet run -c Release --filter *SagaProviderComparisonBenchmarks*
+
+# Scheduling comparison only (Dapper and EF Core only)
+dotnet run -c Release --filter *SchedulingProviderComparisonBenchmarks*
 ```
 
 ### Run Specific Provider
@@ -116,22 +171,34 @@ We benchmark only SQLite because:
 4. **Provider Comparison**: Isolates ORM overhead from DB server differences
 
 For real-world database performance (SQL Server, PostgreSQL, MySQL, Oracle):
+
 - Network latency dominates (100-1000x slower than in-memory)
 - Provider differences become less significant
 - Use load testing instead of micro-benchmarks
 
 ### Type Ambiguity Resolution
 
-Each provider (ADO.NET, Dapper, EF Core) defines its own `OutboxMessage`/`InboxMessage` classes.
+Each provider (ADO.NET, Dapper, EF Core) defines its own messaging entity classes.
 We use namespace aliases to resolve ambiguity:
 
 ```csharp
+// Outbox/Inbox (ADO, Dapper, EF Core)
 using ADOOutbox = SimpleMediator.ADO.Sqlite.Outbox;
 using DapperOutbox = SimpleMediator.Dapper.Sqlite.Outbox;
 using EFOutbox = SimpleMediator.EntityFrameworkCore.Outbox;
 
+// Saga (Dapper, EF Core only - NO ADO support)
+using DapperSagas = SimpleMediator.Dapper.Sqlite.Sagas;
+using EFSagas = SimpleMediator.EntityFrameworkCore.Sagas;
+
+// Scheduling (Dapper, EF Core only - NO ADO support)
+using DapperScheduling = SimpleMediator.Dapper.Sqlite.Scheduling;
+using EFScheduling = SimpleMediator.EntityFrameworkCore.Scheduling;
+
 // Usage
 var message = new DapperOutbox.OutboxMessage { ... };
+var saga = new EFSagas.SagaState { ... };
+var scheduled = new DapperScheduling.ScheduledMessage { ... };
 ```
 
 ## Interpreting Results
@@ -139,6 +206,7 @@ var message = new DapperOutbox.OutboxMessage { ... };
 ### Ratio Column
 
 Shows relative performance compared to baseline (ADO.NET):
+
 - `1.00` = Baseline (ADO.NET)
 - `1.59` = 59% slower than baseline
 - `2.85` = 185% slower than baseline
@@ -150,6 +218,7 @@ Ranks providers from fastest (1) to slowest (3) for each operation.
 ### Allocated Column
 
 Shows heap allocations per operation:
+
 - Lower is better
 - Important for high-throughput scenarios
 - Gen 0/1/2 collections impact latency
@@ -177,6 +246,17 @@ Shows heap allocations per operation:
 - Batch inserts with `AddRange` + single `SaveChanges`
 - Consider raw SQL for performance-critical paths
 
+## Provider Coverage by Pattern
+
+| Pattern    | ADO.NET | Dapper | EF Core |
+|------------|---------|--------|---------|
+| Outbox     | ✓       | ✓      | ✓       |
+| Inbox      | ✓       | ✓      | ✓       |
+| Saga       | ✗       | ✓      | ✓       |
+| Scheduling | ✗       | ✓      | ✓       |
+
+**Note:** ADO.NET providers only implement Outbox and Inbox patterns. Saga and Scheduling require more complex features (state transitions, cron expressions, etc.) which are only implemented in Dapper and EF Core providers.
+
 ## Related Benchmarks
 
 - `benchmarks/SimpleMediator.Benchmarks/Outbox/OutboxDapperBenchmarks.cs` - Dapper-specific
@@ -193,4 +273,6 @@ When adding new benchmarks:
 3. Add XML documentation explaining what's being tested
 4. Clean up data in `[IterationSetup]` for consistency
 5. Use realistic data sizes (not trivial, not massive)
-6. Test all three providers (ADO, Dapper, EF Core)
+6. Test all applicable providers:
+   - **Outbox/Inbox**: ADO, Dapper, EF Core
+   - **Saga/Scheduling**: Dapper, EF Core only (ADO.NET does NOT support these patterns)
