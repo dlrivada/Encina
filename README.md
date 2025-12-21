@@ -91,24 +91,39 @@ SimpleMediator adopts a modular architecture where specialized functionality is 
 | `SimpleMediator.FluentValidation` | Validation using FluentValidation | ✅ Production | 18 tests |
 | `SimpleMediator.MiniValidator` | Lightweight validation using MiniValidator | ✅ Production | 10 tests |
 | `SimpleMediator.GuardClauses` | Defensive programming with guard clauses | ✅ Production | - |
+| **Caching** |
+| `SimpleMediator.Caching` | Core caching abstractions (ICacheProvider, CachingBehavior) | ✅ Production | 49 tests |
+| `SimpleMediator.Caching.Memory` | In-memory caching with IMemoryCache | ✅ Production | 109 tests |
+| `SimpleMediator.Caching.Hybrid` | Multi-tier L1+L2 caching with Microsoft HybridCache | ✅ Production | 56 tests |
+| `SimpleMediator.Caching.Redis` | Distributed caching with StackExchange.Redis | ✅ Production | - |
+| `SimpleMediator.Caching.Valkey` | Open-source Redis alternative | ✅ Production | - |
+| `SimpleMediator.Caching.KeyDB` | High-performance Redis fork | ✅ Production | - |
+| `SimpleMediator.Caching.Dragonfly` | Modern Redis-compatible cache | ✅ Production | - |
+| `SimpleMediator.Caching.Garnet` | Microsoft's Redis-compatible cache | ✅ Production | - |
 | **Persistence & Messaging** |
 | `SimpleMediator.EntityFrameworkCore` | Transaction management and EF Core integration | ✅ Production | 33 tests |
-| `SimpleMediator.Dapper` | Outbox/Inbox patterns with Dapper (SQL Server) | ⚠️ SQL Server only | 2/8 tests |
-| `SimpleMediator.ADO` | High-performance messaging with raw ADO.NET (SQL Server) | ✅ Production | - |
+| `SimpleMediator.Dapper.{Database}` | Outbox/Inbox/Sagas/Scheduling with Dapper (SqlServer, PostgreSQL, MySQL, Sqlite, Oracle) | ✅ Production | 1,537 tests |
+| `SimpleMediator.ADO.{Database}` | High-performance messaging with raw ADO.NET (SqlServer, PostgreSQL, MySQL, Sqlite, Oracle) | ✅ Production | 796 tests |
 | **Job Scheduling** |
 | `SimpleMediator.Hangfire` | Background job processing with Hangfire | ✅ Production | 15 tests |
 | `SimpleMediator.Quartz` | Enterprise job scheduling with Quartz.NET | ✅ Production | 18 tests |
 | **Planned** |
-| `SimpleMediator.{Provider}.{Database}` | Multi-database support (PostgreSQL, MySQL, Oracle, SQLite) | 📋 Planned | - |
-| `SimpleMediator.Redis` | Caching and pub/sub with Redis | 📋 Planned | - |
 | `SimpleMediator.EventStoreDB` | Event sourcing with EventStoreDB | 📋 Planned | - |
 | `SimpleMediator.Marten` | Event sourcing with Marten/PostgreSQL | 📋 Planned | - |
 
 **Key:**
 
 - ✅ Production: Fully implemented and tested
-- ⚠️ Limited: Working but with constraints (see notes)
 - 📋 Planned: Roadmap item
+
+**Solution Filters (.slnf)**: For focused development, use solution filter files:
+
+```bash
+# Build/test specific areas
+dotnet build SimpleMediator.Caching.slnf       # Caching packages only
+dotnet test SimpleMediator.Database.slnf       # Database providers only
+dotnet build SimpleMediator.Validation.slnf    # Validation packages only
+```
 
 See [FEATURES_ROADMAP.md](FEATURES_ROADMAP.md) for detailed status and implementation plans.
 

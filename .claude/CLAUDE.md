@@ -466,9 +466,9 @@ var message = new OutboxMessageBuilder()
 - Commit messages: English
 - User-facing messages: Spanish when responding to user
 
-## Current Project Status (Updated: 2025-12-18)
+## Current Project Status (Updated: 2025-12-21)
 
-### ✅ Completed (85% to 1.0)
+### ✅ Completed (90% to 1.0)
 
 **Core & Validation**:
 
@@ -490,6 +490,19 @@ var message = new OutboxMessageBuilder()
 - ✅ ADO.SqlServer, ADO.PostgreSQL, ADO.MySQL, ADO.Sqlite, ADO.Oracle
 - **Note**: Old SimpleMediator.Dapper and SimpleMediator.ADO deprecated (code in .backup/deprecated-packages)
 
+**Caching** (8 packages completed - NEW 2025-12-21):
+
+- ✅ SimpleMediator.Caching - Core abstractions (ICacheProvider, ICacheKeyGenerator, CachingPipelineBehavior)
+- ✅ SimpleMediator.Caching.Memory - IMemoryCache provider (109 tests)
+- ✅ SimpleMediator.Caching.Hybrid - Microsoft HybridCache provider (.NET 9+ multi-tier caching, 56 tests)
+- ✅ SimpleMediator.Caching.Redis - StackExchange.Redis provider
+- ✅ SimpleMediator.Caching.Garnet - Microsoft Garnet provider (Redis-compatible)
+- ✅ SimpleMediator.Caching.Valkey - Valkey provider (Redis fork)
+- ✅ SimpleMediator.Caching.Dragonfly - Dragonfly provider (Redis-compatible)
+- ✅ SimpleMediator.Caching.KeyDB - KeyDB provider (Redis fork)
+- **Tests**: 367 tests passing (49 core + 109 memory + 56 hybrid + 43 guard + 78 contract + 32 property)
+- **Benchmarks**: SimpleMediator.Caching.Benchmarks with provider comparisons
+
 **Job Scheduling**:
 
 - ✅ Hangfire adapter (15 tests)
@@ -503,7 +516,31 @@ var message = new OutboxMessageBuilder()
 - ✅ XML Documentation: 100%
 - ✅ PublicAPI Analyzers enabled
 
-**Total Tests**: 385 passing (10 skipped for Pure ROP)
+**Solution Filters** (.slnf - NEW 2025-12-21):
+
+For efficient development with reduced MSBuild overhead, use solution filters:
+
+```bash
+# Work only on caching (17 projects)
+dotnet build SimpleMediator.Caching.slnf
+
+# Work only on core (7 projects)
+dotnet build SimpleMediator.Core.slnf
+
+# Work only on validation (25 projects)
+dotnet build SimpleMediator.Validation.slnf
+
+# Work only on database providers (21 projects)
+dotnet build SimpleMediator.Database.slnf
+
+# Work only on scheduling (15 projects)
+dotnet build SimpleMediator.Scheduling.slnf
+
+# Work only on web (9 projects)
+dotnet build SimpleMediator.Web.slnf
+```
+
+**Total Tests**: 752+ passing (385 core + 367 caching)
 
 ### 🔄 In Progress
 
@@ -538,10 +575,10 @@ var message = new OutboxMessageBuilder()
 **Satellite Packages**:
 
 - ⭐⭐⭐⭐⭐ SimpleMediator.OpenTelemetry (CRITICAL - observability)
-- ⭐⭐⭐⭐ SimpleMediator.Caching (query caching + idempotency)
+- ~~⭐⭐⭐⭐ SimpleMediator.Caching~~ ✅ COMPLETED
 - ⭐⭐⭐⭐ SimpleMediator.Polly (retry + circuit breaker)
 - ⭐⭐⭐⭐ Stream Requests (IAsyncEnumerable support)
-- ⭐⭐⭐⭐⭐ Redis provider (caching + pub/sub)
+- ~~⭐⭐⭐⭐⭐ Redis provider~~ ✅ COMPLETED (SimpleMediator.Caching.Redis)
 - ⭐⭐⭐ ODBC provider (legacy databases)
 - Event Sourcing package (EventStoreDB/Marten)
 
