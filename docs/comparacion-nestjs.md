@@ -596,32 +596,57 @@ public Property AddAsync_NeverThrowsForValidMessages()
 
 | Aspecto | SimpleMediator | NestJS |
 |---------|---------------|--------|
-| Testing module dedicado | ❌ | ✅ @nestjs/testing |
+| Test Infrastructure | ✅ SimpleMediator.TestInfrastructure | ✅ @nestjs/testing |
+| Database Fixtures | ✅ 5 DB fixtures (Testcontainers) | ⚠️ Manual setup |
+| Test Data Builders | ✅ 4 builders (Outbox, Inbox, Saga, etc.) | ⚠️ Manual |
 | Override de handlers | ⚠️ (manual) | ✅ (built-in) |
-| Mock auto-generation | ❌ | ✅ (useMocker) |
-| E2E testing | ⚠️ (estándar .NET) | ✅ (Supertest/Fastify inject) |
-| Request context testing | ⚠️ | ✅ (resolve scoped) |
+| Real DB Testing | ✅ Testcontainers nativo | ⚠️ Requiere setup |
+| E2E testing | ✅ ASP.NET TestServer | ✅ (Supertest/Fastify inject) |
+| 7 tipos de tests | ✅ Unit, Guard, Contract, Property, Integration, Load, Benchmark | ⚠️ Unit + E2E |
 
-#### Brecha Identificada 🔴
+#### Estado Actual ✅
 
-**SimpleMediator NO tiene:**
-
-- Testing module dedicado
-- Helpers para override de handlers/behaviors
-- E2E testing utilities
-
-#### Oportunidad 💡
-
-**Propuesta: `SimpleMediator.Testing`**
+**SimpleMediator.TestInfrastructure ya incluye:**
 
 ```csharp
-var mediatorFixture = MediatorTestFixture.Create()
-    .WithHandler<CreateOrderCommand, Order>(mockHandler)
-    .WithBehavior<ValidationBehavior>()
-    .WithMockedService<IOrderRepository>(mockRepo);
+// 1. Database Fixtures (Testcontainers)
+public class SqlServerFixture : DatabaseFixture { }
+public class PostgreSqlFixture : DatabaseFixture { }
+public class MySqlFixture : DatabaseFixture { }
+public class SqliteFixture : DatabaseFixture { }
+public class OracleFixture : DatabaseFixture { }
 
-var result = await mediatorFixture.Send(new CreateOrderCommand { ... });
+// 2. Test Data Builders (fluent API)
+var message = new OutboxMessageBuilder()
+    .WithPayload("{\"test\":true}")
+    .WithProcessedAt(DateTime.UtcNow)
+    .Build();
+
+var saga = new SagaStateBuilder()
+    .WithState("Completed")
+    .WithCorrelationId("order-123")
+    .Build();
+
+// 3. Assertion Extensions
+result.Should().BeRight();
+result.Should().BeLeft();
 ```
+
+**Estructura de Tests por Paquete:**
+
+- `*.Tests` - Unit tests
+- `*.GuardTests` - Null/argument validation
+- `*.ContractTests` - Interface contracts
+- `*.PropertyTests` - FsCheck property-based
+- `*.IntegrationTests` - Testcontainers
+- `*.LoadTests` - Stress testing
+
+#### Brecha Menor 🟡
+
+**Podría mejorarse:**
+
+- **Fluent API para override de handlers** (actualmente via DI manual)
+- **Auto-mocking** de dependencias (actualmente usa NSubstitute/Moq manual)
 
 ---
 
@@ -1182,50 +1207,86 @@ public class OrderCreatedHandler : INotificationHandler<OrderCreatedNotification
 | Commands | ✅ IRequest | ✅ @CommandHandler |
 | Queries | ✅ IRequest (sin distinción) | ✅ @QueryHandler |
 | Events | ✅ INotification | ✅ @EventHandler |
-| Sagas | ❌ | ✅ @Saga (RxJS) |
-| Event Sourcing | ❌ | ⚠️ (patterns, no infraestructura) |
-| AggregateRoot | ❌ | ✅ (con autoCommit) |
-| Unhandled exceptions bus | ❌ | ✅ |
+| Sagas (Orchestration) | ✅ ISagaStore (11 providers) | ✅ @Saga (RxJS) |
+| Sagas (Choreography) | ✅ IChoreographySaga | ⚠️ Manual |
+| Event Sourcing | ✅ SimpleMediator.EventStoreDB | ⚠️ (patterns, no infraestructura) |
+| AggregateRoot | ✅ AggregateBase<TState> | ✅ (con autoCommit) |
+| Unhandled exceptions bus | ⚠️ Via Either monad | ✅ |
 
-#### Brecha Identificada 🟡
-
-**SimpleMediator NO tiene:**
-
-- **Sagas**: Orchestración de procesos de larga duración
-- **AggregateRoot** con auto-publishing
-- **UnhandledExceptionBus**: Stream reactivo para errores no manejados
-
-#### Estado Actual ✅
+#### Estado Actual ✅ (100% IMPLEMENTADO)
 
 **SimpleMediator YA tiene:**
 
-- CQRS puro (Commands/Queries como IRequest)
-- Notifications (eventos in-process)
-- Pipeline behaviors (cross-cutting concerns)
-- Functional error handling (Either)
-
-#### Oportunidad 💡
-
-**Propuesta: Sagas con System.Threading.Channels**
+1. **CQRS puro** (Commands/Queries como IRequest)
+2. **Notifications** (eventos in-process)
+3. **Pipeline behaviors** (cross-cutting concerns)
+4. **Functional error handling** (Either monad)
+5. **Saga Orchestration** con persistencia en 11 proveedores:
+   - EntityFrameworkCore
+   - Dapper (5 DBs: SqlServer, PostgreSQL, MySQL, Sqlite, Oracle)
+   - ADO.NET (5 DBs: SqlServer, PostgreSQL, MySQL, Sqlite, Oracle)
+6. **Saga Choreography** (event-driven sagas):
+   - `IChoreographySaga<TState>` - Saga state machine
+   - `IEventReaction<TEvent>` - Event handlers
+   - `IChoreographyEventBus` - Event routing
+   - `IChoreographyStateStore` - State persistence
+7. **Event Sourcing** con SimpleMediator.EventStoreDB:
+   - `IAggregate<TState>` / `AggregateBase<TState>` - Aggregate roots
+   - `IAggregateRepository<T>` - Event persistence
+   - `IEventSerializer` - Event serialization
+   - EventStoreDB integration
 
 ```csharp
-public class OrderSaga : ISaga
+// 1. Saga Orchestration Example
+public class OrderSaga : ISagaState
 {
-    private readonly IMediator _mediator;
-    
-    [SagaTrigger(typeof(OrderCreatedNotification))]
-    public async Task OnOrderCreated(OrderCreatedNotification @event)
+    public Guid Id { get; set; }
+    public string SagaType { get; set; } = "OrderSaga";
+    public string CurrentState { get; set; } = "Started";
+    public string? CorrelationId { get; set; }
+    public string StateData { get; set; } = "{}";
+    public DateTime StartedAtUtc { get; set; }
+    public DateTime LastUpdatedAtUtc { get; set; }
+    public DateTime? CompletedAtUtc { get; set; }
+    public string? ErrorMessage { get; set; }
+    public int RetryCount { get; set; }
+}
+
+// 2. Choreography Saga Example (Event-Driven)
+public class OrderChoreographySaga : IChoreographySaga<OrderSagaState>
+{
+    public Task<OrderSagaState> CreateInitialState(string correlationId)
+        => Task.FromResult(new OrderSagaState { CorrelationId = correlationId });
+
+    public Task<IEnumerable<object>> GetCompensatingEvents(OrderSagaState state)
+        => Task.FromResult<IEnumerable<object>>(new[] { new OrderCancelledEvent(state.OrderId) });
+}
+
+// 3. Event Sourcing Example
+public class OrderAggregate : AggregateBase<OrderState>
+{
+    public void Place(string customerId, decimal total)
     {
-        // Esperar confirmación de pago (con timeout)
-        var result = await _mediator.WaitFor<PaymentConfirmedNotification>(
-            filter: n => n.OrderId == @event.OrderId,
-            timeout: TimeSpan.FromMinutes(10));
-        
-        if (result.IsTimeout)
-            await _mediator.Send(new CancelOrderCommand(@event.OrderId));
+        if (State.Status != OrderStatus.None)
+            throw new InvalidOperationException("Order already placed");
+
+        RaiseEvent(new OrderPlacedEvent(Id, customerId, total));
     }
+
+    protected override OrderState Apply(OrderState state, object @event) => @event switch
+    {
+        OrderPlacedEvent e => state with { CustomerId = e.CustomerId, Total = e.Total, Status = OrderStatus.Placed },
+        OrderShippedEvent => state with { Status = OrderStatus.Shipped },
+        _ => state
+    };
 }
 ```
+
+#### Brecha Menor 🟡
+
+**SimpleMediator podría mejorar:**
+
+- **UnhandledExceptionBus**: Stream reactivo para errores (actualmente via Either monad - explícito y type-safe)
 
 ---
 
@@ -1743,85 +1804,118 @@ export class CatsController {
 - ✅ Official courses y documentation
 - ✅ VSCode extension
 
-#### SimpleMediator: Documentation manual
+#### SimpleMediator: Documentation & Tooling
 
 **Estado actual:**
 
-- ✅ DocFX para API reference
-- ✅ Markdown documentation (guides)
+- ✅ DocFX para API reference (configurado en `/docs/docfx.json`)
+- ✅ Markdown documentation (getting-started, guides)
 - ✅ ADRs (Architecture Decision Records)
-- ❌ Sin CLI
-- ❌ Sin OpenAPI generation automática
-- ❌ Sin graph visualization
+- ✅ XML Documentation 100% en APIs públicas
+- 📋 CLI planificado (ver ROADMAP.md)
+- ⚠️ OpenAPI via ASP.NET Core Minimal APIs (no auto-generation desde handlers)
 
-#### Brecha Identificada 🔴
+#### Comparación
 
-**SimpleMediator NO tiene:**
+| Aspecto | SimpleMediator | NestJS |
+|---------|---------------|--------|
+| API Documentation | ✅ DocFX + XML | ✅ Swagger |
+| CLI Scaffolding | 📋 Planificado | ✅ nest g |
+| OpenAPI Generation | ⚠️ Manual | ✅ Automático |
+| Graph Visualization | 📋 Planificado | ✅ Devtools |
+| Templates | 📋 dotnet new planned | ✅ nest new |
 
-- CLI para scaffolding (generate handler, behavior, etc.)
-- OpenAPI/Swagger generation
-- Visual graph de handlers/behaviors
+#### Estado: CLI Planificado 📋
 
-#### Oportunidad 💡
-
-**Propuesta: `dotnet-simplemediator` CLI**
+**`SimpleMediator.Cli`** está documentado en ROADMAP.md como feature planificada:
 
 ```bash
-$ dotnet tool install -g SimpleMediator.Cli
+# Instalación (futuro)
+dotnet tool install -g SimpleMediator.Cli
 
 # Scaffolding
-$ simplemediator generate handler CreateOrder
-$ simplemediator generate query GetOrders --pagination
-$ simplemediator generate behavior Logging
-$ simplemediator generate module Orders
+simplemediator new handler CreateOrder
+simplemediator new query GetOrders --pagination
+simplemediator new behavior Logging
+simplemediator new saga OrderProcessing
 
-# Documentation
-$ simplemediator docs generate --output ./docs
-$ simplemediator graph visualize --open
+# Análisis
+simplemediator analyze                    # Analiza proyecto
+simplemediator graph --format mermaid     # Genera diagrama
 
-# OpenAPI integration
-$ simplemediator openapi generate --controllers
+# Documentación
+simplemediator docs generate
+simplemediator docs serve
+
+# Migración
+simplemediator migrate from-mediatr
 ```
+
+**`SimpleMediator.Templates`** (futuro):
+
+```bash
+dotnet new install SimpleMediator.Templates
+
+dotnet new sm-handler      # Handler con ROP
+dotnet new sm-query        # Query con [Cache]
+dotnet new sm-command      # Command con [Authorize]
+dotnet new sm-saga         # Saga con compensación
+dotnet new sm-project      # Proyecto completo
+```
+
+#### Brecha Menor 🟡
+
+La brecha es real pero planificada. NestJS tiene ventaja en tooling out-of-the-box, pero SimpleMediator tiene:
+
+- **Documentación más exhaustiva** (DocFX + XML docs 100%)
+- **Plan claro de implementación** (ver ROADMAP.md)
+- **Filosofía diferente**: Usa herramientas .NET estándar (dotnet new, DocFX) en lugar de reinventar
 
 ---
 
-## 📈 Matriz de Características
+## 📈 Matriz de Características (Actualizada 2025-12-21)
 
 | Categoría | Característica | SimpleMediator | NestJS | Gap |
 |-----------|---------------|---------------|--------|-----|
-| **Core** | Módulos jerárquicos | ❌ | ✅ | 🔴 Alta |
+| **Core** | Módulos jerárquicos | ❌ | ✅ | 🟡 Diferente filosofía |
 | | Dependency Injection | ✅ MS.Extensions | ✅ Propio | ✅ Equivalente |
 | | Scoped lifetimes | ✅ | ✅ | ✅ Equivalente |
 | | Dynamic modules | ❌ | ✅ | 🟡 Media |
 | **Pipeline** | Behaviors/Interceptors | ✅ | ✅ | ✅ Equivalente |
-| | Guards (authorization) | ⚠️ Behaviors | ✅ | 🟡 Media |
+| | Guards (authorization) | ✅ AuthorizationBehavior | ✅ | ✅ Equivalente |
 | | Pipes (transformation) | ❌ | ✅ | 🟡 Media |
-| | Exception filters | ❌ | ✅ | 🟡 Media |
+| | Exception filters | ✅ Either monad (ROP) | ✅ | ✅ **SUPERIOR** |
 | **Validación** | Declarativa | ✅ | ✅ | ✅ Equivalente |
-| | Múltiples motores | ✅ (4) | ⚠️ (1) | ✅ **SUPERIOR** |
+| | Múltiples motores | ✅ (4 packages) | ⚠️ (1) | ✅ **SUPERIOR** |
 | | Per-parameter | ❌ | ✅ | 🟡 Media |
 | **Messaging** | In-process CQRS | ✅ | ✅ | ✅ Equivalente |
-| | Notifications | ✅ | ✅ | ✅ Equivalente |
-| | Sagas | ❌ | ✅ | 🔴 Alta |
-| | Message brokers | ❌ | ✅ (6+) | 🔴 Alta |
-| **Protocols** | HTTP | ⚠️ ASP.NET | ✅ | 🟡 Media |
-| | GraphQL | ❌ | ✅ | 🔴 Alta |
-| | WebSocket | ❌ | ✅ | 🔴 Alta |
-| | gRPC | ❌ | ✅ | 🔴 Alta |
-| **Testing** | Testing module | ❌ | ✅ | 🔴 Alta |
-| | Override providers | ⚠️ Manual | ✅ | 🟡 Media |
-| | E2E utilities | ⚠️ Estándar | ✅ | 🟡 Media |
+| | Notifications | ✅ Parallel dispatch | ✅ | ✅ **SUPERIOR** |
+| | Sagas (Orchestration) | ✅ 11 providers | ✅ | ✅ Equivalente |
+| | Sagas (Choreography) | ✅ IChoreographySaga | ⚠️ Manual | ✅ **SUPERIOR** |
+| | Message brokers | ✅ 12 transports | ✅ (6+) | ✅ **SUPERIOR** |
+| **Protocols** | HTTP | ✅ ASP.NET Core | ✅ | ✅ Equivalente |
+| | GraphQL | ✅ HotChocolate 15.1 | ✅ | ✅ Equivalente |
+| | WebSocket/SignalR | ✅ SimpleMediator.SignalR | ✅ | ✅ Equivalente |
+| | gRPC | ✅ SimpleMediator.gRPC | ✅ | ✅ Equivalente |
+| **Event Sourcing** | Aggregates | ✅ EventStoreDB + Marten | ⚠️ | ✅ **SUPERIOR** |
+| | Projections | ✅ Native support | ⚠️ | ✅ **SUPERIOR** |
+| **Caching** | Providers | ✅ 8 providers | ⚠️ Keyv | ✅ **SUPERIOR** |
+| | Distributed locks | ✅ Redlock | ❌ | ✅ **SUPERIOR** |
+| | Pub/Sub invalidation | ✅ Built-in | ❌ | ✅ **SUPERIOR** |
+| **Testing** | Test Infrastructure | ✅ Testcontainers, Fixtures | ✅ | ✅ Equivalente |
+| | Override providers | ⚠️ Via DI | ✅ | 🟡 Media |
+| | E2E utilities | ✅ ASP.NET TestServer | ✅ | ✅ Equivalente |
 | **Observability** | OpenTelemetry | ✅ Native Package | ⚠️ Via libs | ✅ **SUPERIOR** |
 | | Métricas nativas | ✅ IMediatorMetrics | ⚠️ Prometheus client | ✅ **SUPERIOR** |
-| | Logging scopes | ✅ | ✅ | ✅ Equivalente |
 | | Distributed tracing | ✅ W3C Trace Context | ⚠️ Requiere config | ✅ **SUPERIOR** |
-| | Messaging enrichers | ✅ Built-in | ❌ | ✅ **SUPERIOR** |
-| **Tooling** | CLI | ❌ | ✅ | 🔴 Alta |
-| | OpenAPI gen | ❌ | ✅ | 🟡 Media |
-| | Graph visualization | ❌ | ✅ | 🟡 Media |
+| **Tooling** | CLI | 📋 Planificado | ✅ | 🟡 Planificado |
+| | OpenAPI gen | ⚠️ Manual | ✅ | 🟡 Media |
+| | Graph visualization | 📋 Planificado | ✅ | 🟡 Planificado |
 | **Error Handling** | Functional (Either) | ✅ | ❌ | ✅ **SUPERIOR** |
 | | Railway Oriented | ✅ | ❌ | ✅ **SUPERIOR** |
 | | Type-safe errors | ✅ | ⚠️ | ✅ **SUPERIOR** |
+| **Database Support** | Providers | ✅ 10 (EF+Dapper+ADO) | ⚠️ TypeORM | ✅ **SUPERIOR** |
+| **Resilience** | Built-in | ✅ Polly v8 + Microsoft | ⚠️ Via libs | ✅ **SUPERIOR** |
 
 **Leyenda:**
 
@@ -1834,12 +1928,12 @@ $ simplemediator openapi generate --controllers
 
 ---
 
-## 🏆 Áreas de Superioridad de SimpleMediator
+## 🏆 Áreas de Superioridad de SimpleMediator (Actualizado 2025-12-21)
 
-### 1. **Functional Error Handling**
+### 1. **Functional Error Handling (Railway Oriented Programming)**
 
 ```csharp
-// SimpleMediator: Errors as data
+// SimpleMediator: Errors as data, composable, type-safe
 public Task<Either<MediatorError, Order>> Handle(CreateOrderCommand request)
 {
     return _validator.Validate(request).Match(
@@ -1848,11 +1942,11 @@ public Task<Either<MediatorError, Order>> Handle(CreateOrderCommand request)
     );
 }
 
-// NestJS: Exceptions for control flow
+// NestJS: Exceptions for control flow (anti-pattern)
 async create(dto: CreateOrderDto): Promise<Order> {
     const errors = await this.validator.validate(dto);
     if (errors.length > 0) {
-        throw new BadRequestException(errors); // Exception!
+        throw new BadRequestException(errors); // Exception = goto!
     }
     return this.ordersService.create(dto);
 }
@@ -1860,1013 +1954,515 @@ async create(dto: CreateOrderDto): Promise<Order> {
 
 **Ventajas:**
 
-- ✅ Type-safe error handling
-- ✅ Explicit error paths
-- ✅ No stack unwinding
-- ✅ Composable (functor/monad)
-- ✅ Performance (sin excepciones)
+- ✅ Type-safe error handling (Either monad)
+- ✅ Explicit error paths (no hidden control flow)
+- ✅ No stack unwinding (performance)
+- ✅ Composable (functor/monad operations)
+- ✅ Railway pattern (happy path + error path)
 
-### 2. **OpenTelemetry Native**
+### 2. **OpenTelemetry Native Package**
 
 ```csharp
-// Spans automáticos con W3C Trace Context
-services.AddMediator(cfg => cfg.EnableActivitySource = true);
+// SimpleMediator.OpenTelemetry - Zero-config observability
+services.AddSimpleMediatorOpenTelemetry();
 
-// Resultado: Traces automáticos sin código adicional
+// Resultado: Traces automáticos
 // Span: MediatorScope (CreateOrderCommand)
-//   └─ Span: ValidationBehavior
-//      └─ Span: TransactionBehavior
-//         └─ Span: CreateOrderHandler
+//   ├─ Span: ValidationBehavior
+//   ├─ Span: AuthorizationBehavior
+//   ├─ Span: TransactionBehavior
+//   └─ Span: CreateOrderHandler
 ```
 
 **Ventajas:**
 
-- ✅ Zero-configuration tracing
+- ✅ Native package (not via external libs)
 - ✅ W3C Trace Context propagation
-- ✅ Distributed tracing ready
-- ✅ Compatible con Jaeger/Zipkin/Datadog
+- ✅ IMediatorMetrics for custom metrics
+- ✅ Distributed tracing ready (Jaeger/Zipkin/Datadog)
+- ✅ Messaging enrichers built-in
 
-### 3. **Immutable Request Context**
+### 3. **Multi-Database Provider Support (10 Providers)**
 
 ```csharp
-public record RequestContext
-{
-    public string TraceId { get; init; }
-    public string UserId { get; init; }
-    public string CorrelationId { get; init; }
-    public IReadOnlyDictionary<string, object> Properties { get; init; }
-}
+// Same interface, different implementations
+services.AddSimpleMediatorDapperSqlServer(connectionString);
+// OR
+services.AddSimpleMediatorDapperPostgreSQL(connectionString);
+// OR
+services.AddSimpleMediatorADOOracle(connectionString);
 
-// Propagación automática por pipeline
-var context = new RequestContext { UserId = userId, TraceId = Activity.Current?.Id };
-var result = await mediator.Send(command, context);
+// All support: Outbox, Inbox, Sagas, Scheduling
 ```
 
 **Ventajas:**
 
-- ✅ Thread-safe
-- ✅ No side-effects
-- ✅ Testable
-- ✅ Propagación explícita
+- ✅ 10 database providers (EF Core + 5 Dapper + 5 ADO)
+- ✅ Same abstractions across all providers
+- ✅ Easy migration between databases
+- ✅ ADO.NET for maximum performance
 
-### 4. **Multi-Validation Engines**
+### 4. **Multi-Validation Engines (4 Packages)**
 
 ```csharp
-// DataAnnotations
-services.AddDataAnnotationsValidation();
-
-// FluentValidation
-services.AddFluentValidation();
-
-// MiniValidator
-services.AddMiniValidator();
-
-// Guard Clauses
-services.AddGuardClauses();
-
-// Todos coexisten sin conflictos
+// Mix and match - all coexist
+services.AddDataAnnotationsValidation();  // Built-in .NET
+services.AddFluentValidation();            // Complex rules
+services.AddMiniValidator();               // Lightweight (~20KB)
+services.AddGuardClauses();                // Defensive programming
 ```
 
 **Ventajas:**
 
-- ✅ Flexibilidad
-- ✅ Migración gradual
-- ✅ Team preferences
+- ✅ 4 validation packages vs NestJS's 1
+- ✅ Team preferences respected
 - ✅ Domain-specific validators
+- ✅ Gradual migration possible
 
-### 5. **Performance (Zero Allocations)**
+### 5. **Enterprise Caching (8 Providers)**
 
 ```csharp
-// ValueTask para hot paths
-public ValueTask<Either<MediatorError, Order>> Handle(...);
+// Declarative caching
+[Cache(DurationSeconds = 300, VaryByTenant = true)]
+public record GetCustomerQuery(int Id) : IQuery<Customer>;
 
-// No boxing con constraints
-where TRequest : IRequest<TResponse>
-
-// Pooled arrays en pipeline
-ArrayPool<IPipelineBehavior>.Shared
+// 8 cache providers
+services.AddSimpleMediatorMemoryCache();   // In-memory
+services.AddSimpleMediatorRedis();         // Distributed
+services.AddSimpleMediatorGarnet();        // 10-100x faster
+services.AddSimpleMediatorHybridCache();   // L1 + L2
 ```
 
 **Ventajas:**
 
-- ✅ Low memory pressure
-- ✅ High throughput
-- ✅ CPU cache friendly
-- ✅ Ideal para IoT/real-time
+- ✅ 8 cache providers (vs NestJS's Keyv)
+- ✅ Distributed locks (Redlock algorithm)
+- ✅ Pub/Sub cache invalidation
+- ✅ Pattern-based invalidation
+- ✅ VaryByUser, VaryByTenant
+
+### 6. **Complete Saga Support (Orchestration + Choreography)**
+
+```csharp
+// Saga Orchestration - 11 providers
+public class OrderSaga : ISagaState { ... }
+await _sagaStore.SaveAsync(saga, ct);
+
+// Saga Choreography - Event-driven
+public class OrderChoreographySaga : IChoreographySaga<OrderState>
+{
+    public Task<IEnumerable<object>> GetCompensatingEvents(OrderState state)
+        => new[] { new OrderCancelledEvent(state.OrderId) };
+}
+```
+
+**Ventajas:**
+
+- ✅ Both orchestration AND choreography patterns
+- ✅ 11 database providers for saga persistence
+- ✅ Compensation logic built-in
+- ✅ NestJS only has RxJS-based sagas
+
+### 7. **Event Sourcing (EventStoreDB + Marten)**
+
+```csharp
+// Event Sourcing with aggregates
+public class OrderAggregate : AggregateBase<OrderState>
+{
+    public void Place(string customerId, decimal total)
+    {
+        RaiseEvent(new OrderPlacedEvent(Id, customerId, total));
+    }
+
+    protected override OrderState Apply(OrderState state, object @event) => @event switch
+    {
+        OrderPlacedEvent e => state with { Status = OrderStatus.Placed },
+        _ => state
+    };
+}
+```
+
+**Ventajas:**
+
+- ✅ Two event sourcing packages (EventStoreDB + Marten)
+- ✅ AggregateBase with event replay
+- ✅ Optimistic concurrency
+- ✅ NestJS has no native event sourcing
+
+### 8. **12 Messaging Transports**
+
+```csharp
+// Choose your transport
+services.AddSimpleMediatorRabbitMQ();
+services.AddSimpleMediatorKafka();
+services.AddSimpleMediatorAzureServiceBus();
+services.AddSimpleMediatorNATS();
+services.AddSimpleMediatorMQTT();
+// + 7 more...
+```
+
+**Ventajas:**
+
+- ✅ 12 native transport packages
+- ✅ Consistent API across all transports
+- ✅ NATS, MQTT, gRPC (not in NestJS CQRS)
+
+### 9. **Parallel Notification Dispatch**
+
+```csharp
+// Three strategies
+config.UseParallelNotificationDispatch(NotificationDispatchStrategy.Parallel);
+config.UseParallelNotificationDispatch(NotificationDispatchStrategy.ParallelWhenAll);
+
+// With throttling
+config.UseParallelNotificationDispatch(
+    NotificationDispatchStrategy.Parallel,
+    maxDegreeOfParallelism: 4);
+```
+
+**Ventajas:**
+
+- ✅ Opt-in parallel execution
+- ✅ Fail-fast or wait-for-all strategies
+- ✅ Throttling with SemaphoreSlim
+- ✅ NestJS is sequential only
 
 ---
 
-## 🚨 Brechas Identificadas
+## 🚨 Brechas Identificadas (Actualizado 2025-12-21)
 
-### 🔴 **Críticas (Bloqueantes para ciertos escenarios)**
+> **Nota:** La mayoría de las brechas críticas identificadas anteriormente han sido **resueltas**. Esta sección refleja el estado actual.
 
-#### 1. **Message Brokers Distribuidos**
+### ✅ **Brechas Resueltas (Diciembre 2025)**
 
-**Impacto:** No apto para microservicios event-driven sin infraestructura adicional
-**Escenario:** Arquitectura de microservicios con RabbitMQ/Kafka/NATS
-**Estado:** ⏳ PLANIFICADO (SimpleMediator.MassTransit, SimpleMediator.Wolverine, SimpleMediator.Kafka)
+| Brecha Original | Estado | Solución |
+|----------------|--------|----------|
+| Message Brokers | ✅ RESUELTO | 12 transport packages (RabbitMQ, Kafka, NATS, etc.) |
+| Sagas | ✅ RESUELTO | Orchestration (11 providers) + Choreography |
+| GraphQL | ✅ RESUELTO | SimpleMediator.GraphQL con HotChocolate |
+| WebSocket | ✅ RESUELTO | SimpleMediator.SignalR |
+| gRPC | ✅ RESUELTO | SimpleMediator.gRPC |
+| Event Sourcing | ✅ RESUELTO | EventStoreDB + Marten packages |
+| Authorization | ✅ RESUELTO | AuthorizationBehavior + [Authorize]/[AllowAnonymous] |
+| Caching | ✅ RESUELTO | 8 cache providers |
 
-**Contexto actual:**
+### 🟡 **Brechas Menores Pendientes**
 
-- ✅ Dapr ya proporciona pub/sub cloud-agnostic (Redis, RabbitMQ, Azure Service Bus, Kafka)
-- ✅ Outbox/Inbox implementados en 10 proveedores de BD
-- ⏳ MassTransit y Wolverine en roadmap (Q1 2026)
-
-**Solución planificada:**
-
-```csharp
-// SimpleMediator.MassTransit (planificado)
-services.AddMediator()
-    .AddMassTransit(cfg => cfg.UsingRabbitMq(...));
-
-// SimpleMediator.Wolverine (planificado)
-services.AddMediator()
-    .AddWolverine(opts => opts.UseAzureServiceBus(...));
-```
-
-#### 2. **Testing Module** (PARCIALMENTE RESUELTO)
-
-**Impacto:** Testing mejorado con Testcontainers pero aún sin fixture builder
-**Escenario:** Unit tests con mocks y databases reales
-**Estado:** 🟡 INFRAESTRUCTURA COMPLETA, fixtures básicos disponibles
-
-**Implementado actualmente:**
-
-```csharp
-// Testcontainers fixtures (COMPLETADO)
-public class MyTests : IClassFixture<SqlServerFixture>
-{
-    private readonly SqlServerFixture _fixture;
-    
-    public MyTests(SqlServerFixture fixture)
-    {
-        _fixture = fixture; // Real SQL Server container
-        var connection = new SqlConnection(_fixture.ConnectionString);
-    }
-}
-
-// Shared test infrastructure
-// - SimpleMediator.TestInfrastructure
-// - DatabaseFixture (abstract)
-// - SqlServerFixture, PostgreSqlFixture, MySqlFixture, OracleFixture, SqliteFixture
-// - SQL schema scripts por proveedor
-// - Test data builders (OutboxMessageBuilder, etc.)
-```
-
-**Pendiente:**
-
-```csharp
-// MediatorFixture.Create() (NO IMPLEMENTADO)
-var fixture = MediatorFixture.Create()
-    .WithMockedHandler<CreateOrderCommand>(mockHandler)
-    .WithRealDatabase<SqlServerFixture>();
-```
-
-#### 3. **GraphQL Support** (NO PRIORITARIO)
-
-**Impacto:** No apto para GraphQL APIs nativas
-**Escenario:** API GraphQL pura
-**Estado:** ❌ NO PLANIFICADO PARA PRE-1.0
-
-**Contexto:** SimpleMediator es una biblioteca CQRS/Mediator, no un framework web. GraphQL es responsabilidad de la capa de presentación (HotChocolate, GraphQL.NET).
-
-**Enfoque recomendado:**
-
-```csharp
-// Bridge manual con HotChocolate
-[GraphQLResolver]
-public class OrdersResolver
-{
-    private readonly IMediator _mediator;
-    
-    [Query("orders")]
-    public async Task<IEnumerable<Order>> GetOrders()
-    {
-        var result = await _mediator.Send(new GetOrdersQuery());
-        return result.Match(
-            Right: orders => orders,
-            Left: error => throw new GraphQLException(error.Message)
-        );
-    }
-}
-```
-
-**Decisión:** No implementar soporte GraphQL nativo. Los usuarios pueden integrar manualmente vía resolvers.
-
-#### 4. **CLI Tooling**
+#### 1. **CLI Tooling** 📋 PLANIFICADO
 
 **Impacto:** Developer experience inferior a NestJS CLI
-**Escenario:** Scaffolding rápido de handlers, tests, etc.
-**Estado:** ❌ NO IMPLEMENTADO
+**Estado:** Planificado en ROADMAP.md (ver sección Developer Tooling)
 
 **NestJS tiene:**
 
 ```bash
 nest generate controller orders
 nest generate service orders
-nest generate module orders
 ```
 
-**SimpleMediator NO tiene:**
+**SimpleMediator tendrá (futuro):**
 
 ```bash
-# Deseado pero NO existe
-$ dotnet simplemediator generate handler CreateOrder
-$ dotnet simplemediator generate query GetOrders --with-pagination
+simplemediator new handler CreateOrder
+simplemediator new query GetOrders --pagination
+simplemediator graph --format mermaid
 ```
 
-**Impacto:** Developers deben crear manualmente:
+**Prioridad:** Media - Mejora DX pero no bloquea funcionalidad
 
-- Handlers (IRequestHandler implementation)
-- Request/Response DTOs
-- Tests (7 tipos por handler)
-- Validators (FluentValidation/DataAnnotations)
+#### 2. **MediatorFixture Builder** 🟡 PARCIAL
 
-**Prioridad:** Media (mejoraría DX pero no crítico para funcionalidad)
+**Impacto:** Testing menos fluido para mocking de handlers
+**Estado:** Infraestructura completa, falta fluent API
 
-#### 5. **Sistema de Módulos** (NO NECESARIO)
-
-**Impacto:** Organización en aplicaciones grandes
-**Escenario:** Multi-tenant con bounded contexts separados
-**Estado:** ❌ NO PLANIFICADO
-
-**Por qué NO es necesario:**
-
-1. **.NET ya tiene proyectos separados por bounded context:**
-
-   ```
-   MyApp.Orders/          # Bounded context Orders
-   MyApp.Payments/        # Bounded context Payments
-   MyApp.Notifications/   # Bounded context Notifications
-   ```
-
-2. **Assembly scanning por proyecto:**
-
-   ```csharp
-   services.AddMediator(cfg =>
-   {
-       cfg.RegisterServicesFromAssembly(typeof(OrdersModule).Assembly);
-       cfg.RegisterServicesFromAssembly(typeof(PaymentsModule).Assembly);
-   });
-   ```
-
-3. **Behaviors específicos por assembly:**
-
-   ```csharp
-   // En Orders assembly
-   services.AddScoped(typeof(IPipelineBehavior<,>), typeof(OrdersTransactionBehavior<,>));
-   
-   // En Payments assembly
-   services.AddScoped(typeof(IPipelineBehavior<,>), typeof(PaymentsValidationBehavior<,>));
-   ```
-
-**Decisión:** No implementar módulos como NestJS. La solución .NET nativa (proyectos + assemblies) es suficiente.
-
----
-
-### 🟡 **Medias (Mejoras de DX)**
-
-#### 1. **Guards (Authorization Layer)**
-
-**Impacto:** Authorization menos declarativa
-**Solución:** Authorization behaviors + attributes
-
-#### 2. **Pipes (Parameter Transformation)**
-
-**Impacto:** Validación menos granular
-**Solución:** Validator chains per-property
-
-#### 3. **Exception Filters**
-
-**Impacto:** Error handling menos centralizado
-**Solución:** IFunctionalFailureDetector + global error mapping
-
-#### 4. **Sagas**
-
-**Impacto:** Orchestración compleja manual
-**Solución:** Saga engine con System.Threading.Channels
-
-#### 5. **OpenAPI Generation**
-
-**Impacto:** Documentación manual de APIs
-**Solución:** Extension para ASP.NET Core controllers
-
----
-
-## 💡 Oportunidades de Mejora
-
-### **Categoría 1: Arquitectura Core**
-
-#### 1.1. Sistema de Módulos
+**Disponible actualmente:**
 
 ```csharp
-public class OrdersModule : MediatorModule
+// ✅ Database fixtures (Testcontainers)
+public class MyTests : IClassFixture<SqlServerFixture> { }
+
+// ✅ Test data builders
+var message = new OutboxMessageBuilder().Build();
+
+// ✅ 7 tipos de tests soportados
+```
+
+**Pendiente:**
+
+```csharp
+// ❌ Fluent fixture builder (no implementado)
+var fixture = MediatorFixture.Create()
+    .WithMockedHandler<CreateOrderCommand>(mockHandler);
+```
+
+#### 3. **OpenAPI Auto-Generation** 🟡 PARCIAL
+
+**Impacto:** Documentación manual de endpoints
+**Estado:** Funciona con ASP.NET Core, no auto-genera desde handlers
+
+**Disponible:**
+
+```csharp
+// ✅ Minimal APIs con OpenAPI
+app.MapPost("/orders", async (CreateOrderCommand cmd, IMediator m)
+    => await m.Send(cmd))
+    .WithOpenApi();
+```
+
+**No disponible:**
+
+```csharp
+// ❌ Auto-generación desde IRequest
+// No existe: [OpenApiOperation] en handlers
+```
+
+### ❌ **No Implementando (Decisión de Diseño)**
+
+#### Sistema de Módulos Jerárquicos
+
+**Razón:** .NET ya tiene una solución superior con proyectos y assemblies.
+
+```csharp
+// ✅ Solución .NET nativa (preferida)
+MyApp.Orders/          // Bounded context
+MyApp.Payments/        // Bounded context
+
+services.AddMediator(cfg =>
 {
-    protected override void ConfigureModule(IMediatorModuleBuilder builder)
-    {
-        builder.RegisterHandlersFrom<OrdersModule>()
-               .WithBehaviors<OrderValidationBehavior>()
-               .WithMetrics("orders")
-               .WithAuthorizationPolicies("Orders.Read", "Orders.Write");
-    }
-}
-```
-
-#### 1.2. Dynamic Configuration
-
-```csharp
-services.AddMediator()
-    .AddModuleAsync<OrdersModule>(async cfg =>
-    {
-        var settings = await GetSettingsFromVault();
-        cfg.ConnectionString = settings.OrdersDbConnection;
-    });
-```
-
----
-
-### **Categoría 2: Testing**
-
-#### 2.1. Testing Module
-
-```csharp
-public class OrdersTests
-{
-    private readonly MediatorFixture _fixture;
-
-    public OrdersTests()
-    {
-        _fixture = MediatorFixture.Create()
-            .WithHandler<CreateOrderCommand, Order>(new MockCreateOrderHandler())
-            .WithMockedService<IOrderRepository>(MockOrderRepository.Create())
-            .WithBehavior<ValidationBehavior>();
-    }
-
-    [Fact]
-    public async Task CreateOrder_Success()
-    {
-        var result = await _fixture.Send(new CreateOrderCommand { ... });
-        result.Should().BeRight();
-    }
-}
-```
-
-#### 2.2. E2E Testing Helpers
-
-```csharp
-var mediatorClient = MediatorClient.CreateFor<Program>(builder =>
-{
-    builder.OverrideHandler<CreateOrderCommand>(mockHandler);
-    builder.UseInMemoryDatabase();
+    cfg.RegisterServicesFromAssembly(typeof(OrdersModule).Assembly);
+    cfg.RegisterServicesFromAssembly(typeof(PaymentsModule).Assembly);
 });
+```
 
-var response = await mediatorClient.Post("/api/orders", new CreateOrderDto { ... });
-response.Should().HaveStatusCode(201);
+**Ventajas de NO implementar módulos:**
+
+- Compilation boundaries reales (vs módulos runtime)
+- Mejor tooling de IDE
+- Familiar para desarrolladores .NET
+- Sin overhead de abstracción adicional
+
+#### Pipes (Parameter Transformation)
+
+**Razón:** Validación a nivel de request es más explícita y testable.
+
+```csharp
+// ✅ Enfoque SimpleMediator: Validación explícita
+[Required]
+[MinLength(3)]
+public string CustomerName { get; init; }
+
+// vs NestJS pipes que transforman silenciosamente
 ```
 
 ---
 
-### **Categoría 3: Protocol Support**
+## 💡 Oportunidades de Mejora Restantes (Actualizado 2025-12-21)
 
-#### 3.1. GraphQL Bridge
+> **Nota:** La mayoría de las "oportunidades" originales ya están implementadas. Esta sección muestra lo que queda pendiente.
 
-```csharp
-services.AddGraphQLServer()
-    .AddMediatorResolvers(cfg =>
-    {
-        cfg.MapQuery<GetOrdersQuery>("orders");
-        cfg.MapMutation<CreateOrderCommand>("createOrder");
-    });
-```
+### ✅ **Ya Implementado (Dic 2025)**
 
-#### 3.2. gRPC Support
+| Oportunidad Original | Estado | Package |
+|---------------------|--------|---------|
+| GraphQL Bridge | ✅ | SimpleMediator.GraphQL (HotChocolate 15.1) |
+| gRPC Support | ✅ | SimpleMediator.gRPC |
+| Message Brokers | ✅ | 12 transport packages |
+| NATS Transport | ✅ | SimpleMediator.NATS |
+| Outbox Pattern | ✅ | 11 database providers |
+| Sagas | ✅ | Orchestration + Choreography |
+| Saga Persistence | ✅ | 11 database providers |
 
-```csharp
-[GrpcService]
-public class OrdersService : Orders.OrdersBase
-{
-    private readonly IMediator _mediator;
+### 📋 **Pendiente: Developer Tooling**
 
-    public override async Task<CreateOrderResponse> CreateOrder(
-        CreateOrderRequest request, ServerCallContext context)
-    {
-        var result = await _mediator.Send(new CreateOrderCommand
-        {
-            CustomerId = request.CustomerId,
-            Items = request.Items.ToList()
-        });
-
-        return result.Match(
-            Right: order => new CreateOrderResponse { OrderId = order.Id },
-            Left: error => throw new RpcException(new Status(StatusCode.InvalidArgument, error.Message))
-        );
-    }
-}
-```
-
----
-
-### **Categoría 4: Messaging**
-
-#### 4.1. Message Broker Integration
-
-```csharp
-services.AddMediator()
-    .AddNatsTransport(cfg =>
-    {
-        cfg.Servers = ["nats://localhost:4222"];
-        cfg.PublishOn<OrderCreatedNotification>("orders.created");
-        cfg.SubscribeTo<PaymentProcessedNotification>("payments.processed");
-    });
-```
-
-#### 4.2. Outbox Pattern (generalized)
-
-```csharp
-services.AddMediator()
-    .AddOutbox<PostgresOutboxStore>(cfg =>
-    {
-        cfg.ConnectionString = connectionString;
-        cfg.PollingInterval = TimeSpan.FromSeconds(5);
-        cfg.BatchSize = 100;
-    });
-
-// Uso transparente
-await _mediator.Publish(new OrderCreatedNotification(order.Id));
-// ^ Evento guardado en outbox, procesado async
-```
-
----
-
-### **Categoría 5: Sagas**
-
-#### 5.1. Saga Engine
-
-```csharp
-public class OrderFulfillmentSaga : Saga<OrderFulfillmentState>
-{
-    [StartedBy<OrderCreatedNotification>]
-    public async Task Handle(OrderCreatedNotification notification)
-    {
-        Data.OrderId = notification.OrderId;
-        Data.Status = "AwaitingPayment";
-        
-        await _mediator.Send(new ProcessPaymentCommand(Data.OrderId));
-    }
-
-    [SagaEvent<PaymentProcessedNotification>]
-    public async Task Handle(PaymentProcessedNotification notification)
-    {
-        if (notification.OrderId != Data.OrderId) return;
-        
-        Data.Status = "Paid";
-        await _mediator.Send(new ShipOrderCommand(Data.OrderId));
-        CompleteSaga();
-    }
-
-    [SagaTimeout(Minutes = 10)]
-    public async Task OnTimeout()
-    {
-        await _mediator.Send(new CancelOrderCommand(Data.OrderId));
-        CompleteSaga();
-    }
-}
-```
-
-#### 5.2. Saga State Persistence
-
-```csharp
-services.AddMediator()
-    .AddSagas(cfg =>
-    {
-        cfg.RegisterSaga<OrderFulfillmentSaga>();
-        cfg.UseSqlServerPersistence(connectionString);
-        cfg.TimeoutCheckInterval = TimeSpan.FromSeconds(30);
-    });
-```
-
----
-
-### **Categoría 6: Tooling**
-
-#### 6.1. CLI
+#### CLI (Planificado)
 
 ```bash
-# Instalación
-$ dotnet tool install -g SimpleMediator.Cli
+# Instalación (futuro)
+dotnet tool install -g SimpleMediator.Cli
 
 # Scaffolding
-$ simplemediator generate handler CreateOrder
-$ simplemediator generate query GetOrders --with-pagination
-$ simplemediator generate notification OrderCreated --with-handlers 3
+simplemediator new handler CreateOrder
+simplemediator new query GetOrders --pagination
+simplemediator new saga OrderFulfillment
 
 # Análisis
-$ simplemediator analyze --project ./src/MyApp.csproj
-  ✓ Found 45 handlers
-  ✓ Found 12 behaviors
-  ⚠ Warning: Handler CreateOrderHandler has no tests
-  ⚠ Warning: Behavior LoggingBehavior not registered
+simplemediator analyze
+simplemediator graph --format mermaid
 
 # Documentación
-$ simplemediator docs generate --output ./docs
-  ✓ Generated API reference
-  ✓ Generated handler graph
-  ✓ Generated OpenAPI spec
+simplemediator docs generate
 ```
 
-#### 6.2. Visual Studio Extension
+**Estado:** Documentado en ROADMAP.md, prioridad media.
+
+#### Templates (Planificado)
+
+```bash
+# Instalación (futuro)
+dotnet new install SimpleMediator.Templates
+
+dotnet new sm-handler      # Handler con ROP
+dotnet new sm-query        # Query con [Cache]
+dotnet new sm-command      # Command con [Authorize]
+dotnet new sm-saga         # Saga con compensación
+```
+
+### 📋 **Pendiente: Testing Fluent API**
 
 ```csharp
-// Quick Actions (Ctrl+.)
-// - Generate handler for command
-// - Generate notification handlers
-// - Add behavior to pipeline
-// - Generate tests for handler
+// Actual: Funciona pero verbose
+var services = new ServiceCollection();
+services.AddSimpleMediator(cfg => { });
+services.AddSingleton(mockHandler);
+var provider = services.BuildServiceProvider();
+var mediator = provider.GetRequiredService<IMediator>();
 
-// Code Lens
-[3 handlers] public record OrderCreatedNotification : INotification
-// Click -> Navigate to handlers
+// Deseado (no implementado)
+var fixture = MediatorFixture.Create()
+    .WithMockedHandler<CreateOrderCommand>(mockHandler)
+    .Build();
 ```
 
----
-
-### **Categoría 7: OpenAPI Integration**
-
-#### 7.1. Auto-generation from Handlers
+### 📋 **Pendiente: OpenAPI Auto-Generation**
 
 ```csharp
-services.AddControllers()
-    .AddMediatorControllers(cfg =>
-    {
-        cfg.GenerateFor<CreateOrderCommand>(route: "/orders", method: "POST");
-        cfg.GenerateFor<GetOrdersQuery>(route: "/orders", method: "GET");
-    });
+// Actual: Manual via Minimal APIs
+app.MapPost("/orders", async (CreateOrderCommand cmd, IMediator m)
+    => await m.Send(cmd))
+    .WithOpenApi();
 
-services.AddSwaggerGen(c =>
-{
-    c.AddMediatorDocumentation(); // Auto-discover handlers
-});
+// Deseado (no implementado)
+[OpenApiOperation("create-order")]
+public record CreateOrderCommand : IRequest<Order>;
+
+services.AddMediatorOpenApi(); // Auto-generate from handlers
 ```
 
-#### 7.2. Handler Metadata
+### ❌ **No Implementando**
 
-```csharp
-[OpenApiOperation("create-order", Tags = ["Orders"])]
-[OpenApiResponse(201, typeof(Order), "Order created")]
-[OpenApiResponse(400, typeof(MediatorError), "Validation failed")]
-public record CreateOrderCommand : IRequest<Either<MediatorError, Order>>
-{
-    [OpenApiParameter("Customer ID", Required = true)]
-    public string CustomerId { get; init; }
-}
-```
+| Característica | Razón |
+|---------------|-------|
+| Sistema de Módulos | .NET proyectos/assemblies es superior |
+| Visual Studio Extension | Alto esfuerzo, bajo retorno |
+| Dynamic Configuration | Azure App Configuration/Key Vault ya lo resuelve |
 
 ---
 
-## 🗺️ Roadmap Propuesto
-
-> **NOTA**: Este roadmap se basa en el análisis de brechas vs NestJS Y el ROADMAP.md oficial del proyecto (Dic 2025).
-
-### **Estado Actual (85% hacia Pre-1.0)**
-
-#### ✅ **COMPLETADO (Producción Ready)**
-
-**Core & Validation** (100%):
-
-- ✅ SimpleMediator con Railway Oriented Programming
-- ✅ 4 validation packages (FluentValidation, DataAnnotations, MiniValidator, GuardClauses)
-- ✅ IFunctionalFailureDetector para detección de errores funcionales
-
-**Web & Integration** (100%):
-
-- ✅ SimpleMediator.AspNetCore (middleware, autorización, Problem Details)
-
-**Database Providers** (100% - 10 proveedores):
-
-- ✅ EntityFrameworkCore
-- ✅ Dapper: SqlServer, PostgreSQL, MySQL, Oracle, Sqlite
-- ✅ ADO.NET: SqlServer, PostgreSQL, MySQL, Oracle, Sqlite
-- ✅ Patrones: Outbox, Inbox, Sagas, Scheduled Messages
-
-**Job Scheduling** (100%):
-
-- ✅ Hangfire (fire-and-forget, delayed, recurring)
-- ✅ Quartz (enterprise CRON, clustering)
-
-**Resilience** (100%):
-
-- ✅ Extensions.Resilience (Microsoft Resilience Pipeline)
-- ✅ Polly (direct v8 integration)
-- ✅ Refit (type-safe REST clients)
-- ✅ Dapr (service mesh: invocation, pub/sub, state, secrets)
-
-**Observability** (100%):
-
-- ✅ OpenTelemetry (traces, métricas, enrichers automáticos)
-- ✅ 71 tests (57 unit + 6 integration + 8 property)
-- ✅ Docker Compose stack (Jaeger, Prometheus, Grafana)
-
-**Stream Requests** (70%):
-
-- 🟡 IStreamRequest<TItem> con IAsyncEnumerable (11 unit tests, faltan 5 tipos)
-
-**Testing Infrastructure** (PARCIAL):
-
-- ✅ Testcontainers para real databases
-- ✅ Fixtures: SqlServerFixture, PostgreSqlFixture, MySqlFixture, OracleFixture, SqliteFixture
-- ✅ 3,444 tests passing (265 core + 3,179 database)
-- ❌ MediatorFixture.Create() (fluent testing API NO implementado)
-
----
-
-### **Fase 1: Alcanzar Pre-1.0 (Q1 2026)**
-
-#### 🔥 **CRÍTICO (Bloqueante para 1.0)**
-
-1. **100% Test Coverage** (MANDATORIO - 8-12 semanas)
-   - Política obligatoria implementada (2025-12-18)
-   - ~2,500-3,000 tests adicionales necesarios
-   - 7 tipos de tests por componente: Unit, Guard, Contract, Property, Integration, Load, Benchmarks
-   - Target: Line Coverage ≥90%, Branch Coverage ≥85%, Mutation Score ≥80%
-
-2. **Stream Requests Completion** (2 semanas)
-   - Completar 5 tipos de tests faltantes
-   - Contract tests para IStreamRequest
-   - Property tests para streaming pipeline
-   - Integration tests con real databases
-
-3. **Documentation** (4 semanas)
-   - Completar QuickStart guides
-   - Migration guides (MediatR → SimpleMediator)
-   - Architecture decision records (ADRs)
-   - API reference completa
-
-4. **Parallel Notification Dispatch** (3 semanas - OPT-IN)
-   - Configuración: `.EnableParallelNotifications()`
-   - MaxDegreeOfParallelism configurable
-   - Preservar orden de dispatch legacy (default sequential)
-   - Tests de concurrencia exhaustivos
-
-5. **Framework Rename: Encina** (2 semanas)
-   - Namespace migration: SimpleMediator → Encina
-   - NuGet package renaming
-   - Compatibility shims para migración gradual
-   - Announcement & communication plan
-
-**Deliverable Pre-1.0:** `Encina Framework 1.0.0-rc1` (Marzo 2026)
-
----
-
-### **Fase 1.5: Caching Infrastructure (✅ COMPLETADO DIC 2025)**
-
-#### ✅ **IMPLEMENTADO (95% completo)**
-
-1. **Caching Abstractions & Core** (COMPLETADO)
-   - ✅ ICacheProvider, IDistributedLockProvider, IPubSubProvider
-   - ✅ ICacheKeyGenerator con templates
-   - ✅ `[Cache]` attribute para query caching
-   - ✅ `[InvalidatesCache]` attribute con pattern matching
-   - ✅ QueryCachingPipelineBehavior
-   - ✅ CacheInvalidationPipelineBehavior
-   - ✅ IdempotencyPipelineBehavior
-
-2. **7 Cache Providers Implementados** (COMPLETADO)
-   - ✅ SimpleMediator.Caching.Memory - In-memory (IMemoryCache)
-   - ✅ SimpleMediator.Caching.Redis - Redis + Redlock
-   - ✅ SimpleMediator.Caching.Garnet - Microsoft Garnet (10-100x faster)
-   - ✅ SimpleMediator.Caching.Valkey - Linux Foundation (AWS/Google)
-   - ✅ SimpleMediator.Caching.Dragonfly - 25x throughput
-   - ✅ SimpleMediator.Caching.KeyDB - Multi-threaded
-   - ✅ SimpleMediator.Caching.NCache - Native .NET enterprise
-
-3. **Advanced Features Implementados** (COMPLETADO)
-   - ✅ Distributed locks (Redlock algorithm)
-   - ✅ Pub/Sub cache invalidation broadcast
-   - ✅ Pattern-based invalidation (wildcards)
-   - ✅ Distributed idempotency keys
-   - ✅ VaryByUser, VaryByTenant support
-   - ✅ TTL, sliding expiration, cache priority
-   - ✅ Testcontainers integration (~1,000+ tests)
-
-4. **Pendiente** (5% restante)
-   - 🟡 ~50-100 tests adicionales para 100% coverage
-   - 🟡 HybridCache (.NET 9) provider
-   - 🟡 Algunos load tests finales
-
-**Deliverable COMPLETADO:** `SimpleMediator.Caching.*` packages (7/8 completos)
-
-**Impacto:** SimpleMediator ahora SUPERA a NestJS en funcionalidad de caching empresarial (distributed locks, pub/sub invalidation, pattern matching, idempotency).
-
----
-
-### **Fase 2: Infrastructure Integrations (Q1-Q2 2026)**
-
-#### 🚀 **ALTA PRIORIDAD (Post-1.0)**
-
-1. **Message Brokers** (8-12 semanas)
-   - **MassTransit** (COMMUNITY ADOPTION: ⭐⭐⭐⭐⭐ 80/100):
-     - RabbitMQ, Azure Service Bus, Amazon SQS integration
-     - Saga state machines
-     - Automatic retry/circuit breaker
-   - **Wolverine** (COMMUNITY ADOPTION: ⭐⭐⭐ 60/100):
-     - Lightweight alternative a MassTransit
-     - Native .NET messaging
-     - TCP, RabbitMQ, Azure Service Bus
-   - **Kafka Integration**:
-     - Confluent.Kafka (COMMUNITY ADOPTION: ⭐⭐⭐⭐ 75/100)
-     - KafkaFlow (COMMUNITY ADOPTION: ⭐⭐⭐ 65/100 - Brazilian alternative)
-
-3. **Event Sourcing & CQRS Databases** (6-8 semanas)
-   - **Marten** (COMMUNITY ADOPTION: ⭐⭐⭐⭐ 70/100):
-     - PostgreSQL-based event store
-     - Projections & aggregates
-     - Document database hybrid
-   - **EventStoreDB** (COMMUNITY ADOPTION: ⭐⭐⭐⭐ 75/100):
-     - Pure event sourcing
-     - Projections & subscriptions
-     - Optimistic concurrency
-   - **MongoDB** (COMMUNITY ADOPTION: ⭐⭐⭐⭐⭐ 85/100):
-     - Document-based messaging
-     - Change streams para event processing
-     - Flexible schema para events
-
-**Deliverable:** `Encina.Integrations.*` packages (Mayo-Junio 2026)
-
----
-
-### **Fase 3: Developer Experience (Q2-Q3 2026)**
-
-#### 💎 **MEDIA PRIORIDAD**
-
-1. **Testing Module** (3-4 semanas)
-   - `MediatorFixture.Create()` fluent API
-   - Override de handlers/behaviors
-   - In-memory database testing helpers
-   - Automatic mock generation
-
-2. **CLI Tool v1** (4-6 semanas)
-   - Scaffolding: handler, query, notification, validator
-   - Code analysis (detect missing tests, coverage gaps)
-   - Template engine con customización
-   - Migration tools (MediatR → Encina)
-
-3. **Visual Studio Extension** (6-8 semanas)
-   - Quick Actions (generate handler, add validator)
-   - CodeLens (handler count, test coverage)
-   - Navigation helpers (Go to Handler, Find Usages)
-   - Refactoring tools
-
-**Deliverable:** Encina Developer Tools Suite (Agosto-Septiembre 2026)
-
----
-
-### **Fase 4: Protocol Support (Q3-Q4 2026)**
-
-#### 🎯 **MEDIA-BAJA PRIORIDAD**
-
-1. **GraphQL Bridge** (4-6 semanas)
-   - HotChocolate integration package
-   - Auto-mapping Commands/Queries → Resolvers
-   - Either → GraphQL errors mapping
-   - Schema generation helpers
-
-2. **gRPC Support** (4-5 semanas)
-   - Proto generation from handlers
-   - Bidirectional streaming
-   - Either → gRPC Status code mapping
-   - Service definition generation
-
-3. **WebSocket Helpers** (2-3 semanas)
-   - SignalR integration
-   - Notification → Hub event mapping
-   - Real-time query results
-
-**Deliverable:** `Encina.Protocols.*` packages (Octubre-Diciembre 2026)
-
----
-
-### **Fase 5: Advanced Features (2027+)**
-
-#### 🌟 **NICE TO HAVE**
-
-1. **Módulos** (SI SE IMPLEMENTA - 4 semanas)
-   - Bounded context isolation
-   - Per-module behaviors
-   - Cross-module messaging
-
-2. **Guards & Pipes** (4 semanas)
-   - Authorization layer declarativa
-   - Parameter transformation
-   - Metadata-driven validation
-
-3. **Telemetry Dashboard** (6 semanas)
-   - Prometheus exporter built-in
-   - Grafana templates
-   - Real-time metrics & alerts
-
-4. **AI Assistant** (8+ semanas)
-   - Handler generation from natural language
-   - Test generation automática
-   - Performance recommendations
-
----
+## 🗺️ Roadmap Simplificado (Actualizado 2025-12-21)
+
+> **NOTA**: Para el roadmap completo y detallado, ver `ROADMAP.md` en la raíz del proyecto.
+
+### **Estado Actual: 90% hacia Pre-1.0**
+
+#### ✅ **COMPLETADO (Diciembre 2025)**
+
+| Categoría | Packages | Estado |
+|-----------|----------|--------|
+| Core & Validation | 5 packages | ✅ 100% |
+| Web Integration | 2 packages (AspNetCore + SignalR) | ✅ 100% |
+| Database Providers | 11 packages (EF + 5 Dapper + 5 ADO) | ✅ 100% |
+| Messaging Transports | 12 packages | ✅ 100% |
+| Job Scheduling | 2 packages (Hangfire + Quartz) | ✅ 100% |
+| Resilience | 4 packages (Resilience, Polly, Refit, Dapr) | ✅ 100% |
+| Caching | 8 packages | ✅ 100% |
+| Observability | 1 package (OpenTelemetry) | ✅ 100% |
+| Event Sourcing | 2 packages (EventStoreDB + Marten) | ✅ 100% |
+
+**Total: ~45 packages, ~4,500 tests**
+
+#### 🟡 **Pendiente para Pre-1.0**
+
+| Tarea | Estado | Prioridad |
+|-------|--------|-----------|
+| Stream Requests (IAsyncEnumerable) | 70% | 🔥 Alta |
+| Test Coverage (≥90%) | ~85% | 🔥 Alta |
+| Documentation (QuickStart, Migration) | 85% | 🔥 Alta |
+| Framework Rename → Encina | 📋 Planificado | 🔥 Alta |
+
+#### 📋 **Post-1.0**
+
+| Característica | Estado | Prioridad |
+|---------------|--------|-----------|
+| CLI Tooling | 📋 Planificado | ⭐⭐⭐ Media |
+| Templates (`dotnet new`) | 📋 Planificado | ⭐⭐⭐ Media |
+| MediatorFixture Builder | 📋 Planificado | ⭐⭐ Baja |
+| OpenAPI Auto-Generation | 📋 Planificado | ⭐⭐ Baja |
 
 ### **Decisiones Arquitectónicas (NO IMPLEMENTAR)**
 
-❌ **Generic Variance** (`IRequestHandler<in TRequest, out TResponse>`)
-
-- Razón: Complejidad innecesaria, 0% adoption en codebase existente
-- Alternativa: Usar base classes para polimorfismo
-
-❌ **MediatorResult<T> Wrapper**
-
-- Razón: Either<MediatorError, T> es suficiente
-- Alternativa: Usar Either directamente
-
-❌ **Source Generators**
-
-- Razón: Reflection es suficiente, source generators agregan complejidad de debugging
-- Alternativa: Assembly scanning con caching
+| Característica | Razón |
+|---------------|-------|
+| Sistema de Módulos | .NET proyectos/assemblies es superior |
+| Generic Variance | Complejidad innecesaria |
+| Source Generators | Reflection con caching es suficiente |
 
 ---
 
-## 📝 Conclusiones
+## 📝 Conclusiones (Actualizado 2025-12-21)
 
 ### SimpleMediator (→ Encina Framework) es SUPERIOR a NestJS en
 
-1. **Functional Error Handling** ✅
-   - Either monad vs exceptions
-   - Type-safe error paths (no runtime surprises)
-   - Better for domain modeling
-   - Railway Oriented Programming patterns
-
-2. **Observability Native** ✅
-   - OpenTelemetry package completo (71 tests)
-   - Zero-config distributed tracing (W3C Trace Context)
-   - Metrics as first-class citizen (IMediatorMetrics)
-   - Messaging enrichers (Outbox, Inbox, Sagas, Scheduling)
-   - Docker Compose stack incluido (Jaeger, Prometheus, Grafana)
-
-3. **Performance** ✅
-   - Zero allocations (ValueTask, ArrayPool)
-   - No exceptions in happy path
-   - Low memory pressure
-   - High throughput (ideal IoT/real-time)
-
-4. **Validation Flexibility** ✅
-   - 4 engines completos vs 1 (DataAnnotations, FluentValidation, MiniValidator, GuardClauses)
-   - Mix & match según bounded context
-   - Gradual migration path
-   - 475 tests combinados (56 + 68 + 59 + 292)
-
-5. **Database & Messaging Maturity** ✅
-   - **10 proveedores completos** (Dapper + ADO.NET × 5 databases)
-   - Outbox/Inbox/Sagas/Scheduling en TODOS los proveedores
-   - 3,179 database tests (real containers via Testcontainers)
-   - Resilience packages (Extensions.Resilience, Polly, Refit, Dapr)
-
-6. **Caching Infrastructure** ✅ **NUEVO DIC 2025**
-   - **8 cache providers** (7 completos: Memory, Redis, Garnet, Valkey, Dragonfly, KeyDB, NCache)
-   - Declarative caching: `[Cache]` attribute
-   - Pattern-based invalidation: `[InvalidatesCache]` con wildcards
-   - Distributed locks (Redlock algorithm)
-   - Pub/Sub invalidation broadcast (todas las instancias)
-   - Distributed idempotency keys
-   - ~1,000+ tests con Testcontainers
-   - **SUPERA a NestJS** en funcionalidad empresarial de caching
-
-7. **Testing Infrastructure** ✅
-   - Testcontainers para real databases (no mocks)
-   - 7 tipos de tests: Unit, Guard, Contract, Property, Integration, Load, Benchmarks
-   - ~4,500 tests actuales (3,444 core + ~1,000 caching)
-   - Property-based testing con FsCheck
-   - Objetivo: 100% coverage obligatorio
+| Área | SimpleMediator | NestJS | Ventaja |
+|------|---------------|--------|---------|
+| **Error Handling** | Either monad (ROP) | Exceptions | ✅ Type-safe, composable |
+| **Observability** | OpenTelemetry native | Via libs | ✅ Zero-config tracing |
+| **Database Support** | 11 providers | TypeORM | ✅ Más opciones |
+| **Caching** | 8 providers + locks | Keyv | ✅ Enterprise features |
+| **Message Transports** | 12 packages | 6 built-in | ✅ Más opciones |
+| **Event Sourcing** | EventStoreDB + Marten | Manual | ✅ Native support |
+| **Sagas** | Orchestration + Choreography | RxJS only | ✅ Más patrones |
+| **Validation** | 4 engines | 1 engine | ✅ Flexibilidad |
+| **Performance** | Zero allocations | Standard | ✅ Lower latency |
 
 ### NestJS es SUPERIOR a SimpleMediator en
 
-1. **Ecosystem Completeness** 🔴
-   - Full-stack framework (web + microservices)
-   - Protocol support nativo (HTTP, GraphQL, WebSocket, gRPC)
-   - Message brokers built-in (TCP, Redis, NATS, MQTT, RabbitMQ, Kafka, gRPC)
-
-2. **Developer Experience** 🔴
-   - CLI tooling robusto (`nest generate`)
-   - Scaffolding automático
-   - Graph visualization
-   - Testing module (@nestjs/testing) con DI simulation
-
-3. **Testing Utilities** 🟡 (PARCIAL)
-   - Testing module dedicado
-   - Override providers out-of-the-box
-   - E2E helpers (Supertest)
-   - **PERO**: SimpleMediator tiene Testcontainers (real databases vs mocks)
-
-4. **Documentation & Community** 🟡
-   - Official courses & certification
-   - Large community (48k+ GitHub stars)
-   - Muchos ejemplos reales
-   - **PERO**: SimpleMediator tiene documentación exhaustiva (README + ROADMAP detallados)
-
-### Estrategia Actualizada para Encina Framework
-
-#### **CRÍTICO Pre-1.0 (Q1 2026)**
-
-- 🔥 **100% Test Coverage** (MANDATORIO): ~2,500-3,000 tests adicionales
-- 🔥 **Caching Tests**: Completar ~100 tests restantes (95% → 100%)
-- 🔥 **Stream Requests**: Completar 30% restante
-- 🔥 **Documentation**: QuickStarts, migration guides, ADRs
-- 🔥 **Parallel Notifications**: Opt-in parallelism
-- 🔥 **Rename a "Encina"**: Namespace + NuGet packages
-
-#### **Post-1.0 Inmediato (Q1-Q2 2026)**
-
-- ✅ **Caching**: ✅ 7/8 providers completos (solo falta HybridCache)
-- 🟡 **HybridCache** (.NET 9): In-memory + distributed layers
-- 🚀 **MassTransit**: RabbitMQ, Azure Service Bus, Amazon SQS
-- 🚀 **Wolverine**: Lightweight messaging alternative
-- 🚀 **Kafka**: Confluent.Kafka + KafkaFlow
-- 🚀 **Event Sourcing**: Marten (PostgreSQL), EventStoreDB, MongoDB
-
-#### **Developer Experience (Q2-Q3 2026)**
-
-- 💎 **MediatorFixture.Create()**: Fluent testing API
-- 💎 **CLI Tool**: Scaffolding, analysis, migrations
-- 💎 **VS Extension**: Quick Actions, CodeLens, navigation
-
-#### **Protocol Support (Q3-Q4 2026)**
-
-- 🎯 **GraphQL**: HotChocolate bridge (si hay demanda)
-- 🎯 **gRPC**: Proto generation
-- 🎯 **WebSocket**: SignalR helpers
-
-#### **NO IMPLEMENTAR (Decisión Arquitectónica)**
-
-- ❌ **Sistema de Módulos**: .NET projects + assemblies son suficientes
-- ❌ **Generic Variance**: Complejidad innecesaria
-- ❌ **MediatorResult wrapper**: Either es suficiente
-- ❌ **Source Generators**: Reflection + caching es suficiente
+| Área | NestJS | SimpleMediator | Ventaja |
+|------|--------|---------------|---------|
+| **CLI Tooling** | `nest generate` | 📋 Planificado | 🟡 DX superior |
+| **Community** | 48k+ stars | Nuevo proyecto | 🟡 Más ejemplos |
+| **Full-stack** | Framework completo | Library | 🟡 Alcance mayor |
 
 ### Posicionamiento Final
 
-**Encina Framework NO debe competir directamente con NestJS**. Son herramientas para ecosistemas diferentes:
+**SimpleMediator y NestJS no compiten directamente:**
 
-- **NestJS** = Framework web full-stack (Node.js/TypeScript)
-- **Encina** = CQRS/Mediator library functional-first (.NET)
+| Aspecto | SimpleMediator | NestJS |
+|---------|---------------|--------|
+| **Tipo** | Library CQRS/Mediator | Framework full-stack |
+| **Lenguaje** | .NET (C#) | Node.js (TypeScript) |
+| **Filosofía** | Functional (ROP) | OOP + Decorators |
+| **Uso** | Parte de una app .NET | App completa |
 
-**Tagline sugerido:**
-> "Encina: The functional CQRS/Mediator library for .NET applications that demand explicit error handling, enterprise-grade caching, OpenTelemetry-native observability, and Railway Oriented Programming. Built for production with 4,500+ tests, 10 database providers, and 8 cache providers."
+### Diferenciadores Clave de SimpleMediator
 
-**Diferenciadores clave a mantener:**
+1. ✅ **Railway Oriented Programming** - Errores explícitos, no excepciones
+2. ✅ **45+ packages** - Cobertura enterprise completa
+3. ✅ **12 messaging transports** - RabbitMQ, Kafka, NATS, Azure, AWS, etc.
+4. ✅ **11 database providers** - Todos con Outbox/Inbox/Sagas
+5. ✅ **8 cache providers** - Distributed locks, pub/sub invalidation
+6. ✅ **OpenTelemetry native** - Traces y métricas built-in
+7. ✅ **Event Sourcing** - EventStoreDB + Marten
+8. ✅ **4,500+ tests** - Testcontainers con real databases
 
-1. ✅ **Functional error handling** (Either/Option, no exceptions)
-2. ✅ **OpenTelemetry native** (package completo con 71 tests)
-3. ✅ **10 database providers** (Outbox, Inbox, Sagas en TODOS)
-4. ✅ **8 cache providers** (distributed locks, pub/sub, idempotency) **NUEVO**
-5. ✅ **Performance** (zero allocations, ValueTask)
-6. ✅ **Multi-validation engines** (4 packages, 475 tests)
-7. ✅ **Railway Oriented Programming** (explicit error paths)
-8. ✅ **Testing excellence** (Testcontainers, 7 tipos de tests, ~4,500 tests)
+### Brechas Restantes (Menores)
 
-**Áreas a expandir (según roadmap oficial):**
-
-1. 🔥 **Test coverage 100%** (mandatorio Pre-1.0)
-2. ✅ **Caching** (95% completo - solo faltan ~100 tests y HybridCache)
-3. 🚀 **Infrastructure integrations** (MassTransit, Kafka, Marten, MongoDB)
-4. 💎 **Developer tooling** (CLI, VS Extension, MediatorFixture)
-5. 🎯 **Protocol bridges** (GraphQL, gRPC, WebSocket - si hay demanda)
-
-### Métricas de Éxito (2026)
-
-| Métrica | Q1 2026 (Pre-1.0) | Q4 2026 (Post-1.0) |
-|---------|-------------------|-------------------|
-| Test Coverage | 100% (MANDATORIO) | 100% |
-| Tests Totales | ~5,500 | ~7,500+ |
-| Database Providers | 10 ✅ | 10 + MongoDB |
-| Cache Providers | 7 ✅ (95%) | 8 ✅ (+ HybridCache) |
-| Message Brokers | Dapr ✅ | + MassTransit, Wolverine, Kafka |
-| Event Sourcing | ❌ | Marten, EventStoreDB ✅ |
-| CLI Tool | ❌ | v1.0 ✅ |
-| VS Extension | ❌ | v1.0 ✅ |
-| GitHub Stars | ? | 1,000+ (objetivo) |
-| NuGet Downloads | ? | 10,000+ (objetivo) |
+| Brecha | Estado | Impacto |
+|--------|--------|---------|
+| CLI Tooling | 📋 Planificado | 🟡 DX |
+| OpenAPI auto-gen | 📋 Planificado | 🟡 DX |
+| MediatorFixture | 📋 Planificado | 🟡 Testing |
 
 ---
 
 ## 📚 Referencias
 
 - [NestJS Documentation](https://docs.nestjs.com/)
-- [SimpleMediator README](../README.md)
-- [SimpleMediator ROADMAP](../ROADMAP.md) (85% to Pre-1.0)
+- [SimpleMediator ROADMAP](../ROADMAP.md) (90% to Pre-1.0)
 - [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/)
 - [OpenTelemetry .NET](https://opentelemetry.io/docs/languages/net/)
-- [CQRS Pattern](https://martinfowler.com/bliki/CQRS.html)
-- [Testcontainers for .NET](https://dotnet.testcontainers.org/)
-- [MassTransit Documentation](https://masstransit.io/)
-- [Marten Event Sourcing](https://martendb.io/)
 
 ---
 
-**Documento generado el**: 21 de diciembre de 2025  
-**Basado en**: README.md (desactualizado) + ROADMAP.md (estado actual 85% Pre-1.0)  
-**Versión**: 2.0 (actualizada con estado real del proyecto)  
-**Próxima revisión**: Marzo 2026 (Post Pre-1.0 release)
+**Documento actualizado**: 21 de diciembre de 2025
+**Versión**: 3.0 (refleja estado actual con SignalR, 12 transports, EventStoreDB, etc.)
+**Próxima revisión**: Cuando se complete Pre-1.0

@@ -47,15 +47,22 @@ SimpleMediator (future: **Encina Framework**) aspires to be the functional media
 |----------|-----------|-------|---|
 | Core Features | 1 | 1 | 100% ✅ |
 | Validation Packages | 4 | 4 | 100% ✅ |
-| Web Integration | 1 | 1 | 100% ✅ |
+| Web Integration | 2 | 2 | 100% ✅ |
 | Messaging Packages | 3 | 3 | 100% ✅ |
 | **Messaging Transports** | 12 | 12 | 100% ✅ |
 | Job Schedulers | 2 | 2 | 100% ✅ |
 | Database Providers | 10 | 10 | 100% ✅ |
 | Resilience Packages | 3 | 3 | 100% ✅ |
 | **Caching Packages** | 8 | 8 | 100% ✅ |
+| **Real-time (SignalR)** | 1 | 1 | 100% ✅ |
+| **Developer Tooling** | 0 | 3 | 0% 📋 |
 | Tests | 3,803 | ~5,000+ | 76% 🟡 |
 | Documentation | 85% | 100% | 85% 🟡 |
+
+**Developer Tooling (Pre-1.0)**:
+- 📋 SimpleMediator.Cli - Command-line scaffolding & analysis
+- 📋 SimpleMediator.Testing - MediatorFixture fluent API
+- 📋 SimpleMediator.OpenApi - Auto-generation from handlers
 
 ### Test Status: 3,444 Tests Created (265 Core + 3,179 Database Providers)
 
@@ -269,15 +276,62 @@ SimpleMediator.Core/              # Core mediator (ROP, pipelines)
 #### SimpleMediator.AspNetCore
 
 **Status**: ✅ Production Ready
-**Tests**: 49/49 passing
+**Tests**: 52/52 passing
 
 **Features**:
 
 - SimpleMediatorContextMiddleware for IRequestContext enrichment
-- AuthorizationPipelineBehavior with [Authorize] attribute support
+- AuthorizationPipelineBehavior with [Authorize], [AllowAnonymous], resource-based auth
 - ProblemDetailsExtensions for RFC 7807 (intelligent error mapping)
 - IRequestContextAccessor with AsyncLocal storage
 - .NET 10 compatibility
+
+#### SimpleMediator.SignalR (NEW 2025-12-21)
+
+**Status**: ✅ Production Ready
+**Tests**: Pending
+
+**Features**:
+
+- `MediatorHub` base class for SignalR hubs with mediator integration
+- `[BroadcastToSignalR]` attribute for declarative notification broadcasting
+- `SignalRBroadcastHandler<T>` - Generic notification handler for SignalR
+- `ISignalRNotificationBroadcaster` - Service for manual broadcasting
+- Support for: Method naming, target users/groups, exclude caller, conditional broadcasting
+- Railway Oriented Programming integration
+
+**Implementation**:
+
+```csharp
+// 1. Register SignalR with mediator
+services.AddSimpleMediatorSignalR();
+
+// 2. Create a hub inheriting from MediatorHub
+public class OrderHub : MediatorHub
+{
+    // Clients can send commands/queries via SignalR
+    // Hub methods: SendCommand, SendQuery, PublishNotification
+}
+
+// 3. Broadcast notifications declaratively
+[BroadcastToSignalR(Method = "OrderUpdated", TargetGroups = "order-{OrderId}")]
+public record OrderUpdatedNotification(string OrderId, string Status) : INotification;
+
+// 4. Or broadcast manually
+public class OrderHandler : INotificationHandler<OrderPlacedNotification>
+{
+    private readonly ISignalRNotificationBroadcaster _broadcaster;
+
+    public async Task<Either<MediatorError, Unit>> Handle(
+        OrderPlacedNotification notification, CancellationToken ct)
+    {
+        await _broadcaster.BroadcastAsync(notification, ct);
+        return Unit.Default;
+    }
+}
+```
+
+**Package Dependencies**: `Microsoft.AspNetCore.SignalR` (via FrameworkReference)
 
 #### SimpleMediator.Messaging (Abstractions)
 
@@ -2039,6 +2093,183 @@ Log.PublishingMessage(_logger, typeof(TMessage).Name);
 **Priority**: ⭐⭐⭐⭐ (High)
 **Complexity**: ⭐⭐ (Low)
 **Target**: <3% duplication
+
+---
+
+### 🛠️ Developer Tooling
+
+#### 15. SimpleMediator.Cli - Command-Line Interface
+
+**Priority**: ⭐⭐⭐ (Medium)
+**Complexity**: ⭐⭐⭐ (Medium)
+**Status**: 📋 Planned
+
+**Objective**: Create a `dotnet tool` that helps developers scaffold and manage SimpleMediator projects.
+
+**Proposed Tool**: `dotnet-simplemediator`
+
+```bash
+# Installation
+dotnet tool install -g SimpleMediator.Cli
+
+# Scaffolding Commands
+simplemediator new handler CreateOrder           # Creates command + handler
+simplemediator new query GetOrders --pagination  # Creates query + handler with pagination
+simplemediator new notification OrderPlaced      # Creates notification + handlers
+simplemediator new behavior Logging              # Creates pipeline behavior
+simplemediator new saga OrderProcessing          # Creates saga with steps
+
+# Analysis Commands
+simplemediator analyze                           # Analyzes project for issues
+simplemediator graph                             # Generates handler/behavior dependency graph
+simplemediator graph --format mermaid            # Outputs as Mermaid diagram
+simplemediator graph --open                      # Opens visualization in browser
+
+# Documentation Commands
+simplemediator docs generate                     # Generates API documentation
+simplemediator docs serve                        # Serves docs locally
+
+# Migration Commands
+simplemediator migrate from-mediatr              # Helps migrate from MediatR
+```
+
+**Proposed Templates**: `SimpleMediator.Templates`
+
+```bash
+# Installation
+dotnet new install SimpleMediator.Templates
+
+# Available Templates
+dotnet new sm-handler     # IRequestHandler with ROP
+dotnet new sm-query       # Query with [Cache] attribute
+dotnet new sm-command     # Command with [Authorize] attribute
+dotnet new sm-notification # Notification + handler
+dotnet new sm-behavior    # IPipelineBehavior
+dotnet new sm-saga        # Saga with compensation
+dotnet new sm-project     # Full project with best practices
+```
+
+**Implementation Details**:
+
+- Built with `System.CommandLine` for CLI
+- Uses Roslyn for code analysis and generation
+- Supports custom templates via `.simplemediator/templates/`
+- Graph visualization with Mermaid or D2 output
+
+**Package Dependencies**: `System.CommandLine`, `Microsoft.CodeAnalysis.CSharp`, `Scriban` (templating)
+
+---
+
+#### 16. SimpleMediator.Testing - Fluent Testing API
+
+**Priority**: ⭐⭐⭐ (Medium)
+**Complexity**: ⭐⭐ (Low)
+**Status**: 📋 Planned
+
+**Objective**: Provide a fluent API for setting up mediator tests with mocked handlers and behaviors.
+
+**Current State**: `SimpleMediator.TestInfrastructure` exists with database fixtures and builders, but lacks a fluent API for mediator setup.
+
+**Proposed API**: `MediatorFixture`
+
+```csharp
+// Current approach (verbose)
+var services = new ServiceCollection();
+services.AddSimpleMediator(cfg => { });
+services.AddSingleton<IRequestHandler<CreateOrderCommand, Either<MediatorError, Order>>>(mockHandler);
+var provider = services.BuildServiceProvider();
+var mediator = provider.GetRequiredService<IMediator>();
+var result = await mediator.Send(new CreateOrderCommand { ... });
+
+// Proposed fluent API
+var fixture = MediatorFixture.Create()
+    .WithHandler<CreateOrderCommand, Order>(mockHandler)
+    .WithBehavior<ValidationBehavior>()
+    .WithBehavior<LoggingBehavior>()
+    .WithMockedService<IOrderRepository>(mockRepo)
+    .Build();
+
+var result = await fixture.Send(new CreateOrderCommand { ... });
+result.Should().BeRight();
+
+// With real database (Testcontainers)
+var fixture = MediatorFixture.Create()
+    .WithRealDatabase<SqlServerFixture>()
+    .WithAllHandlersFromAssembly(typeof(OrdersModule).Assembly)
+    .Build();
+```
+
+**Features**:
+
+- `MediatorFixture.Create()` - Entry point
+- `.WithHandler<TRequest, TResponse>(handler)` - Register mock handler
+- `.WithBehavior<TBehavior>()` - Add pipeline behavior
+- `.WithMockedService<TService>(mock)` - Register mock service
+- `.WithRealDatabase<TFixture>()` - Use Testcontainers fixture
+- `.WithAllHandlersFromAssembly(assembly)` - Auto-register handlers
+- `.Build()` - Build configured mediator
+- `.Send(request)` / `.Publish(notification)` - Execute
+
+**Package Dependencies**: `Microsoft.Extensions.DependencyInjection`, `NSubstitute` (optional)
+
+---
+
+#### 17. OpenAPI Auto-Generation from Handlers
+
+**Priority**: ⭐⭐ (Low)
+**Complexity**: ⭐⭐⭐ (Medium)
+**Status**: 📋 Planned
+
+**Objective**: Automatically generate OpenAPI documentation from `IRequest` handlers.
+
+**Current State**: OpenAPI works via ASP.NET Core Minimal APIs but requires manual endpoint mapping.
+
+**Proposed API**:
+
+```csharp
+// Current approach (manual)
+app.MapPost("/orders", async (CreateOrderCommand cmd, IMediator m)
+    => await m.Send(cmd))
+    .WithOpenApi();
+
+// Proposed: Auto-discovery from handlers
+services.AddSimpleMediatorOpenApi(options =>
+{
+    options.ScanAssemblies(typeof(OrdersModule).Assembly);
+    options.RoutePrefix = "/api";
+});
+
+// Handler with OpenAPI metadata
+[OpenApiRoute("/orders", HttpMethod.Post)]
+[OpenApiOperation("CreateOrder", Tags = ["Orders"])]
+[OpenApiResponse(201, typeof(Order), "Order created successfully")]
+[OpenApiResponse(400, typeof(MediatorError), "Validation failed")]
+public record CreateOrderCommand : IRequest<Either<MediatorError, Order>>
+{
+    [OpenApiProperty("Customer identifier", Required = true)]
+    public string CustomerId { get; init; }
+
+    [OpenApiProperty("Order items", Required = true)]
+    public List<OrderItem> Items { get; init; }
+}
+
+// Auto-generates endpoints:
+// POST /api/orders -> CreateOrderCommand
+// GET /api/orders -> GetOrdersQuery (if exists)
+// GET /api/orders/{id} -> GetOrderByIdQuery (if exists)
+```
+
+**Features**:
+
+- `[OpenApiRoute]` - Define HTTP route and method
+- `[OpenApiOperation]` - Operation metadata (summary, tags)
+- `[OpenApiResponse]` - Response types and status codes
+- `[OpenApiProperty]` - Property descriptions
+- Auto-discovery of handlers with OpenAPI attributes
+- Swagger UI integration
+- Either → ProblemDetails mapping
+
+**Package Dependencies**: `Swashbuckle.AspNetCore` or `NSwag`
 
 ---
 
