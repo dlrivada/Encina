@@ -1525,9 +1525,18 @@ public class OutboxStoreMongoDB : IOutboxStore
 |------------|-------------|----------|--------|-------------------|
 | **Redis/Garnet** | SimpleMediator.Redis.StackExchange<br>SimpleMediator.Redis.Garnet | ⭐⭐⭐⭐⭐ Critical | ⏳ Planned | ⭐⭐⭐⭐⭐ Standard |
 | **MassTransit** | SimpleMediator.MassTransit | ⭐⭐⭐⭐⭐ Critical | ✅ Complete | ⭐⭐⭐⭐⭐ Industry Standard |
-| **Wolverine** | SimpleMediator.Wolverine | ⭐⭐⭐⭐ High | ⏳ Planned | ⭐⭐⭐⭐ Growing |
-| **Kafka (Confluent)** | SimpleMediator.Kafka.Confluent | ⭐⭐⭐⭐ High | ⏳ Planned | ⭐⭐⭐⭐⭐ Official |
-| **KafkaFlow** | SimpleMediator.Kafka.Flow | ⭐⭐⭐⭐ High | ⏳ Planned | ⭐⭐⭐⭐ Popular |
+| **Wolverine** | SimpleMediator.Wolverine | ⭐⭐⭐⭐⭐ Critical | ⏳ In Progress | ⭐⭐⭐⭐ Growing |
+| **NServiceBus** | SimpleMediator.NServiceBus | ⭐⭐⭐⭐ High | ⏳ In Progress | ⭐⭐⭐⭐⭐ Enterprise |
+| **RabbitMQ** | SimpleMediator.RabbitMQ | ⭐⭐⭐⭐⭐ Critical | ⏳ In Progress | ⭐⭐⭐⭐⭐ Standard |
+| **Azure Service Bus** | SimpleMediator.AzureServiceBus | ⭐⭐⭐⭐⭐ Critical | ⏳ In Progress | ⭐⭐⭐⭐⭐ Enterprise |
+| **Amazon SQS/SNS** | SimpleMediator.AmazonSQS | ⭐⭐⭐⭐⭐ Critical | ⏳ In Progress | ⭐⭐⭐⭐⭐ Enterprise |
+| **Kafka (Confluent)** | SimpleMediator.Kafka | ⭐⭐⭐⭐⭐ Critical | ⏳ In Progress | ⭐⭐⭐⭐⭐ Official |
+| **Redis Pub/Sub** | SimpleMediator.Redis.PubSub | ⭐⭐⭐⭐ High | ⏳ In Progress | ⭐⭐⭐⭐⭐ Standard |
+| **In-Memory** | SimpleMediator.InMemory | ⭐⭐⭐⭐ High | ⏳ In Progress | ⭐⭐⭐⭐⭐ Dev/Test |
+| **NATS** | SimpleMediator.NATS | ⭐⭐⭐⭐ High | ⏳ In Progress | ⭐⭐⭐⭐ Growing |
+| **MQTT** | SimpleMediator.MQTT | ⭐⭐⭐⭐ High | ⏳ In Progress | ⭐⭐⭐⭐ IoT Standard |
+| **gRPC** | SimpleMediator.gRPC | ⭐⭐⭐⭐⭐ Critical | ⏳ In Progress | ⭐⭐⭐⭐⭐ Standard |
+| **GraphQL** | SimpleMediator.GraphQL | ⭐⭐⭐⭐ High | ⏳ In Progress | ⭐⭐⭐⭐ Growing |
 | **Marten** | SimpleMediator.Marten | ⭐⭐⭐⭐⭐ Critical | ✅ Complete | ⭐⭐⭐⭐⭐ Highly Regarded |
 | **EventStoreDB** | SimpleMediator.EventStoreDB | ⭐⭐⭐⭐ High | ⏳ Planned | ⭐⭐⭐⭐ Specialized |
 | **MongoDB** | SimpleMediator.MongoDB | ⭐⭐⭐⭐ High | ⏳ Planned | ⭐⭐⭐⭐⭐ Standard |
