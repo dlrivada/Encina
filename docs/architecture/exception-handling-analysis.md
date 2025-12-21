@@ -278,9 +278,9 @@ public async Task<Either<MediatorError, User>> Handle(GetUserQuery request, Canc
 
 ## Recomendación
 
-**Depende del público objetivo del framework:**
+**Depende del público objetivo de la biblioteca:**
 
-### Si el framework es para **equipos externos/OSS**
+### Si la biblioteca es para **equipos externos/OSS**
 
 → **Opción A (Status Quo)**: Captura en RequestDispatcher
 
@@ -288,7 +288,7 @@ public async Task<Either<MediatorError, User>> Handle(GetUserQuery request, Canc
 - **Trade-off**: Mutation score 75%, metadata menos rica
 - **Valor**: Experiencia de usuario más forgiving
 
-### Si el framework es para **uso interno/equipos experimentados**
+### Si la biblioteca es para **uso interno/equipos experimentados**
 
 → **Opción C (No Capturar)**: Puro ROP, fail-fast
 
@@ -310,7 +310,7 @@ public async Task<Either<MediatorError, User>> Handle(GetUserQuery request, Canc
 
 ### Justificación
 
-1. **El código defensivo tiene valor**: Aunque los usuarios "deberían" usar ROP, un safety net es prudente para un framework público.
+1. **El código defensivo tiene valor**: Aunque los usuarios "deberían" usar ROP, un safety net es prudente para una biblioteca pública.
 
 2. **75.18% es un buen mutation score**: Considerando que:
    - Las 52 mutaciones son código defensivo legítimo

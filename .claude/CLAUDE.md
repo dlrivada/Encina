@@ -1,4 +1,4 @@
-# Claude Code - SimpleMediator Framework Guidelines
+# Claude Code - SimpleMediator Guidelines
 
 ## Project Philosophy
 
@@ -8,7 +8,7 @@
 - **No Backward Compatibility Required**: We are NOT maintaining backward compatibility
 - **Breaking Changes**: Fully acceptable and encouraged if they improve the design
 - **Migration Support**: NOT needed - no existing users to migrate
-- **Final Name Change**: The framework will be renamed in the last step (post-1.0)
+- **Final Name Change**: The library will be renamed in the last step (post-1.0)
 
 ### Design Principles
 
@@ -424,7 +424,7 @@ var message = new OutboxMessageBuilder()
 2. Dapper satellite package
 3. ADO.NET satellite package
 4. Hangfire/Quartz adapters for scheduling
-5. Final framework renaming (post-1.0)
+5. Final renaming (post-1.0)
 
 ### Spanish/English
 
@@ -582,7 +582,7 @@ dotnet build SimpleMediator.Web.slnf
 **Strategic Initiatives** (to be done JUST BEFORE 1.0):
 
 - Parallel execution support (opt-in parallel notification dispatch)
-- Framework renaming to "Encina Framework"
+- Renaming to "Encina"
 
 **Security & Supply Chain**:
 

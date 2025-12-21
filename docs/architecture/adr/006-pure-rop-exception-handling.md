@@ -50,7 +50,7 @@ Esto significa:
 
 1. **Eliminar** todos los `catch (Exception ex)` de `PipelineBuilder` y `RequestDispatcher`
 2. **Mantener** solo `catch (OperationCanceledException)` porque la cancelación es comportamiento cooperativo esperado, no un bug
-3. **Responsabilizar** a los usuarios del framework de convertir todos los errores esperados a `Either<Left>`
+3. **Responsabilizar** a los usuarios de la biblioteca de convertir todos los errores esperados a `Either<Left>`
 4. **Permitir** que cualquier otra excepción (NullReferenceException, InvalidOperationException, etc.) propague y crashee el proceso
 
 ### Código Resultante (Pure ROP)
@@ -122,7 +122,7 @@ Para mitigar los aspectos negativos:
 - **1 test skipped** en `ConfigurationProperties.cs` (property test que verificaba excepciones)
 - Total: **10 tests skipped** con razón: `"Pure ROP: exceptions now propagate (fail-fast)"`
 
-Estos tests verificaban comportamiento defensivo que ya no existe. En ROP puro, las excepciones de handlers/behaviors/processors son bugs del código del usuario, no del framework.
+Estos tests verificaban comportamiento defensivo que ya no existe. En ROP puro, las excepciones de handlers/behaviors/processors son bugs del código del usuario, no de la biblioteca.
 
 ### Breaking Change
 
@@ -205,7 +205,7 @@ public async Task<Either<MediatorError, User>> Handle(GetUserQuery request, Canc
 
 - **Pro**: Simple, 78.49% mutation score, puro ROP
 - **Con**: Menos robusto para usuarios novatos
-- **Decisión**: **Aceptada** - Alineada con filosofía del framework
+- **Decisión**: **Aceptada** - Alineada con filosofía de la biblioteca
 
 ## References
 

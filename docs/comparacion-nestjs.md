@@ -25,7 +25,7 @@
 
 > **Última actualización**: Diciembre 2025  
 > **Versión**: Pre-1.0 (active development)  
-> **Futuro nombre**: Encina Framework (renombrado antes de 1.0)
+> **Futuro nombre**: Encina (renombrado antes de 1.0)
 
 ### Progreso General: 85% hacia Pre-1.0
 
@@ -157,7 +157,7 @@
 
 ## 🎯 Resumen Ejecutivo
 
-### SimpleMediator (→ Encina Framework 1.0)
+### SimpleMediator (→ Encina 1.0)
 
 **Biblioteca .NET** especializada en patrones **CQRS/Mediator** con enfoque **funcional** (Railway Oriented Programming), diseñada para aplicaciones empresariales que requieren:
 
@@ -2377,7 +2377,7 @@ services.AddMediatorOpenApi(); // Auto-generate from handlers
 | Stream Requests (IAsyncEnumerable) | 70% | 🔥 Alta |
 | Test Coverage (≥90%) | ~85% | 🔥 Alta |
 | Documentation (QuickStart, Migration) | 85% | 🔥 Alta |
-| Framework Rename → Encina | 📋 Planificado | 🔥 Alta |
+| Rename → Encina | 📋 Planificado | 🔥 Alta |
 
 #### 📋 **Post-1.0**
 
@@ -2400,7 +2400,7 @@ services.AddMediatorOpenApi(); // Auto-generate from handlers
 
 ## 📝 Conclusiones (Actualizado 2025-12-21)
 
-### SimpleMediator (→ Encina Framework) es SUPERIOR a NestJS en
+### SimpleMediator (→ Encina) es SUPERIOR a NestJS en
 
 | Área | SimpleMediator | NestJS | Ventaja |
 |------|---------------|--------|---------|

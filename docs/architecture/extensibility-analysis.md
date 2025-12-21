@@ -15,7 +15,7 @@ This document analyzes SimpleMediator's current extensibility capabilities and r
 - ⚠️ **Missing patterns:** Some common scenarios lack documented patterns or helper types
 - 🔴 **Breaking changes needed:** Request metadata enrichment requires architectural changes
 
-**Recommendation:** Framework is 80% ready. We need to add specific extension patterns and satellite packages before 1.0 release.
+**Recommendation:** Library is 80% ready. We need to add specific extension patterns and satellite packages before 1.0 release.
 
 ---
 
@@ -49,7 +49,7 @@ public interface IPipelineBehavior<TRequest, TResponse>
 
 **Limitations:**
 
-- ❌ No access to raw `HttpContext` or ambient context (by design - keeps framework agnostic)
+- ❌ No access to raw `HttpContext` or ambient context (by design - keeps library agnostic)
 - ❌ No built-in correlation ID propagation (users must implement)
 - ❌ Cannot modify request properties (requests should be immutable records)
 - ❌ No access to handler type metadata at compile time

@@ -233,4 +233,4 @@ This provides graceful degradation while encouraging proper Either-based error h
 
 This decision was made early in the project and fully adopted on 2025-12-12 with the Pure ROP migration. All handlers now return `Either` types, making error handling completely explicit and type-safe.
 
-The functional approach with Either provides excellent composability and makes error handling explicit and testable. The learning curve is acceptable given the benefits, and the exception safety net ensures the framework remains resilient even when handlers don't follow best practices.
+The functional approach with Either provides excellent composability and makes error handling explicit and testable. The learning curve is acceptable given the benefits, and the exception safety net ensures the library remains resilient even when handlers don't follow best practices.

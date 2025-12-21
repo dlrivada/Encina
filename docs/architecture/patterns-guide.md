@@ -1,6 +1,6 @@
 # Design Patterns Guide
 
-This guide explains the key design patterns used in SimpleMediator, their purpose, implementation details, and how they work together to create a robust, maintainable mediator framework.
+This guide explains the key design patterns used in SimpleMediator, their purpose, implementation details, and how they work together to create a robust, maintainable mediator library.
 
 ## Table of Contents
 

@@ -1,4 +1,4 @@
-# 🌳 Encina Framework / SimpleMediator | Resiliencia y Confianza
+# 🌳 Encina / SimpleMediator | Resiliencia y Confianza
 
 [![.NET Quality Gate](https://github.com/dlrivada/SimpleMediator/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/dotnet-ci.yml)
 [![SonarCloud](https://github.com/dlrivada/SimpleMediator/actions/workflows/sonarcloud.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/sonarcloud.yml)
@@ -581,7 +581,7 @@ The living roadmap in `QUALITY_SECURITY_ROADMAP.md` complements this README with
 See [ROADMAP.md](ROADMAP.md) for the complete roadmap. Key pending items:
 
 - Developer Tooling (CLI, Testing helpers, OpenAPI generation)
-- Framework renaming to "Encina Framework" before 1.0
+- Renaming to "Encina" before 1.0
 - SLSA Level 2 compliance and supply chain security
 
 ## License

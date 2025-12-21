@@ -484,7 +484,7 @@ public async ValueTask<Either<MediatorError, TResponse>> Handle(
 **Why:**
 
 - ✅ Explicit dependency (visible in signature)
-- ✅ Never null (guaranteed by framework)
+- ✅ Never null (guaranteed by library)
 - ✅ Easy to test (pass mock)
 - ✅ Modern .NET style (cf. HttpContext in minimal APIs)
 

@@ -11,7 +11,7 @@
 
 ## Context
 
-SimpleMediator aims to be a production-ready mediator framework for .NET applications. Modern applications integrate with numerous external libraries and services:
+SimpleMediator aims to be a production-ready mediator library for .NET applications. Modern applications integrate with numerous external libraries and services:
 
 - **Logging:** Serilog, NLog, Microsoft.Extensions.Logging
 - **Observability:** OpenTelemetry, Application Insights, Prometheus
@@ -22,11 +22,11 @@ SimpleMediator aims to be a production-ready mediator framework for .NET applica
 - **Resilience:** Polly (retry, circuit breaker, rate limiting)
 - **Security:** ASP.NET Core Authorization, Identity
 
-Users expect SimpleMediator to integrate seamlessly with these libraries **without forcing the framework to take dependencies on them**. This is a critical architectural decision that affects:
+Users expect SimpleMediator to integrate seamlessly with these libraries **without forcing it to take dependencies on them**. This is a critical architectural decision that affects:
 
 1. **Core package size** - Should remain minimal
 2. **Versioning conflicts** - Avoid dependency hell
-3. **Flexibility** - Support multiple implementations (e.g., multiple logging frameworks)
+3. **Flexibility** - Support multiple implementations (e.g., multiple logging libraries)
 4. **Discoverability** - Users should easily find integration patterns
 
 ### Key Questions

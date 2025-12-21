@@ -467,7 +467,7 @@ MediatorErrors.Create("order.not_found", $"Order with ID {id} was not found");
 MediatorErrors.Create("user.already_exists", $"User with email {email} already exists");
 MediatorErrors.Create("order.already_shipped", "Cannot modify order that has been shipped");
 
-// Authorization errors (handled by framework)
+// Authorization errors (handled by library)
 MediatorErrors.Create("authorization.insufficient_roles", "User does not have required roles");
 MediatorErrors.Create("authorization.unauthenticated", "Authentication is required");
 ```

@@ -136,7 +136,7 @@ var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TRespons
 
 ### Positive
 
-- **Framework Integration:** Works seamlessly with ASP.NET Core, Blazor, Worker Services, and any .NET Generic Host
+- **Host Integration:** Works seamlessly with ASP.NET Core, Blazor, Worker Services, and any .NET Generic Host
 - **Testability:** Easy to mock handlers and behaviors using standard DI patterns
 - **Isolation:** Scoped resolution prevents cross-request contamination
 - **Flexibility:** Supports Transient, Scoped, and Singleton lifetimes based on handler needs

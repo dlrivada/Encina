@@ -2,13 +2,13 @@
 
 **Last Updated**: 2025-12-21
 **Version**: Pre-1.0 (breaking changes allowed)
-**Future Name**: Encina Framework (to be renamed before 1.0)
+**Future Name**: Encina (to be renamed before 1.0)
 
 ---
 
 ## Vision
 
-SimpleMediator (future: **Encina Framework**) is a functional mediation framework for .NET that enables building modern applications with **Railway Oriented Programming** as the core philosophy.
+SimpleMediator (future: **Encina**) is a functional mediation library for .NET that enables building modern applications with **Railway Oriented Programming** as the core philosophy.
 
 ### Design Principles
 
@@ -163,9 +163,9 @@ Restructuring all test projects to use Testcontainers for real database integrat
 
 ## Strategic Initiatives (Just Before 1.0)
 
-### Framework Renaming: Encina Framework
+### Renaming: Encina
 
-**Current Name**: SimpleMediator → **New Name**: Encina Framework
+**Current Name**: SimpleMediator → **New Name**: Encina
 
 **Why Encina?** Spanish word for holm oak - symbolizing strength, resilience, and longevity.
 

@@ -1,8 +1,8 @@
-# 📚 Roadmap de Documentación - Encina Framework
+# 📚 Roadmap de Documentación - Encina
 
 ## Plan Estratégico para Alcanzar Calidad Documental de Nivel NestJS
 
-> **Objetivo:** Crear un ecosistema de documentación comprehensivo, profesional y accesible que posicione a Encina Framework como una alternativa seria y atractiva para desarrolladores .NET, facilitando la adopción y creando las bases para estrategias de monetización futuras.
+> **Objetivo:** Crear un ecosistema de documentación comprehensivo, profesional y accesible que posicione a Encina como una alternativa seria y atractiva para desarrolladores .NET, facilitando la adopción y creando las bases para estrategias de monetización futuras.
 
 ---
 
@@ -10,13 +10,13 @@
 
 ### Visión
 
-Convertir la documentación de Encina Framework en un referente de calidad en el ecosistema .NET, comparable a NestJS en Node.js, que no solo documente el framework sino que eduque, inspire y construya una comunidad activa de desarrolladores.
+Convertir la documentación de Encina en un referente de calidad en el ecosistema .NET, comparable a NestJS en Node.js, que no solo documente la biblioteca sino que eduque, inspire y construya una comunidad activa de desarrolladores.
 
 ### Objetivos Principales
 
 1. **Reducir friction de adopción:** Documentación tan clara que un desarrollador pueda empezar en < 15 minutos
 2. **Atraer desarrolladores de todos los niveles:** Desde principiantes hasta arquitectos senior
-3. **Construir autoridad técnica:** Posicionar como framework enterprise-ready
+3. **Construir autoridad técnica:** Posicionar como biblioteca enterprise-ready
 4. **Generar ingresos indirectos:** Cursos, consultoría, certificaciones, enterprise support
 5. **Fomentar comunidad:** Contribuidores, evangelistas, casos de éxito
 
@@ -213,7 +213,7 @@ docs.nestjs.com/
 
 #### Objetivos
 
-- Crear documentación esencial para usar el framework
+- Crear documentación esencial para usar la biblioteca
 - 100% de coverage de features actuales
 - Ejemplos ejecutables para cada feature
 
@@ -798,7 +798,7 @@ Encina Advanced (4 módulos, 30 lecciones, 3 horas)
 #### Objetivos
 
 - Construir comunidad vibrante
-- Evangelizar el framework
+- Evangelizar la biblioteca
 - Atraer contribuidores
 - Casos de estudio y testimonios
 
@@ -935,7 +935,7 @@ Encina Advanced (4 módulos, 30 lecciones, 3 horas)
 ### Pre-Launch (3 meses antes)
 
 1. **Landing Page con Waitlist**
-   - "Encina Framework coming soon"
+   - "Encina coming soon"
    - Email capture
    - Feature highlights
 

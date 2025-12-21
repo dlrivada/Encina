@@ -499,4 +499,4 @@ All changes must pass:
 
 ---
 
-**This plan represents the complete path from current architecture to fully extensible framework with satellite packages.**
+**This plan represents the complete path from current architecture to fully extensible library with satellite packages.**
