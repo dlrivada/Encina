@@ -1,0 +1,163 @@
+#nullable enable
+SimpleMediator.MongoDB.Inbox.InboxMessage
+SimpleMediator.MongoDB.Inbox.InboxMessage.ErrorMessage.get -> string?
+SimpleMediator.MongoDB.Inbox.InboxMessage.ErrorMessage.set -> void
+SimpleMediator.MongoDB.Inbox.InboxMessage.ExpiresAtUtc.get -> System.DateTime
+SimpleMediator.MongoDB.Inbox.InboxMessage.ExpiresAtUtc.set -> void
+SimpleMediator.MongoDB.Inbox.InboxMessage.InboxMessage() -> void
+SimpleMediator.MongoDB.Inbox.InboxMessage.IsExpired() -> bool
+SimpleMediator.MongoDB.Inbox.InboxMessage.IsProcessed.get -> bool
+SimpleMediator.MongoDB.Inbox.InboxMessage.MessageId.get -> string!
+SimpleMediator.MongoDB.Inbox.InboxMessage.MessageId.set -> void
+SimpleMediator.MongoDB.Inbox.InboxMessage.NextRetryAtUtc.get -> System.DateTime?
+SimpleMediator.MongoDB.Inbox.InboxMessage.NextRetryAtUtc.set -> void
+SimpleMediator.MongoDB.Inbox.InboxMessage.ProcessedAtUtc.get -> System.DateTime?
+SimpleMediator.MongoDB.Inbox.InboxMessage.ProcessedAtUtc.set -> void
+SimpleMediator.MongoDB.Inbox.InboxMessage.ReceivedAtUtc.get -> System.DateTime
+SimpleMediator.MongoDB.Inbox.InboxMessage.ReceivedAtUtc.set -> void
+SimpleMediator.MongoDB.Inbox.InboxMessage.RequestType.get -> string!
+SimpleMediator.MongoDB.Inbox.InboxMessage.RequestType.set -> void
+SimpleMediator.MongoDB.Inbox.InboxMessage.Response.get -> string?
+SimpleMediator.MongoDB.Inbox.InboxMessage.Response.set -> void
+SimpleMediator.MongoDB.Inbox.InboxMessage.RetryCount.get -> int
+SimpleMediator.MongoDB.Inbox.InboxMessage.RetryCount.set -> void
+SimpleMediator.MongoDB.Inbox.InboxStoreMongoDB
+SimpleMediator.MongoDB.Inbox.InboxStoreMongoDB.AddAsync(SimpleMediator.Messaging.Inbox.IInboxMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Inbox.InboxStoreMongoDB.GetExpiredMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<SimpleMediator.Messaging.Inbox.IInboxMessage!>!>!
+SimpleMediator.MongoDB.Inbox.InboxStoreMongoDB.GetMessageAsync(string! messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<SimpleMediator.Messaging.Inbox.IInboxMessage?>!
+SimpleMediator.MongoDB.Inbox.InboxStoreMongoDB.InboxStoreMongoDB(MongoDB.Driver.IMongoClient! mongoClient, Microsoft.Extensions.Options.IOptions<SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions!>! options, Microsoft.Extensions.Logging.ILogger<SimpleMediator.MongoDB.Inbox.InboxStoreMongoDB!>! logger) -> void
+SimpleMediator.MongoDB.Inbox.InboxStoreMongoDB.MarkAsFailedAsync(string! messageId, string! errorMessage, System.DateTime? nextRetryAt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Inbox.InboxStoreMongoDB.MarkAsProcessedAsync(string! messageId, string! response, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Inbox.InboxStoreMongoDB.RemoveExpiredMessagesAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Inbox.InboxStoreMongoDB.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.MongoDbCollectionNames
+SimpleMediator.MongoDB.MongoDbCollectionNames.Inbox.get -> string!
+SimpleMediator.MongoDB.MongoDbCollectionNames.Inbox.set -> void
+SimpleMediator.MongoDB.MongoDbCollectionNames.MongoDbCollectionNames() -> void
+SimpleMediator.MongoDB.MongoDbCollectionNames.Outbox.get -> string!
+SimpleMediator.MongoDB.MongoDbCollectionNames.Outbox.set -> void
+SimpleMediator.MongoDB.MongoDbCollectionNames.Sagas.get -> string!
+SimpleMediator.MongoDB.MongoDbCollectionNames.Sagas.set -> void
+SimpleMediator.MongoDB.MongoDbCollectionNames.ScheduledMessages.get -> string!
+SimpleMediator.MongoDB.MongoDbCollectionNames.ScheduledMessages.set -> void
+SimpleMediator.MongoDB.MongoDbErrorCodes
+const SimpleMediator.MongoDB.MongoDbErrorCodes.ConnectionFailed = "MONGODB_CONNECTION_FAILED" -> string!
+const SimpleMediator.MongoDB.MongoDbErrorCodes.DocumentNotFound = "MONGODB_DOCUMENT_NOT_FOUND" -> string!
+const SimpleMediator.MongoDB.MongoDbErrorCodes.DuplicateKey = "MONGODB_DUPLICATE_KEY" -> string!
+const SimpleMediator.MongoDB.MongoDbErrorCodes.GeneralError = "MONGODB_ERROR" -> string!
+const SimpleMediator.MongoDB.MongoDbErrorCodes.SerializationFailed = "MONGODB_SERIALIZATION_FAILED" -> string!
+const SimpleMediator.MongoDB.MongoDbErrorCodes.Timeout = "MONGODB_TIMEOUT" -> string!
+const SimpleMediator.MongoDB.MongoDbErrorCodes.WriteConflict = "MONGODB_WRITE_CONFLICT" -> string!
+SimpleMediator.MongoDB.Outbox.OutboxMessage
+SimpleMediator.MongoDB.Outbox.OutboxMessage.Content.get -> string!
+SimpleMediator.MongoDB.Outbox.OutboxMessage.Content.set -> void
+SimpleMediator.MongoDB.Outbox.OutboxMessage.CreatedAtUtc.get -> System.DateTime
+SimpleMediator.MongoDB.Outbox.OutboxMessage.CreatedAtUtc.set -> void
+SimpleMediator.MongoDB.Outbox.OutboxMessage.ErrorMessage.get -> string?
+SimpleMediator.MongoDB.Outbox.OutboxMessage.ErrorMessage.set -> void
+SimpleMediator.MongoDB.Outbox.OutboxMessage.Id.get -> System.Guid
+SimpleMediator.MongoDB.Outbox.OutboxMessage.Id.set -> void
+SimpleMediator.MongoDB.Outbox.OutboxMessage.IsDeadLettered(int maxRetries) -> bool
+SimpleMediator.MongoDB.Outbox.OutboxMessage.IsProcessed.get -> bool
+SimpleMediator.MongoDB.Outbox.OutboxMessage.NextRetryAtUtc.get -> System.DateTime?
+SimpleMediator.MongoDB.Outbox.OutboxMessage.NextRetryAtUtc.set -> void
+SimpleMediator.MongoDB.Outbox.OutboxMessage.NotificationType.get -> string!
+SimpleMediator.MongoDB.Outbox.OutboxMessage.NotificationType.set -> void
+SimpleMediator.MongoDB.Outbox.OutboxMessage.OutboxMessage() -> void
+SimpleMediator.MongoDB.Outbox.OutboxMessage.ProcessedAtUtc.get -> System.DateTime?
+SimpleMediator.MongoDB.Outbox.OutboxMessage.ProcessedAtUtc.set -> void
+SimpleMediator.MongoDB.Outbox.OutboxMessage.RetryCount.get -> int
+SimpleMediator.MongoDB.Outbox.OutboxMessage.RetryCount.set -> void
+SimpleMediator.MongoDB.Outbox.OutboxStoreMongoDB
+SimpleMediator.MongoDB.Outbox.OutboxStoreMongoDB.AddAsync(SimpleMediator.Messaging.Outbox.IOutboxMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Outbox.OutboxStoreMongoDB.GetPendingMessagesAsync(int batchSize, int maxRetries, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<SimpleMediator.Messaging.Outbox.IOutboxMessage!>!>!
+SimpleMediator.MongoDB.Outbox.OutboxStoreMongoDB.MarkAsFailedAsync(System.Guid messageId, string! errorMessage, System.DateTime? nextRetryAt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Outbox.OutboxStoreMongoDB.MarkAsProcessedAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Outbox.OutboxStoreMongoDB.OutboxStoreMongoDB(MongoDB.Driver.IMongoClient! mongoClient, Microsoft.Extensions.Options.IOptions<SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions!>! options, Microsoft.Extensions.Logging.ILogger<SimpleMediator.MongoDB.Outbox.OutboxStoreMongoDB!>! logger) -> void
+SimpleMediator.MongoDB.Outbox.OutboxStoreMongoDB.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Sagas.SagaState
+SimpleMediator.MongoDB.Sagas.SagaState.CompletedAtUtc.get -> System.DateTime?
+SimpleMediator.MongoDB.Sagas.SagaState.CompletedAtUtc.set -> void
+SimpleMediator.MongoDB.Sagas.SagaState.CurrentStep.get -> int
+SimpleMediator.MongoDB.Sagas.SagaState.CurrentStep.set -> void
+SimpleMediator.MongoDB.Sagas.SagaState.Data.get -> string!
+SimpleMediator.MongoDB.Sagas.SagaState.Data.set -> void
+SimpleMediator.MongoDB.Sagas.SagaState.ErrorMessage.get -> string?
+SimpleMediator.MongoDB.Sagas.SagaState.ErrorMessage.set -> void
+SimpleMediator.MongoDB.Sagas.SagaState.LastUpdatedAtUtc.get -> System.DateTime
+SimpleMediator.MongoDB.Sagas.SagaState.LastUpdatedAtUtc.set -> void
+SimpleMediator.MongoDB.Sagas.SagaState.SagaId.get -> System.Guid
+SimpleMediator.MongoDB.Sagas.SagaState.SagaId.set -> void
+SimpleMediator.MongoDB.Sagas.SagaState.SagaState() -> void
+SimpleMediator.MongoDB.Sagas.SagaState.SagaType.get -> string!
+SimpleMediator.MongoDB.Sagas.SagaState.SagaType.set -> void
+SimpleMediator.MongoDB.Sagas.SagaState.StartedAtUtc.get -> System.DateTime
+SimpleMediator.MongoDB.Sagas.SagaState.StartedAtUtc.set -> void
+SimpleMediator.MongoDB.Sagas.SagaState.Status.get -> string!
+SimpleMediator.MongoDB.Sagas.SagaState.Status.set -> void
+SimpleMediator.MongoDB.Sagas.SagaStoreMongoDB
+SimpleMediator.MongoDB.Sagas.SagaStoreMongoDB.AddAsync(SimpleMediator.Messaging.Sagas.ISagaState! saga, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Sagas.SagaStoreMongoDB.GetAsync(System.Guid sagaId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<SimpleMediator.Messaging.Sagas.ISagaState?>!
+SimpleMediator.MongoDB.Sagas.SagaStoreMongoDB.GetStuckSagasAsync(System.TimeSpan olderThan, int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<SimpleMediator.Messaging.Sagas.ISagaState!>!>!
+SimpleMediator.MongoDB.Sagas.SagaStoreMongoDB.SagaStoreMongoDB(MongoDB.Driver.IMongoClient! mongoClient, Microsoft.Extensions.Options.IOptions<SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions!>! options, Microsoft.Extensions.Logging.ILogger<SimpleMediator.MongoDB.Sagas.SagaStoreMongoDB!>! logger) -> void
+SimpleMediator.MongoDB.Sagas.SagaStoreMongoDB.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Sagas.SagaStoreMongoDB.UpdateAsync(SimpleMediator.Messaging.Sagas.ISagaState! saga, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.Content.get -> string!
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.Content.set -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.CreatedAtUtc.get -> System.DateTime
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.CreatedAtUtc.set -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.CronExpression.get -> string?
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.CronExpression.set -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.ErrorMessage.get -> string?
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.ErrorMessage.set -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.Id.get -> System.Guid
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.Id.set -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.IsDeadLettered(int maxRetries) -> bool
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.IsDue() -> bool
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.IsProcessed.get -> bool
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.IsRecurring.get -> bool
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.IsRecurring.set -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.LastExecutedAtUtc.get -> System.DateTime?
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.LastExecutedAtUtc.set -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.NextRetryAtUtc.get -> System.DateTime?
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.NextRetryAtUtc.set -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.ProcessedAtUtc.get -> System.DateTime?
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.ProcessedAtUtc.set -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.RequestType.get -> string!
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.RequestType.set -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.RetryCount.get -> int
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.RetryCount.set -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.ScheduledAtUtc.get -> System.DateTime
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.ScheduledAtUtc.set -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessage.ScheduledMessage() -> void
+SimpleMediator.MongoDB.Scheduling.ScheduledMessageStoreMongoDB
+SimpleMediator.MongoDB.Scheduling.ScheduledMessageStoreMongoDB.AddAsync(SimpleMediator.Messaging.Scheduling.IScheduledMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Scheduling.ScheduledMessageStoreMongoDB.CancelAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Scheduling.ScheduledMessageStoreMongoDB.GetDueMessagesAsync(int batchSize, int maxRetries, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<SimpleMediator.Messaging.Scheduling.IScheduledMessage!>!>!
+SimpleMediator.MongoDB.Scheduling.ScheduledMessageStoreMongoDB.MarkAsFailedAsync(System.Guid messageId, string! errorMessage, System.DateTime? nextRetryAt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Scheduling.ScheduledMessageStoreMongoDB.MarkAsProcessedAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Scheduling.ScheduledMessageStoreMongoDB.RescheduleRecurringMessageAsync(System.Guid messageId, System.DateTime nextScheduledAt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Scheduling.ScheduledMessageStoreMongoDB.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.MongoDB.Scheduling.ScheduledMessageStoreMongoDB.ScheduledMessageStoreMongoDB(MongoDB.Driver.IMongoClient! mongoClient, Microsoft.Extensions.Options.IOptions<SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions!>! options, Microsoft.Extensions.Logging.ILogger<SimpleMediator.MongoDB.Scheduling.ScheduledMessageStoreMongoDB!>! logger) -> void
+SimpleMediator.MongoDB.ServiceCollectionExtensions
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.Collections.get -> SimpleMediator.MongoDB.MongoDbCollectionNames!
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.Collections.set -> void
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.ConnectionString.get -> string!
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.ConnectionString.set -> void
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.CreateIndexes.get -> bool
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.CreateIndexes.set -> void
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.DatabaseName.get -> string!
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.DatabaseName.set -> void
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.SimpleMediatorMongoDbOptions() -> void
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.UseInbox.get -> bool
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.UseInbox.set -> void
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.UseOutbox.get -> bool
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.UseOutbox.set -> void
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.UseSagas.get -> bool
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.UseSagas.set -> void
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.UseScheduling.get -> bool
+SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions.UseScheduling.set -> void
+static SimpleMediator.MongoDB.ServiceCollectionExtensions.AddSimpleMediatorMongoDB(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, MongoDB.Driver.IMongoClient! mongoClient, System.Action<SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static SimpleMediator.MongoDB.ServiceCollectionExtensions.AddSimpleMediatorMongoDB(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<SimpleMediator.MongoDB.SimpleMediatorMongoDbOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

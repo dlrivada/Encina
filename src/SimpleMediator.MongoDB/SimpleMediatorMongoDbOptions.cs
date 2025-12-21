@@ -1,0 +1,74 @@
+namespace SimpleMediator.MongoDB;
+
+/// <summary>
+/// Configuration options for SimpleMediator MongoDB integration.
+/// </summary>
+public sealed class SimpleMediatorMongoDbOptions
+{
+    /// <summary>
+    /// Gets or sets the MongoDB connection string.
+    /// </summary>
+    /// <example>mongodb://localhost:27017</example>
+    public string ConnectionString { get; set; } = "mongodb://localhost:27017";
+
+    /// <summary>
+    /// Gets or sets the database name.
+    /// </summary>
+    public string DatabaseName { get; set; } = "SimpleMediator";
+
+    /// <summary>
+    /// Gets or sets the collection names for messaging patterns.
+    /// </summary>
+    public MongoDbCollectionNames Collections { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to use the Outbox pattern.
+    /// </summary>
+    public bool UseOutbox { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to use the Inbox pattern.
+    /// </summary>
+    public bool UseInbox { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to use the Saga pattern.
+    /// </summary>
+    public bool UseSagas { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to use the Scheduling pattern.
+    /// </summary>
+    public bool UseScheduling { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to create indexes automatically.
+    /// </summary>
+    public bool CreateIndexes { get; set; } = true;
+}
+
+/// <summary>
+/// Collection names for MongoDB messaging patterns.
+/// </summary>
+public sealed class MongoDbCollectionNames
+{
+    /// <summary>
+    /// Gets or sets the collection name for outbox messages.
+    /// </summary>
+    public string Outbox { get; set; } = "outbox_messages";
+
+    /// <summary>
+    /// Gets or sets the collection name for inbox messages.
+    /// </summary>
+    public string Inbox { get; set; } = "inbox_messages";
+
+    /// <summary>
+    /// Gets or sets the collection name for saga states.
+    /// </summary>
+    public string Sagas { get; set; } = "saga_states";
+
+    /// <summary>
+    /// Gets or sets the collection name for scheduled messages.
+    /// </summary>
+    public string ScheduledMessages { get; set; } = "scheduled_messages";
+}
