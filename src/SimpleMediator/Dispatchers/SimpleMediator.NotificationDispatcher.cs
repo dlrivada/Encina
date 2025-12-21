@@ -6,6 +6,7 @@ using System.Reflection;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SimpleMediator.Dispatchers.Strategies;
 using static LanguageExt.Prelude;
 
 namespace SimpleMediator;
@@ -57,7 +58,7 @@ public sealed partial class SimpleMediator
             // Resolve ALL handlers registered for this notification type
             // Multiple handlers can be registered for the same notification (observer pattern)
             var handlerType = typeof(INotificationHandler<>).MakeGenericType(notificationType);
-            var handlersList = serviceProvider.GetServices(handlerType).ToList();
+            var handlersList = serviceProvider.GetServices(handlerType).Where(h => h is not null).Cast<object>().ToList();
             activity?.SetTag("mediator.handler_count", handlersList.Count);
 
             // Zero handlers is not an error - notifications are fire-and-forget
@@ -69,25 +70,30 @@ public sealed partial class SimpleMediator
             }
 
             // --- EXECUTION PHASE ---
-            // Use index-based iteration to avoid enumerator allocation overhead
-            // Note: Span cannot be used here due to await boundaries
-            for (var i = 0; i < handlersList.Count; i++)
+            // Use the configured dispatch strategy (Sequential, Parallel, or ParallelWhenAll)
+            activity?.SetTag("mediator.dispatch_strategy", mediator._notificationOptions.Strategy.ToString());
+
+            var result = await mediator._dispatchStrategy.DispatchAsync(
+                handlersList,
+                notification!,
+                async (handler, notif, ct) =>
+                {
+                    Log.SendingNotification(mediator._logger, notificationType.Name, handler.GetType().Name);
+                    var handlerResult = await InvokeNotificationHandler(handler, notif, ct).ConfigureAwait(false);
+
+                    // Log failures
+                    if (handlerResult.IsLeft)
+                    {
+                        TryHandleNotificationFailure(mediator, notificationType.Name, activity, handlerResult, handler);
+                    }
+
+                    return handlerResult;
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            if (result.IsLeft)
             {
-                var handler = handlersList[i];
-                if (handler is null)
-                {
-                    continue; // Skip null handlers (defensive - shouldn't happen in well-configured DI)
-                }
-
-                Log.SendingNotification(mediator._logger, notificationType.Name, handler.GetType().Name);
-                var result = await InvokeNotificationHandler(handler, notification!, cancellationToken).ConfigureAwait(false);
-
-                // --- ERROR HANDLING ---
-                // First failure stops iteration (fail-fast)
-                if (TryHandleNotificationFailure(mediator, notificationType.Name, activity, result, handler))
-                {
-                    return result; // Early return with error
-                }
+                return result;
             }
 
             activity?.SetStatus(ActivityStatusCode.Ok);

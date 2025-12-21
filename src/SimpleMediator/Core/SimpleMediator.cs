@@ -5,6 +5,8 @@ using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using SimpleMediator.Dispatchers.Strategies;
 using static LanguageExt.Prelude;
 
 namespace SimpleMediator;
@@ -21,13 +23,27 @@ namespace SimpleMediator;
 /// </remarks>
 /// <param name="scopeFactory">Factory used to create scopes per operation.</param>
 /// <param name="logger">Optional logger for tracing and diagnostics.</param>
-public sealed partial class SimpleMediator(IServiceScopeFactory scopeFactory, ILogger<SimpleMediator>? logger = null) : IMediator
+/// <param name="notificationOptions">Optional notification dispatch options.</param>
+public sealed partial class SimpleMediator(
+    IServiceScopeFactory scopeFactory,
+    ILogger<SimpleMediator>? logger = null,
+    IOptions<NotificationDispatchOptions>? notificationOptions = null) : IMediator
 {
     private static readonly ConcurrentDictionary<(Type Request, Type Response), RequestHandlerBase> RequestHandlerCache = new();
     private static readonly ConcurrentDictionary<(Type Handler, Type Notification), Func<object, object?, CancellationToken, Task<Either<MediatorError, Unit>>>> NotificationHandlerInvokerCache = new();
 
     internal readonly IServiceScopeFactory _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
     internal readonly ILogger<SimpleMediator> _logger = logger ?? NullLogger<SimpleMediator>.Instance;
+    internal readonly NotificationDispatchOptions _notificationOptions = notificationOptions?.Value ?? new NotificationDispatchOptions();
+    internal readonly INotificationDispatchStrategy _dispatchStrategy = CreateDispatchStrategy(notificationOptions?.Value ?? new NotificationDispatchOptions());
+
+    private static INotificationDispatchStrategy CreateDispatchStrategy(NotificationDispatchOptions options) =>
+        options.Strategy switch
+        {
+            NotificationDispatchStrategy.Parallel => new ParallelDispatchStrategy(options.MaxDegreeOfParallelism),
+            NotificationDispatchStrategy.ParallelWhenAll => new ParallelWhenAllDispatchStrategy(options.MaxDegreeOfParallelism),
+            _ => SequentialDispatchStrategy.Instance
+        };
 
     /// <inheritdoc />
     public ValueTask<Either<MediatorError, TResponse>> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)

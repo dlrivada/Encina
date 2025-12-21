@@ -122,7 +122,7 @@ SimpleMediator.ServiceCollectionExtensions
 SimpleMediator.SimpleMediator
 SimpleMediator.SimpleMediator.Publish<TNotification>(TNotification notification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<SimpleMediator.MediatorError, LanguageExt.Unit>>
 SimpleMediator.SimpleMediator.Send<TResponse>(SimpleMediator.IRequest<TResponse>! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<SimpleMediator.MediatorError, TResponse>>
-SimpleMediator.SimpleMediator.SimpleMediator(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger<SimpleMediator.SimpleMediator!>? logger = null) -> void
+SimpleMediator.SimpleMediator.SimpleMediator(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger<SimpleMediator.SimpleMediator!>? logger = null, Microsoft.Extensions.Options.IOptions<SimpleMediator.NotificationDispatchOptions!>? notificationOptions = null) -> void
 SimpleMediator.SimpleMediator.Stream<TItem>(SimpleMediator.IStreamRequest<TItem>! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<SimpleMediator.MediatorError, TItem>>!
 SimpleMediator.StreamHandlerCallback<TItem>
 SimpleMediator.SimpleMediatorConfiguration
@@ -155,3 +155,16 @@ SimpleMediator.MediatorErrorExtensions
 static SimpleMediator.MediatorErrorExtensions.GetCode(this SimpleMediator.MediatorError error) -> LanguageExt.Option<string!>
 static SimpleMediator.MediatorErrorExtensions.GetDetails(this SimpleMediator.MediatorError error) -> LanguageExt.Option<object!>
 static SimpleMediator.MediatorErrorExtensions.GetMetadata(this SimpleMediator.MediatorError error) -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
+const SimpleMediator.MediatorErrorCodes.NotificationMultipleFailures = "mediator.notification.multiple_failures" -> string!
+SimpleMediator.NotificationDispatchOptions
+SimpleMediator.NotificationDispatchOptions.NotificationDispatchOptions() -> void
+SimpleMediator.NotificationDispatchOptions.MaxDegreeOfParallelism.get -> int
+SimpleMediator.NotificationDispatchOptions.MaxDegreeOfParallelism.set -> void
+SimpleMediator.NotificationDispatchOptions.Strategy.get -> SimpleMediator.NotificationDispatchStrategy
+SimpleMediator.NotificationDispatchOptions.Strategy.set -> void
+SimpleMediator.NotificationDispatchStrategy
+SimpleMediator.NotificationDispatchStrategy.Sequential = 0 -> SimpleMediator.NotificationDispatchStrategy
+SimpleMediator.NotificationDispatchStrategy.Parallel = 1 -> SimpleMediator.NotificationDispatchStrategy
+SimpleMediator.NotificationDispatchStrategy.ParallelWhenAll = 2 -> SimpleMediator.NotificationDispatchStrategy
+SimpleMediator.SimpleMediatorConfiguration.NotificationDispatch.get -> SimpleMediator.NotificationDispatchOptions!
+SimpleMediator.SimpleMediatorConfiguration.UseParallelNotificationDispatch(SimpleMediator.NotificationDispatchStrategy strategy = SimpleMediator.NotificationDispatchStrategy.Parallel, int maxDegreeOfParallelism = -1) -> SimpleMediator.SimpleMediatorConfiguration!

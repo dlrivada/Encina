@@ -68,6 +68,9 @@ public static class MediatorErrorCodes
     /// <summary>Notification processing threw an exception.</summary>
     public const string NotificationException = "mediator.notification.exception";
 
+    /// <summary>Multiple notification handlers failed during parallel dispatch.</summary>
+    public const string NotificationMultipleFailures = "mediator.notification.multiple_failures";
+
     /// <summary>Request pre-processor canceled execution.</summary>
     public const string PreProcessorCancelled = "mediator.preprocessor.cancelled";
 

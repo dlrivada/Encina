@@ -23,6 +23,15 @@ public sealed class SimpleMediatorConfiguration
     /// </summary>
     public ServiceLifetime HandlerLifetime { get; private set; } = ServiceLifetime.Scoped;
 
+    /// <summary>
+    /// Gets the notification dispatch configuration options.
+    /// </summary>
+    /// <remarks>
+    /// Controls how notifications are dispatched to multiple handlers.
+    /// By default, notifications are dispatched sequentially with fail-fast semantics.
+    /// </remarks>
+    public NotificationDispatchOptions NotificationDispatch { get; } = new();
+
     internal IReadOnlyCollection<Assembly> Assemblies => _assemblies;
     internal IReadOnlyList<Type> PipelineBehaviorTypes => _pipelineBehaviorTypes;
     internal IReadOnlyList<Type> RequestPreProcessorTypes => _requestPreProcessorTypes;
@@ -34,6 +43,31 @@ public sealed class SimpleMediatorConfiguration
     public SimpleMediatorConfiguration WithHandlerLifetime(ServiceLifetime lifetime)
     {
         HandlerLifetime = lifetime;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures parallel notification dispatch with the specified strategy.
+    /// </summary>
+    /// <param name="strategy">The dispatch strategy to use. Default is <see cref="NotificationDispatchStrategy.Parallel"/>.</param>
+    /// <param name="maxDegreeOfParallelism">Maximum concurrent handlers. Default is -1 (uses processor count).</param>
+    /// <returns>This configuration instance for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// services.AddSimpleMediator(config =>
+    /// {
+    ///     config.UseParallelNotificationDispatch(
+    ///         NotificationDispatchStrategy.ParallelWhenAll,
+    ///         maxDegreeOfParallelism: 4);
+    /// });
+    /// </code>
+    /// </example>
+    public SimpleMediatorConfiguration UseParallelNotificationDispatch(
+        NotificationDispatchStrategy strategy = NotificationDispatchStrategy.Parallel,
+        int maxDegreeOfParallelism = -1)
+    {
+        NotificationDispatch.Strategy = strategy;
+        NotificationDispatch.MaxDegreeOfParallelism = maxDegreeOfParallelism;
         return this;
     }
 

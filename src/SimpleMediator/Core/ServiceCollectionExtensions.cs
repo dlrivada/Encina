@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace SimpleMediator;
 
@@ -56,6 +57,13 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IMediator, SimpleMediator>();
         services.TryAddSingleton<IMediatorMetrics, MediatorMetrics>();
         services.TryAddSingleton<IFunctionalFailureDetector>(NullFunctionalFailureDetector.Instance);
+
+        // Register notification dispatch options
+        services.Configure<NotificationDispatchOptions>(options =>
+        {
+            options.Strategy = configuration.NotificationDispatch.Strategy;
+            options.MaxDegreeOfParallelism = configuration.NotificationDispatch.MaxDegreeOfParallelism;
+        });
 
         foreach (var assembly in resolvedAssemblies.Distinct())
         {
