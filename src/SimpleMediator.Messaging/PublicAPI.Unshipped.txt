@@ -1,1 +1,74 @@
 #nullable enable
+SimpleMediator.Messaging.Choreography.ChoreographyErrorCodes
+SimpleMediator.Messaging.Choreography.ChoreographyOptions
+SimpleMediator.Messaging.Choreography.ChoreographyOptions.AutoCompensateOnFailure.get -> bool
+SimpleMediator.Messaging.Choreography.ChoreographyOptions.AutoCompensateOnFailure.set -> void
+SimpleMediator.Messaging.Choreography.ChoreographyOptions.ChoreographyOptions() -> void
+SimpleMediator.Messaging.Choreography.ChoreographyOptions.CompensationRetryDelay.get -> System.TimeSpan
+SimpleMediator.Messaging.Choreography.ChoreographyOptions.CompensationRetryDelay.set -> void
+SimpleMediator.Messaging.Choreography.ChoreographyOptions.MaxCompensationRetries.get -> int
+SimpleMediator.Messaging.Choreography.ChoreographyOptions.MaxCompensationRetries.set -> void
+SimpleMediator.Messaging.Choreography.ChoreographyOptions.PersistState.get -> bool
+SimpleMediator.Messaging.Choreography.ChoreographyOptions.PersistState.set -> void
+SimpleMediator.Messaging.Choreography.ChoreographyOptions.SagaTimeout.get -> System.TimeSpan
+SimpleMediator.Messaging.Choreography.ChoreographyOptions.SagaTimeout.set -> void
+SimpleMediator.Messaging.Choreography.ChoreographyStatus
+SimpleMediator.Messaging.Choreography.ChoreographyStatus.Compensated = 3 -> SimpleMediator.Messaging.Choreography.ChoreographyStatus
+SimpleMediator.Messaging.Choreography.ChoreographyStatus.Compensating = 2 -> SimpleMediator.Messaging.Choreography.ChoreographyStatus
+SimpleMediator.Messaging.Choreography.ChoreographyStatus.Completed = 1 -> SimpleMediator.Messaging.Choreography.ChoreographyStatus
+SimpleMediator.Messaging.Choreography.ChoreographyStatus.Failed = 4 -> SimpleMediator.Messaging.Choreography.ChoreographyStatus
+SimpleMediator.Messaging.Choreography.ChoreographyStatus.Running = 0 -> SimpleMediator.Messaging.Choreography.ChoreographyStatus
+SimpleMediator.Messaging.Choreography.IChoreographyEventBus
+SimpleMediator.Messaging.Choreography.IChoreographyEventBus.CompensateAsync(string! correlationId, string! errorMessage, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.Messaging.Choreography.IChoreographyEventBus.CompleteSagaAsync(string! correlationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.Messaging.Choreography.IChoreographyEventBus.GetSagaStateAsync(string! correlationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<SimpleMediator.Messaging.Choreography.IChoreographyState?>!
+SimpleMediator.Messaging.Choreography.IChoreographyEventBus.PublishAsync<TEvent>(TEvent domainEvent, string! correlationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.Messaging.Choreography.IChoreographyEventBus.StartSagaAsync<TEvent>(TEvent domainEvent, string? correlationId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string!>!
+SimpleMediator.Messaging.Choreography.IChoreographySaga
+SimpleMediator.Messaging.Choreography.IChoreographySaga.CorrelationId.get -> string!
+SimpleMediator.Messaging.Choreography.IChoreographySaga<TState>
+SimpleMediator.Messaging.Choreography.IChoreographySaga<TState>.State.get -> TState
+SimpleMediator.Messaging.Choreography.IChoreographySaga<TState>.State.set -> void
+SimpleMediator.Messaging.Choreography.IChoreographyState
+SimpleMediator.Messaging.Choreography.IChoreographyState.CompletedAtUtc.get -> System.DateTime?
+SimpleMediator.Messaging.Choreography.IChoreographyState.CompletedAtUtc.set -> void
+SimpleMediator.Messaging.Choreography.IChoreographyState.CorrelationId.get -> string!
+SimpleMediator.Messaging.Choreography.IChoreographyState.CorrelationId.set -> void
+SimpleMediator.Messaging.Choreography.IChoreographyState.ErrorMessage.get -> string?
+SimpleMediator.Messaging.Choreography.IChoreographyState.ErrorMessage.set -> void
+SimpleMediator.Messaging.Choreography.IChoreographyState.EventCount.get -> int
+SimpleMediator.Messaging.Choreography.IChoreographyState.EventCount.set -> void
+SimpleMediator.Messaging.Choreography.IChoreographyState.LastUpdatedAtUtc.get -> System.DateTime
+SimpleMediator.Messaging.Choreography.IChoreographyState.LastUpdatedAtUtc.set -> void
+SimpleMediator.Messaging.Choreography.IChoreographyState.SagaType.get -> string!
+SimpleMediator.Messaging.Choreography.IChoreographyState.SagaType.set -> void
+SimpleMediator.Messaging.Choreography.IChoreographyState.StartedAtUtc.get -> System.DateTime
+SimpleMediator.Messaging.Choreography.IChoreographyState.StartedAtUtc.set -> void
+SimpleMediator.Messaging.Choreography.IChoreographyState.StateData.get -> string?
+SimpleMediator.Messaging.Choreography.IChoreographyState.StateData.set -> void
+SimpleMediator.Messaging.Choreography.IChoreographyState.Status.get -> SimpleMediator.Messaging.Choreography.ChoreographyStatus
+SimpleMediator.Messaging.Choreography.IChoreographyState.Status.set -> void
+SimpleMediator.Messaging.Choreography.IChoreographyStateStore
+SimpleMediator.Messaging.Choreography.IChoreographyStateStore.AddCompensationAsync(string! correlationId, string! compensationId, string! compensationPayload, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.Messaging.Choreography.IChoreographyStateStore.AddEventAsync(string! correlationId, string! eventType, string! eventPayload, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.Messaging.Choreography.IChoreographyStateStore.CreateAsync(string! correlationId, string! sagaType, string? initialState, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.Messaging.Choreography.IChoreographyStateStore.GetAsync(string! correlationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<SimpleMediator.Messaging.Choreography.IChoreographyState?>!
+SimpleMediator.Messaging.Choreography.IChoreographyStateStore.GetPendingCompensationsAsync(string! correlationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
+SimpleMediator.Messaging.Choreography.IChoreographyStateStore.GetStuckSagasAsync(System.TimeSpan timeout, int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<SimpleMediator.Messaging.Choreography.IChoreographyState!>!>!
+SimpleMediator.Messaging.Choreography.IChoreographyStateStore.MarkCompensationCompletedAsync(string! correlationId, string! compensationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.Messaging.Choreography.IChoreographyStateStore.UpdateAsync(SimpleMediator.Messaging.Choreography.IChoreographyState! state, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.Messaging.Choreography.IEventHandlerScope
+SimpleMediator.Messaging.Choreography.IEventHandlerScope.AddCompensation(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task!>! compensationAction) -> void
+SimpleMediator.Messaging.Choreography.IEventHandlerScope.CorrelationId.get -> string!
+SimpleMediator.Messaging.Choreography.IEventHandlerScope.PublishAsync<TEvent>(TEvent domainEvent, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+SimpleMediator.Messaging.Choreography.IEventReaction<TEvent>
+SimpleMediator.Messaging.Choreography.IEventReaction<TEvent>.ReactAsync(TEvent domainEvent, SimpleMediator.Messaging.Choreography.IEventHandlerScope! scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+const SimpleMediator.Messaging.Choreography.ChoreographyErrorCodes.CompensationFailed = "choreography.compensation.failed" -> string!
+const SimpleMediator.Messaging.Choreography.ChoreographyErrorCodes.InvalidState = "choreography.saga.invalid_state" -> string!
+const SimpleMediator.Messaging.Choreography.ChoreographyErrorCodes.NoHandlerFound = "choreography.handler.not_found" -> string!
+const SimpleMediator.Messaging.Choreography.ChoreographyErrorCodes.PersistenceFailed = "choreography.persistence.failed" -> string!
+const SimpleMediator.Messaging.Choreography.ChoreographyErrorCodes.ReactionException = "choreography.reaction.exception" -> string!
+const SimpleMediator.Messaging.Choreography.ChoreographyErrorCodes.ReactionFailed = "choreography.reaction.failed" -> string!
+const SimpleMediator.Messaging.Choreography.ChoreographyErrorCodes.SagaAlreadyExists = "choreography.saga.already_exists" -> string!
+const SimpleMediator.Messaging.Choreography.ChoreographyErrorCodes.SagaNotFound = "choreography.saga.not_found" -> string!
+const SimpleMediator.Messaging.Choreography.ChoreographyErrorCodes.SagaTimeout = "choreography.saga.timeout" -> string!
