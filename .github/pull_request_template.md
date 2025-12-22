@@ -1,12 +1,31 @@
-# Pull Request Checklist
+## Summary
 
-- [ ] Título/PR sigue Convencional Commits (`type(scope?): subject`) o excepción justificada.
-- [ ] `dotnet format` y analizador sin warnings (`TreatWarningsAsErrors`) pasan localmente.
-- [ ] `dotnet test Encina.slnx --configuration Release` pasa.
-- [ ] Cobertura no cae bajo el umbral acordado (consultar README/ci).
-- [ ] Se actualizaron docs/badges si aplica.
+Brief description of what this PR does.
 
-## Notas
+## Type of Change
 
-- Motivar cambios relevantes, decisiones de diseño y riesgos.
-- Indicar si se tocaron behaviors/pipelines para validar que siguen el rail funcional (sin excepciones en flujo normal).
+- [ ] Bug fix (non-breaking change that fixes an issue)
+- [ ] New feature (non-breaking change that adds functionality)
+- [ ] Breaking change (fix or feature that would cause existing functionality to change)
+- [ ] Documentation update
+- [ ] Refactoring (no functional changes)
+- [ ] Test improvement
+
+## Checklist
+
+- [ ] Code follows the project's coding standards
+- [ ] `dotnet format` passes locally (no warnings)
+- [ ] `dotnet build` passes with `TreatWarningsAsErrors`
+- [ ] `dotnet test Encina.slnx --configuration Release` passes
+- [ ] Coverage does not decrease below threshold
+- [ ] XML documentation added for public APIs
+- [ ] CHANGELOG.md updated (if applicable)
+
+## Related Issues
+
+Closes #
+
+## Notes
+
+- Motivate relevant changes, design decisions, and risks
+- Indicate if pipeline behaviors were modified (ensure ROP compliance - no exceptions in normal flow)

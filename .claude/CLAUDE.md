@@ -657,62 +657,62 @@ dotnet build Encina.Web.slnf
 >
 > "We're in Pre-1.0. Choose the best solution, not the compatible one."
 
-## Known Issues & Technical Debt (Updated: 2025-12-22)
+## Issue Tracking & Project Documentation
 
-This section tracks known issues, failing tests, and technical debt that need to be addressed. When encountering issues during development that can't be fixed immediately, document them here to avoid losing track.
+This project uses a structured approach to track issues, changes, and history.
 
-### 🔴 Failing Tests (Pre-existing)
+### GitHub Issues (Primary Issue Tracker)
 
-**Stream Request Tests** (`tests/Encina.Tests/`):
-- 9 tests failing due to handler registration issues
-- Error: "No handler registered for StreamNumbersQuery -> IAsyncEnumerable<Int32>"
-- Affected tests:
-  - `StreamRequestTests.Stream_WithValidRequest_ShouldYieldAllItems`
-  - `StreamRequestTests.Stream_WithEarlyBreak_ShouldNotEnumerateRemainingItems`
-  - `StreamRequestTests.Stream_WithCancellation_ShouldStopYieldingItems`
-  - `StreamRequestTests.Stream_WithMixedSuccessAndErrors_ShouldYieldBoth`
-  - `StreamPipelineBehaviorTests.StreamBehavior_ShouldWrapHandlerExecution`
-  - `StreamPipelineBehaviorTests.StreamBehavior_Filter_ShouldOnlyYieldMatchingItems`
-  - `StreamPipelineBehaviorTests.StreamBehavior_Transform_ShouldModifyItems`
-  - `StreamPipelineBehaviorTests.StreamBehavior_Multiple_ShouldChainInOrder`
-  - `StreamPipelineBehaviorTests.StreamBehavior_WithContextPropagation_ShouldAccessContext`
-- **Root cause**: Stream handlers are not being registered correctly in the test DI container
-- **Priority**: Medium - Stream feature is not complete yet
+**All bugs, features, and technical debt MUST be tracked via GitHub Issues.**
 
-### 🟡 SQL Scripts Need Review
+Location: https://github.com/dlrivada/Encina/issues
 
-**ADO.Oracle & ADO.Sqlite Scripts** (`src/Encina.ADO.Oracle/Scripts/`, `src/Encina.ADO.Sqlite/Scripts/`):
-- Scripts use SQL Server syntax (`sys.objects`, `OBJECT_ID`, `GO`, `PRINT`, `NVARCHAR(MAX)`, `DATETIME2`, `BIT`)
-- These are NOT valid for Oracle or SQLite databases
-- **Action needed**: Rewrite scripts with proper Oracle PL/SQL and SQLite syntax
-- **Priority**: High - These scripts will fail on target databases
+#### Issue Templates
 
-### 🟡 Logging Performance (CA1848)
+Use the appropriate template when creating issues:
 
-**Multiple packages suppress CA1848**:
-- All messaging transport packages use `#pragma warning disable CA1848`
-- Should implement LoggerMessage source generators for high-performance logging
-- **Files affected**: Most files in messaging transport packages
-- **Priority**: Low - Performance optimization, not a functional issue
+| Template | Use Case | Label |
+|----------|----------|-------|
+| `bug_report.md` | Report bugs or unexpected behavior | `bug` |
+| `feature_request.md` | Suggest new features or enhancements | `enhancement` |
+| `technical_debt.md` | Track internal code quality issues, refactoring, test gaps | `technical-debt` |
 
-### 🟡 SonarCloud Integration
+#### When to Create Issues
 
-- SONAR_TOKEN configured in GitHub secrets
-- SonarCloud project created at: https://sonarcloud.io/project/configuration?id=dlrivada_Encina
-- First scan may reveal additional code quality issues
-- **Status**: Configured, awaiting first successful workflow run
+- **Bugs found during development** → Create immediately with `[BUG]` prefix
+- **Technical debt discovered** → Create with `[DEBT]` prefix (don't fix inline if it risks derailing current work)
+- **Feature ideas** → Create with `[FEATURE]` prefix for later discussion
+- **Failing tests** → Create with `[DEBT]` and link to specific test files
 
-### 📝 Documentation Gaps
+#### Workflow
 
-- MediatR migration guide not written
-- Package comparison guides incomplete
-- DocFX needs GitHub Pages deployment
+1. **Find issue** → Create GitHub Issue using appropriate template
+2. **Start work** → Assign issue to yourself, move to "In Progress"
+3. **Complete work** → Reference issue in commit (`Fixes #123`) or PR
+4. **Issue auto-closes** when PR is merged
 
-### How to Use This Section
+### Project Documentation Files
 
-1. **When finding an issue**: Add it here with date, description, root cause (if known), and priority
-2. **When fixing an issue**: Remove it from this list and update the commit message
-3. **Priority levels**:
-   - 🔴 High - Blocks functionality or causes failures
-   - 🟡 Medium - Should be fixed before 1.0
-   - 🟢 Low - Nice to have, can be deferred
+| File | Purpose |
+|------|---------|
+| `CHANGELOG.md` | Track released changes (follows Keep a Changelog format) |
+| `ROADMAP.md` | High-level roadmap and planned features |
+| `docs/history/YYYY-MM.md` | Detailed monthly implementation history |
+| `docs/architecture/adr/*.md` | Architecture Decision Records |
+| `docs/roadmap-documentacion.md` | Documentation-specific roadmap |
+
+### When Updating Documentation
+
+- **After completing a feature** → Update `CHANGELOG.md` (Unreleased section)
+- **After major implementation phase** → Update `docs/history/YYYY-MM.md`
+- **After architectural decisions** → Create ADR in `docs/architecture/adr/`
+- **After releasing** → Move Unreleased to version section in `CHANGELOG.md`
+
+### DO NOT Track Issues Here
+
+This CLAUDE.md file is for **development guidelines**, not issue tracking.
+
+- ❌ Don't add "Known Issues" sections here
+- ❌ Don't track bugs or technical debt in this file
+- ✅ Use GitHub Issues for all tracking
+- ✅ Reference issue numbers in commits and PRs
