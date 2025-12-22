@@ -125,7 +125,7 @@ public sealed class InboxStoreDapper : IInboxStore
     {
         ArgumentNullException.ThrowIfNull(messageIds);
         if (!messageIds.Any())
-            throw new ArgumentException("Collection cannot be empty.", nameof(messageIds));
+            return;
 
         var sql = $@"
             DELETE FROM {_tableName}

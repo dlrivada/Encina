@@ -224,7 +224,7 @@ public sealed class InboxStoreADO : IInboxStore
     {
         ArgumentNullException.ThrowIfNull(messageIds);
         if (!messageIds.Any())
-            throw new ArgumentException("Collection cannot be empty.", nameof(messageIds));
+            return;
         ArgumentNullException.ThrowIfNull(messageIds);
 
         var idList = string.Join(",", messageIds.Select(id => $"'{id.Replace("'", "''", StringComparison.Ordinal)}'"));

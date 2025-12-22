@@ -134,9 +134,10 @@ public sealed class InboxStoreDapper : IInboxStore
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
+
+        // Early return for empty collections - no-op is valid behavior
         if (!messageIds.Any())
-            throw new ArgumentException("Collection cannot be empty.", nameof(messageIds));
-        ArgumentNullException.ThrowIfNull(messageIds);
+            return;
 
         var sql = $@"
             DELETE FROM {_tableName}
