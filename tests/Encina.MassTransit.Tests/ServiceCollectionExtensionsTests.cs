@@ -1,5 +1,4 @@
-﻿using Encina.MassTransit;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Encina.MassTransit.Tests;

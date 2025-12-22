@@ -2,7 +2,6 @@ using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
-using static LanguageExt.Prelude;
 
 namespace Encina.EntityFrameworkCore;
 

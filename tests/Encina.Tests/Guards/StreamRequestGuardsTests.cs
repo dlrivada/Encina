@@ -1,7 +1,4 @@
 ﻿using FluentAssertions;
-using LanguageExt;
-using Xunit;
-using static LanguageExt.Prelude;
 
 namespace Encina.Tests.Guards;
 

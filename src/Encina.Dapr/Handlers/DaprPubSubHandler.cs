@@ -2,7 +2,6 @@ using Dapr;
 using Dapr.Client;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
-using static LanguageExt.Prelude;
 
 namespace Encina.Dapr;
 

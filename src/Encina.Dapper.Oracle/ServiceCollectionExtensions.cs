@@ -9,7 +9,6 @@ using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Oracle.ManagedDataAccess.Client;
 
 namespace Encina.Dapper.Oracle;

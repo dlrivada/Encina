@@ -3,7 +3,6 @@ using BenchmarkDotNet.Attributes;
 using Encina.AspNetCore.Tests;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using static LanguageExt.Prelude;
 
 namespace Encina.AspNetCore.Benchmarks;

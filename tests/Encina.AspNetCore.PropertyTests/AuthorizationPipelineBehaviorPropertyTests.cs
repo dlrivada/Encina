@@ -2,7 +2,6 @@
 using Encina.AspNetCore.Tests;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Shouldly;
 using static LanguageExt.Prelude;
 

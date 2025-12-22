@@ -8,7 +8,6 @@ using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using static LanguageExt.Prelude;
-using SnsMessageAttributeValue = Amazon.SimpleNotificationService.Model.MessageAttributeValue;
 using SqsMessageAttributeValue = Amazon.SQS.Model.MessageAttributeValue;
 
 namespace Encina.AmazonSQS;

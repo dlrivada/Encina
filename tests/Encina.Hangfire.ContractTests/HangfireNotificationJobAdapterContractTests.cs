@@ -1,5 +1,4 @@
-﻿using Encina.Hangfire;
-using LanguageExt;
+﻿using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
 

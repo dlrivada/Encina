@@ -1,4 +1,3 @@
-using System.Threading;
 using LanguageExt;
 
 namespace Encina;

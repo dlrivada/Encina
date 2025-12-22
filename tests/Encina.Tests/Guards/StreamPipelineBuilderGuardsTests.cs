@@ -1,9 +1,7 @@
-﻿using System.Collections.Generic;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 using static LanguageExt.Prelude;
 
 namespace Encina.Tests.Guards;

@@ -1,5 +1,4 @@
 using BenchmarkDotNet.Attributes;
-using Encina.Caching;
 using Encina.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

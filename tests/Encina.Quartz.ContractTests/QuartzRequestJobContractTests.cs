@@ -1,6 +1,4 @@
-﻿using Encina.Quartz;
-using LanguageExt;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Quartz;
 using static LanguageExt.Prelude;
 

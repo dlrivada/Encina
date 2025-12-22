@@ -10,7 +10,6 @@ using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Encina.Dapper.Sqlite;
 

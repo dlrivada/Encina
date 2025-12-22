@@ -1,6 +1,4 @@
-﻿using Xunit;
-
-namespace Encina.Tests.Fixtures;
+﻿namespace Encina.Tests.Fixtures;
 
 [CollectionDefinition("PipelineBehaviors", DisableParallelization = true)]
 public sealed class PipelineBehaviorsTestGroup : ICollectionFixture<object>

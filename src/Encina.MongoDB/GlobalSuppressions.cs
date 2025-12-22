@@ -8,3 +8,13 @@ using System.Diagnostics.CodeAnalysis;
 // CA1812: Internal class MongoDbIndexCreator is never instantiated
 // It is instantiated by the DI container via AddHostedService
 [assembly: SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Instantiated by DI container", Scope = "type", Target = "~T:Encina.MongoDB.MongoDbIndexCreator")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.MongoDB.Inbox.InboxMessage.IsExpired~System.Boolean")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.MongoDB.MongoDbIndexCreator.StopAsync(System.Threading.CancellationToken)~System.Threading.Tasks.Task")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.MongoDB.Outbox.OutboxMessage.IsDeadLettered(System.Int32)~System.Boolean")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.MongoDB.Scheduling.ScheduledMessage.IsDeadLettered(System.Int32)~System.Boolean")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.MongoDB.Scheduling.ScheduledMessage.IsDue~System.Boolean")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.MongoDB")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.MongoDB.Inbox")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.MongoDB.Outbox")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.MongoDB.Sagas")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.MongoDB.Scheduling")]

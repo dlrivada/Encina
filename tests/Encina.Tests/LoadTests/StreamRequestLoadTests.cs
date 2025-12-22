@@ -1,10 +1,8 @@
-﻿using System.Collections.Generic;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using NBomber.CSharp;
-using Xunit;
 using Xunit.Abstractions;
 using static LanguageExt.Prelude;
 

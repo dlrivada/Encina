@@ -1,0 +1,32 @@
+﻿// This file is used by Code Analysis to maintain SuppressMessage
+// attributes that are applied to this project.
+// Project-level suppressions either have no target or are given
+// a specific target and scoped to a namespace, type, member, etc.
+
+using System.Diagnostics.CodeAnalysis;
+
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.Encina.CreateDispatchStrategy(Encina.NotificationDispatchOptions)~Encina.Dispatchers.Strategies.INotificationDispatchStrategy")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.Encina.ExtractOutcome``1(LanguageExt.Either{Encina.EncinaError,``0})~System.ValueTuple{System.Boolean,System.Nullable{Encina.EncinaError}}")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.Encina.RequestHandlerWrapper`2.ResolveHandler(System.IServiceProvider)~System.Object")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.EncinaConfiguration.AddPipelineBehavior``1~Encina.EncinaConfiguration")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.EncinaConfiguration.AddRequestPostProcessor``1~Encina.EncinaConfiguration")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.EncinaConfiguration.AddRequestPreProcessor``1~Encina.EncinaConfiguration")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.EncinaConfiguration.RegisterServicesFromAssemblyContaining``1~Encina.EncinaConfiguration")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.EncinaError.New(System.String)~Encina.EncinaError")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.EncinaError.Normalize(System.Exception)~System.Exception")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.EncinaErrors.Create(System.String,System.String,System.Exception,System.Object)~Encina.EncinaError")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.EncinaErrors.FromException(System.String,System.Exception,System.String,System.Object)~Encina.EncinaError")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.NullFunctionalFailureDetector.TryGetErrorCode(System.Object)~System.String")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.NullFunctionalFailureDetector.TryGetErrorMessage(System.Object)~System.String")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.RequestContext.Create~Encina.IRequestContext")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.RequestContext.CreateForTest(System.String,System.String,System.String,System.String)~Encina.IRequestContext")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.RequestContext.ToString~System.String")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.RequestContext.WithIdempotencyKey(System.String)~Encina.IRequestContext")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.RequestContext.WithTenantId(System.String)~Encina.IRequestContext")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.RequestContext.WithUserId(System.String)~Encina.IRequestContext")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.ServiceCollectionExtensions.AddApplicationMessaging(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.Action{Encina.EncinaConfiguration},System.Reflection.Assembly[])~Microsoft.Extensions.DependencyInjection.IServiceCollection")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.ServiceCollectionExtensions.AddApplicationMessaging(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.Reflection.Assembly[])~Microsoft.Extensions.DependencyInjection.IServiceCollection")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.ServiceCollectionExtensions.AddEncina(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.Reflection.Assembly[])~Microsoft.Extensions.DependencyInjection.IServiceCollection")]
+[assembly: SuppressMessage("Style", "IDE0022:Usar cuerpo del bloque para el método", Justification = "<pendiente>", Scope = "member", Target = "~M:Encina.StreamDispatcher.StreamRequestHandlerWrapper`2.ResolveHandler(System.IServiceProvider)~System.Object")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Dispatchers.Strategies")]

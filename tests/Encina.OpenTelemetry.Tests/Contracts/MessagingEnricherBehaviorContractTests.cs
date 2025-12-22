@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using Encina;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;

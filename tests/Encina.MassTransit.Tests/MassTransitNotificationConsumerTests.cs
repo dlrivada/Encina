@@ -1,5 +1,4 @@
-﻿using Encina.MassTransit;
-using LanguageExt;
+﻿using LanguageExt;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

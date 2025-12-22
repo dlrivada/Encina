@@ -1,7 +1,6 @@
 ﻿using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
-using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Xunit;
 

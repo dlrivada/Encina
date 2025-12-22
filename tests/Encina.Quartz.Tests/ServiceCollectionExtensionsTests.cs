@@ -1,5 +1,4 @@
-﻿using Encina.Quartz;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Quartz;
 
 namespace Encina.Quartz.Tests;

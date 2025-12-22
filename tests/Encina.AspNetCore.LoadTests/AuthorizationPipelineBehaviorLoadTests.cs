@@ -2,8 +2,6 @@
 using Encina.AspNetCore.Tests;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using NBomber.CSharp;
 using Xunit.Abstractions;
 using static LanguageExt.Prelude;

@@ -1,6 +1,5 @@
 ﻿using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Shouldly;
 using static LanguageExt.Prelude;
 

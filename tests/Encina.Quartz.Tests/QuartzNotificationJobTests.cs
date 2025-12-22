@@ -1,5 +1,4 @@
-﻿using Encina.Quartz;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Quartz;
 
 namespace Encina.Quartz.Tests;

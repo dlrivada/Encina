@@ -1,4 +1,3 @@
-using LanguageExt;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

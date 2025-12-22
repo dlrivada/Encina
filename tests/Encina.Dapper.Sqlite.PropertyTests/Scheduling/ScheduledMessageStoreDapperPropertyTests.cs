@@ -1,8 +1,6 @@
 ﻿using Encina.Dapper.Sqlite.Scheduling;
-using Encina.Messaging.Scheduling;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
-using Xunit;
 
 namespace Encina.Dapper.Sqlite.Tests.Scheduling;
 

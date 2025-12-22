@@ -1,7 +1,6 @@
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NServiceBus;
 using static LanguageExt.Prelude;
 
 namespace Encina.NServiceBus;

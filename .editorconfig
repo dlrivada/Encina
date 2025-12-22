@@ -20,6 +20,51 @@ dotnet_diagnostic.IDE0160.severity = none
 csharp_prefer_braces = when_multiline:silent
 dotnet_diagnostic.IDE0011.severity = none
 
+# IDE0039: Use local function instead of lambda - Lambdas are fine
+dotnet_diagnostic.IDE0039.severity = none
+
+# IDE0022: Use expression body for method - Allow both styles
+csharp_style_expression_bodied_methods = when_on_single_line:silent
+dotnet_diagnostic.IDE0022.severity = none
+
+# IDE0046: Use conditional expression - Prefer readability over terseness
+dotnet_diagnostic.IDE0046.severity = none
+
+# IDE0028: Use collection initializer - Allow explicit Add calls
+dotnet_diagnostic.IDE0028.severity = none
+
+# IDE0290: Use primary constructor - C#12 feature, not enforced
+dotnet_diagnostic.IDE0290.severity = none
+
+# IDE0300/IDE0301/IDE0305: Collection expressions - C#12 feature, not enforced
+dotnet_diagnostic.IDE0300.severity = none
+dotnet_diagnostic.IDE0301.severity = none
+dotnet_diagnostic.IDE0305.severity = none
+
+# IDE0037: Use inferred member name - Allow explicit names
+dotnet_diagnostic.IDE0037.severity = none
+
+# IDE0052: Remove unread private member - Can be false positive with reflection
+dotnet_diagnostic.IDE0052.severity = suggestion
+
+# IDE0059: Unnecessary value assignment - Can be intentional for debugging
+dotnet_diagnostic.IDE0059.severity = suggestion
+
+# IDE0350: Lambda expression can be simplified - Not always clearer
+dotnet_diagnostic.IDE0350.severity = none
+
+# IDE0090: Simplify new expression - Allow explicit type in new()
+dotnet_diagnostic.IDE0090.severity = none
+
+# IDE0048: Add parentheses for clarity - Allow developer judgment
+dotnet_diagnostic.IDE0048.severity = none
+
+# IDE0330: Prefer System.Threading.Lock - .NET 9+ feature
+dotnet_diagnostic.IDE0330.severity = none
+
+# IDE0130: Namespace does not match folder structure - Intentional for clean API surface
+dotnet_diagnostic.IDE0130.severity = none
+
 # Enable analyzers but surface them as suggestions initially so we can adopt rules incrementally.
 dotnet_analyzer_diagnostic.category-Design.severity = suggestion
 dotnet_analyzer_diagnostic.category-Documentation.severity = suggestion
@@ -46,6 +91,10 @@ dotnet_diagnostic.RS0041.severity = warning
 
 [tests/**/*.cs]
 dotnet_diagnostic.CA1707.severity = none
+# Thread.Sleep is acceptable in tests for simulating delays
+dotnet_diagnostic.CA2007.severity = none
+# xUnit1004: Test methods should not be skipped - Skips have documented reasons
+dotnet_diagnostic.xUnit1004.severity = none
 
 [benchmarks/**/*.cs]
 dotnet_diagnostic.CA1707.severity = none

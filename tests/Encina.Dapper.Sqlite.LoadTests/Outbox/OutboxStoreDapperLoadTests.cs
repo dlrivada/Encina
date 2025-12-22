@@ -3,7 +3,6 @@ using System.Diagnostics;
 using Encina.Dapper.Sqlite.Outbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace Encina.Dapper.Sqlite.Tests.Outbox;

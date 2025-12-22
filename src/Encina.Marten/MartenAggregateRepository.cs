@@ -1,6 +1,5 @@
 using LanguageExt;
 using Marten;
-using Marten.Events;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using static LanguageExt.Prelude;

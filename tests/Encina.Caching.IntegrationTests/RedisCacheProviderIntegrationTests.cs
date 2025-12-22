@@ -1,5 +1,4 @@
 ﻿using Encina.Caching.IntegrationTests.Fixtures;
-using StackExchange.Redis;
 
 namespace Encina.Caching.IntegrationTests;
 

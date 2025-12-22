@@ -1,9 +1,6 @@
 ﻿using System.Data;
-using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
-using LanguageExt;
 using Microsoft.Data.Sqlite;
-using Xunit;
 using static LanguageExt.Prelude;
 
 namespace Encina.Dapper.Sqlite.IntegrationTests;

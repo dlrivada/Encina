@@ -1,6 +1,4 @@
-﻿using Encina.Hangfire;
-using Hangfire;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.Hangfire.Tests;
 

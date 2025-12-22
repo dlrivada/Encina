@@ -2,7 +2,6 @@ using System.Reflection;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using static LanguageExt.Prelude;
 
 namespace Encina.Caching;
 

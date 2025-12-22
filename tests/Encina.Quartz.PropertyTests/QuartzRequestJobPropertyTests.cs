@@ -1,5 +1,4 @@
-﻿using Encina.Quartz;
-using LanguageExt;
+﻿using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using Shouldly;

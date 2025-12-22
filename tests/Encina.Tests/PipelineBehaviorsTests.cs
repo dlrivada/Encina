@@ -2,7 +2,6 @@
 using Encina.Tests.Fixtures;
 using LanguageExt;
 using Shouldly;
-using Xunit;
 using static LanguageExt.Prelude;
 
 namespace Encina.Tests;

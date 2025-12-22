@@ -1,6 +1,4 @@
-﻿using LanguageExt;
-using Shouldly;
-using static LanguageExt.Prelude;
+﻿using Shouldly;
 
 namespace Encina.GuardClauses.ContractTests;
 

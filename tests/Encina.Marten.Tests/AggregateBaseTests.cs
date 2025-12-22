@@ -1,6 +1,4 @@
-﻿using Encina.Marten;
-
-namespace Encina.Marten.Tests;
+﻿namespace Encina.Marten.Tests;
 
 public class AggregateBaseTests
 {

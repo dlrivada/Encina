@@ -1,6 +1,5 @@
 ﻿using FsCheck;
 using FsCheck.Xunit;
-using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Trace;
 using Xunit;

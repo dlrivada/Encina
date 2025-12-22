@@ -2,7 +2,6 @@
 using FluentAssertions;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Xunit;
 using static LanguageExt.Prelude;
 
