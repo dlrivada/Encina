@@ -38,7 +38,7 @@ public class NullableGuidTypeHandler : SqlMapper.TypeHandler<Guid?>
 {
     public override Guid? Parse(object value)
     {
-        if (value == null || value is DBNull)
+        if (value is null or DBNull)
             return null;
 
         return value switch

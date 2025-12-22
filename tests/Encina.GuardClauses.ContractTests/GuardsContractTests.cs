@@ -19,7 +19,7 @@ public sealed class GuardsContractTests
 
         // Assert - Contract: Non-null values MUST return true
         result.ShouldBeTrue();
-        error.ShouldBe(default(EncinaError));
+        error.ShouldBe(default);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class GuardsContractTests
 
         // Assert - Contract: Null values MUST return false with error
         result.ShouldBeFalse();
-        error.ShouldNotBe(default(EncinaError));
+        error.ShouldNotBe(default);
         error.Message.ShouldContain("cannot be null");
     }
 
@@ -44,7 +44,7 @@ public sealed class GuardsContractTests
         var value = "test";
 
         // Act
-        var result = Guards.TryValidateNotEmpty(value, nameof(value), out var error);
+        var result = Guards.TryValidateNotEmpty(value, nameof(value), out _);
 
         // Assert - Contract: Valid strings MUST return true
         result.ShouldBeTrue();
@@ -71,7 +71,7 @@ public sealed class GuardsContractTests
         var value = 42;
 
         // Act
-        var result = Guards.TryValidatePositive(value, nameof(value), out var error);
+        var result = Guards.TryValidatePositive(value, nameof(value), out _);
 
         // Assert - Contract: Positive values MUST return true
         result.ShouldBeTrue();
@@ -102,7 +102,7 @@ public sealed class GuardsContractTests
         var value = 50;
 
         // Act
-        var result = Guards.TryValidateInRange(value, nameof(value), 1, 100, out var error);
+        var result = Guards.TryValidateInRange(value, nameof(value), 1, 100, out _);
 
         // Assert - Contract: Values in range MUST return true
         result.ShouldBeTrue();
@@ -129,7 +129,7 @@ public sealed class GuardsContractTests
         var value = "user@example.com";
 
         // Act
-        var result = Guards.TryValidateEmail(value, nameof(value), out var error);
+        var result = Guards.TryValidateEmail(value, nameof(value), out _);
 
         // Assert - Contract: Valid emails MUST return true
         result.ShouldBeTrue();
@@ -156,7 +156,7 @@ public sealed class GuardsContractTests
         var value = "https://example.com";
 
         // Act
-        var result = Guards.TryValidateUrl(value, nameof(value), out var error);
+        var result = Guards.TryValidateUrl(value, nameof(value), out _);
 
         // Assert - Contract: Valid URLs MUST return true
         result.ShouldBeTrue();

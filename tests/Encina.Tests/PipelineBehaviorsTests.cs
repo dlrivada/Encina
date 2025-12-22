@@ -134,7 +134,7 @@ public sealed class PipelineBehaviorsTests
         var error = ExpectFailure(result, "encina.behavior.cancelled");
         ExtractException(error).ShouldBeAssignableTo<OperationCanceledException>();
         error.Message.ShouldContain(behavior.GetType().Name);
-        error.Message.ShouldContain(typeof(PingCommand).Name);
+        error.Message.ShouldContain(nameof(PingCommand));
         var activity = activities.ShouldHaveSingleItem();
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe("cancelled");
@@ -271,7 +271,7 @@ public sealed class PipelineBehaviorsTests
         var error = ExpectFailure(result, "encina.behavior.cancelled");
         ExtractException(error).ShouldBeAssignableTo<OperationCanceledException>();
         error.Message.ShouldContain(behavior.GetType().Name);
-        error.Message.ShouldContain(typeof(PongQuery).Name);
+        error.Message.ShouldContain(nameof(PongQuery));
         var activity = activities.ShouldHaveSingleItem();
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe("cancelled");
@@ -316,7 +316,7 @@ public sealed class PipelineBehaviorsTests
         var error = ExpectFailure(result, "encina.behavior.exception");
         ExtractException(error).ShouldBeOfType<InvalidOperationException>();
         error.Message.ShouldContain(behavior.GetType().Name);
-        error.Message.ShouldContain(typeof(PongQuery).Name);
+        error.Message.ShouldContain(nameof(PongQuery));
         var activity = activities.ShouldHaveSingleItem();
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.GetTagItem("exception.type").ShouldBe(typeof(InvalidOperationException).FullName);
@@ -658,9 +658,8 @@ public sealed class PipelineBehaviorsTests
         private string _reason = string.Empty;
         private string? _code;
         private string? _message;
-        private int _callCount;
 
-        public int TryExtractFailureCallCount => _callCount;
+        public int TryExtractFailureCallCount { get; private set; }
         public object? LastResponse { get; private set; }
         public object? LastErrorPayload { get; private set; }
 
@@ -674,7 +673,7 @@ public sealed class PipelineBehaviorsTests
 
         public bool TryExtractFailure(object? response, out string reason, out object? capturedFailure)
         {
-            _callCount++;
+            TryExtractFailureCallCount++;
             LastResponse = response;
             if (_shouldFail)
             {

@@ -287,7 +287,7 @@ public sealed class StreamRequestLoadTests
             }
 
             // Should have processed around 50 items before cancellation
-            return (count >= 50 && count < 100)
+            return count is >= 50 and < 100
                 ? Response.Ok()
                 : Response.Fail<int>(statusCode: $"processed_{count}");
         })

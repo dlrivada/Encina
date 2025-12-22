@@ -436,7 +436,10 @@ public sealed class ConfigurationProperties
                 _ => Task.FromResult(Right<EncinaError, int>(request.Value))
             };
 
-            static Task<Either<EncinaError, T>> ThrowAsFault<T>() => Task.FromException<Either<EncinaError, T>>(new InvalidOperationException("boom"));
+            static Task<Either<EncinaError, T>> ThrowAsFault<T>()
+            {
+                return Task.FromException<Either<EncinaError, T>>(new InvalidOperationException("boom"));
+            }
 
             static Task<Either<EncinaError, T>> ThrowAsCancellation<T>(CancellationToken token)
             {

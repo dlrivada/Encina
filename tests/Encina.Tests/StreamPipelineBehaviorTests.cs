@@ -257,7 +257,10 @@ public sealed class StreamPipelineBehaviorTests
     {
         private readonly List<string> _capture;
 
-        public ContextCapturingBehavior(List<string> capture) => _capture = capture;
+        public ContextCapturingBehavior(List<string> capture)
+        {
+            _capture = capture;
+        }
 
         public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             StreamNumbersQuery request,

@@ -71,7 +71,7 @@ public sealed class StreamRequestGuardsTests
         IStreamRequest<string>? request2 = null;
 
         // Act
-        var result1 = EncinaRequestGuards.TryValidateStreamRequest<int>(request1, out var error1);
+        var result1 = EncinaRequestGuards.TryValidateStreamRequest<int>(request1, out _);
         var result2 = EncinaRequestGuards.TryValidateStreamRequest<string>(request2, out var error2);
 
         // Assert

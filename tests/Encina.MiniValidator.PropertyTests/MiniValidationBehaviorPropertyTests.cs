@@ -413,7 +413,7 @@ public sealed class MiniValidationBehaviorPropertyTests
 
         public static Action<ValidationContext>? OnValidation { get; set; }
 
-        public static ValidationResult ValidateWithContext(object value, ValidationContext context)
+        public static ValidationResult ValidateWithContext(object _, ValidationContext context)
         {
             OnValidation?.Invoke(context);
             return ValidationResult.Success!;

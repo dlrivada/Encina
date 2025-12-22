@@ -322,7 +322,7 @@ public sealed record CustomValidationCommand : ICommand<string>
 
     public static Action<ValidationContext>? OnValidation { get; set; }
 
-    public static ValidationResult ValidateCustom(object value, ValidationContext context)
+    public static ValidationResult ValidateCustom(object _, ValidationContext context)
     {
         OnValidation?.Invoke(context);
         return ValidationResult.Success!;
@@ -337,7 +337,7 @@ public sealed record AsyncValidationCommand : ICommand<string>
 
     public static Action<CancellationToken>? OnValidation { get; set; }
 
-    public static ValidationResult ValidateAsync(object value, ValidationContext context)
+    public static ValidationResult ValidateAsync(object _, ValidationContext context)
     {
         // DataAnnotations doesn't support async validation directly,
         // but we can check if cancellation token is available in context

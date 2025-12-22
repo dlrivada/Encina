@@ -12,7 +12,7 @@ public sealed class ScheduledMessageBuilder
     private string _requestType = "TestCommand";
     private string _content = "{}";
     private DateTime _scheduledAtUtc = DateTime.UtcNow.AddHours(1);
-    private DateTime _createdAtUtc = DateTime.UtcNow;
+    private readonly DateTime _createdAtUtc = DateTime.UtcNow;
     private DateTime? _processedAtUtc;
     private string? _errorMessage;
     private int _retryCount;

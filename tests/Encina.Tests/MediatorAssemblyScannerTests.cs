@@ -145,7 +145,7 @@ public sealed class EncinaAssemblyScannerTests
         public abstract Task<Either<EncinaError, string>> Handle(PingRequest request, CancellationToken cancellationToken);
     }
 
-    private struct ValueTypeHandler : IRequestHandler<PingRequest, string>
+    private readonly struct ValueTypeHandler : IRequestHandler<PingRequest, string>
     {
         public Task<Either<EncinaError, string>> Handle(PingRequest request, CancellationToken cancellationToken)
             => Task.FromResult(Right<EncinaError, string>(request.Value));
