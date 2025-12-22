@@ -128,22 +128,6 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(MissingHandlerRequest)));
     }
 
-    [Fact(Skip = "Pure ROP: exceptions now propagate (fail-fast)")]
-    public async Task Send_ReturnsFailure_WhenHandlerThrows()
-    {
-        var services = BuildServiceCollection();
-        await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
-
-        var result = await mediator.Send(new FaultyRequest(), CancellationToken.None);
-
-        var error = ExpectFailure(result, "mediator.handler.exception");
-        error.Message.ShouldContain("Unexpected exception");
-        var exception = ExtractException(error);
-        exception.ShouldNotBeNull();
-        exception!.Message.ShouldBe("boom");
-    }
-
     [Fact]
     public async Task Send_DetectsCancellation()
     {
@@ -164,27 +148,6 @@ public sealed class EncinaTests
             entry.LogLevel == LogLevel.Warning
             && entry.Message.Contains("was cancelled")
             && entry.Message.Contains(nameof(CancellableRequest)));
-    }
-
-    [Fact(Skip = "Pure ROP: exceptions now propagate (fail-fast)")]
-    public async Task Send_DoesNotLogCancellation_WhenHandlerCancelsWithoutToken()
-    {
-        var loggerCollector = new LoggerCollector();
-        var services = BuildServiceCollection(loggerCollector: loggerCollector);
-        services.RemoveAll(typeof(IRequestHandler<AccidentalCancellationRequest, string>));
-        services.AddScoped<IRequestHandler<AccidentalCancellationRequest, string>, AccidentalCancellationRequestHandler>();
-
-        await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
-
-        var result = await mediator.Send(new AccidentalCancellationRequest(), CancellationToken.None);
-
-        var error = ExpectFailure(result, "mediator.handler.exception");
-        ExtractException(error).ShouldBeOfType<OperationCanceledException>();
-        loggerCollector.Entries.Any(entry =>
-            entry.LogLevel == LogLevel.Warning
-            && entry.Message.Contains("was cancelled")
-            && entry.Message.Contains(nameof(AccidentalCancellationRequest))).ShouldBeFalse();
     }
 
     [Fact]
@@ -223,26 +186,6 @@ public sealed class EncinaTests
         var failure = metrics.Failures.ShouldHaveSingleItem();
         failure.Kind.ShouldBe("request");
         failure.Name.ShouldBe(nameof(MissingHandlerRequest));
-        failure.Reason.ShouldBe(error.GetMediatorCode());
-        failure.Duration.ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero);
-        metrics.Successes.ShouldBeEmpty();
-    }
-
-    [Fact(Skip = "Pure ROP: exceptions now propagate (fail-fast)")]
-    public async Task Send_RecordsFailureMetrics_WhenHandlerThrows()
-    {
-        var metrics = new MediatorMetricsSpy();
-        var services = BuildServiceCollection(mediatorMetrics: metrics);
-
-        await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
-
-        var result = await mediator.Send(new FaultyRequest(), CancellationToken.None);
-
-        var error = ExpectFailure(result, MediatorErrorCodes.HandlerException);
-        var failure = metrics.Failures.ShouldHaveSingleItem();
-        failure.Kind.ShouldBe("request");
-        failure.Name.ShouldBe(nameof(FaultyRequest));
         failure.Reason.ShouldBe(error.GetMediatorCode());
         failure.Duration.ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero);
         metrics.Successes.ShouldBeEmpty();
@@ -1220,48 +1163,6 @@ public sealed class EncinaTests
         tracker.Events.ShouldBe(expectedPostProcessorEvents);
     }
 
-    [Fact(Skip = "Pure ROP: exceptions now propagate (fail-fast)")]
-    public async Task Send_LogsErrorWhenHandlerThrows()
-    {
-        var loggerCollector = new LoggerCollector();
-        var services = BuildServiceCollection(loggerCollector: loggerCollector);
-        await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
-
-        var result = await mediator.Send(new FaultyRequest(), CancellationToken.None);
-
-        var error = ExpectFailure(result, "mediator.handler.exception");
-        ExtractException(error).ShouldBeOfType<InvalidOperationException>();
-        loggerCollector.Entries.ShouldContain(entry =>
-            entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("The FaultyRequest request failed (mediator.handler.exception)")
-            && entry.Message.Contains("FaultyRequestHandler"));
-    }
-
-    [Fact(Skip = "Pure ROP: exceptions now propagate (fail-fast)")]
-    public async Task Send_ReturnsFailureWhenHandlerReturnsNullTask()
-    {
-        var loggerCollector = new LoggerCollector();
-        var services = BuildServiceCollection(loggerCollector: loggerCollector);
-        services.RemoveAll(typeof(IRequestHandler<NullTaskRequest, string>));
-        services.AddScoped<IRequestHandler<NullTaskRequest, string>, NullTaskRequestHandler>();
-
-        await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
-
-        var result = await mediator.Send(new NullTaskRequest("oops"), CancellationToken.None);
-
-        // In pure ROP, returning null! from a handler causes NullReferenceException
-        var error = ExpectFailure(result, "mediator.handler.exception");
-        ExtractException(error).ShouldBeOfType<NullReferenceException>();
-        error.Message.ShouldContain("Unexpected exception");
-        error.Message.ShouldContain(nameof(NullTaskRequestHandler));
-        loggerCollector.Entries.ShouldContain(entry =>
-            entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("mediator.handler.exception")
-            && entry.Message.Contains(nameof(NullTaskRequestHandler)));
-    }
-
     [Fact]
     public async Task Send_CachesRequestHandlerWrappersForSubsequentCalls()
     {
@@ -1354,41 +1255,6 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(EchoRequest)));
     }
 
-    [Fact(Skip = "Pure ROP: exceptions now propagate (fail-fast)")]
-    public async Task Send_ReturnsFailure_WhenBehaviorThrowsException()
-    {
-        var loggerCollector = new LoggerCollector();
-        var services = BuildServiceCollection(
-            loggerCollector: loggerCollector,
-            configuration: cfg => cfg.AddPipelineBehavior(typeof(ThrowingPipelineBehavior<,>)));
-
-        await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
-
-        var result = await mediator.Send(new EchoRequest("boom"), CancellationToken.None);
-
-        var error = ExpectFailure(result, "mediator.behavior.exception");
-        error.Message.ShouldContain("Error running");
-        loggerCollector.Entries.ShouldContain(entry =>
-            entry.LogLevel == LogLevel.Error
-            && entry.Message.Contains("mediator.behavior.exception")
-            && entry.Message.Contains("ThrowingPipelineBehavior"));
-    }
-
-    [Fact(Skip = "Pure ROP: exceptions now propagate (fail-fast)")]
-    public async Task Send_ReturnsFailure_WhenPreProcessorThrows()
-    {
-        var services = BuildServiceCollection(configuration: cfg => cfg.AddRequestPreProcessor(typeof(ThrowingEchoPreProcessor)));
-
-        await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
-
-        var result = await mediator.Send(new EchoRequest("value"), CancellationToken.None);
-
-        var error = ExpectFailure(result, "mediator.preprocessor.exception");
-        error.Message.ShouldContain("Error running");
-    }
-
     [Fact]
     public async Task Send_ReturnsFailure_WhenPreProcessorCancels()
     {
@@ -1406,20 +1272,6 @@ public sealed class EncinaTests
         error.Message.ShouldContain("cancelled");
     }
 
-    [Fact(Skip = "Pure ROP: exceptions now propagate (fail-fast)")]
-    public async Task Send_ReturnsFailure_WhenPostProcessorThrows()
-    {
-        var services = BuildServiceCollection(configuration: cfg => cfg.AddRequestPostProcessor(typeof(ThrowingEchoPostProcessor)));
-
-        await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
-
-        var result = await mediator.Send(new EchoRequest("value"), CancellationToken.None);
-
-        var error = ExpectFailure(result, "mediator.postprocessor.exception");
-        error.Message.ShouldContain("Error running");
-    }
-
     [Fact]
     public async Task Send_ReturnsFailure_WhenPostProcessorCancels()
     {
@@ -1435,51 +1287,6 @@ public sealed class EncinaTests
 
         var error = ExpectFailure(result, "mediator.postprocessor.cancelled");
         error.Message.ShouldContain("cancelled");
-    }
-
-    [Fact(Skip = "Pure ROP: exceptions now propagate (fail-fast)")]
-    public async Task Send_TreatsPostProcessorCancellationWithoutTokenAsException()
-    {
-        var services = BuildServiceCollection();
-        services.AddScoped<IRequestPostProcessor<EchoRequest, string>, AccidentallyCancellingPostProcessor>();
-
-        await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
-
-        var result = await mediator.Send(new EchoRequest("value"), CancellationToken.None);
-
-        var error = ExpectFailure(result, "mediator.postprocessor.exception");
-        ExtractException(error).ShouldBeOfType<OperationCanceledException>();
-        error.Message.ShouldContain(nameof(AccidentallyCancellingPostProcessor));
-        error.Message.ShouldContain(nameof(EchoRequest));
-    }
-
-    [Fact(Skip = "Pure ROP: exceptions now propagate (fail-fast)")]
-    public async Task ExecutePostProcessorAsync_ReturnsExceptionWhenTokenNotCancelled()
-    {
-        var method = typeof(Encina)
-            .GetMethod("ExecutePostProcessorAsync", BindingFlags.NonPublic | BindingFlags.Static)!.
-            MakeGenericMethod(typeof(EchoRequest), typeof(string));
-
-        var postProcessor = new AccidentallyCancellingPostProcessor();
-        var response = Right<MediatorError, string>("ok");
-
-        var invocation = (Task<Option<MediatorError>>)method.Invoke(null, new object[]
-        {
-            postProcessor,
-            new EchoRequest("request"),
-            RequestContext.Create(),
-            response,
-            CancellationToken.None
-        })!;
-
-        var failure = await invocation;
-
-        failure.IsSome.ShouldBeTrue();
-        var error = failure.Match(err => err, () => MediatorErrors.Unknown);
-        error.GetMediatorCode().ShouldBe("mediator.postprocessor.exception");
-        error.Message.ShouldContain(nameof(AccidentallyCancellingPostProcessor));
-        error.Message.ShouldContain(nameof(EchoRequest));
     }
 
     [Fact]
