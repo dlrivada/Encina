@@ -616,9 +616,9 @@ dotnet build Encina.Web.slnf
 
 - ⭐⭐⭐ ODBC provider (legacy databases)
 
-**Strategic Initiatives** (to be done JUST BEFORE 1.0):
+**Strategic Initiatives**:
 
-- Renaming to "Encina"
+- ✅ Renaming to "Encina" (completed 2025-12-22)
 
 **Security & Supply Chain**:
 
@@ -656,3 +656,63 @@ dotnet build Encina.Web.slnf
 ### Remember
 >
 > "We're in Pre-1.0. Choose the best solution, not the compatible one."
+
+## Known Issues & Technical Debt (Updated: 2025-12-22)
+
+This section tracks known issues, failing tests, and technical debt that need to be addressed. When encountering issues during development that can't be fixed immediately, document them here to avoid losing track.
+
+### 🔴 Failing Tests (Pre-existing)
+
+**Stream Request Tests** (`tests/Encina.Tests/`):
+- 9 tests failing due to handler registration issues
+- Error: "No handler registered for StreamNumbersQuery -> IAsyncEnumerable<Int32>"
+- Affected tests:
+  - `StreamRequestTests.Stream_WithValidRequest_ShouldYieldAllItems`
+  - `StreamRequestTests.Stream_WithEarlyBreak_ShouldNotEnumerateRemainingItems`
+  - `StreamRequestTests.Stream_WithCancellation_ShouldStopYieldingItems`
+  - `StreamRequestTests.Stream_WithMixedSuccessAndErrors_ShouldYieldBoth`
+  - `StreamPipelineBehaviorTests.StreamBehavior_ShouldWrapHandlerExecution`
+  - `StreamPipelineBehaviorTests.StreamBehavior_Filter_ShouldOnlyYieldMatchingItems`
+  - `StreamPipelineBehaviorTests.StreamBehavior_Transform_ShouldModifyItems`
+  - `StreamPipelineBehaviorTests.StreamBehavior_Multiple_ShouldChainInOrder`
+  - `StreamPipelineBehaviorTests.StreamBehavior_WithContextPropagation_ShouldAccessContext`
+- **Root cause**: Stream handlers are not being registered correctly in the test DI container
+- **Priority**: Medium - Stream feature is not complete yet
+
+### 🟡 SQL Scripts Need Review
+
+**ADO.Oracle & ADO.Sqlite Scripts** (`src/Encina.ADO.Oracle/Scripts/`, `src/Encina.ADO.Sqlite/Scripts/`):
+- Scripts use SQL Server syntax (`sys.objects`, `OBJECT_ID`, `GO`, `PRINT`, `NVARCHAR(MAX)`, `DATETIME2`, `BIT`)
+- These are NOT valid for Oracle or SQLite databases
+- **Action needed**: Rewrite scripts with proper Oracle PL/SQL and SQLite syntax
+- **Priority**: High - These scripts will fail on target databases
+
+### 🟡 Logging Performance (CA1848)
+
+**Multiple packages suppress CA1848**:
+- All messaging transport packages use `#pragma warning disable CA1848`
+- Should implement LoggerMessage source generators for high-performance logging
+- **Files affected**: Most files in messaging transport packages
+- **Priority**: Low - Performance optimization, not a functional issue
+
+### 🟡 SonarCloud Integration
+
+- SONAR_TOKEN configured in GitHub secrets
+- SonarCloud project created at: https://sonarcloud.io/project/configuration?id=dlrivada_Encina
+- First scan may reveal additional code quality issues
+- **Status**: Configured, awaiting first successful workflow run
+
+### 📝 Documentation Gaps
+
+- MediatR migration guide not written
+- Package comparison guides incomplete
+- DocFX needs GitHub Pages deployment
+
+### How to Use This Section
+
+1. **When finding an issue**: Add it here with date, description, root cause (if known), and priority
+2. **When fixing an issue**: Remove it from this list and update the commit message
+3. **Priority levels**:
+   - 🔴 High - Blocks functionality or causes failures
+   - 🟡 Medium - Should be fixed before 1.0
+   - 🟢 Low - Nice to have, can be deferred
