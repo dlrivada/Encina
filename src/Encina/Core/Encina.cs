@@ -135,6 +135,13 @@ public sealed partial class Encina(
         }
     }
 
+    // Exposed for tests that reflect on the private notification helper to validate handler invocation semantics.
+    private static Task<Either<EncinaError, Unit>> InvokeNotificationHandler<TNotification>(object handler, TNotification notification, CancellationToken cancellationToken)
+        where TNotification : INotification
+    {
+        return NotificationDispatcher.InvokeNotificationHandler(handler, notification, cancellationToken);
+    }
+
     internal static bool IsCancellationCode(string errorCode)
     {
         if (string.IsNullOrWhiteSpace(errorCode))
