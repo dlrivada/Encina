@@ -34,7 +34,7 @@ public sealed class StreamPipelineBehaviorTests
         }
     }
 
-    public sealed class StreamLoggingBehavior : IStreamPipelineBehavior<StreamNumbersQuery, int>
+    private sealed class StreamLoggingBehavior : IStreamPipelineBehavior<StreamNumbersQuery, int>
     {
         public List<string> Logs { get; } = new();
 
@@ -58,7 +58,7 @@ public sealed class StreamPipelineBehaviorTests
         }
     }
 
-    public sealed class StreamTransformBehavior : IStreamPipelineBehavior<StreamNumbersQuery, int>
+    private sealed class StreamTransformBehavior : IStreamPipelineBehavior<StreamNumbersQuery, int>
     {
         public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
             StreamNumbersQuery request,
@@ -74,7 +74,7 @@ public sealed class StreamPipelineBehaviorTests
         }
     }
 
-    public sealed class StreamFilterBehavior : IStreamPipelineBehavior<StreamNumbersQuery, int>
+    private sealed class StreamFilterBehavior : IStreamPipelineBehavior<StreamNumbersQuery, int>
     {
         public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
             StreamNumbersQuery request,
@@ -105,7 +105,8 @@ public sealed class StreamPipelineBehaviorTests
         // Arrange
         var loggingBehavior = new StreamLoggingBehavior();
         var services = new ServiceCollection();
-        services.AddEncina(typeof(StreamPipelineBehaviorTests).Assembly);
+        services.AddEncina(); // Register mediator without scanning assemblies
+        services.AddTransient<IStreamRequestHandler<StreamNumbersQuery, int>, StreamNumbersHandler>();
         services.AddTransient<IStreamPipelineBehavior<StreamNumbersQuery, int>>(_ => loggingBehavior);
 
         var provider = services.BuildServiceProvider();
@@ -134,7 +135,8 @@ public sealed class StreamPipelineBehaviorTests
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddEncina(typeof(StreamPipelineBehaviorTests).Assembly);
+        services.AddEncina(); // Register mediator without scanning assemblies
+        services.AddTransient<IStreamRequestHandler<StreamNumbersQuery, int>, StreamNumbersHandler>();
         services.AddTransient<IStreamPipelineBehavior<StreamNumbersQuery, int>, StreamTransformBehavior>();
 
         var provider = services.BuildServiceProvider();
@@ -162,7 +164,8 @@ public sealed class StreamPipelineBehaviorTests
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddEncina(typeof(StreamPipelineBehaviorTests).Assembly);
+        services.AddEncina(); // Register mediator without scanning assemblies
+        services.AddTransient<IStreamRequestHandler<StreamNumbersQuery, int>, StreamNumbersHandler>();
         services.AddTransient<IStreamPipelineBehavior<StreamNumbersQuery, int>, StreamFilterBehavior>();
 
         var provider = services.BuildServiceProvider();
@@ -191,9 +194,12 @@ public sealed class StreamPipelineBehaviorTests
         // Arrange
         var loggingBehavior = new StreamLoggingBehavior();
         var services = new ServiceCollection();
-        services.AddEncina(typeof(StreamPipelineBehaviorTests).Assembly);
+        services.AddEncina(); // Register mediator without scanning assemblies
+        services.AddTransient<IStreamRequestHandler<StreamNumbersQuery, int>, StreamNumbersHandler>();
 
-        // Register behaviors: Logging → Transform → Filter
+        // Register behaviors in order: Logging, Transform, Filter
+        // Pipeline wrapping order (inside-out): Filter wraps Handler, Transform wraps Filter, Logging wraps Transform
+        // Data flow from handler: Handler → Filter → Transform → Logging → User
         services.AddTransient<IStreamPipelineBehavior<StreamNumbersQuery, int>>(_ => loggingBehavior);
         services.AddTransient<IStreamPipelineBehavior<StreamNumbersQuery, int>, StreamTransformBehavior>();
         services.AddTransient<IStreamPipelineBehavior<StreamNumbersQuery, int>, StreamFilterBehavior>();
@@ -211,17 +217,18 @@ public sealed class StreamPipelineBehaviorTests
         }
 
         // Assert
-        // Original: 1, 2, 3, 4, 5, 6
-        // After Transform (x10): 10, 20, 30, 40, 50, 60
-        // After Filter (even only): 10, 20, 30, 40, 50, 60 (all are even after transform)
-        results.Should().HaveCount(6);
+        // Original from Handler: 1, 2, 3, 4, 5, 6
+        // After Filter (even only, closest to handler): 2, 4, 6
+        // After Transform (x10): 20, 40, 60
+        // After Logging (pass-through): 20, 40, 60
+        results.Should().HaveCount(3);
 
         var values = results.Select(r => r.Match(Left: _ => 0, Right: v => v)).ToList();
-        values.Should().Equal(10, 20, 30, 40, 50, 60);
+        values.Should().Equal(20, 40, 60);
 
-        // Verify logging behavior executed
+        // Verify logging behavior executed (counts filtered items)
         loggingBehavior.Logs.Should().Contain("Stream started");
-        loggingBehavior.Logs.Should().Contain("Stream completed: 6 items");
+        loggingBehavior.Logs.Should().Contain("Stream completed: 3 items");
     }
 
     [Fact]
@@ -231,7 +238,8 @@ public sealed class StreamPipelineBehaviorTests
         var contextCapture = new List<string>();
 
         var services = new ServiceCollection();
-        services.AddEncina(typeof(StreamPipelineBehaviorTests).Assembly);
+        services.AddEncina(); // Register mediator without scanning assemblies
+        services.AddTransient<IStreamRequestHandler<StreamNumbersQuery, int>, StreamNumbersHandler>();
         services.AddTransient<IStreamPipelineBehavior<StreamNumbersQuery, int>>(sp =>
             new ContextCapturingBehavior(contextCapture));
 

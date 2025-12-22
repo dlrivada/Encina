@@ -23,6 +23,8 @@ internal static class MediatorAssemblyScanner
         var pipelineRegistrations = new List<TypeRegistration>();
         var preProcessorRegistrations = new List<TypeRegistration>();
         var postProcessorRegistrations = new List<TypeRegistration>();
+        var streamHandlerRegistrations = new List<TypeRegistration>();
+        var streamPipelineRegistrations = new List<TypeRegistration>();
 
         foreach (var type in GetLoadableTypes(assembly))
         {
@@ -64,6 +66,17 @@ internal static class MediatorAssemblyScanner
                         : implementedInterface;
                     postProcessorRegistrations.Add(new TypeRegistration(serviceType, type));
                 }
+                else if (genericDefinition == typeof(IStreamRequestHandler<,>))
+                {
+                    streamHandlerRegistrations.Add(new TypeRegistration(implementedInterface, type));
+                }
+                else if (genericDefinition == typeof(IStreamPipelineBehavior<,>))
+                {
+                    var serviceType = implementedInterface.ContainsGenericParameters
+                        ? typeof(IStreamPipelineBehavior<,>)
+                        : implementedInterface;
+                    streamPipelineRegistrations.Add(new TypeRegistration(serviceType, type));
+                }
             }
         }
 
@@ -72,7 +85,9 @@ internal static class MediatorAssemblyScanner
             notificationRegistrations,
             pipelineRegistrations,
             preProcessorRegistrations,
-            postProcessorRegistrations);
+            postProcessorRegistrations,
+            streamHandlerRegistrations,
+            streamPipelineRegistrations);
     }
 
     private static IEnumerable<Type?> GetLoadableTypes(Assembly assembly)
@@ -101,4 +116,6 @@ internal sealed record AssemblyScanResult(
     IReadOnlyCollection<TypeRegistration> NotificationRegistrations,
     IReadOnlyCollection<TypeRegistration> PipelineRegistrations,
     IReadOnlyCollection<TypeRegistration> RequestPreProcessorRegistrations,
-    IReadOnlyCollection<TypeRegistration> RequestPostProcessorRegistrations);
+    IReadOnlyCollection<TypeRegistration> RequestPostProcessorRegistrations,
+    IReadOnlyCollection<TypeRegistration> StreamHandlerRegistrations,
+    IReadOnlyCollection<TypeRegistration> StreamPipelineRegistrations);

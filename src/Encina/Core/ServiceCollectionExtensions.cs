@@ -74,6 +74,8 @@ public static class ServiceCollectionExtensions
             RegisterPipelineBehaviors(services, registrations.PipelineRegistrations);
             RegisterRequestPreProcessors(services, registrations.RequestPreProcessorRegistrations);
             RegisterRequestPostProcessors(services, registrations.RequestPostProcessorRegistrations);
+            RegisterStreamHandlers(services, registrations.StreamHandlerRegistrations, configuration.HandlerLifetime);
+            RegisterStreamPipelineBehaviors(services, registrations.StreamPipelineRegistrations);
         }
 
         configuration.RegisterConfiguredPipelineBehaviors(services);
@@ -135,6 +137,30 @@ public static class ServiceCollectionExtensions
     /// Registers post-processors discovered during scanning.
     /// </summary>
     private static void RegisterRequestPostProcessors(IServiceCollection services, IEnumerable<TypeRegistration> registrations)
+    {
+        foreach (var registration in registrations)
+        {
+            var descriptor = ServiceDescriptor.Scoped(registration.ServiceType, registration.ImplementationType);
+            services.TryAddEnumerable(descriptor);
+        }
+    }
+
+    /// <summary>
+    /// Registers discovered stream request handlers honoring the configured lifetime.
+    /// </summary>
+    private static void RegisterStreamHandlers(IServiceCollection services, IEnumerable<TypeRegistration> registrations, ServiceLifetime lifetime)
+    {
+        foreach (var registration in registrations)
+        {
+            var descriptor = ServiceDescriptor.Describe(registration.ServiceType, registration.ImplementationType, lifetime);
+            services.TryAdd(descriptor);
+        }
+    }
+
+    /// <summary>
+    /// Registers stream pipeline behaviors discovered during scanning.
+    /// </summary>
+    private static void RegisterStreamPipelineBehaviors(IServiceCollection services, IEnumerable<TypeRegistration> registrations)
     {
         foreach (var registration in registrations)
         {
