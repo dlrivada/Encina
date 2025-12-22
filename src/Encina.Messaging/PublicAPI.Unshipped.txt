@@ -1,0 +1,74 @@
+#nullable enable
+Encina.Messaging.Choreography.ChoreographyErrorCodes
+Encina.Messaging.Choreography.ChoreographyOptions
+Encina.Messaging.Choreography.ChoreographyOptions.AutoCompensateOnFailure.get -> bool
+Encina.Messaging.Choreography.ChoreographyOptions.AutoCompensateOnFailure.set -> void
+Encina.Messaging.Choreography.ChoreographyOptions.ChoreographyOptions() -> void
+Encina.Messaging.Choreography.ChoreographyOptions.CompensationRetryDelay.get -> System.TimeSpan
+Encina.Messaging.Choreography.ChoreographyOptions.CompensationRetryDelay.set -> void
+Encina.Messaging.Choreography.ChoreographyOptions.MaxCompensationRetries.get -> int
+Encina.Messaging.Choreography.ChoreographyOptions.MaxCompensationRetries.set -> void
+Encina.Messaging.Choreography.ChoreographyOptions.PersistState.get -> bool
+Encina.Messaging.Choreography.ChoreographyOptions.PersistState.set -> void
+Encina.Messaging.Choreography.ChoreographyOptions.SagaTimeout.get -> System.TimeSpan
+Encina.Messaging.Choreography.ChoreographyOptions.SagaTimeout.set -> void
+Encina.Messaging.Choreography.ChoreographyStatus
+Encina.Messaging.Choreography.ChoreographyStatus.Compensated = 3 -> Encina.Messaging.Choreography.ChoreographyStatus
+Encina.Messaging.Choreography.ChoreographyStatus.Compensating = 2 -> Encina.Messaging.Choreography.ChoreographyStatus
+Encina.Messaging.Choreography.ChoreographyStatus.Completed = 1 -> Encina.Messaging.Choreography.ChoreographyStatus
+Encina.Messaging.Choreography.ChoreographyStatus.Failed = 4 -> Encina.Messaging.Choreography.ChoreographyStatus
+Encina.Messaging.Choreography.ChoreographyStatus.Running = 0 -> Encina.Messaging.Choreography.ChoreographyStatus
+Encina.Messaging.Choreography.IChoreographyEventBus
+Encina.Messaging.Choreography.IChoreographyEventBus.CompensateAsync(string! correlationId, string! errorMessage, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Choreography.IChoreographyEventBus.CompleteSagaAsync(string! correlationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Choreography.IChoreographyEventBus.GetSagaStateAsync(string! correlationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Choreography.IChoreographyState?>!
+Encina.Messaging.Choreography.IChoreographyEventBus.PublishAsync<TEvent>(TEvent domainEvent, string! correlationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Choreography.IChoreographyEventBus.StartSagaAsync<TEvent>(TEvent domainEvent, string? correlationId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string!>!
+Encina.Messaging.Choreography.IChoreographySaga
+Encina.Messaging.Choreography.IChoreographySaga.CorrelationId.get -> string!
+Encina.Messaging.Choreography.IChoreographySaga<TState>
+Encina.Messaging.Choreography.IChoreographySaga<TState>.State.get -> TState
+Encina.Messaging.Choreography.IChoreographySaga<TState>.State.set -> void
+Encina.Messaging.Choreography.IChoreographyState
+Encina.Messaging.Choreography.IChoreographyState.CompletedAtUtc.get -> System.DateTime?
+Encina.Messaging.Choreography.IChoreographyState.CompletedAtUtc.set -> void
+Encina.Messaging.Choreography.IChoreographyState.CorrelationId.get -> string!
+Encina.Messaging.Choreography.IChoreographyState.CorrelationId.set -> void
+Encina.Messaging.Choreography.IChoreographyState.ErrorMessage.get -> string?
+Encina.Messaging.Choreography.IChoreographyState.ErrorMessage.set -> void
+Encina.Messaging.Choreography.IChoreographyState.EventCount.get -> int
+Encina.Messaging.Choreography.IChoreographyState.EventCount.set -> void
+Encina.Messaging.Choreography.IChoreographyState.LastUpdatedAtUtc.get -> System.DateTime
+Encina.Messaging.Choreography.IChoreographyState.LastUpdatedAtUtc.set -> void
+Encina.Messaging.Choreography.IChoreographyState.SagaType.get -> string!
+Encina.Messaging.Choreography.IChoreographyState.SagaType.set -> void
+Encina.Messaging.Choreography.IChoreographyState.StartedAtUtc.get -> System.DateTime
+Encina.Messaging.Choreography.IChoreographyState.StartedAtUtc.set -> void
+Encina.Messaging.Choreography.IChoreographyState.StateData.get -> string?
+Encina.Messaging.Choreography.IChoreographyState.StateData.set -> void
+Encina.Messaging.Choreography.IChoreographyState.Status.get -> Encina.Messaging.Choreography.ChoreographyStatus
+Encina.Messaging.Choreography.IChoreographyState.Status.set -> void
+Encina.Messaging.Choreography.IChoreographyStateStore
+Encina.Messaging.Choreography.IChoreographyStateStore.AddCompensationAsync(string! correlationId, string! compensationId, string! compensationPayload, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Choreography.IChoreographyStateStore.AddEventAsync(string! correlationId, string! eventType, string! eventPayload, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Choreography.IChoreographyStateStore.CreateAsync(string! correlationId, string! sagaType, string? initialState, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Choreography.IChoreographyStateStore.GetAsync(string! correlationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Choreography.IChoreographyState?>!
+Encina.Messaging.Choreography.IChoreographyStateStore.GetPendingCompensationsAsync(string! correlationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
+Encina.Messaging.Choreography.IChoreographyStateStore.GetStuckSagasAsync(System.TimeSpan timeout, int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Encina.Messaging.Choreography.IChoreographyState!>!>!
+Encina.Messaging.Choreography.IChoreographyStateStore.MarkCompensationCompletedAsync(string! correlationId, string! compensationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Choreography.IChoreographyStateStore.UpdateAsync(Encina.Messaging.Choreography.IChoreographyState! state, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Choreography.IEventHandlerScope
+Encina.Messaging.Choreography.IEventHandlerScope.AddCompensation(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task!>! compensationAction) -> void
+Encina.Messaging.Choreography.IEventHandlerScope.CorrelationId.get -> string!
+Encina.Messaging.Choreography.IEventHandlerScope.PublishAsync<TEvent>(TEvent domainEvent, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Choreography.IEventReaction<TEvent>
+Encina.Messaging.Choreography.IEventReaction<TEvent>.ReactAsync(TEvent domainEvent, Encina.Messaging.Choreography.IEventHandlerScope! scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+const Encina.Messaging.Choreography.ChoreographyErrorCodes.CompensationFailed = "choreography.compensation.failed" -> string!
+const Encina.Messaging.Choreography.ChoreographyErrorCodes.InvalidState = "choreography.saga.invalid_state" -> string!
+const Encina.Messaging.Choreography.ChoreographyErrorCodes.NoHandlerFound = "choreography.handler.not_found" -> string!
+const Encina.Messaging.Choreography.ChoreographyErrorCodes.PersistenceFailed = "choreography.persistence.failed" -> string!
+const Encina.Messaging.Choreography.ChoreographyErrorCodes.ReactionException = "choreography.reaction.exception" -> string!
+const Encina.Messaging.Choreography.ChoreographyErrorCodes.ReactionFailed = "choreography.reaction.failed" -> string!
+const Encina.Messaging.Choreography.ChoreographyErrorCodes.SagaAlreadyExists = "choreography.saga.already_exists" -> string!
+const Encina.Messaging.Choreography.ChoreographyErrorCodes.SagaNotFound = "choreography.saga.not_found" -> string!
+const Encina.Messaging.Choreography.ChoreographyErrorCodes.SagaTimeout = "choreography.saga.timeout" -> string!

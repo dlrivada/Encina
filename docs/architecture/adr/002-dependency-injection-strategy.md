@@ -7,7 +7,7 @@
 
 ## Context
 
-SimpleMediator needs a robust dependency injection strategy that:
+Encina needs a robust dependency injection strategy that:
 
 - Integrates seamlessly with ASP.NET Core and .NET Generic Host applications
 - Supports proper service lifetimes for handlers, behaviors, and processors
@@ -31,7 +31,7 @@ We adopt **Microsoft.Extensions.DependencyInjection** as the DI container with t
 
 | Component Type | Lifetime | Rationale |
 |---------------|----------|-----------|
-| `IMediator` (SimpleMediator) | **Singleton** | Stateless coordinator, safe to share across application lifetime |
+| `IMediator` (Encina) | **Singleton** | Stateless coordinator, safe to share across application lifetime |
 | `IRequestHandler<,>` | **Transient** (default) or **Scoped** | Allows stateful handlers, fresh instance per request, supports DbContext injection |
 | `INotificationHandler<>` | **Transient** (default) or **Scoped** | Same as request handlers - fresh instance per notification |
 | `IPipelineBehavior<,>` | **Transient** (default) or **Scoped** | Allows stateful behaviors (e.g., caching), fresh instance per pipeline |
@@ -44,7 +44,7 @@ We adopt **Microsoft.Extensions.DependencyInjection** as the DI container with t
 ### Scope Management
 
 ```csharp
-// SimpleMediator creates a fresh scope for each request/notification
+// Encina creates a fresh scope for each request/notification
 using var scope = _scopeFactory.CreateScope();
 var serviceProvider = scope.ServiceProvider;
 ```
@@ -159,10 +159,10 @@ var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TRespons
 
 ## Implementation Details
 
-### SimpleMediator Constructor
+### Encina Constructor
 
 ```csharp
-public SimpleMediator(IServiceScopeFactory scopeFactory, ILogger<SimpleMediator> logger)
+public Encina(IServiceScopeFactory scopeFactory, ILogger<Encina> logger)
 {
     _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
     _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -180,12 +180,12 @@ public SimpleMediator(IServiceScopeFactory scopeFactory, ILogger<SimpleMediator>
 ```csharp
 public static IServiceCollection AddMediator(
     this IServiceCollection services,
-    Action<SimpleMediatorConfiguration>? configure = null)
+    Action<EncinaConfiguration>? configure = null)
 {
-    var config = new SimpleMediatorConfiguration();
+    var config = new EncinaConfiguration();
     configure?.Invoke(config);
 
-    services.TryAddSingleton<IMediator, SimpleMediator>();
+    services.TryAddSingleton<IMediator, Encina>();
 
     // Optional: Register default behaviors
     if (config.RegisterDefaultBehaviors)
@@ -308,7 +308,7 @@ public class ServiceLocator
 ### 2. Constructor Injection of IServiceProvider
 
 ```csharp
-public SimpleMediator(IServiceProvider serviceProvider) { }
+public Encina(IServiceProvider serviceProvider) { }
 ```
 
 **Rejected:** Prevents proper scope isolation. Would resolve services from root provider (Singleton scope), causing issues with Scoped services like DbContext.
@@ -341,6 +341,6 @@ public interface IHandlerFactory
 
 ## Notes
 
-The decision to use `IServiceScopeFactory` instead of `IServiceProvider` is critical for correctness. Early versions of SimpleMediator incorrectly used `IServiceProvider` directly, which caused subtle bugs when handlers depended on scoped services. This was fixed before the first public release.
+The decision to use `IServiceScopeFactory` instead of `IServiceProvider` is critical for correctness. Early versions of Encina incorrectly used `IServiceProvider` directly, which caused subtle bugs when handlers depended on scoped services. This was fixed before the first public release.
 
 The default lifetime for handlers was changed from Transient to Scoped in version 0.2.0 to better align with ASP.NET Core patterns where DbContext and other scoped services are common.

@@ -1,34 +1,34 @@
-# Testing SimpleMediator
+# Testing Encina
 
-This guide explains how to exercise the automated test suites that protect SimpleMediator and what each layer is intended to validate.
+This guide explains how to exercise the automated test suites that protect Encina and what each layer is intended to validate.
 
 ## Test Layers
 
 | Suite | Project | Focus |
 |-------|---------|-------|
-| Unit tests | `tests/SimpleMediator.Tests` | Behavioural checks for mediators, configuration helpers, and built-in pipeline components. |
-| Property tests | `tests/SimpleMediator.PropertyTests` | Configuration and pipeline invariants validated with FsCheck across varied inputs. |
-| Contract tests | `tests/SimpleMediator.ContractTests` | Structural safeguards that assert the public surface keeps its interoperability guarantees. |
+| Unit tests | `tests/Encina.Tests` | Behavioural checks for mediators, configuration helpers, and built-in pipeline components. |
+| Property tests | `tests/Encina.PropertyTests` | Configuration and pipeline invariants validated with FsCheck across varied inputs. |
+| Contract tests | `tests/Encina.ContractTests` | Structural safeguards that assert the public surface keeps its interoperability guarantees. |
 
 ## Running The Tests
 
 Execute every suite with one command from the repository root:
 
 ```pwsh
-dotnet test SimpleMediator.slnx --configuration Release
+dotnet test Encina.slnx --configuration Release
 ```
 
 Use the following filters for a specific layer:
 
 ```pwsh
 # Unit tests only
-dotnet test tests/SimpleMediator.Tests/SimpleMediator.Tests.csproj
+dotnet test tests/Encina.Tests/Encina.Tests.csproj
 
 # Property tests only
-dotnet test tests/SimpleMediator.PropertyTests/SimpleMediator.PropertyTests.csproj
+dotnet test tests/Encina.PropertyTests/Encina.PropertyTests.csproj
 
 # Contract tests only
-dotnet test tests/SimpleMediator.ContractTests/SimpleMediator.ContractTests.csproj
+dotnet test tests/Encina.ContractTests/Encina.ContractTests.csproj
 ```
 
 ## Coverage Snapshot

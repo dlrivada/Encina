@@ -11,7 +11,7 @@
 
 ## Context
 
-SimpleMediator aims to be a production-ready mediator library for .NET applications. Modern applications integrate with numerous external libraries and services:
+Encina aims to be a production-ready mediator library for .NET applications. Modern applications integrate with numerous external libraries and services:
 
 - **Logging:** Serilog, NLog, Microsoft.Extensions.Logging
 - **Observability:** OpenTelemetry, Application Insights, Prometheus
@@ -22,7 +22,7 @@ SimpleMediator aims to be a production-ready mediator library for .NET applicati
 - **Resilience:** Polly (retry, circuit breaker, rate limiting)
 - **Security:** ASP.NET Core Authorization, Identity
 
-Users expect SimpleMediator to integrate seamlessly with these libraries **without forcing it to take dependencies on them**. This is a critical architectural decision that affects:
+Users expect Encina to integrate seamlessly with these libraries **without forcing it to take dependencies on them**. This is a critical architectural decision that affects:
 
 1. **Core package size** - Should remain minimal
 2. **Versioning conflicts** - Avoid dependency hell
@@ -44,7 +44,7 @@ Users expect SimpleMediator to integrate seamlessly with these libraries **witho
 
 ### 1. Core Package Responsibilities
 
-`SimpleMediator` (core) provides **extensibility mechanisms** only:
+`Encina` (core) provides **extensibility mechanisms** only:
 
 ✅ **Included:**
 
@@ -68,21 +68,21 @@ Integration with external libraries is provided via **optional NuGet packages**:
 
 | Package | Purpose | Dependencies |
 |---------|---------|--------------|
-| `SimpleMediator.FluentValidation` | Validation behaviors | FluentValidation.DependencyInjectionExtensions |
-| `SimpleMediator.EntityFrameworkCore` | Transaction + outbox behaviors | Microsoft.EntityFrameworkCore |
-| `SimpleMediator.OpenTelemetry` | Pre-configured OTEL setup | OpenTelemetry.Api, OpenTelemetry.Instrumentation |
-| `SimpleMediator.Polly` | Retry/circuit breaker | Polly.Core |
-| `SimpleMediator.Caching.Redis` | Redis caching behavior | StackExchange.Redis |
-| `SimpleMediator.Caching.Memory` | In-memory caching | Microsoft.Extensions.Caching.Memory |
-| `SimpleMediator.Authorization` | ASP.NET Core authorization | Microsoft.AspNetCore.Authorization |
-| `SimpleMediator.Idempotency` | Idempotency checking | (abstractions only) |
-| `SimpleMediator.RabbitMQ` | RabbitMQ publishing | RabbitMQ.Client |
-| `SimpleMediator.Kafka` | Kafka producing | Confluent.Kafka |
+| `Encina.FluentValidation` | Validation behaviors | FluentValidation.DependencyInjectionExtensions |
+| `Encina.EntityFrameworkCore` | Transaction + outbox behaviors | Microsoft.EntityFrameworkCore |
+| `Encina.OpenTelemetry` | Pre-configured OTEL setup | OpenTelemetry.Api, OpenTelemetry.Instrumentation |
+| `Encina.Polly` | Retry/circuit breaker | Polly.Core |
+| `Encina.Caching.Redis` | Redis caching behavior | StackExchange.Redis |
+| `Encina.Caching.Memory` | In-memory caching | Microsoft.Extensions.Caching.Memory |
+| `Encina.Authorization` | ASP.NET Core authorization | Microsoft.AspNetCore.Authorization |
+| `Encina.Idempotency` | Idempotency checking | (abstractions only) |
+| `Encina.RabbitMQ` | RabbitMQ publishing | RabbitMQ.Client |
+| `Encina.Kafka` | Kafka producing | Confluent.Kafka |
 
 **Package Versioning:**
 
 - Each satellite package versions independently
-- Compatible with `SimpleMediator >= X.Y` (stated in package description)
+- Compatible with `Encina >= X.Y` (stated in package description)
 - Breaking changes in core require major version bump in satellites
 
 ### 3. Request Context (Ambient Metadata)
@@ -94,7 +94,7 @@ Integration with external libraries is provided via **optional NuGet packages**:
 Add `IRequestContext` as **explicit parameter** to all pipeline interfaces:
 
 ```csharp
-namespace SimpleMediator;
+namespace Encina;
 
 /// <summary>
 /// Marker interface for requests that carry ambient context metadata.
@@ -204,7 +204,7 @@ This makes context **always available** without marker interfaces, but breaks al
 Add metadata provider service:
 
 ```csharp
-namespace SimpleMediator;
+namespace Encina;
 
 /// <summary>
 /// Provides metadata about request handlers for introspection in behaviors.
@@ -292,7 +292,7 @@ public sealed class CachingBehavior<TRequest, TResponse>
 
 ✅ **Minimal Core Package**
 
-- `SimpleMediator` has zero dependencies on external libraries
+- `Encina` has zero dependencies on external libraries
 - Small package size, fast installation
 - No versioning conflicts with user dependencies
 
@@ -305,7 +305,7 @@ public sealed class CachingBehavior<TRequest, TResponse>
 ✅ **Discoverability**
 
 - Satellite packages appear in NuGet search
-- Clear naming convention: `SimpleMediator.{Integration}`
+- Clear naming convention: `Encina.{Integration}`
 - Package descriptions explain purpose
 
 ✅ **Non-Breaking Evolution**
@@ -352,7 +352,7 @@ public sealed class CachingBehavior<TRequest, TResponse>
 
 ### Alternative 1: Batteries-Included Core
 
-**Approach:** Include all common integrations in `SimpleMediator` package.
+**Approach:** Include all common integrations in `Encina` package.
 
 **Pros:**
 
@@ -439,27 +439,27 @@ public sealed class CachingBehavior<TRequest, TResponse>
 
 Priority order:
 
-1. **`SimpleMediator.FluentValidation`** (Critical)
+1. **`Encina.FluentValidation`** (Critical)
    - `ValidationBehavior<,>`
    - Extension method: `cfg.AddFluentValidation()`
    - Auto-validator discovery
 
-2. **`SimpleMediator.EntityFrameworkCore`** (Critical)
+2. **`Encina.EntityFrameworkCore`** (Critical)
    - `TransactionBehavior<,>`
    - `OutboxBehavior<,>` (for domain events)
    - `SaveChangesBehavior<,>`
 
-3. **`SimpleMediator.OpenTelemetry`** (High)
+3. **`Encina.OpenTelemetry`** (High)
    - Pre-configured `ActivitySource` listener
    - Metrics exporter setup
-   - Extension method: `services.AddSimpleMediatorTelemetry()`
+   - Extension method: `services.AddEncinaTelemetry()`
 
-4. **`SimpleMediator.Polly`** (Medium)
+4. **`Encina.Polly`** (Medium)
    - `RetryBehavior<,>` with policy configuration
    - `CircuitBreakerBehavior<,>`
    - Attribute-driven: `[Retry(MaxAttempts = 3)]`
 
-5. **`SimpleMediator.Caching.Redis`** (Medium)
+5. **`Encina.Caching.Redis`** (Medium)
    - `RedisCachingBehavior<,>`
    - Cache key generation strategies
    - TTL configuration via attributes
@@ -522,11 +522,11 @@ We'll know this decision is successful when:
 ### FluentValidation
 
 ```csharp
-// Install: dotnet add package SimpleMediator.FluentValidation
+// Install: dotnet add package Encina.FluentValidation
 
 // Startup
 services.AddValidatorsFromAssembly(typeof(CreateOrderValidator).Assembly);
-services.AddSimpleMediator(cfg =>
+services.AddEncina(cfg =>
 {
     cfg.AddFluentValidation();  // Registers ValidationBehavior<,>
 }, assemblies);
@@ -550,11 +550,11 @@ public record CreateOrder(string ProductId, int Quantity) : ICommand<OrderCreate
 ### Entity Framework Core Transactions
 
 ```csharp
-// Install: dotnet add package SimpleMediator.EntityFrameworkCore
+// Install: dotnet add package Encina.EntityFrameworkCore
 
 // Startup
 services.AddDbContext<ApplicationDbContext>();
-services.AddSimpleMediator(cfg =>
+services.AddEncina(cfg =>
 {
     cfg.AddEntityFrameworkCore<ApplicationDbContext>();  // Registers TransactionBehavior
 }, assemblies);
@@ -581,14 +581,14 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrder, OrderCreat
 ### Redis Caching
 
 ```csharp
-// Install: dotnet add package SimpleMediator.Caching.Redis
+// Install: dotnet add package Encina.Caching.Redis
 
 // Startup
 services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = "localhost:6379";
 });
-services.AddSimpleMediator(cfg =>
+services.AddEncina(cfg =>
 {
     cfg.AddRedisCaching();  // Registers RedisCachingBehavior
 }, assemblies);
@@ -659,4 +659,4 @@ public interface IPipelineBehavior<TRequest, TResponse>
 
 ---
 
-**This ADR represents our commitment to keeping SimpleMediator lightweight, flexible, and integration-friendly without compromising core simplicity.**
+**This ADR represents our commitment to keeping Encina lightweight, flexible, and integration-friendly without compromising core simplicity.**

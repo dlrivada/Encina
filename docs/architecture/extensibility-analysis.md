@@ -1,4 +1,4 @@
-# SimpleMediator Extensibility Analysis
+# Encina Extensibility Analysis
 
 **Date:** 2025-12-14
 **Status:** Analysis Complete
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-This document analyzes SimpleMediator's current extensibility capabilities and readiness for integration with common infrastructure libraries (logging, observability, caching, messaging, databases, validation, etc.).
+This document analyzes Encina's current extensibility capabilities and readiness for integration with common infrastructure libraries (logging, observability, caching, messaging, databases, validation, etc.).
 
 **Key Findings:**
 
@@ -111,7 +111,7 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
 
 // Registration
 services.AddValidatorsFromAssembly(typeof(CreateOrderValidator).Assembly);
-services.AddSimpleMediator(cfg =>
+services.AddEncina(cfg =>
 {
     cfg.AddPipelineBehavior(typeof(ValidationBehavior<,>));
 }, assemblies);
@@ -298,12 +298,12 @@ public interface IFunctionalFailureDetector
 ```csharp
 services.AddOpenTelemetry()
     .WithTracing(builder => builder
-        .AddSource("SimpleMediator")  // MediatorDiagnostics.ActivitySource
+        .AddSource("Encina")  // MediatorDiagnostics.ActivitySource
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddJaegerExporter())
     .WithMetrics(builder => builder
-        .AddMeter("SimpleMediator.Metrics")  // MediatorMetrics.Meter
+        .AddMeter("Encina.Metrics")  // MediatorMetrics.Meter
         .AddPrometheusExporter());
 ```
 
@@ -349,13 +349,13 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
 }
 ```
 
-**Satellite Package Opportunity:** `SimpleMediator.Logging` with pre-built behaviors
+**Satellite Package Opportunity:** `Encina.Logging` with pre-built behaviors
 
 ### 2.2 Validation (FluentValidation)
 
 **Status:** ✅ **Ready** - Via behaviors (example shown in 1.1)
 
-**Satellite Package Opportunity:** `SimpleMediator.FluentValidation`
+**Satellite Package Opportunity:** `Encina.FluentValidation`
 
 - Pre-built `ValidationBehavior<,>`
 - Extension method: `cfg.AddFluentValidation()`
@@ -415,7 +415,7 @@ public sealed class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior
 }
 ```
 
-**Satellite Package Opportunity:** `SimpleMediator.EntityFrameworkCore`
+**Satellite Package Opportunity:** `Encina.EntityFrameworkCore`
 
 ### 2.4 Caching (Redis, In-Memory)
 
@@ -480,7 +480,7 @@ public interface ICacheable
 }
 ```
 
-**Satellite Package Opportunity:** `SimpleMediator.Caching.Redis`
+**Satellite Package Opportunity:** `Encina.Caching.Redis`
 
 ### 2.5 Message Brokers (RabbitMQ, Kafka, Azure Service Bus)
 
@@ -533,9 +533,9 @@ public sealed class OutboxBehavior<TRequest, TResponse> : IPipelineBehavior<TReq
 
 **Satellite Package Opportunities:**
 
-- `SimpleMediator.RabbitMQ` - Direct publish behaviors
-- `SimpleMediator.Kafka` - Producer behaviors
-- `SimpleMediator.Outbox` - Generic outbox pattern with EF Core
+- `Encina.RabbitMQ` - Direct publish behaviors
+- `Encina.Kafka` - Producer behaviors
+- `Encina.Outbox` - Generic outbox pattern with EF Core
 
 ### 2.6 Idempotency
 
@@ -590,7 +590,7 @@ public interface IIdempotent
 
 **Recommended Enhancement:** Add `IRequestMetadata` interface for ambient context (see Section 3.1).
 
-**Satellite Package Opportunity:** `SimpleMediator.Idempotency`
+**Satellite Package Opportunity:** `Encina.Idempotency`
 
 ### 2.7 Retry & Circuit Breaker (Polly)
 
@@ -637,7 +637,7 @@ public sealed class PollyBehavior<TRequest, TResponse> : IPipelineBehavior<TRequ
 }
 ```
 
-**Satellite Package Opportunity:** `SimpleMediator.Polly`
+**Satellite Package Opportunity:** `Encina.Polly`
 
 ### 2.8 Authorization
 
@@ -695,7 +695,7 @@ public sealed class AuthorizationBehavior<TRequest, TResponse> : IPipelineBehavi
 public record CreateOrder(string ProductId, int Quantity) : ICommand<Order>;
 ```
 
-**Satellite Package Opportunity:** `SimpleMediator.Authorization`
+**Satellite Package Opportunity:** `Encina.Authorization`
 
 ### 2.9 Rate Limiting
 
@@ -772,7 +772,7 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrder, OrderCreat
 }
 ```
 
-**Satellite Package Opportunity:** `SimpleMediator.EventStoreDB`
+**Satellite Package Opportunity:** `Encina.EventStoreDB`
 
 ---
 
@@ -989,19 +989,19 @@ To avoid bloating core package, create optional integration packages:
 
 | Package | Purpose | Priority |
 |---------|---------|----------|
-| `SimpleMediator.FluentValidation` | Validation behavior + auto-registration | 🔴 High |
-| `SimpleMediator.EntityFrameworkCore` | Transaction behavior, outbox pattern | 🔴 High |
-| `SimpleMediator.OpenTelemetry` | Pre-configured OTEL setup | 🟡 Medium |
-| `SimpleMediator.Polly` | Retry/circuit breaker behaviors | 🟡 Medium |
-| `SimpleMediator.Caching.Redis` | Redis caching behavior | 🟡 Medium |
-| `SimpleMediator.Caching.Memory` | In-memory caching behavior | 🟡 Medium |
-| `SimpleMediator.RabbitMQ` | Direct publish behaviors | 🟢 Low |
-| `SimpleMediator.Kafka` | Kafka producer behaviors | 🟢 Low |
-| `SimpleMediator.Outbox` | Generic outbox pattern | 🟡 Medium |
-| `SimpleMediator.Authorization` | ASP.NET Core authorization behavior | 🟡 Medium |
-| `SimpleMediator.Idempotency` | Idempotency behavior + store abstractions | 🟡 Medium |
-| `SimpleMediator.EventStoreDB` | Event sourcing helpers | 🟢 Low |
-| `SimpleMediator.Serilog` | Serilog enrichment behaviors | 🟢 Low |
+| `Encina.FluentValidation` | Validation behavior + auto-registration | 🔴 High |
+| `Encina.EntityFrameworkCore` | Transaction behavior, outbox pattern | 🔴 High |
+| `Encina.OpenTelemetry` | Pre-configured OTEL setup | 🟡 Medium |
+| `Encina.Polly` | Retry/circuit breaker behaviors | 🟡 Medium |
+| `Encina.Caching.Redis` | Redis caching behavior | 🟡 Medium |
+| `Encina.Caching.Memory` | In-memory caching behavior | 🟡 Medium |
+| `Encina.RabbitMQ` | Direct publish behaviors | 🟢 Low |
+| `Encina.Kafka` | Kafka producer behaviors | 🟢 Low |
+| `Encina.Outbox` | Generic outbox pattern | 🟡 Medium |
+| `Encina.Authorization` | ASP.NET Core authorization behavior | 🟡 Medium |
+| `Encina.Idempotency` | Idempotency behavior + store abstractions | 🟡 Medium |
+| `Encina.EventStoreDB` | Event sourcing helpers | 🟢 Low |
+| `Encina.Serilog` | Serilog enrichment behaviors | 🟢 Low |
 
 ---
 
@@ -1016,7 +1016,7 @@ Before 1.0 release:
    - CQRS with read/write separation
    - Event sourcing with EventStoreDB
    - Microservices with RabbitMQ
-4. **Migration Guide** - From MediatR to SimpleMediator
+4. **Migration Guide** - From MediatR to Encina
 5. **Best Practices** - CQRS, immutability, error handling
 
 ---
@@ -1045,19 +1045,19 @@ Before 1.0 release:
 
 1. ✅ Add `IRequestHandlerMetadataProvider` for handler introspection (non-breaking)
 2. ✅ Add `IHasMetadata` marker interface for request context (non-breaking)
-3. ✅ Create `SimpleMediator.FluentValidation` package
-4. ✅ Create `SimpleMediator.EntityFrameworkCore` package
+3. ✅ Create `Encina.FluentValidation` package
+4. ✅ Create `Encina.EntityFrameworkCore` package
 5. ✅ Write integration guide with 10+ real-world examples
 
 **Important (Should Have):**
-6. ✅ Create `SimpleMediator.OpenTelemetry` package
+6. ✅ Create `Encina.OpenTelemetry` package
 7. ✅ Create samples repository with 3+ reference apps
 8. ✅ Document domain event publishing pattern
 9. ✅ Add ADR for metadata strategy
 
 **Nice to Have:**
-10. ⚪ Create `SimpleMediator.Polly` package
-11. ⚪ Create `SimpleMediator.Caching.Redis` package
+10. ⚪ Create `Encina.Polly` package
+11. ⚪ Create `Encina.Caching.Redis` package
 12. ⚪ Migration guide from MediatR
 
 ### Breaking Changes for 2.0 (Future)
@@ -1070,7 +1070,7 @@ Before 1.0 release:
 
 ## 7. Conclusion
 
-**SimpleMediator is 80% ready for production use with external libraries.**
+**Encina is 80% ready for production use with external libraries.**
 
 The core extensibility mechanisms (behaviors, processors, DI) are sufficient for integrating with virtually any infrastructure library. The remaining 20% is:
 

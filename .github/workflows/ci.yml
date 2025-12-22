@@ -32,16 +32,16 @@ jobs:
           dotnet-version: 10.0.100
 
       - name: Restore
-        run: dotnet restore SimpleMediator.slnx
+        run: dotnet restore Encina.slnx
 
       - name: Build
-        run: dotnet build SimpleMediator.slnx --configuration Release --no-restore
+        run: dotnet build Encina.slnx --configuration Release --no-restore
 
       - name: Restore .NET tools
         run: dotnet tool restore
 
       - name: Test with coverage
-        run: dotnet test SimpleMediator.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --verbosity normal
+        run: dotnet test Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --verbosity normal
 
       - name: Generate coverage report
         run: dotnet tool run reportgenerator -reports:"artifacts/test-results/**/coverage.cobertura.xml" -targetdir:"artifacts/coverage" -reporttypes:"Html;HtmlSummary;TextSummary"
@@ -144,12 +144,12 @@ jobs:
           path: ${{ steps.stryker-report.outputs.reports-dir }}
 
       - name: Pack
-        run: dotnet pack src/SimpleMediator/SimpleMediator.csproj --configuration Release --no-build --output artifacts
+        run: dotnet pack src/Encina/Encina.csproj --configuration Release --no-build --output artifacts
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: simplemediator-nuget
+          name: encina-nuget
           path: artifacts/*.nupkg
 
       - name: Publish to GitHub Packages

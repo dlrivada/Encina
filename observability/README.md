@@ -1,4 +1,4 @@
-# SimpleMediator Observability Stack
+# Encina Observability Stack
 
 Production-ready observability solution using OpenTelemetry, Prometheus, Jaeger, Loki, and Grafana.
 
@@ -26,7 +26,7 @@ Prometheus  Jaeger     Loki
 ### 1. Start the Observability Stack
 
 ```bash
-cd D:\Proyectos\SimpleMediator
+cd D:\Proyectos\Encina
 docker-compose -f docker-compose.observability.yml up -d
 ```
 
@@ -41,15 +41,15 @@ using OpenTelemetry.Logs;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add SimpleMediator
-builder.Services.AddSimpleMediator(config => { });
+// Add Encina
+builder.Services.AddEncina(config => { });
 
 // Add OpenTelemetry
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource
         .AddService("my-service", serviceVersion: "1.0.0"))
     .WithTracing(tracing => tracing
-        .AddSimpleMediatorInstrumentation()
+        .AddEncinaInstrumentation()
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddOtlpExporter(options =>
@@ -57,7 +57,7 @@ builder.Services.AddOpenTelemetry()
             options.Endpoint = new Uri("http://localhost:4317");
         }))
     .WithMetrics(metrics => metrics
-        .AddSimpleMediatorInstrumentation()
+        .AddEncinaInstrumentation()
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddOtlpExporter(options =>
@@ -80,7 +80,7 @@ builder.Services.AddOpenTelemetry()
 
 ## 📊 Available Dashboards
 
-### SimpleMediator Overview Dashboard
+### Encina Overview Dashboard
 
 Pre-configured dashboard with:
 
@@ -96,32 +96,32 @@ Pre-configured dashboard with:
 
 ```promql
 # Request rate
-rate(simplemediator_requests_total[5m])
+rate(Encina_requests_total[5m])
 
 # P95 latency
-histogram_quantile(0.95, sum(rate(simplemediator_request_duration_seconds_bucket[5m])) by (le))
+histogram_quantile(0.95, sum(rate(Encina_request_duration_seconds_bucket[5m])) by (le))
 
 # Error rate
-rate(simplemediator_requests_total{status="error"}[5m])
+rate(Encina_requests_total{status="error"}[5m])
 ```
 
 ### Loki Queries (LogQL)
 
 ```logql
-# All SimpleMediator logs
-{service_name="simplemediator"}
+# All Encina logs
+{service_name="Encina"}
 
 # Error logs only
-{service_name="simplemediator"} |= "error"
+{service_name="Encina"} |= "error"
 
 # Logs with trace correlation
-{service_name="simplemediator"} | json | traceID != ""
+{service_name="Encina"} | json | traceID != ""
 ```
 
 ### Jaeger Queries
 
-- Service: `simplemediator`
-- Operation: `SimpleMediator.Send`
+- Service: `Encina`
+- Operation: `Encina.Send`
 - Tags: `request.type`, `handler.name`, `error`
 
 ## 🛠️ Configuration Files
@@ -159,18 +159,18 @@ rate(simplemediator_requests_total{status="error"}[5m])
 - Datasources: Prometheus, Jaeger, Loki (auto-configured)
 - Dashboards: Auto-loaded from `/var/lib/grafana/dashboards`
 
-## 📈 Metrics Exposed by SimpleMediator
+## 📈 Metrics Exposed by Encina
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `simplemediator_requests_total` | Counter | Total requests (by type, status) |
-| `simplemediator_request_duration_seconds` | Histogram | Request duration (P50, P95, P99) |
-| `simplemediator_pipeline_duration_seconds` | Histogram | Pipeline execution time |
-| `simplemediator_handler_duration_seconds` | Histogram | Handler execution time |
-| `simplemediator_validation_failures_total` | Counter | Validation failures |
-| `simplemediator_outbox_messages_total` | Counter | Outbox messages published |
-| `simplemediator_inbox_messages_total` | Counter | Inbox messages processed |
-| `simplemediator_saga_executions_total` | Counter | Saga executions |
+| `Encina_requests_total` | Counter | Total requests (by type, status) |
+| `Encina_request_duration_seconds` | Histogram | Request duration (P50, P95, P99) |
+| `Encina_pipeline_duration_seconds` | Histogram | Pipeline execution time |
+| `Encina_handler_duration_seconds` | Histogram | Handler execution time |
+| `Encina_validation_failures_total` | Counter | Validation failures |
+| `Encina_outbox_messages_total` | Counter | Outbox messages published |
+| `Encina_inbox_messages_total` | Counter | Inbox messages processed |
+| `Encina_saga_executions_total` | Counter | Saga executions |
 
 ## 🏷️ Trace Attributes
 
@@ -222,7 +222,7 @@ curl http://localhost:8889/metrics
 curl http://localhost:3100/ready
 
 # Verify log ingestion
-curl -G -s "http://localhost:3100/loki/api/v1/query" --data-urlencode 'query={service_name="simplemediator"}'
+curl -G -s "http://localhost:3100/loki/api/v1/query" --data-urlencode 'query={service_name="Encina"}'
 ```
 
 ## 🔒 Production Considerations
@@ -267,4 +267,4 @@ docker-compose -f docker-compose.observability.yml down -v
 
 ## 📝 License
 
-This observability stack configuration is part of SimpleMediator and follows the same license.
+This observability stack configuration is part of Encina and follows the same license.

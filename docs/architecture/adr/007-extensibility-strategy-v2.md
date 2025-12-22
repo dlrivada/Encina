@@ -12,7 +12,7 @@
 
 ## Context
 
-SimpleMediator needs to integrate seamlessly with common infrastructure libraries without forcing dependencies:
+Encina needs to integrate seamlessly with common infrastructure libraries without forcing dependencies:
 
 - Logging (Serilog, NLog, ILogger)
 - Observability (OpenTelemetry, Prometheus, Jaeger)
@@ -44,7 +44,7 @@ We will add `IRequestContext` as an **explicit parameter** to all pipeline inter
 ### 1. Core Interfaces (UPDATED)
 
 ```csharp
-namespace SimpleMediator;
+namespace Encina;
 
 /// <summary>
 /// Ambient context that flows through the mediator pipeline.
@@ -238,16 +238,16 @@ Core remains minimal, integrations via satellite packages:
 
 | Package | Purpose | Priority |
 |---------|---------|----------|
-| `SimpleMediator.FluentValidation` | Validation behavior | 🔴 Critical |
-| `SimpleMediator.EntityFrameworkCore` | Transaction/outbox behaviors | 🔴 Critical |
-| `SimpleMediator.OpenTelemetry` | Pre-configured OTEL setup | 🟡 High |
-| `SimpleMediator.Polly` | Retry/circuit breaker | 🟡 High |
-| `SimpleMediator.Caching.Redis` | Redis caching | 🟡 High |
-| `SimpleMediator.Authorization` | ASP.NET Core auth | 🟡 High |
-| `SimpleMediator.Idempotency` | Idempotency checking | 🟡 High |
-| `SimpleMediator.AspNetCore` | HttpContext integration | 🟡 High |
-| `SimpleMediator.RabbitMQ` | Message publishing | 🟢 Medium |
-| `SimpleMediator.Kafka` | Event streaming | 🟢 Medium |
+| `Encina.FluentValidation` | Validation behavior | 🔴 Critical |
+| `Encina.EntityFrameworkCore` | Transaction/outbox behaviors | 🔴 Critical |
+| `Encina.OpenTelemetry` | Pre-configured OTEL setup | 🟡 High |
+| `Encina.Polly` | Retry/circuit breaker | 🟡 High |
+| `Encina.Caching.Redis` | Redis caching | 🟡 High |
+| `Encina.Authorization` | ASP.NET Core auth | 🟡 High |
+| `Encina.Idempotency` | Idempotency checking | 🟡 High |
+| `Encina.AspNetCore` | HttpContext integration | 🟡 High |
+| `Encina.RabbitMQ` | Message publishing | 🟢 Medium |
+| `Encina.Kafka` | Event streaming | 🟢 Medium |
 
 ---
 
@@ -347,47 +347,47 @@ Core remains minimal, integrations via satellite packages:
 
 **Priority 1 (Week 3):**
 
-1. `SimpleMediator.AspNetCore`
+1. `Encina.AspNetCore`
    - Middleware to create context from HttpContext
-   - Extension: `app.UseSimpleMediatorContext()`
+   - Extension: `app.UseEncinaContext()`
    - Automatic correlation ID, user ID extraction
 
-2. `SimpleMediator.FluentValidation`
+2. `Encina.FluentValidation`
    - `ValidationBehavior<,>`
    - Extension: `cfg.AddFluentValidation()`
    - Auto-validator discovery
 
 **Priority 2 (Week 4):**
-3. `SimpleMediator.EntityFrameworkCore`
+3. `Encina.EntityFrameworkCore`
 
 - `TransactionBehavior<,>`
 - `OutboxBehavior<,>` for domain events
 - Extension: `cfg.AddEntityFrameworkCore<TDbContext>()`
 
-4. `SimpleMediator.Idempotency`
+4. `Encina.Idempotency`
    - `IdempotencyBehavior<,>` (reads context.IdempotencyKey)
    - `IIdempotencyStore` abstraction
    - In-memory and distributed implementations
 
 **Priority 3 (Week 5):**
-5. `SimpleMediator.OpenTelemetry`
+5. `Encina.OpenTelemetry`
 
 - Pre-configured ActivitySource listener
 - Metrics exporter
 - Context enrichment (baggage propagation)
 
-6. `SimpleMediator.Polly`
+6. `Encina.Polly`
    - `RetryBehavior<,>` with attribute support
    - `CircuitBreakerBehavior<,>`
    - Handler attribute: `[Retry(MaxAttempts = 3)]`
 
 **Priority 4 (Week 6):**
-7. `SimpleMediator.Caching.Redis`
+7. `Encina.Caching.Redis`
 
 - `RedisCachingBehavior<,>`
 - Handler attribute: `[CacheFor(Minutes = 5)]`
 
-8. `SimpleMediator.Authorization`
+8. `Encina.Authorization`
    - `AuthorizationBehavior<,>`
    - Handler attribute: `[Authorize(Policy = "...")]`
 
@@ -576,9 +576,9 @@ var result = await behavior.Handle(request, context, nextStep, CancellationToken
 6. Add `IRequestHandlerMetadataProvider`
 
 **Next Sprint:**
-7. Create `SimpleMediator.AspNetCore`
-8. Create `SimpleMediator.FluentValidation`
-9. Create `SimpleMediator.EntityFrameworkCore`
+7. Create `Encina.AspNetCore`
+8. Create `Encina.FluentValidation`
+9. Create `Encina.EntityFrameworkCore`
 10. Write integration guide
 
 **Following Sprints:**

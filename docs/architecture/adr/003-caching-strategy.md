@@ -155,7 +155,7 @@ internal interface IRequestHandlerWrapper
 {
     Type HandlerServiceType { get; }
     object? ResolveHandler(IServiceProvider serviceProvider);
-    Task<object> Handle(SimpleMediator mediator, object request, object handler,
+    Task<object> Handle(Encina mediator, object request, object handler,
                        IServiceProvider serviceProvider, CancellationToken cancellationToken);
 }
 
@@ -167,7 +167,7 @@ internal sealed class RequestHandlerWrapper<TRequest, TResponse> : IRequestHandl
     public object? ResolveHandler(IServiceProvider serviceProvider)
         => serviceProvider.GetService<IRequestHandler<TRequest, TResponse>>();
 
-    public async Task<object> Handle(SimpleMediator mediator, object request, object handler,
+    public async Task<object> Handle(Encina mediator, object request, object handler,
                                     IServiceProvider serviceProvider, CancellationToken ct)
     {
         var typedRequest = (TRequest)request;
@@ -243,7 +243,7 @@ internal sealed class RequestHandlerWrapper<TRequest, TResponse> : IRequestHandl
 | Approach | Mean Time | Ratio | Allocated | Notes |
 |----------|-----------|-------|-----------|-------|
 | Direct method call | 13.07 ns | 1.00x | 112 B | Baseline - fastest possible |
-| Cached compiled delegate | 13.99 ns | 1.07x | 112 B | What SimpleMediator uses |
+| Cached compiled delegate | 13.99 ns | 1.07x | 112 B | What Encina uses |
 | MethodInfo.Invoke | 32.17 ns | 2.46x | 176 B | Reflection without caching |
 | Expression compilation (first call) | 33.1 μs | 2,533x | 5.3 KB | One-time cost per handler type |
 
@@ -362,4 +362,4 @@ The decision to use Expression trees over source generators was made to keep the
 
 Expression trees provide near-native performance with full runtime flexibility. The measured overhead of compiled delegates vs direct calls is only **0.92 ns** (7% slower) - negligible compared to end-to-end latency (1.63μs measured) and far outweighed by typical handler logic (database queries, HTTP calls, business logic - often 10-50ms).
 
-Future consideration: Add a source generator as an **optional** optimization for applications where startup time is critical and all handlers are known at compile time. This would be a separate NuGet package (SimpleMediator.SourceGenerators) to keep the core library simple.
+Future consideration: Add a source generator as an **optional** optimization for applications where startup time is critical and all handlers are known at compile time. This would be a separate NuGet package (Encina.SourceGenerators) to keep the core library simple.

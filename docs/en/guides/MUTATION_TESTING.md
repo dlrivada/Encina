@@ -1,4 +1,4 @@
-# SimpleMediator Mutation Testing Guide
+# Encina Mutation Testing Guide
 
 ## Goals
 
@@ -9,11 +9,11 @@
 
 - .NET 10 SDK installed.
 - Install Stryker CLI (`dotnet tool install --global dotnet-stryker`) if not already available.
-- Restore dependencies with `dotnet restore SimpleMediator.slnx` prior to running Stryker.
+- Restore dependencies with `dotnet restore Encina.slnx` prior to running Stryker.
 
 ## Running The Suite
 
-- Execute `dotnet tool run dotnet-stryker --config-file stryker-config.json --solution SimpleMediator.slnx` from the repository root.
+- Execute `dotnet tool run dotnet-stryker --config-file stryker-config.json --solution Encina.slnx` from the repository root.
 - Use the C# helper script for convenience: `dotnet run --file scripts/run-stryker.cs`
 - Prefer Release builds to mirror CI behavior (`--configuration Release`).
 - The repository config pins `concurrency: 1` to avoid vstest runner hangs on Windows; adjust once the suite stabilizes.
@@ -34,7 +34,7 @@
 
 The dedicated mutation-hardening initiative is paused until new feature work settles. When ready to resume:
 
-1. Re-run `dotnet stryker --project src/SimpleMediator/SimpleMediator.csproj --test-projects tests/SimpleMediator.Tests/SimpleMediator.Tests.csproj` to focus on the mediator core mutants (previously IDs 280–366).
+1. Re-run `dotnet stryker --project src/Encina/Encina.csproj --test-projects tests/Encina.Tests/Encina.Tests.csproj` to focus on the mediator core mutants (previously IDs 280–366).
 2. Investigate any survivors and add unit or property tests around metrics pipeline integration and handler result validation.
 3. Update the mutation badge and dashboard via `scripts/update-mutation-summary.cs` once the new score is recorded.
 

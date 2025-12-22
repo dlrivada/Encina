@@ -52,14 +52,14 @@ dotnet run --file scripts/check-latest-workflow.cs -- --workflow "dotnet-ci"
    Branch: main
    Commit: d6a3773
    Started: 2025-12-18 13:45:22
-   URL: https://github.com/dlrivada/SimpleMediator/actions/runs/12345
+   URL: https://github.com/dlrivada/Encina/actions/runs/12345
 
 ❌ SonarCloud Analysis
    Status: completed → failure
    Branch: main
    Commit: feeea36
    Started: 2025-12-18 14:10:15
-   URL: https://github.com/dlrivada/SimpleMediator/actions/runs/12346
+   URL: https://github.com/dlrivada/Encina/actions/runs/12346
 
    📋 Failure Details:
 
@@ -87,7 +87,7 @@ dotnet run --file scripts/monitor-workflows.cs -- --repo "owner/repo" --interval
 **Output:**
 
 ```
-Monitoring GitHub Actions for dlrivada/SimpleMediator every 60 seconds...
+Monitoring GitHub Actions for dlrivada/Encina every 60 seconds...
 Press Ctrl+C to stop.
 
 ❌ WORKFLOW FAILED: SonarCloud Analysis
@@ -95,7 +95,7 @@ Press Ctrl+C to stop.
    Branch: main
    Commit: feeea36
    Started: 2025-12-18T14:10:15Z
-   URL: https://github.com/dlrivada/SimpleMediator/actions/runs/12346789
+   URL: https://github.com/dlrivada/Encina/actions/runs/12346789
 
 📋 FAILURE LOGS:
 Job: SonarCloud Code Quality → Step: SonarCloud Scan

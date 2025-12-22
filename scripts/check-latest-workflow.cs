@@ -18,12 +18,12 @@ if (string.IsNullOrEmpty(token))
     return 1;
 }
 
-var repoPath = GetArgument(args, "--repo") ?? "dlrivada/SimpleMediator";
+var repoPath = GetArgument(args, "--repo") ?? "dlrivada/Encina";
 var workflowFilter = GetArgument(args, "--workflow");
 
 using var http = new HttpClient();
 http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("SimpleMediator-Check", "1.0"));
+http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Encina-Check", "1.0"));
 
 try
 {

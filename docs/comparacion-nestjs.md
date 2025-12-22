@@ -1,8 +1,8 @@
-# SimpleMediator vs NestJS: Análisis Comparativo Detallado
+# Encina vs NestJS: Análisis Comparativo Detallado
 
 > **Fecha**: 21 de diciembre de 2025  
 > **Autor**: Análisis de arquitectura y capacidades  
-> **Objetivo**: Identificar brechas, fortalezas y oportunidades de mejora de SimpleMediator frente a NestJS
+> **Objetivo**: Identificar brechas, fortalezas y oportunidades de mejora de Encina frente a NestJS
 
 ---
 
@@ -13,7 +13,7 @@
 3. [Contexto y Filosofía](#contexto-y-filosofía)
 4. [Análisis por Categorías](#análisis-por-categorías)
 5. [Matriz de Características](#matriz-de-características)
-6. [Áreas de Superioridad de SimpleMediator](#áreas-de-superioridad-de-simplemediator)
+6. [Áreas de Superioridad de Encina](#áreas-de-superioridad-de-Encina)
 7. [Brechas Identificadas](#brechas-identificadas)
 8. [Oportunidades de Mejora](#oportunidades-de-mejora)
 9. [Roadmap Propuesto](#roadmap-propuesto)
@@ -48,19 +48,19 @@
 
 **Core & Validation**:
 
-- ✅ `SimpleMediator` - Core mediator con ROP
-- ✅ `SimpleMediator.FluentValidation` - Validación con FluentValidation
-- ✅ `SimpleMediator.DataAnnotations` - Validación con atributos .NET
-- ✅ `SimpleMediator.MiniValidator` - Validación ligera (~20KB)
-- ✅ `SimpleMediator.GuardClauses` - Defensive programming
+- ✅ `Encina` - Core mediator con ROP
+- ✅ `Encina.FluentValidation` - Validación con FluentValidation
+- ✅ `Encina.DataAnnotations` - Validación con atributos .NET
+- ✅ `Encina.MiniValidator` - Validación ligera (~20KB)
+- ✅ `Encina.GuardClauses` - Defensive programming
 
 **Web**:
 
-- ✅ `SimpleMediator.AspNetCore` - Middleware, autorización, Problem Details
+- ✅ `Encina.AspNetCore` - Middleware, autorización, Problem Details
 
 **Mensajería & Bases de Datos** (10 proveedores completos):
 
-- ✅ `SimpleMediator.EntityFrameworkCore` - EF Core con transacciones
+- ✅ `Encina.EntityFrameworkCore` - EF Core con transacciones
 - ✅ **Dapper Providers** (5): SqlServer, PostgreSQL, MySQL, Oracle, Sqlite
 - ✅ **ADO Providers** (5): SqlServer, PostgreSQL, MySQL, Oracle, Sqlite
 
@@ -73,30 +73,30 @@
 
 **Job Scheduling**:
 
-- ✅ `SimpleMediator.Hangfire` - Fire-and-forget, delayed, recurring
-- ✅ `SimpleMediator.Quartz` - Enterprise CRON, clustering
+- ✅ `Encina.Hangfire` - Fire-and-forget, delayed, recurring
+- ✅ `Encina.Quartz` - Enterprise CRON, clustering
 
 **Resilience & Service Mesh**:
 
-- ✅ `SimpleMediator.Extensions.Resilience` - Microsoft Resilience Pipeline (Polly v8)
-- ✅ `SimpleMediator.Polly` - Direct Polly v8 integration
-- ✅ `SimpleMediator.Refit` - Type-safe REST API clients
-- ✅ `SimpleMediator.Dapr` - Service mesh (invocation, pub/sub, state, secrets)
+- ✅ `Encina.Extensions.Resilience` - Microsoft Resilience Pipeline (Polly v8)
+- ✅ `Encina.Polly` - Direct Polly v8 integration
+- ✅ `Encina.Refit` - Type-safe REST API clients
+- ✅ `Encina.Dapr` - Service mesh (invocation, pub/sub, state, secrets)
 
 **Observability**:
 
-- ✅ `SimpleMediator.OpenTelemetry` - Traces, métricas, enrichers automáticos
+- ✅ `Encina.OpenTelemetry` - Traces, métricas, enrichers automáticos
 
 **Caching** (8 proveedores - 95% completo):
 
-- ✅ `SimpleMediator.Caching` - Core abstractions, behaviors, attributes
-- ✅ `SimpleMediator.Caching.Memory` - In-memory caching (IMemoryCache)
-- ✅ `SimpleMediator.Caching.Redis` - Redis caching + Redlock
-- ✅ `SimpleMediator.Caching.Garnet` - Microsoft Garnet (10-100x faster)
-- ✅ `SimpleMediator.Caching.Valkey` - Valkey (AWS/Google/Linux Foundation)
-- ✅ `SimpleMediator.Caching.Dragonfly` - Dragonfly (25x throughput)
-- ✅ `SimpleMediator.Caching.KeyDB` - KeyDB (multi-threaded, 5x faster)
-- ✅ `SimpleMediator.Caching.NCache` - NCache (native .NET enterprise)
+- ✅ `Encina.Caching` - Core abstractions, behaviors, attributes
+- ✅ `Encina.Caching.Memory` - In-memory caching (IMemoryCache)
+- ✅ `Encina.Caching.Redis` - Redis caching + Redlock
+- ✅ `Encina.Caching.Garnet` - Microsoft Garnet (10-100x faster)
+- ✅ `Encina.Caching.Valkey` - Valkey (AWS/Google/Linux Foundation)
+- ✅ `Encina.Caching.Dragonfly` - Dragonfly (25x throughput)
+- ✅ `Encina.Caching.KeyDB` - KeyDB (multi-threaded, 5x faster)
+- ✅ `Encina.Caching.NCache` - NCache (native .NET enterprise)
 
 **Características de Caching Implementadas**:
 
@@ -131,7 +131,7 @@
 
 - Reestructuración de proyectos de tests
 - 1 proyecto por tipo de test (Integration, Contract, Property, Load)
-- Fixtures compartidos en SimpleMediator.TestInfrastructure
+- Fixtures compartidos en Encina.TestInfrastructure
 - Real databases via Testcontainers (SQL Server, PostgreSQL, MySQL, Oracle)
 
 🔴 **Crash Investigation** (RESUELTO):
@@ -157,7 +157,7 @@
 
 ## 🎯 Resumen Ejecutivo
 
-### SimpleMediator (→ Encina 1.0)
+### Encina (→ Encina 1.0)
 
 **Biblioteca .NET** especializada en patrones **CQRS/Mediator** con enfoque **funcional** (Railway Oriented Programming), diseñada para aplicaciones empresariales que requieren:
 
@@ -175,7 +175,7 @@
 
 ### Diferencias Fundamentales
 
-| Aspecto | SimpleMediator | NestJS |
+| Aspecto | Encina | NestJS |
 |---------|---------------|--------|
 | **Alcance** | Biblioteca CQRS/Mediator | Framework full-stack |
 | **Lenguaje** | .NET (C#) | TypeScript/JavaScript |
@@ -193,7 +193,7 @@
 
 ## 🧭 Contexto y Filosofía
 
-### SimpleMediator: Functional Core, Imperative Shell
+### Encina: Functional Core, Imperative Shell
 
 ```csharp
 // Enfoque funcional con Either
@@ -266,10 +266,10 @@ graph TD
 - Imports/Exports para encapsulación
 - Dynamic modules para configuración runtime
 
-**SimpleMediator equivalente:**
+**Encina equivalente:**
 
 ```csharp
-// SimpleMediator no tiene concepto de módulos
+// Encina no tiene concepto de módulos
 services.AddMediator(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
@@ -280,7 +280,7 @@ services.AddMediator(cfg =>
 
 #### Brecha Identificada 🔴
 
-**SimpleMediator NO tiene:**
+**Encina NO tiene:**
 
 - Sistema de módulos jerárquico
 - Encapsulación de handlers por dominio
@@ -329,7 +329,7 @@ export class LoggingInterceptor implements NestInterceptor {
 5. **Interceptors (after)** - Logging, transformación post-handler
 6. **Exception Filters** - Manejo de excepciones
 
-#### SimpleMediator: Authorization → Validation → Behaviors → Handler ✅
+#### Encina: Authorization → Validation → Behaviors → Handler ✅
 
 ```csharp
 // 1. Authorization (equivalente a Guards)
@@ -398,7 +398,7 @@ Request → AuthorizationBehavior → ValidationBehavior → [Custom Behaviors] 
 
 **Comparación Actualizada:**
 
-| Característica | SimpleMediator | NestJS |
+| Característica | Encina | NestJS |
 |----------------|---------------|--------|
 | Authorization | ✅ `[Authorize]` + AuthorizationBehavior | ✅ Guards |
 | Validation | ✅ ValidationBehavior (3 providers) | ✅ Pipes + class-validator |
@@ -409,7 +409,7 @@ Request → AuthorizationBehavior → ValidationBehavior → [Custom Behaviors] 
 
 #### Estado Actual ✅
 
-**SimpleMediator tiene PARIDAD con NestJS en lifecycle:**
+**Encina tiene PARIDAD con NestJS en lifecycle:**
 
 - ✅ `AuthorizationPipelineBehavior` - Equivalente a Guards
   - `[Authorize]`, `[Authorize(Roles)]`, `[Authorize(Policy)]`
@@ -453,7 +453,7 @@ async create(@Body() dto: CreateCatDto) {
 - Mensajes de error consistentes
 - ValidationPipe configurable globalmente
 
-#### SimpleMediator: Satellite packages
+#### Encina: Satellite packages
 
 ```csharp
 // DataAnnotations
@@ -476,14 +476,14 @@ services.AddMediator(cfg =>
 
 **Paquetes disponibles (TODOS EN PRODUCCIÓN):**
 
-- ✅ `SimpleMediator.DataAnnotations` - 100% completo, 56 tests
-- ✅ `SimpleMediator.FluentValidation` - 100% completo, 68 tests
-- ✅ `SimpleMediator.MiniValidator` - 100% completo, 59 tests
-- ✅ `SimpleMediator.GuardClauses` - 100% completo, 292 tests
+- ✅ `Encina.DataAnnotations` - 100% completo, 56 tests
+- ✅ `Encina.FluentValidation` - 100% completo, 68 tests
+- ✅ `Encina.MiniValidator` - 100% completo, 59 tests
+- ✅ `Encina.GuardClauses` - 100% completo, 292 tests
 
 #### Comparación
 
-| Característica | SimpleMediator | NestJS |
+| Característica | Encina | NestJS |
 |---------------|---------------|--------|
 | Validación declarativa | ✅ (via DataAnnotations/FluentValidation) | ✅ (class-validator) |
 | Integración pipeline | ✅ (behavior manual) | ✅ (automático) |
@@ -493,7 +493,7 @@ services.AddMediator(cfg =>
 
 #### Brecha Identificada 🟡
 
-**SimpleMediator podría mejorar:**
+**Encina podría mejorar:**
 
 - Validación de parámetros individuales (no solo el request completo)
 - Auto-registro de validators por convención
@@ -538,7 +538,7 @@ describe('CatsController', () => {
 - ✅ E2E testing con Supertest
 - ✅ Auto-mocking de dependencias faltantes
 
-#### SimpleMediator: Testing Infrastructure Avanzado
+#### Encina: Testing Infrastructure Avanzado
 
 ```csharp
 // Testing con Testcontainers (real databases)
@@ -594,9 +594,9 @@ public Property AddAsync_NeverThrowsForValidMessages()
 
 #### Comparación
 
-| Aspecto | SimpleMediator | NestJS |
+| Aspecto | Encina | NestJS |
 |---------|---------------|--------|
-| Test Infrastructure | ✅ SimpleMediator.TestInfrastructure | ✅ @nestjs/testing |
+| Test Infrastructure | ✅ Encina.TestInfrastructure | ✅ @nestjs/testing |
 | Database Fixtures | ✅ 5 DB fixtures (Testcontainers) | ⚠️ Manual setup |
 | Test Data Builders | ✅ 4 builders (Outbox, Inbox, Saga, etc.) | ⚠️ Manual |
 | Override de handlers | ⚠️ (manual) | ✅ (built-in) |
@@ -606,7 +606,7 @@ public Property AddAsync_NeverThrowsForValidMessages()
 
 #### Estado Actual ✅
 
-**SimpleMediator.TestInfrastructure ya incluye:**
+**Encina.TestInfrastructure ya incluye:**
 
 ```csharp
 // 1. Database Fixtures (Testcontainers)
@@ -685,16 +685,16 @@ export class CatsResolver {
 - ✅ Subscriptions (WebSocket)
 - ✅ Federation support
 
-#### SimpleMediator: HotChocolate Bridge ✅
+#### Encina: HotChocolate Bridge ✅
 
 **Estado actual: IMPLEMENTADO**
 
-`SimpleMediator.GraphQL` proporciona integración completa con HotChocolate 15.1.11:
+`Encina.GraphQL` proporciona integración completa con HotChocolate 15.1.11:
 
 ```csharp
-// 1. Registrar SimpleMediator.GraphQL
-services.AddSimpleMediator(config => { }, typeof(Program).Assembly);
-services.AddSimpleMediatorGraphQL(options =>
+// 1. Registrar Encina.GraphQL
+services.AddEncina(config => { }, typeof(Program).Assembly);
+services.AddEncinaGraphQL(options =>
 {
     options.Path = "/graphql";
     options.EnableGraphQLIDE = true;        // Nitro IDE
@@ -782,7 +782,7 @@ public interface IGraphQLMediatorBridge
 
 #### Comparación
 
-| Característica | SimpleMediator.GraphQL | NestJS @nestjs/graphql |
+| Característica | Encina.GraphQL | NestJS @nestjs/graphql |
 |----------------|------------------------|------------------------|
 | Code-first | ✅ HotChocolate | ✅ Built-in |
 | Schema-first | ✅ HotChocolate | ✅ Built-in |
@@ -798,7 +798,7 @@ public interface IGraphQLMediatorBridge
 
 #### Estado ✅
 
-**SimpleMediator.GraphQL package implementado:**
+**Encina.GraphQL package implementado:**
 
 - ✅ `IGraphQLMediatorBridge` - Bridge tipado para queries/mutations/subscriptions
 - ✅ Integración nativa con HotChocolate 15.1.11
@@ -808,7 +808,7 @@ public interface IGraphQLMediatorBridge
 - ✅ Railway Oriented Programming (`Either<MediatorError, T>`)
 - ✅ Configuración flexible (timeout, depth, introspection)
 
-**Filosofía:** Usar HotChocolate (el mejor GraphQL server para .NET) y bridgear a SimpleMediator handlers
+**Filosofía:** Usar HotChocolate (el mejor GraphQL server para .NET) y bridgear a Encina handlers
 
 ---
 
@@ -853,15 +853,15 @@ async handleUserCreated(data: Record<string, unknown>) {
 - gRPC
 - Custom transporters
 
-#### SimpleMediator: 12+ Messaging Transports ✅
+#### Encina: 12+ Messaging Transports ✅
 
 **Estado actual: COMPLETO (DIC 2025)**
 
-SimpleMediator ahora tiene **paridad completa** con NestJS en transports de mensajería, con 12 paquetes implementados:
+Encina ahora tiene **paridad completa** con NestJS en transports de mensajería, con 12 paquetes implementados:
 
 ```csharp
 // 1. RabbitMQ - Message broker empresarial
-services.AddSimpleMediatorRabbitMQ(options =>
+services.AddEncinaRabbitMQ(options =>
 {
     options.HostName = "localhost";
     options.Exchange = "mediator.events";
@@ -869,111 +869,111 @@ services.AddSimpleMediatorRabbitMQ(options =>
 });
 
 // 2. Kafka - Streaming de eventos
-services.AddSimpleMediatorKafka(options =>
+services.AddEncinaKafka(options =>
 {
     options.BootstrapServers = "localhost:9092";
     options.GroupId = "mediator-consumers";
 });
 
 // 3. NATS - Cloud-native messaging
-services.AddSimpleMediatorNATS(options =>
+services.AddEncinaNATS(options =>
 {
     options.Url = "nats://localhost:4222";
     options.UseJetStream = true; // Durabilidad
 });
 
 // 4. Azure Service Bus - Enterprise Azure
-services.AddSimpleMediatorAzureServiceBus(options =>
+services.AddEncinaAzureServiceBus(options =>
 {
     options.ConnectionString = "Endpoint=sb://...";
     options.TopicName = "mediator-events";
 });
 
 // 5. Amazon SQS/SNS - AWS native
-services.AddSimpleMediatorAmazonSQS(options =>
+services.AddEncinaAmazonSQS(options =>
 {
     options.Region = RegionEndpoint.USEast1;
     options.QueueUrl = "https://sqs...";
 });
 
 // 6. gRPC - High-performance RPC
-services.AddSimpleMediatorGrpc(options =>
+services.AddEncinaGrpc(options =>
 {
     options.Address = "https://localhost:5001";
 });
 
 // 7. GraphQL - Bridge HotChocolate
-services.AddSimpleMediatorGraphQL(); // Integra queries/mutations con handlers
+services.AddEncinaGraphQL(); // Integra queries/mutations con handlers
 
 // 8. MQTT - IoT messaging
-services.AddSimpleMediatorMQTT(options =>
+services.AddEncinaMQTT(options =>
 {
     options.Server = "localhost";
     options.Port = 1883;
 });
 
 // 9. Redis Pub/Sub - In-memory messaging
-services.AddSimpleMediatorRedisPubSub(options =>
+services.AddEncinaRedisPubSub(options =>
 {
     options.Configuration = "localhost:6379";
 });
 
 // 10. In-Memory Channel - Ultra-fast local
-services.AddSimpleMediatorInMemory(); // System.Threading.Channels
+services.AddEncinaInMemory(); // System.Threading.Channels
 
 // 11. Wolverine - Modern .NET messaging
-services.AddSimpleMediatorWolverine();
+services.AddEncinaWolverine();
 
 // 12. NServiceBus - Enterprise service bus
-services.AddSimpleMediatorNServiceBus();
+services.AddEncinaNServiceBus();
 ```
 
 **12 Messaging Transport Packages:**
 
 | Package | Technology | Use Case | Version |
 |---------|-----------|----------|---------|
-| `SimpleMediator.RabbitMQ` | RabbitMQ.Client 7.2.0 | Enterprise messaging | ✅ |
-| `SimpleMediator.Kafka` | Confluent.Kafka 2.12.0 | Event streaming | ✅ |
-| `SimpleMediator.NATS` | NATS.Net 2.6.11 | Cloud-native, JetStream | ✅ |
-| `SimpleMediator.AzureServiceBus` | Azure.Messaging 7.20.1 | Azure enterprise | ✅ |
-| `SimpleMediator.AmazonSQS` | AWSSDK 4.0.2.3 | AWS SQS/SNS | ✅ |
-| `SimpleMediator.gRPC` | Grpc.AspNetCore 2.71.0 | High-performance RPC | ✅ |
-| `SimpleMediator.GraphQL` | HotChocolate 15.1.11 | GraphQL bridge | ✅ |
-| `SimpleMediator.MQTT` | MQTTnet 5.0.1 | IoT messaging | ✅ |
-| `SimpleMediator.Redis.PubSub` | StackExchange.Redis | In-memory pub/sub | ✅ |
-| `SimpleMediator.InMemory` | Channels | Ultra-fast local | ✅ |
-| `SimpleMediator.Wolverine` | WolverineFx 5.7.1 | Modern .NET | ✅ |
-| `SimpleMediator.NServiceBus` | NServiceBus 9.2.8 | Enterprise bus | ✅ |
+| `Encina.RabbitMQ` | RabbitMQ.Client 7.2.0 | Enterprise messaging | ✅ |
+| `Encina.Kafka` | Confluent.Kafka 2.12.0 | Event streaming | ✅ |
+| `Encina.NATS` | NATS.Net 2.6.11 | Cloud-native, JetStream | ✅ |
+| `Encina.AzureServiceBus` | Azure.Messaging 7.20.1 | Azure enterprise | ✅ |
+| `Encina.AmazonSQS` | AWSSDK 4.0.2.3 | AWS SQS/SNS | ✅ |
+| `Encina.gRPC` | Grpc.AspNetCore 2.71.0 | High-performance RPC | ✅ |
+| `Encina.GraphQL` | HotChocolate 15.1.11 | GraphQL bridge | ✅ |
+| `Encina.MQTT` | MQTTnet 5.0.1 | IoT messaging | ✅ |
+| `Encina.Redis.PubSub` | StackExchange.Redis | In-memory pub/sub | ✅ |
+| `Encina.InMemory` | Channels | Ultra-fast local | ✅ |
+| `Encina.Wolverine` | WolverineFx 5.7.1 | Modern .NET | ✅ |
+| `Encina.NServiceBus` | NServiceBus 9.2.8 | Enterprise bus | ✅ |
 
 **Además:**
 
-- ✅ `SimpleMediator.Hangfire` - Background jobs
-- ✅ `SimpleMediator.Quartz` - Enterprise CRON scheduling
-- ✅ `SimpleMediator.Dapr` - Service mesh integration
+- ✅ `Encina.Hangfire` - Background jobs
+- ✅ `Encina.Quartz` - Enterprise CRON scheduling
+- ✅ `Encina.Dapr` - Service mesh integration
 - ✅ **10 Database Providers** (Dapper + ADO.NET × 5 DBs)
 
 #### Comparación Actualizada
 
-| Transporte | SimpleMediator | NestJS |
+| Transporte | Encina | NestJS |
 |-----------|---------------|--------|
 | In-process | ✅ Core | ✅ Core |
 | HTTP | ✅ AspNetCore | ✅ Built-in |
 | WebSocket | ✅ SignalR | ✅ Built-in |
-| gRPC | ✅ SimpleMediator.gRPC | ✅ @nestjs/microservices |
-| NATS | ✅ SimpleMediator.NATS | ✅ @nestjs/microservices |
-| RabbitMQ | ✅ SimpleMediator.RabbitMQ | ✅ @nestjs/microservices |
-| Kafka | ✅ SimpleMediator.Kafka | ✅ @nestjs/microservices |
-| Redis | ✅ SimpleMediator.Redis.PubSub | ✅ @nestjs/microservices |
-| MQTT | ✅ SimpleMediator.MQTT | ✅ @nestjs/microservices |
-| Azure Service Bus | ✅ SimpleMediator.AzureServiceBus | ⚠️ Custom |
-| Amazon SQS | ✅ SimpleMediator.AmazonSQS | ⚠️ Custom |
-| GraphQL | ✅ SimpleMediator.GraphQL | ⚠️ @nestjs/graphql |
+| gRPC | ✅ Encina.gRPC | ✅ @nestjs/microservices |
+| NATS | ✅ Encina.NATS | ✅ @nestjs/microservices |
+| RabbitMQ | ✅ Encina.RabbitMQ | ✅ @nestjs/microservices |
+| Kafka | ✅ Encina.Kafka | ✅ @nestjs/microservices |
+| Redis | ✅ Encina.Redis.PubSub | ✅ @nestjs/microservices |
+| MQTT | ✅ Encina.MQTT | ✅ @nestjs/microservices |
+| Azure Service Bus | ✅ Encina.AzureServiceBus | ⚠️ Custom |
+| Amazon SQS | ✅ Encina.AmazonSQS | ⚠️ Custom |
+| GraphQL | ✅ Encina.GraphQL | ⚠️ @nestjs/graphql |
 | Background jobs | ✅ Hangfire/Quartz | ⚠️ Bull/agenda |
 | Service mesh | ✅ Dapr | ❌ |
 
 #### Estado ✅
 
-**SimpleMediator tiene PARIDAD COMPLETA con NestJS en transports:**
+**Encina tiene PARIDAD COMPLETA con NestJS en transports:**
 
 - ✅ 12 messaging transport packages implementados
 - ✅ Todos los brokers principales soportados
@@ -1017,16 +1017,16 @@ export class EventsGateway {
 - ✅ Guards y Pipes aplicables
 - ✅ Integration con authentication
 
-#### SimpleMediator: Integración SignalR ✅
+#### Encina: Integración SignalR ✅
 
 **Estado actual: IMPLEMENTADO**
 
-SimpleMediator no reinventa WebSocket (usa ASP.NET Core SignalR), pero ofrece integración completa:
+Encina no reinventa WebSocket (usa ASP.NET Core SignalR), pero ofrece integración completa:
 
 ```csharp
-// 1. Registrar SimpleMediator.SignalR
-services.AddSimpleMediator(config => { }, typeof(Program).Assembly);
-services.AddSimpleMediatorSignalR(options =>
+// 1. Registrar Encina.SignalR
+services.AddEncina(config => { }, typeof(Program).Assembly);
+services.AddEncinaSignalR(options =>
 {
     options.EnableNotificationBroadcast = true;
     options.AuthorizationPolicy = "RequireAuth";
@@ -1073,9 +1073,9 @@ public record PriceChangedNotification(string ProductId, decimal NewPrice, decim
 }
 ```
 
-**SimpleMediator.SignalR - Características:**
+**Encina.SignalR - Características:**
 
-| Característica | NestJS | SimpleMediator.SignalR |
+| Característica | NestJS | Encina.SignalR |
 |----------------|--------|------------------------|
 | WebSocket handlers | ✅ @SubscribeMessage | ✅ MediatorHub base class |
 | Rooms/Groups | ✅ socket.join() | ✅ TargetGroups attribute |
@@ -1088,7 +1088,7 @@ public record PriceChangedNotification(string ProductId, decimal NewPrice, decim
 
 #### Estado ✅
 
-**SimpleMediator.SignalR package implementado:**
+**Encina.SignalR package implementado:**
 
 - ✅ `MediatorHub` base class - Commands/Queries desde clientes WebSocket
 - ✅ `[BroadcastToSignalR]` attribute - Notificaciones automáticas a clientes
@@ -1157,7 +1157,7 @@ export class HeroesGameSagas {
 - ✅ AggregateRoot base class
 - ✅ Request context propagation
 
-#### SimpleMediator: CQRS puro
+#### Encina: CQRS puro
 
 ```csharp
 // Command
@@ -1202,20 +1202,20 @@ public class OrderCreatedHandler : INotificationHandler<OrderCreatedNotification
 
 #### Comparación
 
-| Característica | SimpleMediator | NestJS |
+| Característica | Encina | NestJS |
 |---------------|---------------|--------|
 | Commands | ✅ IRequest | ✅ @CommandHandler |
 | Queries | ✅ IRequest (sin distinción) | ✅ @QueryHandler |
 | Events | ✅ INotification | ✅ @EventHandler |
 | Sagas (Orchestration) | ✅ ISagaStore (11 providers) | ✅ @Saga (RxJS) |
 | Sagas (Choreography) | ✅ IChoreographySaga | ⚠️ Manual |
-| Event Sourcing | ✅ SimpleMediator.EventStoreDB | ⚠️ (patterns, no infraestructura) |
+| Event Sourcing | ✅ Encina.EventStoreDB | ⚠️ (patterns, no infraestructura) |
 | AggregateRoot | ✅ AggregateBase<TState> | ✅ (con autoCommit) |
 | Unhandled exceptions bus | ⚠️ Via Either monad | ✅ |
 
 #### Estado Actual ✅ (100% IMPLEMENTADO)
 
-**SimpleMediator YA tiene:**
+**Encina YA tiene:**
 
 1. **CQRS puro** (Commands/Queries como IRequest)
 2. **Notifications** (eventos in-process)
@@ -1230,7 +1230,7 @@ public class OrderCreatedHandler : INotificationHandler<OrderCreatedNotification
    - `IEventReaction<TEvent>` - Event handlers
    - `IChoreographyEventBus` - Event routing
    - `IChoreographyStateStore` - State persistence
-7. **Event Sourcing** con SimpleMediator.EventStoreDB:
+7. **Event Sourcing** con Encina.EventStoreDB:
    - `IAggregate<TState>` / `AggregateBase<TState>` - Aggregate roots
    - `IAggregateRepository<T>` - Event persistence
    - `IEventSerializer` - Event serialization
@@ -1284,7 +1284,7 @@ public class OrderAggregate : AggregateBase<OrderState>
 
 #### Brecha Menor 🟡
 
-**SimpleMediator podría mejorar:**
+**Encina podría mejorar:**
 
 - **UnhandledExceptionBus**: Stream reactivo para errores (actualmente via Either monad - explícito y type-safe)
 
@@ -1360,26 +1360,26 @@ CacheModule.registerAsync({
 - ⚠️ Distributed locks NO incluidos
 - ⚠️ Pub/Sub invalidation NO incluido
 
-#### SimpleMediator: 8 Cache Providers con Attributes Declarativos
+#### Encina: 8 Cache Providers con Attributes Declarativos
 
 ```csharp
 // 1. Configuración con Redis
-services.AddSimpleMediator(config => { });
-services.AddSimpleMediatorCaching(options =>
+services.AddEncina(config => { });
+services.AddEncinaCaching(options =>
 {
     options.DefaultExpiration = TimeSpan.FromMinutes(10);
     options.EnableDistributedLocks = true;
     options.EnablePubSubInvalidation = true;
     options.EnableIdempotency = true;
 });
-services.AddSimpleMediatorRedis(options =>
+services.AddEncinaRedis(options =>
 {
     options.ConnectionString = "localhost:6379";
     options.InstanceName = "MyApp:";
 });
 
 // 2. Configuración con Garnet (10-100x más rápido)
-services.AddSimpleMediatorGarnet(options =>
+services.AddEncinaGarnet(options =>
 {
     options.ConnectionString = "localhost:6379";
 });
@@ -1462,7 +1462,7 @@ public record GetCustomerQuery(int Id) : IQuery<Either<MediatorError, Customer>>
 | **NCache** | Alachisoft | Native .NET | Apache 2.0 | ✅ 95% |
 | **Hybrid** | .NET 9 HybridCache | In-memory + distributed | MIT | 🟡 Planned |
 
-**Características de SimpleMediator Caching:**
+**Características de Encina Caching:**
 
 - ✅ 8 cache providers (7 completados, 1 planificado)
 - ✅ Declarative caching con `[Cache]` attribute
@@ -1480,7 +1480,7 @@ public record GetCustomerQuery(int Id) : IQuery<Either<MediatorError, Customer>>
 
 #### Comparación
 
-| Característica | SimpleMediator | NestJS |
+| Característica | Encina | NestJS |
 |---------------|---------------|--------|
 | **Providers disponibles** | 8 (7 completos) | Ilimitados (via Keyv) |
 | **Declarative caching** | ✅ `[Cache]` attribute | ✅ `@CacheKey()` decorator |
@@ -1498,7 +1498,7 @@ public record GetCustomerQuery(int Id) : IQuery<Either<MediatorError, Customer>>
 
 #### Estado Actual ✅
 
-**SimpleMediator SUPERA a NestJS en:**
+**Encina SUPERA a NestJS en:**
 
 1. **Cache Providers**: 8 providers vs configuración manual Keyv
 2. **Pattern Invalidation**: Wildcards built-in (`GetCustomer:*:Id:{Id}`)
@@ -1516,7 +1516,7 @@ public record GetCustomerQuery(int Id) : IQuery<Either<MediatorError, Customer>>
 
 #### Brecha Identificada 🟢
 
-**SimpleMediator NO tiene brechas significativas**. La implementación de caching es **SUPERIOR** a NestJS en funcionalidad empresarial:
+**Encina NO tiene brechas significativas**. La implementación de caching es **SUPERIOR** a NestJS en funcionalidad empresarial:
 
 - Distributed locks (Redlock)
 - Pub/Sub invalidation
@@ -1572,20 +1572,20 @@ export class LoggingInterceptor implements NestInterceptor {
 - ⚠️ OpenTelemetry via librerías externas
 - ⚠️ Metrics via Prometheus client
 
-#### SimpleMediator: Observabilidad Native (OpenTelemetry First-Class)
+#### Encina: Observabilidad Native (OpenTelemetry First-Class)
 
 ```csharp
-// SimpleMediator.OpenTelemetry (COMPLETADO DIC 2025)
+// Encina.OpenTelemetry (COMPLETADO DIC 2025)
 services.AddOpenTelemetry()
     .WithTracing(builder => builder
-        .AddSimpleMediatorInstrumentation() // ✨ Extension method
+        .AddEncinaInstrumentation() // ✨ Extension method
         .AddJaegerExporter())
     .WithMetrics(builder => builder
-        .AddSimpleMediatorInstrumentation() // ✨ Extension method
+        .AddEncinaInstrumentation() // ✨ Extension method
         .AddPrometheusExporter());
 
 // Automatic enrichment con Messaging patterns
-services.AddSimpleMediatorOpenTelemetry(options =>
+services.AddEncinaOpenTelemetry(options =>
 {
     options.ServiceName = "MyApp";
     options.ServiceVersion = "1.0.0";
@@ -1610,7 +1610,7 @@ services.AddSimpleMediatorOpenTelemetry(options =>
 
 #### Comparación
 
-| Característica | SimpleMediator | NestJS |
+| Característica | Encina | NestJS |
 |---------------|---------------|--------|
 | Logging | ✅ Scopes automáticos | ✅ Logger integrado |
 | Tracing (OpenTelemetry) | ✅ ActivitySource built-in | ⚠️ Via @opentelemetry/auto-instrumentations-node |
@@ -1620,7 +1620,7 @@ services.AddSimpleMediatorOpenTelemetry(options =>
 
 #### Estado Actual ✅
 
-**SimpleMediator SUPERA a NestJS en:**
+**Encina SUPERA a NestJS en:**
 
 - **OpenTelemetry**: ActivitySource nativo con spans automáticos
 - **Métricas**: Interfaz IMediatorMetrics con histogramas/contadores
@@ -1684,9 +1684,9 @@ export class CatsController {
 }
 ```
 
-#### SimpleMediator: AuthorizationPipelineBehavior ✅
+#### Encina: AuthorizationPipelineBehavior ✅
 
-SimpleMediator incluye `AuthorizationPipelineBehavior` out-of-the-box que integra con ASP.NET Core Authorization:
+Encina incluye `AuthorizationPipelineBehavior` out-of-the-box que integra con ASP.NET Core Authorization:
 
 ```csharp
 // Autenticación básica requerida
@@ -1732,7 +1732,7 @@ public record GetPublicDataQuery : IQuery<PublicData>;
 
 #### Comparación
 
-| Aspecto | SimpleMediator | NestJS |
+| Aspecto | Encina | NestJS |
 |---------|---------------|--------|
 | Autorización declarativa | ✅ `[Authorize]` + behavior | ✅ Guards + @Roles |
 | Per-handler authorization | ✅ Atributos en request | ✅ (metadata + guard) |
@@ -1745,7 +1745,7 @@ public record GetPublicDataQuery : IQuery<PublicData>;
 
 #### Estado Actual ✅
 
-**SimpleMediator YA tiene:**
+**Encina YA tiene:**
 
 - ✅ `AuthorizationPipelineBehavior` completo
 - ✅ Integración nativa con ASP.NET Core `[Authorize]`
@@ -1754,12 +1754,12 @@ public record GetPublicDataQuery : IQuery<PublicData>;
 - ✅ Errores detallados con Railway Oriented Programming
 - ✅ Múltiples atributos con lógica AND
 
-**Filosofía:** SimpleMediator aprovecha ASP.NET Core Authorization en lugar de reinventar. Esto es una **ventaja**: los desarrolladores usan las mismas políticas que en controllers.
+**Filosofía:** Encina aprovecha ASP.NET Core Authorization en lugar de reinventar. Esto es una **ventaja**: los desarrolladores usan las mismas políticas que en controllers.
 
 #### Registro del Behavior
 
 ```csharp
-services.AddSimpleMediatorAspNetCore(config =>
+services.AddEncinaAspNetCore(config =>
 {
     config.AddAuthorizationBehavior(); // Registra AuthorizationPipelineBehavior
 });
@@ -1804,7 +1804,7 @@ export class CatsController {
 - ✅ Official courses y documentation
 - ✅ VSCode extension
 
-#### SimpleMediator: Documentation & Tooling
+#### Encina: Documentation & Tooling
 
 **Estado actual:**
 
@@ -1817,7 +1817,7 @@ export class CatsController {
 
 #### Comparación
 
-| Aspecto | SimpleMediator | NestJS |
+| Aspecto | Encina | NestJS |
 |---------|---------------|--------|
 | API Documentation | ✅ DocFX + XML | ✅ Swagger |
 | CLI Scaffolding | 📋 Planificado | ✅ nest g |
@@ -1827,34 +1827,34 @@ export class CatsController {
 
 #### Estado: CLI Planificado 📋
 
-**`SimpleMediator.Cli`** está documentado en ROADMAP.md como feature planificada:
+**`Encina.Cli`** está documentado en ROADMAP.md como feature planificada:
 
 ```bash
 # Instalación (futuro)
-dotnet tool install -g SimpleMediator.Cli
+dotnet tool install -g Encina.Cli
 
 # Scaffolding
-simplemediator new handler CreateOrder
-simplemediator new query GetOrders --pagination
-simplemediator new behavior Logging
-simplemediator new saga OrderProcessing
+Encina new handler CreateOrder
+Encina new query GetOrders --pagination
+Encina new behavior Logging
+Encina new saga OrderProcessing
 
 # Análisis
-simplemediator analyze                    # Analiza proyecto
-simplemediator graph --format mermaid     # Genera diagrama
+Encina analyze                    # Analiza proyecto
+Encina graph --format mermaid     # Genera diagrama
 
 # Documentación
-simplemediator docs generate
-simplemediator docs serve
+Encina docs generate
+Encina docs serve
 
 # Migración
-simplemediator migrate from-mediatr
+Encina migrate from-mediatr
 ```
 
-**`SimpleMediator.Templates`** (futuro):
+**`Encina.Templates`** (futuro):
 
 ```bash
-dotnet new install SimpleMediator.Templates
+dotnet new install Encina.Templates
 
 dotnet new sm-handler      # Handler con ROP
 dotnet new sm-query        # Query con [Cache]
@@ -1865,7 +1865,7 @@ dotnet new sm-project      # Proyecto completo
 
 #### Brecha Menor 🟡
 
-La brecha es real pero planificada. NestJS tiene ventaja en tooling out-of-the-box, pero SimpleMediator tiene:
+La brecha es real pero planificada. NestJS tiene ventaja en tooling out-of-the-box, pero Encina tiene:
 
 - **Documentación más exhaustiva** (DocFX + XML docs 100%)
 - **Plan claro de implementación** (ver ROADMAP.md)
@@ -1875,7 +1875,7 @@ La brecha es real pero planificada. NestJS tiene ventaja en tooling out-of-the-b
 
 ## 📈 Matriz de Características (Actualizada 2025-12-21)
 
-| Categoría | Característica | SimpleMediator | NestJS | Gap |
+| Categoría | Característica | Encina | NestJS | Gap |
 |-----------|---------------|---------------|--------|-----|
 | **Core** | Módulos jerárquicos | ❌ | ✅ | 🟡 Diferente filosofía |
 | | Dependency Injection | ✅ MS.Extensions | ✅ Propio | ✅ Equivalente |
@@ -1895,8 +1895,8 @@ La brecha es real pero planificada. NestJS tiene ventaja en tooling out-of-the-b
 | | Message brokers | ✅ 12 transports | ✅ (6+) | ✅ **SUPERIOR** |
 | **Protocols** | HTTP | ✅ ASP.NET Core | ✅ | ✅ Equivalente |
 | | GraphQL | ✅ HotChocolate 15.1 | ✅ | ✅ Equivalente |
-| | WebSocket/SignalR | ✅ SimpleMediator.SignalR | ✅ | ✅ Equivalente |
-| | gRPC | ✅ SimpleMediator.gRPC | ✅ | ✅ Equivalente |
+| | WebSocket/SignalR | ✅ Encina.SignalR | ✅ | ✅ Equivalente |
+| | gRPC | ✅ Encina.gRPC | ✅ | ✅ Equivalente |
 | **Event Sourcing** | Aggregates | ✅ EventStoreDB + Marten | ⚠️ | ✅ **SUPERIOR** |
 | | Projections | ✅ Native support | ⚠️ | ✅ **SUPERIOR** |
 | **Caching** | Providers | ✅ 8 providers | ⚠️ Keyv | ✅ **SUPERIOR** |
@@ -1928,12 +1928,12 @@ La brecha es real pero planificada. NestJS tiene ventaja en tooling out-of-the-b
 
 ---
 
-## 🏆 Áreas de Superioridad de SimpleMediator (Actualizado 2025-12-21)
+## 🏆 Áreas de Superioridad de Encina (Actualizado 2025-12-21)
 
 ### 1. **Functional Error Handling (Railway Oriented Programming)**
 
 ```csharp
-// SimpleMediator: Errors as data, composable, type-safe
+// Encina: Errors as data, composable, type-safe
 public Task<Either<MediatorError, Order>> Handle(CreateOrderCommand request)
 {
     return _validator.Validate(request).Match(
@@ -1963,8 +1963,8 @@ async create(dto: CreateOrderDto): Promise<Order> {
 ### 2. **OpenTelemetry Native Package**
 
 ```csharp
-// SimpleMediator.OpenTelemetry - Zero-config observability
-services.AddSimpleMediatorOpenTelemetry();
+// Encina.OpenTelemetry - Zero-config observability
+services.AddEncinaOpenTelemetry();
 
 // Resultado: Traces automáticos
 // Span: MediatorScope (CreateOrderCommand)
@@ -1986,11 +1986,11 @@ services.AddSimpleMediatorOpenTelemetry();
 
 ```csharp
 // Same interface, different implementations
-services.AddSimpleMediatorDapperSqlServer(connectionString);
+services.AddEncinaDapperSqlServer(connectionString);
 // OR
-services.AddSimpleMediatorDapperPostgreSQL(connectionString);
+services.AddEncinaDapperPostgreSQL(connectionString);
 // OR
-services.AddSimpleMediatorADOOracle(connectionString);
+services.AddEncinaADOOracle(connectionString);
 
 // All support: Outbox, Inbox, Sagas, Scheduling
 ```
@@ -2027,10 +2027,10 @@ services.AddGuardClauses();                // Defensive programming
 public record GetCustomerQuery(int Id) : IQuery<Customer>;
 
 // 8 cache providers
-services.AddSimpleMediatorMemoryCache();   // In-memory
-services.AddSimpleMediatorRedis();         // Distributed
-services.AddSimpleMediatorGarnet();        // 10-100x faster
-services.AddSimpleMediatorHybridCache();   // L1 + L2
+services.AddEncinaMemoryCache();   // In-memory
+services.AddEncinaRedis();         // Distributed
+services.AddEncinaGarnet();        // 10-100x faster
+services.AddEncinaHybridCache();   // L1 + L2
 ```
 
 **Ventajas:**
@@ -2093,11 +2093,11 @@ public class OrderAggregate : AggregateBase<OrderState>
 
 ```csharp
 // Choose your transport
-services.AddSimpleMediatorRabbitMQ();
-services.AddSimpleMediatorKafka();
-services.AddSimpleMediatorAzureServiceBus();
-services.AddSimpleMediatorNATS();
-services.AddSimpleMediatorMQTT();
+services.AddEncinaRabbitMQ();
+services.AddEncinaKafka();
+services.AddEncinaAzureServiceBus();
+services.AddEncinaNATS();
+services.AddEncinaMQTT();
 // + 7 more...
 ```
 
@@ -2139,9 +2139,9 @@ config.UseParallelNotificationDispatch(
 |----------------|--------|----------|
 | Message Brokers | ✅ RESUELTO | 12 transport packages (RabbitMQ, Kafka, NATS, etc.) |
 | Sagas | ✅ RESUELTO | Orchestration (11 providers) + Choreography |
-| GraphQL | ✅ RESUELTO | SimpleMediator.GraphQL con HotChocolate |
-| WebSocket | ✅ RESUELTO | SimpleMediator.SignalR |
-| gRPC | ✅ RESUELTO | SimpleMediator.gRPC |
+| GraphQL | ✅ RESUELTO | Encina.GraphQL con HotChocolate |
+| WebSocket | ✅ RESUELTO | Encina.SignalR |
+| gRPC | ✅ RESUELTO | Encina.gRPC |
 | Event Sourcing | ✅ RESUELTO | EventStoreDB + Marten packages |
 | Authorization | ✅ RESUELTO | AuthorizationBehavior + [Authorize]/[AllowAnonymous] |
 | Caching | ✅ RESUELTO | 8 cache providers |
@@ -2160,12 +2160,12 @@ nest generate controller orders
 nest generate service orders
 ```
 
-**SimpleMediator tendrá (futuro):**
+**Encina tendrá (futuro):**
 
 ```bash
-simplemediator new handler CreateOrder
-simplemediator new query GetOrders --pagination
-simplemediator graph --format mermaid
+Encina new handler CreateOrder
+Encina new query GetOrders --pagination
+Encina graph --format mermaid
 ```
 
 **Prioridad:** Media - Mejora DX pero no bloquea funcionalidad
@@ -2246,7 +2246,7 @@ services.AddMediator(cfg =>
 **Razón:** Validación a nivel de request es más explícita y testable.
 
 ```csharp
-// ✅ Enfoque SimpleMediator: Validación explícita
+// ✅ Enfoque Encina: Validación explícita
 [Required]
 [MinLength(3)]
 public string CustomerName { get; init; }
@@ -2264,10 +2264,10 @@ public string CustomerName { get; init; }
 
 | Oportunidad Original | Estado | Package |
 |---------------------|--------|---------|
-| GraphQL Bridge | ✅ | SimpleMediator.GraphQL (HotChocolate 15.1) |
-| gRPC Support | ✅ | SimpleMediator.gRPC |
+| GraphQL Bridge | ✅ | Encina.GraphQL (HotChocolate 15.1) |
+| gRPC Support | ✅ | Encina.gRPC |
 | Message Brokers | ✅ | 12 transport packages |
-| NATS Transport | ✅ | SimpleMediator.NATS |
+| NATS Transport | ✅ | Encina.NATS |
 | Outbox Pattern | ✅ | 11 database providers |
 | Sagas | ✅ | Orchestration + Choreography |
 | Saga Persistence | ✅ | 11 database providers |
@@ -2278,19 +2278,19 @@ public string CustomerName { get; init; }
 
 ```bash
 # Instalación (futuro)
-dotnet tool install -g SimpleMediator.Cli
+dotnet tool install -g Encina.Cli
 
 # Scaffolding
-simplemediator new handler CreateOrder
-simplemediator new query GetOrders --pagination
-simplemediator new saga OrderFulfillment
+Encina new handler CreateOrder
+Encina new query GetOrders --pagination
+Encina new saga OrderFulfillment
 
 # Análisis
-simplemediator analyze
-simplemediator graph --format mermaid
+Encina analyze
+Encina graph --format mermaid
 
 # Documentación
-simplemediator docs generate
+Encina docs generate
 ```
 
 **Estado:** Documentado en ROADMAP.md, prioridad media.
@@ -2299,7 +2299,7 @@ simplemediator docs generate
 
 ```bash
 # Instalación (futuro)
-dotnet new install SimpleMediator.Templates
+dotnet new install Encina.Templates
 
 dotnet new sm-handler      # Handler con ROP
 dotnet new sm-query        # Query con [Cache]
@@ -2312,7 +2312,7 @@ dotnet new sm-saga         # Saga con compensación
 ```csharp
 // Actual: Funciona pero verbose
 var services = new ServiceCollection();
-services.AddSimpleMediator(cfg => { });
+services.AddEncina(cfg => { });
 services.AddSingleton(mockHandler);
 var provider = services.BuildServiceProvider();
 var mediator = provider.GetRequiredService<IMediator>();
@@ -2400,9 +2400,9 @@ services.AddMediatorOpenApi(); // Auto-generate from handlers
 
 ## 📝 Conclusiones (Actualizado 2025-12-21)
 
-### SimpleMediator (→ Encina) es SUPERIOR a NestJS en
+### Encina (→ Encina) es SUPERIOR a NestJS en
 
-| Área | SimpleMediator | NestJS | Ventaja |
+| Área | Encina | NestJS | Ventaja |
 |------|---------------|--------|---------|
 | **Error Handling** | Either monad (ROP) | Exceptions | ✅ Type-safe, composable |
 | **Observability** | OpenTelemetry native | Via libs | ✅ Zero-config tracing |
@@ -2414,9 +2414,9 @@ services.AddMediatorOpenApi(); // Auto-generate from handlers
 | **Validation** | 4 engines | 1 engine | ✅ Flexibilidad |
 | **Performance** | Zero allocations | Standard | ✅ Lower latency |
 
-### NestJS es SUPERIOR a SimpleMediator en
+### NestJS es SUPERIOR a Encina en
 
-| Área | NestJS | SimpleMediator | Ventaja |
+| Área | NestJS | Encina | Ventaja |
 |------|--------|---------------|---------|
 | **CLI Tooling** | `nest generate` | 📋 Planificado | 🟡 DX superior |
 | **Community** | 48k+ stars | Nuevo proyecto | 🟡 Más ejemplos |
@@ -2424,16 +2424,16 @@ services.AddMediatorOpenApi(); // Auto-generate from handlers
 
 ### Posicionamiento Final
 
-**SimpleMediator y NestJS no compiten directamente:**
+**Encina y NestJS no compiten directamente:**
 
-| Aspecto | SimpleMediator | NestJS |
+| Aspecto | Encina | NestJS |
 |---------|---------------|--------|
 | **Tipo** | Library CQRS/Mediator | Framework full-stack |
 | **Lenguaje** | .NET (C#) | Node.js (TypeScript) |
 | **Filosofía** | Functional (ROP) | OOP + Decorators |
 | **Uso** | Parte de una app .NET | App completa |
 
-### Diferenciadores Clave de SimpleMediator
+### Diferenciadores Clave de Encina
 
 1. ✅ **Railway Oriented Programming** - Errores explícitos, no excepciones
 2. ✅ **45+ packages** - Cobertura enterprise completa
@@ -2457,7 +2457,7 @@ services.AddMediatorOpenApi(); // Auto-generate from handlers
 ## 📚 Referencias
 
 - [NestJS Documentation](https://docs.nestjs.com/)
-- [SimpleMediator ROADMAP](../ROADMAP.md) (90% to Pre-1.0)
+- [Encina ROADMAP](../ROADMAP.md) (90% to Pre-1.0)
 - [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/)
 - [OpenTelemetry .NET](https://opentelemetry.io/docs/languages/net/)
 

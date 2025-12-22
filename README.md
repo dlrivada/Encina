@@ -1,38 +1,38 @@
-# 🌳 Encina / SimpleMediator | Resiliencia y Confianza
+# 🌳 Encina | Resiliencia y Confianza
 
-[![.NET Quality Gate](https://github.com/dlrivada/SimpleMediator/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/dotnet-ci.yml)
-[![SonarCloud](https://github.com/dlrivada/SimpleMediator/actions/workflows/sonarcloud.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/sonarcloud.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_SimpleMediator&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dlrivada_SimpleMediator)
-[![CodeQL](https://github.com/dlrivada/SimpleMediator/actions/workflows/codeql.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/codeql.yml)
-[![SBOM](https://github.com/dlrivada/SimpleMediator/actions/workflows/sbom.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/sbom.yml)
-[![Benchmarks](https://github.com/dlrivada/SimpleMediator/actions/workflows/benchmarks.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/benchmarks.yml)
+[![.NET Quality Gate](https://github.com/dlrivada/Encina/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/dotnet-ci.yml)
+[![SonarCloud](https://github.com/dlrivada/Encina/actions/workflows/sonarcloud.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/sonarcloud.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
+[![CodeQL](https://github.com/dlrivada/Encina/actions/workflows/codeql.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/codeql.yml)
+[![SBOM](https://github.com/dlrivada/Encina/actions/workflows/sbom.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/sbom.yml)
+[![Benchmarks](https://github.com/dlrivada/Encina/actions/workflows/benchmarks.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/benchmarks.yml)
 [![Dependabot](https://img.shields.io/badge/Dependabot-Enabled-025E8C?logo=dependabot&logoColor=white)](https://docs.github.com/code-security/dependabot)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196)](https://www.conventionalcommits.org/)
 ![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4.svg)
 ![Status](https://img.shields.io/badge/status-internal-blue.svg)
 ![License](https://img.shields.io/badge/license-private-important.svg)
 
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_SimpleMediator&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dlrivada_SimpleMediator)
-[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_SimpleMediator&metric=bugs)](https://sonarcloud.io/summary/new_code?id=dlrivada_SimpleMediator)
-[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_SimpleMediator&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=dlrivada_SimpleMediator)
-[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_SimpleMediator&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=dlrivada_SimpleMediator)
-[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_SimpleMediator&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_SimpleMediator)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_SimpleMediator&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_SimpleMediator)
-[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_SimpleMediator&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_SimpleMediator)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=bugs)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 ![Mutation](https://img.shields.io/badge/mutation-79.75%25-4C934C.svg)
 
-SimpleMediator is a lightweight mediator abstraction for .NET applications that lean on functional programming principles. It keeps request and response contracts explicit, integrates naturally with [LanguageExt](https://github.com/louthy/language-ext), and embraces pipeline behaviors so cross-cutting concerns stay composable.
+Encina is a lightweight mediator abstraction for .NET applications that lean on functional programming principles. It keeps request and response contracts explicit, integrates naturally with [LanguageExt](https://github.com/louthy/language-ext), and embraces pipeline behaviors so cross-cutting concerns stay composable.
 
 > ℹ️ Repository layout
 >
-> - `src/SimpleMediator` – library source code and packaging assets.
+> - `src/Encina` – library source code and packaging assets.
 > - `tests/*` – unit, property, and contract test suites.
 > - `benchmarks/*` – BenchmarkDotNet harness.
 > - `docs/` – architecture notes, RFCs, and policies.
 
 ## Documentation
 
-- 📘 [API Reference](https://dlrivada.github.io/SimpleMediator/api/SimpleMediator.html) - Complete API documentation (auto-generated with DocFX)
+- 📘 [API Reference](https://dlrivada.github.io/Encina/api/Encina.html) - Complete API documentation (auto-generated with DocFX)
 - 🚀 [Getting Started Guide](docs/docs/getting-started.md) - Quick start guide
 - 📖 [Introduction](docs/docs/introduction.md) - Core concepts and architecture
 - 🏛️ [Architecture Patterns](docs/architecture/patterns-guide.md) - Design patterns and best practices
@@ -40,7 +40,7 @@ SimpleMediator is a lightweight mediator abstraction for .NET applications that 
 
 ## Table of Contents
 
-- [Why SimpleMediator](#why-simplemediator)
+- [Why Encina](#why-encina)
 - [Capabilities](#capabilities)
 - [Quick Start](#quick-start)
 - [Request Lifecycle](#request-lifecycle)
@@ -57,7 +57,7 @@ SimpleMediator is a lightweight mediator abstraction for .NET applications that 
 - [Future Work](#future-work)
 - [License](#license)
 
-## Why SimpleMediator
+## Why Encina
 
 - Built for functional error handling with `Either` and `Option` from LanguageExt, backed by the mediator's `MediatorError` wrapper for rich metadata.
 - Lightweight dependency footprint: `LanguageExt.Core` and `Microsoft.Extensions.*` abstractions.
@@ -68,7 +68,7 @@ SimpleMediator is a lightweight mediator abstraction for .NET applications that 
 
 ## Capabilities
 
-SimpleMediator takes cues from MediatR, Kommand, and Wolverine, but positions itself as a functional, observable application pipeline for CQRS-style work.
+Encina takes cues from MediatR, Kommand, and Wolverine, but positions itself as a functional, observable application pipeline for CQRS-style work.
 
 - **Messaging model:** Commands, queries, and notifications with explicit contracts; `Send`/`Publish` return `ValueTask<Either<MediatorError, TValue>>` to keep async overhead low and failures explicit.
 - **Pipeline composition:** Ordered behaviors plus request pre/post processors to layer validation, retries, timeouts, audits, and tracing without touching handlers; works with open or closed generics.
@@ -80,11 +80,11 @@ SimpleMediator takes cues from MediatR, Kommand, and Wolverine, but positions it
 
 ## Satellite Packages (44 packages)
 
-SimpleMediator adopts a modular architecture where specialized functionality is distributed across focused satellite packages. This approach keeps the core library lightweight while providing rich integration options for common scenarios.
+Encina adopts a modular architecture where specialized functionality is distributed across focused satellite packages. This approach keeps the core library lightweight while providing rich integration options for common scenarios.
 
 | Category | Packages | Status |
 | --- | --- | --- |
-| **Core & Validation** | SimpleMediator, FluentValidation, DataAnnotations, MiniValidator, GuardClauses | ✅ Production |
+| **Core & Validation** | Encina, FluentValidation, DataAnnotations, MiniValidator, GuardClauses | ✅ Production |
 | **Web Integration** | AspNetCore, SignalR | ✅ Production |
 | **Database Providers** | EntityFrameworkCore, MongoDB, Dapper.{5 DBs}, ADO.{5 DBs} | ✅ Production |
 | **Messaging Transports** | Wolverine, NServiceBus, RabbitMQ, AzureServiceBus, AmazonSQS, Kafka, Redis.PubSub, InMemory, NATS, MQTT, gRPC, GraphQL | ✅ Production |
@@ -99,9 +99,9 @@ SimpleMediator adopts a modular architecture where specialized functionality is 
 
 ```bash
 # Build/test specific areas
-dotnet build SimpleMediator.Caching.slnf       # Caching packages only
-dotnet test SimpleMediator.Database.slnf       # Database providers only
-dotnet build SimpleMediator.Validation.slnf    # Validation packages only
+dotnet build Encina.Caching.slnf       # Caching packages only
+dotnet test Encina.Database.slnf       # Database providers only
+dotnet build Encina.Validation.slnf    # Validation packages only
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for version history and [docs/history/](docs/history/) for detailed implementation records.
@@ -120,11 +120,11 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and [docs/history/](docs/hi
 
 ### Dónde leer código rápidamente
 
-- Mediador y contratos: [`SimpleMediator.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/SimpleMediator.cs), [`IMediator.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/IMediator.cs), [`IRequest.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/IRequest.cs), [`INotification.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/INotification.cs).
-- Registro y escaneo: [`ServiceCollectionExtensions.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/ServiceCollectionExtensions.cs), [`MediatorAssemblyScanner.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/MediatorAssemblyScanner.cs).
-- Pipelines y callbacks: [`IPipelineBehavior.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/IPipelineBehavior.cs), [`IRequestPreProcessor.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/IRequestPreProcessor.cs), [`IRequestPostProcessor.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/IRequestPostProcessor.cs), behaviors en [`Behaviors/`](https://github.com/dlrivada/SimpleMediator/tree/main/src/SimpleMediator/Behaviors).
-- Observabilidad y métricas: [`MediatorDiagnostics.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/MediatorDiagnostics.cs), [`MediatorMetrics.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/MediatorMetrics.cs).
-- Errores y ROP: [`MediatorError.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/MediatorError.cs), [`MediatorResult.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/MediatorResult.cs), [`IFunctionalFailureDetector.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/IFunctionalFailureDetector.cs), [`NullFunctionalFailureDetector.cs`](https://github.com/dlrivada/SimpleMediator/blob/main/src/SimpleMediator/NullFunctionalFailureDetector.cs).
+- Mediador y contratos: [`Encina.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/Encina.cs), [`IMediator.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IMediator.cs), [`IRequest.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IRequest.cs), [`INotification.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/INotification.cs).
+- Registro y escaneo: [`ServiceCollectionExtensions.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/ServiceCollectionExtensions.cs), [`MediatorAssemblyScanner.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/MediatorAssemblyScanner.cs).
+- Pipelines y callbacks: [`IPipelineBehavior.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IPipelineBehavior.cs), [`IRequestPreProcessor.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IRequestPreProcessor.cs), [`IRequestPostProcessor.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IRequestPostProcessor.cs), behaviors en [`Behaviors/`](https://github.com/dlrivada/Encina/tree/main/src/Encina/Behaviors).
+- Observabilidad y métricas: [`MediatorDiagnostics.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/MediatorDiagnostics.cs), [`MediatorMetrics.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/MediatorMetrics.cs).
+- Errores y ROP: [`MediatorError.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/MediatorError.cs), [`MediatorResult.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/MediatorResult.cs), [`IFunctionalFailureDetector.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IFunctionalFailureDetector.cs), [`NullFunctionalFailureDetector.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/NullFunctionalFailureDetector.cs).
 
 ### Snippets rápidos
 
@@ -185,7 +185,7 @@ public sealed class AppFailureDetector : IFunctionalFailureDetector
 #### Registro en DI con behaviors
 
 ```csharp
-services.AddSimpleMediator(cfg =>
+services.AddEncina(cfg =>
 {
     cfg.RegisterServicesFromAssemblyContaining<ApplicationAssemblyMarker>()
        .AddPipelineBehavior(typeof(TimeoutBehavior<,>))
@@ -198,7 +198,7 @@ services.AddSingleton<IFunctionalFailureDetector, AppFailureDetector>();
 
 ## Zero Exceptions Initiative
 
-SimpleMediator is evolving toward a Zero Exceptions policy, where mediator operations stop throwing in expected operational scenarios. Handlers, behaviors, and the mediator itself report failures through functional results (`Either<MediatorError, TValue>`, `Option<T>`, etc.), keeping execution on the ROP rails. During the transition we track remaining throw sites and wrap them in functional results, reserving exceptions for truly exceptional failures. `MediatorErrors` exposes factory helpers to encapsulate exceptions inside `MediatorError` instances.
+Encina is evolving toward a Zero Exceptions policy, where mediator operations stop throwing in expected operational scenarios. Handlers, behaviors, and the mediator itself report failures through functional results (`Either<MediatorError, TValue>`, `Option<T>`, etc.), keeping execution on the ROP rails. During the transition we track remaining throw sites and wrap them in functional results, reserving exceptions for truly exceptional failures. `MediatorErrors` exposes factory helpers to encapsulate exceptions inside `MediatorError` instances.
 
 ## Quick Start
 
@@ -216,7 +216,7 @@ dotnet nuget add source "https://nuget.pkg.github.com/dlrivada/index.json" \
 Then reference the package from your project:
 
 ```bash
-dotnet add <YourProject>.csproj package SimpleMediator --version 0.1.0
+dotnet add <YourProject>.csproj package Encina --version 0.1.0
 ```
 
 ### 2. Configure Dependency Injection
@@ -224,11 +224,11 @@ dotnet add <YourProject>.csproj package SimpleMediator --version 0.1.0
 ```csharp
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
-using SimpleMediator;
+using Encina;
 
 var services = new ServiceCollection();
 
-services.AddSimpleMediator(cfg =>
+services.AddEncina(cfg =>
 {
     cfg.RegisterServicesFromAssemblyContaining<ApplicationAssemblyMarker>()
        .AddPipelineBehavior(typeof(CommandActivityPipelineBehavior<,>))
@@ -309,7 +309,7 @@ sequenceDiagram
 
 ## Handlers and Contracts
 
-SimpleMediator relies on explicit interfaces and result types so each operation documents its intent.
+Encina relies on explicit interfaces and result types so each operation documents its intent.
 
 | Contract | Purpose | Default Expectations |
 | --- | --- | --- |
@@ -338,7 +338,7 @@ publishResult.Match(
 Pipeline behaviors wrap handler execution so concerns such as logging, validation, and retries stay isolated. Behaviors are executed in the order they are registered.
 
 ```csharp
-services.AddSimpleMediator(cfg =>
+services.AddEncina(cfg =>
 {
     cfg.AddPipelineBehavior(typeof(ActivityPipelineBehavior<,>))
        .AddPipelineBehavior(typeof(ValidationPipelineBehavior<,>))
@@ -427,8 +427,8 @@ services.AddSingleton<IFunctionalFailureDetector, AppFunctionalFailureDetector>(
 
 ```csharp
 services.AddOpenTelemetry()
-    .WithTracing(b => b.AddSource("SimpleMediator"))
-    .WithMetrics(b => b.AddMeter("SimpleMediator"));
+    .WithTracing(b => b.AddSource("Encina"))
+    .WithMetrics(b => b.AddMeter("Encina"));
 ```
 
 ## Error Metadata
@@ -463,7 +463,7 @@ outcome.Match(
 ## Configuration Reference
 
 ```csharp
-services.AddSimpleMediator(cfg =>
+services.AddEncina(cfg =>
 {
     cfg.RegisterServicesFromAssemblyContaining<ApplicationAssemblyMarker>()
        .AddPipelineBehavior(typeof(CommandActivityPipelineBehavior<,>))
@@ -487,18 +487,18 @@ services.AddSimpleMediator(cfg =>
 ## Testing
 
 ```bash
-dotnet test SimpleMediator.slnx --configuration Release
+dotnet test Encina.slnx --configuration Release
 ```
 
 To generate coverage (powered by `coverlet.collector`) and produce HTML/Text summaries locally:
 
 ```bash
-dotnet test SimpleMediator.slnx --configuration Release --collect:"XPlat Code Coverage" --results-directory artifacts/test-results
+dotnet test Encina.slnx --configuration Release --collect:"XPlat Code Coverage" --results-directory artifacts/test-results
 dotnet tool restore
 dotnet tool run reportgenerator -reports:"artifacts/test-results/**/coverage.cobertura.xml" -targetdir:"artifacts/coverage" -reporttypes:"Html;HtmlSummary;TextSummary"
 ```
 
-The HTML dashboard (`artifacts/coverage/index.html`) and condensed summary (`artifacts/coverage/Summary.txt`) highlight hot spots—`SimpleMediator.SimpleMediator` now sits just above 90% line coverage after the latest hardening pass, so incremental gains hinge on rare cancellation/error permutations. The CI workflow runs the same commands and publishes the output as a downloadable artifact.
+The HTML dashboard (`artifacts/coverage/index.html`) and condensed summary (`artifacts/coverage/Summary.txt`) highlight hot spots—`Encina.Encina` now sits just above 90% line coverage after the latest hardening pass, so incremental gains hinge on rare cancellation/error permutations. The CI workflow runs the same commands and publishes the output as a downloadable artifact.
 
 Mutation testing is exercised via Stryker.NET. Run the full sweep using the single-file helper (the same command the CI workflow executes):
 
@@ -532,13 +532,13 @@ dotnet run --file scripts/run-load-harness.cs -- --duration 00:01:00 --send-work
 dotnet run --file scripts/run-load-harness.cs -- --nbomber send-burst --duration 00:00:30
 ```
 
-- The console harness targets `load/SimpleMediator.LoadTests` and pairs with `scripts/collect-load-metrics.cs` to capture CPU/memory samples (`harness-<timestamp>.log`, `metrics-<timestamp>.csv`).
-- NBomber scenarios live in `load/SimpleMediator.NBomber` with JSON profiles under `load/profiles/`. The summarizer `scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json` prints throughput/latency stats and fails when send-burst throughput dips below 6.75M ops/sec or latency rises above 0.85 ms.
+- The console harness targets `load/Encina.LoadTests` and pairs with `scripts/collect-load-metrics.cs` to capture CPU/memory samples (`harness-<timestamp>.log`, `metrics-<timestamp>.csv`).
+- NBomber scenarios live in `load/Encina.NBomber` with JSON profiles under `load/profiles/`. The summarizer `scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json` prints throughput/latency stats and fails when send-burst throughput dips below 6.75M ops/sec or latency rises above 0.85 ms.
 - CI enforces guardrails via `scripts/check-load-metrics.cs -- --config ci/load-thresholds.json` for the console harness and the summarizer for NBomber; both pipelines publish artifacts in `artifacts/load-metrics/` and feed `scripts/aggregate-performance-history.cs` to refresh `docs/data/load-history.md`.
 
 ## Quality Checklist
 
-- Coverage ≥90% line: `dotnet test SimpleMediator.slnx --configuration Release` followed by `reportgenerator` (see `docs/en/guides/TESTING.md`).
+- Coverage ≥90% line: `dotnet test Encina.slnx --configuration Release` followed by `reportgenerator` (see `docs/en/guides/TESTING.md`).
 - Mutation score ≥93.74%: `dotnet run --file scripts/run-stryker.cs` then `dotnet run --file scripts/update-mutation-summary.cs` to refresh badges.
 - Benchmarks within guardrails: `dotnet run --file scripts/run-benchmarks.cs` and `dotnet run --file scripts/check-benchmarks.cs`.
 - Thresholds live in `ci/benchmark-thresholds.json`; update them only after capturing a new baseline on CI.
@@ -556,7 +556,7 @@ The living roadmap in `QUALITY_SECURITY_ROADMAP.md` complements this README with
 
 ## FAQ
 
-- **Does SimpleMediator replace MediatR?** It takes inspiration from MediatR but focuses on functional result types and richer telemetry hooks.
+- **Does Encina replace MediatR?** It takes inspiration from MediatR but focuses on functional result types and richer telemetry hooks.
 - **Can I use it without LanguageExt?** Handlers rely on `Either` and `Unit` from LanguageExt; alternative abstractions would require custom adapters.
 - **How do I handle retries?** Wrap logic inside a custom pipeline behavior or delegate to Polly policies executed inside the handler.
 - **Is streaming supported?** Streaming notifications are supported via processors that work with `IAsyncEnumerable` payloads.

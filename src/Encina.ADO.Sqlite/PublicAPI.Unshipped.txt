@@ -1,0 +1,128 @@
+#nullable enable
+Encina.ADO.Sqlite.Inbox.IIdempotentRequest
+Encina.ADO.Sqlite.Inbox.InboxMessage
+Encina.ADO.Sqlite.Inbox.InboxMessage.ErrorMessage.get -> string?
+Encina.ADO.Sqlite.Inbox.InboxMessage.ErrorMessage.set -> void
+Encina.ADO.Sqlite.Inbox.InboxMessage.ExpiresAtUtc.get -> System.DateTime
+Encina.ADO.Sqlite.Inbox.InboxMessage.ExpiresAtUtc.set -> void
+Encina.ADO.Sqlite.Inbox.InboxMessage.InboxMessage() -> void
+Encina.ADO.Sqlite.Inbox.InboxMessage.IsExpired() -> bool
+Encina.ADO.Sqlite.Inbox.InboxMessage.IsProcessed.get -> bool
+Encina.ADO.Sqlite.Inbox.InboxMessage.MessageId.get -> string!
+Encina.ADO.Sqlite.Inbox.InboxMessage.MessageId.set -> void
+Encina.ADO.Sqlite.Inbox.InboxMessage.Metadata.get -> string?
+Encina.ADO.Sqlite.Inbox.InboxMessage.Metadata.set -> void
+Encina.ADO.Sqlite.Inbox.InboxMessage.NextRetryAtUtc.get -> System.DateTime?
+Encina.ADO.Sqlite.Inbox.InboxMessage.NextRetryAtUtc.set -> void
+Encina.ADO.Sqlite.Inbox.InboxMessage.ProcessedAtUtc.get -> System.DateTime?
+Encina.ADO.Sqlite.Inbox.InboxMessage.ProcessedAtUtc.set -> void
+Encina.ADO.Sqlite.Inbox.InboxMessage.ReceivedAtUtc.get -> System.DateTime
+Encina.ADO.Sqlite.Inbox.InboxMessage.ReceivedAtUtc.set -> void
+Encina.ADO.Sqlite.Inbox.InboxMessage.RequestType.get -> string!
+Encina.ADO.Sqlite.Inbox.InboxMessage.RequestType.set -> void
+Encina.ADO.Sqlite.Inbox.InboxMessage.Response.get -> string?
+Encina.ADO.Sqlite.Inbox.InboxMessage.Response.set -> void
+Encina.ADO.Sqlite.Inbox.InboxMessage.RetryCount.get -> int
+Encina.ADO.Sqlite.Inbox.InboxMessage.RetryCount.set -> void
+Encina.ADO.Sqlite.Inbox.InboxPipelineBehavior<TRequest, TResponse>
+Encina.ADO.Sqlite.Inbox.InboxPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.ADO.Sqlite.Inbox.InboxPipelineBehavior<TRequest, TResponse>.InboxPipelineBehavior(Encina.Messaging.Inbox.IInboxStore! inboxStore, Encina.Messaging.Inbox.InboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.ADO.Sqlite.Inbox.InboxPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.ADO.Sqlite.Inbox.InboxStoreADO
+Encina.ADO.Sqlite.Inbox.InboxStoreADO.AddAsync(Encina.Messaging.Inbox.IInboxMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.Sqlite.Inbox.InboxStoreADO.GetExpiredMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Inbox.IInboxMessage!>!>!
+Encina.ADO.Sqlite.Inbox.InboxStoreADO.GetMessageAsync(string! messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Inbox.IInboxMessage?>!
+Encina.ADO.Sqlite.Inbox.InboxStoreADO.InboxStoreADO(System.Data.IDbConnection! connection, string! tableName = "InboxMessages") -> void
+Encina.ADO.Sqlite.Inbox.InboxStoreADO.MarkAsFailedAsync(string! messageId, string! errorMessage, System.DateTime? nextRetryAt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.Sqlite.Inbox.InboxStoreADO.MarkAsProcessedAsync(string! messageId, string? response, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.Sqlite.Inbox.InboxStoreADO.RemoveExpiredMessagesAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.Sqlite.Inbox.InboxStoreADO.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.Sqlite.Outbox.IHasNotifications
+Encina.ADO.Sqlite.Outbox.IHasNotifications.GetNotifications() -> System.Collections.Generic.IEnumerable<Encina.INotification!>!
+Encina.ADO.Sqlite.Outbox.OutboxMessage
+Encina.ADO.Sqlite.Outbox.OutboxMessage.Content.get -> string!
+Encina.ADO.Sqlite.Outbox.OutboxMessage.Content.set -> void
+Encina.ADO.Sqlite.Outbox.OutboxMessage.CreatedAtUtc.get -> System.DateTime
+Encina.ADO.Sqlite.Outbox.OutboxMessage.CreatedAtUtc.set -> void
+Encina.ADO.Sqlite.Outbox.OutboxMessage.ErrorMessage.get -> string?
+Encina.ADO.Sqlite.Outbox.OutboxMessage.ErrorMessage.set -> void
+Encina.ADO.Sqlite.Outbox.OutboxMessage.Id.get -> System.Guid
+Encina.ADO.Sqlite.Outbox.OutboxMessage.Id.set -> void
+Encina.ADO.Sqlite.Outbox.OutboxMessage.IsDeadLettered(int maxRetries) -> bool
+Encina.ADO.Sqlite.Outbox.OutboxMessage.IsProcessed.get -> bool
+Encina.ADO.Sqlite.Outbox.OutboxMessage.NextRetryAtUtc.get -> System.DateTime?
+Encina.ADO.Sqlite.Outbox.OutboxMessage.NextRetryAtUtc.set -> void
+Encina.ADO.Sqlite.Outbox.OutboxMessage.NotificationType.get -> string!
+Encina.ADO.Sqlite.Outbox.OutboxMessage.NotificationType.set -> void
+Encina.ADO.Sqlite.Outbox.OutboxMessage.OutboxMessage() -> void
+Encina.ADO.Sqlite.Outbox.OutboxMessage.ProcessedAtUtc.get -> System.DateTime?
+Encina.ADO.Sqlite.Outbox.OutboxMessage.ProcessedAtUtc.set -> void
+Encina.ADO.Sqlite.Outbox.OutboxMessage.RetryCount.get -> int
+Encina.ADO.Sqlite.Outbox.OutboxMessage.RetryCount.set -> void
+Encina.ADO.Sqlite.Outbox.OutboxPostProcessor<TRequest, TResponse>
+Encina.ADO.Sqlite.Outbox.OutboxPostProcessor<TRequest, TResponse>.OutboxPostProcessor(Encina.Messaging.Outbox.IOutboxStore! outboxStore, Microsoft.Extensions.Logging.ILogger<Encina.ADO.Sqlite.Outbox.OutboxPostProcessor<TRequest, TResponse>!>! logger) -> void
+Encina.ADO.Sqlite.Outbox.OutboxPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, LanguageExt.Either<Encina.MediatorError, TResponse> result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.ADO.Sqlite.Outbox.OutboxProcessor
+Encina.ADO.Sqlite.Outbox.OutboxProcessor.OutboxProcessor(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.ADO.Sqlite.Outbox.OutboxProcessor!>! logger, Encina.Messaging.Outbox.OutboxOptions! options) -> void
+Encina.ADO.Sqlite.Outbox.OutboxStoreADO
+Encina.ADO.Sqlite.Outbox.OutboxStoreADO.AddAsync(Encina.Messaging.Outbox.IOutboxMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.Sqlite.Outbox.OutboxStoreADO.GetPendingMessagesAsync(int batchSize, int maxRetries, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Outbox.IOutboxMessage!>!>!
+Encina.ADO.Sqlite.Outbox.OutboxStoreADO.MarkAsFailedAsync(System.Guid messageId, string! errorMessage, System.DateTime? nextRetryAt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.Sqlite.Outbox.OutboxStoreADO.MarkAsProcessedAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.Sqlite.Outbox.OutboxStoreADO.OutboxStoreADO(System.Data.IDbConnection! connection, string! tableName = "OutboxMessages") -> void
+Encina.ADO.Sqlite.Outbox.OutboxStoreADO.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.Sqlite.Sagas.SagaState
+Encina.ADO.Sqlite.Sagas.SagaState.CompletedAtUtc.get -> System.DateTime?
+Encina.ADO.Sqlite.Sagas.SagaState.CompletedAtUtc.set -> void
+Encina.ADO.Sqlite.Sagas.SagaState.CurrentStep.get -> int
+Encina.ADO.Sqlite.Sagas.SagaState.CurrentStep.set -> void
+Encina.ADO.Sqlite.Sagas.SagaState.Data.get -> string!
+Encina.ADO.Sqlite.Sagas.SagaState.Data.set -> void
+Encina.ADO.Sqlite.Sagas.SagaState.ErrorMessage.get -> string?
+Encina.ADO.Sqlite.Sagas.SagaState.ErrorMessage.set -> void
+Encina.ADO.Sqlite.Sagas.SagaState.LastUpdatedAtUtc.get -> System.DateTime
+Encina.ADO.Sqlite.Sagas.SagaState.LastUpdatedAtUtc.set -> void
+Encina.ADO.Sqlite.Sagas.SagaState.SagaId.get -> System.Guid
+Encina.ADO.Sqlite.Sagas.SagaState.SagaId.set -> void
+Encina.ADO.Sqlite.Sagas.SagaState.SagaState() -> void
+Encina.ADO.Sqlite.Sagas.SagaState.SagaType.get -> string!
+Encina.ADO.Sqlite.Sagas.SagaState.SagaType.set -> void
+Encina.ADO.Sqlite.Sagas.SagaState.StartedAtUtc.get -> System.DateTime
+Encina.ADO.Sqlite.Sagas.SagaState.StartedAtUtc.set -> void
+Encina.ADO.Sqlite.Sagas.SagaState.Status.get -> string!
+Encina.ADO.Sqlite.Sagas.SagaState.Status.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.Content.get -> string!
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.Content.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.CreatedAtUtc.get -> System.DateTime
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.CreatedAtUtc.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.CronExpression.get -> string?
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.CronExpression.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.ErrorMessage.get -> string?
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.ErrorMessage.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.Id.get -> System.Guid
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.Id.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.IsDeadLettered(int maxRetries) -> bool
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.IsDue() -> bool
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.IsProcessed.get -> bool
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.IsRecurring.get -> bool
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.IsRecurring.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.LastExecutedAtUtc.get -> System.DateTime?
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.LastExecutedAtUtc.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.NextRetryAtUtc.get -> System.DateTime?
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.NextRetryAtUtc.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.ProcessedAtUtc.get -> System.DateTime?
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.ProcessedAtUtc.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.RequestType.get -> string!
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.RequestType.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.RetryCount.get -> int
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.RetryCount.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.ScheduledAtUtc.get -> System.DateTime
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.ScheduledAtUtc.set -> void
+Encina.ADO.Sqlite.Scheduling.ScheduledMessage.ScheduledMessage() -> void
+Encina.ADO.Sqlite.ServiceCollectionExtensions
+Encina.ADO.Sqlite.TransactionPipelineBehavior<TRequest, TResponse>
+Encina.ADO.Sqlite.TransactionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! next, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.ADO.Sqlite.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(System.Data.IDbConnection! connection) -> void
+static Encina.ADO.Sqlite.ServiceCollectionExtensions.AddEncinaADO(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.ADO.Sqlite.ServiceCollectionExtensions.AddEncinaADO(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.ADO.Sqlite.ServiceCollectionExtensions.AddEncinaADO(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, System.Data.IDbConnection!>! connectionFactory, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

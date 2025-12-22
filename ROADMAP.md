@@ -1,14 +1,14 @@
-# SimpleMediator Roadmap
+# Encina Roadmap
 
 **Last Updated**: 2025-12-22
 **Version**: Pre-1.0 (breaking changes allowed)
-**Future Name**: Encina (to be renamed before 1.0)
+**Current Name**: Encina ✅
 
 ---
 
 ## Vision
 
-SimpleMediator (future: **Encina**) is a functional mediation library for .NET that enables building modern applications with **Railway Oriented Programming** as the core philosophy.
+**Encina** is a functional mediation library for .NET that enables building modern applications with **Railway Oriented Programming** as the core philosophy.
 
 ### Design Principles
 
@@ -73,7 +73,7 @@ SimpleMediator (future: **Encina**) is a functional mediation library for .NET t
 
 ### Core (5 packages)
 
-- SimpleMediator Core - ROP, pipelines, CQRS
+- Encina Core - ROP, pipelines, CQRS
 - FluentValidation, DataAnnotations, MiniValidator, GuardClauses
 
 ### Web (3 packages)
@@ -131,7 +131,7 @@ Restructuring all test projects to use Testcontainers for real database integrat
 
 **Completed**:
 
-- ✅ SimpleMediator.TestInfrastructure with shared fixtures
+- ✅ Encina.TestInfrastructure with shared fixtures
 - ✅ Dapper.Sqlite tests refactored (187 tests, 4 projects)
 - ✅ Architecture established (1 project per test type)
 
@@ -148,15 +148,15 @@ Restructuring all test projects to use Testcontainers for real database integrat
 
 | Package | Purpose | Priority |
 |---------|---------|----------|
-| SimpleMediator.Cli | Command-line scaffolding & analysis | ⭐⭐⭐⭐ |
-| SimpleMediator.Testing | MediatorFixture fluent API | ⭐⭐⭐⭐ |
-| SimpleMediator.OpenApi | Auto-generation from handlers | ⭐⭐⭐ |
+| Encina.Cli | Command-line scaffolding & analysis | ⭐⭐⭐⭐ |
+| Encina.Testing | MediatorFixture fluent API | ⭐⭐⭐⭐ |
+| Encina.OpenApi | Auto-generation from handlers | ⭐⭐⭐ |
 
 ### Core Improvements
 
 | Task | Priority | Complexity |
 |------|----------|------------|
-| Refactor `SimpleMediator.Publish` with guards | ⭐⭐⭐ | Low |
+| Refactor `Encina.Publish` with guards | ⭐⭐⭐ | Low |
 | Optimize delegate caches (minimize reflection) | ⭐⭐⭐ | Medium |
 | Replace `object? Details` with `ImmutableDictionary` | ⭐⭐⭐ | Medium |
 
@@ -173,7 +173,7 @@ Restructuring all test projects to use Testcontainers for real database integrat
 
 | Feature | Package | Priority | Notes |
 |---------|---------|----------|-------|
-| **Projections/Read Models** | SimpleMediator.Projections | ⭐⭐⭐⭐ | Abstractions for CQRS read side |
+| **Projections/Read Models** | Encina.Projections | ⭐⭐⭐⭐ | Abstractions for CQRS read side |
 | **Event Versioning** | EventStoreDB, Marten | ⭐⭐⭐⭐ | Upcasting, schema evolution |
 | **Snapshotting** | EventStoreDB, Marten | ⭐⭐⭐ | For large aggregates |
 | **Dead Letter Queue** | Messaging providers | ⭐⭐⭐ | Enhanced DLQ handling |
@@ -185,13 +185,13 @@ Restructuring all test projects to use Testcontainers for real database integrat
 | **Health Check Abstractions** | Core / AspNetCore | ⭐⭐⭐ | IHealthCheck integration for handler health |
 | **Bulkhead Isolation** | Polly | ⭐⭐⭐ | Parallel execution isolation |
 | **API Versioning Helpers** | AspNetCore | ⭐⭐ | Contract evolution support |
-| **Distributed Lock Abstractions** | SimpleMediator.DistributedLock | ⭐⭐ | IDistributedLock interface |
+| **Distributed Lock Abstractions** | Encina.DistributedLock | ⭐⭐ | IDistributedLock interface |
 
 > **Note**: Service Discovery, Secret Management, and Configuration will be provided natively through the "Self-Sufficient Architecture" package, eliminating the need for external sidecars.
 
 ### Modular Monolith Support
 
-**Package**: `SimpleMediator.Modules`
+**Package**: `Encina.Modules`
 
 Enable true modular monolith architecture with explicit module boundaries, lifecycle management, and controlled inter-module communication.
 
@@ -221,7 +221,7 @@ public interface IModule
 }
 
 // Registration
-services.AddSimpleMediator()
+services.AddEncina()
     .AddModules(modules =>
     {
         modules.Register<OrdersModule>();
@@ -267,8 +267,8 @@ First-class support for serverless architectures with Azure Functions and AWS La
 
 | Package | Priority | Notes |
 |---------|----------|-------|
-| `SimpleMediator.AzureFunctions` | ⭐⭐⭐⭐ | Azure Functions integration (.NET 10, Flex Consumption) |
-| `SimpleMediator.AwsLambda` | ⭐⭐⭐⭐ | AWS Lambda integration (managed instances, containers) |
+| `Encina.AzureFunctions` | ⭐⭐⭐⭐ | Azure Functions integration (.NET 10, Flex Consumption) |
+| `Encina.AwsLambda` | ⭐⭐⭐⭐ | AWS Lambda integration (managed instances, containers) |
 
 #### Features
 
@@ -308,7 +308,7 @@ public class OrderFunctions
 }
 
 // AWS Lambda
-public class OrderHandler : SimpleMediatorLambdaHandler<CreateOrderCommand, OrderResult>
+public class OrderHandler : EncinaLambdaHandler<CreateOrderCommand, OrderResult>
 {
     // Automatic serialization, context propagation, error handling
 }
@@ -325,7 +325,7 @@ public async Task<OrderResult> RunOrchestrator(
 
 #### Current Support (Without Packages)
 
-SimpleMediator works in serverless today but requires manual setup:
+Encina works in serverless today but requires manual setup:
 
 - ✅ DI registration in function startup
 - ✅ Manual context creation from headers
@@ -342,7 +342,7 @@ SimpleMediator works in serverless today but requires manual setup:
 
 ### Domain-Driven Design (DDD) Support
 
-**Package**: `SimpleMediator.DomainModel`
+**Package**: `Encina.DomainModel`
 
 Tactical DDD patterns with first-class ROP integration for building rich domain models.
 
@@ -437,7 +437,7 @@ public abstract class AggregateBase
 
 ### Test-Driven Development (TDD) Support
 
-**Package**: `SimpleMediator.Testing`
+**Package**: `Encina.Testing`
 
 Fluent testing API for handlers, aggregates, and pipelines with first-class ROP assertions.
 
@@ -445,7 +445,7 @@ Fluent testing API for handlers, aggregates, and pipelines with first-class ROP 
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| Test Infrastructure | ✅ Excellent | `SimpleMediator.TestInfrastructure` |
+| Test Infrastructure | ✅ Excellent | `Encina.TestInfrastructure` |
 | Database Fixtures | ✅ Strong | Testcontainers (5 DBs) |
 | Test Builders | ✅ Strong | `OutboxMessageBuilder`, etc. |
 | Handler Testing | 🟡 Partial | Basic fixtures only |
@@ -533,7 +533,7 @@ order.ShouldHaveRaisedEvent<OrderCreated>(e =>
 
 **Goal**: Compete with NServiceBus-level enterprise features for mission-critical messaging.
 
-**Package**: `SimpleMediator.Messaging.Enterprise`
+**Package**: `Encina.Messaging.Enterprise`
 
 #### Recoverability & Error Handling
 
@@ -559,7 +559,7 @@ order.ShouldHaveRaisedEvent<OrderCreated>(e =>
 
 ```csharp
 // Recoverability configuration
-services.AddSimpleMediator(config =>
+services.AddEncina(config =>
 {
     config.UseRecoverability(r =>
     {
@@ -602,7 +602,7 @@ public class OrderSagaNotFoundHandler : IHandleSagaNotFound
 
 **Goal**: Compete with EventFlow/Marten direct usage for pure event sourcing scenarios.
 
-**Package**: `SimpleMediator.EventSourcing`
+**Package**: `Encina.EventSourcing`
 
 #### Subscriptions
 
@@ -654,7 +654,7 @@ public class OrderProjection : IProjection<OrderEvent, OrderReadModel>
 }
 
 // Register projections
-services.AddSimpleMediator(config =>
+services.AddEncina(config =>
 {
     config.UseEventSourcing(es =>
     {
@@ -667,7 +667,7 @@ services.AddSimpleMediator(config =>
 });
 
 // Competing consumers
-services.AddSimpleMediator(config =>
+services.AddEncina(config =>
 {
     config.UseEventSourcing(es =>
     {
@@ -685,7 +685,7 @@ services.AddSimpleMediator(config =>
 
 **Goal**: Compete with Mediator/SwitchMediator for maximum performance and NativeAOT support.
 
-**Package**: `SimpleMediator.SourceGenerator`
+**Package**: `Encina.SourceGenerator`
 
 #### Performance Targets
 
@@ -713,7 +713,7 @@ services.AddSimpleMediator(config =>
 
 ```csharp
 // Assembly attribute enables source generation
-[assembly: SimpleMediatorSourceGeneration]
+[assembly: EncinaSourceGeneration]
 
 // Handlers discovered at compile-time
 public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, OrderId>
@@ -722,7 +722,7 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, OrderId>
 }
 
 // Generated code (simplified)
-[GeneratedCode("SimpleMediator.SourceGenerator", "1.0.0")]
+[GeneratedCode("Encina.SourceGenerator", "1.0.0")]
 internal static class MediatorDispatcher
 {
     public static ValueTask<Either<MediatorError, TResponse>> Dispatch<TRequest, TResponse>(
@@ -743,7 +743,7 @@ internal static class MediatorDispatcher
 }
 
 // Configuration (optional - defaults work)
-services.AddSimpleMediatorSourceGenerated(config =>
+services.AddEncinaSourceGenerated(config =>
 {
     config.DefaultLifetime = ServiceLifetime.Singleton; // Best perf
     config.EnablePooledAsyncStateMachines = true;
@@ -761,7 +761,7 @@ services.AddSimpleMediatorSourceGenerated(config =>
 
 **Goal**: Support classic enterprise integration patterns from the Hohpe/Woolf book.
 
-**Package**: `SimpleMediator.IntegrationPatterns`
+**Package**: `Encina.IntegrationPatterns`
 
 #### Message Routing Patterns
 
@@ -846,7 +846,7 @@ await _mediator.Send(new ProcessDocument(claimCheck.Reference));
 var document = await _mediator.RetrievePayload<Document>(claimCheck.Reference);
 
 // Wire Tap - inspect without modifying
-services.AddSimpleMediator(config =>
+services.AddEncina(config =>
 {
     config.AddWireTap<OrderCommand>(msg =>
         _logger.LogInformation("Order command: {Command}", msg));
@@ -859,7 +859,7 @@ services.AddSimpleMediator(config =>
 
 **Rationale**: Dapr and similar sidecars provide capabilities that overlap with Encina's core value proposition. Users shouldn't need to choose between Encina and Dapr - Encina should provide everything needed for distributed systems natively.
 
-**Package**: `SimpleMediator.Infrastructure`
+**Package**: `Encina.Infrastructure`
 
 #### Service Discovery
 
@@ -895,7 +895,7 @@ services.AddSimpleMediator(config =>
 
 #### Virtual Actors (Optional)
 
-**Package**: `SimpleMediator.Actors`
+**Package**: `Encina.Actors`
 
 | Feature | Priority | Complexity | Notes |
 |---------|----------|------------|-------|
@@ -956,7 +956,7 @@ public interface ISecretManager
 public record Secret<T>(T Value, DateTimeOffset? ExpiresAt, bool IsRotatable);
 
 // Registration
-services.AddSimpleMediator(config =>
+services.AddEncina(config =>
 {
     config.UseServiceDiscovery(sd =>
     {
@@ -998,7 +998,7 @@ Applications must rely on external solutions:
 
 **Goal**: Make Encina the definitive choice for .NET distributed systems by natively implementing the best features from all major competitors - and going beyond.
 
-**Strategic Decision**: Deprecate integration packages (`SimpleMediator.Dapr`, `SimpleMediator.NServiceBus`, `SimpleMediator.MassTransit`, `SimpleMediator.Wolverine`) and instead implement their unique capabilities natively in Encina.
+**Strategic Decision**: Deprecate integration packages (`Encina.Dapr`, `Encina.NServiceBus`, `Encina.MassTransit`, `Encina.Wolverine`) and instead implement their unique capabilities natively in Encina.
 
 #### Competitor Analysis Summary
 
@@ -1076,7 +1076,7 @@ Applications must rely on external solutions:
 
 **Goal**: Provide ServicePulse/ServiceInsight-level monitoring without commercial licensing.
 
-**Package**: `SimpleMediator.Dashboard`
+**Package**: `Encina.Dashboard`
 
 | Feature | Priority | Complexity | Notes |
 |---------|----------|------------|-------|
@@ -1094,7 +1094,7 @@ Applications must rely on external solutions:
 
 ```csharp
 // Registration
-services.AddSimpleMediator(config =>
+services.AddEncina(config =>
 {
     config.UseDashboard(dashboard =>
     {
@@ -1237,7 +1237,7 @@ result.Match(
 
 | Package | Priority | Notes |
 |---------|----------|-------|
-| SimpleMediator.ODBC | ⭐⭐⭐ | Legacy databases |
+| Encina.ODBC | ⭐⭐⭐ | Legacy databases |
 
 ---
 
@@ -1245,7 +1245,7 @@ result.Match(
 
 ### Renaming: Encina
 
-**Current Name**: SimpleMediator → **New Name**: Encina
+**Previous Name**: SimpleMediator → **Current Name**: Encina ✅ COMPLETED
 
 **Why Encina?** Spanish word for holm oak - symbolizing strength, resilience, and longevity.
 
@@ -1285,10 +1285,10 @@ result.Match(
 |---------|--------|
 | Generic Variance | Goes against "explicit over implicit" |
 | MediatorResult<T> Wrapper | Either<L,R> from LanguageExt is sufficient |
-| **SimpleMediator.Dapr** (deprecated) | Dapr competes with Encina's value proposition. See "Self-Sufficient Architecture". |
-| **SimpleMediator.NServiceBus** (deprecated) | Enterprise licensing conflicts with free philosophy. See "Competitive Edge". |
-| **SimpleMediator.MassTransit** (deprecated) | Overlapping patterns (Outbox/Inbox/Sagas). See "Competitive Edge". |
-| **SimpleMediator.Wolverine** (deprecated) | Competing message bus with own patterns. See "Competitive Edge". |
+| **Encina.Dapr** (deprecated) | Dapr competes with Encina's value proposition. See "Self-Sufficient Architecture". |
+| **Encina.NServiceBus** (deprecated) | Enterprise licensing conflicts with free philosophy. See "Competitive Edge". |
+| **Encina.MassTransit** (deprecated) | Overlapping patterns (Outbox/Inbox/Sagas). See "Competitive Edge". |
+| **Encina.Wolverine** (deprecated) | Competing message bus with own patterns. See "Competitive Edge". |
 
 See ADR-004 and ADR-005 for detailed rationale.
 
@@ -1296,7 +1296,7 @@ See ADR-004 and ADR-005 for detailed rationale.
 
 **Status**: All deprecated (code preserved in `.backup/deprecated-packages/`)
 
-**Packages Deprecated**: `SimpleMediator.Dapr`, `SimpleMediator.NServiceBus`, `SimpleMediator.MassTransit`, `SimpleMediator.Wolverine`
+**Packages Deprecated**: `Encina.Dapr`, `Encina.NServiceBus`, `Encina.MassTransit`, `Encina.Wolverine`
 
 **Rationale**: After careful analysis, these frameworks compete with Encina rather than complement it:
 

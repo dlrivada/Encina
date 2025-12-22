@@ -1,6 +1,6 @@
 # Design Patterns Guide
 
-This guide explains the key design patterns used in SimpleMediator, their purpose, implementation details, and how they work together to create a robust, maintainable mediator library.
+This guide explains the key design patterns used in Encina, their purpose, implementation details, and how they work together to create a robust, maintainable mediator library.
 
 ## Table of Contents
 
@@ -114,13 +114,13 @@ public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TReques
 - **Testability:** Easy to test handlers in isolation
 - **Consistency:** All requests flow through the same pipeline
 
-### Implementation in SimpleMediator
+### Implementation in Encina
 
 ```csharp
-public sealed partial class SimpleMediator : IMediator
+public sealed partial class Encina : IMediator
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<SimpleMediator> _logger;
+    private readonly ILogger<Encina> _logger;
 
     public ValueTask<Either<MediatorError, TResponse>> Send<TResponse>(
         IRequest<TResponse> request, CancellationToken ct = default)
@@ -201,7 +201,7 @@ Error Path (Left):             Error ←  Error  ←   Error
 
 **Key Principle:** Once you enter the Left track, you stay on the Left track (short-circuiting).
 
-### Implementation in SimpleMediator
+### Implementation in Encina
 
 ```csharp
 // Pipeline execution with short-circuiting
@@ -362,7 +362,7 @@ LoggingBehavior.After
 Response
 ```
 
-### Implementation in SimpleMediator
+### Implementation in Encina
 
 ```csharp
 // PipelineBuilder creates nested delegates (Russian doll pattern)
@@ -464,7 +464,7 @@ GetUserHandler.Handle (actual logic)
 - **Chain:** One handler processes OR passes to next
 - **Decorator:** All decorators execute in sequence, wrapping the core handler
 
-In SimpleMediator, behaviors are both:
+In Encina, behaviors are both:
 
 - **Chain:** Can short-circuit by returning Left without calling `next()`
 - **Decorator:** Wrap the handler and add functionality before/after
@@ -540,12 +540,12 @@ public class TrackOrderAnalyticsHandler : INotificationHandler<OrderCreatedNotif
 }
 ```
 
-### Implementation in SimpleMediator
+### Implementation in Encina
 
 ```csharp
 // NotificationDispatcher broadcasts to all handlers
 public static async Task<Either<MediatorError, Unit>> ExecuteAsync<TNotification>(
-    SimpleMediator mediator, TNotification notification, CancellationToken ct)
+    Encina mediator, TNotification notification, CancellationToken ct)
     where TNotification : INotification
 {
     var notificationType = notification?.GetType() ?? typeof(TNotification);
@@ -582,7 +582,7 @@ public static async Task<Either<MediatorError, Unit>> ExecuteAsync<TNotification
 
 Encapsulate object creation logic and provide a common interface for creating families of related objects.
 
-### Implementation in SimpleMediator
+### Implementation in Encina
 
 ```csharp
 // Abstract factory interface
@@ -590,7 +590,7 @@ internal interface IRequestHandlerWrapper
 {
     Type HandlerServiceType { get; }
     object? ResolveHandler(IServiceProvider serviceProvider);
-    Task<object> Handle(SimpleMediator mediator, object request, object handler,
+    Task<object> Handle(Encina mediator, object request, object handler,
                        IServiceProvider serviceProvider, CancellationToken ct);
 }
 
@@ -603,7 +603,7 @@ internal sealed class RequestHandlerWrapper<TRequest, TResponse> : IRequestHandl
     public object? ResolveHandler(IServiceProvider serviceProvider)
         => serviceProvider.GetService<IRequestHandler<TRequest, TResponse>>();
 
-    public async Task<object> Handle(SimpleMediator mediator, object request, object handler,
+    public async Task<object> Handle(Encina mediator, object request, object handler,
                                     IServiceProvider serviceProvider, CancellationToken ct)
     {
         var typedRequest = (TRequest)request;
@@ -798,7 +798,7 @@ await result;
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     Mediator Pattern                         │
-│  (SimpleMediator coordinates all communication)              │
+│  (Encina coordinates all communication)              │
 └────────────┬────────────────────────────────────────────────┘
              │
              ├─► Railway Oriented Programming
@@ -866,7 +866,7 @@ result.Match(
 
 | Pattern | Primary Benefit | Used In |
 |---------|----------------|---------|
-| **Mediator** | Decoupling | SimpleMediator |
+| **Mediator** | Decoupling | Encina |
 | **Railway Oriented Programming** | Explicit errors | All async operations |
 | **Chain of Responsibility** | Composable behaviors | Pipeline behaviors |
 | **Decorator** | Dynamic functionality | Pipeline behaviors |

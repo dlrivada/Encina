@@ -118,7 +118,7 @@ Para mitigar los aspectos negativos:
 
 ### Tests Afectados
 
-- **9 tests skipped** en `SimpleMediatorTests.cs` que verificaban captura de excepciones
+- **9 tests skipped** en `EncinaTests.cs` que verificaban captura de excepciones
 - **1 test skipped** en `ConfigurationProperties.cs` (property test que verificaba excepciones)
 - Total: **10 tests skipped** con razón: `"Pure ROP: exceptions now propagate (fail-fast)"`
 

@@ -1,6 +1,6 @@
 # Integration Testing with Docker
 
-SimpleMediator uses Docker containers for integration testing against real database engines. This ensures high-quality, production-like testing without requiring local database installations.
+Encina uses Docker containers for integration testing against real database engines. This ensures high-quality, production-like testing without requiring local database installations.
 
 ## Prerequisites
 
@@ -62,10 +62,10 @@ Connection strings are defined in `tests/appsettings.Testing.json`:
 
 | Database   | Host          | Port | User      | Password            |
 |------------|---------------|------|-----------|---------------------|
-| SQL Server | localhost     | 1433 | sa        | SimpleMediator123!  |
-| PostgreSQL | localhost     | 5432 | mediator  | SimpleMediator123!  |
-| MySQL      | localhost     | 3306 | mediator  | SimpleMediator123!  |
-| Oracle XE  | localhost     | 1521 | system    | SimpleMediator123!  |
+| SQL Server | localhost     | 1433 | sa        | Encina123!  |
+| PostgreSQL | localhost     | 5432 | mediator  | Encina123!  |
+| MySQL      | localhost     | 3306 | mediator  | Encina123!  |
+| Oracle XE  | localhost     | 1521 | system    | Encina123!  |
 | SQLite     | In-memory     | N/A  | N/A       | N/A                 |
 
 ### Docker Images
@@ -190,7 +190,7 @@ docker-compose up -d
 docker ps
 
 # Check specific container health status
-docker inspect simplemediator-sqlserver --format='{{.State.Health.Status}}'
+docker inspect Encina-sqlserver --format='{{.State.Health.Status}}'
 
 # If unhealthy, examine logs
 docker-compose logs sqlserver
@@ -210,7 +210,7 @@ Oracle XE has a large image size (~2 GB) and slow startup (~60 seconds):
 
 ### Test Infrastructure
 
-The `SimpleMediator.TestInfrastructure` project provides:
+The `Encina.TestInfrastructure` project provides:
 
 - **Database Fixtures**: Per-provider fixtures implementing `IAsyncLifetime`
 - **Schema Builders**: Database-specific DDL for Outbox, Inbox, Sagas, Scheduling

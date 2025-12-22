@@ -1,0 +1,144 @@
+#nullable enable
+Encina.Dapper.SqlServer.Inbox.IIdempotentRequest
+Encina.Dapper.SqlServer.Inbox.InboxMessage
+Encina.Dapper.SqlServer.Inbox.InboxMessage.ErrorMessage.get -> string?
+Encina.Dapper.SqlServer.Inbox.InboxMessage.ErrorMessage.set -> void
+Encina.Dapper.SqlServer.Inbox.InboxMessage.ExpiresAtUtc.get -> System.DateTime
+Encina.Dapper.SqlServer.Inbox.InboxMessage.ExpiresAtUtc.set -> void
+Encina.Dapper.SqlServer.Inbox.InboxMessage.InboxMessage() -> void
+Encina.Dapper.SqlServer.Inbox.InboxMessage.IsExpired() -> bool
+Encina.Dapper.SqlServer.Inbox.InboxMessage.IsProcessed.get -> bool
+Encina.Dapper.SqlServer.Inbox.InboxMessage.MessageId.get -> string!
+Encina.Dapper.SqlServer.Inbox.InboxMessage.MessageId.set -> void
+Encina.Dapper.SqlServer.Inbox.InboxMessage.Metadata.get -> string?
+Encina.Dapper.SqlServer.Inbox.InboxMessage.Metadata.set -> void
+Encina.Dapper.SqlServer.Inbox.InboxMessage.NextRetryAtUtc.get -> System.DateTime?
+Encina.Dapper.SqlServer.Inbox.InboxMessage.NextRetryAtUtc.set -> void
+Encina.Dapper.SqlServer.Inbox.InboxMessage.ProcessedAtUtc.get -> System.DateTime?
+Encina.Dapper.SqlServer.Inbox.InboxMessage.ProcessedAtUtc.set -> void
+Encina.Dapper.SqlServer.Inbox.InboxMessage.ReceivedAtUtc.get -> System.DateTime
+Encina.Dapper.SqlServer.Inbox.InboxMessage.ReceivedAtUtc.set -> void
+Encina.Dapper.SqlServer.Inbox.InboxMessage.RequestType.get -> string!
+Encina.Dapper.SqlServer.Inbox.InboxMessage.RequestType.set -> void
+Encina.Dapper.SqlServer.Inbox.InboxMessage.Response.get -> string?
+Encina.Dapper.SqlServer.Inbox.InboxMessage.Response.set -> void
+Encina.Dapper.SqlServer.Inbox.InboxMessage.RetryCount.get -> int
+Encina.Dapper.SqlServer.Inbox.InboxMessage.RetryCount.set -> void
+Encina.Dapper.SqlServer.Inbox.InboxPipelineBehavior<TRequest, TResponse>
+Encina.Dapper.SqlServer.Inbox.InboxPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.Dapper.SqlServer.Inbox.InboxPipelineBehavior<TRequest, TResponse>.InboxPipelineBehavior(System.Data.IDbConnection! connection, Encina.Messaging.Inbox.InboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Dapper.SqlServer.Inbox.InboxPipelineBehavior<TRequest, TResponse>!>! logger, string! tableName = "InboxMessages") -> void
+Encina.Dapper.SqlServer.Inbox.InboxStoreDapper
+Encina.Dapper.SqlServer.Inbox.InboxStoreDapper.AddAsync(Encina.Messaging.Inbox.IInboxMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Inbox.InboxStoreDapper.GetExpiredMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Inbox.IInboxMessage!>!>!
+Encina.Dapper.SqlServer.Inbox.InboxStoreDapper.GetMessageAsync(string! messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Inbox.IInboxMessage?>!
+Encina.Dapper.SqlServer.Inbox.InboxStoreDapper.InboxStoreDapper(System.Data.IDbConnection! connection, string! tableName = "InboxMessages") -> void
+Encina.Dapper.SqlServer.Inbox.InboxStoreDapper.MarkAsFailedAsync(string! messageId, string! errorMessage, System.DateTime? nextRetryAtUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Inbox.InboxStoreDapper.MarkAsProcessedAsync(string! messageId, string? response, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Inbox.InboxStoreDapper.RemoveExpiredMessagesAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Inbox.InboxStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Outbox.IHasNotifications
+Encina.Dapper.SqlServer.Outbox.IHasNotifications.GetNotifications() -> System.Collections.Generic.IEnumerable<Encina.INotification!>!
+Encina.Dapper.SqlServer.Outbox.OutboxMessage
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.Content.get -> string!
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.Content.set -> void
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.CreatedAtUtc.get -> System.DateTime
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.CreatedAtUtc.set -> void
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.ErrorMessage.get -> string?
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.ErrorMessage.set -> void
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.Id.get -> System.Guid
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.Id.set -> void
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.IsDeadLettered(int maxRetries) -> bool
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.IsProcessed.get -> bool
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.NextRetryAtUtc.get -> System.DateTime?
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.NextRetryAtUtc.set -> void
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.NotificationType.get -> string!
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.NotificationType.set -> void
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.OutboxMessage() -> void
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.ProcessedAtUtc.get -> System.DateTime?
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.ProcessedAtUtc.set -> void
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.RetryCount.get -> int
+Encina.Dapper.SqlServer.Outbox.OutboxMessage.RetryCount.set -> void
+Encina.Dapper.SqlServer.Outbox.OutboxPostProcessor<TRequest, TResponse>
+Encina.Dapper.SqlServer.Outbox.OutboxPostProcessor<TRequest, TResponse>.OutboxPostProcessor(Encina.Messaging.Outbox.IOutboxStore! outboxStore, Microsoft.Extensions.Logging.ILogger<Encina.Dapper.SqlServer.Outbox.OutboxPostProcessor<TRequest, TResponse>!>! logger) -> void
+Encina.Dapper.SqlServer.Outbox.OutboxPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, LanguageExt.Either<Encina.MediatorError, TResponse> result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Outbox.OutboxProcessor
+Encina.Dapper.SqlServer.Outbox.OutboxProcessor.OutboxProcessor(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Dapper.SqlServer.Outbox.OutboxProcessor!>! logger, Encina.Messaging.Outbox.OutboxOptions! options) -> void
+Encina.Dapper.SqlServer.Outbox.OutboxStoreDapper
+Encina.Dapper.SqlServer.Outbox.OutboxStoreDapper.AddAsync(Encina.Messaging.Outbox.IOutboxMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Outbox.OutboxStoreDapper.GetPendingMessagesAsync(int batchSize, int maxRetries, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Outbox.IOutboxMessage!>!>!
+Encina.Dapper.SqlServer.Outbox.OutboxStoreDapper.MarkAsFailedAsync(System.Guid messageId, string! errorMessage, System.DateTime? nextRetryAtUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Outbox.OutboxStoreDapper.MarkAsProcessedAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Outbox.OutboxStoreDapper.OutboxStoreDapper(System.Data.IDbConnection! connection, string! tableName = "OutboxMessages") -> void
+Encina.Dapper.SqlServer.Outbox.OutboxStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Sagas.SagaState
+Encina.Dapper.SqlServer.Sagas.SagaState.CompletedAtUtc.get -> System.DateTime?
+Encina.Dapper.SqlServer.Sagas.SagaState.CompletedAtUtc.set -> void
+Encina.Dapper.SqlServer.Sagas.SagaState.CurrentStep.get -> int
+Encina.Dapper.SqlServer.Sagas.SagaState.CurrentStep.set -> void
+Encina.Dapper.SqlServer.Sagas.SagaState.Data.get -> string!
+Encina.Dapper.SqlServer.Sagas.SagaState.Data.set -> void
+Encina.Dapper.SqlServer.Sagas.SagaState.ErrorMessage.get -> string?
+Encina.Dapper.SqlServer.Sagas.SagaState.ErrorMessage.set -> void
+Encina.Dapper.SqlServer.Sagas.SagaState.LastUpdatedAtUtc.get -> System.DateTime
+Encina.Dapper.SqlServer.Sagas.SagaState.LastUpdatedAtUtc.set -> void
+Encina.Dapper.SqlServer.Sagas.SagaState.SagaId.get -> System.Guid
+Encina.Dapper.SqlServer.Sagas.SagaState.SagaId.set -> void
+Encina.Dapper.SqlServer.Sagas.SagaState.SagaState() -> void
+Encina.Dapper.SqlServer.Sagas.SagaState.SagaType.get -> string!
+Encina.Dapper.SqlServer.Sagas.SagaState.SagaType.set -> void
+Encina.Dapper.SqlServer.Sagas.SagaState.StartedAtUtc.get -> System.DateTime
+Encina.Dapper.SqlServer.Sagas.SagaState.StartedAtUtc.set -> void
+Encina.Dapper.SqlServer.Sagas.SagaState.Status.get -> string!
+Encina.Dapper.SqlServer.Sagas.SagaState.Status.set -> void
+Encina.Dapper.SqlServer.Sagas.SagaStoreDapper
+Encina.Dapper.SqlServer.Sagas.SagaStoreDapper.AddAsync(Encina.Messaging.Sagas.ISagaState! sagaState, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Sagas.SagaStoreDapper.GetAsync(System.Guid sagaId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Sagas.ISagaState?>!
+Encina.Dapper.SqlServer.Sagas.SagaStoreDapper.GetStuckSagasAsync(System.TimeSpan olderThan, int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Sagas.ISagaState!>!>!
+Encina.Dapper.SqlServer.Sagas.SagaStoreDapper.SagaStoreDapper(System.Data.IDbConnection! connection, string! tableName = "SagaStates") -> void
+Encina.Dapper.SqlServer.Sagas.SagaStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Sagas.SagaStoreDapper.UpdateAsync(Encina.Messaging.Sagas.ISagaState! sagaState, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.Content.get -> string!
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.Content.set -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.CreatedAtUtc.get -> System.DateTime
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.CreatedAtUtc.set -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.CronExpression.get -> string?
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.CronExpression.set -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.ErrorMessage.get -> string?
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.ErrorMessage.set -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.Id.get -> System.Guid
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.Id.set -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.IsDeadLettered(int maxRetries) -> bool
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.IsDue() -> bool
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.IsProcessed.get -> bool
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.IsRecurring.get -> bool
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.IsRecurring.set -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.LastExecutedAtUtc.get -> System.DateTime?
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.LastExecutedAtUtc.set -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.NextRetryAtUtc.get -> System.DateTime?
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.NextRetryAtUtc.set -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.ProcessedAtUtc.get -> System.DateTime?
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.ProcessedAtUtc.set -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.RequestType.get -> string!
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.RequestType.set -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.RetryCount.get -> int
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.RetryCount.set -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.ScheduledAtUtc.get -> System.DateTime
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.ScheduledAtUtc.set -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessage.ScheduledMessage() -> void
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper.AddAsync(Encina.Messaging.Scheduling.IScheduledMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper.CancelAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper.GetDueMessagesAsync(int batchSize, int maxRetries, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Scheduling.IScheduledMessage!>!>!
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper.MarkAsFailedAsync(System.Guid messageId, string! errorMessage, System.DateTime? nextRetryAtUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper.MarkAsProcessedAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper.RescheduleRecurringMessageAsync(System.Guid messageId, System.DateTime nextScheduledAtUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper.ScheduledMessageStoreDapper(System.Data.IDbConnection! connection, string! tableName = "ScheduledMessages") -> void
+Encina.Dapper.SqlServer.ServiceCollectionExtensions
+Encina.Dapper.SqlServer.TransactionPipelineBehavior<TRequest, TResponse>
+Encina.Dapper.SqlServer.TransactionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! next, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.Dapper.SqlServer.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(System.Data.IDbConnection! connection) -> void
+static Encina.Dapper.SqlServer.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Dapper.SqlServer.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Dapper.SqlServer.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, System.Data.IDbConnection!>! connectionFactory, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -188,7 +188,7 @@ public async ValueTask<Either<MediatorError, TResponse>> Handle(...)
 **Only during startup and configuration (fail-fast scenarios):**
 
 1. **Service Registration:**
-   - During `AddSimpleMediator()` - DI setup errors
+   - During `AddEncina()` - DI setup errors
    - Assembly scanning failures
    - Invalid configuration (missing handlers, invalid behavior registrations)
    - Null parameters in constructors (`ArgumentNullException`)

@@ -1,0 +1,46 @@
+#nullable enable
+Encina.Caching.Redis.RedisCacheOptions
+Encina.Caching.Redis.RedisCacheOptions.Database.get -> int
+Encina.Caching.Redis.RedisCacheOptions.Database.set -> void
+Encina.Caching.Redis.RedisCacheOptions.DefaultExpiration.get -> System.TimeSpan
+Encina.Caching.Redis.RedisCacheOptions.DefaultExpiration.set -> void
+Encina.Caching.Redis.RedisCacheOptions.KeyPrefix.get -> string!
+Encina.Caching.Redis.RedisCacheOptions.KeyPrefix.set -> void
+Encina.Caching.Redis.RedisCacheOptions.RedisCacheOptions() -> void
+Encina.Caching.Redis.RedisCacheProvider
+Encina.Caching.Redis.RedisCacheProvider.ExistsAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Encina.Caching.Redis.RedisCacheProvider.GetAsync<T>(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T?>!
+Encina.Caching.Redis.RedisCacheProvider.GetOrSetAsync<T>(string! key, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>!>! factory, System.TimeSpan? expiration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
+Encina.Caching.Redis.RedisCacheProvider.RedisCacheProvider(StackExchange.Redis.IConnectionMultiplexer! connection, Microsoft.Extensions.Options.IOptions<Encina.Caching.Redis.RedisCacheOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Caching.Redis.RedisCacheProvider!>! logger) -> void
+Encina.Caching.Redis.RedisCacheProvider.RefreshAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Encina.Caching.Redis.RedisCacheProvider.RemoveAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Caching.Redis.RedisCacheProvider.RemoveByPatternAsync(string! pattern, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Caching.Redis.RedisCacheProvider.SetAsync<T>(string! key, T value, System.TimeSpan? expiration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Caching.Redis.RedisCacheProvider.SetWithSlidingExpirationAsync<T>(string! key, T value, System.TimeSpan slidingExpiration, System.TimeSpan? absoluteExpiration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Caching.Redis.RedisDistributedLockProvider
+Encina.Caching.Redis.RedisDistributedLockProvider.AcquireAsync(string! resource, System.TimeSpan expiry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.IAsyncDisposable!>!
+Encina.Caching.Redis.RedisDistributedLockProvider.ExtendAsync(string! resource, System.TimeSpan extension, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Encina.Caching.Redis.RedisDistributedLockProvider.IsLockedAsync(string! resource, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Encina.Caching.Redis.RedisDistributedLockProvider.RedisDistributedLockProvider(StackExchange.Redis.IConnectionMultiplexer! connection, Microsoft.Extensions.Options.IOptions<Encina.Caching.Redis.RedisLockOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Caching.Redis.RedisDistributedLockProvider!>! logger) -> void
+Encina.Caching.Redis.RedisDistributedLockProvider.TryAcquireAsync(string! resource, System.TimeSpan expiry, System.TimeSpan wait, System.TimeSpan retry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.IAsyncDisposable?>!
+Encina.Caching.Redis.RedisLockOptions
+Encina.Caching.Redis.RedisLockOptions.Database.get -> int
+Encina.Caching.Redis.RedisLockOptions.Database.set -> void
+Encina.Caching.Redis.RedisLockOptions.KeyPrefix.get -> string!
+Encina.Caching.Redis.RedisLockOptions.KeyPrefix.set -> void
+Encina.Caching.Redis.RedisLockOptions.RedisLockOptions() -> void
+Encina.Caching.Redis.RedisPubSubProvider
+Encina.Caching.Redis.RedisPubSubProvider.GetSubscriberCountAsync(string! channel, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Encina.Caching.Redis.RedisPubSubProvider.PublishAsync(string! channel, string! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Caching.Redis.RedisPubSubProvider.PublishAsync<T>(string! channel, T message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Caching.Redis.RedisPubSubProvider.RedisPubSubProvider(StackExchange.Redis.IConnectionMultiplexer! connection, Microsoft.Extensions.Logging.ILogger<Encina.Caching.Redis.RedisPubSubProvider!>! logger) -> void
+Encina.Caching.Redis.RedisPubSubProvider.SubscribeAsync(string! channel, System.Func<string!, System.Threading.Tasks.Task!>! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.IAsyncDisposable!>!
+Encina.Caching.Redis.RedisPubSubProvider.SubscribeAsync<T>(string! channel, System.Func<T, System.Threading.Tasks.Task!>! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.IAsyncDisposable!>!
+Encina.Caching.Redis.RedisPubSubProvider.SubscribePatternAsync(string! pattern, System.Func<string!, string!, System.Threading.Tasks.Task!>! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.IAsyncDisposable!>!
+Encina.Caching.Redis.RedisPubSubProvider.UnsubscribeAsync(string! channel, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Caching.Redis.RedisPubSubProvider.UnsubscribePatternAsync(string! pattern, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Caching.Redis.ServiceCollectionExtensions
+static Encina.Caching.Redis.ServiceCollectionExtensions.AddEncinaRedisCache(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, StackExchange.Redis.IConnectionMultiplexer! connectionMultiplexer) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Caching.Redis.ServiceCollectionExtensions.AddEncinaRedisCache(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, StackExchange.Redis.IConnectionMultiplexer! connectionMultiplexer, System.Action<Encina.Caching.Redis.RedisCacheOptions!>! configureCacheOptions, System.Action<Encina.Caching.Redis.RedisLockOptions!>! configureLockOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Caching.Redis.ServiceCollectionExtensions.AddEncinaRedisCache(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Caching.Redis.ServiceCollectionExtensions.AddEncinaRedisCache(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Encina.Caching.Redis.RedisCacheOptions!>! configureCacheOptions, System.Action<Encina.Caching.Redis.RedisLockOptions!>! configureLockOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -1,4 +1,4 @@
-# SimpleMediator Performance Testing Guide
+# Encina Performance Testing Guide
 
 ## Objectives
 
@@ -7,12 +7,12 @@
 
 ## Tooling Plan
 
-- Project scaffold: `benchmarks/SimpleMediator.Benchmarks` (BenchmarkDotNet, net10.0).
+- Project scaffold: `benchmarks/Encina.Benchmarks` (BenchmarkDotNet, net10.0).
 - Scenarios: command send with instrumentation, notification publish across multi-handlers.
 
 ## Execution
 
-- Restore dependencies: `dotnet restore SimpleMediator.slnx`.
+- Restore dependencies: `dotnet restore Encina.slnx`.
 - Run suites with `dotnet run --file scripts/run-benchmarks.cs` to generate a timestamped artifact directory.
 - Persist results under `artifacts/performance/<timestamp>/` for historical comparison (script handles directory creation and logs the path).
 

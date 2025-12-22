@@ -112,7 +112,7 @@ static string FindRepositoryRoot()
     var directory = new DirectoryInfo(Environment.CurrentDirectory);
     while (directory is not null)
     {
-        var candidate = Path.Combine(directory.FullName, "SimpleMediator.slnx");
+        var candidate = Path.Combine(directory.FullName, "Encina.slnx");
         if (File.Exists(candidate))
         {
             return directory.FullName;
@@ -121,5 +121,5 @@ static string FindRepositoryRoot()
         directory = directory.Parent;
     }
 
-    throw new InvalidOperationException("Could not locate repository root containing SimpleMediator.slnx.");
+    throw new InvalidOperationException("Could not locate repository root containing Encina.slnx.");
 }

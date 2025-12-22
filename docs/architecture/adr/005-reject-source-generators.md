@@ -7,7 +7,7 @@
 
 ## Context
 
-Source Generators in C# (.NET 5+) allow compile-time code generation, enabling the elimination of runtime reflection. This technology could potentially be used in SimpleMediator to:
+Source Generators in C# (.NET 5+) allow compile-time code generation, enabling the elimination of runtime reflection. This technology could potentially be used in Encina to:
 
 1. Generate handler registration code at compile-time
 2. Generate strongly-typed mediator dispatching code
@@ -16,7 +16,7 @@ Source Generators in C# (.NET 5+) allow compile-time code generation, enabling t
 
 ### Current Implementation
 
-SimpleMediator currently uses:
+Encina currently uses:
 
 - **Reflection** for assembly scanning to discover handlers
 - **Expression Trees** for compiling handler invocation delegates
@@ -114,7 +114,7 @@ Current system supports dynamic scenarios:
 
 ```csharp
 // ✅ Works today - runtime assembly scanning
-services.AddSimpleMediator(cfg =>
+services.AddEncina(cfg =>
     cfg.RegisterServicesFromAssemblies(
         Assembly.GetEntryAssembly(),
         LoadPluginAssembly("MyPlugin.dll")
@@ -291,7 +291,7 @@ If Native AOT becomes a requirement:
 
 ```csharp
 // Simple registration - assembly scanning
-services.AddSimpleMediator(cfg =>
+services.AddEncina(cfg =>
     cfg.RegisterServicesFromAssemblyContaining<ApplicationMarker>());
 
 // Or explicit registration if preferred

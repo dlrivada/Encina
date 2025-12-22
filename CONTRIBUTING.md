@@ -1,12 +1,12 @@
-# Contributing to SimpleMediator
+# Contributing to Encina
 
 Gracias por contribuir. Este proyecto prioriza código limpio, rail funcional (sin excepciones operativas) y calidad automatizada.
 
 ## Requisitos antes de abrir PR
 
 - Sigue Conventional Commits en el título del PR (`type(scope?): subject`) o justifica la excepción.
-- Ejecuta `dotnet format SimpleMediator.slnx --verify-no-changes`.
-- Ejecuta `dotnet test SimpleMediator.slnx --configuration Release`.
+- Ejecuta `dotnet format Encina.slnx --verify-no-changes`.
+- Ejecuta `dotnet test Encina.slnx --configuration Release`.
 - Si cambias comportamiento público o métricas, añade/ajusta tests.
 - Mantén la política de Zero Exceptions: errores operativos deben viajar como `Either<MediatorError, TValue>`.
 - No silencies warnings sin justificación documentada; `TreatWarningsAsErrors` está activo.

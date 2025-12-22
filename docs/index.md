@@ -2,14 +2,14 @@
 _layout: landing
 ---
 
-# SimpleMediator
+# Encina
 
 **Railway Oriented Mediator for .NET 10**
 
-SimpleMediator is a lightweight, functional mediator abstraction for .NET applications that embraces Railway Oriented Programming (ROP) principles. Built on top of [LanguageExt](https://github.com/louthy/language-ext), it provides explicit request/response contracts, composable pipeline behaviors, and rich observability features for building maintainable CQRS-style applications.
+Encina is a lightweight, functional mediator abstraction for .NET applications that embraces Railway Oriented Programming (ROP) principles. Built on top of [LanguageExt](https://github.com/louthy/language-ext), it provides explicit request/response contracts, composable pipeline behaviors, and rich observability features for building maintainable CQRS-style applications.
 
-[![.NET Quality Gate](https://github.com/dlrivada/SimpleMediator/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/dlrivada/SimpleMediator/actions/workflows/dotnet-ci.yml)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_SimpleMediator&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dlrivada_SimpleMediator)
+[![.NET Quality Gate](https://github.com/dlrivada/Encina/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/dotnet-ci.yml)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 ![Mutation](https://img.shields.io/badge/mutation-93.74%25-4C934C.svg)
 
 ## Key Features
@@ -27,15 +27,15 @@ SimpleMediator is a lightweight, functional mediator abstraction for .NET applic
 ### Installation
 
 ```bash
-dotnet add package SimpleMediator
+dotnet add package Encina
 ```
 
 ### Basic Configuration
 
 ```csharp
-using SimpleMediator;
+using Encina;
 
-services.AddSimpleMediator(cfg =>
+services.AddEncina(cfg =>
 {
     cfg.RegisterServicesFromAssemblyContaining<ApplicationMarker>()
        .AddPipelineBehavior(typeof(CommandActivityPipelineBehavior<,>))
@@ -57,7 +57,7 @@ result.Match(
 
 ## Documentation
 
-- [API Reference](https://dlrivada.github.io/SimpleMediator/api/SimpleMediator.html) - Complete API documentation
+- [API Reference](https://dlrivada.github.io/Encina/api/Encina.html) - Complete API documentation
 - [Getting Started](docs/getting-started.md) - Quick start guide
 - [Introduction](docs/introduction.md) - Core concepts and architecture
 - [Architecture Patterns](architecture/patterns-guide.md) - Design patterns and best practices
@@ -84,9 +84,9 @@ result.Match(
 
 ## Resources
 
-- [GitHub Repository](https://github.com/dlrivada/SimpleMediator)
-- [Quality & Security Roadmap](https://github.com/dlrivada/SimpleMediator/blob/main/QUALITY_SECURITY_ROADMAP.md)
-- [Contributing Guide](https://github.com/dlrivada/SimpleMediator/blob/main/CONTRIBUTING.md)
+- [GitHub Repository](https://github.com/dlrivada/Encina)
+- [Quality & Security Roadmap](https://github.com/dlrivada/Encina/blob/main/QUALITY_SECURITY_ROADMAP.md)
+- [Contributing Guide](https://github.com/dlrivada/Encina/blob/main/CONTRIBUTING.md)
 
 ---
 

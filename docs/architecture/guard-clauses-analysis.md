@@ -1,4 +1,4 @@
-# SimpleMediator.GuardClauses - Análisis de Diseño e Implementación
+# Encina.GuardClauses - Análisis de Diseño e Implementación
 
 ## 📋 Tabla de Contenidos
 
@@ -131,10 +131,10 @@ public class GuardClausesBehavior<TRequest, TResponse> : IPipelineBehavior<TRequ
 
 ### ✅ Opción 2: Extension Methods para ROP (RECOMENDADA)
 
-Crear extension methods que integren Ardalis.GuardClauses con el sistema ROP de SimpleMediator.
+Crear extension methods que integren Ardalis.GuardClauses con el sistema ROP de Encina.
 
 ```csharp
-namespace SimpleMediator.GuardClauses;
+namespace Encina.GuardClauses;
 
 public static class GuardExtensions
 {
@@ -234,7 +234,7 @@ public class CreateOrderHandler : ICommandHandler<CreateOrder, OrderId>
 **Ventajas**:
 
 - ✅ Integración natural con ROP
-- ✅ No modifica el API actual de SimpleMediator
+- ✅ No modifica el API actual de Encina
 - ✅ Los developers eligen cuándo usar guards
 - ✅ Composable con Bind/Map de LanguageExt
 
@@ -250,7 +250,7 @@ public class CreateOrderHandler : ICommandHandler<CreateOrder, OrderId>
 Para developers que prefieren estilo imperativo:
 
 ```csharp
-namespace SimpleMediator.GuardClauses;
+namespace Encina.GuardClauses;
 
 public static class GuardHelpers
 {
@@ -305,7 +305,7 @@ public async Task<Either<MediatorError, OrderId>> Handle(
 Ofrecer AMBOS estilos - funcional e imperativo:
 
 ```csharp
-namespace SimpleMediator.GuardClauses;
+namespace Encina.GuardClauses;
 
 /// <summary>
 /// Functional-style guards that return Either
@@ -358,11 +358,11 @@ return await CreateUser(request.Email);
 - ❌ NO requiere modificar `IPipelineBehavior`
 - ❌ NO requiere modificar `IRequestContext`
 - ❌ NO requiere modificar handlers existentes
-- ❌ NO requiere modificar el pipeline de SimpleMediator
+- ❌ NO requiere modificar el pipeline de Encina
 
 **Lo que se AGREGA**:
 
-- ✅ Nuevo package: `SimpleMediator.GuardClauses`
+- ✅ Nuevo package: `Encina.GuardClauses`
 - ✅ Extension methods para `Either<MediatorError, T>`
 - ✅ Helpers opcionales para estilo imperativo
 - ✅ Documentación y ejemplos
@@ -381,7 +381,7 @@ return await CreateUser(request.Email);
 
 1. **Defensive Programming con ROP**
    - Integra guards con Either<MediatorError, T>
-   - Mantiene la filosofía funcional de SimpleMediator
+   - Mantiene la filosofía funcional de Encina
 
 2. **Complementa Validación de Input**
    - FluentValidation/DataAnnotations: validan input externo
@@ -447,7 +447,7 @@ return await CreateUser(request.Email);
 
 4. **Potencial Confusión con Exceptions**
    - Ardalis.GuardClauses usa exceptions
-   - SimpleMediator usa ROP (Either)
+   - Encina usa ROP (Either)
    - Hay que wrappear las exceptions → overhead
 
 5. **Overhead de Wrapping Exceptions**
@@ -599,7 +599,7 @@ public Task<Either<MediatorError, UserId>> Handle(CreateUser request, Cancellati
 
 ### 📦 Alcance de Implementación
 
-**Incluir en SimpleMediator.GuardClauses**:
+**Incluir en Encina.GuardClauses**:
 
 1. **Extension Methods Funcionales** (GuardExtensions)
    - `GuardNotNull<T>`
@@ -713,13 +713,13 @@ public class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
 
 ## Conclusión
 
-**SimpleMediator.GuardClauses vale la pena SOLO SI**:
+**Encina.GuardClauses vale la pena SOLO SI**:
 1. Se documenta claramente cuándo usarlo vs validación de input
 2. Se enfoca en domain models y state validation
 3. Se ofrece estilo funcional e imperativo
 4. Se marca como "advanced" feature en la documentación
 
-**Si se implementa correctamente**, completa el ecosistema de validación de SimpleMediator dando a los developers herramientas para TODOS los escenarios:
+**Si se implementa correctamente**, completa el ecosistema de validación de Encina dando a los developers herramientas para TODOS los escenarios:
 - **Input validation**: FluentValidation/DataAnnotations/MiniValidator
 - **Defensive programming**: GuardClauses
 - **Domain invariants**: GuardClauses en constructores/métodos de dominio
@@ -728,7 +728,7 @@ public class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
 
 ## Pregunta para el Usuario
 
-**¿Quieres que implemente SimpleMediator.GuardClauses con el enfoque híbrido (funcional + imperativo)?**
+**¿Quieres que implemente Encina.GuardClauses con el enfoque híbrido (funcional + imperativo)?**
 
 **Alternativas**:
 1. ✅ **Implementar** con Opción 4 (Hybrid - funcional + imperativo)

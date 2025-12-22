@@ -16,7 +16,7 @@ var arguments = string.Join(' ', new[]
     "--configuration",
     "Release",
     "--project",
-    "benchmarks/SimpleMediator.Benchmarks/SimpleMediator.Benchmarks.csproj",
+    "benchmarks/Encina.Benchmarks/Encina.Benchmarks.csproj",
     "--",
     "--artifacts",
     Quote(outputDirectory),

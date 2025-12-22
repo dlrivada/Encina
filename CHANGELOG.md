@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to SimpleMediator will be documented in this file.
+All notable changes to Encina will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -27,35 +27,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Messaging Transports (12 packages)
 
-- SimpleMediator.Wolverine - WolverineFx 5.7.1 integration
-- SimpleMediator.NServiceBus - NServiceBus 9.2.8 integration
-- SimpleMediator.RabbitMQ - RabbitMQ.Client 7.2.0 integration
-- SimpleMediator.AzureServiceBus - Azure Service Bus 7.20.1 integration
-- SimpleMediator.AmazonSQS - AWS SQS/SNS 4.0.2.3 integration
-- SimpleMediator.Kafka - Confluent.Kafka 2.12.0 integration
-- SimpleMediator.Redis.PubSub - StackExchange.Redis pub/sub
-- SimpleMediator.InMemory - System.Threading.Channels message bus
-- SimpleMediator.NATS - NATS.Net 2.6.11 with JetStream support
-- SimpleMediator.MQTT - MQTTnet 5.0.1 integration
-- SimpleMediator.gRPC - Grpc.AspNetCore 2.71.0 mediator service
-- SimpleMediator.GraphQL - HotChocolate 15.1.11 bridge
+- Encina.Wolverine - WolverineFx 5.7.1 integration
+- Encina.NServiceBus - NServiceBus 9.2.8 integration
+- Encina.RabbitMQ - RabbitMQ.Client 7.2.0 integration
+- Encina.AzureServiceBus - Azure Service Bus 7.20.1 integration
+- Encina.AmazonSQS - AWS SQS/SNS 4.0.2.3 integration
+- Encina.Kafka - Confluent.Kafka 2.12.0 integration
+- Encina.Redis.PubSub - StackExchange.Redis pub/sub
+- Encina.InMemory - System.Threading.Channels message bus
+- Encina.NATS - NATS.Net 2.6.11 with JetStream support
+- Encina.MQTT - MQTTnet 5.0.1 integration
+- Encina.gRPC - Grpc.AspNetCore 2.71.0 mediator service
+- Encina.GraphQL - HotChocolate 15.1.11 bridge
 
 #### Caching (8 packages)
 
-- SimpleMediator.Caching - Core abstractions (ICacheProvider, ICacheKeyGenerator)
-- SimpleMediator.Caching.Memory - IMemoryCache provider (109 tests)
-- SimpleMediator.Caching.Hybrid - Microsoft HybridCache provider (.NET 9+)
-- SimpleMediator.Caching.Redis - StackExchange.Redis provider
-- SimpleMediator.Caching.Garnet - Microsoft Garnet provider
-- SimpleMediator.Caching.Valkey - Valkey provider (Redis fork)
-- SimpleMediator.Caching.Dragonfly - Dragonfly provider
-- SimpleMediator.Caching.KeyDB - KeyDB provider
+- Encina.Caching - Core abstractions (ICacheProvider, ICacheKeyGenerator)
+- Encina.Caching.Memory - IMemoryCache provider (109 tests)
+- Encina.Caching.Hybrid - Microsoft HybridCache provider (.NET 9+)
+- Encina.Caching.Redis - StackExchange.Redis provider
+- Encina.Caching.Garnet - Microsoft Garnet provider
+- Encina.Caching.Valkey - Valkey provider (Redis fork)
+- Encina.Caching.Dragonfly - Dragonfly provider
+- Encina.Caching.KeyDB - KeyDB provider
 
 #### Resilience (3 packages)
 
-- SimpleMediator.Extensions.Resilience - Microsoft standard resilience patterns
-- SimpleMediator.Refit - Type-safe REST API clients integration
-- SimpleMediator.Dapr - Service mesh integration (invocation, pub/sub, state, bindings, secrets)
+- Encina.Extensions.Resilience - Microsoft standard resilience patterns
+- Encina.Refit - Type-safe REST API clients integration
+- Encina.Dapr - Service mesh integration (invocation, pub/sub, state, bindings, secrets)
 
 ---
 
@@ -65,21 +65,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Database Providers (10 packages)
 
-- SimpleMediator.Dapper.SqlServer - SQL Server optimized
-- SimpleMediator.Dapper.PostgreSQL - PostgreSQL with Npgsql
-- SimpleMediator.Dapper.MySQL - MySQL/MariaDB with MySqlConnector
-- SimpleMediator.Dapper.Sqlite - SQLite for testing
-- SimpleMediator.Dapper.Oracle - Oracle with ManagedDataAccess
-- SimpleMediator.ADO.SqlServer - Raw ADO.NET (fastest)
-- SimpleMediator.ADO.PostgreSQL - PostgreSQL optimized
-- SimpleMediator.ADO.MySQL - MySQL/MariaDB optimized
-- SimpleMediator.ADO.Sqlite - SQLite optimized
-- SimpleMediator.ADO.Oracle - Oracle optimized
+- Encina.Dapper.SqlServer - SQL Server optimized
+- Encina.Dapper.PostgreSQL - PostgreSQL with Npgsql
+- Encina.Dapper.MySQL - MySQL/MariaDB with MySqlConnector
+- Encina.Dapper.Sqlite - SQLite for testing
+- Encina.Dapper.Oracle - Oracle with ManagedDataAccess
+- Encina.ADO.SqlServer - Raw ADO.NET (fastest)
+- Encina.ADO.PostgreSQL - PostgreSQL optimized
+- Encina.ADO.MySQL - MySQL/MariaDB optimized
+- Encina.ADO.Sqlite - SQLite optimized
+- Encina.ADO.Oracle - Oracle optimized
 
 ### Changed
 
 - Established Testcontainers-based test architecture
-- Created SimpleMediator.TestInfrastructure for shared test fixtures
+- Created Encina.TestInfrastructure for shared test fixtures
 
 ---
 
@@ -87,8 +87,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- SimpleMediator.Hangfire - Background job scheduling with Hangfire
-- SimpleMediator.Quartz - Enterprise CRON scheduling with Quartz.NET
+- Encina.Hangfire - Background job scheduling with Hangfire
+- Encina.Quartz - Enterprise CRON scheduling with Quartz.NET
 
 ---
 
@@ -96,9 +96,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- SimpleMediator.AspNetCore - Middleware, authorization, Problem Details
-- SimpleMediator.Messaging - Shared abstractions for Outbox, Inbox, Sagas
-- SimpleMediator.EntityFrameworkCore - EF Core implementation of messaging patterns
+- Encina.AspNetCore - Middleware, authorization, Problem Details
+- Encina.Messaging - Shared abstractions for Outbox, Inbox, Sagas
+- Encina.EntityFrameworkCore - EF Core implementation of messaging patterns
 
 ---
 
@@ -106,7 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- SimpleMediator.GuardClauses - Defensive programming with Ardalis.GuardClauses
+- Encina.GuardClauses - Defensive programming with Ardalis.GuardClauses
 
 ---
 
@@ -114,7 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- SimpleMediator.MiniValidator - Lightweight validation (~20KB)
+- Encina.MiniValidator - Lightweight validation (~20KB)
 
 ---
 
@@ -122,7 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- SimpleMediator.DataAnnotations - Zero-dependency validation with .NET attributes
+- Encina.DataAnnotations - Zero-dependency validation with .NET attributes
 
 ---
 
@@ -130,7 +130,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- SimpleMediator.FluentValidation - FluentValidation integration
+- Encina.FluentValidation - FluentValidation integration
 
 ---
 
@@ -138,7 +138,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- SimpleMediator Core - Pure Railway Oriented Programming with `Either<MediatorError, T>`
+- Encina Core - Pure Railway Oriented Programming with `Either<MediatorError, T>`
 - Request/Notification dispatch with Expression tree compilation
 - Pipeline pattern (Behaviors, PreProcessors, PostProcessors)
 - IRequestContext for ambient context
@@ -148,13 +148,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/dlrivada/SimpleMediator/compare/v0.9.0...HEAD
-[0.9.0]: https://github.com/dlrivada/SimpleMediator/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/dlrivada/SimpleMediator/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/dlrivada/SimpleMediator/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/dlrivada/SimpleMediator/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/dlrivada/SimpleMediator/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/dlrivada/SimpleMediator/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/dlrivada/SimpleMediator/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/dlrivada/SimpleMediator/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/dlrivada/SimpleMediator/releases/tag/v0.1.0
+[Unreleased]: https://github.com/dlrivada/Encina/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/dlrivada/Encina/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/dlrivada/Encina/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/dlrivada/Encina/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/dlrivada/Encina/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/dlrivada/Encina/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/dlrivada/Encina/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/dlrivada/Encina/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/dlrivada/Encina/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/dlrivada/Encina/releases/tag/v0.1.0

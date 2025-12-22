@@ -1,6 +1,6 @@
-# SimpleMediator Component Diagram
+# Encina Component Diagram
 
-This document provides architectural diagrams showing the structure and flow of SimpleMediator.
+This document provides architectural diagrams showing the structure and flow of Encina.
 
 ## High-Level Architecture
 
@@ -10,8 +10,8 @@ graph TB
         Client[Client Code<br/>Controller/Service]
     end
 
-    subgraph "SimpleMediator Core"
-        Mediator[IMediator<br/>SimpleMediator]
+    subgraph "Encina Core"
+        Mediator[IMediator<br/>Encina]
         RequestDispatcher[Request Dispatcher]
         NotificationDispatcher[Notification Dispatcher]
     end
@@ -197,7 +197,7 @@ sequenceDiagram
 
 | Component | Responsibility | Lifetime |
 |-----------|---------------|----------|
-| **SimpleMediator** | Entry point, validation, dispatcher coordination | Singleton |
+| **Encina** | Entry point, validation, dispatcher coordination | Singleton |
 | **RequestDispatcher** | Orchestrates request pipeline execution | Static class |
 | **NotificationDispatcher** | Broadcasts to multiple handlers | Static class |
 | **PipelineBuilder** | Composes behaviors and processors into callable delegate | Per-request instance |
@@ -359,7 +359,7 @@ graph TB
     end
 
     subgraph "Mediator Layer"
-        Mediator[SimpleMediator]
+        Mediator[Encina]
         Dispatchers[Dispatchers]
         Pipeline[PipelineBuilder]
     end
@@ -398,7 +398,7 @@ graph TB
 
 | Pattern | Component | Purpose |
 |---------|-----------|---------|
-| **Mediator** | SimpleMediator | Decouples request sender from handler |
+| **Mediator** | Encina | Decouples request sender from handler |
 | **Chain of Responsibility** | Pipeline Behaviors | Sequential processing with short-circuiting |
 | **Decorator** | PipelineBuilder | Dynamically wrap handler with behaviors |
 | **Observer** | Notification Handlers | Multiple subscribers to same event |

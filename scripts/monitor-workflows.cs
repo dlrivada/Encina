@@ -22,7 +22,7 @@ if (string.IsNullOrEmpty(token))
 }
 
 var intervalSeconds = int.TryParse(GetArgument(args, "--interval"), out var interval) ? interval : 60;
-var repoPath = GetArgument(args, "--repo") ?? "dlrivada/SimpleMediator";
+var repoPath = GetArgument(args, "--repo") ?? "dlrivada/Encina";
 
 Console.WriteLine($"Monitoring GitHub Actions for {repoPath} every {intervalSeconds} seconds...");
 Console.WriteLine("Press Ctrl+C to stop.");
@@ -30,7 +30,7 @@ Console.WriteLine();
 
 using var http = new HttpClient();
 http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("SimpleMediator-Monitor", "1.0"));
+http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Encina-Monitor", "1.0"));
 
 var knownRuns = new HashSet<long>();
 

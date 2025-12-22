@@ -1,0 +1,170 @@
+#nullable enable
+const Encina.MediatorErrorCodes.BehaviorCancelled = "mediator.behavior.cancelled" -> string!
+const Encina.MediatorErrorCodes.BehaviorException = "mediator.behavior.exception" -> string!
+const Encina.MediatorErrorCodes.BehaviorNullNext = "mediator.behavior.null_next" -> string!
+const Encina.MediatorErrorCodes.BehaviorNullRequest = "mediator.behavior.null_request" -> string!
+const Encina.MediatorErrorCodes.HandlerCancelled = "mediator.handler.cancelled" -> string!
+const Encina.MediatorErrorCodes.HandlerException = "mediator.handler.exception" -> string!
+const Encina.MediatorErrorCodes.HandlerInvalidResult = "mediator.handler.invalid_result" -> string!
+const Encina.MediatorErrorCodes.HandlerMissing = "mediator.handler.missing" -> string!
+const Encina.MediatorErrorCodes.NotificationCancelled = "mediator.notification.cancelled" -> string!
+const Encina.MediatorErrorCodes.NotificationException = "mediator.notification.exception" -> string!
+const Encina.MediatorErrorCodes.NotificationInvalidReturn = "mediator.notification.invalid_return" -> string!
+const Encina.MediatorErrorCodes.NotificationInvokeException = "mediator.notification.invoke_exception" -> string!
+const Encina.MediatorErrorCodes.NotificationMissingHandle = "mediator.notification.missing_handle" -> string!
+const Encina.MediatorErrorCodes.NotificationNull = "mediator.notification.null" -> string!
+const Encina.MediatorErrorCodes.PipelineException = "mediator.pipeline.exception" -> string!
+const Encina.MediatorErrorCodes.PostProcessorCancelled = "mediator.postprocessor.cancelled" -> string!
+const Encina.MediatorErrorCodes.PostProcessorException = "mediator.postprocessor.exception" -> string!
+const Encina.MediatorErrorCodes.PreProcessorCancelled = "mediator.preprocessor.cancelled" -> string!
+const Encina.MediatorErrorCodes.PreProcessorException = "mediator.preprocessor.exception" -> string!
+const Encina.MediatorErrorCodes.RequestCancelled = "mediator.request.cancelled" -> string!
+const Encina.MediatorErrorCodes.RequestHandlerMissing = "mediator.request.handler_missing" -> string!
+const Encina.MediatorErrorCodes.RequestHandlerTypeMismatch = "mediator.request.handler_type_mismatch" -> string!
+const Encina.MediatorErrorCodes.RequestNull = "mediator.request.null" -> string!
+const Encina.MediatorErrorCodes.Timeout = "mediator.timeout" -> string!
+override Encina.RequestContext.ToString() -> string!
+Encina.CommandActivityPipelineBehavior<TCommand, TResponse>
+Encina.CommandActivityPipelineBehavior<TCommand, TResponse>.CommandActivityPipelineBehavior(Encina.IFunctionalFailureDetector! failureDetector) -> void
+Encina.CommandActivityPipelineBehavior<TCommand, TResponse>.Handle(TCommand request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.CommandMetricsPipelineBehavior<TCommand, TResponse>
+Encina.CommandMetricsPipelineBehavior<TCommand, TResponse>.CommandMetricsPipelineBehavior(Encina.IMediatorMetrics! metrics, Encina.IFunctionalFailureDetector! failureDetector) -> void
+Encina.CommandMetricsPipelineBehavior<TCommand, TResponse>.Handle(TCommand request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.ICommand
+Encina.ICommand<TResponse>
+Encina.ICommandHandler<TCommand, TResponse>
+Encina.ICommandHandler<TCommand>
+Encina.ICommandPipelineBehavior<TCommand, TResponse>
+Encina.ICommandPipelineBehavior<TCommand>
+Encina.IFunctionalFailureDetector
+Encina.IFunctionalFailureDetector.TryExtractFailure(object? response, out string! reason, out object? capturedFailure) -> bool
+Encina.IFunctionalFailureDetector.TryGetErrorCode(object? capturedFailure) -> string?
+Encina.IFunctionalFailureDetector.TryGetErrorMessage(object? capturedFailure) -> string?
+Encina.IMediator
+Encina.IMediator.Publish<TNotification>(TNotification notification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, LanguageExt.Unit>>
+Encina.IMediator.Send<TResponse>(Encina.IRequest<TResponse>! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.IMediator.Stream<TItem>(Encina.IStreamRequest<TItem>! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<Encina.MediatorError, TItem>>!
+Encina.IMediatorMetrics
+Encina.IMediatorMetrics.TrackFailure(string! requestKind, string! requestName, System.TimeSpan duration, string! reason) -> void
+Encina.IMediatorMetrics.TrackSuccess(string! requestKind, string! requestName, System.TimeSpan duration) -> void
+Encina.INotification
+Encina.INotificationHandler<TNotification>
+Encina.INotificationHandler<TNotification>.Handle(TNotification notification, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.MediatorError, LanguageExt.Unit>>!
+Encina.IPipelineBehavior<TRequest, TResponse>
+Encina.IPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.IQuery
+Encina.IQuery<TResponse>
+Encina.IQueryHandler<TQuery, TResponse>
+Encina.IQueryHandler<TQuery>
+Encina.IQueryPipelineBehavior<TQuery, TResponse>
+Encina.IQueryPipelineBehavior<TQuery>
+Encina.IRequest<TResponse>
+Encina.IRequestContext
+Encina.IRequestContext.CorrelationId.get -> string!
+Encina.IRequestContext.IdempotencyKey.get -> string?
+Encina.IRequestContext.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
+Encina.IRequestContext.TenantId.get -> string?
+Encina.IRequestContext.Timestamp.get -> System.DateTimeOffset
+Encina.IRequestContext.UserId.get -> string?
+Encina.IRequestContext.WithIdempotencyKey(string? idempotencyKey) -> Encina.IRequestContext!
+Encina.IRequestContext.WithMetadata(string! key, object? value) -> Encina.IRequestContext!
+Encina.IRequestContext.WithTenantId(string? tenantId) -> Encina.IRequestContext!
+Encina.IRequestContext.WithUserId(string? userId) -> Encina.IRequestContext!
+Encina.IRequestHandler<TRequest, TResponse>
+Encina.IRequestHandler<TRequest, TResponse>.Handle(TRequest request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.MediatorError, TResponse>>!
+Encina.IRequestPostProcessor<TRequest, TResponse>
+Encina.IRequestPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, LanguageExt.Either<Encina.MediatorError, TResponse> response, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.IRequestPreProcessor<TRequest>
+Encina.IRequestPreProcessor<TRequest>.Process(TRequest request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.IStreamPipelineBehavior<TRequest, TItem>
+Encina.IStreamPipelineBehavior<TRequest, TItem>.Handle(TRequest request, Encina.IRequestContext! context, Encina.StreamHandlerCallback<TItem>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<Encina.MediatorError, TItem>>!
+Encina.IStreamRequest<TItem>
+Encina.IStreamRequestHandler<TRequest, TItem>
+Encina.IStreamRequestHandler<TRequest, TItem>.Handle(TRequest request, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<Encina.MediatorError, TItem>>!
+Encina.MediatorError
+Encina.MediatorError.Exception.get -> LanguageExt.Option<System.Exception!>
+Encina.MediatorError.MediatorError() -> void
+Encina.MediatorError.Message.get -> string!
+Encina.MediatorErrorCodes
+Encina.MediatorErrors
+static Encina.MediatorErrors.Create(string! code, string! message, System.Exception? exception = null, object? details = null) -> Encina.MediatorError
+static Encina.MediatorErrors.FromException(string! code, System.Exception! exception, string? message = null, object? details = null) -> Encina.MediatorError
+static Encina.MediatorErrors.Unknown.get -> Encina.MediatorError
+Encina.MediatorMetrics
+Encina.MediatorMetrics.MediatorMetrics() -> void
+Encina.MediatorMetrics.TrackFailure(string! requestKind, string! requestName, System.TimeSpan duration, string! reason) -> void
+Encina.MediatorMetrics.TrackSuccess(string! requestKind, string! requestName, System.TimeSpan duration) -> void
+Encina.QueryActivityPipelineBehavior<TQuery, TResponse>
+Encina.QueryActivityPipelineBehavior<TQuery, TResponse>.Handle(TQuery request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.QueryActivityPipelineBehavior<TQuery, TResponse>.QueryActivityPipelineBehavior(Encina.IFunctionalFailureDetector! failureDetector) -> void
+Encina.QueryMetricsPipelineBehavior<TQuery, TResponse>
+Encina.QueryMetricsPipelineBehavior<TQuery, TResponse>.Handle(TQuery request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.QueryMetricsPipelineBehavior<TQuery, TResponse>.QueryMetricsPipelineBehavior(Encina.IMediatorMetrics! metrics, Encina.IFunctionalFailureDetector! failureDetector) -> void
+Encina.RequestContext
+Encina.RequestContext.CorrelationId.get -> string!
+Encina.RequestContext.CorrelationId.init -> void
+Encina.RequestContext.IdempotencyKey.get -> string?
+Encina.RequestContext.IdempotencyKey.init -> void
+Encina.RequestContext.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
+Encina.RequestContext.Metadata.init -> void
+Encina.RequestContext.TenantId.get -> string?
+Encina.RequestContext.TenantId.init -> void
+Encina.RequestContext.Timestamp.get -> System.DateTimeOffset
+Encina.RequestContext.Timestamp.init -> void
+Encina.RequestContext.UserId.get -> string?
+Encina.RequestContext.UserId.init -> void
+Encina.RequestContext.WithIdempotencyKey(string? idempotencyKey) -> Encina.IRequestContext!
+Encina.RequestContext.WithMetadata(string! key, object? value) -> Encina.IRequestContext!
+Encina.RequestContext.WithTenantId(string? tenantId) -> Encina.IRequestContext!
+Encina.RequestContext.WithUserId(string? userId) -> Encina.IRequestContext!
+Encina.RequestHandlerCallback<TResponse>
+Encina.ServiceCollectionExtensions
+Encina.Encina
+Encina.Encina.Publish<TNotification>(TNotification notification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, LanguageExt.Unit>>
+Encina.Encina.Send<TResponse>(Encina.IRequest<TResponse>! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.Encina.Encina(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger<Encina.Encina!>? logger = null, Microsoft.Extensions.Options.IOptions<Encina.NotificationDispatchOptions!>? notificationOptions = null) -> void
+Encina.Encina.Stream<TItem>(Encina.IStreamRequest<TItem>! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<Encina.MediatorError, TItem>>!
+Encina.StreamHandlerCallback<TItem>
+Encina.EncinaConfiguration
+Encina.EncinaConfiguration.AddPipelineBehavior(System.Type! pipelineBehaviorType) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddPipelineBehavior<TBehavior>() -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostProcessor(System.Type! processorType) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPostProcessor<TProcessor>() -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPreProcessor(System.Type! processorType) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.AddRequestPreProcessor<TProcessor>() -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.HandlerLifetime.get -> Microsoft.Extensions.DependencyInjection.ServiceLifetime
+Encina.EncinaConfiguration.RegisterServicesFromAssemblies(params System.Reflection.Assembly![]! assemblies) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.RegisterServicesFromAssembly(System.Reflection.Assembly! assembly) -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.RegisterServicesFromAssemblyContaining<T>() -> Encina.EncinaConfiguration!
+Encina.EncinaConfiguration.EncinaConfiguration() -> void
+Encina.EncinaConfiguration.WithHandlerLifetime(Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime) -> Encina.EncinaConfiguration!
+static Encina.MediatorError.implicit operator Encina.MediatorError(string! message) -> Encina.MediatorError
+static Encina.MediatorError.implicit operator Encina.MediatorError(System.Exception! exception) -> Encina.MediatorError
+static Encina.MediatorError.New(string! message) -> Encina.MediatorError
+static Encina.MediatorError.New(string! message, System.Exception? exception) -> Encina.MediatorError
+static Encina.MediatorError.New(System.Exception! exception) -> Encina.MediatorError
+static Encina.MediatorError.New(System.Exception! exception, string! message) -> Encina.MediatorError
+static Encina.RequestContext.Create() -> Encina.IRequestContext!
+static Encina.RequestContext.Create(string! correlationId) -> Encina.IRequestContext!
+static Encina.RequestContext.CreateForTest(string? userId = null, string? tenantId = null, string? idempotencyKey = null, string? correlationId = null) -> Encina.IRequestContext!
+static Encina.ServiceCollectionExtensions.AddApplicationMessaging(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.ServiceCollectionExtensions.AddApplicationMessaging(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.EncinaConfiguration!>? configure, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.ServiceCollectionExtensions.AddEncina(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.ServiceCollectionExtensions.AddEncina(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.EncinaConfiguration!>? configure, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.MediatorErrorExtensions
+static Encina.MediatorErrorExtensions.GetCode(this Encina.MediatorError error) -> LanguageExt.Option<string!>
+static Encina.MediatorErrorExtensions.GetDetails(this Encina.MediatorError error) -> LanguageExt.Option<object!>
+static Encina.MediatorErrorExtensions.GetMetadata(this Encina.MediatorError error) -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
+const Encina.MediatorErrorCodes.NotificationMultipleFailures = "mediator.notification.multiple_failures" -> string!
+Encina.NotificationDispatchOptions
+Encina.NotificationDispatchOptions.NotificationDispatchOptions() -> void
+Encina.NotificationDispatchOptions.MaxDegreeOfParallelism.get -> int
+Encina.NotificationDispatchOptions.MaxDegreeOfParallelism.set -> void
+Encina.NotificationDispatchOptions.Strategy.get -> Encina.NotificationDispatchStrategy
+Encina.NotificationDispatchOptions.Strategy.set -> void
+Encina.NotificationDispatchStrategy
+Encina.NotificationDispatchStrategy.Sequential = 0 -> Encina.NotificationDispatchStrategy
+Encina.NotificationDispatchStrategy.Parallel = 1 -> Encina.NotificationDispatchStrategy
+Encina.NotificationDispatchStrategy.ParallelWhenAll = 2 -> Encina.NotificationDispatchStrategy
+Encina.EncinaConfiguration.NotificationDispatch.get -> Encina.NotificationDispatchOptions!
+Encina.EncinaConfiguration.UseParallelNotificationDispatch(Encina.NotificationDispatchStrategy strategy = Encina.NotificationDispatchStrategy.Parallel, int maxDegreeOfParallelism = -1) -> Encina.EncinaConfiguration!

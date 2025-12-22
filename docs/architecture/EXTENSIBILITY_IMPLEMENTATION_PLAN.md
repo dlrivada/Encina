@@ -33,7 +33,7 @@
 ### Core Interfaces (NEW)
 
 ```csharp
-namespace SimpleMediator;
+namespace Encina;
 
 // NEW: Ambient context for all requests
 public interface IRequestContext
@@ -161,14 +161,14 @@ public sealed class RequestContext : IRequestContext
 
 **Files Modified:**
 
-- `src/SimpleMediator/Abstractions/IRequestContext.cs` (NEW)
-- `src/SimpleMediator/Core/RequestContext.cs` (NEW)
-- `src/SimpleMediator/Abstractions/IPipelineBehavior.cs` (UPDATED)
-- `src/SimpleMediator/Abstractions/IRequestPreProcessor.cs` (UPDATED)
-- `src/SimpleMediator/Abstractions/IRequestPostProcessor.cs` (UPDATED)
-- `src/SimpleMediator/Dispatchers/SimpleMediator.RequestDispatcher.cs` (UPDATED)
-- `src/SimpleMediator/Dispatchers/SimpleMediator.NotificationDispatcher.cs` (UPDATED)
-- `tests/SimpleMediator.Tests/RequestContextTests.cs` (NEW)
+- `src/Encina/Abstractions/IRequestContext.cs` (NEW)
+- `src/Encina/Core/RequestContext.cs` (NEW)
+- `src/Encina/Abstractions/IPipelineBehavior.cs` (UPDATED)
+- `src/Encina/Abstractions/IRequestPreProcessor.cs` (UPDATED)
+- `src/Encina/Abstractions/IRequestPostProcessor.cs` (UPDATED)
+- `src/Encina/Dispatchers/Encina.RequestDispatcher.cs` (UPDATED)
+- `src/Encina/Dispatchers/Encina.NotificationDispatcher.cs` (UPDATED)
+- `tests/Encina.Tests/RequestContextTests.cs` (NEW)
 
 **Estimated LOC:** ~300 (150 new, 150 updated)
 
@@ -193,12 +193,12 @@ public sealed class RequestContext : IRequestContext
 
 **Files Modified:**
 
-- `src/SimpleMediator/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs`
-- `src/SimpleMediator/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs`
-- `src/SimpleMediator/Pipeline/Behaviors/CommandMetricsPipelineBehavior.cs`
-- `src/SimpleMediator/Pipeline/Behaviors/QueryMetricsPipelineBehavior.cs`
-- `tests/SimpleMediator.Tests/PipelineBehaviorsTests.cs`
-- `tests/SimpleMediator.Tests/SimpleMediatorTests.cs`
+- `src/Encina/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs`
+- `src/Encina/Pipeline/Behaviors/QueryActivityPipelineBehavior.cs`
+- `src/Encina/Pipeline/Behaviors/CommandMetricsPipelineBehavior.cs`
+- `src/Encina/Pipeline/Behaviors/QueryMetricsPipelineBehavior.cs`
+- `tests/Encina.Tests/PipelineBehaviorsTests.cs`
+- `tests/Encina.Tests/EncinaTests.cs`
 
 **Estimated LOC:** ~200 (mostly test updates)
 
@@ -222,13 +222,13 @@ public sealed class RequestContext : IRequestContext
 
 **Files Modified:**
 
-- `src/SimpleMediator/Abstractions/IRequestHandlerMetadataProvider.cs` (NEW)
-- `src/SimpleMediator/Core/HandlerMetadata.cs` (NEW)
-- `src/SimpleMediator/Core/RequestHandlerMetadataProvider.cs` (NEW)
-- `src/SimpleMediator/Dispatchers/MediatorAssemblyScanner.cs` (UPDATED)
-- `src/SimpleMediator/Core/ServiceCollectionExtensions.cs` (UPDATED)
-- `tests/SimpleMediator.Tests/RequestHandlerMetadataProviderTests.cs` (NEW)
-- `benchmarks/SimpleMediator.Benchmarks/MetadataProviderBenchmarks.cs` (NEW)
+- `src/Encina/Abstractions/IRequestHandlerMetadataProvider.cs` (NEW)
+- `src/Encina/Core/HandlerMetadata.cs` (NEW)
+- `src/Encina/Core/RequestHandlerMetadataProvider.cs` (NEW)
+- `src/Encina/Dispatchers/MediatorAssemblyScanner.cs` (UPDATED)
+- `src/Encina/Core/ServiceCollectionExtensions.cs` (UPDATED)
+- `tests/Encina.Tests/RequestHandlerMetadataProviderTests.cs` (NEW)
+- `benchmarks/Encina.Benchmarks/MetadataProviderBenchmarks.cs` (NEW)
 
 **Estimated LOC:** ~250 (200 new, 50 updated)
 
@@ -241,16 +241,16 @@ public sealed class RequestContext : IRequestContext
 
 ### Week 4: Satellite Package #1 - AspNetCore
 
-**Package:** `SimpleMediator.AspNetCore`
+**Package:** `Encina.AspNetCore`
 
-**Purpose:** Bridge between ASP.NET Core and SimpleMediator
+**Purpose:** Bridge between ASP.NET Core and Encina
 
 **Tasks:**
 
-1. ✅ Create new project `SimpleMediator.AspNetCore`
+1. ✅ Create new project `Encina.AspNetCore`
 2. ✅ Create `MediatorContextMiddleware` to extract context from HttpContext
-3. ✅ Extension method: `app.UseSimpleMediatorContext()`
-4. ✅ Extension method: `services.AddSimpleMediatorAspNetCore()`
+3. ✅ Extension method: `app.UseEncinaContext()`
+4. ✅ Extension method: `services.AddEncinaAspNetCore()`
 5. ✅ Support for custom context factories
 6. ✅ Tests with TestServer
 7. ✅ Documentation + examples
@@ -266,7 +266,7 @@ public sealed class RequestContext : IRequestContext
 
 ### Week 5: Satellite Package #2 & #3 - FluentValidation + EF Core
 
-**Package 1:** `SimpleMediator.FluentValidation`
+**Package 1:** `Encina.FluentValidation`
 
 **Tasks:**
 
@@ -279,7 +279,7 @@ public sealed class RequestContext : IRequestContext
 
 **Estimated LOC:** ~100
 
-**Package 2:** `SimpleMediator.EntityFrameworkCore`
+**Package 2:** `Encina.EntityFrameworkCore`
 
 **Tasks:**
 
@@ -293,7 +293,7 @@ public sealed class RequestContext : IRequestContext
 
 ### Week 6: Satellite Package #4 & #5 - Idempotency + Polly
 
-**Package 1:** `SimpleMediator.Idempotency`
+**Package 1:** `Encina.Idempotency`
 
 **Tasks:**
 
@@ -307,7 +307,7 @@ public sealed class RequestContext : IRequestContext
 
 **Estimated LOC:** ~250
 
-**Package 2:** `SimpleMediator.Polly`
+**Package 2:** `Encina.Polly`
 
 **Tasks:**
 
@@ -371,11 +371,11 @@ From `QUALITY_SECURITY_ROADMAP.md`:
   - Benchmarks: <1ms reflection cost per handler
 
 - [ ] **Create Satellite Packages** (Weeks 4-6)
-  - `SimpleMediator.AspNetCore` (Week 4)
-  - `SimpleMediator.FluentValidation` (Week 5)
-  - `SimpleMediator.EntityFrameworkCore` (Week 5)
-  - `SimpleMediator.Idempotency` (Week 6)
-  - `SimpleMediator.Polly` (Week 6)
+  - `Encina.AspNetCore` (Week 4)
+  - `Encina.FluentValidation` (Week 5)
+  - `Encina.EntityFrameworkCore` (Week 5)
+  - `Encina.Idempotency` (Week 6)
+  - `Encina.Polly` (Week 6)
 
 - [ ] **Integration Guide + Samples** (Week 7)
   - 10+ integration patterns documented
@@ -385,11 +385,11 @@ From `QUALITY_SECURITY_ROADMAP.md`:
 **Mediano Plazo** (add to roadmap):
 
 - [ ] Additional satellite packages
-  - `SimpleMediator.OpenTelemetry`
-  - `SimpleMediator.Caching.Redis`
-  - `SimpleMediator.Authorization`
-  - `SimpleMediator.RabbitMQ`
-  - `SimpleMediator.Kafka`
+  - `Encina.OpenTelemetry`
+  - `Encina.Caching.Redis`
+  - `Encina.Authorization`
+  - `Encina.RabbitMQ`
+  - `Encina.Kafka`
 
 ---
 

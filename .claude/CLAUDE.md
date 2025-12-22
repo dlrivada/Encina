@@ -1,4 +1,4 @@
-# Claude Code - SimpleMediator Guidelines
+# Claude Code - Encina Guidelines
 
 ## Project Philosophy
 
@@ -50,10 +50,10 @@
 
 #### Provider Coherence
 
-- **SimpleMediator.Messaging**: Shared abstractions (IOutboxStore, IInboxStore, etc.)
-- **SimpleMediator.EntityFrameworkCore**: EF Core implementation
-- **SimpleMediator.Dapper**: Future - Dapper implementation
-- **SimpleMediator.Data**: Future - ADO.NET implementation
+- **Encina.Messaging**: Shared abstractions (IOutboxStore, IInboxStore, etc.)
+- **Encina.EntityFrameworkCore**: EF Core implementation
+- **Encina.Dapper**: Future - Dapper implementation
+- **Encina.Data**: Future - ADO.NET implementation
 - Same interfaces, different implementations - easy to switch providers
 
 #### Opt-In Configuration
@@ -103,8 +103,8 @@ config.UseScheduling = true;
 
 When implementing the same feature across different data access providers:
 
-- **Same interfaces** (from SimpleMediator.Messaging)
-- **Same configuration options** (from SimpleMediator.Messaging)
+- **Same interfaces** (from Encina.Messaging)
+- **Same configuration options** (from Encina.Messaging)
 - **Different implementations** (provider-specific)
 - **Easy migration** (change DI registration, rest stays the same)
 
@@ -112,12 +112,12 @@ Example:
 
 ```csharp
 // Using EF Core
-services.AddSimpleMediatorEntityFrameworkCore(config => {
+services.AddEncinaEntityFrameworkCore(config => {
     config.UseOutbox = true;
 });
 
 // Switch to Dapper (same interface, different implementation)
-services.AddSimpleMediatorDapper(config => {
+services.AddEncinaDapper(config => {
     config.UseOutbox = true; // Same configuration!
 });
 ```
@@ -126,7 +126,7 @@ services.AddSimpleMediatorDapper(config => {
 
 - Support multiple: FluentValidation, DataAnnotations, MiniValidator
 - User chooses their preferred library
-- Similar pattern for scheduling: SimpleMediator.Scheduling vs Hangfire/Quartz adapters
+- Similar pattern for scheduling: Encina.Scheduling vs Hangfire/Quartz adapters
 
 ### Testing Standards
 
@@ -172,11 +172,11 @@ Choose test types based on risk and value. Not every piece of code needs all tes
 
 6. **Load Tests** 🟡 (Performance-critical, concurrent code)
    - Stress test under high concurrency
-   - Location: `load/SimpleMediator.LoadTests/`
+   - Location: `load/Encina.LoadTests/`
 
 7. **Benchmarks** 🟡 (Hot paths, performance comparisons)
    - Measure actual performance with BenchmarkDotNet
-   - Location: `benchmarks/SimpleMediator.Benchmarks/`
+   - Location: `benchmarks/Encina.Benchmarks/`
 
 #### Test Quality Standards
 
@@ -251,29 +251,29 @@ dotnet run --file scripts/run-integration-tests.cs
 
 ```
 tests/
-├── SimpleMediator.Tests/              # Unit tests for core
-│   ├── SimpleMediatorTests.cs
+├── Encina.Tests/              # Unit tests for core
+│   ├── EncinaTests.cs
 │   ├── PipelineBuilderTests.cs
 │   └── Integration/                   # Integration tests
 │       └── EndToEndTests.cs
-├── SimpleMediator.ContractTests/      # Contract tests
+├── Encina.ContractTests/      # Contract tests
 │   ├── HandlerRegistrationContracts.cs
 │   └── OutboxStoreContract.cs
-├── SimpleMediator.PropertyTests/      # Property-based tests
+├── Encina.PropertyTests/      # Property-based tests
 │   ├── PipelineInvariants.cs
 │   └── CacheInvariants.cs
-├── SimpleMediator.GuardClauses.Tests/ # Guard clause tests
+├── Encina.GuardClauses.Tests/ # Guard clause tests
 │   ├── MediatorGuardsTests.cs
 │   └── OutboxGuardsTests.cs
-├── SimpleMediator.Dapper.SqlServer.Tests/  # Dapper provider tests
+├── Encina.Dapper.SqlServer.Tests/  # Dapper provider tests
 │   ├── Unit/
 │   └── Integration/
 ├── appsettings.Testing.json           # Test configuration
 load/
-├── SimpleMediator.NBomber/            # NBomber load tests
-└── SimpleMediator.LoadTests/          # Custom load tests
+├── Encina.NBomber/            # NBomber load tests
+└── Encina.LoadTests/          # Custom load tests
 benchmarks/
-└── SimpleMediator.Benchmarks/         # BenchmarkDotNet
+└── Encina.Benchmarks/         # BenchmarkDotNet
 ```
 
 #### Testing Workflow
@@ -292,7 +292,7 @@ benchmarks/
 
 ```bash
 # Run all tests
-dotnet test SimpleMediator.slnx --configuration Release
+dotnet test Encina.slnx --configuration Release
 
 # Optional: Check coverage
 dotnet test --collect "XPlat Code Coverage"
@@ -444,7 +444,7 @@ var message = new OutboxMessageBuilder()
 
 **Core & Validation**:
 
-- ✅ SimpleMediator core (Railway Oriented Programming, 194 tests)
+- ✅ Encina core (Railway Oriented Programming, 194 tests)
 - ✅ FluentValidation satellite (18 tests)
 - ✅ DataAnnotations satellite (10 tests)
 - ✅ MiniValidator satellite (10 tests)
@@ -453,42 +453,42 @@ var message = new OutboxMessageBuilder()
 **Web & Messaging**:
 
 - ✅ AspNetCore satellite (49 tests)
-- ✅ SimpleMediator.Messaging abstractions
+- ✅ Encina.Messaging abstractions
 - ✅ EntityFrameworkCore (33 tests) - Outbox, Inbox, Sagas, Scheduling, Transactions
 
 **Database Providers** (10 packages completed):
 
 - ✅ Dapper.SqlServer, Dapper.PostgreSQL, Dapper.MySQL, Dapper.Sqlite, Dapper.Oracle
 - ✅ ADO.SqlServer, ADO.PostgreSQL, ADO.MySQL, ADO.Sqlite, ADO.Oracle
-- **Note**: Old SimpleMediator.Dapper and SimpleMediator.ADO deprecated (code in .backup/deprecated-packages)
+- **Note**: Old Encina.Dapper and Encina.ADO deprecated (code in .backup/deprecated-packages)
 
 **Caching** (8 packages completed - NEW 2025-12-21):
 
-- ✅ SimpleMediator.Caching - Core abstractions (ICacheProvider, ICacheKeyGenerator, CachingPipelineBehavior)
-- ✅ SimpleMediator.Caching.Memory - IMemoryCache provider (109 tests)
-- ✅ SimpleMediator.Caching.Hybrid - Microsoft HybridCache provider (.NET 9+ multi-tier caching, 56 tests)
-- ✅ SimpleMediator.Caching.Redis - StackExchange.Redis provider
-- ✅ SimpleMediator.Caching.Garnet - Microsoft Garnet provider (Redis-compatible)
-- ✅ SimpleMediator.Caching.Valkey - Valkey provider (Redis fork)
-- ✅ SimpleMediator.Caching.Dragonfly - Dragonfly provider (Redis-compatible)
-- ✅ SimpleMediator.Caching.KeyDB - KeyDB provider (Redis fork)
+- ✅ Encina.Caching - Core abstractions (ICacheProvider, ICacheKeyGenerator, CachingPipelineBehavior)
+- ✅ Encina.Caching.Memory - IMemoryCache provider (109 tests)
+- ✅ Encina.Caching.Hybrid - Microsoft HybridCache provider (.NET 9+ multi-tier caching, 56 tests)
+- ✅ Encina.Caching.Redis - StackExchange.Redis provider
+- ✅ Encina.Caching.Garnet - Microsoft Garnet provider (Redis-compatible)
+- ✅ Encina.Caching.Valkey - Valkey provider (Redis fork)
+- ✅ Encina.Caching.Dragonfly - Dragonfly provider (Redis-compatible)
+- ✅ Encina.Caching.KeyDB - KeyDB provider (Redis fork)
 - **Tests**: 367 tests passing (49 core + 109 memory + 56 hybrid + 43 guard + 78 contract + 32 property)
-- **Benchmarks**: SimpleMediator.Caching.Benchmarks with provider comparisons
+- **Benchmarks**: Encina.Caching.Benchmarks with provider comparisons
 
 **Messaging Transports** (12 packages completed - NEW 2025-12-21):
 
-- ✅ SimpleMediator.Wolverine - WolverineFx 5.7.1 integration
-- ✅ SimpleMediator.NServiceBus - NServiceBus 9.2.8 integration
-- ✅ SimpleMediator.RabbitMQ - RabbitMQ.Client 7.2.0 integration
-- ✅ SimpleMediator.AzureServiceBus - Azure Service Bus 7.20.1 integration
-- ✅ SimpleMediator.AmazonSQS - AWS SQS/SNS 4.0.2.3 integration
-- ✅ SimpleMediator.Kafka - Confluent.Kafka 2.12.0 integration
-- ✅ SimpleMediator.Redis.PubSub - StackExchange.Redis pub/sub
-- ✅ SimpleMediator.InMemory - System.Threading.Channels message bus
-- ✅ SimpleMediator.NATS - NATS.Net 2.6.11 with JetStream support
-- ✅ SimpleMediator.MQTT - MQTTnet 5.0.1 integration
-- ✅ SimpleMediator.gRPC - Grpc.AspNetCore 2.71.0 mediator service
-- ✅ SimpleMediator.GraphQL - HotChocolate 15.1.11 bridge
+- ✅ Encina.Wolverine - WolverineFx 5.7.1 integration
+- ✅ Encina.NServiceBus - NServiceBus 9.2.8 integration
+- ✅ Encina.RabbitMQ - RabbitMQ.Client 7.2.0 integration
+- ✅ Encina.AzureServiceBus - Azure Service Bus 7.20.1 integration
+- ✅ Encina.AmazonSQS - AWS SQS/SNS 4.0.2.3 integration
+- ✅ Encina.Kafka - Confluent.Kafka 2.12.0 integration
+- ✅ Encina.Redis.PubSub - StackExchange.Redis pub/sub
+- ✅ Encina.InMemory - System.Threading.Channels message bus
+- ✅ Encina.NATS - NATS.Net 2.6.11 with JetStream support
+- ✅ Encina.MQTT - MQTTnet 5.0.1 integration
+- ✅ Encina.gRPC - Grpc.AspNetCore 2.71.0 mediator service
+- ✅ Encina.GraphQL - HotChocolate 15.1.11 bridge
 - **Note**: All packages use `#pragma warning disable CA1848` for logging (LoggerMessage delegates pending)
 
 **Job Scheduling**:
@@ -498,25 +498,25 @@ var message = new OutboxMessageBuilder()
 
 **Event Sourcing** (2 packages):
 
-- ✅ SimpleMediator.EventStoreDB - EventStoreDB integration with aggregate repository
-- ✅ SimpleMediator.Marten - Marten/PostgreSQL event store with projections support
+- ✅ Encina.EventStoreDB - EventStoreDB integration with aggregate repository
+- ✅ Encina.Marten - Marten/PostgreSQL event store with projections support
 
 **Resilience** (4 packages):
 
-- ✅ SimpleMediator.Extensions.Resilience - Core resilience abstractions
-- ✅ SimpleMediator.Polly - Retry, circuit breaker, timeout policies
-- ✅ SimpleMediator.Refit - HTTP client integration with resilience
-- ✅ SimpleMediator.Dapr - Dapr sidecar integration
+- ✅ Encina.Extensions.Resilience - Core resilience abstractions
+- ✅ Encina.Polly - Retry, circuit breaker, timeout policies
+- ✅ Encina.Refit - HTTP client integration with resilience
+- ✅ Encina.Dapr - Dapr sidecar integration
 
 **Real-time & Integration** (3 packages):
 
-- ✅ SimpleMediator.SignalR - Real-time notification broadcasting
-- ✅ SimpleMediator.MassTransit - MassTransit message bus integration
-- ✅ SimpleMediator.MongoDB - MongoDB persistence provider
+- ✅ Encina.SignalR - Real-time notification broadcasting
+- ✅ Encina.MassTransit - MassTransit message bus integration
+- ✅ Encina.MongoDB - MongoDB persistence provider
 
 **Observability**:
 
-- ✅ SimpleMediator.OpenTelemetry - Distributed tracing and metrics
+- ✅ Encina.OpenTelemetry - Distributed tracing and metrics
 
 **Quality Metrics**:
 
@@ -546,22 +546,22 @@ For efficient development with reduced MSBuild overhead, use solution filters:
 
 ```bash
 # Work only on caching (17 projects)
-dotnet build SimpleMediator.Caching.slnf
+dotnet build Encina.Caching.slnf
 
 # Work only on core (7 projects)
-dotnet build SimpleMediator.Core.slnf
+dotnet build Encina.Core.slnf
 
 # Work only on validation (25 projects)
-dotnet build SimpleMediator.Validation.slnf
+dotnet build Encina.Validation.slnf
 
 # Work only on database providers (21 projects)
-dotnet build SimpleMediator.Database.slnf
+dotnet build Encina.Database.slnf
 
 # Work only on scheduling (15 projects)
-dotnet build SimpleMediator.Scheduling.slnf
+dotnet build Encina.Scheduling.slnf
 
 # Work only on web (9 projects)
-dotnet build SimpleMediator.Web.slnf
+dotnet build Encina.Web.slnf
 ```
 
 **Total Tests**: 752+ passing (385 core + 367 caching)
@@ -578,7 +578,7 @@ dotnet build SimpleMediator.Web.slnf
 
 **Critical Core Improvements**:
 
-- Refactor `SimpleMediator.Publish` with guards (like Send)
+- Refactor `Encina.Publish` with guards (like Send)
 - Optimize delegate caches (minimize reflection/boxing)
 - Apply `CollectionsMarshal.AsSpan` for performance
 - Substitute `object? Details` with `ImmutableDictionary<string, object?>`
@@ -638,7 +638,7 @@ dotnet build SimpleMediator.Web.slnf
 
 ### Scheduling vs Hangfire/Quartz
 
-- **SimpleMediator.Scheduling**: Domain messages (commands, queries, notifications)
+- **Encina.Scheduling**: Domain messages (commands, queries, notifications)
 - **Hangfire/Quartz**: Infrastructure jobs (cleanup tasks, reports, batch processing)
 - **Complementary**: Both can coexist in the same application
 - **Future**: Adapters to use Hangfire/Quartz as scheduling backends

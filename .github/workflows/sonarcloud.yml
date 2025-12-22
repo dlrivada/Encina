@@ -32,16 +32,16 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore dependencies
-        run: dotnet restore SimpleMediator.slnx
+        run: dotnet restore Encina.slnx
 
       - name: SonarCloud Scan
         uses: highbyte/sonarscan-dotnet@v2.5.0
         with:
-          sonarProjectKey: dlrivada_SimpleMediator
-          sonarProjectName: SimpleMediator
+          sonarProjectKey: dlrivada_Encina
+          sonarProjectName: Encina
           sonarOrganization: dlrivada
-          dotnetBuildArguments: SimpleMediator.slnx --configuration Release
-          dotnetTestArguments: SimpleMediator.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+          dotnetBuildArguments: Encina.slnx --configuration Release
+          dotnetTestArguments: Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
           sonarBeginArguments: /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" /d:sonar.coverage.exclusions="**/tests/**,**/benchmarks/**,**/load/**"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

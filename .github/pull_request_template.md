@@ -2,7 +2,7 @@
 
 - [ ] Título/PR sigue Convencional Commits (`type(scope?): subject`) o excepción justificada.
 - [ ] `dotnet format` y analizador sin warnings (`TreatWarningsAsErrors`) pasan localmente.
-- [ ] `dotnet test SimpleMediator.slnx --configuration Release` pasa.
+- [ ] `dotnet test Encina.slnx --configuration Release` pasa.
 - [ ] Cobertura no cae bajo el umbral acordado (consultar README/ci).
 - [ ] Se actualizaron docs/badges si aplica.
 

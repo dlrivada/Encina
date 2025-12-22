@@ -55,7 +55,7 @@ catch (Exception ex)
 ### Nivel 1.5: RequestHandlerWrapper (SIN try-catch)
 
 ```csharp
-// SimpleMediator.cs líneas 113-121
+// Encina.cs líneas 113-121
 public override async Task<object> Handle(...)
 {
     var pipelineBuilder = new PipelineBuilder<TRequest, TResponse>(...);
@@ -223,7 +223,7 @@ catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequ
 // Usuario ve (si hace throw accidental):
 Unhandled exception. System.InvalidOperationException: Validation failed
    at MyApp.Behaviors.ValidationBehavior.Handle(...)
-   at SimpleMediator.PipelineBuilder.ExecuteBehaviorAsync(...)
+   at Encina.PipelineBuilder.ExecuteBehaviorAsync(...)
    → PROCESS CRASH
 ```
 

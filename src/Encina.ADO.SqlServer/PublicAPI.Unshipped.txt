@@ -1,0 +1,128 @@
+#nullable enable
+Encina.ADO.SqlServer.Inbox.IIdempotentRequest
+Encina.ADO.SqlServer.Inbox.InboxMessage
+Encina.ADO.SqlServer.Inbox.InboxMessage.ErrorMessage.get -> string?
+Encina.ADO.SqlServer.Inbox.InboxMessage.ErrorMessage.set -> void
+Encina.ADO.SqlServer.Inbox.InboxMessage.ExpiresAtUtc.get -> System.DateTime
+Encina.ADO.SqlServer.Inbox.InboxMessage.ExpiresAtUtc.set -> void
+Encina.ADO.SqlServer.Inbox.InboxMessage.InboxMessage() -> void
+Encina.ADO.SqlServer.Inbox.InboxMessage.IsExpired() -> bool
+Encina.ADO.SqlServer.Inbox.InboxMessage.IsProcessed.get -> bool
+Encina.ADO.SqlServer.Inbox.InboxMessage.MessageId.get -> string!
+Encina.ADO.SqlServer.Inbox.InboxMessage.MessageId.set -> void
+Encina.ADO.SqlServer.Inbox.InboxMessage.Metadata.get -> string?
+Encina.ADO.SqlServer.Inbox.InboxMessage.Metadata.set -> void
+Encina.ADO.SqlServer.Inbox.InboxMessage.NextRetryAtUtc.get -> System.DateTime?
+Encina.ADO.SqlServer.Inbox.InboxMessage.NextRetryAtUtc.set -> void
+Encina.ADO.SqlServer.Inbox.InboxMessage.ProcessedAtUtc.get -> System.DateTime?
+Encina.ADO.SqlServer.Inbox.InboxMessage.ProcessedAtUtc.set -> void
+Encina.ADO.SqlServer.Inbox.InboxMessage.ReceivedAtUtc.get -> System.DateTime
+Encina.ADO.SqlServer.Inbox.InboxMessage.ReceivedAtUtc.set -> void
+Encina.ADO.SqlServer.Inbox.InboxMessage.RequestType.get -> string!
+Encina.ADO.SqlServer.Inbox.InboxMessage.RequestType.set -> void
+Encina.ADO.SqlServer.Inbox.InboxMessage.Response.get -> string?
+Encina.ADO.SqlServer.Inbox.InboxMessage.Response.set -> void
+Encina.ADO.SqlServer.Inbox.InboxMessage.RetryCount.get -> int
+Encina.ADO.SqlServer.Inbox.InboxMessage.RetryCount.set -> void
+Encina.ADO.SqlServer.Inbox.InboxPipelineBehavior<TRequest, TResponse>
+Encina.ADO.SqlServer.Inbox.InboxPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.ADO.SqlServer.Inbox.InboxPipelineBehavior<TRequest, TResponse>.InboxPipelineBehavior(Encina.Messaging.Inbox.IInboxStore! inboxStore, Encina.Messaging.Inbox.InboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.ADO.SqlServer.Inbox.InboxPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.ADO.SqlServer.Inbox.InboxStoreADO
+Encina.ADO.SqlServer.Inbox.InboxStoreADO.AddAsync(Encina.Messaging.Inbox.IInboxMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.SqlServer.Inbox.InboxStoreADO.GetExpiredMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Inbox.IInboxMessage!>!>!
+Encina.ADO.SqlServer.Inbox.InboxStoreADO.GetMessageAsync(string! messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Inbox.IInboxMessage?>!
+Encina.ADO.SqlServer.Inbox.InboxStoreADO.InboxStoreADO(System.Data.IDbConnection! connection, string! tableName = "InboxMessages") -> void
+Encina.ADO.SqlServer.Inbox.InboxStoreADO.MarkAsFailedAsync(string! messageId, string! errorMessage, System.DateTime? nextRetryAt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.SqlServer.Inbox.InboxStoreADO.MarkAsProcessedAsync(string! messageId, string? response, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.SqlServer.Inbox.InboxStoreADO.RemoveExpiredMessagesAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.SqlServer.Inbox.InboxStoreADO.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.SqlServer.Outbox.IHasNotifications
+Encina.ADO.SqlServer.Outbox.IHasNotifications.GetNotifications() -> System.Collections.Generic.IEnumerable<Encina.INotification!>!
+Encina.ADO.SqlServer.Outbox.OutboxMessage
+Encina.ADO.SqlServer.Outbox.OutboxMessage.Content.get -> string!
+Encina.ADO.SqlServer.Outbox.OutboxMessage.Content.set -> void
+Encina.ADO.SqlServer.Outbox.OutboxMessage.CreatedAtUtc.get -> System.DateTime
+Encina.ADO.SqlServer.Outbox.OutboxMessage.CreatedAtUtc.set -> void
+Encina.ADO.SqlServer.Outbox.OutboxMessage.ErrorMessage.get -> string?
+Encina.ADO.SqlServer.Outbox.OutboxMessage.ErrorMessage.set -> void
+Encina.ADO.SqlServer.Outbox.OutboxMessage.Id.get -> System.Guid
+Encina.ADO.SqlServer.Outbox.OutboxMessage.Id.set -> void
+Encina.ADO.SqlServer.Outbox.OutboxMessage.IsDeadLettered(int maxRetries) -> bool
+Encina.ADO.SqlServer.Outbox.OutboxMessage.IsProcessed.get -> bool
+Encina.ADO.SqlServer.Outbox.OutboxMessage.NextRetryAtUtc.get -> System.DateTime?
+Encina.ADO.SqlServer.Outbox.OutboxMessage.NextRetryAtUtc.set -> void
+Encina.ADO.SqlServer.Outbox.OutboxMessage.NotificationType.get -> string!
+Encina.ADO.SqlServer.Outbox.OutboxMessage.NotificationType.set -> void
+Encina.ADO.SqlServer.Outbox.OutboxMessage.OutboxMessage() -> void
+Encina.ADO.SqlServer.Outbox.OutboxMessage.ProcessedAtUtc.get -> System.DateTime?
+Encina.ADO.SqlServer.Outbox.OutboxMessage.ProcessedAtUtc.set -> void
+Encina.ADO.SqlServer.Outbox.OutboxMessage.RetryCount.get -> int
+Encina.ADO.SqlServer.Outbox.OutboxMessage.RetryCount.set -> void
+Encina.ADO.SqlServer.Outbox.OutboxPostProcessor<TRequest, TResponse>
+Encina.ADO.SqlServer.Outbox.OutboxPostProcessor<TRequest, TResponse>.OutboxPostProcessor(Encina.Messaging.Outbox.IOutboxStore! outboxStore, Microsoft.Extensions.Logging.ILogger<Encina.ADO.SqlServer.Outbox.OutboxPostProcessor<TRequest, TResponse>!>! logger) -> void
+Encina.ADO.SqlServer.Outbox.OutboxPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, LanguageExt.Either<Encina.MediatorError, TResponse> result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.ADO.SqlServer.Outbox.OutboxProcessor
+Encina.ADO.SqlServer.Outbox.OutboxProcessor.OutboxProcessor(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.ADO.SqlServer.Outbox.OutboxProcessor!>! logger, Encina.Messaging.Outbox.OutboxOptions! options) -> void
+Encina.ADO.SqlServer.Outbox.OutboxStoreADO
+Encina.ADO.SqlServer.Outbox.OutboxStoreADO.AddAsync(Encina.Messaging.Outbox.IOutboxMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.SqlServer.Outbox.OutboxStoreADO.GetPendingMessagesAsync(int batchSize, int maxRetries, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Outbox.IOutboxMessage!>!>!
+Encina.ADO.SqlServer.Outbox.OutboxStoreADO.MarkAsFailedAsync(System.Guid messageId, string! errorMessage, System.DateTime? nextRetryAt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.SqlServer.Outbox.OutboxStoreADO.MarkAsProcessedAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.SqlServer.Outbox.OutboxStoreADO.OutboxStoreADO(System.Data.IDbConnection! connection, string! tableName = "OutboxMessages") -> void
+Encina.ADO.SqlServer.Outbox.OutboxStoreADO.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.SqlServer.Sagas.SagaState
+Encina.ADO.SqlServer.Sagas.SagaState.CompletedAtUtc.get -> System.DateTime?
+Encina.ADO.SqlServer.Sagas.SagaState.CompletedAtUtc.set -> void
+Encina.ADO.SqlServer.Sagas.SagaState.CurrentStep.get -> int
+Encina.ADO.SqlServer.Sagas.SagaState.CurrentStep.set -> void
+Encina.ADO.SqlServer.Sagas.SagaState.Data.get -> string!
+Encina.ADO.SqlServer.Sagas.SagaState.Data.set -> void
+Encina.ADO.SqlServer.Sagas.SagaState.ErrorMessage.get -> string?
+Encina.ADO.SqlServer.Sagas.SagaState.ErrorMessage.set -> void
+Encina.ADO.SqlServer.Sagas.SagaState.LastUpdatedAtUtc.get -> System.DateTime
+Encina.ADO.SqlServer.Sagas.SagaState.LastUpdatedAtUtc.set -> void
+Encina.ADO.SqlServer.Sagas.SagaState.SagaId.get -> System.Guid
+Encina.ADO.SqlServer.Sagas.SagaState.SagaId.set -> void
+Encina.ADO.SqlServer.Sagas.SagaState.SagaState() -> void
+Encina.ADO.SqlServer.Sagas.SagaState.SagaType.get -> string!
+Encina.ADO.SqlServer.Sagas.SagaState.SagaType.set -> void
+Encina.ADO.SqlServer.Sagas.SagaState.StartedAtUtc.get -> System.DateTime
+Encina.ADO.SqlServer.Sagas.SagaState.StartedAtUtc.set -> void
+Encina.ADO.SqlServer.Sagas.SagaState.Status.get -> string!
+Encina.ADO.SqlServer.Sagas.SagaState.Status.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.Content.get -> string!
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.Content.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.CreatedAtUtc.get -> System.DateTime
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.CreatedAtUtc.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.CronExpression.get -> string?
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.CronExpression.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.ErrorMessage.get -> string?
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.ErrorMessage.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.Id.get -> System.Guid
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.Id.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.IsDeadLettered(int maxRetries) -> bool
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.IsDue() -> bool
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.IsProcessed.get -> bool
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.IsRecurring.get -> bool
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.IsRecurring.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.LastExecutedAtUtc.get -> System.DateTime?
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.LastExecutedAtUtc.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.NextRetryAtUtc.get -> System.DateTime?
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.NextRetryAtUtc.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.ProcessedAtUtc.get -> System.DateTime?
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.ProcessedAtUtc.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.RequestType.get -> string!
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.RequestType.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.RetryCount.get -> int
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.RetryCount.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.ScheduledAtUtc.get -> System.DateTime
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.ScheduledAtUtc.set -> void
+Encina.ADO.SqlServer.Scheduling.ScheduledMessage.ScheduledMessage() -> void
+Encina.ADO.SqlServer.ServiceCollectionExtensions
+Encina.ADO.SqlServer.TransactionPipelineBehavior<TRequest, TResponse>
+Encina.ADO.SqlServer.TransactionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! next, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.ADO.SqlServer.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(System.Data.IDbConnection! connection) -> void
+static Encina.ADO.SqlServer.ServiceCollectionExtensions.AddEncinaADO(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.ADO.SqlServer.ServiceCollectionExtensions.AddEncinaADO(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.ADO.SqlServer.ServiceCollectionExtensions.AddEncinaADO(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, System.Data.IDbConnection!>! connectionFactory, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

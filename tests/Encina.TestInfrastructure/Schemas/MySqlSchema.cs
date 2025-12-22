@@ -1,0 +1,138 @@
+﻿using MySqlConnector;
+
+namespace Encina.TestInfrastructure.Schemas;
+
+/// <summary>
+/// MySQL schema creation for Encina test databases.
+/// </summary>
+public static class MySqlSchema
+{
+    /// <summary>
+    /// Creates the Outbox table schema.
+    /// </summary>
+    public static async Task CreateOutboxSchemaAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS OutboxMessages (
+                Id CHAR(36) PRIMARY KEY,
+                NotificationType VARCHAR(500) NOT NULL,
+                Content TEXT NOT NULL,
+                CreatedAtUtc DATETIME(6) NOT NULL,
+                ProcessedAtUtc DATETIME(6) NULL,
+                ErrorMessage TEXT NULL,
+                RetryCount INT NOT NULL DEFAULT 0,
+                NextRetryAtUtc DATETIME(6) NULL,
+                INDEX IX_OutboxMessages_ProcessedAtUtc_NextRetryAtUtc (ProcessedAtUtc, NextRetryAtUtc)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Creates the Inbox table schema.
+    /// </summary>
+    public static async Task CreateInboxSchemaAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS InboxMessages (
+                MessageId VARCHAR(256) PRIMARY KEY,
+                RequestType VARCHAR(500) NOT NULL,
+                ReceivedAtUtc DATETIME(6) NOT NULL,
+                ProcessedAtUtc DATETIME(6) NULL,
+                Response TEXT NULL,
+                ErrorMessage TEXT NULL,
+                RetryCount INT NOT NULL DEFAULT 0,
+                NextRetryAtUtc DATETIME(6) NULL,
+                ExpiresAtUtc DATETIME(6) NOT NULL,
+                INDEX IX_InboxMessages_ExpiresAtUtc (ExpiresAtUtc)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Creates the Saga table schema.
+    /// </summary>
+    public static async Task CreateSagaSchemaAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS SagaStates (
+                SagaId CHAR(36) PRIMARY KEY,
+                SagaType VARCHAR(500) NOT NULL,
+                CurrentStep VARCHAR(200) NOT NULL,
+                Status VARCHAR(50) NOT NULL,
+                Data TEXT NOT NULL,
+                StartedAtUtc DATETIME(6) NOT NULL,
+                LastUpdatedAtUtc DATETIME(6) NOT NULL,
+                CompletedAtUtc DATETIME(6) NULL,
+                ErrorMessage TEXT NULL,
+                CompensationData TEXT NULL,
+                INDEX IX_SagaStates_Status_LastUpdatedAtUtc (Status, LastUpdatedAtUtc)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Creates the Scheduling table schema.
+    /// </summary>
+    public static async Task CreateSchedulingSchemaAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS ScheduledMessages (
+                Id CHAR(36) PRIMARY KEY,
+                RequestType VARCHAR(500) NOT NULL,
+                Content TEXT NOT NULL,
+                ScheduledAtUtc DATETIME(6) NOT NULL,
+                ProcessedAtUtc DATETIME(6) NULL,
+                ErrorMessage TEXT NULL,
+                RetryCount INT NOT NULL DEFAULT 0,
+                NextRetryAtUtc DATETIME(6) NULL,
+                RecurrencePattern VARCHAR(200) NULL,
+                INDEX IX_ScheduledMessages_ScheduledAtUtc_ProcessedAtUtc (ScheduledAtUtc, ProcessedAtUtc)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Drops all Encina tables.
+    /// </summary>
+    public static async Task DropAllSchemasAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            DROP TABLE IF EXISTS ScheduledMessages;
+            DROP TABLE IF EXISTS SagaStates;
+            DROP TABLE IF EXISTS InboxMessages;
+            DROP TABLE IF EXISTS OutboxMessages;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Clears all data from Encina tables without dropping schemas.
+    /// Useful for cleaning between tests that share a database fixture.
+    /// </summary>
+    public static async Task ClearAllDataAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            DELETE FROM ScheduledMessages;
+            DELETE FROM SagaStates;
+            DELETE FROM InboxMessages;
+            DELETE FROM OutboxMessages;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+}

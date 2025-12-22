@@ -1,10 +1,10 @@
-# SimpleMediator Requirements Guide
+# Encina Requirements Guide
 
 Last updated: 2025-12-08
 
 ## Purpose
 
-- Capture the functional and quality requirements that govern SimpleMediator.
+- Capture the functional and quality requirements that govern Encina.
 - Describe how each requirement is validated so contributors can run the right checks before merging.
 - Provide a repeatable process for documenting new requirements and keeping the traceability matrix current.
 
@@ -31,9 +31,9 @@ Last updated: 2025-12-08
 
 ## Traceability Overview
 
-- **Unit & property suites** – execute via `dotnet test SimpleMediator.slnx --configuration Release`. Coverage results must stay ≥90% line coverage (see `docs/en/guides/TESTING.md`).
+- **Unit & property suites** – execute via `dotnet test Encina.slnx --configuration Release`. Coverage results must stay ≥90% line coverage (see `docs/en/guides/TESTING.md`).
 - **Mutation testing** – run `dotnet run --file scripts/run-stryker.cs`; refresh the badge with `scripts/update-mutation-summary.cs`. CI enforces the 93.74% baseline.
-- **Zero Exceptions policy** – unit suites in `tests/SimpleMediator.Tests` (for example, `SimpleMediatorTests` and `PipelineBehaviorsTests`) assert mediator operations return functional results instead of throwing for expected failures; property suites reuse the same result patterns when exploring pipeline invariants.
+- **Zero Exceptions policy** – unit suites in `tests/Encina.Tests` (for example, `EncinaTests` and `PipelineBehaviorsTests`) assert mediator operations return functional results instead of throwing for expected failures; property suites reuse the same result patterns when exploring pipeline invariants.
 - **Benchmarks** – launch `scripts/run-benchmarks.cs`, then fail builds if `scripts/check-benchmarks.cs` detects regressions against the baseline snapshots.
 - **Load harnesses** – the console harness uses `scripts/check-load-metrics.cs -- --config ci/load-thresholds.json`; NBomber profiles are summarised via `scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json`.
 

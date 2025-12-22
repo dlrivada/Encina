@@ -29,8 +29,8 @@ for (var index = 0; index < extraArguments.Length; index++)
 }
 
 var projectPath = runNbomber
-    ? "load/SimpleMediator.NBomber/SimpleMediator.NBomber.csproj"
-    : "load/SimpleMediator.LoadTests/SimpleMediator.LoadTests.csproj";
+    ? "load/Encina.NBomber/Encina.NBomber.csproj"
+    : "load/Encina.LoadTests/Encina.LoadTests.csproj";
 
 if (runNbomber && !ContainsOption(forwardedArguments, "--profile") && !string.IsNullOrEmpty(nbomberAlias))
 {

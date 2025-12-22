@@ -31,19 +31,19 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore
-        run: dotnet restore SimpleMediator.slnx
+        run: dotnet restore Encina.slnx
 
       - name: Enforce formatting
-        run: dotnet format SimpleMediator.slnx --verify-no-changes
+        run: dotnet format Encina.slnx --verify-no-changes
 
       - name: Build with analyzers
-        run: dotnet build SimpleMediator.slnx --configuration Release --no-restore -warnaserror
+        run: dotnet build Encina.slnx --configuration Release --no-restore -warnaserror
 
       - name: Restore .NET tools
         run: dotnet tool restore
 
       - name: Test with coverage
-        run: dotnet test SimpleMediator.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --verbosity normal
+        run: dotnet test Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --verbosity normal
 
       - name: Generate coverage report
         run: dotnet tool run reportgenerator -reports:"artifacts/test-results/**/coverage.cobertura.xml" -targetdir:"artifacts/coverage" -reporttypes:"Html;HtmlSummary;TextSummary;JsonSummary"

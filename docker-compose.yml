@@ -4,17 +4,17 @@ services:
   # SQL Server
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: simplemediator-sqlserver
+    container_name: encina-sqlserver
     environment:
       ACCEPT_EULA: "Y"
-      SA_PASSWORD: "SimpleMediator123!"
+      SA_PASSWORD: "Encina123!"
       MSSQL_PID: "Developer"
     ports:
       - "1433:1433"
     volumes:
       - sqlserver-data:/var/opt/mssql
     healthcheck:
-      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "SimpleMediator123!" -Q "SELECT 1" || exit 1
+      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "Encina123!" -Q "SELECT 1" || exit 1
       interval: 10s
       timeout: 3s
       retries: 10
@@ -23,17 +23,17 @@ services:
   # PostgreSQL
   postgres:
     image: postgres:16-alpine
-    container_name: simplemediator-postgres
+    container_name: encina-postgres
     environment:
-      POSTGRES_DB: simplemediator
+      POSTGRES_DB: encina
       POSTGRES_USER: mediator
-      POSTGRES_PASSWORD: SimpleMediator123!
+      POSTGRES_PASSWORD: Encina123!
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mediator -d simplemediator"]
+      test: ["CMD-SHELL", "pg_isready -U mediator -d encina"]
       interval: 10s
       timeout: 3s
       retries: 10
@@ -42,19 +42,19 @@ services:
   # MySQL
   mysql:
     image: mysql:8.0
-    container_name: simplemediator-mysql
+    container_name: encina-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: SimpleMediator123!
-      MYSQL_DATABASE: simplemediator
+      MYSQL_ROOT_PASSWORD: Encina123!
+      MYSQL_DATABASE: encina
       MYSQL_USER: mediator
-      MYSQL_PASSWORD: SimpleMediator123!
+      MYSQL_PASSWORD: Encina123!
     ports:
       - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mediator", "-pSimpleMediator123!"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mediator", "-pEncina123!"]
       interval: 10s
       timeout: 3s
       retries: 10
@@ -63,16 +63,16 @@ services:
   # Oracle (Oracle XE is free for development)
   oracle:
     image: container-registry.oracle.com/database/express:21.3.0-xe
-    container_name: simplemediator-oracle
+    container_name: encina-oracle
     environment:
-      ORACLE_PWD: SimpleMediator123!
+      ORACLE_PWD: Encina123!
       ORACLE_CHARACTERSET: AL32UTF8
     ports:
       - "1521:1521"
     volumes:
       - oracle-data:/opt/oracle/oradata
     healthcheck:
-      test: ["CMD", "bash", "-c", "echo 'SELECT 1 FROM DUAL;' | sqlplus -s system/SimpleMediator123!@//localhost:1521/XE | grep -q '1'"]
+      test: ["CMD", "bash", "-c", "echo 'SELECT 1 FROM DUAL;' | sqlplus -s system/Encina123!@//localhost:1521/XE | grep -q '1'"]
       interval: 30s
       timeout: 10s
       retries: 10

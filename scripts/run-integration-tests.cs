@@ -61,7 +61,7 @@ try
     var testArguments = new System.Collections.Generic.List<string>
     {
         "test",
-        "SimpleMediator.slnx",
+        "Encina.slnx",
         "--configuration",
         "Release",
         "--filter",
@@ -117,7 +117,7 @@ static async Task<bool> WaitForHealthy(string service, TimeSpan timeout)
     {
         try
         {
-            var result = RunCommandSilent("docker", $"inspect --format='{{{{.State.Health.Status}}}}' simplemediator-{service}");
+            var result = RunCommandSilent("docker", $"inspect --format='{{{{.State.Health.Status}}}}' encina-{service}");
             if (result?.Trim().Trim('\'') == "healthy")
                 return true;
         }
@@ -189,12 +189,12 @@ static string FindRepositoryRoot()
     var directory = new DirectoryInfo(Environment.CurrentDirectory);
     while (directory is not null)
     {
-        var candidate = Path.Combine(directory.FullName, "SimpleMediator.slnx");
+        var candidate = Path.Combine(directory.FullName, "Encina.slnx");
         if (File.Exists(candidate))
             return directory.FullName;
 
         directory = directory.Parent;
     }
 
-    throw new InvalidOperationException("Could not locate repository root containing SimpleMediator.slnx.");
+    throw new InvalidOperationException("Could not locate repository root containing Encina.slnx.");
 }
