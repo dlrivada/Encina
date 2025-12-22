@@ -1,21 +1,21 @@
 -- =============================================
 -- Create SagaStates table
 -- For distributed transaction orchestration with compensation
+-- Status values: 0=Running, 1=Completed, 2=Failed, 3=Compensating, 4=Compensated
 -- =============================================
 
-CREATE TABLE [dbo].[SagaStates]
+CREATE TABLE IF NOT EXISTS SagaStates
 (
-    [SagaId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    [SagaType] NVARCHAR(500) NOT NULL,
-    [Data] NVARCHAR(MAX) NOT NULL,
-    [Status] INT NOT NULL, -- 0=Running, 1=Completed, 2=Failed, 3=Compensating, 4=Compensated
-    [StartedAtUtc] DATETIME2(7) NOT NULL,
-    [LastUpdatedAtUtc] DATETIME2(7) NOT NULL,
-    [CompletedAtUtc] DATETIME2(7) NULL,
-    [ErrorMessage] NVARCHAR(MAX) NULL,
-    [CurrentStep] INT NOT NULL DEFAULT 0,
-
-    INDEX [IX_SagaStates_Status_LastUpdated]
-        ([Status], [LastUpdatedAtUtc])
+    SagaId TEXT NOT NULL PRIMARY KEY,
+    SagaType TEXT NOT NULL,
+    Data TEXT NOT NULL,
+    Status INTEGER NOT NULL,
+    StartedAtUtc TEXT NOT NULL,
+    LastUpdatedAtUtc TEXT NOT NULL,
+    CompletedAtUtc TEXT NULL,
+    ErrorMessage TEXT NULL,
+    CurrentStep INTEGER NOT NULL DEFAULT 0
 );
-GO
+
+CREATE INDEX IF NOT EXISTS IX_SagaStates_Status
+    ON SagaStates (Status, LastUpdatedAtUtc);

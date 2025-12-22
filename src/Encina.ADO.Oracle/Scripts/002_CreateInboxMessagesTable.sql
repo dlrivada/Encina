@@ -3,21 +3,18 @@
 -- For idempotent message processing (exactly-once semantics)
 -- =============================================
 
-CREATE TABLE [dbo].[InboxMessages]
+CREATE TABLE InboxMessages
 (
-    [MessageId] NVARCHAR(255) NOT NULL PRIMARY KEY,
-    [RequestType] NVARCHAR(500) NOT NULL,
-    [ReceivedAtUtc] DATETIME2(7) NOT NULL,
-    [ProcessedAtUtc] DATETIME2(7) NULL,
-    [ExpiresAtUtc] DATETIME2(7) NOT NULL,
-    [Response] NVARCHAR(MAX) NULL,
-    [ErrorMessage] NVARCHAR(MAX) NULL,
-    [RetryCount] INT NOT NULL DEFAULT 0,
-    [NextRetryAtUtc] DATETIME2(7) NULL,
-    [Metadata] NVARCHAR(MAX) NULL,
-
-    INDEX [IX_InboxMessages_ExpiresAt]
-        ([ExpiresAtUtc])
-        WHERE [ProcessedAtUtc] IS NOT NULL
+    MessageId VARCHAR2(255) NOT NULL PRIMARY KEY,
+    RequestType VARCHAR2(500) NOT NULL,
+    ReceivedAtUtc TIMESTAMP NOT NULL,
+    ProcessedAtUtc TIMESTAMP NULL,
+    ExpiresAtUtc TIMESTAMP NOT NULL,
+    Response CLOB NULL,
+    ErrorMessage CLOB NULL,
+    RetryCount NUMBER(10) DEFAULT 0 NOT NULL,
+    NextRetryAtUtc TIMESTAMP NULL,
+    Metadata CLOB NULL
 );
-GO
+
+CREATE INDEX IX_InboxMessages_ExpiresAt ON InboxMessages (ExpiresAtUtc);

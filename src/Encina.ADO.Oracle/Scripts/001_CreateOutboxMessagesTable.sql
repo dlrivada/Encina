@@ -3,19 +3,16 @@
 -- For reliable event publishing (at-least-once delivery)
 -- =============================================
 
-CREATE TABLE [dbo].[OutboxMessages]
+CREATE TABLE OutboxMessages
 (
-    [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    [NotificationType] NVARCHAR(500) NOT NULL,
-    [Content] NVARCHAR(MAX) NOT NULL,
-    [CreatedAtUtc] DATETIME2(7) NOT NULL,
-    [ProcessedAtUtc] DATETIME2(7) NULL,
-    [ErrorMessage] NVARCHAR(MAX) NULL,
-    [RetryCount] INT NOT NULL DEFAULT 0,
-    [NextRetryAtUtc] DATETIME2(7) NULL,
-
-    INDEX [IX_OutboxMessages_ProcessedAt_RetryCount]
-        ([ProcessedAtUtc], [RetryCount], [NextRetryAtUtc])
-        INCLUDE ([CreatedAtUtc])
+    Id RAW(16) NOT NULL PRIMARY KEY,
+    NotificationType VARCHAR2(500) NOT NULL,
+    Content CLOB NOT NULL,
+    CreatedAtUtc TIMESTAMP NOT NULL,
+    ProcessedAtUtc TIMESTAMP NULL,
+    ErrorMessage CLOB NULL,
+    RetryCount NUMBER(10) DEFAULT 0 NOT NULL,
+    NextRetryAtUtc TIMESTAMP NULL
 );
-GO
+
+CREATE INDEX IX_OutboxMessages_ProcessedAt ON OutboxMessages (ProcessedAtUtc, RetryCount, NextRetryAtUtc);

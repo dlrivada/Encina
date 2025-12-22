@@ -3,23 +3,21 @@
 -- For delayed and recurring command execution
 -- =============================================
 
-CREATE TABLE [dbo].[ScheduledMessages]
+CREATE TABLE IF NOT EXISTS ScheduledMessages
 (
-    [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    [RequestType] NVARCHAR(500) NOT NULL,
-    [Content] NVARCHAR(MAX) NOT NULL,
-    [ScheduledAtUtc] DATETIME2(7) NOT NULL,
-    [CreatedAtUtc] DATETIME2(7) NOT NULL,
-    [ProcessedAtUtc] DATETIME2(7) NULL,
-    [LastExecutedAtUtc] DATETIME2(7) NULL,
-    [ErrorMessage] NVARCHAR(MAX) NULL,
-    [RetryCount] INT NOT NULL DEFAULT 0,
-    [NextRetryAtUtc] DATETIME2(7) NULL,
-    [IsRecurring] BIT NOT NULL DEFAULT 0,
-    [CronExpression] NVARCHAR(100) NULL,
-
-    INDEX [IX_ScheduledMessages_ScheduledAt_Processed]
-        ([ScheduledAtUtc], [ProcessedAtUtc], [RetryCount])
-        INCLUDE ([NextRetryAtUtc], [IsRecurring])
+    Id TEXT NOT NULL PRIMARY KEY,
+    RequestType TEXT NOT NULL,
+    Content TEXT NOT NULL,
+    ScheduledAtUtc TEXT NOT NULL,
+    CreatedAtUtc TEXT NOT NULL,
+    ProcessedAtUtc TEXT NULL,
+    LastExecutedAtUtc TEXT NULL,
+    ErrorMessage TEXT NULL,
+    RetryCount INTEGER NOT NULL DEFAULT 0,
+    NextRetryAtUtc TEXT NULL,
+    IsRecurring INTEGER NOT NULL DEFAULT 0,
+    CronExpression TEXT NULL
 );
-GO
+
+CREATE INDEX IF NOT EXISTS IX_ScheduledMessages_ScheduledAt
+    ON ScheduledMessages (ScheduledAtUtc, ProcessedAtUtc, RetryCount);

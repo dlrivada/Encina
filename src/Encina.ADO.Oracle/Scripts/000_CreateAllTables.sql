@@ -1,127 +1,131 @@
 -- =============================================
--- Encina.ADO - Complete Database Schema
+-- Encina.ADO.Oracle - Complete Database Schema
 -- Run this script to create all messaging pattern tables
 -- =============================================
 
 -- =============================================
 -- OutboxMessages - Reliable Event Publishing
 -- =============================================
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[OutboxMessages]') AND type in (N'U'))
+DECLARE
+    table_exists NUMBER;
 BEGIN
-    CREATE TABLE [dbo].[OutboxMessages]
-    (
-        [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-        [NotificationType] NVARCHAR(500) NOT NULL,
-        [Content] NVARCHAR(MAX) NOT NULL,
-        [CreatedAtUtc] DATETIME2(7) NOT NULL,
-        [ProcessedAtUtc] DATETIME2(7) NULL,
-        [ErrorMessage] NVARCHAR(MAX) NULL,
-        [RetryCount] INT NOT NULL DEFAULT 0,
-        [NextRetryAtUtc] DATETIME2(7) NULL,
-
-        INDEX [IX_OutboxMessages_ProcessedAt_RetryCount]
-            ([ProcessedAtUtc], [RetryCount], [NextRetryAtUtc])
-            INCLUDE ([CreatedAtUtc])
-    );
-    PRINT 'Created table: OutboxMessages';
-END
-ELSE
-BEGIN
-    PRINT 'Table already exists: OutboxMessages';
-END
-GO
+    SELECT COUNT(*) INTO table_exists FROM user_tables WHERE table_name = 'OUTBOXMESSAGES';
+    IF table_exists = 0 THEN
+        EXECUTE IMMEDIATE '
+            CREATE TABLE OutboxMessages
+            (
+                Id RAW(16) NOT NULL PRIMARY KEY,
+                NotificationType VARCHAR2(500) NOT NULL,
+                Content CLOB NOT NULL,
+                CreatedAtUtc TIMESTAMP NOT NULL,
+                ProcessedAtUtc TIMESTAMP NULL,
+                ErrorMessage CLOB NULL,
+                RetryCount NUMBER(10) DEFAULT 0 NOT NULL,
+                NextRetryAtUtc TIMESTAMP NULL
+            )';
+        EXECUTE IMMEDIATE 'CREATE INDEX IX_OutboxMessages_ProcessedAt ON OutboxMessages (ProcessedAtUtc, RetryCount, NextRetryAtUtc)';
+        DBMS_OUTPUT.PUT_LINE('Created table: OutboxMessages');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('Table already exists: OutboxMessages');
+    END IF;
+END;
+/
 
 -- =============================================
 -- InboxMessages - Idempotent Message Processing
 -- =============================================
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[InboxMessages]') AND type in (N'U'))
+DECLARE
+    table_exists NUMBER;
 BEGIN
-    CREATE TABLE [dbo].[InboxMessages]
-    (
-        [MessageId] NVARCHAR(255) NOT NULL PRIMARY KEY,
-        [RequestType] NVARCHAR(500) NOT NULL,
-        [ReceivedAtUtc] DATETIME2(7) NOT NULL,
-        [ProcessedAtUtc] DATETIME2(7) NULL,
-        [ExpiresAtUtc] DATETIME2(7) NOT NULL,
-        [Response] NVARCHAR(MAX) NULL,
-        [ErrorMessage] NVARCHAR(MAX) NULL,
-        [RetryCount] INT NOT NULL DEFAULT 0,
-        [NextRetryAtUtc] DATETIME2(7) NULL,
-        [Metadata] NVARCHAR(MAX) NULL,
-
-        INDEX [IX_InboxMessages_ExpiresAt]
-            ([ExpiresAtUtc])
-            WHERE [ProcessedAtUtc] IS NOT NULL
-    );
-    PRINT 'Created table: InboxMessages';
-END
-ELSE
-BEGIN
-    PRINT 'Table already exists: InboxMessages';
-END
-GO
+    SELECT COUNT(*) INTO table_exists FROM user_tables WHERE table_name = 'INBOXMESSAGES';
+    IF table_exists = 0 THEN
+        EXECUTE IMMEDIATE '
+            CREATE TABLE InboxMessages
+            (
+                MessageId VARCHAR2(255) NOT NULL PRIMARY KEY,
+                RequestType VARCHAR2(500) NOT NULL,
+                ReceivedAtUtc TIMESTAMP NOT NULL,
+                ProcessedAtUtc TIMESTAMP NULL,
+                ExpiresAtUtc TIMESTAMP NOT NULL,
+                Response CLOB NULL,
+                ErrorMessage CLOB NULL,
+                RetryCount NUMBER(10) DEFAULT 0 NOT NULL,
+                NextRetryAtUtc TIMESTAMP NULL,
+                Metadata CLOB NULL
+            )';
+        EXECUTE IMMEDIATE 'CREATE INDEX IX_InboxMessages_ExpiresAt ON InboxMessages (ExpiresAtUtc)';
+        DBMS_OUTPUT.PUT_LINE('Created table: InboxMessages');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('Table already exists: InboxMessages');
+    END IF;
+END;
+/
 
 -- =============================================
 -- SagaStates - Distributed Transaction Orchestration
 -- =============================================
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SagaStates]') AND type in (N'U'))
+DECLARE
+    table_exists NUMBER;
 BEGIN
-    CREATE TABLE [dbo].[SagaStates]
-    (
-        [SagaId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-        [SagaType] NVARCHAR(500) NOT NULL,
-        [Data] NVARCHAR(MAX) NOT NULL,
-        [Status] INT NOT NULL, -- 0=Running, 1=Completed, 2=Failed, 3=Compensating, 4=Compensated
-        [StartedAtUtc] DATETIME2(7) NOT NULL,
-        [LastUpdatedAtUtc] DATETIME2(7) NOT NULL,
-        [CompletedAtUtc] DATETIME2(7) NULL,
-        [ErrorMessage] NVARCHAR(MAX) NULL,
-        [CurrentStep] INT NOT NULL DEFAULT 0,
-
-        INDEX [IX_SagaStates_Status_LastUpdated]
-            ([Status], [LastUpdatedAtUtc])
-    );
-    PRINT 'Created table: SagaStates';
-END
-ELSE
-BEGIN
-    PRINT 'Table already exists: SagaStates';
-END
-GO
+    SELECT COUNT(*) INTO table_exists FROM user_tables WHERE table_name = 'SAGASTATES';
+    IF table_exists = 0 THEN
+        EXECUTE IMMEDIATE '
+            CREATE TABLE SagaStates
+            (
+                SagaId RAW(16) NOT NULL PRIMARY KEY,
+                SagaType VARCHAR2(500) NOT NULL,
+                Data CLOB NOT NULL,
+                Status NUMBER(10) NOT NULL,
+                StartedAtUtc TIMESTAMP NOT NULL,
+                LastUpdatedAtUtc TIMESTAMP NOT NULL,
+                CompletedAtUtc TIMESTAMP NULL,
+                ErrorMessage CLOB NULL,
+                CurrentStep NUMBER(10) DEFAULT 0 NOT NULL
+            )';
+        -- Status: 0=Running, 1=Completed, 2=Failed, 3=Compensating, 4=Compensated
+        EXECUTE IMMEDIATE 'CREATE INDEX IX_SagaStates_Status ON SagaStates (Status, LastUpdatedAtUtc)';
+        DBMS_OUTPUT.PUT_LINE('Created table: SagaStates');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('Table already exists: SagaStates');
+    END IF;
+END;
+/
 
 -- =============================================
 -- ScheduledMessages - Delayed/Recurring Execution
 -- =============================================
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ScheduledMessages]') AND type in (N'U'))
+DECLARE
+    table_exists NUMBER;
 BEGIN
-    CREATE TABLE [dbo].[ScheduledMessages]
-    (
-        [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-        [RequestType] NVARCHAR(500) NOT NULL,
-        [Content] NVARCHAR(MAX) NOT NULL,
-        [ScheduledAtUtc] DATETIME2(7) NOT NULL,
-        [CreatedAtUtc] DATETIME2(7) NOT NULL,
-        [ProcessedAtUtc] DATETIME2(7) NULL,
-        [LastExecutedAtUtc] DATETIME2(7) NULL,
-        [ErrorMessage] NVARCHAR(MAX) NULL,
-        [RetryCount] INT NOT NULL DEFAULT 0,
-        [NextRetryAtUtc] DATETIME2(7) NULL,
-        [IsRecurring] BIT NOT NULL DEFAULT 0,
-        [CronExpression] NVARCHAR(100) NULL,
+    SELECT COUNT(*) INTO table_exists FROM user_tables WHERE table_name = 'SCHEDULEDMESSAGES';
+    IF table_exists = 0 THEN
+        EXECUTE IMMEDIATE '
+            CREATE TABLE ScheduledMessages
+            (
+                Id RAW(16) NOT NULL PRIMARY KEY,
+                RequestType VARCHAR2(500) NOT NULL,
+                Content CLOB NOT NULL,
+                ScheduledAtUtc TIMESTAMP NOT NULL,
+                CreatedAtUtc TIMESTAMP NOT NULL,
+                ProcessedAtUtc TIMESTAMP NULL,
+                LastExecutedAtUtc TIMESTAMP NULL,
+                ErrorMessage CLOB NULL,
+                RetryCount NUMBER(10) DEFAULT 0 NOT NULL,
+                NextRetryAtUtc TIMESTAMP NULL,
+                IsRecurring NUMBER(1) DEFAULT 0 NOT NULL,
+                CronExpression VARCHAR2(100) NULL
+            )';
+        EXECUTE IMMEDIATE 'CREATE INDEX IX_ScheduledMessages_ScheduledAt ON ScheduledMessages (ScheduledAtUtc, ProcessedAtUtc, RetryCount)';
+        DBMS_OUTPUT.PUT_LINE('Created table: ScheduledMessages');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('Table already exists: ScheduledMessages');
+    END IF;
+END;
+/
 
-        INDEX [IX_ScheduledMessages_ScheduledAt_Processed]
-            ([ScheduledAtUtc], [ProcessedAtUtc], [RetryCount])
-            INCLUDE ([NextRetryAtUtc], [IsRecurring])
-    );
-    PRINT 'Created table: ScheduledMessages';
-END
-ELSE
 BEGIN
-    PRINT 'Table already exists: ScheduledMessages';
-END
-GO
-
-PRINT '';
-PRINT 'Encina.ADO schema installation complete!';
-PRINT 'You can now use all messaging patterns with ADO.NET.';
-GO
+    DBMS_OUTPUT.PUT_LINE('');
+    DBMS_OUTPUT.PUT_LINE('Encina.ADO.Oracle schema installation complete!');
+    DBMS_OUTPUT.PUT_LINE('You can now use all messaging patterns with ADO.NET.');
+END;
+/
