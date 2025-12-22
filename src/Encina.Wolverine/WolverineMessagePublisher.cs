@@ -13,14 +13,13 @@ public sealed class WolverineMessagePublisher : IWolverineMessagePublisher
 {
     private readonly IMessageBus _messageBus;
     private readonly ILogger<WolverineMessagePublisher> _logger;
-    private readonly EncinaWolverineOptions _options;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WolverineMessagePublisher"/> class.
     /// </summary>
     /// <param name="messageBus">The Wolverine message bus.</param>
     /// <param name="logger">The logger instance.</param>
-    /// <param name="options">The configuration options.</param>
+    /// <param name="options">The configuration options (reserved for future use).</param>
     public WolverineMessagePublisher(
         IMessageBus messageBus,
         ILogger<WolverineMessagePublisher> logger,
@@ -32,7 +31,7 @@ public sealed class WolverineMessagePublisher : IWolverineMessagePublisher
 
         _messageBus = messageBus;
         _logger = logger;
-        _options = options.Value;
+        _ = options.Value; // Reserved for future use
     }
 
     /// <inheritdoc />

@@ -12,7 +12,6 @@ namespace Encina.Redis.PubSub;
 /// </summary>
 public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
 {
-    private readonly IConnectionMultiplexer _redis;
     private readonly ISubscriber _subscriber;
     private readonly ILogger<RedisPubSubMessagePublisher> _logger;
     private readonly EncinaRedisPubSubOptions _options;
@@ -32,7 +31,6 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
 
-        _redis = redis;
         _subscriber = redis.GetSubscriber();
         _logger = logger;
         _options = options.Value;

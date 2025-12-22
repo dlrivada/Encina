@@ -16,7 +16,6 @@ public class OutboxDapperBenchmarks
 {
     private SqliteConnection _connection = null!;
     private OutboxStoreDapper _store = null!;
-    private Guid _testMessageId;
 
     [GlobalSetup]
     public async Task GlobalSetup()
@@ -27,8 +26,6 @@ public class OutboxDapperBenchmarks
         _connection.Open();
         await SqliteSchemaBuilder.CreateOutboxSchemaAsync(_connection);
         _store = new OutboxStoreDapper(_connection);
-
-        _testMessageId = Guid.NewGuid();
     }
 
     [GlobalCleanup]

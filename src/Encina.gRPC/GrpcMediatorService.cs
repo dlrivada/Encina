@@ -13,7 +13,6 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
 {
     private readonly IEncina _Encina;
     private readonly ILogger<GrpcEncinaService> _logger;
-    private readonly EncinaGrpcOptions _options;
     private readonly Dictionary<string, Type> _requestTypeCache = new();
     private readonly Dictionary<string, Type> _notificationTypeCache = new();
 
@@ -22,7 +21,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
     /// </summary>
     /// <param name="Encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
-    /// <param name="options">The configuration options.</param>
+    /// <param name="options">The configuration options (reserved for future use).</param>
     public GrpcEncinaService(
         IEncina Encina,
         ILogger<GrpcEncinaService> logger,
@@ -34,7 +33,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
 
         _Encina = Encina;
         _logger = logger;
-        _options = options.Value;
+        _ = options.Value; // Reserved for future use
     }
 
     /// <inheritdoc />

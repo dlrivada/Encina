@@ -18,7 +18,6 @@ public class OutboxEfCoreBenchmarks
     private SqliteConnection _connection = null!;
     private BenchmarkDbContext _context = null!;
     private OutboxStoreEF _store = null!;
-    private Guid _testMessageId;
 
     [GlobalSetup]
     public async Task GlobalSetup()
@@ -33,8 +32,6 @@ public class OutboxEfCoreBenchmarks
         _context = new BenchmarkDbContext(options);
         await _context.Database.EnsureCreatedAsync();
         _store = new OutboxStoreEF(_context);
-
-        _testMessageId = Guid.NewGuid();
     }
 
     [GlobalCleanup]

@@ -35,11 +35,6 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
     private readonly ICacheProvider _cacheProvider;
     private readonly CachingOptions _options;
     private readonly ILogger<DistributedIdempotencyPipelineBehavior<TRequest, TResponse>> _logger;
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DistributedIdempotencyPipelineBehavior{TRequest, TResponse}"/> class.
