@@ -189,7 +189,7 @@ public sealed class OutboxStoreADO : IOutboxStore
         if (command is OracleCommand sqlCommand)
             return await sqlCommand.ExecuteReaderAsync(cancellationToken);
 
-        return await Task.Run(() => command.ExecuteReader(), cancellationToken);
+        return await Task.Run(command.ExecuteReader, cancellationToken);
     }
 
     private static async Task<int> ExecuteNonQueryAsync(IDbCommand command, CancellationToken cancellationToken)
@@ -197,7 +197,7 @@ public sealed class OutboxStoreADO : IOutboxStore
         if (command is OracleCommand sqlCommand)
             return await sqlCommand.ExecuteNonQueryAsync(cancellationToken);
 
-        return await Task.Run(() => command.ExecuteNonQuery(), cancellationToken);
+        return await Task.Run(command.ExecuteNonQuery, cancellationToken);
     }
 
     private static async Task<bool> ReadAsync(IDataReader reader, CancellationToken cancellationToken)
@@ -205,6 +205,6 @@ public sealed class OutboxStoreADO : IOutboxStore
         if (reader is OracleDataReader sqlReader)
             return await sqlReader.ReadAsync(cancellationToken);
 
-        return await Task.Run(() => reader.Read(), cancellationToken);
+        return await Task.Run(reader.Read, cancellationToken);
     }
 }

@@ -35,7 +35,7 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
         const int concurrentWrites = 50;
 
         // Act - Write 50 messages concurrently
-        for (int i = 0; i < concurrentWrites; i++)
+        for (var i = 0; i < concurrentWrites; i++)
         {
             var index = i; // Capture for closure
             tasks.Add(Task.Run(async () =>
@@ -69,7 +69,7 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
         // Arrange - Create 30 messages
         const int messageCount = 30;
         var messageIds = new List<Guid>();
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var messageId = Guid.NewGuid();
             messageIds.Add(messageId);
@@ -88,7 +88,7 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
 
         // Act - Mark all as processed concurrently
         var tasks = new List<Task>();
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var messageId = messageIds[i];
             tasks.Add(Task.Run(async () => await _store.MarkAsProcessedAsync(messageId)));
@@ -107,7 +107,7 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
         // Arrange - Create 20 messages
         const int messageCount = 20;
         var messageIds = new List<Guid>();
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var messageId = Guid.NewGuid();
             messageIds.Add(messageId);
@@ -126,10 +126,10 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
 
         // Act - Mark all as failed 3 times concurrently
         const int failuresPerMessage = 3;
-        for (int retry = 0; retry < failuresPerMessage; retry++)
+        for (var retry = 0; retry < failuresPerMessage; retry++)
         {
             var tasks = new List<Task>();
-            for (int i = 0; i < messageCount; i++)
+            for (var i = 0; i < messageCount; i++)
             {
                 var messageId = messageIds[i];
                 tasks.Add(Task.Run(async () =>
@@ -154,7 +154,7 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
         // Arrange & Act - Add 500 messages
         const int messageCount = 500;
         var messageIds = new List<Guid>();
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var messageId = Guid.NewGuid();
             messageIds.Add(messageId);
@@ -181,7 +181,7 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
     {
         // Arrange - Create 200 due messages
         const int dueCount = 200;
-        for (int i = 0; i < dueCount; i++)
+        for (var i = 0; i < dueCount; i++)
         {
             var message = new ScheduledMessage
             {
@@ -209,7 +209,7 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
         // Arrange - Create 150 messages
         const int messageCount = 150;
         var messageIds = new List<Guid>();
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var messageId = Guid.NewGuid();
             messageIds.Add(messageId);
@@ -247,7 +247,7 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
         // Arrange - Create 30 messages
         const int messageCount = 30;
         var messageIds = new List<Guid>();
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var messageId = Guid.NewGuid();
             messageIds.Add(messageId);
@@ -268,20 +268,20 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
         var tasks = new List<Task>();
 
         // 10 reads
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             tasks.Add(Task.Run(async () => await _store.GetDueMessagesAsync(10, 5)));
         }
 
         // 10 updates (mark as processed)
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             var messageId = messageIds[i];
             tasks.Add(Task.Run(async () => await _store.MarkAsProcessedAsync(messageId)));
         }
 
         // 10 failures
-        for (int i = 10; i < 20; i++)
+        for (var i = 10; i < 20; i++)
         {
             var messageId = messageIds[i];
             tasks.Add(Task.Run(async () =>
@@ -289,7 +289,7 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
         }
 
         // 10 cancellations
-        for (int i = 20; i < 30; i++)
+        for (var i = 20; i < 30; i++)
         {
             var messageId = messageIds[i];
             tasks.Add(Task.Run(async () => await _store.CancelAsync(messageId)));
@@ -334,7 +334,7 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
     {
         // Arrange - Create 1000 messages (500 due, 500 future)
         const int totalMessages = 1000;
-        for (int i = 0; i < totalMessages; i++)
+        for (var i = 0; i < totalMessages; i++)
         {
             var message = new ScheduledMessage
             {
@@ -369,7 +369,7 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
         // Arrange - Create 20 recurring messages
         const int messageCount = 20;
         var messageIds = new List<Guid>();
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var messageId = Guid.NewGuid();
             messageIds.Add(messageId);
@@ -390,10 +390,10 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
 
         // Act - Reschedule all concurrently 3 times
         const int reschedules = 3;
-        for (int round = 0; round < reschedules; round++)
+        for (var round = 0; round < reschedules; round++)
         {
             var tasks = new List<Task>();
-            for (int i = 0; i < messageCount; i++)
+            for (var i = 0; i < messageCount; i++)
             {
                 var messageId = messageIds[i];
                 var nextRun = DateTime.UtcNow.AddHours(round % 2 == 0 ? -1 : 1); // Alternate due/not due
@@ -429,7 +429,7 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        for (int i = startIndex; i < endIndex; i++)
+        for (var i = startIndex; i < endIndex; i++)
         {
             var message = new ScheduledMessage
             {

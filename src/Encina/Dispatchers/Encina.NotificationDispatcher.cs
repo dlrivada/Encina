@@ -38,12 +38,12 @@ public sealed partial class Encina
         {
             // --- SETUP PHASE ---
             // Create scope for handler resolution
-            using IServiceScope scope = Encina._scopeFactory.CreateScope();
-            IServiceProvider serviceProvider = scope.ServiceProvider;
+            using var scope = Encina._scopeFactory.CreateScope();
+            var serviceProvider = scope.ServiceProvider;
 
             // Determine actual notification type (may differ from TNotification due to polymorphism)
-            Type notificationType = notification?.GetType() ?? typeof(TNotification);
-            using Activity? activity = EncinaDiagnostics.ActivitySource.HasListeners()
+            var notificationType = notification?.GetType() ?? typeof(TNotification);
+            using var activity = EncinaDiagnostics.ActivitySource.HasListeners()
                 ? EncinaDiagnostics.ActivitySource.StartActivity("Encina.Publish", ActivityKind.Internal)
                 : null;
             activity?.SetTag("Encina.notification_type", notificationType.FullName);
@@ -53,7 +53,7 @@ public sealed partial class Encina
             // --- HANDLER RESOLUTION PHASE ---
             // Resolve ALL handlers registered for this notification type
             // Multiple handlers can be registered for the same notification (observer pattern)
-            Type handlerType = typeof(INotificationHandler<>).MakeGenericType(notificationType);
+            var handlerType = typeof(INotificationHandler<>).MakeGenericType(notificationType);
             var handlersList = serviceProvider.GetServices(handlerType).Where(h => h is not null).Cast<object>().ToList();
             activity?.SetTag("Encina.handler_count", handlersList.Count);
 
@@ -69,13 +69,13 @@ public sealed partial class Encina
             // Use the configured dispatch strategy (Sequential, Parallel, or ParallelWhenAll)
             activity?.SetTag("Encina.dispatch_strategy", Encina._notificationOptions.Strategy.ToString());
 
-            Either<EncinaError, Unit> result = await Encina._dispatchStrategy.DispatchAsync(
+            var result = await Encina._dispatchStrategy.DispatchAsync(
                 handlersList,
                 notification!,
                 async (handler, notif, ct) =>
                 {
                     Log.SendingNotification(Encina._logger, notificationType.Name, handler.GetType().Name);
-                    Either<EncinaError, Unit> handlerResult = await InvokeNotificationHandler(handler, notif, ct).ConfigureAwait(false);
+                    var handlerResult = await InvokeNotificationHandler(handler, notif, ct).ConfigureAwait(false);
 
                     // Log failures
                     if (handlerResult.IsLeft)
@@ -103,17 +103,17 @@ public sealed partial class Encina
                 return false;
             }
 
-            EncinaError error = result.Match(
+            var error = result.Match(
                 Left: err => err,
                 Right: _ => EncinaErrors.Unknown);
 
-            string errorCode = error.GetEncinaCode();
+            var errorCode = error.GetEncinaCode();
             activity?.SetStatus(ActivityStatusCode.Error, error.Message);
             activity?.SetTag("Encina.failure_reason", errorCode);
-            Exception? exception = error.Exception.Match(
+            var exception = error.Exception.Match(
                 Some: ex => (Exception?)ex,
                 None: () => null);
-            string handlerTypeName = handlerInstance.GetType().Name;
+            var handlerTypeName = handlerInstance.GetType().Name;
 
             if (IsCancellationCode(errorCode))
             {
@@ -141,15 +141,15 @@ public sealed partial class Encina
         internal static async Task<Either<EncinaError, Unit>> InvokeNotificationHandler<TNotification>(object handler, TNotification notification, CancellationToken cancellationToken)
             where TNotification : INotification
         {
-            Type handlerType = handler.GetType();
-            Type? runtimeNotificationType = notification?.GetType();
-            Type desiredNotificationType = runtimeNotificationType
+            var handlerType = handler.GetType();
+            var runtimeNotificationType = notification?.GetType();
+            var desiredNotificationType = runtimeNotificationType
                 ?? ResolveHandledNotificationType(handlerType)
                 ?? typeof(TNotification);
 
-            string notificationName = notification?.GetType().Name ?? typeof(TNotification).Name;
+            var notificationName = notification?.GetType().Name ?? typeof(TNotification).Name;
 
-            if (!TryGetNotificationExecutor(handlerType, desiredNotificationType, runtimeNotificationType, notificationName, out Func<object, object?, CancellationToken, Task<Either<EncinaError, Unit>>>? executor, out EncinaError failure))
+            if (!TryGetNotificationExecutor(handlerType, desiredNotificationType, runtimeNotificationType, notificationName, out var executor, out var failure))
             {
                 return Left<EncinaError, Unit>(failure);
             }
@@ -157,13 +157,13 @@ public sealed partial class Encina
             try
             {
                 // Executor now returns Task<Either<EncinaError, Unit>>
-                Either<EncinaError, Unit> result = await executor(handler, notification, cancellationToken).ConfigureAwait(false);
+                var result = await executor(handler, notification, cancellationToken).ConfigureAwait(false);
                 return result;
             }
             catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
             {
                 // Cancellation is expected behavior
-                string message = $"Notification handler {handlerType.Name} was cancelled while processing {notificationName}.";
+                var message = $"Notification handler {handlerType.Name} was cancelled while processing {notificationName}.";
                 var metadata = new Dictionary<string, object?>
                 {
                     ["handler"] = handlerType.FullName,
@@ -176,7 +176,7 @@ public sealed partial class Encina
             {
                 // Unexpected exception - indicates a bug in the handler
                 // Handlers should return Left for expected failures instead of throwing
-                string message = $"Unexpected exception in notification handler {handlerType.Name} for {notificationName}. " +
+                var message = $"Unexpected exception in notification handler {handlerType.Name} for {notificationName}. " +
                               $"Handlers should return Left for expected failures instead of throwing exceptions.";
                 var metadata = new Dictionary<string, object?>
                 {
@@ -185,24 +185,24 @@ public sealed partial class Encina
                     ["stage"] = "handler",
                     ["exception_type"] = ex.GetType().FullName
                 };
-                EncinaError error = EncinaErrors.FromException(EncinaErrorCodes.NotificationException, ex, message, metadata);
+                var error = EncinaErrors.FromException(EncinaErrorCodes.NotificationException, ex, message, metadata);
                 return Left<EncinaError, Unit>(error);
             }
         }
 
         private static bool TryGetNotificationExecutor(Type handlerType, Type desiredNotificationType, Type? runtimeNotificationType, string notificationName, out Func<object, object?, CancellationToken, Task<Either<EncinaError, Unit>>> executor, out EncinaError failure)
         {
-            if (NotificationHandlerInvokerCache.TryGetValue((handlerType, desiredNotificationType), out Func<object, object?, CancellationToken, Task<Either<EncinaError, Unit>>>? cached))
+            if (NotificationHandlerInvokerCache.TryGetValue((handlerType, desiredNotificationType), out var cached))
             {
                 executor = cached;
                 failure = default;
                 return true;
             }
 
-            MethodInfo? method = ResolveHandleMethod(handlerType, desiredNotificationType, runtimeNotificationType);
+            var method = ResolveHandleMethod(handlerType, desiredNotificationType, runtimeNotificationType);
             if (method is null)
             {
-                string message = $"Handler {handlerType.Name} does not expose a compatible Handle method.";
+                var message = $"Handler {handlerType.Name} does not expose a compatible Handle method.";
                 var metadata = new Dictionary<string, object?>
                 {
                     ["handler"] = handlerType.FullName,
@@ -220,7 +220,7 @@ public sealed partial class Encina
                 return false;
             }
 
-            Type handledType = method.GetParameters()[0].ParameterType;
+            var handledType = method.GetParameters()[0].ParameterType;
             executor = NotificationHandlerInvokerCache.GetOrAdd((handlerType, handledType), _ => CreateNotificationInvoker(method, handlerType, handledType));
             failure = default;
             return true;
@@ -250,20 +250,20 @@ public sealed partial class Encina
         private static Func<object, object?, CancellationToken, Task<Either<EncinaError, Unit>>> CreateNotificationInvoker(MethodInfo method, Type handlerType, Type notificationType)
         {
             // Define parameters for the lambda: (object handler, object? notification, CancellationToken cancellationToken)
-            ParameterExpression handlerParameter = Expression.Parameter(typeof(object), "handler");
-            ParameterExpression notificationParameter = Expression.Parameter(typeof(object), "notification");
-            ParameterExpression cancellationTokenParameter = Expression.Parameter(typeof(CancellationToken), "cancellationToken");
+            var handlerParameter = Expression.Parameter(typeof(object), "handler");
+            var notificationParameter = Expression.Parameter(typeof(object), "notification");
+            var cancellationTokenParameter = Expression.Parameter(typeof(CancellationToken), "cancellationToken");
 
             // Cast handler from object to its concrete type
-            UnaryExpression castHandler = Expression.Convert(handlerParameter, handlerType);
+            var castHandler = Expression.Convert(handlerParameter, handlerType);
 
             // Cast notification - special handling for value types to avoid boxing issues
             Expression castNotification;
             if (notificationType.IsValueType)
             {
                 // For value types: if notification is null, use default(TNotification) instead of casting null
-                ParameterExpression tempVariable = Expression.Variable(notificationType, "typedNotification");
-                BlockExpression assignExpression = Expression.Block(
+                var tempVariable = Expression.Variable(notificationType, "typedNotification");
+                var assignExpression = Expression.Block(
                     new[] { tempVariable },
                     Expression.IfThenElse(
                         Expression.Equal(notificationParameter, Expression.Constant(null, typeof(object))),
@@ -293,7 +293,7 @@ public sealed partial class Encina
 
             // Handler now returns Task<Either<EncinaError, Unit>>
             // No conversion needed - it's already the correct type
-            Expression body = call;
+            var body = call;
 
             // Build and compile the lambda expression
             var lambda = Expression.Lambda<Func<object, object?, CancellationToken, Task<Either<EncinaError, Unit>>>>(
@@ -307,7 +307,7 @@ public sealed partial class Encina
 
         private static Type? ResolveHandledNotificationType(Type handlerType)
         {
-            Type? interfaceType = handlerType
+            var interfaceType = handlerType
                 .GetInterfaces()
                 .Where(@interface => @interface.IsGenericType && @interface.GetGenericTypeDefinition() == typeof(INotificationHandler<>))
                 .Select(@interface => @interface.GetGenericArguments()[0])
@@ -318,7 +318,7 @@ public sealed partial class Encina
 
         private static MethodInfo? ResolveHandleMethod(Type handlerType, Type desiredNotificationType, Type? runtimeNotificationType)
         {
-            MethodInfo[] candidateMethods = handlerType
+            var candidateMethods = handlerType
                 .GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public)
                 .Where(method => string.Equals(method.Name, "Handle", StringComparison.Ordinal))
                 .ToArray();
@@ -330,14 +330,14 @@ public sealed partial class Encina
 
             if (runtimeNotificationType is not null)
             {
-                MethodInfo? runtimeMatch = candidateMethods.FirstOrDefault(method => HasCompatibleFirstParameter(method, runtimeNotificationType));
+                var runtimeMatch = candidateMethods.FirstOrDefault(method => HasCompatibleFirstParameter(method, runtimeNotificationType));
                 if (runtimeMatch is not null)
                 {
                     return runtimeMatch;
                 }
             }
 
-            MethodInfo? desiredMatch = candidateMethods.FirstOrDefault(method => HasCompatibleFirstParameter(method, desiredNotificationType));
+            var desiredMatch = candidateMethods.FirstOrDefault(method => HasCompatibleFirstParameter(method, desiredNotificationType));
             if (desiredMatch is not null)
             {
                 return desiredMatch;
@@ -348,13 +348,13 @@ public sealed partial class Encina
 
         private static bool HasCompatibleFirstParameter(MethodInfo method, Type candidateType)
         {
-            ParameterInfo[] parameters = method.GetParameters();
+            var parameters = method.GetParameters();
             if (parameters.Length == 0)
             {
                 return false;
             }
 
-            Type parameterType = parameters[0].ParameterType;
+            var parameterType = parameters[0].ParameterType;
             return parameterType == candidateType
                 || parameterType.IsAssignableFrom(candidateType)
                 || candidateType.IsAssignableFrom(parameterType);

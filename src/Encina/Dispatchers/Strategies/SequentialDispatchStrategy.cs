@@ -27,15 +27,15 @@ internal sealed class SequentialDispatchStrategy : INotificationDispatchStrategy
         CancellationToken cancellationToken)
         where TNotification : INotification
     {
-        for (int i = 0; i < handlers.Count; i++)
+        for (var i = 0; i < handlers.Count; i++)
         {
-            object? handler = handlers[i];
+            var handler = handlers[i];
             if (handler is null)
             {
                 continue;
             }
 
-            Either<EncinaError, Unit> result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
+            var result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
             if (result.IsLeft)
             {
                 return result; // Fail-fast: stop on first error

@@ -65,7 +65,7 @@ public static class ServiceCollectionExtensions
         }
         else
         {
-            services.TryAddSingleton(Microsoft.Extensions.Options.Options.Create(new HybridCacheProviderOptions()));
+            services.TryAddSingleton(Options.Create(new HybridCacheProviderOptions()));
         }
 
         services.TryAddSingleton<ICacheProvider, HybridCacheProvider>();

@@ -118,7 +118,7 @@ public class EncinaBenchmarks
 
     private sealed record SampleNotification(Guid NotificationId) : INotification;
 
-    private sealed class NotificationHandlerOne(EncinaBenchmarks.CallRecorder recorder) : INotificationHandler<SampleNotification>
+    private sealed class NotificationHandlerOne(CallRecorder recorder) : INotificationHandler<SampleNotification>
     {
         private readonly CallRecorder _recorder = recorder;
 
@@ -129,7 +129,7 @@ public class EncinaBenchmarks
         }
     }
 
-    private sealed class NotificationHandlerTwo(EncinaBenchmarks.CallRecorder recorder) : INotificationHandler<SampleNotification>
+    private sealed class NotificationHandlerTwo(CallRecorder recorder) : INotificationHandler<SampleNotification>
     {
         private readonly CallRecorder _recorder = recorder;
 
@@ -140,7 +140,7 @@ public class EncinaBenchmarks
         }
     }
 
-    private sealed class TracingPipelineBehavior<TRequest, TResponse>(EncinaBenchmarks.CallRecorder recorder) : IPipelineBehavior<TRequest, TResponse>
+    private sealed class TracingPipelineBehavior<TRequest, TResponse>(CallRecorder recorder) : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
         private readonly CallRecorder _recorder = recorder;
@@ -159,7 +159,7 @@ public class EncinaBenchmarks
         }
     }
 
-    private sealed class TracingPreProcessor<TRequest>(EncinaBenchmarks.CallRecorder recorder) : IRequestPreProcessor<TRequest>
+    private sealed class TracingPreProcessor<TRequest>(CallRecorder recorder) : IRequestPreProcessor<TRequest>
     {
         private readonly CallRecorder _recorder = recorder;
 
@@ -170,7 +170,7 @@ public class EncinaBenchmarks
         }
     }
 
-    private sealed class TracingPostProcessor<TRequest, TResponse>(EncinaBenchmarks.CallRecorder recorder) : IRequestPostProcessor<TRequest, TResponse>
+    private sealed class TracingPostProcessor<TRequest, TResponse>(CallRecorder recorder) : IRequestPostProcessor<TRequest, TResponse>
     {
         private readonly CallRecorder _recorder = recorder;
 

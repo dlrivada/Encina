@@ -26,7 +26,7 @@ public static class SqliteSchemaBuilder
 
         using var command = connection.CreateCommand();
         command.CommandText = sql;
-        await Task.Run(() => command.ExecuteNonQuery());
+        await Task.Run(command.ExecuteNonQuery);
     }
 
     /// <summary>
@@ -50,7 +50,7 @@ public static class SqliteSchemaBuilder
 
         using var command = connection.CreateCommand();
         command.CommandText = sql;
-        await Task.Run(() => command.ExecuteNonQuery());
+        await Task.Run(command.ExecuteNonQuery);
     }
 
     /// <summary>
@@ -73,7 +73,7 @@ public static class SqliteSchemaBuilder
 
         using var command = connection.CreateCommand();
         command.CommandText = sql;
-        await Task.Run(() => command.ExecuteNonQuery());
+        await Task.Run(command.ExecuteNonQuery);
     }
 
     /// <summary>
@@ -99,6 +99,6 @@ public static class SqliteSchemaBuilder
 
         using var command = connection.CreateCommand();
         command.CommandText = sql;
-        await Task.Run(() => command.ExecuteNonQuery());
+        await Task.Run(command.ExecuteNonQuery);
     }
 }

@@ -85,9 +85,8 @@ public sealed class SignalRNotificationBroadcaster : ISignalRNotificationBroadca
         {
             // Get the hub context - we use a generic approach to support any hub type
             var hubContextType = typeof(IHubContext<>).MakeGenericType(typeof(Hub));
-            var hubContext = _serviceProvider.GetService(hubContextType) as IHubContext<Hub>;
 
-            if (hubContext == null)
+            if (_serviceProvider.GetService(hubContextType) is not IHubContext<Hub> hubContext)
             {
                 Log.NoHubContextAvailable(_logger, notificationType.Name);
                 return;

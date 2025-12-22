@@ -68,7 +68,7 @@ internal static class EncinaRequestGuards
             return true;
         }
 
-        string message = $"No registered IRequestHandler was found for {requestType.Name} -> {responseType.Name}.";
+        var message = $"No registered IRequestHandler was found for {requestType.Name} -> {responseType.Name}.";
         var metadata = new Dictionary<string, object?>
         {
             ["requestType"] = requestType.FullName,
@@ -100,7 +100,7 @@ internal static class EncinaRequestGuards
             return true;
         }
 
-        string message = $"Handler {handler.GetType().Name} does not implement {expectedType.Name} for {requestType.Name}.";
+        var message = $"Handler {handler.GetType().Name} does not implement {expectedType.Name} for {requestType.Name}.";
         var metadata = new Dictionary<string, object?>
         {
             ["handlerType"] = handler.GetType().FullName,

@@ -41,7 +41,7 @@ public abstract class WolverineRequestHandler<TRequest, TResponse>
 
         Log.HandlingMessage(_logger, typeof(TRequest).Name);
 
-        var result = await _Encina.Send<TResponse>(
+        var result = await _Encina.Send(
             request,
             cancellationToken).ConfigureAwait(false);
 

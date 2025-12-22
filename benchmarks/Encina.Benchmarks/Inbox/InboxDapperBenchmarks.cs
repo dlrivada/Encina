@@ -66,7 +66,7 @@ public class InboxDapperBenchmarks
     [Benchmark(Description = "AddAsync batch")]
     public async Task AddAsync_Batch()
     {
-        for (int i = 0; i < MessageCount; i++)
+        for (var i = 0; i < MessageCount; i++)
         {
             await _store.AddAsync(new InboxMessage
             {
@@ -173,7 +173,7 @@ public class InboxDapperBenchmarks
         await _store.AddAsync(message);
 
         // Benchmark
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             await _store.MarkAsFailedAsync("retry-bench", $"Error {i}", DateTime.UtcNow.AddMinutes(5));
         }
@@ -189,7 +189,7 @@ public class InboxDapperBenchmarks
     public async Task GetExpiredMessages_Batch()
     {
         // Setup
-        for (int i = 0; i < MessageCount; i++)
+        for (var i = 0; i < MessageCount; i++)
         {
             var message = new InboxMessage
             {
@@ -231,7 +231,7 @@ public class InboxDapperBenchmarks
     {
         // Setup
         var messageIds = new List<string>();
-        for (int i = 0; i < MessageCount; i++)
+        for (var i = 0; i < MessageCount; i++)
         {
             var messageId = $"remove-batch-{i}";
             messageIds.Add(messageId);

@@ -167,7 +167,7 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
     public async Task GetDueMessagesAsync_Contract_RespectsBatchSize()
     {
         // Arrange - Create 5 due messages
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             var message = new ScheduledMessage
             {

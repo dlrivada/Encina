@@ -48,7 +48,7 @@ public readonly record struct EncinaError
             return new EncinaError(message, Option<Exception>.None, Option<Exception>.None);
         }
 
-        Exception actualException = exception ?? throw new ArgumentNullException(nameof(exception));
+        var actualException = exception ?? throw new ArgumentNullException(nameof(exception));
         return new EncinaError(message, Optional(actualException), Optional(actualException));
     }
 
@@ -80,7 +80,7 @@ public readonly record struct EncinaError
 
     internal static EncinaError FromEncinaException(EncinaException EncinaException)
     {
-        Option<Exception> exposed = EncinaException.InnerException is { } inner
+        var exposed = EncinaException.InnerException is { } inner
             ? Optional(inner)
             : Optional<Exception>(EncinaException);
         return new EncinaError(EncinaException.Message, exposed, Optional<Exception>(EncinaException));

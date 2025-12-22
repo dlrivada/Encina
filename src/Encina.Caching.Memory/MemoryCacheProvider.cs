@@ -70,15 +70,10 @@ public sealed partial class MemoryCacheProvider : ICacheProvider
         ArgumentNullException.ThrowIfNull(key);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var options = new MemoryCacheEntryOptions();
-        if (expiration.HasValue)
+        var options = new MemoryCacheEntryOptions
         {
-            options.AbsoluteExpirationRelativeToNow = expiration.Value;
-        }
-        else
-        {
-            options.AbsoluteExpirationRelativeToNow = _options.DefaultExpiration;
-        }
+            AbsoluteExpirationRelativeToNow = expiration ?? _options.DefaultExpiration
+        };
 
         // Track the key for pattern-based invalidation
         _keyTracker.TryAdd(key, 0);

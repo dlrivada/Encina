@@ -404,7 +404,7 @@ public sealed class InboxStoreDapperTests : IClassFixture<SqliteFixture>
     public async Task GetExpiredMessagesAsync_BatchSize_ShouldLimitResults()
     {
         // Arrange
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             var message = new InboxMessage
             {

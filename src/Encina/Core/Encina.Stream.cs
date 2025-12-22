@@ -11,14 +11,14 @@ public sealed partial class Encina
         IStreamRequest<TItem> request,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        if (!EncinaRequestGuards.TryValidateStreamRequest<TItem>(request, out Either<EncinaError, TItem> error))
+        if (!EncinaRequestGuards.TryValidateStreamRequest<TItem>(request, out var error))
         {
             Log.NullStreamRequest(_logger);
             yield return error;
             yield break;
         }
 
-        await foreach (Either<EncinaError, TItem> item in StreamDispatcher.ExecuteAsync(this, request, cancellationToken).ConfigureAwait(false))
+        await foreach (var item in StreamDispatcher.ExecuteAsync(this, request, cancellationToken).ConfigureAwait(false))
         {
             yield return item;
         }

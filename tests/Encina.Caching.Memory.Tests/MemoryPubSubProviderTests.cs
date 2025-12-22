@@ -86,7 +86,7 @@ public sealed class MemoryPubSubProviderTests
     {
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>("channel", () =>
-            _sut.PublishAsync<TestMessage>(null!, new TestMessage("test"), CancellationToken.None));
+            _sut.PublishAsync(null!, new TestMessage("test"), CancellationToken.None));
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class MemoryPubSubProviderTests
 
         // Act & Assert
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            _sut.PublishAsync<TestMessage>("channel", new TestMessage("test"), cts.Token));
+            _sut.PublishAsync("channel", new TestMessage("test"), cts.Token));
     }
 
     [Fact]

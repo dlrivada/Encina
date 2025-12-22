@@ -118,7 +118,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                             Left: error => error));
                 }
 
-                result.IfRight(r => results.Add(r));
+                result.IfRight(results.Add);
             }
 
             return Right<EncinaError, IReadOnlyList<KafkaDeliveryResult>>(results);

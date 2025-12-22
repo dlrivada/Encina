@@ -16,7 +16,7 @@ internal static class EncinaDiagnostics
             return null;
         }
 
-        Activity? activity = ActivitySource.StartActivity("Encina.Send", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("Encina.Send", ActivityKind.Internal);
         activity?.SetTag("Encina.request_type", requestType.FullName);
         activity?.SetTag("Encina.request_name", requestType.Name);
         activity?.SetTag("Encina.response_type", responseType.FullName);
@@ -47,7 +47,7 @@ internal static class EncinaDiagnostics
             return null;
         }
 
-        Activity? activity = ActivitySource.StartActivity("Encina.Stream", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("Encina.Stream", ActivityKind.Internal);
         activity?.SetTag("Encina.request_type", requestType.FullName);
         activity?.SetTag("Encina.request_name", requestType.Name);
         activity?.SetTag("Encina.item_type", itemType.FullName);

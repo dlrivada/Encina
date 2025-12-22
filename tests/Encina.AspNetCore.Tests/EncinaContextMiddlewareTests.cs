@@ -310,7 +310,7 @@ public class TestAuthHandler : Microsoft.AspNetCore.Authentication.Authenticatio
 {
     public TestAuthHandler(
         Microsoft.Extensions.Options.IOptionsMonitor<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions> options,
-        Microsoft.Extensions.Logging.ILoggerFactory logger,
+        ILoggerFactory logger,
         System.Text.Encodings.Web.UrlEncoder encoder)
         : base(options, logger, encoder)
     {

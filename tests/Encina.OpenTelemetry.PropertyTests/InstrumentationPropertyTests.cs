@@ -108,7 +108,7 @@ public sealed class InstrumentationPropertyTests
         var services = new ServiceCollection();
         var telemetryBuilder = services.AddOpenTelemetry();
 
-        for (int i = 0; i < Math.Min(count.Get, 10); i++)
+        for (var i = 0; i < Math.Min(count.Get, 10); i++)
         {
             telemetryBuilder.WithEncina();
         }

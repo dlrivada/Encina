@@ -366,7 +366,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
     {
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>("key", () =>
-            _sut.GetOrSetAsync<string>(null!, _ => Task.FromResult("value"), TimeSpan.FromMinutes(5), CancellationToken.None));
+            _sut.GetOrSetAsync(null!, _ => Task.FromResult("value"), TimeSpan.FromMinutes(5), CancellationToken.None));
     }
 
     [Fact]
@@ -386,7 +386,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
 
         // Act & Assert
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            _sut.GetOrSetAsync<string>("key", _ => Task.FromResult("value"), TimeSpan.FromMinutes(5), cts.Token));
+            _sut.GetOrSetAsync("key", _ => Task.FromResult("value"), TimeSpan.FromMinutes(5), cts.Token));
     }
 
     [Fact]

@@ -62,7 +62,7 @@ public sealed partial class HybridCacheProvider : ICacheProvider
         // HybridCache doesn't have a simple Get without factory
         // We use GetOrCreateAsync and track factory invocation via captured variable
         var factoryCalled = false;
-        var result = await _cache.GetOrCreateAsync<T?>(
+        var result = await _cache.GetOrCreateAsync(
             key,
             _ =>
             {

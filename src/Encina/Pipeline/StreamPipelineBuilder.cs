@@ -61,7 +61,7 @@ internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBu
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
         // Resolve all stream behaviors from DI (fall back to empty array)
-        IStreamPipelineBehavior<TRequest, TItem>[] behaviors = serviceProvider.GetServices<IStreamPipelineBehavior<TRequest, TItem>>()?.ToArray()
+        var behaviors = serviceProvider.GetServices<IStreamPipelineBehavior<TRequest, TItem>>()?.ToArray()
                         ?? Array.Empty<IStreamPipelineBehavior<TRequest, TItem>>();
 
         // Start with the innermost delegate: handler invocation
@@ -71,10 +71,10 @@ internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBu
         // This ensures behaviors execute in registration order when the pipeline runs
         if (behaviors.Length > 0)
         {
-            for (int index = behaviors.Length - 1; index >= 0; index--)
+            for (var index = behaviors.Length - 1; index >= 0; index--)
             {
-                IStreamPipelineBehavior<TRequest, TItem> behavior = behaviors[index];
-                StreamHandlerCallback<TItem> nextStep = current; // Capture in closure
+                var behavior = behaviors[index];
+                var nextStep = current; // Capture in closure
                 current = () => ExecuteBehaviorAsync(behavior, _request, _context, nextStep, _cancellationToken);
             }
         }
@@ -87,7 +87,7 @@ internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBu
         TRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (Either<EncinaError, TItem> item in handler.Handle(request, cancellationToken).ConfigureAwait(false))
+        await foreach (var item in handler.Handle(request, cancellationToken).ConfigureAwait(false))
         {
             yield return item;
         }
@@ -100,7 +100,7 @@ internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBu
         StreamHandlerCallback<TItem> nextStep,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (Either<EncinaError, TItem> item in behavior.Handle(request, context, nextStep, cancellationToken).ConfigureAwait(false))
+        await foreach (var item in behavior.Handle(request, context, nextStep, cancellationToken).ConfigureAwait(false))
         {
             yield return item;
         }

@@ -125,7 +125,7 @@ public class SchedulingProviderComparisonBenchmarks
     [Benchmark(Description = "AddAsync 10 scheduled messages")]
     public async Task AddAsync_Batch10()
     {
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             await _store.AddAsync(CreateScheduledMessage(
                 requestType: $"BatchCommand{i}",
@@ -142,7 +142,7 @@ public class SchedulingProviderComparisonBenchmarks
     [Benchmark(Description = "AddAsync 100 scheduled messages")]
     public async Task AddAsync_Batch100()
     {
-        for (int i = 0; i < 100; i++)
+        for (var i = 0; i < 100; i++)
         {
             await _store.AddAsync(CreateScheduledMessage(
                 requestType: $"BatchCommand{i}",
@@ -161,7 +161,7 @@ public class SchedulingProviderComparisonBenchmarks
     {
         // Setup: Add 50 messages (30 due now, 20 future)
         var now = DateTime.UtcNow;
-        for (int i = 0; i < 50; i++)
+        for (var i = 0; i < 50; i++)
         {
             var isDue = i < 30;
             await _store.AddAsync(CreateScheduledMessage(
@@ -184,7 +184,7 @@ public class SchedulingProviderComparisonBenchmarks
     {
         // Setup: Add 500 messages (300 due now, 200 future)
         var now = DateTime.UtcNow;
-        for (int i = 0; i < 500; i++)
+        for (var i = 0; i < 500; i++)
         {
             var isDue = i < 300;
             await _store.AddAsync(CreateScheduledMessage(

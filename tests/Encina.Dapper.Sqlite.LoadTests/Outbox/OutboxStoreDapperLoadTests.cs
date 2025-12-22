@@ -112,7 +112,7 @@ public sealed class OutboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
     {
         // Arrange - Add test data
         var messageCount = 50;
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             await _store.AddAsync(new OutboxMessage
             {
@@ -158,7 +158,7 @@ public sealed class OutboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
         var messageCount = 100;
         var messageIds = new List<Guid>();
 
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var id = Guid.NewGuid();
             messageIds.Add(id);
@@ -240,7 +240,7 @@ public sealed class OutboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
 
         // Pre-populate some data for updates
         var existingIds = new List<Guid>();
-        for (int i = 0; i < updateCount; i++)
+        for (var i = 0; i < updateCount; i++)
         {
             var id = Guid.NewGuid();
             existingIds.Add(id);
@@ -300,7 +300,7 @@ public sealed class OutboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
         var sw = Stopwatch.StartNew();
 
         // Act - Add messages
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             await _store.AddAsync(new OutboxMessage
             {
@@ -340,7 +340,7 @@ public sealed class OutboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
     {
         // Arrange - Add 500 messages
         var totalMessages = 500;
-        for (int i = 0; i < totalMessages; i++)
+        for (var i = 0; i < totalMessages; i++)
         {
             await _store.AddAsync(new OutboxMessage
             {
@@ -462,7 +462,7 @@ public sealed class OutboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
 
         // Measure AddAsync
         var addTimes = new List<long>();
-        for (int i = 0; i < iterations; i++)
+        for (var i = 0; i < iterations; i++)
         {
             var sw = Stopwatch.StartNew();
             await _store.AddAsync(new OutboxMessage
@@ -478,7 +478,7 @@ public sealed class OutboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
 
         // Measure GetPendingMessagesAsync
         var getTimes = new List<long>();
-        for (int i = 0; i < iterations; i++)
+        for (var i = 0; i < iterations; i++)
         {
             var sw = Stopwatch.StartNew();
             await _store.GetPendingMessagesAsync(10, 10);
@@ -513,7 +513,7 @@ public sealed class OutboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
         var messageCount = 200;
         var messageIds = new List<Guid>();
 
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var id = Guid.NewGuid();
             messageIds.Add(id);

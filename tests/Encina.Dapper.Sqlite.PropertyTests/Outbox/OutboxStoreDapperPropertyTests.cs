@@ -74,7 +74,7 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
         var store = new OutboxStoreDapper(_fixture.CreateConnection());
 
         var messageIds = new List<Guid>();
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var id = Guid.NewGuid();
             messageIds.Add(id);
@@ -128,7 +128,7 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
         });
 
         // Act - Fail N times
-        for (int i = 0; i < failureCount; i++)
+        for (var i = 0; i < failureCount; i++)
         {
             await store.MarkAsFailedAsync(messageId, $"Error {i}", null);
         }
@@ -159,7 +159,7 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
         var store = new OutboxStoreDapper(_fixture.CreateConnection());
 
         // Add N messages
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             await store.AddAsync(new OutboxMessage
             {
@@ -193,7 +193,7 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
         var store = new OutboxStoreDapper(_fixture.CreateConnection());
 
         // Add messages with various retry counts
-        for (int i = 0; i <= maxRetries + 2; i++)
+        for (var i = 0; i <= maxRetries + 2; i++)
         {
             await store.AddAsync(new OutboxMessage
             {
@@ -228,7 +228,7 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
 
         // Add messages with sequential timestamps
         var baseTime = DateTime.UtcNow;
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             await store.AddAsync(new OutboxMessage
             {
@@ -245,7 +245,7 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
         // Assert - Verify ordering
         if (pending.Count > 1)
         {
-            for (int i = 0; i < pending.Count - 1; i++)
+            for (var i = 0; i < pending.Count - 1; i++)
             {
                 Assert.True(pending[i].CreatedAtUtc <= pending[i + 1].CreatedAtUtc,
                     $"Message at index {i} has timestamp {pending[i].CreatedAtUtc}, " +
@@ -315,7 +315,7 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
         var store = new OutboxStoreDapper(_fixture.CreateConnection());
 
         // Act - Call SaveChangesAsync N times
-        for (int i = 0; i < callCount; i++)
+        for (var i = 0; i < callCount; i++)
         {
             await store.SaveChangesAsync();
         }

@@ -35,10 +35,9 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
         CancellationToken cancellationToken)
     {
         // Check if request has [CircuitBreaker] attribute
-        var circuitBreakerAttribute = typeof(TRequest).GetCustomAttributes(typeof(CircuitBreakerAttribute), true)
-            .FirstOrDefault() as CircuitBreakerAttribute;
 
-        if (circuitBreakerAttribute is null)
+        if (typeof(TRequest).GetCustomAttributes(typeof(CircuitBreakerAttribute), true)
+            .FirstOrDefault() is not CircuitBreakerAttribute circuitBreakerAttribute)
         {
             // No circuit breaker policy configured, pass through
             return await nextStep().ConfigureAwait(false);

@@ -6,7 +6,7 @@ namespace Encina.ContractTests;
 
 public sealed class PipelineBehaviorContracts
 {
-    private static readonly Assembly TargetAssembly = typeof(global::Encina.Encina).Assembly;
+    private static readonly Assembly TargetAssembly = typeof(Encina).Assembly;
 
     [Fact]
     public void PipelineBehaviorsImplementSpecializedInterfaces()
@@ -16,8 +16,8 @@ public sealed class PipelineBehaviorContracts
         behaviors.ShouldNotBeEmpty();
         foreach (var behavior in behaviors)
         {
-            var implementsCommand = ImplementsGenericInterface(behavior, typeof(global::Encina.ICommandPipelineBehavior<,>));
-            var implementsQuery = ImplementsGenericInterface(behavior, typeof(global::Encina.IQueryPipelineBehavior<,>));
+            var implementsCommand = ImplementsGenericInterface(behavior, typeof(ICommandPipelineBehavior<,>));
+            var implementsQuery = ImplementsGenericInterface(behavior, typeof(IQueryPipelineBehavior<,>));
 
             (implementsCommand || implementsQuery)
                 .ShouldBeTrue($"Pipeline behavior {behavior.Name} must implement a specialized command/query interface.");
@@ -29,13 +29,13 @@ public sealed class PipelineBehaviorContracts
     {
         var expected = new System.Collections.Generic.HashSet<Type>
         {
-            typeof(global::Encina.CommandActivityPipelineBehavior<,>),
-            typeof(global::Encina.CommandMetricsPipelineBehavior<,>),
-            typeof(global::Encina.QueryActivityPipelineBehavior<,>),
-            typeof(global::Encina.QueryMetricsPipelineBehavior<,>)
+            typeof(CommandActivityPipelineBehavior<,>),
+            typeof(CommandMetricsPipelineBehavior<,>),
+            typeof(QueryActivityPipelineBehavior<,>),
+            typeof(QueryMetricsPipelineBehavior<,>)
         };
 
-        var result = global::Encina.EncinaAssemblyScanner.GetRegistrations(TargetAssembly);
+        var result = EncinaAssemblyScanner.GetRegistrations(TargetAssembly);
         var discovered = result.PipelineRegistrations
             .Where(r => r.ImplementationType.Assembly == TargetAssembly)
             .Select(r => r.ImplementationType.IsGenericType ? r.ImplementationType.GetGenericTypeDefinition() : r.ImplementationType)
@@ -49,7 +49,7 @@ public sealed class PipelineBehaviorContracts
         return TargetAssembly
             .GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract && t.IsGenericTypeDefinition)
-            .Where(t => ImplementsGenericInterface(t, typeof(global::Encina.IPipelineBehavior<,>)))
+            .Where(t => ImplementsGenericInterface(t, typeof(IPipelineBehavior<,>)))
             .ToArray();
     }
 
@@ -66,7 +66,7 @@ public sealed class PipelineBehaviorContracts
             var genericArgs = behavior.GetGenericArguments();
             genericArgs.Length.ShouldBe(2);
 
-            var expected = typeof(ValueTask<>).MakeGenericType(typeof(Either<,>).MakeGenericType(typeof(global::Encina.EncinaError), genericArgs[1]));
+            var expected = typeof(ValueTask<>).MakeGenericType(typeof(Either<,>).MakeGenericType(typeof(EncinaError), genericArgs[1]));
             handle!.ReturnType.ShouldBe(expected, customMessage: "Behaviors must surface outcomes via ValueTask<Either<EncinaError,TResponse>> (rail funcional, sin throw operativo).");
         }
     }

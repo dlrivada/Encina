@@ -90,7 +90,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
     {
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            Provider.SetAsync<string>(null!, "value", TimeSpan.FromMinutes(5), CancellationToken.None));
+            Provider.SetAsync(null!, "value", TimeSpan.FromMinutes(5), CancellationToken.None));
     }
 
     [Fact]
@@ -295,7 +295,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
     {
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            Provider.GetOrSetAsync<string>(null!, _ => Task.FromResult("value"), TimeSpan.FromMinutes(5), CancellationToken.None));
+            Provider.GetOrSetAsync(null!, _ => Task.FromResult("value"), TimeSpan.FromMinutes(5), CancellationToken.None));
     }
 
     [Fact]
@@ -315,7 +315,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
 
         // Act & Assert
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            Provider.GetOrSetAsync<string>("key", _ => Task.FromResult("value"), TimeSpan.FromMinutes(5), cts.Token));
+            Provider.GetOrSetAsync("key", _ => Task.FromResult("value"), TimeSpan.FromMinutes(5), cts.Token));
     }
 
     [Fact]

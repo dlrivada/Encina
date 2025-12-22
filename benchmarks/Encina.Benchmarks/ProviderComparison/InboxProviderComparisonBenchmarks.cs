@@ -113,7 +113,7 @@ public class InboxProviderComparisonBenchmarks
     [Benchmark(Description = "AddAsync 10 messages")]
     public async Task AddAsync_Batch10()
     {
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             await _store.AddAsync(new DapperInbox.InboxMessage
             {
@@ -134,7 +134,7 @@ public class InboxProviderComparisonBenchmarks
     [Benchmark(Description = "AddAsync 100 messages")]
     public async Task AddAsync_Batch100()
     {
-        for (int i = 0; i < 100; i++)
+        for (var i = 0; i < 100; i++)
         {
             await _store.AddAsync(new DapperInbox.InboxMessage
             {
@@ -227,7 +227,7 @@ public class InboxProviderComparisonBenchmarks
     public async Task GetExpiredMessages_Batch10()
     {
         // Setup: Add 50 expired messages
-        for (int i = 0; i < 50; i++)
+        for (var i = 0; i < 50; i++)
         {
             var messageId = $"expired-{i}-{Guid.NewGuid()}";
             await _store.AddAsync(new DapperInbox.InboxMessage
@@ -255,7 +255,7 @@ public class InboxProviderComparisonBenchmarks
     {
         // Setup: Add 10 expired messages
         var messageIds = new List<string>();
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             var messageId = $"remove-{i}-{Guid.NewGuid()}";
             messageIds.Add(messageId);

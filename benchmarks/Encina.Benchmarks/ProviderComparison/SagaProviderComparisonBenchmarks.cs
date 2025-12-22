@@ -194,7 +194,7 @@ public class SagaProviderComparisonBenchmarks
         await _store.SaveChangesAsync();
 
         // Benchmark: Progress through 5 steps
-        for (int step = 1; step <= 5; step++)
+        for (var step = 1; step <= 5; step++)
         {
             var retrieved = await _store.GetAsync(sagaId);
             if (retrieved != null)
@@ -217,7 +217,7 @@ public class SagaProviderComparisonBenchmarks
     {
         // Setup: Add 50 sagas (30 stuck, 20 recent)
         var oldTime = DateTime.UtcNow.AddHours(-2);
-        for (int i = 0; i < 50; i++)
+        for (var i = 0; i < 50; i++)
         {
             var isStuck = i < 30;
             await _store.AddAsync(CreateSagaState(

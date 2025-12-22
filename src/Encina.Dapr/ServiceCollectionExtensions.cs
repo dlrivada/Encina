@@ -77,7 +77,7 @@ public static class ServiceCollectionExtensions
         Action<DaprClientBuilder> configureDaprClient)
     {
         // Register DaprClient with custom configuration
-        services.AddSingleton<DaprClient>(sp =>
+        services.AddSingleton(sp =>
         {
             var builder = new DaprClientBuilder();
             configureDaprClient(builder);

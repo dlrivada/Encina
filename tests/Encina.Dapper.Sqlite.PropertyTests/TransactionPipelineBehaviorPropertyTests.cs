@@ -188,7 +188,7 @@ public sealed class TransactionPipelineBehaviorPropertyTests : IClassFixture<Sql
         var behavior = new TransactionPipelineBehavior<TestRequest, string>(connection);
 
         // Act - Call behavior multiple times
-        for (int i = 0; i < invocationCount; i++)
+        for (var i = 0; i < invocationCount; i++)
         {
             var messageId = Guid.NewGuid().ToString();
             RequestHandlerCallback<string> next = async () =>

@@ -10,7 +10,7 @@ namespace Encina.AspNetCore;
 /// processing requests within that HTTP request.
 /// </para>
 /// <para>
-/// Implementation uses <see cref="System.Threading.AsyncLocal{T}"/> to ensure context flows
+/// Implementation uses <see cref="AsyncLocal{T}"/> to ensure context flows
 /// correctly across async operations within the same request scope.
 /// </para>
 /// </remarks>

@@ -31,10 +31,10 @@ public sealed class CommandMetricsPipelineBehavior<TCommand, TResponse>(IEncinaM
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, TResponse>> Handle(TCommand request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
     {
-        string requestName = typeof(TCommand).Name;
+        var requestName = typeof(TCommand).Name;
         const string requestKind = "command";
 
-        if (!EncinaBehaviorGuards.TryValidateRequest(GetType(), request, out EncinaError failure))
+        if (!EncinaBehaviorGuards.TryValidateRequest(GetType(), request, out var failure))
         {
             _metrics.TrackFailure(requestKind, requestName, TimeSpan.Zero, failure.GetEncinaCode());
             return Left<EncinaError, TResponse>(failure);
@@ -46,7 +46,7 @@ public sealed class CommandMetricsPipelineBehavior<TCommand, TResponse>(IEncinaM
             return Left<EncinaError, TResponse>(failure);
         }
 
-        long startedAt = Stopwatch.GetTimestamp();
+        var startedAt = Stopwatch.GetTimestamp();
         Either<EncinaError, TResponse> outcome;
 
         try
@@ -55,25 +55,25 @@ public sealed class CommandMetricsPipelineBehavior<TCommand, TResponse>(IEncinaM
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            TimeSpan elapsed = Stopwatch.GetElapsedTime(startedAt);
+            var elapsed = Stopwatch.GetElapsedTime(startedAt);
             _metrics.TrackFailure(requestKind, requestName, elapsed, "cancelled");
             return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, $"Behavior {GetType().Name} cancelled the {typeof(TCommand).Name} request.", ex));
         }
         catch (Exception ex)
         {
-            TimeSpan elapsed = Stopwatch.GetElapsedTime(startedAt);
-            string reason = ex.GetType().Name;
+            var elapsed = Stopwatch.GetElapsedTime(startedAt);
+            var reason = ex.GetType().Name;
             _metrics.TrackFailure(requestKind, requestName, elapsed, reason);
-            EncinaError error = EncinaErrors.FromException(EncinaErrorCodes.BehaviorException, ex, $"Error running {GetType().Name} for {typeof(TCommand).Name}.");
+            var error = EncinaErrors.FromException(EncinaErrorCodes.BehaviorException, ex, $"Error running {GetType().Name} for {typeof(TCommand).Name}.");
             return Left<EncinaError, TResponse>(error);
         }
 
-        TimeSpan totalElapsed = Stopwatch.GetElapsedTime(startedAt);
+        var totalElapsed = Stopwatch.GetElapsedTime(startedAt);
 
         _ = outcome.Match(
             Right: response =>
             {
-                if (_failureDetector.TryExtractFailure(response, out string? failureReason, out _))
+                if (_failureDetector.TryExtractFailure(response, out var failureReason, out _))
                 {
                     _metrics.TrackFailure(requestKind, requestName, totalElapsed, failureReason);
                 }
@@ -86,7 +86,7 @@ public sealed class CommandMetricsPipelineBehavior<TCommand, TResponse>(IEncinaM
             },
             Left: error =>
             {
-                EncinaError effectiveError = error;
+                var effectiveError = error;
                 _metrics.TrackFailure(requestKind, requestName, totalElapsed, effectiveError.GetEncinaCode());
                 return Unit.Default;
             });

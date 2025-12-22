@@ -38,7 +38,7 @@ public sealed class ScheduledMessageStoreDapperPropertyTests : IClassFixture<Sql
         var store = new ScheduledMessageStoreDapper(_database.CreateConnection());
 
         // Act - Call SaveChanges multiple times
-        for (int i = 0; i < invocations; i++)
+        for (var i = 0; i < invocations; i++)
         {
             await store.SaveChangesAsync();
         }
@@ -213,7 +213,7 @@ public sealed class ScheduledMessageStoreDapperPropertyTests : IClassFixture<Sql
     {
         // Arrange
         var store = new ScheduledMessageStoreDapper(_database.CreateConnection());
-        for (int i = 0; i < totalMessages; i++)
+        for (var i = 0; i < totalMessages; i++)
         {
             var message = new ScheduledMessage
             {
@@ -415,7 +415,7 @@ public sealed class ScheduledMessageStoreDapperPropertyTests : IClassFixture<Sql
         // Arrange
         var store = new ScheduledMessageStoreDapper(_database.CreateConnection());
         var random = new Random(42); // Deterministic
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var hoursAgo = random.Next(1, 20);
             var message = new ScheduledMessage
@@ -436,7 +436,7 @@ public sealed class ScheduledMessageStoreDapperPropertyTests : IClassFixture<Sql
 
         // Assert - Check ordering
         var list = messages.ToList();
-        for (int i = 0; i < list.Count - 1; i++)
+        for (var i = 0; i < list.Count - 1; i++)
         {
             Assert.True(list[i].ScheduledAtUtc <= list[i + 1].ScheduledAtUtc);
         }

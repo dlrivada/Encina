@@ -46,7 +46,7 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         await _store.AddAsync(message);
 
         // Act - Mark as failed N times
-        for (int i = 0; i < failureCount; i++)
+        for (var i = 0; i < failureCount; i++)
         {
             await _store.MarkAsFailedAsync(messageId, $"Failure {i + 1}", null);
         }
@@ -443,7 +443,7 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         int totalExpired)
     {
         // Arrange - Create N expired messages
-        for (int i = 0; i < totalExpired; i++)
+        for (var i = 0; i < totalExpired; i++)
         {
             var message = new InboxMessage
             {

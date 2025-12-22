@@ -10,7 +10,7 @@ internal static class EncinaNotificationGuards
 {
     public static bool TryValidateHandleMethod(MethodInfo method, Type handlerType, string notificationName, out EncinaError failure)
     {
-        ParameterInfo[] parameters = method.GetParameters();
+        var parameters = method.GetParameters();
         if (parameters.Length != 2 || parameters[1].ParameterType != typeof(CancellationToken))
         {
             var exception = new TargetParameterCountException("The Handle method must accept the notification and a CancellationToken.");
@@ -26,10 +26,10 @@ internal static class EncinaNotificationGuards
         }
 
         // Validate return type is Task<Either<EncinaError, Unit>>
-        Type expectedReturnType = typeof(Task<>).MakeGenericType(typeof(Either<EncinaError, Unit>));
+        var expectedReturnType = typeof(Task<>).MakeGenericType(typeof(Either<EncinaError, Unit>));
         if (method.ReturnType != expectedReturnType)
         {
-            string message = $"Handler {handlerType.Name} must return Task<Either<EncinaError, Unit>> but returned {method.ReturnType.Name}.";
+            var message = $"Handler {handlerType.Name} must return Task<Either<EncinaError, Unit>> but returned {method.ReturnType.Name}.";
             var metadata = new Dictionary<string, object?>
             {
                 ["handler"] = handlerType.FullName,

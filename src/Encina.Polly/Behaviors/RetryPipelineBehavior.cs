@@ -33,10 +33,9 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
         CancellationToken cancellationToken)
     {
         // Check if request has [Retry] attribute
-        var retryAttribute = typeof(TRequest).GetCustomAttributes(typeof(RetryAttribute), true)
-            .FirstOrDefault() as RetryAttribute;
 
-        if (retryAttribute is null)
+        if (typeof(TRequest).GetCustomAttributes(typeof(RetryAttribute), true)
+            .FirstOrDefault() is not RetryAttribute retryAttribute)
         {
             // No retry policy configured, pass through
             return await nextStep().ConfigureAwait(false);

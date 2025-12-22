@@ -136,12 +136,14 @@ public sealed class EncinaMetricsTests
         Action<Instrument, long, Dictionary<string, object?>>? onLongMeasurement = null,
         Action<Instrument, double, Dictionary<string, object?>>? onDoubleMeasurement = null)
     {
-        var listener = new MeterListener();
-        listener.InstrumentPublished = (instrument, meterListener) =>
+        var listener = new MeterListener
         {
-            if (instrument.Meter.Name == "Encina")
+            InstrumentPublished = (instrument, meterListener) =>
             {
-                meterListener.EnableMeasurementEvents(instrument);
+                if (instrument.Meter.Name == "Encina")
+                {
+                    meterListener.EnableMeasurementEvents(instrument);
+                }
             }
         };
 

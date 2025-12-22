@@ -225,7 +225,7 @@ public sealed class SagaStoreDapperTests : IClassFixture<SqliteFixture>
     public async Task GetStuckSagasAsync_RespectsBatchSize()
     {
         // Arrange - Create 5 stuck sagas
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             var saga = new SagaState
             {

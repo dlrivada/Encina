@@ -1,8 +1,6 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using LanguageExt;
-using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
 
 namespace Encina;
@@ -19,22 +17,22 @@ internal static class StreamDispatcher
         IStreamRequest<TItem> request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        Type requestType = request.GetType();
-        Type itemType = typeof(TItem);
+        var requestType = request.GetType();
+        var itemType = typeof(TItem);
 
-        using Activity? activity = EncinaDiagnostics.StartStreamActivity(requestType, itemType);
+        using var activity = EncinaDiagnostics.StartStreamActivity(requestType, itemType);
 
-        StreamRequestHandlerBase handlerWrapper = StreamHandlerCache.GetOrAdd(
+        var handlerWrapper = StreamHandlerCache.GetOrAdd(
             (requestType, itemType),
             static key => CreateStreamHandlerWrapper(key.Request, key.Item));
 
-        using IServiceScope scope = Encina._scopeFactory.CreateScope();
-        object? handler = handlerWrapper.ResolveHandler(scope.ServiceProvider);
+        using var scope = Encina._scopeFactory.CreateScope();
+        var handler = handlerWrapper.ResolveHandler(scope.ServiceProvider);
 
         if (handler is null)
         {
             Encina.Log.StreamHandlerMissing(Encina._logger, requestType.Name, itemType.Name);
-            EncinaError error = EncinaErrors.Create(
+            var error = EncinaErrors.Create(
                 EncinaErrorCodes.HandlerMissing,
                 $"No handler registered for {requestType.Name} -> IAsyncEnumerable<{itemType.Name}>.",
                 details: new Dictionary<string, object?>
@@ -48,8 +46,8 @@ internal static class StreamDispatcher
 
         Encina.Log.ProcessingStreamRequest(Encina._logger, requestType.Name, handler.GetType().Name);
 
-        int itemCount = 0;
-        await foreach (Either<EncinaError, object?> item in handlerWrapper.Handle(Encina, request, handler, scope.ServiceProvider, cancellationToken).ConfigureAwait(false))
+        var itemCount = 0;
+        await foreach (var item in handlerWrapper.Handle(Encina, request, handler, scope.ServiceProvider, cancellationToken).ConfigureAwait(false))
         {
             itemCount++;
             // Unbox the item from object? back to TItem
@@ -62,7 +60,7 @@ internal static class StreamDispatcher
 
     private static StreamRequestHandlerBase CreateStreamHandlerWrapper(Type requestType, Type itemType)
     {
-        Type wrapperType = typeof(StreamRequestHandlerWrapper<,>).MakeGenericType(requestType, itemType);
+        var wrapperType = typeof(StreamRequestHandlerWrapper<,>).MakeGenericType(requestType, itemType);
         return (StreamRequestHandlerBase)Activator.CreateInstance(wrapperType)!;
     }
 
@@ -97,11 +95,11 @@ internal static class StreamDispatcher
         {
             var typedRequest = (TRequest)request;
             var typedHandler = (IStreamRequestHandler<TRequest, TItem>)handler;
-            IRequestContext context = RequestContext.Create();
+            var context = RequestContext.Create();
             var pipelineBuilder = new StreamPipelineBuilder<TRequest, TItem>(typedRequest, typedHandler, context, cancellationToken);
-            StreamHandlerCallback<TItem> pipeline = pipelineBuilder.Build(provider);
+            var pipeline = pipelineBuilder.Build(provider);
 
-            await foreach (Either<EncinaError, TItem> item in pipeline().ConfigureAwait(false))
+            await foreach (var item in pipeline().ConfigureAwait(false))
             {
                 // Box the item to return as object? (needed for abstract base class)
                 yield return item.Map(i => (object?)i);

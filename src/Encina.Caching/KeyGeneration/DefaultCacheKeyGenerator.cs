@@ -48,10 +48,10 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
         var cacheAttribute = typeof(TRequest).GetCustomAttribute<CacheAttribute>();
         if (cacheAttribute?.KeyTemplate is not null)
         {
-            return GenerateFromTemplate<TRequest>(cacheAttribute.KeyTemplate, request, context, cacheAttribute);
+            return GenerateFromTemplate(cacheAttribute.KeyTemplate, request, context, cacheAttribute);
         }
 
-        return GenerateDefaultKey<TRequest>(request, context, cacheAttribute);
+        return GenerateDefaultKey(request, context, cacheAttribute);
     }
 
     /// <inheritdoc/>

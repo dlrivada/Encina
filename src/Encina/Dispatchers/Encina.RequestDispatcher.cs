@@ -40,47 +40,47 @@ public sealed partial class Encina
             // --- SETUP PHASE ---
             // Create a fresh DI scope for this request to ensure proper lifetime management
             // and isolation from other concurrent requests
-            using IServiceScope scope = Encina._scopeFactory.CreateScope();
-            IServiceProvider serviceProvider = scope.ServiceProvider;
-            IEncinaMetrics? metrics = serviceProvider.GetService<IEncinaMetrics>();
+            using var scope = Encina._scopeFactory.CreateScope();
+            var serviceProvider = scope.ServiceProvider;
+            var metrics = serviceProvider.GetService<IEncinaMetrics>();
 
-            Type requestType = request.GetType();
-            string requestKind = GetRequestKind(requestType); // Determine if Command, Query, or generic Request
+            var requestType = request.GetType();
+            var requestKind = GetRequestKind(requestType); // Determine if Command, Query, or generic Request
             var stopwatch = Stopwatch.StartNew();
-            using Activity? activity = EncinaDiagnostics.SendStarted(requestType, typeof(TResponse), requestKind);
+            using var activity = EncinaDiagnostics.SendStarted(requestType, typeof(TResponse), requestKind);
 
             // --- HANDLER RESOLUTION PHASE ---
             // Get or create a cached dispatcher wrapper that knows how to invoke the handler
             // This avoids repeated reflection on every request - wrappers are generated once per request/response type pair
-            RequestHandlerBase dispatcher = RequestHandlerCache.GetOrAdd(
+            var dispatcher = RequestHandlerCache.GetOrAdd(
                 (requestType, typeof(TResponse)),
                 static key => CreateRequestHandlerWrapper(key.Request, key.Response));
 
             // Resolve the actual handler instance from DI
             // May return null if no handler is registered
-            object? handler = dispatcher.ResolveHandler(serviceProvider);
+            var handler = dispatcher.ResolveHandler(serviceProvider);
 
             // --- VALIDATION PHASE ---
             // Validate that a handler was resolved from DI
             // Early return with error if no handler is registered for this request type
-            if (!EncinaRequestGuards.TryValidateHandler<TResponse>(handler, requestType, typeof(TResponse), out Either<EncinaError, TResponse> handlerError))
+            if (!EncinaRequestGuards.TryValidateHandler<TResponse>(handler, requestType, typeof(TResponse), out var handlerError))
             {
                 Log.HandlerMissing(Encina._logger, requestType.Name, typeof(TResponse).Name);
                 stopwatch.Stop();
                 metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, EncinaErrorCodes.RequestHandlerMissing);
-                EncinaError error = handlerError.Match(Left: err => err, Right: _ => EncinaErrors.Unknown);
+                var error = handlerError.Match(Left: err => err, Right: _ => EncinaErrors.Unknown);
                 EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: error.GetEncinaCode(), errorMessage: error.Message);
                 return handlerError;
             }
 
             // Validate that the resolved handler is of the expected type
             // This guards against DI misconfiguration where the wrong service is registered
-            if (!EncinaRequestGuards.TryValidateHandlerType<TResponse>(handler!, dispatcher.HandlerServiceType, requestType, out Either<EncinaError, TResponse> typeError))
+            if (!EncinaRequestGuards.TryValidateHandlerType<TResponse>(handler!, dispatcher.HandlerServiceType, requestType, out var typeError))
             {
                 Log.HandlerMissing(Encina._logger, requestType.Name, typeof(TResponse).Name);
                 stopwatch.Stop();
                 metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, EncinaErrorCodes.RequestHandlerTypeMismatch);
-                EncinaError error = typeError.Match(Left: err => err, Right: _ => EncinaErrors.Unknown);
+                var error = typeError.Match(Left: err => err, Right: _ => EncinaErrors.Unknown);
                 EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: error.GetEncinaCode(), errorMessage: error.Message);
                 return typeError;
             }
@@ -99,7 +99,7 @@ public sealed partial class Encina
                 // 3. The actual request handler
                 // 4. Post-processors (in order of registration)
                 // The dispatcher.Handle method delegates to RequestHandlerWrapper which uses PipelineBuilder
-                object outcomeObject = await dispatcher.Handle(Encina, request, handler, serviceProvider, cancellationToken).ConfigureAwait(false);
+                var outcomeObject = await dispatcher.Handle(Encina, request, handler, serviceProvider, cancellationToken).ConfigureAwait(false);
                 var outcome = (Either<EncinaError, TResponse>)outcomeObject;
 
                 Encina.LogSendOutcome(requestType, handler.GetType(), outcome);
@@ -108,8 +108,8 @@ public sealed partial class Encina
 
                 // --- OBSERVABILITY PHASE ---
                 // Track metrics based on success or failure
-                (bool IsSuccess, EncinaError? Error) = ExtractOutcome(outcome);
-                string reason = Error?.GetEncinaCode() ?? string.Empty;
+                (var IsSuccess, var Error) = ExtractOutcome(outcome);
+                var reason = Error?.GetEncinaCode() ?? string.Empty;
                 if (IsSuccess)
                 {
                     metrics?.TrackSuccess(requestKind, requestType.Name, stopwatch.Elapsed);
@@ -120,7 +120,7 @@ public sealed partial class Encina
                 }
 
                 // Complete the diagnostic activity with appropriate error information
-                EncinaError? outcomeError = outcome.IsRight
+                var outcomeError = outcome.IsRight
                     ? null
                     : outcome.Match(_ => (EncinaError?)null, err => err);
 
@@ -135,7 +135,7 @@ public sealed partial class Encina
             {
                 // --- CANCELLATION HANDLING ---
                 // Cancellation is expected cooperative behavior, not an error
-                string message = $"The {requestType.Name} request was cancelled.";
+                var message = $"The {requestType.Name} request was cancelled.";
                 var metadata = new Dictionary<string, object?>
                 {
                     ["request"] = requestType.FullName,

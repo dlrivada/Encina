@@ -50,8 +50,10 @@ public sealed class RequestContextAccessorContractTests
     public void Contract_SetNullMustClearContext()
     {
         // Arrange
-        var accessor = new RequestContextAccessor();
-        accessor.RequestContext = RequestContext.CreateForTest();
+        var accessor = new RequestContextAccessor
+        {
+            RequestContext = RequestContext.CreateForTest()
+        };
 
         // Act
         accessor.RequestContext = null;
@@ -208,10 +210,11 @@ public sealed class RequestContextAccessorContractTests
     public void Contract_NullContextMustBeAllowed()
     {
         // Arrange
-        var accessor = new RequestContextAccessor();
-
-        // Act
-        accessor.RequestContext = null;
+        var accessor = new RequestContextAccessor
+        {
+            // Act
+            RequestContext = null
+        };
         var retrieved = accessor.RequestContext;
 
         // Assert

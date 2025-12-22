@@ -83,7 +83,7 @@ public abstract class IPubSubProviderContractTests : IAsyncLifetime
     {
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            Provider.PublishAsync<TestMessage>(null!, new TestMessage("test"), CancellationToken.None));
+            Provider.PublishAsync(null!, new TestMessage("test"), CancellationToken.None));
     }
 
     [Fact]

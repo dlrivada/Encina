@@ -30,7 +30,7 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse>(IFunctional
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, TResponse>> Handle(TQuery request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
     {
-        if (!EncinaBehaviorGuards.TryValidateRequest(GetType(), request, out EncinaError failure))
+        if (!EncinaBehaviorGuards.TryValidateRequest(GetType(), request, out var failure))
         {
             return Left<EncinaError, TResponse>(failure);
         }
@@ -40,7 +40,7 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse>(IFunctional
             return Left<EncinaError, TResponse>(failure);
         }
 
-        using Activity? activity = EncinaDiagnostics.ActivitySource.HasListeners()
+        using var activity = EncinaDiagnostics.ActivitySource.HasListeners()
             ? EncinaDiagnostics.ActivitySource.StartActivity(string.Concat("Encina.Query.", typeof(TQuery).Name), ActivityKind.Internal)
             : null;
 
@@ -69,13 +69,13 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse>(IFunctional
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             activity?.SetTag("exception.type", ex.GetType().FullName);
             activity?.SetTag("exception.message", ex.Message);
-            EncinaError error = EncinaErrors.FromException(EncinaErrorCodes.BehaviorException, ex, $"Error running {GetType().Name} for {typeof(TQuery).Name}.");
+            var error = EncinaErrors.FromException(EncinaErrorCodes.BehaviorException, ex, $"Error running {GetType().Name} for {typeof(TQuery).Name}.");
             return Left<EncinaError, TResponse>(error);
         }
         _ = outcome.Match(
             Right: response =>
             {
-                if (_failureDetector.TryExtractFailure(response, out string? failureReason, out object? capturedFailure))
+                if (_failureDetector.TryExtractFailure(response, out var failureReason, out var capturedFailure))
                 {
                     activity?.SetStatus(ActivityStatusCode.Error, failureReason);
                     activity?.SetTag("Encina.functional_failure", true);
@@ -84,13 +84,13 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse>(IFunctional
                         activity?.SetTag("Encina.failure_reason", failureReason);
                     }
 
-                    string? errorCode = _failureDetector.TryGetErrorCode(capturedFailure);
+                    var errorCode = _failureDetector.TryGetErrorCode(capturedFailure);
                     if (!string.IsNullOrWhiteSpace(errorCode))
                     {
                         activity?.SetTag("Encina.failure_code", errorCode);
                     }
 
-                    string? errorMessage = _failureDetector.TryGetErrorMessage(capturedFailure);
+                    var errorMessage = _failureDetector.TryGetErrorMessage(capturedFailure);
                     if (!string.IsNullOrWhiteSpace(errorMessage))
                     {
                         activity?.SetTag("Encina.failure_message", errorMessage);
@@ -105,7 +105,7 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse>(IFunctional
             },
             Left: error =>
             {
-                EncinaError effectiveError = error;
+                var effectiveError = error;
                 activity?.SetStatus(ActivityStatusCode.Error, effectiveError.Message);
                 activity?.SetTag("Encina.pipeline_failure", true);
                 activity?.SetTag("Encina.failure_reason", effectiveError.GetEncinaCode());

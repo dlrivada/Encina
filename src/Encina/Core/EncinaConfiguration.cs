@@ -91,7 +91,7 @@ public sealed class EncinaConfiguration
             return this;
         }
 
-        foreach (Assembly? assembly in assemblies)
+        foreach (var assembly in assemblies)
         {
             if (assembly is not null)
             {
@@ -208,7 +208,7 @@ public sealed class EncinaConfiguration
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        foreach (Type behaviorType in _pipelineBehaviorTypes)
+        foreach (var behaviorType in _pipelineBehaviorTypes)
         {
             RegisterPipelineBehavior(services, behaviorType);
         }
@@ -218,7 +218,7 @@ public sealed class EncinaConfiguration
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        foreach (Type processorType in _requestPreProcessorTypes)
+        foreach (var processorType in _requestPreProcessorTypes)
         {
             RegisterProcessor(services, processorType, typeof(IRequestPreProcessor<>));
         }
@@ -228,7 +228,7 @@ public sealed class EncinaConfiguration
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        foreach (Type processorType in _requestPostProcessorTypes)
+        foreach (var processorType in _requestPostProcessorTypes)
         {
             RegisterProcessor(services, processorType, typeof(IRequestPostProcessor<,>));
         }
@@ -236,31 +236,31 @@ public sealed class EncinaConfiguration
 
     private static void RegisterPipelineBehavior(IServiceCollection services, Type behaviorType)
     {
-        Type pipelineServiceType = ResolveServiceType(behaviorType, typeof(IPipelineBehavior<,>));
+        var pipelineServiceType = ResolveServiceType(behaviorType, typeof(IPipelineBehavior<,>));
         services.TryAddEnumerable(ServiceDescriptor.Scoped(pipelineServiceType, behaviorType));
 
         if (typeof(ICommandPipelineBehavior<,>).IsAssignableFromGeneric(behaviorType))
         {
-            Type commandServiceType = ResolveServiceType(behaviorType, typeof(ICommandPipelineBehavior<,>));
+            var commandServiceType = ResolveServiceType(behaviorType, typeof(ICommandPipelineBehavior<,>));
             services.TryAddEnumerable(ServiceDescriptor.Scoped(commandServiceType, behaviorType));
         }
 
         if (typeof(IQueryPipelineBehavior<,>).IsAssignableFromGeneric(behaviorType))
         {
-            Type queryServiceType = ResolveServiceType(behaviorType, typeof(IQueryPipelineBehavior<,>));
+            var queryServiceType = ResolveServiceType(behaviorType, typeof(IQueryPipelineBehavior<,>));
             services.TryAddEnumerable(ServiceDescriptor.Scoped(queryServiceType, behaviorType));
         }
     }
 
     private static void RegisterProcessor(IServiceCollection services, Type implementationType, Type genericInterface)
     {
-        Type serviceType = ResolveServiceType(implementationType, genericInterface);
+        var serviceType = ResolveServiceType(implementationType, genericInterface);
         services.TryAddEnumerable(ServiceDescriptor.Scoped(serviceType, implementationType));
     }
 
     private static Type ResolveServiceType(Type implementationType, Type genericInterface)
     {
-        Type? interfaceType = implementationType
+        var interfaceType = implementationType
             .GetInterfaces()
             .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == genericInterface);
 

@@ -35,7 +35,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
         const int concurrentWrites = 50;
 
         // Act - Write 50 messages concurrently
-        for (int i = 0; i < concurrentWrites; i++)
+        for (var i = 0; i < concurrentWrites; i++)
         {
             var messageId = $"concurrent-add-{i}";
             var message = new InboxMessage
@@ -52,7 +52,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
         await Task.WhenAll(tasks);
 
         // Assert - All messages persisted
-        for (int i = 0; i < concurrentWrites; i++)
+        for (var i = 0; i < concurrentWrites; i++)
         {
             var retrieved = await _store.GetMessageAsync($"concurrent-add-{i}");
             Assert.NotNull(retrieved);
@@ -64,7 +64,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
     {
         // Arrange - Create 30 messages
         const int messageCount = 30;
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var message = new InboxMessage
             {
@@ -79,7 +79,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
 
         // Act - Mark all as processed concurrently
         var tasks = new List<Task>();
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var messageId = $"concurrent-process-{i}";
             tasks.Add(_store.MarkAsProcessedAsync(messageId, $"{{\"result\":{i}}}"));
@@ -88,7 +88,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
         await Task.WhenAll(tasks);
 
         // Assert - All marked as processed
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var retrieved = await _store.GetMessageAsync($"concurrent-process-{i}");
             Assert.NotNull(retrieved);
@@ -101,7 +101,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
     {
         // Arrange - Create 20 messages
         const int messageCount = 20;
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var message = new InboxMessage
             {
@@ -116,10 +116,10 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
 
         // Act - Mark all as failed concurrently (5 retries each)
         const int retriesPerMessage = 5;
-        for (int retry = 0; retry < retriesPerMessage; retry++)
+        for (var retry = 0; retry < retriesPerMessage; retry++)
         {
             var tasks = new List<Task>();
-            for (int i = 0; i < messageCount; i++)
+            for (var i = 0; i < messageCount; i++)
             {
                 var messageId = $"concurrent-fail-{i}";
                 tasks.Add(_store.MarkAsFailedAsync(messageId, $"Error {retry}", null));
@@ -128,7 +128,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
         }
 
         // Assert - All have correct retry count
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var retrieved = await _store.GetMessageAsync($"concurrent-fail-{i}");
             Assert.NotNull(retrieved);
@@ -145,7 +145,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
     {
         // Arrange & Act - Add 500 messages
         const int messageCount = 500;
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var message = new InboxMessage
             {
@@ -172,7 +172,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
     {
         // Arrange - Create 200 expired messages
         const int expiredCount = 200;
-        for (int i = 0; i < expiredCount; i++)
+        for (var i = 0; i < expiredCount; i++)
         {
             var message = new InboxMessage
             {
@@ -199,7 +199,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
         // Arrange - Create 150 expired messages
         const int expiredCount = 150;
         var messageIds = new List<string>();
-        for (int i = 0; i < expiredCount; i++)
+        for (var i = 0; i < expiredCount; i++)
         {
             var messageId = $"remove-batch-{i}";
             messageIds.Add(messageId);
@@ -236,7 +236,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
     {
         // Arrange - Create 30 messages
         const int messageCount = 30;
-        for (int i = 0; i < messageCount; i++)
+        for (var i = 0; i < messageCount; i++)
         {
             var message = new InboxMessage
             {
@@ -253,21 +253,21 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
         var tasks = new List<Task>();
 
         // 10 reads
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             var messageId = $"stress-{i}";
             tasks.Add(Task.Run(async () => await _store.GetMessageAsync(messageId)));
         }
 
         // 10 updates (mark as processed)
-        for (int i = 10; i < 20; i++)
+        for (var i = 10; i < 20; i++)
         {
             var messageId = $"stress-{i}";
             tasks.Add(Task.Run(async () => await _store.MarkAsProcessedAsync(messageId, "{\"ok\":true}")));
         }
 
         // 10 failures
-        for (int i = 20; i < 30; i++)
+        for (var i = 20; i < 30; i++)
         {
             var messageId = $"stress-{i}";
             tasks.Add(Task.Run(async () => await _store.MarkAsFailedAsync(messageId, "Stress test error", null)));
@@ -276,20 +276,20 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
         await Task.WhenAll(tasks);
 
         // Assert - Data integrity maintained
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             var retrieved = await _store.GetMessageAsync($"stress-{i}");
             Assert.NotNull(retrieved);
         }
 
-        for (int i = 10; i < 20; i++)
+        for (var i = 10; i < 20; i++)
         {
             var retrieved = await _store.GetMessageAsync($"stress-{i}");
             Assert.NotNull(retrieved);
             Assert.True(retrieved.IsProcessed);
         }
 
-        for (int i = 20; i < 30; i++)
+        for (var i = 20; i < 30; i++)
         {
             var retrieved = await _store.GetMessageAsync($"stress-{i}");
             Assert.NotNull(retrieved);
@@ -344,7 +344,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
 
         // Act - 20 concurrent reads (simulating duplicate requests)
         var tasks = new List<Task<bool>>();
-        for (int i = 0; i < 20; i++)
+        for (var i = 0; i < 20; i++)
         {
             tasks.Add(Task.Run(async () =>
             {
@@ -356,7 +356,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
         var results = await Task.WhenAll(tasks);
 
         // Assert - All reads return processed = true
-        Assert.All(results, isProcessed => Assert.True(isProcessed));
+        Assert.All(results, Assert.True);
     }
 
     #endregion
@@ -380,7 +380,7 @@ public sealed class InboxStoreDapperLoadTests : IClassFixture<SqliteFixture>
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        for (int i = startIndex; i < endIndex; i++)
+        for (var i = startIndex; i < endIndex; i++)
         {
             var message = new InboxMessage
             {

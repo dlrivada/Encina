@@ -172,7 +172,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
                     .Where(r => !string.IsNullOrEmpty(r))
                     .ToList();
 
-                var hasAnyRequiredRole = requiredRoles.Any(role => user.IsInRole(role));
+                var hasAnyRequiredRole = requiredRoles.Any(user.IsInRole);
 
                 if (!hasAnyRequiredRole)
                 {

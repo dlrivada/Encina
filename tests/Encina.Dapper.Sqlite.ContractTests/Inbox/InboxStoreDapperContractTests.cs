@@ -377,7 +377,7 @@ public sealed class InboxStoreDapperContractTests : IClassFixture<SqliteFixture>
     public async Task GetExpiredMessagesAsync_RespectsBatchSize()
     {
         // Arrange - Create 5 expired messages
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             var message = new InboxMessage
             {

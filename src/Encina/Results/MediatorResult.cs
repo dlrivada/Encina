@@ -97,7 +97,7 @@ public static class EncinaErrorExtensions
     /// <returns>The error metadata dictionary, or empty if not available.</returns>
     public static IReadOnlyDictionary<string, object?> GetMetadata(this EncinaError error)
     {
-        IReadOnlyDictionary<string, object?>? metadata = error.MetadataException.MatchUnsafe(
+        var metadata = error.MetadataException.MatchUnsafe(
             ex => ex switch
             {
                 EncinaException EncinaException => EncinaException.Metadata,
@@ -135,7 +135,7 @@ public static class EncinaErrorExtensions
     // Internal method for compatibility
     internal static IReadOnlyDictionary<string, object?> GetEncinaMetadata(this EncinaError error)
     {
-        IReadOnlyDictionary<string, object?>? metadata = error.MetadataException.MatchUnsafe(
+        var metadata = error.MetadataException.MatchUnsafe(
             ex => ex switch
             {
                 EncinaException EncinaException => EncinaException.Metadata,

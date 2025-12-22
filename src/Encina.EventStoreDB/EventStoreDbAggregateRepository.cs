@@ -195,7 +195,7 @@ public sealed class EventStoreDbAggregateRepository<TAggregate> : IAggregateRepo
 
             // Serialize events
             var eventData = uncommittedEvents
-                .Select(e => _serializer.Serialize(e))
+                .Select(_serializer.Serialize)
                 .ToArray();
 
             // Append to stream with optimistic concurrency
@@ -264,7 +264,7 @@ public sealed class EventStoreDbAggregateRepository<TAggregate> : IAggregateRepo
 
             // Serialize events
             var eventData = uncommittedEvents
-                .Select(e => _serializer.Serialize(e))
+                .Select(_serializer.Serialize)
                 .ToArray();
 
             // Create stream (expect no stream exists)

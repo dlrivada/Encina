@@ -13,10 +13,10 @@ public sealed class ConfigurationEdgeCaseContracts
     {
         var services = new ServiceCollection();
 
-        services.AddEncina(typeof(global::Encina.Encina).Assembly, typeof(ConfigurationEdgeCaseContracts).Assembly);
+        services.AddEncina(typeof(Encina).Assembly, typeof(ConfigurationEdgeCaseContracts).Assembly);
 
         services.ShouldContain(d =>
-            d.ServiceType == typeof(global::Encina.IRequestHandler<TestCommand, string>)
+            d.ServiceType == typeof(IRequestHandler<TestCommand, string>)
             && ImplementationMatches(d, typeof(TestCommandHandler))
             && d.Lifetime == ServiceLifetime.Scoped);
     }
@@ -29,7 +29,7 @@ public sealed class ConfigurationEdgeCaseContracts
         services.AddEncina(typeof(ConfigurationEdgeCaseContracts).Assembly, typeof(ConfigurationEdgeCaseContracts).Assembly);
 
         var descriptors = services
-            .Where(d => d.ServiceType == typeof(global::Encina.IRequestHandler<TestCommand, string>))
+            .Where(d => d.ServiceType == typeof(IRequestHandler<TestCommand, string>))
             .ToList();
 
         descriptors.Count.ShouldBe(1, "Handlers should not be registered multiple times when assemblies repeat.");
@@ -55,12 +55,12 @@ public sealed class ConfigurationEdgeCaseContracts
     private static bool IsPipelineDescriptor(ServiceDescriptor descriptor)
     {
         return descriptor.ServiceType.IsGenericType
-               && descriptor.ServiceType.GetGenericTypeDefinition() == typeof(global::Encina.IPipelineBehavior<,>);
+               && descriptor.ServiceType.GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>);
     }
 
-    private sealed record TestCommand(string Payload) : global::Encina.ICommand<string>;
+    private sealed record TestCommand(string Payload) : ICommand<string>;
 
-    private sealed class TestCommandHandler : global::Encina.ICommandHandler<TestCommand, string>
+    private sealed class TestCommandHandler : ICommandHandler<TestCommand, string>
     {
         public Task<Either<EncinaError, string>> Handle(TestCommand request, CancellationToken cancellationToken)
         {

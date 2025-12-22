@@ -75,7 +75,7 @@ public sealed class MiniValidationBehavior<TRequest, TResponse> : IPipelineBehav
         }
 
         // Validate using MiniValidation
-        var isValid = global::MiniValidation.MiniValidator.TryValidate(request, out var errors);
+        var isValid = MiniValidation.MiniValidator.TryValidate(request, out var errors);
 
         if (!isValid && errors.Count > 0)
         {

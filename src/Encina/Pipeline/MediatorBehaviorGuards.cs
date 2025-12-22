@@ -10,7 +10,7 @@ internal static class EncinaBehaviorGuards
             return true;
         }
 
-        string message = $"{behaviorType.Name} received a null request.";
+        var message = $"{behaviorType.Name} received a null request.";
         var metadata = new Dictionary<string, object?>
         {
             ["behavior"] = behaviorType.FullName,
@@ -29,7 +29,7 @@ internal static class EncinaBehaviorGuards
             return true;
         }
 
-        string message = $"{behaviorType.Name} received a null callback.";
+        var message = $"{behaviorType.Name} received a null callback.";
         var metadata = new Dictionary<string, object?>
         {
             ["behavior"] = behaviorType.FullName,

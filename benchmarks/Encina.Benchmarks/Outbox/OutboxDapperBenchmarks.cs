@@ -65,7 +65,7 @@ public class OutboxDapperBenchmarks
     [Benchmark(Description = "AddAsync 10 messages")]
     public async Task AddAsync_Batch10()
     {
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             await _store.AddAsync(new OutboxMessage
             {
@@ -82,7 +82,7 @@ public class OutboxDapperBenchmarks
     public async Task GetPendingMessages_Batch10()
     {
         // Setup: Add 50 messages
-        for (int i = 0; i < 50; i++)
+        for (var i = 0; i < 50; i++)
         {
             await _store.AddAsync(new OutboxMessage
             {

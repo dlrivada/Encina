@@ -107,7 +107,7 @@ public sealed class ScheduledMessageStoreDapperTests : IClassFixture<SqliteFixtu
     public async Task GetDueMessagesAsync_RespectsBatchSize()
     {
         // Arrange - Create 5 due messages
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             var message = new ScheduledMessage
             {

@@ -5,7 +5,7 @@ using Encina.FluentValidation;
 using Encina.GuardClauses;
 using Encina.MiniValidator;
 // FluentValidation extension methods (NotEmpty, EmailAddress, etc.)
-using global::FluentValidation;
+using FluentValidation;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
@@ -34,7 +34,7 @@ public class ValidationBenchmarks
         // FluentValidation setup
         var fluentServices = new ServiceCollection();
         fluentServices.AddEncina();
-        fluentServices.AddTransient<global::FluentValidation.IValidator<FluentCommand>, FluentCommandValidator>();
+        fluentServices.AddTransient<IValidator<FluentCommand>, FluentCommandValidator>();
         fluentServices.AddTransient<ValidationPipelineBehavior<FluentCommand, Guid>>();
         fluentServices.AddTransient<IPipelineBehavior<FluentCommand, Guid>>(sp =>
             sp.GetRequiredService<ValidationPipelineBehavior<FluentCommand, Guid>>());
@@ -117,7 +117,7 @@ public class ValidationBenchmarks
     // FluentValidation types
     private sealed record FluentCommand(string Name, string Email, int Age) : ICommand<Guid>;
 
-    private sealed class FluentCommandValidator : global::FluentValidation.AbstractValidator<FluentCommand>
+    private sealed class FluentCommandValidator : AbstractValidator<FluentCommand>
     {
         public FluentCommandValidator()
         {

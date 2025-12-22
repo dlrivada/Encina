@@ -26,16 +26,16 @@ internal static class EncinaAssemblyScanner
         var streamHandlerRegistrations = new List<TypeRegistration>();
         var streamPipelineRegistrations = new List<TypeRegistration>();
 
-        foreach (Type? type in GetLoadableTypes(assembly))
+        foreach (var type in GetLoadableTypes(assembly))
         {
             if (type is null || !type.IsClass || type.IsAbstract)
             {
                 continue;
             }
 
-            foreach (Type? implementedInterface in type.GetInterfaces().Where(i => i.IsGenericType))
+            foreach (var implementedInterface in type.GetInterfaces().Where(i => i.IsGenericType))
             {
-                Type genericDefinition = implementedInterface.GetGenericTypeDefinition();
+                var genericDefinition = implementedInterface.GetGenericTypeDefinition();
 
                 if (genericDefinition == typeof(IRequestHandler<,>))
                 {
@@ -47,21 +47,21 @@ internal static class EncinaAssemblyScanner
                 }
                 else if (genericDefinition == typeof(IPipelineBehavior<,>))
                 {
-                    Type serviceType = implementedInterface.ContainsGenericParameters
+                    var serviceType = implementedInterface.ContainsGenericParameters
                         ? typeof(IPipelineBehavior<,>)
                         : implementedInterface;
                     pipelineRegistrations.Add(new TypeRegistration(serviceType, type));
                 }
                 else if (genericDefinition == typeof(IRequestPreProcessor<>))
                 {
-                    Type serviceType = implementedInterface.ContainsGenericParameters
+                    var serviceType = implementedInterface.ContainsGenericParameters
                         ? typeof(IRequestPreProcessor<>)
                         : implementedInterface;
                     preProcessorRegistrations.Add(new TypeRegistration(serviceType, type));
                 }
                 else if (genericDefinition == typeof(IRequestPostProcessor<,>))
                 {
-                    Type serviceType = implementedInterface.ContainsGenericParameters
+                    var serviceType = implementedInterface.ContainsGenericParameters
                         ? typeof(IRequestPostProcessor<,>)
                         : implementedInterface;
                     postProcessorRegistrations.Add(new TypeRegistration(serviceType, type));
@@ -72,7 +72,7 @@ internal static class EncinaAssemblyScanner
                 }
                 else if (genericDefinition == typeof(IStreamPipelineBehavior<,>))
                 {
-                    Type serviceType = implementedInterface.ContainsGenericParameters
+                    var serviceType = implementedInterface.ContainsGenericParameters
                         ? typeof(IStreamPipelineBehavior<,>)
                         : implementedInterface;
                     streamPipelineRegistrations.Add(new TypeRegistration(serviceType, type));

@@ -52,7 +52,7 @@ public interface IRequestContext
     /// Correlation ID for distributed tracing.
     /// </summary>
     /// <remarks>
-    /// Always present - auto-generated from <see cref="System.Diagnostics.Activity.Current"/> or <see cref="System.Guid"/> if not provided.
+    /// Always present - auto-generated from <see cref="System.Diagnostics.Activity.Current"/> or <see cref="Guid"/> if not provided.
     /// Use this for linking logs, traces, and metrics across services.
     /// </remarks>
     string CorrelationId { get; }

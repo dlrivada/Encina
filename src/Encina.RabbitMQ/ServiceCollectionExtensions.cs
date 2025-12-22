@@ -37,7 +37,7 @@ public static class ServiceCollectionExtensions
             opt.Durable = options.Durable;
         });
 
-        services.TryAddSingleton<IConnection>(sp =>
+        services.TryAddSingleton(sp =>
         {
             var factory = new ConnectionFactory
             {
@@ -51,7 +51,7 @@ public static class ServiceCollectionExtensions
             return factory.CreateConnectionAsync().GetAwaiter().GetResult();
         });
 
-        services.TryAddSingleton<IChannel>(sp =>
+        services.TryAddSingleton(sp =>
         {
             var connection = sp.GetRequiredService<IConnection>();
             return connection.CreateChannelAsync().GetAwaiter().GetResult();

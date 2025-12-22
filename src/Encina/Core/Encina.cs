@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using static LanguageExt.Prelude;
 
 namespace Encina;
 
@@ -46,7 +45,7 @@ public sealed partial class Encina(
     /// <inheritdoc />
     public ValueTask<Either<EncinaError, TResponse>> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
     {
-        if (!EncinaRequestGuards.TryValidateRequest<TResponse>(request, out Either<EncinaError, TResponse> error))
+        if (!EncinaRequestGuards.TryValidateRequest<TResponse>(request, out var error))
         {
             Log.NullRequest(_logger);
             return new ValueTask<Either<EncinaError, TResponse>>(error);
@@ -58,7 +57,7 @@ public sealed partial class Encina(
     public ValueTask<Either<EncinaError, Unit>> Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
         where TNotification : INotification
     {
-        if (!EncinaRequestGuards.TryValidateNotification(notification, out Either<EncinaError, Unit> error))
+        if (!EncinaRequestGuards.TryValidateNotification(notification, out var error))
         {
             Log.NotificationNull(_logger);
             return new ValueTask<Either<EncinaError, Unit>>(error);
@@ -68,7 +67,7 @@ public sealed partial class Encina(
 
     private void LogSendOutcome<TResponse>(Type requestType, Type handlerType, Either<EncinaError, TResponse> outcome)
     {
-        (bool IsSuccess, EncinaError? Error) = ExtractOutcome(outcome);
+        (var IsSuccess, var Error) = ExtractOutcome(outcome);
         LogSendOutcomeCore(requestType, handlerType, IsSuccess, Error);
     }
 
@@ -80,10 +79,10 @@ public sealed partial class Encina(
             return;
         }
 
-        EncinaError effectiveError = error ?? EncinaErrors.Unknown;
+        var effectiveError = error ?? EncinaErrors.Unknown;
 
-        string errorCode = effectiveError.GetEncinaCode();
-        Exception? exception = effectiveError.Exception.Match(
+        var errorCode = effectiveError.GetEncinaCode();
+        var exception = effectiveError.Exception.Match(
             Some: ex => (Exception?)ex,
             None: () => null);
 
@@ -103,7 +102,7 @@ public sealed partial class Encina(
 
     private static RequestHandlerBase CreateRequestHandlerWrapper(Type requestType, Type responseType)
     {
-        Type wrapperType = typeof(RequestHandlerWrapper<,>).MakeGenericType(requestType, responseType);
+        var wrapperType = typeof(RequestHandlerWrapper<,>).MakeGenericType(requestType, responseType);
         return (RequestHandlerBase)Activator.CreateInstance(wrapperType)!;
     }
 
@@ -128,10 +127,10 @@ public sealed partial class Encina(
         {
             var typedRequest = (TRequest)request;
             var typedHandler = (IRequestHandler<TRequest, TResponse>)handler;
-            IRequestContext context = RequestContext.Create();
+            var context = RequestContext.Create();
             var pipelineBuilder = new PipelineBuilder<TRequest, TResponse>(typedRequest, typedHandler, context, cancellationToken);
-            RequestHandlerCallback<TResponse> pipeline = pipelineBuilder.Build(provider);
-            Either<EncinaError, TResponse> outcome = await pipeline().ConfigureAwait(false);
+            var pipeline = pipelineBuilder.Build(provider);
+            var outcome = await pipeline().ConfigureAwait(false);
             return outcome;
         }
     }

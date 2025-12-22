@@ -207,7 +207,7 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         var store = new SagaStoreDapper(_fixture.CreateConnection());
 
         // Add N sagas
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             await store.AddAsync(new SagaState
             {
@@ -245,7 +245,7 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
 
         // Add sagas with sequential timestamps
         var baseTime = DateTime.UtcNow.AddHours(-10);
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             await store.AddAsync(new SagaState
             {
@@ -265,7 +265,7 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         // Assert - Verify ordering
         if (stuckSagas.Count > 1)
         {
-            for (int i = 0; i < stuckSagas.Count - 1; i++)
+            for (var i = 0; i < stuckSagas.Count - 1; i++)
             {
                 Assert.True(stuckSagas[i].LastUpdatedAtUtc <= stuckSagas[i + 1].LastUpdatedAtUtc,
                     $"Saga at index {i} has timestamp {stuckSagas[i].LastUpdatedAtUtc}, " +
@@ -329,7 +329,7 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         var store = new SagaStoreDapper(_fixture.CreateConnection());
 
         // Act - Call SaveChangesAsync N times
-        for (int i = 0; i < callCount; i++)
+        for (var i = 0; i < callCount; i++)
         {
             await store.SaveChangesAsync();
         }
@@ -449,7 +449,7 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         await store.AddAsync(saga);
 
         // Act - Update N times
-        for (int i = 0; i < updateCount; i++)
+        for (var i = 0; i < updateCount; i++)
         {
             saga.Status = i % 2 == 0 ? "Running" : "Completed";
             saga.CurrentStep = i + 2;
@@ -554,7 +554,7 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         var store = new SagaStoreDapper(_fixture.CreateConnection());
 
         // Act & Assert
-        for (int i = 0; i < attemptCount; i++)
+        for (var i = 0; i < attemptCount; i++)
         {
             var nonExistentId = Guid.NewGuid();
             var result = await store.GetAsync(nonExistentId);
@@ -577,7 +577,7 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         var store = new SagaStoreDapper(_fixture.CreateConnection());
 
         var sagaIds = new List<Guid>();
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             var sagaId = Guid.NewGuid();
             sagaIds.Add(sagaId);
@@ -594,7 +594,7 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         }
 
         // Act & Assert - Each saga can be retrieved independently
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             var retrieved = await store.GetAsync(sagaIds[i]);
             Assert.NotNull(retrieved);

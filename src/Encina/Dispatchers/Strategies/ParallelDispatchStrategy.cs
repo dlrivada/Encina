@@ -42,14 +42,14 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
         // Single handler - no parallelism needed
         if (handlers.Count == 1)
         {
-            object? handler = handlers[0];
+            var handler = handlers[0];
             return handler is null
                 ? Right<EncinaError, Unit>(Unit.Default)
                 : await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
         }
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        CancellationToken linkedToken = cts.Token;
+        var linkedToken = cts.Token;
 
         // Use SemaphoreSlim for throttling if max parallelism is set
         using var semaphore = new SemaphoreSlim(_maxDegreeOfParallelism, _maxDegreeOfParallelism);
@@ -58,14 +58,14 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
         var errorHolder = new ErrorHolder();
         var tasks = new List<Task>(handlers.Count);
 
-        foreach (object? handler in handlers)
+        foreach (var handler in handlers)
         {
             if (handler is null)
             {
                 continue;
             }
 
-            object capturedHandler = handler;
+            var capturedHandler = handler;
             tasks.Add(ExecuteWithThrottlingAsync(
                 capturedHandler,
                 notification,
@@ -117,7 +117,7 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
                 return;
             }
 
-            Either<EncinaError, Unit> result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
+            var result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
 
             if (result.IsLeft)
             {

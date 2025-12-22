@@ -35,7 +35,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
         const int concurrentWrites = 50;
 
         // Act - Write 50 sagas concurrently
-        for (int i = 0; i < concurrentWrites; i++)
+        for (var i = 0; i < concurrentWrites; i++)
         {
             var index = i; // Capture for closure
             tasks.Add(Task.Run(async () =>
@@ -72,7 +72,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
         // Arrange - Create 30 sagas
         const int sagaCount = 30;
         var sagaIds = new List<Guid>();
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             var sagaId = Guid.NewGuid();
             sagaIds.Add(sagaId);
@@ -91,7 +91,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
 
         // Act - Update all concurrently
         var tasks = new List<Task>();
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             var sagaId = sagaIds[i];
             tasks.Add(Task.Run(async () =>
@@ -110,7 +110,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
         await Task.WhenAll(tasks);
 
         // Assert - All marked as completed
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             var retrieved = await _store.GetAsync(sagaIds[i]);
             Assert.NotNull(retrieved);
@@ -124,7 +124,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
         // Arrange - Create 20 sagas
         const int sagaCount = 20;
         var sagaIds = new List<Guid>();
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             var sagaId = Guid.NewGuid();
             sagaIds.Add(sagaId);
@@ -143,10 +143,10 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
 
         // Act - Increment CurrentStep 5 times concurrently for each saga
         const int incrementsPerSaga = 5;
-        for (int step = 0; step < incrementsPerSaga; step++)
+        for (var step = 0; step < incrementsPerSaga; step++)
         {
             var tasks = new List<Task>();
-            for (int i = 0; i < sagaCount; i++)
+            for (var i = 0; i < sagaCount; i++)
             {
                 var sagaId = sagaIds[i];
                 tasks.Add(Task.Run(async () =>
@@ -164,7 +164,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
         }
 
         // Assert - All have correct step count
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             var retrieved = await _store.GetAsync(sagaIds[i]);
             Assert.NotNull(retrieved);
@@ -182,7 +182,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
         // Arrange & Act - Add 500 sagas
         const int sagaCount = 500;
         var sagaIds = new List<Guid>();
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             var sagaId = Guid.NewGuid();
             sagaIds.Add(sagaId);
@@ -213,7 +213,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
     {
         // Arrange - Create 200 stuck sagas
         const int stuckCount = 200;
-        for (int i = 0; i < stuckCount; i++)
+        for (var i = 0; i < stuckCount; i++)
         {
             var saga = new SagaState
             {
@@ -240,7 +240,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
     {
         // Arrange - Create 150 stuck sagas
         const int stuckCount = 150;
-        for (int i = 0; i < stuckCount; i++)
+        for (var i = 0; i < stuckCount; i++)
         {
             var saga = new SagaState
             {
@@ -272,7 +272,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
         // Arrange - Create 30 sagas
         const int sagaCount = 30;
         var sagaIds = new List<Guid>();
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             var sagaId = Guid.NewGuid();
             sagaIds.Add(sagaId);
@@ -293,14 +293,14 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
         var tasks = new List<Task>();
 
         // 10 reads
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             var sagaId = sagaIds[i];
             tasks.Add(Task.Run(async () => await _store.GetAsync(sagaId)));
         }
 
         // 10 updates (mark as completed)
-        for (int i = 10; i < 20; i++)
+        for (var i = 10; i < 20; i++)
         {
             var sagaId = sagaIds[i];
             tasks.Add(Task.Run(async () =>
@@ -316,7 +316,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
         }
 
         // 10 failures
-        for (int i = 20; i < 30; i++)
+        for (var i = 20; i < 30; i++)
         {
             var sagaId = sagaIds[i];
             tasks.Add(Task.Run(async () =>
@@ -334,20 +334,20 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
         await Task.WhenAll(tasks);
 
         // Assert - Data integrity maintained
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             var retrieved = await _store.GetAsync(sagaIds[i]);
             Assert.NotNull(retrieved);
         }
 
-        for (int i = 10; i < 20; i++)
+        for (var i = 10; i < 20; i++)
         {
             var retrieved = await _store.GetAsync(sagaIds[i]);
             Assert.NotNull(retrieved);
             Assert.Equal("Completed", retrieved.Status);
         }
 
-        for (int i = 20; i < 30; i++)
+        for (var i = 20; i < 30; i++)
         {
             var retrieved = await _store.GetAsync(sagaIds[i]);
             Assert.NotNull(retrieved);
@@ -392,7 +392,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
     {
         // Arrange - Create 1000 sagas (500 stuck, 500 recent)
         const int totalSagas = 1000;
-        for (int i = 0; i < totalSagas; i++)
+        for (var i = 0; i < totalSagas; i++)
         {
             var saga = new SagaState
             {
@@ -427,7 +427,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
         // Arrange - Create 20 sagas
         const int sagaCount = 20;
         var sagaIds = new List<Guid>();
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             var sagaId = Guid.NewGuid();
             sagaIds.Add(sagaId);
@@ -446,10 +446,10 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
 
         // Act - Simulate full lifecycle: Running → Step 1 → Step 2 → Step 3 → Completed
         const int totalSteps = 3;
-        for (int step = 1; step <= totalSteps; step++)
+        for (var step = 1; step <= totalSteps; step++)
         {
             var tasks = new List<Task>();
-            for (int i = 0; i < sagaCount; i++)
+            for (var i = 0; i < sagaCount; i++)
             {
                 var sagaId = sagaIds[i];
                 var currentStep = step;
@@ -474,7 +474,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
         }
 
         // Assert - All sagas completed successfully
-        for (int i = 0; i < sagaCount; i++)
+        for (var i = 0; i < sagaCount; i++)
         {
             var retrieved = await _store.GetAsync(sagaIds[i]);
             Assert.NotNull(retrieved);
@@ -505,7 +505,7 @@ public sealed class SagaStoreDapperLoadTests : IClassFixture<SqliteFixture>
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        for (int i = startIndex; i < endIndex; i++)
+        for (var i = startIndex; i < endIndex; i++)
         {
             var saga = new SagaState
             {

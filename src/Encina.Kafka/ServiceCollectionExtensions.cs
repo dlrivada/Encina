@@ -37,17 +37,17 @@ public static class ServiceCollectionExtensions
             opt.MessageTimeoutMs = options.MessageTimeoutMs;
         });
 
-        services.TryAddSingleton<IProducer<string, byte[]>>(sp =>
+        services.TryAddSingleton(sp =>
         {
             var producerConfig = new ProducerConfig
             {
                 BootstrapServers = options.BootstrapServers,
                 Acks = options.Acks switch
                 {
-                    "all" => Confluent.Kafka.Acks.All,
-                    "none" => Confluent.Kafka.Acks.None,
-                    "leader" => Confluent.Kafka.Acks.Leader,
-                    _ => Confluent.Kafka.Acks.All
+                    "all" => Acks.All,
+                    "none" => Acks.None,
+                    "leader" => Acks.Leader,
+                    _ => Acks.All
                 },
                 EnableIdempotence = options.EnableIdempotence,
                 MessageTimeoutMs = options.MessageTimeoutMs

@@ -33,7 +33,7 @@ public sealed class StreamRequestIntegrationTests
         var results = new List<int>();
         await foreach (var item in Encina.Stream(request))
         {
-            item.IfRight(value => results.Add(value));
+            item.IfRight(results.Add);
         }
 
         // Assert
@@ -58,7 +58,7 @@ public sealed class StreamRequestIntegrationTests
         var results = new List<int>();
         await foreach (var item in Encina.Stream(request))
         {
-            item.IfRight(value => results.Add(value));
+            item.IfRight(results.Add);
         }
 
         // Assert
@@ -86,7 +86,7 @@ public sealed class StreamRequestIntegrationTests
         var results = new List<int>();
         await foreach (var item in Encina.Stream(request))
         {
-            item.IfRight(value => results.Add(value));
+            item.IfRight(results.Add);
         }
 
         // Assert - Behaviors execute as: Handler → AddFive → DoubleValue
@@ -114,7 +114,7 @@ public sealed class StreamRequestIntegrationTests
         var results = new List<int>();
         await foreach (var item in Encina.Stream(request))
         {
-            item.IfRight(value => results.Add(value));
+            item.IfRight(results.Add);
         }
 
         // Assert - Only values > 5
@@ -333,7 +333,7 @@ public sealed class StreamRequestIntegrationTests
         var results = new List<int>();
         await foreach (var item in Encina.Stream(request))
         {
-            item.IfRight(value => results.Add(value));
+            item.IfRight(results.Add);
         }
 
         // Assert
@@ -468,7 +468,7 @@ public sealed class StreamRequestIntegrationTests
                 // Convert errors to success with value -1
                 yield return item.Match(
                     Left: _ => Right<EncinaError, int>(-1),
-                    Right: value => Right<EncinaError, int>(value));
+                    Right: Right<EncinaError, int>);
             }
         }
     }

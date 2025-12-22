@@ -34,7 +34,7 @@ public sealed class ServiceCollectionExtensionsTests
         IServiceCollection services = null!;
 
         // Act & Assert
-        Should.Throw<ArgumentNullException>(() => services.AddDataAnnotationsValidation());
+        Should.Throw<ArgumentNullException>(services.AddDataAnnotationsValidation);
     }
 
     [Fact]

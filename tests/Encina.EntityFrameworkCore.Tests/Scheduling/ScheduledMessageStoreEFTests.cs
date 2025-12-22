@@ -110,7 +110,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
     public async Task GetDueMessagesAsync_ShouldRespectBatchSize()
     {
         // Arrange
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             await _dbContext.ScheduledMessages.AddAsync(new ScheduledMessage
             {

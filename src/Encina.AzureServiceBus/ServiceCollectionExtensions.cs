@@ -42,7 +42,7 @@ public static class ServiceCollectionExtensions
             opt.MaxAutoLockRenewalDuration = options.MaxAutoLockRenewalDuration;
         });
 
-        services.TryAddSingleton<ServiceBusClient>(sp =>
+        services.TryAddSingleton(sp =>
             new ServiceBusClient(options.ConnectionString));
 
         services.TryAddScoped<IAzureServiceBusMessagePublisher, AzureServiceBusMessagePublisher>();

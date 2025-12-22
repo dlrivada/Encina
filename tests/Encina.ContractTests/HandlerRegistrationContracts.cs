@@ -15,7 +15,7 @@ public sealed class HandlerRegistrationContracts
         services.AddEncina(typeof(HandlerRegistrationContracts).Assembly);
 
         services.ShouldContain(d =>
-            d.ServiceType == typeof(global::Encina.IRequestHandler<SampleCommand, string>)
+            d.ServiceType == typeof(IRequestHandler<SampleCommand, string>)
             && ImplementationMatches(d, typeof(SampleCommandHandler))
             && d.Lifetime == ServiceLifetime.Scoped);
     }
@@ -31,7 +31,7 @@ public sealed class HandlerRegistrationContracts
         }, typeof(HandlerRegistrationContracts).Assembly);
 
         services.ShouldContain(d =>
-            d.ServiceType == typeof(global::Encina.IRequestHandler<SampleCommand, string>)
+            d.ServiceType == typeof(IRequestHandler<SampleCommand, string>)
             && ImplementationMatches(d, typeof(SampleCommandHandler))
             && d.Lifetime == ServiceLifetime.Singleton);
     }
@@ -45,7 +45,7 @@ public sealed class HandlerRegistrationContracts
         services.AddEncina(typeof(HandlerRegistrationContracts).Assembly);
 
         var descriptors = services
-            .Where(d => d.ServiceType == typeof(global::Encina.IRequestHandler<SampleCommand, string>))
+            .Where(d => d.ServiceType == typeof(IRequestHandler<SampleCommand, string>))
             .ToList();
 
         descriptors.Count.ShouldBe(1, "Request handlers should not be duplicated when registration runs multiple times.");
@@ -59,7 +59,7 @@ public sealed class HandlerRegistrationContracts
         services.AddEncina(typeof(HandlerRegistrationContracts).Assembly);
 
         var descriptors = services
-            .Where(d => d.ServiceType == typeof(global::Encina.INotificationHandler<SampleNotification>))
+            .Where(d => d.ServiceType == typeof(INotificationHandler<SampleNotification>))
             .ToList();
 
         descriptors.Count.ShouldBe(2, "All notification handlers should be preserved during registration.");
@@ -73,9 +73,9 @@ public sealed class HandlerRegistrationContracts
                || descriptor.ImplementationInstance?.GetType() == candidate;
     }
 
-    private sealed record SampleCommand(string Payload) : global::Encina.ICommand<string>;
+    private sealed record SampleCommand(string Payload) : ICommand<string>;
 
-    private sealed class SampleCommandHandler : global::Encina.ICommandHandler<SampleCommand, string>
+    private sealed class SampleCommandHandler : ICommandHandler<SampleCommand, string>
     {
         public Task<Either<EncinaError, string>> Handle(SampleCommand request, CancellationToken cancellationToken)
         {
@@ -83,9 +83,9 @@ public sealed class HandlerRegistrationContracts
         }
     }
 
-    private sealed record SampleNotification(string Value) : global::Encina.INotification;
+    private sealed record SampleNotification(string Value) : INotification;
 
-    private sealed class SampleNotificationHandlerOne : global::Encina.INotificationHandler<SampleNotification>
+    private sealed class SampleNotificationHandlerOne : INotificationHandler<SampleNotification>
     {
         public Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
         {
@@ -93,7 +93,7 @@ public sealed class HandlerRegistrationContracts
         }
     }
 
-    private sealed class SampleNotificationHandlerTwo : global::Encina.INotificationHandler<SampleNotification>
+    private sealed class SampleNotificationHandlerTwo : INotificationHandler<SampleNotification>
     {
         public Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
         {

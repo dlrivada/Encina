@@ -118,7 +118,7 @@ public class StreamRequestBenchmarks
         var results = new List<int>();
         await foreach (var item in Encina.Stream(request))
         {
-            item.IfRight(value => results.Add(value));
+            item.IfRight(results.Add);
         }
 
         return results.Count;

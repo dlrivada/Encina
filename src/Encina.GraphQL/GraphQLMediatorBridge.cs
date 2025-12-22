@@ -50,7 +50,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_options.ExecutionTimeout);
 
-            var result = await _Encina.Send<TResult>(query, cts.Token).ConfigureAwait(false);
+            var result = await _Encina.Send(query, cts.Token).ConfigureAwait(false);
 
             result.IfRight(_ => Log.SuccessfullyExecutedQuery(_logger, typeof(TQuery).Name));
 
@@ -92,7 +92,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_options.ExecutionTimeout);
 
-            var result = await _Encina.Send<TResult>(mutation, cts.Token).ConfigureAwait(false);
+            var result = await _Encina.Send(mutation, cts.Token).ConfigureAwait(false);
 
             result.IfRight(_ => Log.SuccessfullyExecutedMutation(_logger, typeof(TMutation).Name));
 

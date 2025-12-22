@@ -99,7 +99,7 @@ public sealed class NotificationProperties
         var recorder = provider.GetRequiredService<CallRecorder>();
         recorder.Clear();
 
-        var Encina = new global::Encina.Encina(provider.GetRequiredService<IServiceScopeFactory>());
+        var Encina = new Encina(provider.GetRequiredService<IServiceScopeFactory>());
 
         var publishTasks = Enumerable.Range(0, publishCount)
             .Select(iteration => Encina.Publish(
@@ -155,7 +155,7 @@ public sealed class NotificationProperties
         var recorder = provider.GetRequiredService<CallRecorder>();
         recorder.Clear();
 
-        var Encina = new global::Encina.Encina(provider.GetRequiredService<IServiceScopeFactory>());
+        var Encina = new Encina(provider.GetRequiredService<IServiceScopeFactory>());
         var notification = new TrackedNotification(Guid.NewGuid().ToString("N"));
         var tokenSource = cancelBeforePublish ? new CancellationTokenSource() : null;
         tokenSource?.Cancel();
@@ -182,7 +182,7 @@ public sealed class NotificationProperties
 
     private sealed record TrackedNotification(string Value) : INotification;
 
-    private sealed class RecordingNotificationHandler(NotificationProperties.CallRecorder recorder, int label, NotificationProperties.HandlerOutcome outcome) : INotificationHandler<TrackedNotification>
+    private sealed class RecordingNotificationHandler(CallRecorder recorder, int label, HandlerOutcome outcome) : INotificationHandler<TrackedNotification>
     {
         private readonly CallRecorder _recorder = recorder;
         private readonly int _label = label;

@@ -82,7 +82,7 @@ public sealed class BasicInstrumentationTests
         var Encina = provider.GetRequiredService<IEncina>();
 
         // Act - Send multiple requests
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             var result = await Encina.Send(new TestRequest { Data = $"request-{i}" }, CancellationToken.None);
             Assert.True(result.IsRight);

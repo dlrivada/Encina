@@ -89,7 +89,7 @@ public class OutboxStoreDapperTests : IDisposable
     public async Task GetPendingMessagesAsync_ShouldRespectBatchSize()
     {
         // Arrange
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             await _store.AddAsync(new OutboxMessage
             {

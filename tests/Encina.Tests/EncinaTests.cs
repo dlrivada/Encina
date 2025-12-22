@@ -1172,7 +1172,7 @@ public sealed class EncinaTests
         await using var provider = services.BuildServiceProvider();
         var Encina = provider.GetRequiredService<IEncina>();
 
-        var cacheField = typeof(global::Encina.Encina)
+        var cacheField = typeof(Encina)
             .GetField("RequestHandlerCache", BindingFlags.Static | BindingFlags.NonPublic)!;
         var cache = cacheField.GetValue(null)!;
         var cacheType = cache.GetType();
@@ -1493,7 +1493,7 @@ public sealed class EncinaTests
         if (loggerCollector is not null)
         {
             services.AddSingleton(loggerCollector);
-            services.AddSingleton<ILogger<global::Encina.Encina>>(sp => new ListLogger<global::Encina.Encina>(sp.GetRequiredService<LoggerCollector>()));
+            services.AddSingleton<ILogger<Encina>>(sp => new ListLogger<Encina>(sp.GetRequiredService<LoggerCollector>()));
         }
 
         if (EncinaMetrics is not null)
@@ -1509,7 +1509,7 @@ public sealed class EncinaTests
 
     private sealed record EchoRequest(string Value) : IRequest<string>;
 
-    private sealed class EchoRequestHandler(EncinaTests.PipelineTracker tracker) : IRequestHandler<EchoRequest, string>
+    private sealed class EchoRequestHandler(PipelineTracker tracker) : IRequestHandler<EchoRequest, string>
     {
         private readonly PipelineTracker _tracker = tracker;
 
@@ -1579,7 +1579,7 @@ public sealed class EncinaTests
 
     private sealed record LifecycleRequest(string Value) : IRequest<string>;
 
-    private sealed class LifecycleRequestHandler(EncinaTests.LifecycleTracker tracker) : IRequestHandler<LifecycleRequest, string>
+    private sealed class LifecycleRequestHandler(LifecycleTracker tracker) : IRequestHandler<LifecycleRequest, string>
     {
         private readonly LifecycleTracker _tracker = tracker;
 
@@ -1598,7 +1598,7 @@ public sealed class EncinaTests
 
     private sealed record ExplicitNotification() : INotification;
 
-    private sealed class FirstSampleNotificationHandler(EncinaTests.NotificationTracker tracker) : INotificationHandler<SampleNotification>
+    private sealed class FirstSampleNotificationHandler(NotificationTracker tracker) : INotificationHandler<SampleNotification>
     {
         private readonly NotificationTracker _tracker = tracker;
 
@@ -1609,7 +1609,7 @@ public sealed class EncinaTests
         }
     }
 
-    private sealed class SecondSampleNotificationHandler(EncinaTests.NotificationTracker tracker) : INotificationHandler<SampleNotification>
+    private sealed class SecondSampleNotificationHandler(NotificationTracker tracker) : INotificationHandler<SampleNotification>
     {
         private readonly NotificationTracker _tracker = tracker;
 
@@ -1682,7 +1682,7 @@ public sealed class EncinaTests
 
     private sealed record PostProcessorRequest(string Value) : IRequest<string>;
 
-    private sealed class PostProcessorRequestHandler(EncinaTests.PostProcessorTracker tracker) : IRequestHandler<PostProcessorRequest, string>
+    private sealed class PostProcessorRequestHandler(PostProcessorTracker tracker) : IRequestHandler<PostProcessorRequest, string>
     {
         private readonly PostProcessorTracker _tracker = tracker;
 
@@ -1693,7 +1693,7 @@ public sealed class EncinaTests
         }
     }
 
-    private sealed class RecordingPostProcessor(EncinaTests.PostProcessorTracker tracker) : IRequestPostProcessor<PostProcessorRequest, string>
+    private sealed class RecordingPostProcessor(PostProcessorTracker tracker) : IRequestPostProcessor<PostProcessorRequest, string>
     {
         private readonly PostProcessorTracker _tracker = tracker;
 
@@ -1728,7 +1728,7 @@ public sealed class EncinaTests
             => Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
     }
 
-    private sealed class AsyncSampleNotificationHandler(EncinaTests.NotificationTracker tracker) : INotificationHandler<SampleNotification>
+    private sealed class AsyncSampleNotificationHandler(NotificationTracker tracker) : INotificationHandler<SampleNotification>
     {
         private readonly NotificationTracker _tracker = tracker;
 
@@ -1755,7 +1755,7 @@ public sealed class EncinaTests
         }
     }
 
-    private sealed class TrackingBehavior<TRequest, TResponse>(EncinaTests.PipelineTracker tracker) : IPipelineBehavior<TRequest, TResponse>
+    private sealed class TrackingBehavior<TRequest, TResponse>(PipelineTracker tracker) : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
         private readonly PipelineTracker _tracker = tracker;
@@ -1769,7 +1769,7 @@ public sealed class EncinaTests
         }
     }
 
-    private sealed class SecondTrackingBehavior<TRequest, TResponse>(EncinaTests.PipelineTracker tracker) : IPipelineBehavior<TRequest, TResponse>
+    private sealed class SecondTrackingBehavior<TRequest, TResponse>(PipelineTracker tracker) : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
         private readonly PipelineTracker _tracker = tracker;
@@ -1783,7 +1783,7 @@ public sealed class EncinaTests
         }
     }
 
-    private sealed class LifecyclePreProcessor(EncinaTests.LifecycleTracker tracker) : IRequestPreProcessor<LifecycleRequest>
+    private sealed class LifecyclePreProcessor(LifecycleTracker tracker) : IRequestPreProcessor<LifecycleRequest>
     {
         private readonly LifecycleTracker _tracker = tracker;
 
@@ -1794,7 +1794,7 @@ public sealed class EncinaTests
         }
     }
 
-    private sealed class LifecyclePostProcessor(EncinaTests.LifecycleTracker tracker) : IRequestPostProcessor<LifecycleRequest, string>
+    private sealed class LifecyclePostProcessor(LifecycleTracker tracker) : IRequestPostProcessor<LifecycleRequest, string>
     {
         private readonly LifecycleTracker _tracker = tracker;
 
@@ -1931,7 +1931,7 @@ public sealed class EncinaTests
 
     private sealed record LogEntry(LogLevel LogLevel, string Message, Exception? Exception);
 
-    private sealed class ListLogger<T>(EncinaTests.LoggerCollector collector) : ILogger<T>
+    private sealed class ListLogger<T>(LoggerCollector collector) : ILogger<T>
     {
         private readonly LoggerCollector _collector = collector;
 
@@ -1970,7 +1970,7 @@ public sealed class EncinaTests
                 ShouldListenTo = source => string.Equals(source.Name, "Encina", StringComparison.Ordinal),
                 Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
                 SampleUsingParentId = (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllDataAndRecorded,
-                ActivityStopped = activity => Activities.Add(activity)
+                ActivityStopped = Activities.Add
             };
             ActivitySource.AddActivityListener(_listener);
         }
@@ -1985,7 +1985,7 @@ public sealed class EncinaTests
 
     private sealed record AsyncPipelineRequest(string Value) : IRequest<string>;
 
-    private sealed class AsyncPreProcessor(EncinaTests.AsyncPipelineTracker tracker) : IRequestPreProcessor<AsyncPipelineRequest>
+    private sealed class AsyncPreProcessor(AsyncPipelineTracker tracker) : IRequestPreProcessor<AsyncPipelineRequest>
     {
         private readonly AsyncPipelineTracker _tracker = tracker;
 
@@ -1996,7 +1996,7 @@ public sealed class EncinaTests
         }
     }
 
-    private sealed class AsyncPipelineRequestHandler(EncinaTests.AsyncPipelineTracker tracker) : IRequestHandler<AsyncPipelineRequest, string>
+    private sealed class AsyncPipelineRequestHandler(AsyncPipelineTracker tracker) : IRequestHandler<AsyncPipelineRequest, string>
     {
         private readonly AsyncPipelineTracker _tracker = tracker;
 
@@ -2008,7 +2008,7 @@ public sealed class EncinaTests
         }
     }
 
-    private sealed class AsyncPostProcessor(EncinaTests.AsyncPipelineTracker tracker) : IRequestPostProcessor<AsyncPipelineRequest, string>
+    private sealed class AsyncPostProcessor(AsyncPipelineTracker tracker) : IRequestPostProcessor<AsyncPipelineRequest, string>
     {
         private readonly AsyncPipelineTracker _tracker = tracker;
 

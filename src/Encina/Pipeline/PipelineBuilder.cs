@@ -59,11 +59,11 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
         // Resolve all pipeline components from DI (fall back to empty arrays)
-        IPipelineBehavior<TRequest, TResponse>[] behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>()?.ToArray()
+        var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>()?.ToArray()
                         ?? System.Array.Empty<IPipelineBehavior<TRequest, TResponse>>();
-        IRequestPreProcessor<TRequest>[] preProcessors = serviceProvider.GetServices<IRequestPreProcessor<TRequest>>()?.ToArray()
+        var preProcessors = serviceProvider.GetServices<IRequestPreProcessor<TRequest>>()?.ToArray()
                          ?? System.Array.Empty<IRequestPreProcessor<TRequest>>();
-        IRequestPostProcessor<TRequest, TResponse>[] postProcessors = serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>()?.ToArray()
+        var postProcessors = serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>()?.ToArray()
                           ?? System.Array.Empty<IRequestPostProcessor<TRequest, TResponse>>();
 
         // Start with the innermost delegate: handler invocation
@@ -73,10 +73,10 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         // This ensures behaviors execute in registration order when the pipeline runs
         if (behaviors.Length > 0)
         {
-            for (int index = behaviors.Length - 1; index >= 0; index--)
+            for (var index = behaviors.Length - 1; index >= 0; index--)
             {
-                IPipelineBehavior<TRequest, TResponse> behavior = behaviors[index];
-                RequestHandlerCallback<TResponse> nextStep = current; // Capture in closure
+                var behavior = behaviors[index];
+                var nextStep = current; // Capture in closure
                 current = () => ExecuteBehaviorAsync(behavior, _request, _context, nextStep, _cancellationToken);
             }
         }
@@ -101,22 +101,22 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         CancellationToken cancellationToken)
     {
         // Pre-processors: index-based iteration avoids enumerator allocation
-        for (int i = 0; i < preProcessors.Length; i++)
+        for (var i = 0; i < preProcessors.Length; i++)
         {
-            Option<EncinaError> failure = await ExecutePreProcessorAsync(preProcessors[i], request, context, cancellationToken).ConfigureAwait(false);
+            var failure = await ExecutePreProcessorAsync(preProcessors[i], request, context, cancellationToken).ConfigureAwait(false);
             if (failure.IsSome)
             {
-                EncinaError error = failure.Match(err => err, () => EncinaErrors.Unknown);
+                var error = failure.Match(err => err, () => EncinaErrors.Unknown);
                 return Left<EncinaError, TResponse>(error);
             }
         }
 
-        Either<EncinaError, TResponse> response = await terminal().ConfigureAwait(false);
+        var response = await terminal().ConfigureAwait(false);
 
         // Post-processors: index-based iteration avoids enumerator allocation
-        for (int i = 0; i < postProcessors.Length; i++)
+        for (var i = 0; i < postProcessors.Length; i++)
         {
-            Option<EncinaError> failure = await ExecutePostProcessorAsync(postProcessors[i], request, context, response, cancellationToken).ConfigureAwait(false);
+            var failure = await ExecutePostProcessorAsync(postProcessors[i], request, context, response, cancellationToken).ConfigureAwait(false);
             if (failure.IsSome)
             {
                 return Left<EncinaError, TResponse>(failure.Match(err => err, () => EncinaErrors.Unknown));
@@ -152,7 +152,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
             // Cancellation is expected behavior, convert to Left
-            string message = $"Handler {handler.GetType().Name} was cancelled while processing {typeof(TRequest).Name}.";
+            var message = $"Handler {handler.GetType().Name} was cancelled while processing {typeof(TRequest).Name}.";
             var metadata = new Dictionary<string, object?>
             {
                 ["handler"] = handler.GetType().FullName,
@@ -178,7 +178,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            string message = $"Behavior {behavior.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
+            var message = $"Behavior {behavior.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
             var metadata = new Dictionary<string, object?>
             {
                 ["behavior"] = behavior.GetType().FullName,
@@ -203,7 +203,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            string message = $"Pre-processor {preProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
+            var message = $"Pre-processor {preProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
             var preCancellationMetadata = new Dictionary<string, object?>
             {
                 ["preProcessor"] = preProcessor.GetType().FullName,
@@ -229,7 +229,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            string message = $"Post-processor {postProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
+            var message = $"Post-processor {postProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
             var postCancellationMetadata = new Dictionary<string, object?>
             {
                 ["postProcessor"] = postProcessor.GetType().FullName,

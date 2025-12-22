@@ -199,7 +199,7 @@ public class SagaStoreEFTests : IDisposable
     public async Task GetStuckSagasAsync_ShouldRespectBatchSize()
     {
         // Arrange
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             await _dbContext.SagaStates.AddAsync(new SagaState
             {

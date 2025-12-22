@@ -43,7 +43,7 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
         // Single handler - no parallelism needed
         if (handlers.Count == 1)
         {
-            object? handler = handlers[0];
+            var handler = handlers[0];
             return handler is null
                 ? Right<EncinaError, Unit>(Unit.Default)
                 : await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
@@ -54,26 +54,26 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
 
         var tasks = new List<Task<(object Handler, Either<EncinaError, Unit> Result)>>(handlers.Count);
 
-        foreach (object? handler in handlers)
+        foreach (var handler in handlers)
         {
             if (handler is null)
             {
                 continue;
             }
 
-            object capturedHandler = handler;
+            var capturedHandler = handler;
             tasks.Add(ExecuteWithThrottlingAsync(capturedHandler, notification, invoker, semaphore, cancellationToken));
         }
 
-        (object Handler, Either<EncinaError, Unit> Result)[] results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
 
         // Collect all errors
         var errors = new List<(object Handler, EncinaError Error)>();
-        foreach ((object? handler, Either<EncinaError, Unit> result) in results)
+        foreach ((var handler, var result) in results)
         {
             if (result.IsLeft)
             {
-                EncinaError error = result.Match(
+                var error = result.Match(
                     Left: err => err,
                     Right: _ => EncinaErrors.Unknown);
                 errors.Add((handler, error));
@@ -105,12 +105,12 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
         await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            Either<EncinaError, Unit> result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
+            var result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
             return (handler, result);
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            EncinaError error = EncinaErrors.Create(
+            var error = EncinaErrors.Create(
                 EncinaErrorCodes.NotificationCancelled,
                 $"Handler {handler.GetType().Name} was cancelled.",
                 ex);
@@ -118,7 +118,7 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
         }
         catch (Exception ex)
         {
-            EncinaError error = EncinaErrors.FromException(
+            var error = EncinaErrors.FromException(
                 EncinaErrorCodes.NotificationException,
                 ex,
                 $"Handler {handler.GetType().Name} threw an unexpected exception.");
@@ -134,8 +134,8 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
         List<(object Handler, EncinaError Error)> errors,
         TNotification notification)
     {
-        string notificationName = notification?.GetType().Name ?? typeof(TNotification).Name;
-        string message = $"Multiple notification handlers failed for {notificationName} ({errors.Count} errors)";
+        var notificationName = notification?.GetType().Name ?? typeof(TNotification).Name;
+        var message = $"Multiple notification handlers failed for {notificationName} ({errors.Count} errors)";
 
         var errorDetails = errors.Select(e => new Dictionary<string, object?>
         {

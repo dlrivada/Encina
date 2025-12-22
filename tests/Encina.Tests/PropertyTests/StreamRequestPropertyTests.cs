@@ -36,12 +36,12 @@ public sealed class StreamRequestPropertyTests
         var results = new List<int>();
         await foreach (var item in handler.Handle(request, CancellationToken.None))
         {
-            item.IfRight(value => results.Add(value));
+            item.IfRight(results.Add);
         }
 
         // Assert - Results are in ascending order
         results.Should().HaveCount(itemCount);
-        for (int i = 0; i < results.Count; i++)
+        for (var i = 0; i < results.Count; i++)
         {
             results[i].Should().Be(i + 1, $"item at index {i} should be {i + 1}");
         }
@@ -63,18 +63,18 @@ public sealed class StreamRequestPropertyTests
 
         // Act - Enumerate N times
         var allResults = new List<List<int>>();
-        for (int i = 0; i < enumerationCount; i++)
+        for (var i = 0; i < enumerationCount; i++)
         {
             var results = new List<int>();
             await foreach (var item in handler.Handle(request, CancellationToken.None))
             {
-                item.IfRight(value => results.Add(value));
+                item.IfRight(results.Add);
             }
             allResults.Add(results);
         }
 
         // Assert - All enumerations produce identical results
-        for (int i = 1; i < allResults.Count; i++)
+        for (var i = 1; i < allResults.Count; i++)
         {
             allResults[i].Should().Equal(allResults[0],
                 $"enumeration {i} should match first enumeration");
@@ -281,14 +281,14 @@ public sealed class StreamRequestPropertyTests
         var results = new List<int>();
         await foreach (var item in Encina.Stream(request))
         {
-            item.IfRight(value => results.Add(value));
+            item.IfRight(results.Add);
         }
 
         // Assert - Behaviors execute as: AddOne → MultiplyTwo → Handler
         // Handler produces: 1, 2, 3, ...
         // After MultiplyTwo: 2, 4, 6, ...
         // After AddOne: 3, 5, 7, ...
-        for (int i = 0; i < results.Count; i++)
+        for (var i = 0; i < results.Count; i++)
         {
             var expected = ((i + 1) * 2) + 1;
             results[i].Should().Be(expected,
@@ -318,11 +318,11 @@ public sealed class StreamRequestPropertyTests
         var results = new List<int>();
         await foreach (var item in behavior.Handle(request, context, nextStep, CancellationToken.None))
         {
-            item.IfRight(value => results.Add(value));
+            item.IfRight(results.Add);
         }
 
         // Assert - Every item multiplied consistently
-        for (int i = 0; i < results.Count; i++)
+        for (var i = 0; i < results.Count; i++)
         {
             results[i].Should().Be((i + 1) * multiplier,
                 $"behavior should apply multiplier {multiplier} to item {i + 1}");
@@ -351,14 +351,14 @@ public sealed class StreamRequestPropertyTests
         var results = new List<int>();
         await foreach (var item in behavior.Handle(request, context, nextStep, CancellationToken.None))
         {
-            item.IfRight(value => results.Add(value));
+            item.IfRight(results.Add);
         }
 
         // Assert - Results are evens in ascending order
         var expectedCount = itemCount / 2;
         results.Should().HaveCount(expectedCount);
 
-        for (int i = 0; i < results.Count; i++)
+        for (var i = 0; i < results.Count; i++)
         {
             results[i].Should().Be((i + 1) * 2, "filtered items should be evens in order");
         }
@@ -391,7 +391,7 @@ public sealed class StreamRequestPropertyTests
         var EncinaResults = new List<int>();
         await foreach (var item in Encina.Stream(request))
         {
-            item.IfRight(value => EncinaResults.Add(value));
+            item.IfRight(EncinaResults.Add);
         }
 
         // Act - Via handler directly
@@ -399,7 +399,7 @@ public sealed class StreamRequestPropertyTests
         var handlerResults = new List<int>();
         await foreach (var item in handler.Handle(request, CancellationToken.None))
         {
-            item.IfRight(value => handlerResults.Add(value));
+            item.IfRight(handlerResults.Add);
         }
 
         // Assert - Results are identical

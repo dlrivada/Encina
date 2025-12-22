@@ -111,7 +111,7 @@ public sealed class OutboxStoreDapperContractTests : IClassFixture<SqliteFixture
         });
 
         // Act - Returns interface type
-        IEnumerable<IOutboxMessage> pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = await _store.GetPendingMessagesAsync(10, 5);
 
         // Assert - Can be treated as interface
         Assert.NotNull(pending);
@@ -126,7 +126,7 @@ public sealed class OutboxStoreDapperContractTests : IClassFixture<SqliteFixture
     public async Task GetPendingMessagesAsync_RespectsBatchSize()
     {
         // Arrange - Add 20 messages
-        for (int i = 0; i < 20; i++)
+        for (var i = 0; i < 20; i++)
         {
             await _store.AddAsync(new OutboxMessage
             {
@@ -578,7 +578,7 @@ public sealed class OutboxStoreDapperContractTests : IClassFixture<SqliteFixture
         });
 
         // Act - Fail 5 times
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             await _store.MarkAsFailedAsync(messageId, $"Error {i}", null);
         }
