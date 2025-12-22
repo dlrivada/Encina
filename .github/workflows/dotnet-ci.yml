@@ -43,12 +43,11 @@ jobs:
         run: dotnet tool restore
 
       - name: Test with coverage
-        # Exclude tests that require special infrastructure or are non-deterministic:
+        # Exclude tests that require special infrastructure:
         # - LoadTests: Require NBomber load testing infrastructure
         # - IntegrationTests: Require Docker containers or external services
-        # - ContractTests: Skipped tests pending investigation (Issue #7)
-        # - PropertyTests: Skipped tests pending investigation (Issue #7)
-        run: dotnet test Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --verbosity normal --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests&FullyQualifiedName!~ContractTests&FullyQualifiedName!~PropertyTests"
+        # ContractTests and PropertyTests are included for coverage
+        run: dotnet test Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --verbosity normal --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests"
 
       - name: Generate coverage report
         run: dotnet tool run reportgenerator -reports:"artifacts/test-results/**/coverage.cobertura.xml" -targetdir:"artifacts/coverage" -reporttypes:"Html;HtmlSummary;TextSummary;JsonSummary"

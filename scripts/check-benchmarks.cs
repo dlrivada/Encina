@@ -4,7 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Text.Json.Serialization.Metadata;
+using System.Text.Json.Serialization;
 
 string[] arguments = Environment.GetCommandLineArgs().Skip(1).ToArray();
 string? directory = null;
@@ -166,13 +166,7 @@ static Dictionary<string, (double maxMeanMicroseconds, double maxAllocatedKb)>? 
     try
     {
         using var stream = File.OpenRead(configPath);
-        var options = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-            TypeInfoResolver = new DefaultJsonTypeInfoResolver()
-        };
-
-        var payload = JsonSerializer.Deserialize<BenchmarkThresholds>(stream, options);
+        var payload = JsonSerializer.Deserialize(stream, BenchmarkJsonContext.Default.BenchmarkThresholds);
         if (payload?.Benchmarks is null)
         {
             return null;
@@ -283,7 +277,7 @@ static (string number, string unit) SplitValueAndUnit(string raw)
     return (parts[0], parts[1]);
 }
 
-record BenchmarkResult(string Method, double MeanMicroseconds, double AllocatedKb, double LimitMeanMicroseconds, double LimitAllocatedKb)
+sealed record BenchmarkResult(string Method, double MeanMicroseconds, double AllocatedKb, double LimitMeanMicroseconds, double LimitAllocatedKb)
 {
     public override string ToString()
     {
@@ -313,3 +307,7 @@ record BenchmarkResult(string Method, double MeanMicroseconds, double AllocatedK
 sealed record BenchmarkThresholds(Dictionary<string, Threshold> Benchmarks);
 
 sealed record Threshold(double MaxMeanMicroseconds, double MaxAllocatedKb);
+
+[JsonSerializable(typeof(BenchmarkThresholds))]
+[JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
+internal sealed partial class BenchmarkJsonContext : JsonSerializerContext;
