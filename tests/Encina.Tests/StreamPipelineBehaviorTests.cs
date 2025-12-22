@@ -278,4 +278,102 @@ public sealed class StreamPipelineBehaviorTests
             }
         }
     }
+
+    [Fact]
+    public void AssemblyScanning_ShouldNotDuplicateBehaviors_WhenManuallyRegisteredFirst()
+    {
+        // Arrange - Register behavior manually BEFORE assembly scanning
+        // The scanner should detect the existing registration and NOT add a duplicate
+        var services = new ServiceCollection();
+
+        // First, manually register the behavior
+        services.AddScoped<IStreamPipelineBehavior<StreamNumbersQuery, int>, PublicStreamTransformBehavior>();
+
+        // Count registrations before scanning
+        var countBefore = services.Count(s =>
+            s.ServiceType == typeof(IStreamPipelineBehavior<StreamNumbersQuery, int>) &&
+            GetImplementationType(s) == typeof(PublicStreamTransformBehavior));
+
+        // Act - Now scan the assembly (which would normally find and register PublicStreamTransformBehavior)
+        services.AddEncina(typeof(StreamPipelineBehaviorTests).Assembly);
+
+        // Count registrations after scanning
+        var countAfter = services.Count(s =>
+            s.ServiceType == typeof(IStreamPipelineBehavior<StreamNumbersQuery, int>) &&
+            GetImplementationType(s) == typeof(PublicStreamTransformBehavior));
+
+        // Assert - Count should remain 1 (no duplicate added by scanner)
+        countBefore.Should().Be(1);
+        countAfter.Should().Be(1, "scanner should not add duplicate when implementation type already registered");
+    }
+
+    [Fact]
+    public void AssemblyScanning_CannotDeduplicateFactoryRegistrations()
+    {
+        // Arrange - Register behavior via factory BEFORE assembly scanning
+        // The scanner cannot detect factory-based registrations because the implementation
+        // type is not known until the factory is invoked at runtime.
+        var services = new ServiceCollection();
+
+        // Register via factory
+        services.AddScoped<IStreamPipelineBehavior<StreamNumbersQuery, int>>(_ => new PublicStreamTransformBehavior());
+
+        // Count PublicStreamTransformBehavior registrations before scanning
+        var countBefore = services.Count(s =>
+            s.ServiceType == typeof(IStreamPipelineBehavior<StreamNumbersQuery, int>) &&
+            GetImplementationType(s) == typeof(PublicStreamTransformBehavior));
+
+        // Act - Now scan the assembly
+        services.AddEncina(typeof(StreamPipelineBehaviorTests).Assembly);
+
+        // Count PublicStreamTransformBehavior registrations after scanning
+        var countAfter = services.Count(s =>
+            s.ServiceType == typeof(IStreamPipelineBehavior<StreamNumbersQuery, int>) &&
+            GetImplementationType(s) == typeof(PublicStreamTransformBehavior));
+
+        // Assert - Scanner adds another registration since it can't detect factory types
+        // Factory registration has null implementation type (it's a Func delegate)
+        countBefore.Should().Be(0, "factory registrations have null implementation type");
+        // Scanner finds the public class and adds it
+        countAfter.Should().Be(1, "scanner adds the type-based registration");
+
+        // Total for this service type includes the factory + scanned registration
+        var totalRegistrations = services.Count(s =>
+            s.ServiceType == typeof(IStreamPipelineBehavior<StreamNumbersQuery, int>));
+        totalRegistrations.Should().BeGreaterThan(1, "factory registration is not deduplicated");
+    }
+
+    private static Type? GetImplementationType(ServiceDescriptor descriptor)
+    {
+        if (descriptor.ImplementationType is not null)
+        {
+            return descriptor.ImplementationType;
+        }
+
+        if (descriptor.ImplementationInstance is not null)
+        {
+            return descriptor.ImplementationInstance.GetType();
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Public behavior that will be discovered by assembly scanning.
+    /// Used to test that manual + scanned registration doesn't cause duplicates.
+    /// </summary>
+    public sealed class PublicStreamTransformBehavior : IStreamPipelineBehavior<StreamNumbersQuery, int>
+    {
+        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+            StreamNumbersQuery request,
+            IRequestContext context,
+            StreamHandlerCallback<int> nextStep,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await foreach (var item in nextStep().WithCancellation(cancellationToken))
+            {
+                yield return item.Map(value => value * 10);
+            }
+        }
+    }
 }

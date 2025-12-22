@@ -116,8 +116,7 @@ public static class ServiceCollectionExtensions
     {
         foreach (var registration in registrations)
         {
-            var descriptor = ServiceDescriptor.Scoped(registration.ServiceType, registration.ImplementationType);
-            services.TryAddEnumerable(descriptor);
+            TryAddEnumerableByImplementationType(services, registration.ServiceType, registration.ImplementationType);
         }
     }
 
@@ -128,8 +127,7 @@ public static class ServiceCollectionExtensions
     {
         foreach (var registration in registrations)
         {
-            var descriptor = ServiceDescriptor.Scoped(registration.ServiceType, registration.ImplementationType);
-            services.TryAddEnumerable(descriptor);
+            TryAddEnumerableByImplementationType(services, registration.ServiceType, registration.ImplementationType);
         }
     }
 
@@ -140,8 +138,7 @@ public static class ServiceCollectionExtensions
     {
         foreach (var registration in registrations)
         {
-            var descriptor = ServiceDescriptor.Scoped(registration.ServiceType, registration.ImplementationType);
-            services.TryAddEnumerable(descriptor);
+            TryAddEnumerableByImplementationType(services, registration.ServiceType, registration.ImplementationType);
         }
     }
 
@@ -164,8 +161,51 @@ public static class ServiceCollectionExtensions
     {
         foreach (var registration in registrations)
         {
-            var descriptor = ServiceDescriptor.Scoped(registration.ServiceType, registration.ImplementationType);
-            services.TryAddEnumerable(descriptor);
+            TryAddEnumerableByImplementationType(services, registration.ServiceType, registration.ImplementationType);
         }
+    }
+
+    /// <summary>
+    /// Adds a service to the enumerable collection only if no existing registration
+    /// has the same implementation type. This prevents duplicate behaviors when
+    /// the same type is registered both via assembly scanning and manually.
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="ServiceCollectionDescriptorExtensions"/>.TryAddEnumerable,
+    /// this method checks by implementation type regardless of how the service was registered
+    /// (direct type, factory, or instance).
+    /// </remarks>
+    private static void TryAddEnumerableByImplementationType(IServiceCollection services, Type serviceType, Type implementationType)
+    {
+        // Check if any existing registration for this service type uses the same implementation type
+        var alreadyRegistered = services.Any(descriptor =>
+            descriptor.ServiceType == serviceType &&
+            GetImplementationType(descriptor) == implementationType);
+
+        if (!alreadyRegistered)
+        {
+            services.AddScoped(serviceType, implementationType);
+        }
+    }
+
+    /// <summary>
+    /// Extracts the implementation type from a service descriptor,
+    /// handling both direct type registrations and factory-based registrations.
+    /// </summary>
+    private static Type? GetImplementationType(ServiceDescriptor descriptor)
+    {
+        if (descriptor.ImplementationType is not null)
+        {
+            return descriptor.ImplementationType;
+        }
+
+        // For factory-based registrations, try to infer from the instance if available
+        if (descriptor.ImplementationInstance is not null)
+        {
+            return descriptor.ImplementationInstance.GetType();
+        }
+
+        // For factory delegates, we cannot determine the implementation type at registration time
+        return null;
     }
 }

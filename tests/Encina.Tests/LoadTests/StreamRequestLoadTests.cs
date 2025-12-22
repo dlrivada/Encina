@@ -14,9 +14,17 @@ namespace Encina.Tests.LoadTests;
 /// Load tests for Stream Requests using NBomber.
 /// Verifies performance, concurrency, and throughput under stress conditions.
 /// </summary>
+/// <remarks>
+/// TEMPORARILY DISABLED: These tests cause CLR crashes and Windows restarts
+/// under high concurrency. See GitHub Issue #5 for details.
+/// Root cause appears to be NBomber + IAsyncEnumerable interaction causing
+/// thread pool exhaustion or memory pressure that crashes the CLR.
+/// </remarks>
 [Trait("Category", "Load")]
 public sealed class StreamRequestLoadTests
 {
+    private const string SkipReason = "Issue #5: CLR crash under high concurrency - temporarily disabled";
+
     private readonly ITestOutputHelper _output;
 
     public StreamRequestLoadTests(ITestOutputHelper output)
@@ -24,7 +32,7 @@ public sealed class StreamRequestLoadTests
         _output = output;
     }
 
-    [Fact]
+    [Fact(Skip = SkipReason)]
     public void HighConcurrency_MultipleStreams_ShouldHandleLoad()
     {
         // Arrange
@@ -67,7 +75,7 @@ public sealed class StreamRequestLoadTests
         scen.Fail.Request.Count.Should().BeLessThan(50, "less than 10% failures");
     }
 
-    [Fact]
+    [Fact(Skip = SkipReason)]
     public void HighThroughput_LargeStreamProcessing_ShouldMaintainPerformance()
     {
         // Arrange
@@ -109,7 +117,7 @@ public sealed class StreamRequestLoadTests
         scen.Ok.Request.Count.Should().BeGreaterThan(90, "at least 90% success rate");
     }
 
-    [Fact]
+    [Fact(Skip = SkipReason)]
     public void Stress_WithBehaviors_ShouldHandlePipelineLoad()
     {
         // Arrange
@@ -153,7 +161,7 @@ public sealed class StreamRequestLoadTests
         scen.Ok.Request.Count.Should().BeGreaterThan(900, "pipeline should handle high concurrency");
     }
 
-    [Fact]
+    [Fact(Skip = SkipReason)]
     public void Endurance_ContinuousStreaming_ShouldNotDegrade()
     {
         // Arrange
@@ -195,7 +203,7 @@ public sealed class StreamRequestLoadTests
         scen.Ok.Request.Count.Should().BeGreaterThan(0, "should complete at least some requests");
     }
 
-    [Fact]
+    [Fact(Skip = SkipReason)]
     public void ErrorHandling_StreamsWithErrors_ShouldMaintainThroughput()
     {
         // Arrange
@@ -244,7 +252,7 @@ public sealed class StreamRequestLoadTests
         scen.Ok.Request.Count.Should().BeGreaterThan(450, "error handling should not impact throughput");
     }
 
-    [Fact]
+    [Fact(Skip = SkipReason)]
     public void Cancellation_UnderLoad_ShouldHandleGracefully()
     {
         // Arrange
@@ -302,7 +310,7 @@ public sealed class StreamRequestLoadTests
         scen.Ok.Request.Count.Should().BeGreaterThan(250, "cancellation should work reliably under load");
     }
 
-    [Fact]
+    [Fact(Skip = SkipReason)]
     public void MemoryPressure_ManySmallStreams_ShouldNotLeak()
     {
         // Arrange
@@ -344,7 +352,7 @@ public sealed class StreamRequestLoadTests
         scen.Ok.Request.Count.Should().BeGreaterThan(1800, "should handle many small streams efficiently");
     }
 
-    [Fact]
+    [Fact(Skip = SkipReason)]
     public void BurstLoad_SuddenSpike_ShouldRecover()
     {
         // Arrange
