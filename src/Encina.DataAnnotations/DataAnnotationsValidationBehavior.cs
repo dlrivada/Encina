@@ -63,6 +63,16 @@ public sealed class DataAnnotationsValidationBehavior<TRequest, TResponse> : IPi
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(nextStep);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Left<MediatorError, TResponse>(
+                MediatorError.New("Operation was cancelled before validation."));
+        }
+
         // Validate using Data Annotations
         var validationContext = new ValidationContext(request, serviceProvider: null, items: null);
 

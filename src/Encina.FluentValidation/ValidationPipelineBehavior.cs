@@ -70,6 +70,16 @@ public sealed class ValidationPipelineBehavior<TRequest, TResponse> : IPipelineB
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(nextStep);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Left<MediatorError, TResponse>(
+                MediatorError.New("Operation was cancelled before validation."));
+        }
+
         // Skip validation if no validators are registered
         if (!_validators.Any())
         {

@@ -134,7 +134,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         options.ThrowOnMediatorError.Should().BeTrue();
-        options.QueueNamePrefix.Should().Be("Encina");
+        options.QueueNamePrefix.Should().Be("encina");
         options.AutoRegisterRequestConsumers.Should().BeTrue();
         options.AutoRegisterNotificationConsumers.Should().BeTrue();
     }

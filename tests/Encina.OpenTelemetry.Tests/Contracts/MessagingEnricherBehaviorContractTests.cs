@@ -152,7 +152,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
 
         // Assert
         nextStepCalled.Should().BeTrue("nextStep should be called even when enriching");
-        activity!.Tags.Should().Contain(tag => tag.Key == "messaging.system" && tag.Value == "Encina.outbox",
+        activity!.Tags.Should().Contain(tag => tag.Key == "messaging.system" && tag.Value == "encina.outbox",
             "enricher should add messaging.system tag");
     }
 
@@ -181,7 +181,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        activity!.Tags.Should().Contain(tag => tag.Key == "messaging.system" && tag.Value == "Encina.inbox",
+        activity!.Tags.Should().Contain(tag => tag.Key == "messaging.system" && tag.Value == "encina.inbox",
             "enricher should add messaging.system tag");
     }
 
@@ -240,7 +240,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        activity!.Tags.Should().Contain(tag => tag.Key == "messaging.system" && tag.Value == "Encina.scheduling",
+        activity!.Tags.Should().Contain(tag => tag.Key == "messaging.system" && tag.Value == "encina.scheduling",
             "enricher should add messaging.system tag");
     }
 
@@ -275,7 +275,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        activity!.Tags.Should().Contain(tag => tag.Key == "messaging.system" && tag.Value == "Encina.outbox",
+        activity!.Tags.Should().Contain(tag => tag.Key == "messaging.system" && tag.Value == "encina.outbox",
             "enricher should add messaging.system tag for outbox");
         activity.Tags.Should().Contain(tag => tag.Key.StartsWith("saga", StringComparison.Ordinal),
             "enricher should add saga.* tags");

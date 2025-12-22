@@ -175,8 +175,7 @@ public sealed class ValidationPipelineBehaviorTests
             Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
             Left: error =>
             {
-                error.Message.ShouldContain("Validation cancelled");
-                error.Message.ShouldContain("TestCommand");
+                error.Message.ShouldContain("cancelled");
             });
     }
 

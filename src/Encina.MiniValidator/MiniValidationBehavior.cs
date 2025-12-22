@@ -64,6 +64,16 @@ public sealed class MiniValidationBehavior<TRequest, TResponse> : IPipelineBehav
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(nextStep);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Left<MediatorError, TResponse>(
+                MediatorError.New("Operation was cancelled before validation."));
+        }
+
         // Validate using MiniValidation
         var isValid = global::MiniValidation.MiniValidator.TryValidate(request, out var errors);
 
