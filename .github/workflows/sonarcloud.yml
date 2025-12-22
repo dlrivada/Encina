@@ -41,7 +41,8 @@ jobs:
           sonarProjectName: Encina
           sonarOrganization: dlrivada
           dotnetBuildArguments: Encina.slnx --configuration Release
-          dotnetTestArguments: Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+          # Exclude LoadTests and IntegrationTests from CI - they require special infrastructure
+          dotnetTestArguments: Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
           sonarBeginArguments: /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" /d:sonar.coverage.exclusions="**/tests/**,**/benchmarks/**,**/load/**"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
