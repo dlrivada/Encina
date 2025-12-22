@@ -9,48 +9,48 @@ internal static partial class Log
 {
     // Transaction Pipeline Behavior (1-5)
     [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Request {RequestType} is already in a transaction, reusing existing transaction (CorrelationId: {CorrelationId})")]
-    public static partial void ReusingExistingTransaction(ILogger logger, string requestType, Guid correlationId);
+    public static partial void ReusingExistingTransaction(ILogger logger, string requestType, string correlationId);
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Debug, Message = "Beginning transaction for request {RequestType} with isolation level {IsolationLevel} (CorrelationId: {CorrelationId})")]
-    public static partial void BeginningTransaction(ILogger logger, string requestType, System.Data.IsolationLevel? isolationLevel, Guid correlationId);
+    public static partial void BeginningTransaction(ILogger logger, string requestType, System.Data.IsolationLevel? isolationLevel, string correlationId);
 
     [LoggerMessage(EventId = 3, Level = LogLevel.Debug, Message = "Committing transaction for request {RequestType} (CorrelationId: {CorrelationId})")]
-    public static partial void CommittingTransaction(ILogger logger, string requestType, Guid correlationId);
+    public static partial void CommittingTransaction(ILogger logger, string requestType, string correlationId);
 
     [LoggerMessage(EventId = 4, Level = LogLevel.Warning, Message = "Rolling back transaction for request {RequestType} due to error: {ErrorMessage} (CorrelationId: {CorrelationId})")]
-    public static partial void RollingBackTransactionDueToError(ILogger logger, string requestType, string errorMessage, Guid correlationId);
+    public static partial void RollingBackTransactionDueToError(ILogger logger, string requestType, string errorMessage, string correlationId);
 
     [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "Rolling back transaction for request {RequestType} due to exception (CorrelationId: {CorrelationId})")]
-    public static partial void RollingBackTransactionDueToException(ILogger logger, Exception exception, string requestType, Guid correlationId);
+    public static partial void RollingBackTransactionDueToException(ILogger logger, Exception exception, string requestType, string correlationId);
 
     // Inbox Pipeline Behavior (10-17)
     [LoggerMessage(EventId = 10, Level = LogLevel.Warning, Message = "Idempotent request {RequestType} received without MessageId/IdempotencyKey (CorrelationId: {CorrelationId})")]
-    public static partial void MissingIdempotencyKey(ILogger logger, string requestType, Guid correlationId);
+    public static partial void MissingIdempotencyKey(ILogger logger, string requestType, string correlationId);
 
     [LoggerMessage(EventId = 11, Level = LogLevel.Debug, Message = "Processing idempotent request {RequestType} with MessageId {MessageId} (CorrelationId: {CorrelationId})")]
-    public static partial void ProcessingIdempotentRequest(ILogger logger, string requestType, string messageId, Guid correlationId);
+    public static partial void ProcessingIdempotentRequest(ILogger logger, string requestType, string messageId, string correlationId);
 
     [LoggerMessage(EventId = 12, Level = LogLevel.Information, Message = "Returning cached response for duplicate message {MessageId} (CorrelationId: {CorrelationId})")]
-    public static partial void ReturningCachedResponse(ILogger logger, string messageId, Guid correlationId);
+    public static partial void ReturningCachedResponse(ILogger logger, string messageId, string correlationId);
 
     [LoggerMessage(EventId = 13, Level = LogLevel.Warning, Message = "Message {MessageId} exceeded max retries ({MaxRetries}) (CorrelationId: {CorrelationId})")]
-    public static partial void MaxRetriesExceeded(ILogger logger, string messageId, int maxRetries, Guid correlationId);
+    public static partial void MaxRetriesExceeded(ILogger logger, string messageId, int maxRetries, string correlationId);
 
     [LoggerMessage(EventId = 14, Level = LogLevel.Information, Message = "Successfully processed and cached message {MessageId} (CorrelationId: {CorrelationId})")]
-    public static partial void ProcessedAndCachedMessage(ILogger logger, string messageId, Guid correlationId);
+    public static partial void ProcessedAndCachedMessage(ILogger logger, string messageId, string correlationId);
 
     [LoggerMessage(EventId = 15, Level = LogLevel.Error, Message = "Error processing message {MessageId} (CorrelationId: {CorrelationId})")]
-    public static partial void ErrorProcessingMessage(ILogger logger, Exception exception, string messageId, Guid correlationId);
+    public static partial void ErrorProcessingMessage(ILogger logger, Exception exception, string messageId, string correlationId);
 
     // Outbox Post Processor (20-23)
     [LoggerMessage(EventId = 20, Level = LogLevel.Debug, Message = "Storing {Count} notifications in outbox for request {RequestType} (CorrelationId: {CorrelationId})")]
-    public static partial void StoringNotificationsInOutbox(ILogger logger, int count, string requestType, Guid correlationId);
+    public static partial void StoringNotificationsInOutbox(ILogger logger, int count, string requestType, string correlationId);
 
     [LoggerMessage(EventId = 21, Level = LogLevel.Information, Message = "Stored {Count} notifications in outbox (CorrelationId: {CorrelationId})")]
-    public static partial void StoredNotificationsInOutbox(ILogger logger, int count, Guid correlationId);
+    public static partial void StoredNotificationsInOutbox(ILogger logger, int count, string correlationId);
 
     [LoggerMessage(EventId = 22, Level = LogLevel.Debug, Message = "Skipping outbox storage for {Count} notifications due to error: {ErrorMessage} (CorrelationId: {CorrelationId})")]
-    public static partial void SkippingOutboxStorageDueToError(ILogger logger, int count, string errorMessage, Guid correlationId);
+    public static partial void SkippingOutboxStorageDueToError(ILogger logger, int count, string errorMessage, string correlationId);
 
     // Outbox Processor (30-39)
     [LoggerMessage(EventId = 30, Level = LogLevel.Information, Message = "Outbox Processor starting (Interval: {Interval}, BatchSize: {BatchSize}, MaxRetries: {MaxRetries})")]
