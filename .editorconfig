@@ -3,6 +3,15 @@ root = true
 [*.cs]
 dotnet_sort_system_directives_first = true
 
+# IDE0008: Use explicit type instead of 'var' - Allow var usage (project preference)
+csharp_style_var_for_built_in_types = true:silent
+csharp_style_var_when_type_is_apparent = true:silent
+csharp_style_var_elsewhere = true:silent
+dotnet_diagnostic.IDE0008.severity = none
+
+# IDE0058: Expression value is never used - Common with fluent APIs and fire-and-forget
+dotnet_diagnostic.IDE0058.severity = none
+
 # Enable analyzers but surface them as suggestions initially so we can adopt rules incrementally.
 dotnet_analyzer_diagnostic.category-Design.severity = suggestion
 dotnet_analyzer_diagnostic.category-Documentation.severity = suggestion
