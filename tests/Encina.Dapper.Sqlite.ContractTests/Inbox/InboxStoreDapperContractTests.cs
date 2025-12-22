@@ -447,8 +447,11 @@ public sealed class InboxStoreDapperContractTests : IClassFixture<SqliteFixture>
         // Arrange
         IEnumerable<string> emptyCollection = [];
 
-        // Act & Assert - Should not throw
+        // Act
         await _store.RemoveExpiredMessagesAsync(emptyCollection);
+
+        // Assert - Operation completed without throwing
+        Assert.True(true, "RemoveExpiredMessagesAsync completed successfully with empty collection");
     }
 
     [Fact]

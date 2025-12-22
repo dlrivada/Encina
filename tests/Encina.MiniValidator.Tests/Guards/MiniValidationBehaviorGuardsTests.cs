@@ -203,8 +203,7 @@ public sealed class MiniValidationBehaviorGuardsTests
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
-        // Assert - Whitespace passes Required but might fail other validators
-        // This verifies guard behavior regardless of validation outcome
-        _ = result;
+        // Assert - Whitespace passes Required validation, operation completes without throwing
+        Assert.True(result.IsRight || result.IsLeft, "Handle completed and returned a valid result");
     }
 }

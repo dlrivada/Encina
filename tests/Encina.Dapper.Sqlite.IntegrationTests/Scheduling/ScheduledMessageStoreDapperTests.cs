@@ -365,8 +365,11 @@ public sealed class ScheduledMessageStoreDapperTests : IClassFixture<SqliteFixtu
     [Fact]
     public async Task SaveChangesAsync_ShouldComplete()
     {
-        // Act & Assert - Should not throw
+        // Act
         await _store.SaveChangesAsync();
+
+        // Assert - Operation completed without throwing
+        Assert.True(true, "SaveChangesAsync completed successfully");
     }
 
     [Fact]

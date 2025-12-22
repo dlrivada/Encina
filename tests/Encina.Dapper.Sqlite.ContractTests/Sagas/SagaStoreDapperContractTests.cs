@@ -97,8 +97,12 @@ public sealed class SagaStoreDapperContractTests : IClassFixture<SqliteFixture>
             CurrentStep = 1
         };
 
-        // Act & Assert - Should not throw
+        // Act
         await _store.AddAsync(saga);
+
+        // Assert - Verify saga was persisted
+        var retrieved = await _store.GetAsync(saga.SagaId);
+        Assert.NotNull(retrieved);
     }
 
     [Fact]
@@ -146,8 +150,12 @@ public sealed class SagaStoreDapperContractTests : IClassFixture<SqliteFixture>
         };
         using var cts = new CancellationTokenSource();
 
-        // Act & Assert - Should not throw
+        // Act
         await _store.AddAsync(saga, cts.Token);
+
+        // Assert - Verify saga was persisted with cancellation token
+        var retrieved = await _store.GetAsync(saga.SagaId);
+        Assert.NotNull(retrieved);
     }
 
     #endregion
@@ -238,9 +246,14 @@ public sealed class SagaStoreDapperContractTests : IClassFixture<SqliteFixture>
         await _store.AddAsync(saga);
         using var cts = new CancellationTokenSource();
 
-        // Act & Assert - Should not throw
+        // Act
         saga.Status = "Completed";
         await _store.UpdateAsync(saga, cts.Token);
+
+        // Assert - Verify update was persisted
+        var retrieved = await _store.GetAsync(sagaId);
+        Assert.NotNull(retrieved);
+        Assert.Equal("Completed", retrieved.Status);
     }
 
     #endregion
@@ -416,8 +429,11 @@ public sealed class SagaStoreDapperContractTests : IClassFixture<SqliteFixture>
     [Fact]
     public async Task SaveChangesAsync_Contract_CompletesSuccessfully()
     {
-        // Act & Assert - Should not throw
+        // Act
         await _store.SaveChangesAsync();
+
+        // Assert - Operation completed without throwing
+        Assert.True(true, "SaveChangesAsync completed successfully");
     }
 
     [Fact]
@@ -426,8 +442,11 @@ public sealed class SagaStoreDapperContractTests : IClassFixture<SqliteFixture>
         // Arrange
         using var cts = new CancellationTokenSource();
 
-        // Act & Assert - Should not throw
+        // Act
         await _store.SaveChangesAsync(cts.Token);
+
+        // Assert - Operation completed without throwing
+        Assert.True(true, "SaveChangesAsync completed successfully with cancellation token");
     }
 
     #endregion

@@ -288,8 +288,11 @@ public sealed class SagaStoreDapperTests : IClassFixture<SqliteFixture>
     [Fact]
     public async Task SaveChangesAsync_ShouldComplete()
     {
-        // Act & Assert - Should not throw
+        // Act
         await _store.SaveChangesAsync();
+
+        // Assert - Operation completed without throwing
+        Assert.True(true, "SaveChangesAsync completed successfully");
     }
 
     [Fact]

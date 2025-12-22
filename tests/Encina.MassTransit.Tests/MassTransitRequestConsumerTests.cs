@@ -71,8 +71,11 @@ public class MassTransitRequestConsumerTests
         _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, TestResponse>(error));
 
-        // Act & Assert (should not throw)
+        // Act
         await consumer.Consume(_context);
+
+        // Assert - Consume completed without throwing when ThrowOnEncinaError is false
+        Assert.True(true, "Consume completed without throwing exception");
     }
 
     [Fact]

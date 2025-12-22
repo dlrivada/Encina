@@ -13,14 +13,13 @@ public sealed class NServiceBusMessagePublisher : INServiceBusMessagePublisher
 {
     private readonly IMessageSession _messageSession;
     private readonly ILogger<NServiceBusMessagePublisher> _logger;
-    private readonly EncinaNServiceBusOptions _options;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NServiceBusMessagePublisher"/> class.
     /// </summary>
     /// <param name="messageSession">The NServiceBus message session.</param>
     /// <param name="logger">The logger instance.</param>
-    /// <param name="options">The configuration options.</param>
+    /// <param name="options">The configuration options (reserved for future use).</param>
     public NServiceBusMessagePublisher(
         IMessageSession messageSession,
         ILogger<NServiceBusMessagePublisher> logger,
@@ -32,7 +31,7 @@ public sealed class NServiceBusMessagePublisher : INServiceBusMessagePublisher
 
         _messageSession = messageSession;
         _logger = logger;
-        _options = options.Value;
+        _ = options.Value; // Reserved for future use
     }
 
     /// <inheritdoc />

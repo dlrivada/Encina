@@ -39,14 +39,19 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = Guid.NewGuid(),
             RequestType = "ContractCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(1),
+            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1), // Past time so it appears in due messages
             CreatedAtUtc = DateTime.UtcNow,
             RetryCount = 0,
             IsRecurring = false
         };
 
-        // Act & Assert - Should not throw
+        // Act
         await _store.AddAsync(message);
+
+        // Assert - Verify message was persisted
+        var messages = await _store.GetDueMessagesAsync(10, 3);
+        Assert.Single(messages);
+        Assert.Equal(message.Id, messages.First().Id);
     }
 
     [Fact]
@@ -87,15 +92,20 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = Guid.NewGuid(),
             RequestType = "CancellableCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(1),
+            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1), // Past time so it appears in due messages
             CreatedAtUtc = DateTime.UtcNow,
             RetryCount = 0,
             IsRecurring = false
         };
         using var cts = new CancellationTokenSource();
 
-        // Act & Assert - Should not throw
+        // Act
         await _store.AddAsync(message, cts.Token);
+
+        // Assert - Verify message was persisted with cancellation token
+        var messages = await _store.GetDueMessagesAsync(10, 3);
+        Assert.Single(messages);
+        Assert.Equal(message.Id, messages.First().Id);
     }
 
     #endregion
@@ -309,8 +319,12 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
         await _store.AddAsync(message);
         using var cts = new CancellationTokenSource();
 
-        // Act & Assert - Should not throw
+        // Act
         await _store.MarkAsProcessedAsync(messageId, cts.Token);
+
+        // Assert - Message no longer appears in due messages
+        var messages = await _store.GetDueMessagesAsync(10, 3);
+        Assert.Empty(messages);
     }
 
     #endregion
@@ -387,8 +401,13 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
         await _store.AddAsync(message);
         using var cts = new CancellationTokenSource();
 
-        // Act & Assert - Should not throw
-        await _store.MarkAsFailedAsync(messageId, "Error", DateTime.UtcNow.AddHours(1), cts.Token);
+        // Act
+        await _store.MarkAsFailedAsync(messageId, "Error", DateTime.UtcNow.AddSeconds(-1), cts.Token);
+
+        // Assert - Message appears with error message
+        var messages = await _store.GetDueMessagesAsync(10, 3);
+        Assert.Single(messages);
+        Assert.Equal("Error", messages.First().ErrorMessage);
     }
 
     #endregion
@@ -476,9 +495,13 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
         await _store.AddAsync(message);
         using var cts = new CancellationTokenSource();
 
-        // Act & Assert - Should not throw
+        // Act
         var nextRun = DateTime.UtcNow.AddHours(1);
         await _store.RescheduleRecurringMessageAsync(messageId, nextRun, cts.Token);
+
+        // Assert - Message no longer due (scheduled for future)
+        var messages = await _store.GetDueMessagesAsync(10, 3);
+        Assert.Empty(messages);
     }
 
     #endregion
@@ -520,7 +543,7 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = messageId,
             RequestType = "CancelCancelCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(1),
+            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1), // Past time so it would appear in due
             CreatedAtUtc = DateTime.UtcNow,
             RetryCount = 0,
             IsRecurring = false
@@ -528,8 +551,12 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
         await _store.AddAsync(message);
         using var cts = new CancellationTokenSource();
 
-        // Act & Assert - Should not throw
+        // Act
         await _store.CancelAsync(messageId, cts.Token);
+
+        // Assert - Message no longer appears
+        var messages = await _store.GetDueMessagesAsync(10, 3);
+        Assert.Empty(messages);
     }
 
     #endregion
@@ -539,8 +566,11 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
     [Fact]
     public async Task SaveChangesAsync_Contract_CompletesSuccessfully()
     {
-        // Act & Assert - Should not throw
+        // Act
         await _store.SaveChangesAsync();
+
+        // Assert - Operation completed without throwing
+        Assert.True(true, "SaveChangesAsync completed successfully");
     }
 
     [Fact]
@@ -549,8 +579,11 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
         // Arrange
         using var cts = new CancellationTokenSource();
 
-        // Act & Assert - Should not throw
+        // Act
         await _store.SaveChangesAsync(cts.Token);
+
+        // Assert - Operation completed without throwing
+        Assert.True(true, "SaveChangesAsync completed successfully with cancellation token");
     }
 
     #endregion

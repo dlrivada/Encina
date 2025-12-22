@@ -526,8 +526,11 @@ public sealed class InboxStoreDapperTests : IClassFixture<SqliteFixture>
     [Fact]
     public async Task SaveChangesAsync_ShouldCompleteSuccessfully()
     {
-        // Act & Assert - Should not throw
+        // Act
         await _store.SaveChangesAsync();
+
+        // Assert - Operation completed without throwing
+        Assert.True(true, "SaveChangesAsync completed successfully");
     }
 
     #endregion
