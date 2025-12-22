@@ -100,8 +100,8 @@ public sealed class MemoryDistributedLockProviderTests
     [Fact]
     public async Task TryAcquireAsync_WithExpiredLock_AcquiresLock()
     {
-        // Arrange
-        var firstLock = await _sut.TryAcquireAsync(
+        // Arrange - acquire lock that will expire quickly
+        _ = await _sut.TryAcquireAsync(
             "expiring-resource",
             TimeSpan.FromMilliseconds(100), // Short expiry
             TimeSpan.FromSeconds(1),

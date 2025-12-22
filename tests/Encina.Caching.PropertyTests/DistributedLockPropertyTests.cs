@@ -141,7 +141,7 @@ public sealed class DistributedLockPropertyTests
     #region Different Resources are Independent
 
     [Property(MaxTest = 50)]
-    public bool DifferentResourcesAreIndependent(PositiveInt seed1, PositiveInt seed2)
+    public bool DifferentResourcesAreIndependent(PositiveInt _, PositiveInt __)
     {
         var resource1 = $"independent-{Guid.NewGuid():N}-a";
         var resource2 = $"independent-{Guid.NewGuid():N}-b";

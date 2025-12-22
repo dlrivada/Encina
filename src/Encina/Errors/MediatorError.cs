@@ -96,10 +96,16 @@ public readonly record struct EncinaError
     /// <summary>
     /// Implicit conversion from <see cref="string"/> to <see cref="EncinaError"/>.
     /// </summary>
-    public static implicit operator EncinaError(string message) => New(message);
+    public static implicit operator EncinaError(string message)
+    {
+        return New(message);
+    }
 
     /// <summary>
     /// Implicit conversion from <see cref="Exception"/> to <see cref="EncinaError"/>.
     /// </summary>
-    public static implicit operator EncinaError(Exception exception) => New(exception);
+    public static implicit operator EncinaError(Exception exception)
+    {
+        return New(exception);
+    }
 }

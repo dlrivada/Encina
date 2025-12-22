@@ -1,5 +1,7 @@
 ﻿using Shouldly;
 
+#pragma warning disable S2925 // "Thread.Sleep" should not be used in tests - Required for thread synchronization simulation in non-async threads
+
 namespace Encina.AspNetCore.ContractTests;
 
 /// <summary>

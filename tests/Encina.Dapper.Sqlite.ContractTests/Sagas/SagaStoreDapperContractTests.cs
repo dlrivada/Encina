@@ -3,6 +3,8 @@ using Encina.Messaging.Sagas;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
 
+#pragma warning disable CA1859 // Use concrete types - Using ISagaState type intentionally to verify interface contract compliance
+
 namespace Encina.Dapper.Sqlite.Tests.Sagas;
 
 /// <summary>

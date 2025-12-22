@@ -70,12 +70,18 @@ namespace Encina.GuardClauses;
 /// }
 /// </code>
 /// </example>
-public static class Guards
+public static partial class Guards
 {
     /// <summary>
     /// Error code for guard clause validation failures.
     /// </summary>
     public const string GuardValidationFailed = "Encina.guard.validation_failed";
+
+    /// <summary>
+    /// Compiled regex for email validation.
+    /// </summary>
+    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
+    private static partial Regex EmailRegex();
 
     /// <summary>
     /// Validates that a value is not null.
@@ -337,10 +343,7 @@ public static class Guards
     /// </example>
     public static bool TryValidateEmail(string? value, string paramName, out EncinaError error, string? message = null)
     {
-        // Basic email validation using regex
-        const string emailPattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
-
-        if (!string.IsNullOrWhiteSpace(value) && Regex.IsMatch(value, emailPattern))
+        if (!string.IsNullOrWhiteSpace(value) && EmailRegex().IsMatch(value))
         {
             error = default;
             return true;

@@ -1,6 +1,8 @@
 ﻿using FsCheck;
 using FsCheck.Xunit;
 
+#pragma warning disable S2925 // "Thread.Sleep" should not be used in tests - Required for timing-based assertions in pub/sub tests
+
 namespace Encina.Caching.PropertyTests;
 
 /// <summary>
@@ -9,14 +11,10 @@ namespace Encina.Caching.PropertyTests;
 public sealed class PubSubProviderPropertyTests : IAsyncLifetime
 {
     private readonly MemoryPubSubProvider _provider;
-    private readonly List<(string Channel, string Message)> _receivedMessages;
-    private readonly object _lock;
 
     public PubSubProviderPropertyTests()
     {
         _provider = new MemoryPubSubProvider(NullLogger<MemoryPubSubProvider>.Instance);
-        _receivedMessages = new List<(string Channel, string Message)>();
-        _lock = new object();
     }
 
     public Task InitializeAsync()
@@ -83,7 +81,7 @@ public sealed class PubSubProviderPropertyTests : IAsyncLifetime
     }
 
     [Property(MaxTest = 50)]
-    public bool DifferentChannels_AreIndependent(PositiveInt seed1, PositiveInt seed2, NonEmptyString message)
+    public bool DifferentChannels_AreIndependent(PositiveInt _, PositiveInt __, NonEmptyString message)
     {
         var channel1 = $"channel-a-{Guid.NewGuid():N}";
         var channel2 = $"channel-b-{Guid.NewGuid():N}";

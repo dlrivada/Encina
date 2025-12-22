@@ -64,7 +64,9 @@ public abstract class AggregateBase : IAggregate
 public abstract class AggregateBase<TId> : AggregateBase, IAggregate<TId>
     where TId : notnull
 {
+#pragma warning disable IDE0032 // Use auto property - cannot use auto property due to setter logic that syncs with base.Id
     private TId _typedId = default!;
+#pragma warning restore IDE0032
 
     /// <inheritdoc />
     public new TId Id

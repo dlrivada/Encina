@@ -58,7 +58,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
 
     private ResiliencePipeline<Either<EncinaError, TResponse>> BuildRetryPipeline(
         RetryAttribute config,
-        TRequest request)
+        TRequest _)
     {
         var requestType = typeof(TRequest).Name;
 
@@ -101,7 +101,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
             .Build();
     }
 
-    private static bool ShouldRetry(Either<EncinaError, TResponse> result, RetryAttribute config)
+    private static bool ShouldRetry(Either<EncinaError, TResponse> result, RetryAttribute _)
     {
         // Only retry on Left (error) results
         return result.IsLeft;

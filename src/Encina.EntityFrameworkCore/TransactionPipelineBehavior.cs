@@ -152,7 +152,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         return attribute != null;
     }
 
-    private static System.Data.IsolationLevel? GetIsolationLevel(TRequest request)
+    private static System.Data.IsolationLevel? GetIsolationLevel(TRequest _)
     {
         var attribute = typeof(TRequest).GetCustomAttributes(typeof(TransactionAttribute), inherit: true)
             .OfType<TransactionAttribute>()

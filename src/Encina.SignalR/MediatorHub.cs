@@ -49,22 +49,21 @@ namespace Encina.SignalR;
 /// </example>
 public abstract class EncinaHub : Hub
 {
-    private readonly IEncina _Encina;
     private readonly SignalROptions _options;
     private readonly ILogger _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EncinaHub"/> class.
     /// </summary>
-    /// <param name="Encina">The Encina instance.</param>
+    /// <param name="encina">The Encina instance.</param>
     /// <param name="options">The SignalR options.</param>
     /// <param name="logger">The logger instance.</param>
     protected EncinaHub(
-        IEncina Encina,
+        IEncina encina,
         IOptions<SignalROptions> options,
         ILogger logger)
     {
-        _Encina = Encina;
+        Encina = encina;
         _options = options.Value;
         _logger = logger;
     }
@@ -72,7 +71,7 @@ public abstract class EncinaHub : Hub
     /// <summary>
     /// Gets the Encina instance for use in derived hubs.
     /// </summary>
-    protected IEncina Encina => _Encina;
+    protected IEncina Encina { get; }
 
     /// <summary>
     /// Sends a command through the Encina and returns the result.
@@ -100,7 +99,7 @@ public abstract class EncinaHub : Hub
                 return CreateErrorResponse("command.deserialization_failed", "Failed to deserialize command.");
             }
 
-            var result = await _Encina.Send((dynamic)command, Context.ConnectionAborted);
+            var result = await Encina.Send((dynamic)command, Context.ConnectionAborted);
 
             return ConvertResult(result);
         }
@@ -133,7 +132,7 @@ public abstract class EncinaHub : Hub
                 return CreateErrorResponse("query.deserialization_failed", "Failed to deserialize query.");
             }
 
-            var result = await _Encina.Send((dynamic)query, Context.ConnectionAborted);
+            var result = await Encina.Send((dynamic)query, Context.ConnectionAborted);
 
             return ConvertResult(result);
         }
@@ -168,7 +167,7 @@ public abstract class EncinaHub : Hub
                 return;
             }
 
-            await _Encina.Publish((dynamic)notification, Context.ConnectionAborted);
+            await Encina.Publish((dynamic)notification, Context.ConnectionAborted);
         }
         catch (Exception ex)
         {

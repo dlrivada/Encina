@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+#pragma warning disable SYSLIB1045 // Use GeneratedRegexAttribute - Pattern contains placeholder syntax that requires runtime evaluation
+
 namespace Encina.SignalR;
 
 /// <summary>
