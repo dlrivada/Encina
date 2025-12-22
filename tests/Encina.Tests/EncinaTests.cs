@@ -31,9 +31,9 @@ public sealed class EncinaTests
         services.AddScoped(_ => tracker);
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send(new EchoRequest("hello"), CancellationToken.None);
+        var result = await Encina.Send(new EchoRequest("hello"), CancellationToken.None);
 
         var response = ExpectSuccess(result);
         response.ShouldBe("hello");
@@ -46,22 +46,22 @@ public sealed class EncinaTests
         using var activityCollector = new ActivityCollector();
         var services = BuildServiceCollection();
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send(new EchoRequest("hi"), CancellationToken.None);
+        var result = await Encina.Send(new EchoRequest("hi"), CancellationToken.None);
 
         var response = ExpectSuccess(result);
         response.ShouldBe("hi");
         var activity = activityCollector.Activities.Last(
             a => a.DisplayName == "Encina.Send"
-                 && Equals(a.GetTagItem("mediator.request_type"), typeof(EchoRequest).FullName));
+                 && Equals(a.GetTagItem("Encina.request_type"), typeof(EchoRequest).FullName));
         activity.Status.ShouldBe(ActivityStatusCode.Ok);
-        activity.GetTagItem("mediator.request_type").ShouldBe(typeof(EchoRequest).FullName);
-        activity.GetTagItem("mediator.request_name").ShouldBe(nameof(EchoRequest));
-        activity.GetTagItem("mediator.response_type").ShouldBe(typeof(string).FullName);
-        activity.GetTagItem("mediator.request_kind").ShouldBe("request");
-        activity.GetTagItem("mediator.handler").ShouldNotBeNull();
-        activity.GetTagItem("mediator.handler_count").ShouldBe(1);
+        activity.GetTagItem("Encina.request_type").ShouldBe(typeof(EchoRequest).FullName);
+        activity.GetTagItem("Encina.request_name").ShouldBe(nameof(EchoRequest));
+        activity.GetTagItem("Encina.response_type").ShouldBe(typeof(string).FullName);
+        activity.GetTagItem("Encina.request_kind").ShouldBe("request");
+        activity.GetTagItem("Encina.handler").ShouldNotBeNull();
+        activity.GetTagItem("Encina.handler_count").ShouldBe(1);
     }
 
     [Fact]
@@ -72,21 +72,21 @@ public sealed class EncinaTests
         services.AddApplicationMessaging(typeof(EchoRequest).Assembly);
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send(new MissingHandlerRequest(), CancellationToken.None);
+        var result = await Encina.Send(new MissingHandlerRequest(), CancellationToken.None);
 
-        var error = ExpectFailure(result, MediatorErrorCodes.RequestHandlerMissing);
+        var error = ExpectFailure(result, EncinaErrorCodes.RequestHandlerMissing);
         var activity = activityCollector.Activities.Last(
             a => a.DisplayName == "Encina.Send"
-                 && Equals(a.GetTagItem("mediator.request_type"), typeof(MissingHandlerRequest).FullName));
+                 && Equals(a.GetTagItem("Encina.request_type"), typeof(MissingHandlerRequest).FullName));
 
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe(error.Message);
-        activity.GetTagItem("mediator.request_type").ShouldBe(typeof(MissingHandlerRequest).FullName);
-        activity.GetTagItem("mediator.request_name").ShouldBe(nameof(MissingHandlerRequest));
-        activity.GetTagItem("mediator.request_kind").ShouldBe("request");
-        activity.GetTagItem("mediator.failure_reason").ShouldBe(error.GetMediatorCode());
+        activity.GetTagItem("Encina.request_type").ShouldBe(typeof(MissingHandlerRequest).FullName);
+        activity.GetTagItem("Encina.request_name").ShouldBe(nameof(MissingHandlerRequest));
+        activity.GetTagItem("Encina.request_kind").ShouldBe("request");
+        activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
     [Fact]
@@ -95,11 +95,11 @@ public sealed class EncinaTests
         var loggerCollector = new LoggerCollector();
         var services = BuildServiceCollection(loggerCollector: loggerCollector);
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send<string>(null!, CancellationToken.None);
+        var result = await Encina.Send<string>(null!, CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.request.null");
+        var error = ExpectFailure(result, "encina.request.null");
         error.Message.ShouldContain("cannot be null");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Error
@@ -115,11 +115,11 @@ public sealed class EncinaTests
         services.AddSingleton(loggerCollector);
         services.AddSingleton<ILogger<Encina>>(sp => new ListLogger<Encina>(sp.GetRequiredService<LoggerCollector>()));
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send(new MissingHandlerRequest(), CancellationToken.None);
+        var result = await Encina.Send(new MissingHandlerRequest(), CancellationToken.None);
 
-        var error = ExpectFailure(result, MediatorErrorCodes.RequestHandlerMissing);
+        var error = ExpectFailure(result, EncinaErrorCodes.RequestHandlerMissing);
         error.Message.ShouldContain("No registered IRequestHandler was found");
         error.Message.ShouldContain(nameof(MissingHandlerRequest));
         loggerCollector.Entries.ShouldContain(entry =>
@@ -134,14 +134,14 @@ public sealed class EncinaTests
         var loggerCollector = new LoggerCollector();
         var services = BuildServiceCollection(pipelineTracker: new PipelineTracker(), loggerCollector: loggerCollector);
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await mediator.Send(new CancellableRequest(), cts.Token);
+        var result = await Encina.Send(new CancellableRequest(), cts.Token);
 
-        var error = ExpectFailure(result, "mediator.handler.cancelled");
+        var error = ExpectFailure(result, "encina.handler.cancelled");
         error.Message.ShouldContain("was cancelled");
         error.Message.ShouldContain(nameof(CancellableRequest));
         loggerCollector.Entries.ShouldContain(entry =>
@@ -153,13 +153,13 @@ public sealed class EncinaTests
     [Fact]
     public async Task Send_RecordsSuccessMetrics()
     {
-        var metrics = new MediatorMetricsSpy();
-        var services = BuildServiceCollection(mediatorMetrics: metrics);
+        var metrics = new EncinaMetricsSpy();
+        var services = BuildServiceCollection(EncinaMetrics: metrics);
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send(new EchoRequest("hello"), CancellationToken.None);
+        var result = await Encina.Send(new EchoRequest("hello"), CancellationToken.None);
 
         var response = ExpectSuccess(result);
         response.ShouldBe("hello");
@@ -174,19 +174,19 @@ public sealed class EncinaTests
     [Fact]
     public async Task Send_RecordsFailureMetrics_WhenHandlerMissing()
     {
-        var metrics = new MediatorMetricsSpy();
-        var services = BuildServiceCollection(mediatorMetrics: metrics);
+        var metrics = new EncinaMetricsSpy();
+        var services = BuildServiceCollection(EncinaMetrics: metrics);
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send(new MissingHandlerRequest(), CancellationToken.None);
+        var result = await Encina.Send(new MissingHandlerRequest(), CancellationToken.None);
 
-        var error = ExpectFailure(result, MediatorErrorCodes.RequestHandlerMissing);
+        var error = ExpectFailure(result, EncinaErrorCodes.RequestHandlerMissing);
         var failure = metrics.Failures.ShouldHaveSingleItem();
         failure.Kind.ShouldBe("request");
         failure.Name.ShouldBe(nameof(MissingHandlerRequest));
-        failure.Reason.ShouldBe(error.GetMediatorCode());
+        failure.Reason.ShouldBe(error.GetEncinaCode());
         failure.Duration.ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero);
         metrics.Successes.ShouldBeEmpty();
     }
@@ -194,22 +194,22 @@ public sealed class EncinaTests
     [Fact]
     public async Task Send_RecordsFailureMetrics_WhenCancelled()
     {
-        var metrics = new MediatorMetricsSpy();
-        var services = BuildServiceCollection(mediatorMetrics: metrics);
+        var metrics = new EncinaMetricsSpy();
+        var services = BuildServiceCollection(EncinaMetrics: metrics);
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await mediator.Send(new CancellableRequest(), cts.Token);
+        var result = await Encina.Send(new CancellableRequest(), cts.Token);
 
-        var error = ExpectFailure(result, MediatorErrorCodes.HandlerCancelled);
+        var error = ExpectFailure(result, EncinaErrorCodes.HandlerCancelled);
         var failure = metrics.Failures.ShouldHaveSingleItem();
         failure.Kind.ShouldBe("request");
         failure.Name.ShouldBe(nameof(CancellableRequest));
-        failure.Reason.ShouldBe(error.GetMediatorCode());
+        failure.Reason.ShouldBe(error.GetEncinaCode());
         failure.Duration.ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero);
         metrics.Successes.ShouldBeEmpty();
     }
@@ -223,9 +223,9 @@ public sealed class EncinaTests
         services.AddScoped<IPipelineBehavior<CancelledOutcomeRequest, string>, CancelledOutcomeBehavior>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send(new CancelledOutcomeRequest(), CancellationToken.None);
+        var result = await Encina.Send(new CancelledOutcomeRequest(), CancellationToken.None);
 
         var error = ExpectFailure(result, "cancelled");
         error.Message.ShouldBe("Explicit cancellation.");
@@ -243,24 +243,24 @@ public sealed class EncinaTests
     [Fact]
     public async Task Send_TracksCancellationInMetrics_WhenDispatcherCatchesCancellation()
     {
-        var metrics = new MediatorMetricsSpy();
+        var metrics = new EncinaMetricsSpy();
         using var activityCollector = new ActivityCollector();
 
-        var services = BuildServiceCollection(mediatorMetrics: metrics);
+        var services = BuildServiceCollection(EncinaMetrics: metrics);
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await mediator.Send(new CancellableRequest(), cts.Token);
+        var result = await Encina.Send(new CancellableRequest(), cts.Token);
 
-        var error = ExpectFailure(result, MediatorErrorCodes.HandlerCancelled);
+        var error = ExpectFailure(result, EncinaErrorCodes.HandlerCancelled);
 
         // Verify metrics tracked cancellation specifically
         var failure = metrics.Failures.ShouldHaveSingleItem();
-        failure.Reason.ShouldBe(MediatorErrorCodes.HandlerCancelled);
+        failure.Reason.ShouldBe(EncinaErrorCodes.HandlerCancelled);
         failure.Kind.ShouldBe("request");
         failure.Name.ShouldBe(nameof(CancellableRequest));
         metrics.Successes.ShouldBeEmpty();
@@ -268,9 +268,9 @@ public sealed class EncinaTests
         // Verify activity recorded cancellation
         var activity = activityCollector.Activities.Last(a =>
             a.DisplayName == "Encina.Send" &&
-            Equals(a.GetTagItem("mediator.request_type"), typeof(CancellableRequest).FullName));
+            Equals(a.GetTagItem("Encina.request_type"), typeof(CancellableRequest).FullName));
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.GetTagItem("mediator.failure_reason").ShouldBe(MediatorErrorCodes.HandlerCancelled);
+        activity.GetTagItem("Encina.failure_reason").ShouldBe(EncinaErrorCodes.HandlerCancelled);
     }
 
     [Fact]
@@ -280,16 +280,16 @@ public sealed class EncinaTests
         var services = BuildServiceCollection(loggerCollector: loggerCollector);
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = (Encina)provider.GetRequiredService<IMediator>();
+        var Encina = (Encina)provider.GetRequiredService<IEncina>();
 
         var logSendOutcome = typeof(Encina)
             .GetMethod("LogSendOutcome", BindingFlags.Instance | BindingFlags.NonPublic)!
             .MakeGenericMethod(typeof(string));
 
-        var cancelledError = MediatorErrors.Create("cancelled.flow", "Flow stopped");
-        var outcome = Left<MediatorError, string>(cancelledError);
+        var cancelledError = EncinaErrors.Create("cancelled.flow", "Flow stopped");
+        var outcome = Left<EncinaError, string>(cancelledError);
 
-        logSendOutcome.Invoke(mediator, new object[]
+        logSendOutcome.Invoke(Encina, new object[]
         {
             typeof(CancelledOutcomeRequest),
             typeof(CancelledOutcomeRequestHandler),
@@ -312,15 +312,15 @@ public sealed class EncinaTests
         var services = BuildServiceCollection(loggerCollector: loggerCollector);
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = (Encina)provider.GetRequiredService<IMediator>();
+        var Encina = (Encina)provider.GetRequiredService<IEncina>();
 
         var logSendOutcome = typeof(Encina)
             .GetMethod("LogSendOutcome", BindingFlags.Instance | BindingFlags.NonPublic)!
             .MakeGenericMethod(typeof(string));
 
-        var outcome = Right<MediatorError, string>("ok");
+        var outcome = Right<EncinaError, string>("ok");
 
-        logSendOutcome.Invoke(mediator, new object[]
+        logSendOutcome.Invoke(Encina, new object[]
         {
             typeof(EchoRequest),
             typeof(EchoRequestHandler),
@@ -343,17 +343,17 @@ public sealed class EncinaTests
         var services = BuildServiceCollection(loggerCollector: loggerCollector);
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = (Encina)provider.GetRequiredService<IMediator>();
+        var Encina = (Encina)provider.GetRequiredService<IEncina>();
 
         var logSendOutcome = typeof(Encina)
             .GetMethod("LogSendOutcome", BindingFlags.Instance | BindingFlags.NonPublic)!
             .MakeGenericMethod(typeof(string));
 
         var exception = new InvalidOperationException("failure");
-        var error = MediatorErrors.FromException("mediator.failure", exception, "the operation failed");
-        var outcome = Left<MediatorError, string>(error);
+        var error = EncinaErrors.FromException("Encina.failure", exception, "the operation failed");
+        var outcome = Left<EncinaError, string>(error);
 
-        logSendOutcome.Invoke(mediator, new object[]
+        logSendOutcome.Invoke(Encina, new object[]
         {
             typeof(EchoRequest),
             typeof(EchoRequestHandler),
@@ -361,7 +361,7 @@ public sealed class EncinaTests
         });
 
         var failureEntry = loggerCollector.Entries.Single(entry => entry.LogLevel == LogLevel.Error);
-        failureEntry.Message.Contains("The EchoRequest request failed (mediator.failure)").ShouldBeTrue();
+        failureEntry.Message.Contains("The EchoRequest request failed (Encina.failure)").ShouldBeTrue();
         failureEntry.Message.Contains("the operation failed").ShouldBeTrue();
         failureEntry.Exception.ShouldNotBeNull();
         ReferenceEquals(failureEntry.Exception, exception).ShouldBeTrue();
@@ -375,16 +375,16 @@ public sealed class EncinaTests
         var services = BuildServiceCollection(loggerCollector: loggerCollector);
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = (Encina)provider.GetRequiredService<IMediator>();
+        var Encina = (Encina)provider.GetRequiredService<IEncina>();
 
         var logSendOutcome = typeof(Encina)
             .GetMethod("LogSendOutcome", BindingFlags.Instance | BindingFlags.NonPublic)!
             .MakeGenericMethod(typeof(string));
 
-        var error = MediatorErrors.Create("mediator.failure", "the operation failed");
-        var outcome = Left<MediatorError, string>(error);
+        var error = EncinaErrors.Create("Encina.failure", "the operation failed");
+        var outcome = Left<EncinaError, string>(error);
 
-        logSendOutcome.Invoke(mediator, new object[]
+        logSendOutcome.Invoke(Encina, new object[]
         {
             typeof(EchoRequest),
             typeof(EchoRequestHandler),
@@ -392,9 +392,9 @@ public sealed class EncinaTests
         });
 
         var failureEntry = loggerCollector.Entries.Single(entry => entry.LogLevel == LogLevel.Error);
-        failureEntry.Message.ShouldContain("The EchoRequest request failed (mediator.failure)");
+        failureEntry.Message.ShouldContain("The EchoRequest request failed (Encina.failure)");
         failureEntry.Exception.ShouldNotBeNull();
-        failureEntry.Exception!.GetType().Name.ShouldBe("MediatorException");
+        failureEntry.Exception!.GetType().Name.ShouldBe("EncinaException");
         failureEntry.Exception.InnerException.ShouldBeNull();
         error.Exception.IsSome.ShouldBeTrue();
         loggerCollector.Entries.Any(entry => entry.LogLevel == LogLevel.Warning).ShouldBeFalse();
@@ -403,9 +403,9 @@ public sealed class EncinaTests
     [Theory]
     [InlineData("cancelled", true)]
     [InlineData("cancelled.flow", true)]
-    [InlineData("mediator.handler.cancelled", true)]
-    [InlineData("Mediator.Behavior.Cancelled", true)]
-    [InlineData("mediator.handler.exception", false)]
+    [InlineData("encina.handler.cancelled", true)]
+    [InlineData("Encina.Behavior.Cancelled", true)]
+    [InlineData("encina.handler.exception", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
     public void IsCancellationCode_DetectsSubstring(string? code, bool expected)
@@ -423,9 +423,9 @@ public sealed class EncinaTests
         using var activityCollector = new ActivityCollector();
         var services = BuildServiceCollection(notificationTracker: tracker, loggerCollector: loggerCollector);
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Publish(new SampleNotification(42), CancellationToken.None);
+        var result = await Encina.Publish(new SampleNotification(42), CancellationToken.None);
 
         ExpectSuccess(result);
         tracker.Handled.ShouldBe(expectedNotificationOrder);
@@ -434,10 +434,10 @@ public sealed class EncinaTests
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.DisplayName.ShouldBe("Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Ok);
-        activity.GetTagItem("mediator.notification_type").ShouldBe(typeof(SampleNotification).FullName);
-        activity.GetTagItem("mediator.notification_name").ShouldBe(nameof(SampleNotification));
-        activity.GetTagItem("mediator.notification_kind").ShouldBe("notification");
-        activity.GetTagItem("mediator.handler_count").ShouldBe(2);
+        activity.GetTagItem("Encina.notification_type").ShouldBe(typeof(SampleNotification).FullName);
+        activity.GetTagItem("Encina.notification_name").ShouldBe(nameof(SampleNotification));
+        activity.GetTagItem("Encina.notification_kind").ShouldBe("notification");
+        activity.GetTagItem("Encina.handler_count").ShouldBe(2);
     }
 
     [Fact]
@@ -446,17 +446,17 @@ public sealed class EncinaTests
         using var activityCollector = new ActivityCollector();
         var services = BuildServiceCollection();
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Publish(new SampleNotification(7), CancellationToken.None);
+        var result = await Encina.Publish(new SampleNotification(7), CancellationToken.None);
 
         ExpectSuccess(result);
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Ok);
-        activity.GetTagItem("mediator.notification_type").ShouldBe(typeof(SampleNotification).FullName);
-        activity.GetTagItem("mediator.notification_name").ShouldBe(nameof(SampleNotification));
-        activity.GetTagItem("mediator.notification_kind").ShouldBe("notification");
-        activity.GetTagItem("mediator.handler_count").ShouldBe(2);
+        activity.GetTagItem("Encina.notification_type").ShouldBe(typeof(SampleNotification).FullName);
+        activity.GetTagItem("Encina.notification_name").ShouldBe(nameof(SampleNotification));
+        activity.GetTagItem("Encina.notification_kind").ShouldBe("notification");
+        activity.GetTagItem("Encina.handler_count").ShouldBe(2);
     }
 
     [Fact]
@@ -470,9 +470,9 @@ public sealed class EncinaTests
         services.AddSingleton(loggerCollector);
         services.AddSingleton<ILogger<Encina>>(sp => new ListLogger<Encina>(sp.GetRequiredService<LoggerCollector>()));
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Publish(new UnhandledNotification(), CancellationToken.None);
+        var result = await Encina.Publish(new UnhandledNotification(), CancellationToken.None);
 
         ExpectSuccess(result);
         loggerCollector.Entries.ShouldContain(entry =>
@@ -481,7 +481,7 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(UnhandledNotification)));
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Ok);
-        activity.GetTagItem("mediator.notification_kind").ShouldBe("notification");
+        activity.GetTagItem("Encina.notification_kind").ShouldBe("notification");
     }
 
     [Fact]
@@ -490,11 +490,11 @@ public sealed class EncinaTests
         var loggerCollector = new LoggerCollector();
         var services = BuildServiceCollection(loggerCollector: loggerCollector);
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Publish<SampleNotification>(null!, CancellationToken.None);
+        var result = await Encina.Publish<SampleNotification>(null!, CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.notification.null");
+        var error = ExpectFailure(result, "encina.notification.null");
         error.Message.ShouldContain("cannot be null");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Error
@@ -509,39 +509,39 @@ public sealed class EncinaTests
         services.AddScoped<INotificationHandler<ExplicitNotification>, CancellingExplicitNotificationHandler>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await mediator.Publish<INotification>(new ExplicitNotification(), cts.Token);
+        var result = await Encina.Publish<INotification>(new ExplicitNotification(), cts.Token);
 
-        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        var error = ExpectFailure(result, "encina.notification.cancelled");
         error.Message.ShouldContain("was cancelled");
         error.Message.ShouldContain(nameof(ExplicitNotification));
         error.Message.ShouldNotContain("Publishing INotification");
     }
 
     [Fact]
-    public void MediatorErrors_FromException_PopulatesMetadata()
+    public void EncinaErrors_FromException_PopulatesMetadata()
     {
         var inner = new InvalidOperationException("failure");
 
-        var error = MediatorErrors.FromException("mediator.test", inner, "boom", new { Value = 42 });
+        var error = EncinaErrors.FromException("Encina.test", inner, "boom", new { Value = 42 });
 
         error.Message.ShouldBe("boom");
         ExtractException(error).ShouldBe(inner);
-        error.GetMediatorCode().ShouldBe("mediator.test");
-        error.GetMediatorDetails().ShouldNotBeNull();
-        error.GetMediatorDetails()!.ShouldBeAssignableTo<object>();
+        error.GetEncinaCode().ShouldBe("Encina.test");
+        error.GetEncinaDetails().ShouldNotBeNull();
+        error.GetEncinaDetails()!.ShouldBeAssignableTo<object>();
     }
 
     [Fact]
-    public void MediatorErrors_Unknown_ExposesDefaultMessage()
+    public void EncinaErrors_Unknown_ExposesDefaultMessage()
     {
-        var error = MediatorErrors.Unknown;
+        var error = EncinaErrors.Unknown;
 
-        error.GetMediatorCode().ShouldBe("mediator.unknown");
+        error.GetEncinaCode().ShouldBe("Encina.unknown");
         error.Message.ShouldBe("An unexpected error occurred in Encina.");
     }
 
@@ -549,7 +549,7 @@ public sealed class EncinaTests
     [Fact]
     public void Error_New_WithNullException_DoesNotExposeException()
     {
-        var error = MediatorError.New("message", (Exception?)null);
+        var error = EncinaError.New("message", (Exception?)null);
 
         error.Exception.IsSome.ShouldBeFalse();
         error.MetadataException.IsSome.ShouldBeFalse();
@@ -558,48 +558,48 @@ public sealed class EncinaTests
     [Fact]
     public void Error_NewString_UsesDefaultMessageWhenBlank()
     {
-        var error = MediatorError.New(string.Empty);
+        var error = EncinaError.New(string.Empty);
 
         error.Message.ShouldBe("An error occurred");
         error.Exception.IsSome.ShouldBeFalse();
-        error.GetMediatorDetails().ShouldBeNull();
+        error.GetEncinaDetails().ShouldBeNull();
     }
 
     [Fact]
     public void Error_NewException_ReturnsDefaultWhenNull()
     {
-        var error = MediatorError.New((Exception)null!);
+        var error = EncinaError.New((Exception)null!);
 
         error.Message.ShouldBe("An error occurred");
         error.Exception.IsSome.ShouldBeFalse();
-        error.GetMediatorDetails().ShouldBeNull();
+        error.GetEncinaDetails().ShouldBeNull();
     }
 
     [Fact]
-    public void Error_NewException_NormalizesMediatorExceptionInner()
+    public void Error_NewException_NormalizesEncinaExceptionInner()
     {
         var inner = new InvalidOperationException("inner");
-        var mediatorException = new MediatorException("mediator.code", "outer", inner, details: null);
+        var EncinaException = new EncinaException("Encina.code", "outer", inner, details: null);
 
-        var error = MediatorError.New(mediatorException);
+        var error = EncinaError.New(EncinaException);
 
         error.Message.ShouldBe("outer");
         ExtractException(error).ShouldBe(inner);
-        error.GetMediatorCode().ShouldBe("mediator.code");
-        error.GetMediatorDetails().ShouldBeNull();
+        error.GetEncinaCode().ShouldBe("Encina.code");
+        error.GetEncinaDetails().ShouldBeNull();
     }
 
     [Fact]
     public void Error_NewExceptionWithOverride_PreservesMetadata()
     {
-        var mediatorException = new MediatorException("mediator.override", "outer", innerException: null, details: 99);
+        var EncinaException = new EncinaException("Encina.override", "outer", innerException: null, details: 99);
 
-        var error = MediatorError.New(mediatorException, "override message");
+        var error = EncinaError.New(EncinaException, "override message");
 
         error.Message.ShouldBe("override message");
-        ExtractException(error).ShouldBe(mediatorException);
-        error.GetMediatorCode().ShouldBe("mediator.override");
-        error.GetMediatorDetails().ShouldBe(99);
+        ExtractException(error).ShouldBe(EncinaException);
+        error.GetEncinaCode().ShouldBe("Encina.override");
+        error.GetEncinaDetails().ShouldBe(99);
     }
 
     [Fact]
@@ -607,12 +607,12 @@ public sealed class EncinaTests
     {
         var exception = new InvalidOperationException("oops");
 
-        var error = MediatorError.New("boom", exception);
+        var error = EncinaError.New("boom", exception);
 
         error.Message.ShouldBe("boom");
         ExtractException(error).ShouldBe(exception);
-        error.GetMediatorCode().ShouldBe(nameof(InvalidOperationException));
-        error.GetMediatorDetails().ShouldBeNull();
+        error.GetEncinaCode().ShouldBe(nameof(InvalidOperationException));
+        error.GetEncinaDetails().ShouldBeNull();
     }
 
     [Fact]
@@ -624,11 +624,11 @@ public sealed class EncinaTests
         var services = BuildServiceCollection(notificationTracker: tracker, loggerCollector: loggerCollector);
         services.AddScoped<INotificationHandler<SampleNotification>, FaultyNotificationHandler>();
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Publish(new SampleNotification(7), CancellationToken.None);
+        var result = await Encina.Publish(new SampleNotification(7), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.notification.exception");
+        var error = ExpectFailure(result, "encina.notification.exception");
         var publishException = ExtractException(error);
         publishException.ShouldNotBeNull();
         publishException!.Message.ShouldBe("notify-failure");
@@ -641,7 +641,7 @@ public sealed class EncinaTests
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe(error.Message);
-        activity.GetTagItem("mediator.failure_reason").ShouldBe(error.GetMediatorCode());
+        activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
     [Fact]
@@ -656,11 +656,11 @@ public sealed class EncinaTests
         services.AddScoped<INotificationHandler<SampleNotification>, AsyncSampleNotificationHandler>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Publish(new SampleNotification(21), CancellationToken.None);
+        var result = await Encina.Publish(new SampleNotification(21), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.notification.exception");
+        var error = ExpectFailure(result, "encina.notification.exception");
         tracker.Handled.ShouldBeEmpty();
         loggerCollector.Entries.Count(entry =>
             entry.LogLevel == LogLevel.Error
@@ -669,7 +669,7 @@ public sealed class EncinaTests
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe(error.Message);
-        activity.GetTagItem("mediator.failure_reason").ShouldBe(error.GetMediatorCode());
+        activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
     [Fact]
@@ -679,12 +679,12 @@ public sealed class EncinaTests
         services.AddScoped<INotificationHandler<SampleNotification>, NullReturningNotificationHandler>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Publish(new SampleNotification(99), CancellationToken.None);
+        var result = await Encina.Publish(new SampleNotification(99), CancellationToken.None);
 
         // In pure ROP, returning null! from a handler causes NullReferenceException
-        var error = ExpectFailure(result, "mediator.notification.exception");
+        var error = ExpectFailure(result, "encina.notification.exception");
         error.Message.ShouldContain("Unexpected exception");
         ExtractException(error).ShouldBeOfType<NullReferenceException>();
     }
@@ -704,9 +704,9 @@ public sealed class EncinaTests
         services.AddScoped<INotificationHandler<SampleNotification>>(_ => null!);
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Publish(new SampleNotification(42), CancellationToken.None);
+        var result = await Encina.Publish(new SampleNotification(42), CancellationToken.None);
 
         ExpectSuccess(result);
         // The valid handler should have processed despite the null handler
@@ -726,14 +726,14 @@ public sealed class EncinaTests
         services.AddSingleton<ILogger<Encina>>(sp => new ListLogger<Encina>(sp.GetRequiredService<LoggerCollector>()));
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await mediator.Publish(new SampleNotification(5), cts.Token);
+        var result = await Encina.Publish(new SampleNotification(5), cts.Token);
 
-        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        var error = ExpectFailure(result, "encina.notification.cancelled");
         error.Message.ShouldContain("was cancelled");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Warning
@@ -742,7 +742,7 @@ public sealed class EncinaTests
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe(error.Message);
-        activity.GetTagItem("mediator.failure_reason").ShouldBe(error.GetMediatorCode());
+        activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
     [Fact]
@@ -755,14 +755,14 @@ public sealed class EncinaTests
         services.AddScoped<INotificationHandler<SampleNotification>, CancellableNotificationHandler>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await mediator.Publish(new SampleNotification(27), cts.Token);
+        var result = await Encina.Publish(new SampleNotification(27), cts.Token);
 
-        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        var error = ExpectFailure(result, "encina.notification.cancelled");
         error.Message.ShouldContain("was cancelled");
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Warning
@@ -775,7 +775,7 @@ public sealed class EncinaTests
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe(error.Message);
-        activity.GetTagItem("mediator.failure_reason").ShouldBe(error.GetMediatorCode());
+        activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
     [Fact]
@@ -788,11 +788,11 @@ public sealed class EncinaTests
         services.AddScoped<INotificationHandler<AccidentalCancellationNotification>, AccidentalCancellationNotificationHandler>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Publish(new AccidentalCancellationNotification(), CancellationToken.None);
+        var result = await Encina.Publish(new AccidentalCancellationNotification(), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.notification.exception");
+        var error = ExpectFailure(result, "encina.notification.exception");
         ExtractException(error).ShouldBeOfType<OperationCanceledException>();
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Error
@@ -805,7 +805,7 @@ public sealed class EncinaTests
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe(error.Message);
-        activity.GetTagItem("mediator.failure_reason").ShouldBe(error.GetMediatorCode());
+        activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
     [Fact]
@@ -817,15 +817,15 @@ public sealed class EncinaTests
         services.AddScoped<INotificationHandler<ExplicitNotification>, ExplicitInterfaceNotificationHandler>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Publish(new ExplicitNotification(), CancellationToken.None);
+        var result = await Encina.Publish(new ExplicitNotification(), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.notification.missing_handle");
+        var error = ExpectFailure(result, "encina.notification.missing_handle");
         error.Message.ShouldContain(nameof(ExplicitInterfaceNotificationHandler));
         error.Message.ShouldContain("does not expose a compatible Handle method");
 
-        var metadata = error.GetMediatorMetadata();
+        var metadata = error.GetEncinaMetadata();
         metadata.ShouldContainKey("handler");
         metadata["handler"].ShouldBe(typeof(ExplicitInterfaceNotificationHandler).FullName);
         metadata.ShouldContainKey("expectedNotification");
@@ -840,12 +840,12 @@ public sealed class EncinaTests
         var method = typeof(Encina)
             .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!.
             MakeGenericMethod(typeof(ExplicitNotification));
-        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<MediatorError, Unit>>>)method.CreateDelegate(typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<MediatorError, Unit>>>));
+        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<EncinaError, Unit>>>)method.CreateDelegate(typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<EncinaError, Unit>>>));
 
         var handler = new ThrowingExplicitNotificationHandler();
         var result = await invoke(handler, new ExplicitNotification(), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.notification.exception");
+        var error = ExpectFailure(result, "encina.notification.exception");
         var explicitException = ExtractException(error);
         explicitException.ShouldNotBeNull();
         explicitException!.Message.ShouldBe("explicit boom");
@@ -857,16 +857,16 @@ public sealed class EncinaTests
         var method = typeof(Encina)
             .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!.
             MakeGenericMethod(typeof(ExplicitNotification));
-        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<MediatorError, Unit>>>)method.CreateDelegate(typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<MediatorError, Unit>>>));
+        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<EncinaError, Unit>>>)method.CreateDelegate(typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<EncinaError, Unit>>>));
 
         var handler = new InvalidNotificationResultHandler();
         var result = await invoke(handler, new ExplicitNotification(), CancellationToken.None);
 
         // In pure ROP, invalid return type is detected during validation
-        var error = ExpectFailure(result, "mediator.notification.invalid_return");
+        var error = ExpectFailure(result, "encina.notification.invalid_return");
         error.Message.ShouldContain(nameof(InvalidNotificationResultHandler));
 
-        var metadata = error.GetMediatorMetadata();
+        var metadata = error.GetEncinaMetadata();
         metadata.ShouldContainKey("handler");
         metadata["handler"].ShouldBe(typeof(InvalidNotificationResultHandler).FullName);
         metadata["notification"].ShouldBe(nameof(ExplicitNotification));
@@ -885,7 +885,7 @@ public sealed class EncinaTests
 
         // In pure ROP, invalid return type is detected during validation
         // The error message contains handler name, not notification name
-        var error = ExpectFailure(result, "mediator.notification.invalid_return");
+        var error = ExpectFailure(result, "encina.notification.invalid_return");
         error.Message.ShouldContain(nameof(InvalidNotificationResultHandler));
     }
 
@@ -900,7 +900,7 @@ public sealed class EncinaTests
         var handler = new AccidentalCancellationNotificationHandler();
         var result = await invoke(handler, notification, cts.Token);
 
-        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        var error = ExpectFailure(result, "encina.notification.cancelled");
         error.Message.ShouldContain(nameof(AccidentalCancellationNotification));
         ExtractException(error).ShouldBeAssignableTo<OperationCanceledException>();
     }
@@ -914,7 +914,7 @@ public sealed class EncinaTests
         var handler = new ThrowingExplicitNotificationHandler();
         var result = await invoke(handler, notification, CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.notification.exception");
+        var error = ExpectFailure(result, "encina.notification.exception");
         error.Message.ShouldContain(nameof(ExplicitNotification));
         var exception = ExtractException(error);
         exception.ShouldBeOfType<InvalidOperationException>();
@@ -931,7 +931,7 @@ public sealed class EncinaTests
         var handler = new TaskCancellingExplicitNotificationHandler();
         var result = await invoke(handler, notification, cts.Token);
 
-        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        var error = ExpectFailure(result, "encina.notification.cancelled");
         error.Message.ShouldContain("was cancelled");
         error.Message.ShouldContain(nameof(ExplicitNotification));
         error.Message.ShouldNotContain("Publishing INotification");
@@ -948,8 +948,8 @@ public sealed class EncinaTests
         var handler = new CancellingExplicitNotificationHandler();
         var result = await invoke(handler, new ExplicitNotification(), cts.Token);
 
-        var error = ExpectFailure(result, "mediator.notification.cancelled");
-        var metadata = error.GetMediatorMetadata();
+        var error = ExpectFailure(result, "encina.notification.cancelled");
+        var metadata = error.GetEncinaMetadata();
         metadata.ShouldContainKey("handler");
         metadata!["handler"].ShouldBe(typeof(CancellingExplicitNotificationHandler).FullName);
         metadata.ShouldContainKey("notification");
@@ -969,8 +969,8 @@ public sealed class EncinaTests
         var handler = new TaskCancellingExplicitNotificationHandler();
         var result = await invoke(handler, new ExplicitNotification(), cts.Token);
 
-        var error = ExpectFailure(result, "mediator.notification.cancelled");
-        var metadata = error.GetMediatorMetadata();
+        var error = ExpectFailure(result, "encina.notification.cancelled");
+        var metadata = error.GetEncinaMetadata();
         metadata.ShouldContainKey("handler");
         metadata!["handler"].ShouldBe(typeof(TaskCancellingExplicitNotificationHandler).FullName);
         metadata.ShouldContainKey("notification");
@@ -990,7 +990,7 @@ public sealed class EncinaTests
 
         // In pure ROP, invalid return type is detected during validation
         // The error message contains handler name, not notification name
-        var error = ExpectFailure(result, "mediator.notification.invalid_return");
+        var error = ExpectFailure(result, "encina.notification.invalid_return");
         error.Message.ShouldContain(nameof(InvalidNotificationResultHandler));
     }
 
@@ -1004,7 +1004,7 @@ public sealed class EncinaTests
         var handler = new AccidentalCancellationNotificationHandler();
         var result = await invoke(handler, null!, cts.Token);
 
-        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        var error = ExpectFailure(result, "encina.notification.cancelled");
         error.Message.ShouldContain(nameof(INotification));
     }
 
@@ -1018,7 +1018,7 @@ public sealed class EncinaTests
         var handler = new TaskCancellingExplicitNotificationHandler();
         var result = await invoke(handler, null!, cts.Token);
 
-        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        var error = ExpectFailure(result, "encina.notification.cancelled");
         error.Message.ShouldContain(nameof(INotification));
     }
 
@@ -1028,13 +1028,13 @@ public sealed class EncinaTests
         var method = typeof(Encina)
             .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!
             .MakeGenericMethod(typeof(ExplicitNotification));
-        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<MediatorError, Unit>>>)method.CreateDelegate(
-            typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<MediatorError, Unit>>>));
+        var invoke = (Func<object, ExplicitNotification, CancellationToken, Task<Either<EncinaError, Unit>>>)method.CreateDelegate(
+            typeof(Func<object, ExplicitNotification, CancellationToken, Task<Either<EncinaError, Unit>>>));
 
         var handler = new MissingCancellationTokenNotificationHandler();
         var result = await invoke(handler, new ExplicitNotification(), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.notification.invoke_exception");
+        var error = ExpectFailure(result, "encina.notification.invoke_exception");
         error.Message.ShouldContain(nameof(MissingCancellationTokenNotificationHandler));
     }
 
@@ -1044,13 +1044,13 @@ public sealed class EncinaTests
         var method = typeof(Encina)
             .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!.
             MakeGenericMethod(typeof(SampleNotification));
-        var invoke = (Func<object, SampleNotification, CancellationToken, Task<Either<MediatorError, Unit>>>)method.CreateDelegate(typeof(Func<object, SampleNotification, CancellationToken, Task<Either<MediatorError, Unit>>>));
+        var invoke = (Func<object, SampleNotification, CancellationToken, Task<Either<EncinaError, Unit>>>)method.CreateDelegate(typeof(Func<object, SampleNotification, CancellationToken, Task<Either<EncinaError, Unit>>>));
 
         var handler = new NullReturningNotificationHandler();
         var result = await invoke(handler, new SampleNotification(33), CancellationToken.None);
 
         // In pure ROP, returning null! from a handler causes NullReferenceException
-        var error = ExpectFailure(result, "mediator.notification.exception");
+        var error = ExpectFailure(result, "encina.notification.exception");
         error.Message.ShouldContain("Unexpected exception");
         ExtractException(error).ShouldBeOfType<NullReferenceException>();
     }
@@ -1066,7 +1066,7 @@ public sealed class EncinaTests
 
         var result = await invoke(handler, notification, cts.Token);
 
-        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        var error = ExpectFailure(result, "encina.notification.cancelled");
         error.Message.ShouldContain(nameof(ExplicitNotification));
     }
 
@@ -1079,7 +1079,7 @@ public sealed class EncinaTests
 
         var result = await invoke(handler, notification, CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.notification.exception");
+        var error = ExpectFailure(result, "encina.notification.exception");
         error.Message.ShouldContain("Unexpected exception");
         error.Message.ShouldContain(nameof(ExplicitNotification));
         error.Message.ShouldNotContain("INotification");
@@ -1096,7 +1096,7 @@ public sealed class EncinaTests
 
         var result = await invoke(handler, notification, cts.Token);
 
-        var error = ExpectFailure(result, "mediator.notification.cancelled");
+        var error = ExpectFailure(result, "encina.notification.cancelled");
         error.Message.ShouldContain("was cancelled");
         error.Message.ShouldContain(nameof(ExplicitNotification));
         error.Message.ShouldNotContain("Publishing INotification");
@@ -1108,9 +1108,9 @@ public sealed class EncinaTests
         var loggerCollector = new LoggerCollector();
         var services = BuildServiceCollection(loggerCollector: loggerCollector);
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send(new EchoRequest("hello"), CancellationToken.None);
+        var result = await Encina.Send(new EchoRequest("hello"), CancellationToken.None);
 
         ExpectSuccess(result);
 
@@ -1132,9 +1132,9 @@ public sealed class EncinaTests
         services.AddScoped(_ => lifecycleTracker);
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send(new LifecycleRequest("in"), CancellationToken.None);
+        var result = await Encina.Send(new LifecycleRequest("in"), CancellationToken.None);
 
         var response = ExpectSuccess(result);
         response.ShouldBe("in:ok");
@@ -1154,9 +1154,9 @@ public sealed class EncinaTests
         services.AddScoped<IRequestPostProcessor<PostProcessorRequest, string>, RecordingPostProcessor>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send(new PostProcessorRequest("value"), CancellationToken.None);
+        var result = await Encina.Send(new PostProcessorRequest("value"), CancellationToken.None);
 
         var response = ExpectSuccess(result);
         response.ShouldBe("value:handled");
@@ -1171,7 +1171,7 @@ public sealed class EncinaTests
         services.AddScoped<IRequestHandler<CacheProbeRequest, string>, CacheProbeRequestHandler>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var cacheField = typeof(global::Encina.Encina)
             .GetField("RequestHandlerCache", BindingFlags.Static | BindingFlags.NonPublic)!;
@@ -1188,7 +1188,7 @@ public sealed class EncinaTests
         var containsKey = cacheType.GetMethod("ContainsKey", new[] { keyType })!;
         ((bool)containsKey.Invoke(cache, new object[] { key })!).ShouldBeFalse();
 
-        var first = await mediator.Send(new CacheProbeRequest("first"), CancellationToken.None);
+        var first = await Encina.Send(new CacheProbeRequest("first"), CancellationToken.None);
         ExpectSuccess(first).ShouldBe("first:cached");
 
         ((bool)containsKey.Invoke(cache, new object[] { key })!).ShouldBeTrue();
@@ -1196,7 +1196,7 @@ public sealed class EncinaTests
         var countProperty = cacheType.GetProperty("Count")!;
         var countAfterFirst = (int)countProperty.GetValue(cache)!;
 
-        var second = await mediator.Send(new CacheProbeRequest("second"), CancellationToken.None);
+        var second = await Encina.Send(new CacheProbeRequest("second"), CancellationToken.None);
         ExpectSuccess(second).ShouldBe("second:cached");
 
         var countAfterSecond = (int)countProperty.GetValue(cache)!;
@@ -1214,9 +1214,9 @@ public sealed class EncinaTests
         services.AddScoped<IRequestHandler<CancelledOutcomeRequest, string>, CancelledOutcomeRequestHandler>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send(new CancelledOutcomeRequest(), CancellationToken.None);
+        var result = await Encina.Send(new CancelledOutcomeRequest(), CancellationToken.None);
 
         var error = ExpectFailure(result, "cancelled");
         error.Message.ShouldContain("Explicit cancellation");
@@ -1239,14 +1239,14 @@ public sealed class EncinaTests
             configuration: cfg => cfg.AddPipelineBehavior(typeof(CancellingPipelineBehavior<,>)));
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await mediator.Send(new EchoRequest("value"), cts.Token);
+        var result = await Encina.Send(new EchoRequest("value"), cts.Token);
 
-        var error = ExpectFailure(result, "mediator.behavior.cancelled");
+        var error = ExpectFailure(result, "encina.behavior.cancelled");
         error.Message.ShouldContain("cancelled");
         error.Message.ShouldContain(nameof(EchoRequest));
         loggerCollector.Entries.ShouldContain(entry =>
@@ -1261,14 +1261,14 @@ public sealed class EncinaTests
         var services = BuildServiceCollection(configuration: cfg => cfg.AddRequestPreProcessor(typeof(CancellingEchoPreProcessor)));
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await mediator.Send(new EchoRequest("value"), cts.Token);
+        var result = await Encina.Send(new EchoRequest("value"), cts.Token);
 
-        var error = ExpectFailure(result, "mediator.preprocessor.cancelled");
+        var error = ExpectFailure(result, "encina.preprocessor.cancelled");
         error.Message.ShouldContain("cancelled");
     }
 
@@ -1278,14 +1278,14 @@ public sealed class EncinaTests
         var services = BuildServiceCollection(configuration: cfg => cfg.AddRequestPostProcessor(typeof(CancellingEchoPostProcessor)));
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await mediator.Send(new EchoRequest("value"), cts.Token);
+        var result = await Encina.Send(new EchoRequest("value"), cts.Token);
 
-        var error = ExpectFailure(result, "mediator.postprocessor.cancelled");
+        var error = ExpectFailure(result, "encina.postprocessor.cancelled");
         error.Message.ShouldContain("cancelled");
     }
 
@@ -1298,12 +1298,12 @@ public sealed class EncinaTests
         services.AddScoped<INotificationHandler<SampleNotification>, MisleadingNotificationHandler>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
-        var result = await mediator.Publish(new SampleNotification(11), CancellationToken.None);
+        var result = await Encina.Publish(new SampleNotification(11), CancellationToken.None);
 
         // In pure ROP, invalid return type is detected during validation
-        var error = ExpectFailure(result, "mediator.notification.invalid_return");
+        var error = ExpectFailure(result, "encina.notification.invalid_return");
         error.Message.ShouldContain(nameof(MisleadingNotificationHandler));
         loggerCollector.Entries.ShouldContain(entry =>
             entry.LogLevel == LogLevel.Error
@@ -1324,7 +1324,7 @@ public sealed class EncinaTests
         services.AddScoped<PipelineTracker>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var context = new RecordingSynchronizationContext();
         var originalContext = SynchronizationContext.Current;
@@ -1333,7 +1333,7 @@ public sealed class EncinaTests
         {
             var request = new AsyncRequest("value");
 #pragma warning disable xUnit1030
-            var result = await mediator.Send(request, CancellationToken.None).ConfigureAwait(false);
+            var result = await Encina.Send(request, CancellationToken.None).ConfigureAwait(false);
 #pragma warning restore xUnit1030
             var response = ExpectSuccess(result);
             response.ShouldBe("value:async");
@@ -1359,7 +1359,7 @@ public sealed class EncinaTests
         services.AddScoped<PipelineTracker>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var context = new RecordingSynchronizationContext();
         var originalContext = SynchronizationContext.Current;
@@ -1367,7 +1367,7 @@ public sealed class EncinaTests
         try
         {
 #pragma warning disable xUnit1030
-            var publishResult = await mediator.Publish(new SampleNotification(10), CancellationToken.None).ConfigureAwait(false);
+            var publishResult = await Encina.Publish(new SampleNotification(10), CancellationToken.None).ConfigureAwait(false);
 #pragma warning restore xUnit1030
             ExpectSuccess(publishResult);
             tracker.Handled.ShouldBe(expectedAsyncNotification);
@@ -1396,7 +1396,7 @@ public sealed class EncinaTests
         services.AddScoped<PipelineTracker>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var context = new RecordingSynchronizationContext();
         var originalContext = SynchronizationContext.Current;
@@ -1404,7 +1404,7 @@ public sealed class EncinaTests
         try
         {
 #pragma warning disable xUnit1030
-            var result = await mediator.Send(new AsyncPipelineRequest("stage"), CancellationToken.None).ConfigureAwait(false);
+            var result = await Encina.Send(new AsyncPipelineRequest("stage"), CancellationToken.None).ConfigureAwait(false);
 #pragma warning restore xUnit1030
             var response = ExpectSuccess(result);
             response.ShouldBe("stage:async");
@@ -1438,7 +1438,7 @@ public sealed class EncinaTests
         services.AddScoped<PipelineTracker>();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         using var context = new RecordingSynchronizationContext();
         var originalContext = SynchronizationContext.Current;
@@ -1446,7 +1446,7 @@ public sealed class EncinaTests
         try
         {
 #pragma warning disable xUnit1030
-            var result = await mediator.Send(new AsyncPipelineRequest("stage"), CancellationToken.None).ConfigureAwait(false);
+            var result = await Encina.Send(new AsyncPipelineRequest("stage"), CancellationToken.None).ConfigureAwait(false);
 #pragma warning restore xUnit1030
             var response = ExpectSuccess(result);
             response.ShouldBe("stage:async");
@@ -1463,7 +1463,7 @@ public sealed class EncinaTests
         NotificationTracker? notificationTracker = null,
         LoggerCollector? loggerCollector = null,
         Action<EncinaConfiguration>? configuration = null,
-        IMediatorMetrics? mediatorMetrics = null)
+        IEncinaMetrics? EncinaMetrics = null)
     {
         var services = new ServiceCollection();
         services.AddEncina(cfg => configuration?.Invoke(cfg));
@@ -1497,10 +1497,10 @@ public sealed class EncinaTests
             services.AddSingleton<ILogger<global::Encina.Encina>>(sp => new ListLogger<global::Encina.Encina>(sp.GetRequiredService<LoggerCollector>()));
         }
 
-        if (mediatorMetrics is not null)
+        if (EncinaMetrics is not null)
         {
-            services.RemoveAll(typeof(IMediatorMetrics));
-            services.AddSingleton(_ => mediatorMetrics);
+            services.RemoveAll(typeof(IEncinaMetrics));
+            services.AddSingleton(_ => EncinaMetrics);
         }
 
         return services;
@@ -1514,10 +1514,10 @@ public sealed class EncinaTests
     {
         private readonly PipelineTracker _tracker = tracker;
 
-        public Task<Either<MediatorError, string>> Handle(EchoRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(EchoRequest request, CancellationToken cancellationToken)
         {
             _tracker.Events.Add("handler");
-            return Task.FromResult(Right<MediatorError, string>(request.Value));
+            return Task.FromResult(Right<EncinaError, string>(request.Value));
         }
     }
 
@@ -1525,7 +1525,7 @@ public sealed class EncinaTests
 
     private sealed class FaultyRequestHandler : IRequestHandler<FaultyRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(FaultyRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(FaultyRequest request, CancellationToken cancellationToken)
             => throw new InvalidOperationException("boom");
     }
 
@@ -1533,10 +1533,10 @@ public sealed class EncinaTests
 
     private sealed class CancellableRequestHandler : IRequestHandler<CancellableRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(CancellableRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(CancellableRequest request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(Right<MediatorError, string>("ok"));
+            return Task.FromResult(Right<EncinaError, string>("ok"));
         }
     }
 
@@ -1544,7 +1544,7 @@ public sealed class EncinaTests
 
     private sealed class NullTaskRequestHandler : IRequestHandler<NullTaskRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(NullTaskRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(NullTaskRequest request, CancellationToken cancellationToken)
             => null!;
     }
 
@@ -1552,15 +1552,15 @@ public sealed class EncinaTests
 
     private sealed class CacheProbeRequestHandler : IRequestHandler<CacheProbeRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(CacheProbeRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(Right<MediatorError, string>(request.Value + ":cached"));
+        public Task<Either<EncinaError, string>> Handle(CacheProbeRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(Right<EncinaError, string>(request.Value + ":cached"));
     }
 
     private sealed record AccidentalCancellationRequest() : IRequest<string>;
 
     private sealed class AccidentalCancellationRequestHandler : IRequestHandler<AccidentalCancellationRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(AccidentalCancellationRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(AccidentalCancellationRequest request, CancellationToken cancellationToken)
             => throw new OperationCanceledException("forced cancellation without linked token");
     }
 
@@ -1568,14 +1568,14 @@ public sealed class EncinaTests
 
     private sealed class CancelledOutcomeRequestHandler : IRequestHandler<CancelledOutcomeRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(CancelledOutcomeRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(Right<MediatorError, string>("ok"));
+        public Task<Either<EncinaError, string>> Handle(CancelledOutcomeRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(Right<EncinaError, string>("ok"));
     }
 
     private sealed class CancelledOutcomeBehavior : IPipelineBehavior<CancelledOutcomeRequest, string>
     {
-        public ValueTask<Either<MediatorError, string>> Handle(CancelledOutcomeRequest request, IRequestContext context, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken)
-            => ValueTask.FromResult(Left<MediatorError, string>(MediatorErrors.Create("cancelled", "Explicit cancellation.")));
+        public ValueTask<Either<EncinaError, string>> Handle(CancelledOutcomeRequest request, IRequestContext context, RequestHandlerCallback<string> nextStep, CancellationToken cancellationToken)
+            => ValueTask.FromResult(Left<EncinaError, string>(EncinaErrors.Create("cancelled", "Explicit cancellation.")));
     }
 
     private sealed record LifecycleRequest(string Value) : IRequest<string>;
@@ -1584,10 +1584,10 @@ public sealed class EncinaTests
     {
         private readonly LifecycleTracker _tracker = tracker;
 
-        public Task<Either<MediatorError, string>> Handle(LifecycleRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(LifecycleRequest request, CancellationToken cancellationToken)
         {
             _tracker.Events.Add("handler");
-            return Task.FromResult(Right<MediatorError, string>(request.Value + ":ok"));
+            return Task.FromResult(Right<EncinaError, string>(request.Value + ":ok"));
         }
     }
 
@@ -1603,10 +1603,10 @@ public sealed class EncinaTests
     {
         private readonly NotificationTracker _tracker = tracker;
 
-        public Task<Either<MediatorError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
         {
             _tracker.Handled.Add($"A:{notification.Value}");
-            return Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 
@@ -1614,49 +1614,49 @@ public sealed class EncinaTests
     {
         private readonly NotificationTracker _tracker = tracker;
 
-        public Task<Either<MediatorError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
         {
             _tracker.Handled.Add($"B:{notification.Value}");
-            return Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 
     private sealed class FaultyNotificationHandler : INotificationHandler<SampleNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
             => throw new InvalidOperationException("notify-failure");
     }
 
     private sealed class NullReturningNotificationHandler : INotificationHandler<SampleNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
             => null!;
     }
 
     private sealed class CancellableNotificationHandler : INotificationHandler<SampleNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 
     private sealed class AccidentalCancellationNotificationHandler : INotificationHandler<AccidentalCancellationNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(AccidentalCancellationNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(AccidentalCancellationNotification notification, CancellationToken cancellationToken)
             => throw new OperationCanceledException("forced cancellation without linked token");
     }
 
     private sealed class ExplicitInterfaceNotificationHandler : INotificationHandler<ExplicitNotification>
     {
-        Task<Either<MediatorError, Unit>> INotificationHandler<ExplicitNotification>.Handle(ExplicitNotification notification, CancellationToken cancellationToken)
-            => Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+        Task<Either<EncinaError, Unit>> INotificationHandler<ExplicitNotification>.Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+            => Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
     }
 
     private sealed class ThrowingExplicitNotificationHandler
     {
-        public static Task<Either<MediatorError, Unit>> Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+        public static Task<Either<EncinaError, Unit>> Handle(ExplicitNotification notification, CancellationToken cancellationToken)
             => throw new InvalidOperationException("explicit boom");
     }
 
@@ -1668,7 +1668,7 @@ public sealed class EncinaTests
 
     private sealed class ThrowingCancelledExplicitNotificationHandler
     {
-        public static Task<Either<MediatorError, Unit>> Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+        public static Task<Either<EncinaError, Unit>> Handle(ExplicitNotification notification, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             throw new OperationCanceledException("explicit cancellation", cancellationToken);
@@ -1677,8 +1677,8 @@ public sealed class EncinaTests
 
     private sealed class TaskCancellingExplicitNotificationHandler
     {
-        public static Task<Either<MediatorError, Unit>> Handle(ExplicitNotification notification, CancellationToken cancellationToken)
-            => Task.FromCanceled<Either<MediatorError, Unit>>(cancellationToken);
+        public static Task<Either<EncinaError, Unit>> Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+            => Task.FromCanceled<Either<EncinaError, Unit>>(cancellationToken);
     }
 
     private sealed record PostProcessorRequest(string Value) : IRequest<string>;
@@ -1687,10 +1687,10 @@ public sealed class EncinaTests
     {
         private readonly PostProcessorTracker _tracker = tracker;
 
-        public Task<Either<MediatorError, string>> Handle(PostProcessorRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(PostProcessorRequest request, CancellationToken cancellationToken)
         {
             _tracker.Events.Add("handler");
-            return Task.FromResult(Right<MediatorError, string>(request.Value + ":handled"));
+            return Task.FromResult(Right<EncinaError, string>(request.Value + ":handled"));
         }
     }
 
@@ -1698,7 +1698,7 @@ public sealed class EncinaTests
     {
         private readonly PostProcessorTracker _tracker = tracker;
 
-        public Task Process(PostProcessorRequest request, IRequestContext context, Either<MediatorError, string> response, CancellationToken cancellationToken)
+        public Task Process(PostProcessorRequest request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken)
         {
             response.IfRight(value => _tracker.Events.Add($"post:{value}"));
             response.IfLeft(_ => _tracker.Events.Add("post:error"));
@@ -1713,32 +1713,32 @@ public sealed class EncinaTests
 
     private sealed class AccidentallyCancellingPostProcessor : IRequestPostProcessor<EchoRequest, string>
     {
-        public Task Process(EchoRequest request, IRequestContext context, Either<MediatorError, string> response, CancellationToken cancellationToken)
+        public Task Process(EchoRequest request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken)
             => throw new OperationCanceledException("accidental cancellation");
     }
 
     private sealed class CancellingExplicitNotificationHandler : INotificationHandler<ExplicitNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(ExplicitNotification notification, CancellationToken cancellationToken)
             => throw new OperationCanceledException("explicit cancellation", cancellationToken);
     }
 
     private sealed class MissingCancellationTokenNotificationHandler
     {
-        public static Task<Either<MediatorError, Unit>> Handle(ExplicitNotification notification)
-            => Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+        public static Task<Either<EncinaError, Unit>> Handle(ExplicitNotification notification)
+            => Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
     }
 
     private sealed class AsyncSampleNotificationHandler(EncinaTests.NotificationTracker tracker) : INotificationHandler<SampleNotification>
     {
         private readonly NotificationTracker _tracker = tracker;
 
-        public async Task<Either<MediatorError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public async Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
         {
             await Task.Delay(1, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             _tracker.Handled.Add($"Async:{notification.Value}");
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
     }
 
@@ -1748,11 +1748,11 @@ public sealed class EncinaTests
 
     private sealed class AsyncRequestHandler : IRequestHandler<AsyncRequest, string>
     {
-        public async Task<Either<MediatorError, string>> Handle(AsyncRequest request, CancellationToken cancellationToken)
+        public async Task<Either<EncinaError, string>> Handle(AsyncRequest request, CancellationToken cancellationToken)
         {
             await Task.Delay(1, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            return Right<MediatorError, string>(request.Value + ":async");
+            return Right<EncinaError, string>(request.Value + ":async");
         }
     }
 
@@ -1761,7 +1761,7 @@ public sealed class EncinaTests
     {
         private readonly PipelineTracker _tracker = tracker;
 
-        public async ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+        public async ValueTask<Either<EncinaError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
         {
             _tracker.Events.Add("tracking:before");
             var response = await nextStep().ConfigureAwait(false);
@@ -1775,7 +1775,7 @@ public sealed class EncinaTests
     {
         private readonly PipelineTracker _tracker = tracker;
 
-        public async ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+        public async ValueTask<Either<EncinaError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
         {
             _tracker.Events.Add("second:before");
             var response = await nextStep().ConfigureAwait(false);
@@ -1799,7 +1799,7 @@ public sealed class EncinaTests
     {
         private readonly LifecycleTracker _tracker = tracker;
 
-        public Task Process(LifecycleRequest request, IRequestContext context, Either<MediatorError, string> response, CancellationToken cancellationToken)
+        public Task Process(LifecycleRequest request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken)
         {
             if (response.IsRight)
             {
@@ -1834,7 +1834,7 @@ public sealed class EncinaTests
         public ConcurrentBag<LogEntry> Entries { get; } = new();
     }
 
-    private sealed class MediatorMetricsSpy : IMediatorMetrics
+    private sealed class EncinaMetricsSpy : IEncinaMetrics
     {
         public List<(string Kind, string Name, TimeSpan Duration)> Successes { get; } = new();
         public List<(string Kind, string Name, TimeSpan Duration, string Reason)> Failures { get; } = new();
@@ -1849,14 +1849,14 @@ public sealed class EncinaTests
     private sealed class CancellingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
-        public ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
-            => ValueTask.FromCanceled<Either<MediatorError, TResponse>>(cancellationToken);
+        public ValueTask<Either<EncinaError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+            => ValueTask.FromCanceled<Either<EncinaError, TResponse>>(cancellationToken);
     }
 
     private sealed class ThrowingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
-        public ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
             => throw new InvalidOperationException($"behavior failure for {typeof(TRequest).Name}");
     }
 
@@ -1874,29 +1874,29 @@ public sealed class EncinaTests
 
     private sealed class ThrowingEchoPostProcessor : IRequestPostProcessor<EchoRequest, string>
     {
-        public Task Process(EchoRequest request, IRequestContext context, Either<MediatorError, string> response, CancellationToken cancellationToken)
+        public Task Process(EchoRequest request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken)
             => throw new InvalidOperationException("post failure");
     }
 
     private sealed class CancellingEchoPostProcessor : IRequestPostProcessor<EchoRequest, string>
     {
-        public Task Process(EchoRequest request, IRequestContext context, Either<MediatorError, string> response, CancellationToken cancellationToken)
+        public Task Process(EchoRequest request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken)
             => Task.FromCanceled(cancellationToken);
     }
 
     private sealed class MisleadingNotificationHandler : INotificationHandler<SampleNotification>
     {
-        Task<Either<MediatorError, Unit>> INotificationHandler<SampleNotification>.Handle(SampleNotification notification, CancellationToken cancellationToken)
-            => Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+        Task<Either<EncinaError, Unit>> INotificationHandler<SampleNotification>.Handle(SampleNotification notification, CancellationToken cancellationToken)
+            => Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
 
         public static string Handle(SampleNotification notification, CancellationToken cancellationToken)
             => "invalid";
     }
 
-    private static T ExpectSuccess<T>(Either<MediatorError, T> result)
+    private static T ExpectSuccess<T>(Either<EncinaError, T> result)
     {
         var failureMessage = result.Match(
-            Left: err => $"Expected success but got a failure: {err.GetMediatorCode()} - {err.Message}",
+            Left: err => $"Expected success but got a failure: {err.GetEncinaCode()} - {err.Message}",
             Right: _ => string.Empty);
 
         result.IsRight.ShouldBeTrue(failureMessage);
@@ -1906,28 +1906,28 @@ public sealed class EncinaTests
             Right: value => value!);
     }
 
-    private static MediatorError ExpectFailure<T>(Either<MediatorError, T> result, string expectedCode)
+    private static EncinaError ExpectFailure<T>(Either<EncinaError, T> result, string expectedCode)
     {
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(
             Left: err => err,
-            Right: _ => MediatorErrors.Unknown);
-        error.GetMediatorCode().ShouldBe(expectedCode);
+            Right: _ => EncinaErrors.Unknown);
+        error.GetEncinaCode().ShouldBe(expectedCode);
         return error;
     }
 
-    private static Exception ExtractException(MediatorError error)
+    private static Exception ExtractException(EncinaError error)
         => error.Exception.Match(
             Some: ex => ex,
             None: () => throw new InvalidOperationException("Expected the error to carry an exception."));
 
-    private static Func<object, TNotification, CancellationToken, Task<Either<MediatorError, Unit>>> CreateInvokeNotificationDelegate<TNotification>()
+    private static Func<object, TNotification, CancellationToken, Task<Either<EncinaError, Unit>>> CreateInvokeNotificationDelegate<TNotification>()
     {
         var method = typeof(Encina)
             .GetMethod("InvokeNotificationHandler", BindingFlags.NonPublic | BindingFlags.Static)!.
             MakeGenericMethod(typeof(TNotification));
-        return (Func<object, TNotification, CancellationToken, Task<Either<MediatorError, Unit>>>)method.CreateDelegate(
-            typeof(Func<object, TNotification, CancellationToken, Task<Either<MediatorError, Unit>>>));
+        return (Func<object, TNotification, CancellationToken, Task<Either<EncinaError, Unit>>>)method.CreateDelegate(
+            typeof(Func<object, TNotification, CancellationToken, Task<Either<EncinaError, Unit>>>));
     }
 
     private sealed record LogEntry(LogLevel LogLevel, string Message, Exception? Exception);
@@ -2001,11 +2001,11 @@ public sealed class EncinaTests
     {
         private readonly AsyncPipelineTracker _tracker = tracker;
 
-        public async Task<Either<MediatorError, string>> Handle(AsyncPipelineRequest request, CancellationToken cancellationToken)
+        public async Task<Either<EncinaError, string>> Handle(AsyncPipelineRequest request, CancellationToken cancellationToken)
         {
             await Task.Delay(1, cancellationToken).ConfigureAwait(false);
             _tracker.Events.Add("handler");
-            return Right<MediatorError, string>(request.Value + ":async");
+            return Right<EncinaError, string>(request.Value + ":async");
         }
     }
 
@@ -2013,7 +2013,7 @@ public sealed class EncinaTests
     {
         private readonly AsyncPipelineTracker _tracker = tracker;
 
-        public async Task Process(AsyncPipelineRequest request, IRequestContext context, Either<MediatorError, string> response, CancellationToken cancellationToken)
+        public async Task Process(AsyncPipelineRequest request, IRequestContext context, Either<EncinaError, string> response, CancellationToken cancellationToken)
         {
             await Task.Delay(1, cancellationToken).ConfigureAwait(false);
             if (response.IsRight)

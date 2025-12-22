@@ -23,12 +23,12 @@ public sealed class PipelineBehaviorsTests
         var response = ExpectSuccess(outcome);
         response.ShouldBe("pong");
         var activity = activities.ShouldHaveSingleItem();
-        activity.DisplayName.ShouldBe("Mediator.Command.PingCommand");
+        activity.DisplayName.ShouldBe("Encina.Command.PingCommand");
         activity.Status.ShouldBe(ActivityStatusCode.Ok);
-        activity.GetTagItem("mediator.request_kind").ShouldBe("command");
-        activity.GetTagItem("mediator.request_type").ShouldBe(typeof(PingCommand).FullName);
-        activity.GetTagItem("mediator.request_name").ShouldBe(nameof(PingCommand));
-        activity.GetTagItem("mediator.response_type").ShouldBe(typeof(string).FullName);
+        activity.GetTagItem("Encina.request_kind").ShouldBe("command");
+        activity.GetTagItem("Encina.request_type").ShouldBe(typeof(PingCommand).FullName);
+        activity.GetTagItem("Encina.request_name").ShouldBe(nameof(PingCommand));
+        activity.GetTagItem("Encina.response_type").ShouldBe(typeof(string).FullName);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class PipelineBehaviorsTests
 
         var result = await behavior.Handle(request: null!, RequestContext.Create(), () => Success("ok"), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.behavior.null_request");
+        var error = ExpectFailure(result, "encina.behavior.null_request");
         error.Message.ShouldContain("received a null request");
     }
 
@@ -52,7 +52,7 @@ public sealed class PipelineBehaviorsTests
 
         var result = await behavior.Handle(request, RequestContext.Create(), nextStep: null!, CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.behavior.null_next");
+        var error = ExpectFailure(result, "encina.behavior.null_next");
         error.Message.ShouldContain("received a null callback");
     }
 
@@ -72,10 +72,10 @@ public sealed class PipelineBehaviorsTests
         var activity = activities.ShouldHaveSingleItem();
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe("rule-broken");
-        activity.GetTagItem("mediator.functional_failure").ShouldBe(true);
-        activity.GetTagItem("mediator.failure_reason").ShouldBe("rule-broken");
-        activity.GetTagItem("mediator.failure_code").ShouldBe("ERR42");
-        activity.GetTagItem("mediator.failure_message").ShouldBe("Order already processed");
+        activity.GetTagItem("Encina.functional_failure").ShouldBe(true);
+        activity.GetTagItem("Encina.failure_reason").ShouldBe("rule-broken");
+        activity.GetTagItem("Encina.failure_code").ShouldBe("ERR42");
+        activity.GetTagItem("Encina.failure_message").ShouldBe("Order already processed");
     }
 
     [Fact]
@@ -94,8 +94,8 @@ public sealed class PipelineBehaviorsTests
         var activity = activities.ShouldHaveSingleItem();
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe("  ");
-        activity.GetTagItem("mediator.functional_failure").ShouldBe(true);
-        activity.TagObjects.Any(tag => tag.Key == "mediator.failure_reason").ShouldBeFalse();
+        activity.GetTagItem("Encina.functional_failure").ShouldBe(true);
+        activity.TagObjects.Any(tag => tag.Key == "Encina.failure_reason").ShouldBeFalse();
     }
 
     [Fact]
@@ -113,11 +113,11 @@ public sealed class PipelineBehaviorsTests
         response.ShouldBe("result");
         var activity = activities.ShouldHaveSingleItem();
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.GetTagItem("mediator.functional_failure").ShouldBe(true);
-        activity.GetTagItem("mediator.failure_reason").ShouldBe("validation-failed");
+        activity.GetTagItem("Encina.functional_failure").ShouldBe(true);
+        activity.GetTagItem("Encina.failure_reason").ShouldBe("validation-failed");
         // Code and message tags should not be present when empty/whitespace
-        activity.TagObjects.Any(tag => tag.Key == "mediator.failure_code").ShouldBeFalse();
-        activity.TagObjects.Any(tag => tag.Key == "mediator.failure_message").ShouldBeFalse();
+        activity.TagObjects.Any(tag => tag.Key == "Encina.failure_code").ShouldBeFalse();
+        activity.TagObjects.Any(tag => tag.Key == "Encina.failure_message").ShouldBeFalse();
     }
 
     [Fact]
@@ -131,15 +131,15 @@ public sealed class PipelineBehaviorsTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromCanceled<Either<MediatorError, string>>(cts.Token), cts.Token);
-        var error = ExpectFailure(result, "mediator.behavior.cancelled");
+        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromCanceled<Either<EncinaError, string>>(cts.Token), cts.Token);
+        var error = ExpectFailure(result, "encina.behavior.cancelled");
         ExtractException(error).ShouldBeAssignableTo<OperationCanceledException>();
         error.Message.ShouldContain(behavior.GetType().Name);
         error.Message.ShouldContain(typeof(PingCommand).Name);
         var activity = activities.ShouldHaveSingleItem();
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe("cancelled");
-        activity.GetTagItem("mediator.cancelled").ShouldBe(true);
+        activity.GetTagItem("Encina.cancelled").ShouldBe(true);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public sealed class PipelineBehaviorsTests
             using var listener = ActivityTestListener.Start(out _);
 #pragma warning disable xUnit1030
             var outcome = await behavior
-                .Handle(request, RequestContext.Create(), () => new ValueTask<Either<MediatorError, string>>(Task.Run(() => Right<MediatorError, string>("done"))), CancellationToken.None)
+                .Handle(request, RequestContext.Create(), () => new ValueTask<Either<EncinaError, string>>(Task.Run(() => Right<EncinaError, string>("done"))), CancellationToken.None)
                 .ConfigureAwait(false);
 #pragma warning restore xUnit1030
 
@@ -179,9 +179,9 @@ public sealed class PipelineBehaviorsTests
         var request = new PingCommand("ping");
         using var listener = ActivityTestListener.Start(out var activities);
 
-        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromException<Either<MediatorError, string>>(new InvalidOperationException("boom")), CancellationToken.None);
+        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromException<Either<EncinaError, string>>(new InvalidOperationException("boom")), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.behavior.exception");
+        var error = ExpectFailure(result, "encina.behavior.exception");
         var exception = ExtractException(error);
         exception.ShouldBeOfType<InvalidOperationException>();
         exception!.Message.ShouldBe("boom");
@@ -205,12 +205,12 @@ public sealed class PipelineBehaviorsTests
         var response = ExpectSuccess(outcome);
         response.ShouldBe("pong");
         var activity = activities.ShouldHaveSingleItem();
-        activity.DisplayName.ShouldBe("Mediator.Query.PongQuery");
+        activity.DisplayName.ShouldBe("Encina.Query.PongQuery");
         activity.Status.ShouldBe(ActivityStatusCode.Ok);
-        activity.GetTagItem("mediator.request_kind").ShouldBe("query");
-        activity.GetTagItem("mediator.request_type").ShouldBe(typeof(PongQuery).FullName);
-        activity.GetTagItem("mediator.request_name").ShouldBe(nameof(PongQuery));
-        activity.GetTagItem("mediator.response_type").ShouldBe(typeof(string).FullName);
+        activity.GetTagItem("Encina.request_kind").ShouldBe("query");
+        activity.GetTagItem("Encina.request_type").ShouldBe(typeof(PongQuery).FullName);
+        activity.GetTagItem("Encina.request_name").ShouldBe(nameof(PongQuery));
+        activity.GetTagItem("Encina.response_type").ShouldBe(typeof(string).FullName);
     }
 
     [Fact]
@@ -229,10 +229,10 @@ public sealed class PipelineBehaviorsTests
         var activity = activities.ShouldHaveSingleItem();
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe("cache-miss");
-        activity.GetTagItem("mediator.functional_failure").ShouldBe(true);
-        activity.GetTagItem("mediator.failure_reason").ShouldBe("cache-miss");
-        activity.GetTagItem("mediator.failure_code").ShouldBe("CACHE_MISS");
-        activity.GetTagItem("mediator.failure_message").ShouldBe("Query not cached");
+        activity.GetTagItem("Encina.functional_failure").ShouldBe(true);
+        activity.GetTagItem("Encina.failure_reason").ShouldBe("cache-miss");
+        activity.GetTagItem("Encina.failure_code").ShouldBe("CACHE_MISS");
+        activity.GetTagItem("Encina.failure_message").ShouldBe("Query not cached");
     }
 
     [Fact]
@@ -250,11 +250,11 @@ public sealed class PipelineBehaviorsTests
         response.ShouldBe("fallback");
         var activity = activities.ShouldHaveSingleItem();
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.GetTagItem("mediator.functional_failure").ShouldBe(true);
-        activity.GetTagItem("mediator.failure_reason").ShouldBe("not-found");
+        activity.GetTagItem("Encina.functional_failure").ShouldBe(true);
+        activity.GetTagItem("Encina.failure_reason").ShouldBe("not-found");
         // Code and message tags should not be present when null/whitespace
-        activity.TagObjects.Any(tag => tag.Key == "mediator.failure_code").ShouldBeFalse();
-        activity.TagObjects.Any(tag => tag.Key == "mediator.failure_message").ShouldBeFalse();
+        activity.TagObjects.Any(tag => tag.Key == "Encina.failure_code").ShouldBeFalse();
+        activity.TagObjects.Any(tag => tag.Key == "Encina.failure_message").ShouldBeFalse();
     }
 
     [Fact]
@@ -268,15 +268,15 @@ public sealed class PipelineBehaviorsTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromCanceled<Either<MediatorError, string>>(cts.Token), cts.Token);
-        var error = ExpectFailure(result, "mediator.behavior.cancelled");
+        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromCanceled<Either<EncinaError, string>>(cts.Token), cts.Token);
+        var error = ExpectFailure(result, "encina.behavior.cancelled");
         ExtractException(error).ShouldBeAssignableTo<OperationCanceledException>();
         error.Message.ShouldContain(behavior.GetType().Name);
         error.Message.ShouldContain(typeof(PongQuery).Name);
         var activity = activities.ShouldHaveSingleItem();
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe("cancelled");
-        activity.GetTagItem("mediator.cancelled").ShouldBe(true);
+        activity.GetTagItem("Encina.cancelled").ShouldBe(true);
     }
 
     [Fact]
@@ -287,7 +287,7 @@ public sealed class PipelineBehaviorsTests
 
         var result = await behavior.Handle(request: null!, RequestContext.Create(), () => Success("ok"), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.behavior.null_request");
+        var error = ExpectFailure(result, "encina.behavior.null_request");
         error.Message.ShouldContain("received a null request");
     }
 
@@ -300,7 +300,7 @@ public sealed class PipelineBehaviorsTests
 
         var result = await behavior.Handle(request, RequestContext.Create(), nextStep: null!, CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.behavior.null_next");
+        var error = ExpectFailure(result, "encina.behavior.null_next");
         error.Message.ShouldContain("received a null callback");
     }
 
@@ -312,9 +312,9 @@ public sealed class PipelineBehaviorsTests
         var request = new PongQuery(21);
         using var listener = ActivityTestListener.Start(out var activities);
 
-        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromException<Either<MediatorError, string>>(new InvalidOperationException("fault")), CancellationToken.None);
+        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromException<Either<EncinaError, string>>(new InvalidOperationException("fault")), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.behavior.exception");
+        var error = ExpectFailure(result, "encina.behavior.exception");
         ExtractException(error).ShouldBeOfType<InvalidOperationException>();
         error.Message.ShouldContain(behavior.GetType().Name);
         error.Message.ShouldContain(typeof(PongQuery).Name);
@@ -339,7 +339,7 @@ public sealed class PipelineBehaviorsTests
             using var listener = ActivityTestListener.Start(out _);
 #pragma warning disable xUnit1030
             var outcome = await behavior
-                .Handle(request, RequestContext.Create(), () => new ValueTask<Either<MediatorError, string>>(Task.Run(() => Right<MediatorError, string>("ok"))), CancellationToken.None)
+                .Handle(request, RequestContext.Create(), () => new ValueTask<Either<EncinaError, string>>(Task.Run(() => Right<EncinaError, string>("ok"))), CancellationToken.None)
                 .ConfigureAwait(false);
 #pragma warning restore xUnit1030
 
@@ -404,8 +404,8 @@ public sealed class PipelineBehaviorsTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromCanceled<Either<MediatorError, string>>(cts.Token), cts.Token);
-        var error = ExpectFailure(result, "mediator.behavior.cancelled");
+        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromCanceled<Either<EncinaError, string>>(cts.Token), cts.Token);
+        var error = ExpectFailure(result, "encina.behavior.cancelled");
         ExtractException(error).ShouldBeAssignableTo<OperationCanceledException>();
         error.Message.ShouldContain(behavior.GetType().Name);
         metrics.Failures.ShouldHaveSingleItem().reason.ShouldBe("cancelled");
@@ -420,9 +420,9 @@ public sealed class PipelineBehaviorsTests
         var behavior = new CommandMetricsPipelineBehavior<PingCommand, string>(metrics, detector);
         var request = new PingCommand("boom");
 
-        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromException<Either<MediatorError, string>>(new InvalidOperationException("boom")), CancellationToken.None);
+        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromException<Either<EncinaError, string>>(new InvalidOperationException("boom")), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.behavior.exception");
+        var error = ExpectFailure(result, "encina.behavior.exception");
         ExtractException(error).ShouldBeOfType<InvalidOperationException>();
         error.Message.ShouldContain(behavior.GetType().Name);
         metrics.Failures.ShouldHaveSingleItem().reason.ShouldBe(nameof(InvalidOperationException));
@@ -437,11 +437,11 @@ public sealed class PipelineBehaviorsTests
 
         var result = await behavior.Handle(request: null!, RequestContext.Create(), () => Success("ok"), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.behavior.null_request");
+        var error = ExpectFailure(result, "encina.behavior.null_request");
         error.Message.ShouldContain("received a null request");
         metrics.Failures.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
             failure => failure.requestKind.ShouldBe("command"),
-            failure => failure.reason.ShouldBe("mediator.behavior.null_request"));
+            failure => failure.reason.ShouldBe("encina.behavior.null_request"));
     }
 
     [Fact]
@@ -454,11 +454,11 @@ public sealed class PipelineBehaviorsTests
 
         var result = await behavior.Handle(request, RequestContext.Create(), nextStep: null!, CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.behavior.null_next");
+        var error = ExpectFailure(result, "encina.behavior.null_next");
         error.Message.ShouldContain("received a null callback");
         metrics.Failures.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
             failure => failure.requestKind.ShouldBe("command"),
-            failure => failure.reason.ShouldBe("mediator.behavior.null_next"));
+            failure => failure.reason.ShouldBe("encina.behavior.null_next"));
     }
 
     [Fact]
@@ -476,7 +476,7 @@ public sealed class PipelineBehaviorsTests
         {
 #pragma warning disable xUnit1030
             var outcome = await behavior
-                .Handle(request, RequestContext.Create(), () => new ValueTask<Either<MediatorError, string>>(Task.Run(() => Right<MediatorError, string>("ok"))), CancellationToken.None)
+                .Handle(request, RequestContext.Create(), () => new ValueTask<Either<EncinaError, string>>(Task.Run(() => Right<EncinaError, string>("ok"))), CancellationToken.None)
                 .ConfigureAwait(false);
 #pragma warning restore xUnit1030
 
@@ -521,7 +521,7 @@ public sealed class PipelineBehaviorsTests
         {
 #pragma warning disable xUnit1030
             var outcome = await behavior
-                .Handle(request, RequestContext.Create(), () => new ValueTask<Either<MediatorError, string>>(Task.Run(() => Right<MediatorError, string>("ok"))), CancellationToken.None)
+                .Handle(request, RequestContext.Create(), () => new ValueTask<Either<EncinaError, string>>(Task.Run(() => Right<EncinaError, string>("ok"))), CancellationToken.None)
                 .ConfigureAwait(false);
 #pragma warning restore xUnit1030
 
@@ -544,11 +544,11 @@ public sealed class PipelineBehaviorsTests
 
         var result = await behavior.Handle(request: null!, RequestContext.Create(), () => Success("ok"), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.behavior.null_request");
+        var error = ExpectFailure(result, "encina.behavior.null_request");
         error.Message.ShouldContain("received a null request");
         metrics.Failures.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
             failure => failure.requestKind.ShouldBe("query"),
-            failure => failure.reason.ShouldBe("mediator.behavior.null_request"));
+            failure => failure.reason.ShouldBe("encina.behavior.null_request"));
     }
 
     [Fact]
@@ -561,11 +561,11 @@ public sealed class PipelineBehaviorsTests
 
         var result = await behavior.Handle(request, RequestContext.Create(), nextStep: null!, CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.behavior.null_next");
+        var error = ExpectFailure(result, "encina.behavior.null_next");
         error.Message.ShouldContain("received a null callback");
         metrics.Failures.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
             failure => failure.requestKind.ShouldBe("query"),
-            failure => failure.reason.ShouldBe("mediator.behavior.null_next"));
+            failure => failure.reason.ShouldBe("encina.behavior.null_next"));
     }
 
     [Fact]
@@ -600,8 +600,8 @@ public sealed class PipelineBehaviorsTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromCanceled<Either<MediatorError, string>>(cts.Token), cts.Token);
-        var error = ExpectFailure(result, "mediator.behavior.cancelled");
+        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromCanceled<Either<EncinaError, string>>(cts.Token), cts.Token);
+        var error = ExpectFailure(result, "encina.behavior.cancelled");
         ExtractException(error).ShouldBeAssignableTo<OperationCanceledException>();
         error.Message.ShouldContain(behavior.GetType().Name);
         metrics.Failures.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
@@ -619,18 +619,18 @@ public sealed class PipelineBehaviorsTests
         var behavior = new QueryMetricsPipelineBehavior<PongQuery, string>(metrics, detector);
         var request = new PongQuery(2);
 
-        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromException<Either<MediatorError, string>>(new InvalidOperationException("fail")), CancellationToken.None);
+        var result = await behavior.Handle(request, RequestContext.Create(), () => ValueTask.FromException<Either<EncinaError, string>>(new InvalidOperationException("fail")), CancellationToken.None);
 
-        var error = ExpectFailure(result, "mediator.behavior.exception");
+        var error = ExpectFailure(result, "encina.behavior.exception");
         ExtractException(error).ShouldBeOfType<InvalidOperationException>();
         error.Message.ShouldContain(behavior.GetType().Name);
         metrics.Failures.ShouldHaveSingleItem().reason.ShouldBe(nameof(InvalidOperationException));
     }
 
-    private static ValueTask<Either<MediatorError, T>> Success<T>(T value)
-        => ValueTask.FromResult(Right<MediatorError, T>(value));
+    private static ValueTask<Either<EncinaError, T>> Success<T>(T value)
+        => ValueTask.FromResult(Right<EncinaError, T>(value));
 
-    private static T ExpectSuccess<T>(Either<MediatorError, T> outcome)
+    private static T ExpectSuccess<T>(Either<EncinaError, T> outcome)
     {
         outcome.IsRight.ShouldBeTrue("Expected the pipeline to succeed.");
         return outcome.Match(
@@ -638,17 +638,17 @@ public sealed class PipelineBehaviorsTests
             Right: static value => value);
     }
 
-    private static MediatorError ExpectFailure<T>(Either<MediatorError, T> outcome, string expectedCode)
+    private static EncinaError ExpectFailure<T>(Either<EncinaError, T> outcome, string expectedCode)
     {
         outcome.IsLeft.ShouldBeTrue($"Expected a failure with code {expectedCode}.");
         var error = outcome.Match(
             Left: static err => err,
             Right: _ => throw new InvalidOperationException("Unexpected successful outcome."));
-        error.GetMediatorCode().ShouldBe(expectedCode);
+        error.GetEncinaCode().ShouldBe(expectedCode);
         return error;
     }
 
-    private static Exception ExtractException(MediatorError error)
+    private static Exception ExtractException(EncinaError error)
         => error.Exception.Match(
             Some: ex => ex,
             None: () => throw new InvalidOperationException("Expected the error to carry an exception."));
@@ -696,7 +696,7 @@ public sealed class PipelineBehaviorsTests
         public string? TryGetErrorMessage(object? capturedFailure) => _message;
     }
 
-    private sealed class RecordingMetrics : IMediatorMetrics
+    private sealed class RecordingMetrics : IEncinaMetrics
     {
         public List<(string requestKind, string requestName, TimeSpan duration)> Successes { get; } = new();
         public List<(string requestKind, string requestName, TimeSpan duration, string reason)> Failures { get; } = new();
@@ -756,7 +756,7 @@ public sealed class PipelineBehaviorsTests
                 {
                     // Ignore activities that started before this listener subscribed so concurrent
                     // tests wrapping up earlier telemetry do not leak into these assertions.
-                    if (activity.StartTimeUtc >= _startedAtUtc && activity.DisplayName.StartsWith("Mediator.", StringComparison.Ordinal))
+                    if (activity.StartTimeUtc >= _startedAtUtc && activity.DisplayName.StartsWith("Encina.", StringComparison.Ordinal))
                     {
                         _activities.Add(activity);
                     }

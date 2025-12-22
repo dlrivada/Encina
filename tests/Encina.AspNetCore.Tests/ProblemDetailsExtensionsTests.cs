@@ -21,7 +21,7 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_ValidationError_Returns400()
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: "validation.invalid_input",
             message: "The input is invalid");
 
@@ -39,7 +39,7 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_UnauthenticatedError_Returns401()
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: "authorization.unauthenticated",
             message: "Authentication required");
 
@@ -56,7 +56,7 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_AuthorizationError_Returns403()
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: "authorization.insufficient_roles",
             message: "Insufficient permissions");
 
@@ -73,7 +73,7 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_NotFoundError_Returns404()
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: "user.not_found",
             message: "User not found");
 
@@ -90,8 +90,8 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_HandlerMissingError_Returns404()
     {
         // Arrange
-        var error = MediatorErrors.Create(
-            code: "mediator.request.handler_missing",
+        var error = EncinaErrors.Create(
+            code: "encina.request.handler_missing",
             message: "No handler found");
 
         // Act
@@ -106,7 +106,7 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_ConflictError_Returns409()
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: "user.already_exists",
             message: "User already exists");
 
@@ -123,7 +123,7 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_UnknownError_Returns500()
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: "unknown.error",
             message: "Something went wrong");
 
@@ -140,7 +140,7 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_IncludesTraceId()
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: "test.error",
             message: "Test error");
 
@@ -157,7 +157,7 @@ public class ProblemDetailsExtensionsTests
     {
         // Arrange
         var correlationId = Guid.NewGuid().ToString();
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: "test.error",
             message: "Test error");
 
@@ -178,7 +178,7 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_IncludesErrorCode_WhenAvailable()
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: "validation.invalid_email",
             message: "Invalid email format");
 
@@ -194,7 +194,7 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_CustomStatusCode_OverridesDefault()
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: "user.not_found",
             message: "User not found");
 
@@ -212,7 +212,7 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_IncludesRequestPath_WhenConfigured()
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: "test.error",
             message: "Test error");
 
@@ -235,7 +235,7 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_ExcludesRequestPath_ByDefault()
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: "test.error",
             message: "Test error");
 
@@ -248,11 +248,11 @@ public class ProblemDetailsExtensionsTests
 
     [Theory]
     [InlineData("validation.email")]
-    [InlineData("mediator.guard.validation_failed")]
+    [InlineData("encina.guard.validation_failed")]
     public async Task ToProblemDetails_ValidationErrors_Return400(string errorCode)
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: errorCode,
             message: "Validation failed");
 
@@ -270,7 +270,7 @@ public class ProblemDetailsExtensionsTests
     public async Task ToProblemDetails_ConflictErrors_Return409(string errorCode)
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: errorCode,
             message: "Conflict occurred");
 
@@ -284,11 +284,11 @@ public class ProblemDetailsExtensionsTests
     [Theory]
     [InlineData("user.not_found")]
     [InlineData("resource.missing")]
-    [InlineData("mediator.request.handler_missing")]
+    [InlineData("encina.request.handler_missing")]
     public async Task ToProblemDetails_NotFoundErrors_Return404(string errorCode)
     {
         // Arrange
-        var error = MediatorErrors.Create(
+        var error = EncinaErrors.Create(
             code: errorCode,
             message: "Not found");
 
@@ -300,7 +300,7 @@ public class ProblemDetailsExtensionsTests
     }
 
     private static async Task<(HttpStatusCode StatusCode, ProblemDetails ProblemDetails)> ExecuteAndCaptureProblemDetails(
-        MediatorError error,
+        EncinaError error,
         int? customStatusCode = null,
         Action<IServiceCollection>? configureServices = null,
         Action<HttpRequestMessage>? configureRequest = null)

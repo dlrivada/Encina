@@ -6,14 +6,14 @@ using Microsoft.Extensions.Options;
 namespace Encina.AspNetCore;
 
 /// <summary>
-/// Extension methods to convert <see cref="MediatorError"/> to RFC 7807 Problem Details.
+/// Extension methods to convert <see cref="EncinaError"/> to RFC 7807 Problem Details.
 /// </summary>
 public static class ProblemDetailsExtensions
 {
     /// <summary>
-    /// Converts a <see cref="MediatorError"/> to an <see cref="IResult"/> with Problem Details.
+    /// Converts a <see cref="EncinaError"/> to an <see cref="IResult"/> with Problem Details.
     /// </summary>
-    /// <param name="error">The mediator error.</param>
+    /// <param name="error">The Encina error.</param>
     /// <param name="httpContext">The HTTP context.</param>
     /// <param name="statusCode">Optional HTTP status code. If not provided, will be inferred from error code.</param>
     /// <returns>An <see cref="IResult"/> containing RFC 7807 Problem Details.</returns>
@@ -27,7 +27,7 @@ public static class ProblemDetailsExtensions
     /// <item><description><b>400 Bad Request</b>: validation.*, guard.validation_failed</description></item>
     /// <item><description><b>401 Unauthorized</b>: authorization.unauthenticated</description></item>
     /// <item><description><b>403 Forbidden</b>: authorization.*</description></item>
-    /// <item><description><b>404 Not Found</b>: *.not_found, mediator.request.handler_missing</description></item>
+    /// <item><description><b>404 Not Found</b>: *.not_found, encina.request.handler_missing</description></item>
     /// <item><description><b>409 Conflict</b>: *.conflict, *.already_exists</description></item>
     /// <item><description><b>500 Internal Server Error</b>: Default for unrecognized codes</description></item>
     /// </list>
@@ -36,9 +36,9 @@ public static class ProblemDetailsExtensions
     /// <example>
     /// <code>
     /// // In a Minimal API endpoint
-    /// app.MapPost("/users", async (CreateUserCommand cmd, IMediator mediator, HttpContext httpContext) =>
+    /// app.MapPost("/users", async (CreateUserCommand cmd, IEncina Encina, HttpContext httpContext) =>
     /// {
-    ///     var result = await mediator.Send(cmd);
+    ///     var result = await Encina.Send(cmd);
     ///     return result.Match(
     ///         Right: user => Results.Created($"/users/{user.Id}", user),
     ///         Left: error => error.ToProblemDetails(httpContext)
@@ -49,7 +49,7 @@ public static class ProblemDetailsExtensions
     /// [HttpPost]
     /// public async Task&lt;IActionResult&gt; Create(CreateUserCommand cmd)
     /// {
-    ///     var result = await _mediator.Send(cmd);
+    ///     var result = await _Encina.Send(cmd);
     ///     return result.Match(
     ///         Right: user => Created($"/users/{user.Id}", user),
     ///         Left: error => error.ToActionResult(HttpContext)
@@ -58,7 +58,7 @@ public static class ProblemDetailsExtensions
     /// </code>
     /// </example>
     public static IResult ToProblemDetails(
-        this MediatorError error,
+        this EncinaError error,
         HttpContext httpContext,
         int? statusCode = null)
     {
@@ -118,14 +118,14 @@ public static class ProblemDetailsExtensions
     }
 
     /// <summary>
-    /// Converts a <see cref="MediatorError"/> to an <see cref="IActionResult"/> for controllers.
+    /// Converts a <see cref="EncinaError"/> to an <see cref="IActionResult"/> for controllers.
     /// </summary>
-    /// <param name="error">The mediator error.</param>
+    /// <param name="error">The Encina error.</param>
     /// <param name="httpContext">The HTTP context.</param>
     /// <param name="statusCode">Optional HTTP status code. If not provided, will be inferred from error code.</param>
     /// <returns>An <see cref="IActionResult"/> containing Problem Details.</returns>
     public static IActionResult ToActionResult(
-        this MediatorError error,
+        this EncinaError error,
         HttpContext httpContext,
         int? statusCode = null)
     {
@@ -135,12 +135,12 @@ public static class ProblemDetailsExtensions
         return new ProblemDetailsActionResult(result);
     }
 
-    private static int MapErrorCodeToStatusCode(MediatorError error)
+    private static int MapErrorCodeToStatusCode(EncinaError error)
     {
         var code = GetErrorCode(error)?.ToLowerInvariant() ?? string.Empty;
 
         // 400 Bad Request: Validation errors
-        if (code.StartsWith("validation.", StringComparison.Ordinal) || code == "mediator.guard.validation_failed")
+        if (code.StartsWith("validation.", StringComparison.Ordinal) || code == "encina.guard.validation_failed")
         {
             return StatusCodes.Status400BadRequest;
         }
@@ -159,7 +159,7 @@ public static class ProblemDetailsExtensions
 
         // 404 Not Found
         if (code.EndsWith(".not_found", StringComparison.Ordinal) ||
-            code == "mediator.request.handler_missing" ||
+            code == "encina.request.handler_missing" ||
             code.EndsWith(".missing", StringComparison.Ordinal))
         {
             return StatusCodes.Status404NotFound;
@@ -191,7 +191,7 @@ public static class ProblemDetailsExtensions
         };
     }
 
-    private static string? GetErrorCode(MediatorError error)
+    private static string? GetErrorCode(EncinaError error)
     {
         // Try to extract error code from error metadata
         return error.GetCode().Match(

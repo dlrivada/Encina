@@ -20,7 +20,7 @@ public sealed class NotificationProperties
         Cancellation
     }
 
-    private sealed record ExecutionResult(Either<MediatorError, Unit> Outcome, IReadOnlyList<string> Events);
+    private sealed record ExecutionResult(Either<EncinaError, Unit> Outcome, IReadOnlyList<string> Events);
 
     [Property(MaxTest = 120)]
     public bool Publish_NotifiesHandlersInRegistrationOrder(PositiveInt countSeed)
@@ -48,7 +48,7 @@ public sealed class NotificationProperties
 
         return result.Outcome.Match(
             Left: err => err.Exception.Match(Some: ex => ex is InvalidOperationException, None: () => false)
-                             && err.GetMediatorCode() == "mediator.notification.exception"
+                             && err.GetEncinaCode() == "encina.notification.exception"
                              && result.Events.SequenceEqual(expected),
             Right: _ => false);
     }
@@ -64,7 +64,7 @@ public sealed class NotificationProperties
         var expected = new[] { "handler:0" };
 
         return result.Outcome.Match(
-            Left: err => err.GetMediatorCode() == "mediator.notification.cancelled"
+            Left: err => err.GetEncinaCode() == "encina.notification.cancelled"
                              && err.Exception.Match(Some: ex => ex is OperationCanceledException, None: () => false)
                              && result.Events.SequenceEqual(expected),
             Right: _ => false);
@@ -100,10 +100,10 @@ public sealed class NotificationProperties
         var recorder = provider.GetRequiredService<CallRecorder>();
         recorder.Clear();
 
-        var mediator = new global::Encina.Encina(provider.GetRequiredService<IServiceScopeFactory>());
+        var Encina = new global::Encina.Encina(provider.GetRequiredService<IServiceScopeFactory>());
 
         var publishTasks = Enumerable.Range(0, publishCount)
-            .Select(iteration => mediator.Publish(
+            .Select(iteration => Encina.Publish(
                 new TrackedNotification(Guid.NewGuid().ToString("N")),
                 CancellationToken.None).AsTask())
             .ToArray();
@@ -156,12 +156,12 @@ public sealed class NotificationProperties
         var recorder = provider.GetRequiredService<CallRecorder>();
         recorder.Clear();
 
-        var mediator = new global::Encina.Encina(provider.GetRequiredService<IServiceScopeFactory>());
+        var Encina = new global::Encina.Encina(provider.GetRequiredService<IServiceScopeFactory>());
         var notification = new TrackedNotification(Guid.NewGuid().ToString("N"));
         var tokenSource = cancelBeforePublish ? new CancellationTokenSource() : null;
         tokenSource?.Cancel();
 
-        var outcome = mediator.Publish(notification, tokenSource?.Token ?? CancellationToken.None)
+        var outcome = Encina.Publish(notification, tokenSource?.Token ?? CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
@@ -189,18 +189,18 @@ public sealed class NotificationProperties
         private readonly int _label = label;
         private readonly HandlerOutcome _outcome = outcome;
 
-        public Task<Either<MediatorError, Unit>> Handle(TrackedNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(TrackedNotification notification, CancellationToken cancellationToken)
         {
             _recorder.Add($"handler:{_label}");
 
             return _outcome switch
             {
-                HandlerOutcome.Success => Task.FromResult(Right<MediatorError, Unit>(Unit.Default)),
-                HandlerOutcome.Fault => Task.FromException<Either<MediatorError, Unit>>(new InvalidOperationException($"fault:{_label}")),
-                HandlerOutcome.Cancellation => Task.FromCanceled<Either<MediatorError, Unit>>(cancellationToken.IsCancellationRequested
+                HandlerOutcome.Success => Task.FromResult(Right<EncinaError, Unit>(Unit.Default)),
+                HandlerOutcome.Fault => Task.FromException<Either<EncinaError, Unit>>(new InvalidOperationException($"fault:{_label}")),
+                HandlerOutcome.Cancellation => Task.FromCanceled<Either<EncinaError, Unit>>(cancellationToken.IsCancellationRequested
                     ? cancellationToken
                     : new CancellationToken(true)),
-                _ => Task.FromResult(Right<MediatorError, Unit>(Unit.Default))
+                _ => Task.FromResult(Right<EncinaError, Unit>(Unit.Default))
             };
         }
     }
