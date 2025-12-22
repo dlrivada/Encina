@@ -36,18 +36,18 @@ public class RequestContextAccessorBenchmarks
     }
 
     [Benchmark]
-    public void SetAndGetContext()
+    public IRequestContext? SetAndGetContext()
     {
         _accessor.RequestContext = _context;
-        var retrieved = _accessor.RequestContext;
+        return _accessor.RequestContext;
     }
 
     [Benchmark]
-    public async Task SetGetAcrossAwait()
+    public async Task<IRequestContext?> SetGetAcrossAwait()
     {
         _accessor.RequestContext = _context;
         await Task.Yield();
-        var retrieved = _accessor.RequestContext;
+        return _accessor.RequestContext;
     }
 
     [Benchmark]
@@ -57,8 +57,8 @@ public class RequestContextAccessorBenchmarks
     }
 
     [Benchmark]
-    public void CreateNewAccessor()
+    public IRequestContextAccessor CreateNewAccessor()
     {
-        var accessor = new RequestContextAccessor();
+        return new RequestContextAccessor();
     }
 }

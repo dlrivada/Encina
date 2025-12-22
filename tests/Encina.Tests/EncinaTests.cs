@@ -1661,13 +1661,13 @@ public sealed class EncinaTests
 
     private sealed class InvalidNotificationResultHandler
     {
-        public static string Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+        public static string Handle(ExplicitNotification _, CancellationToken __)
             => "invalid";
     }
 
     private sealed class ThrowingCancelledExplicitNotificationHandler
     {
-        public static Task<Either<EncinaError, Unit>> Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+        public static Task<Either<EncinaError, Unit>> Handle(ExplicitNotification _, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             throw new OperationCanceledException("explicit cancellation", cancellationToken);
@@ -1676,7 +1676,7 @@ public sealed class EncinaTests
 
     private sealed class TaskCancellingExplicitNotificationHandler
     {
-        public static Task<Either<EncinaError, Unit>> Handle(ExplicitNotification notification, CancellationToken cancellationToken)
+        public static Task<Either<EncinaError, Unit>> Handle(ExplicitNotification _, CancellationToken cancellationToken)
             => Task.FromCanceled<Either<EncinaError, Unit>>(cancellationToken);
     }
 
@@ -1724,7 +1724,7 @@ public sealed class EncinaTests
 
     private sealed class MissingCancellationTokenNotificationHandler
     {
-        public static Task<Either<EncinaError, Unit>> Handle(ExplicitNotification notification)
+        public static Task<Either<EncinaError, Unit>> Handle(ExplicitNotification _)
             => Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
     }
 
@@ -1888,7 +1888,7 @@ public sealed class EncinaTests
         Task<Either<EncinaError, Unit>> INotificationHandler<SampleNotification>.Handle(SampleNotification notification, CancellationToken cancellationToken)
             => Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
 
-        public static string Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public static string Handle(SampleNotification _, CancellationToken __)
             => "invalid";
     }
 

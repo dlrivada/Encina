@@ -41,7 +41,7 @@ public static class DapperTypeHandlers
     {
         public override Guid? Parse(object value)
         {
-            if (value == null || value is DBNull) return null;
+            if (value is null or DBNull) return null;
             return Guid.Parse((string)value);
         }
 
@@ -75,7 +75,7 @@ public static class DapperTypeHandlers
     {
         public override DateTime? Parse(object value)
         {
-            if (value == null || value is DBNull) return null;
+            if (value is null or DBNull) return null;
             return DateTime.Parse((string)value, System.Globalization.CultureInfo.InvariantCulture);
         }
 

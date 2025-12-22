@@ -21,7 +21,6 @@ public class QueryCachingPipelineBenchmarks : IDisposable
     private bool _disposed;
     private IRequestContext _context = null!;
     private CachableQuery _query = null!;
-    private string _cachedKey = null!;
     private RequestHandlerCallback<QueryResult> _handler = null!;
 
     [GlobalSetup]
@@ -55,7 +54,9 @@ public class QueryCachingPipelineBenchmarks : IDisposable
 
         _context = new BenchmarkRequestContext();
         _query = new CachableQuery(Guid.NewGuid(), "Test Query");
-        _cachedKey = keyGenerator.GenerateKey<CachableQuery, QueryResult>(_query, _context);
+
+        // Pre-generate key to warm up the key generator (result discarded)
+        _ = keyGenerator.GenerateKey<CachableQuery, QueryResult>(_query, _context);
 
         // Set up the handler
         _handler = () => ValueTask.FromResult(Either<EncinaError, QueryResult>.Right(new QueryResult(_query.Id, "Result", 42)));
