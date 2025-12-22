@@ -548,7 +548,7 @@ public sealed class EncinaTests
     [Fact]
     public void Error_New_WithNullException_DoesNotExposeException()
     {
-        var error = EncinaError.New("message", (Exception?)null);
+        var error = EncinaError.New("message", null);
 
         error.Exception.IsSome.ShouldBeFalse();
         error.MetadataException.IsSome.ShouldBeFalse();

@@ -68,11 +68,11 @@ public sealed class GuardsPropertyTests
         };
 
         // Act & Assert
-        foreach (var testCase in testCases)
+        foreach (var (value, min, max, expected) in testCases)
         {
-            var result = Guards.TryValidateInRange(testCase.value, "value", testCase.min, testCase.max, out _);
-            result.ShouldBe(testCase.expected,
-                $"Value {testCase.value} in range [{testCase.min}, {testCase.max}] should be {testCase.expected}");
+            var result = Guards.TryValidateInRange(value, "value", min, max, out _);
+            result.ShouldBe(expected,
+                $"Value {value} in range [{min}, {max}] should be {expected}");
         }
     }
 

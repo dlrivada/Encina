@@ -105,7 +105,7 @@ public class AggregateBaseTests
 
         // Assert
         aggregate.Id.Should().Be(id);
-        ((IAggregate)aggregate).Id.Should().Be(id);
+        aggregate.Id.Should().Be(id);
     }
 
     // Test aggregate implementation

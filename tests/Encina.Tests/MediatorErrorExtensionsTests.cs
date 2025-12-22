@@ -87,7 +87,7 @@ public sealed class EncinaErrorExtensionsTests
     [Fact]
     public void EncinaError_New_WithNullException_ReturnsErrorWithoutException()
     {
-        var error = EncinaError.New("test message", (Exception?)null);
+        var error = EncinaError.New("test message", null);
 
         error.Message.ShouldBe("test message");
         error.Exception.IsNone.ShouldBeTrue();
@@ -105,7 +105,7 @@ public sealed class EncinaErrorExtensionsTests
     [Fact]
     public void EncinaError_New_FromNullExceptionWithMessage_UsesProvidedMessage()
     {
-        var error = EncinaError.New((Exception)null!, "custom message");
+        var error = EncinaError.New(null!, "custom message");
 
         error.Message.ShouldBe("custom message");
         error.Exception.IsNone.ShouldBeTrue();
@@ -193,7 +193,7 @@ public sealed class EncinaErrorExtensionsTests
     public void GetEncinaMetadata_ReturnsEmptyDictionary_WhenMetadataIsNull()
     {
         // Create an error with dictionary details that could potentially be null
-        var error = EncinaErrors.Create("test.null", "test", details: (IReadOnlyDictionary<string, object?>?)null);
+        var error = EncinaErrors.Create("test.null", "test", details: null);
 
         var metadata = error.GetEncinaMetadata();
 

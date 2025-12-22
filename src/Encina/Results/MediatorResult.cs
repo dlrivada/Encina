@@ -101,7 +101,7 @@ public static class EncinaErrorExtensions
             ex => ex switch
             {
                 EncinaException EncinaException => EncinaException.Metadata,
-                _ => (IReadOnlyDictionary<string, object?>)ImmutableDictionary<string, object?>.Empty
+                _ => ImmutableDictionary<string, object?>.Empty
             },
             () => ImmutableDictionary<string, object?>.Empty);
 
@@ -139,7 +139,7 @@ public static class EncinaErrorExtensions
             ex => ex switch
             {
                 EncinaException EncinaException => EncinaException.Metadata,
-                _ => (IReadOnlyDictionary<string, object?>)ImmutableDictionary<string, object?>.Empty
+                _ => ImmutableDictionary<string, object?>.Empty
             },
             () => ImmutableDictionary<string, object?>.Empty);
 

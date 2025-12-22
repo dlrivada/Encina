@@ -68,7 +68,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         var behavior = new MessagingEnricherPipelineBehavior<TestRequest, string>();
         var request = new TestRequest("test");
         var context = Substitute.For<IRequestContext>();
-        context.Metadata.Returns(new Dictionary<string, object?>() as IReadOnlyDictionary<string, object?>);
+        context.Metadata.Returns(new Dictionary<string, object?>());
 
         RequestHandlerCallback<string> nextStep = () => new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("expected"));
 
@@ -87,7 +87,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         var behavior = new MessagingEnricherPipelineBehavior<TestRequest, string>();
         var request = new TestRequest("test");
         var context = Substitute.For<IRequestContext>();
-        context.Metadata.Returns(new Dictionary<string, object?>() as IReadOnlyDictionary<string, object?>);
+        context.Metadata.Returns(new Dictionary<string, object?>());
         var error = EncinaError.New("Test error message");
 
         RequestHandlerCallback<string> nextStep = () => new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Left(error));
@@ -137,7 +137,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         outboxMessage.IsProcessed.Returns(false);
 
         var metadata = new Dictionary<string, object?> { { "OutboxMessage", outboxMessage } };
-        context.Metadata.Returns(metadata as IReadOnlyDictionary<string, object?>);
+        context.Metadata.Returns(metadata);
 
         var nextStepCalled = false;
         RequestHandlerCallback<string> nextStep = () =>
@@ -171,7 +171,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         inboxMessage.IsProcessed.Returns(false);
 
         var metadata = new Dictionary<string, object?> { { "InboxMessage", inboxMessage } };
-        context.Metadata.Returns(metadata as IReadOnlyDictionary<string, object?>);
+        context.Metadata.Returns(metadata);
 
         RequestHandlerCallback<string> nextStep = () =>
             new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("result"));
@@ -200,7 +200,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         sagaState.Status.Returns("Running");
 
         var metadata = new Dictionary<string, object?> { { "SagaState", sagaState } };
-        context.Metadata.Returns(metadata as IReadOnlyDictionary<string, object?>);
+        context.Metadata.Returns(metadata);
 
         RequestHandlerCallback<string> nextStep = () =>
             new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("result"));
@@ -230,7 +230,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         scheduledMessage.IsRecurring.Returns(false);
 
         var metadata = new Dictionary<string, object?> { { "ScheduledMessage", scheduledMessage } };
-        context.Metadata.Returns(metadata as IReadOnlyDictionary<string, object?>);
+        context.Metadata.Returns(metadata);
 
         RequestHandlerCallback<string> nextStep = () =>
             new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("result"));
@@ -265,7 +265,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
             { "OutboxMessage", outboxMessage },
             { "SagaState", sagaState }
         };
-        context.Metadata.Returns(metadata as IReadOnlyDictionary<string, object?>);
+        context.Metadata.Returns(metadata);
 
         RequestHandlerCallback<string> nextStep = () =>
             new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("result"));
@@ -289,7 +289,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         var behavior = new MessagingEnricherPipelineBehavior<TestRequest, string>();
         var request = new TestRequest("test");
         var context = Substitute.For<IRequestContext>();
-        context.Metadata.Returns(new Dictionary<string, object?>() as IReadOnlyDictionary<string, object?>);
+        context.Metadata.Returns(new Dictionary<string, object?>());
 
         var nextStepCalled = false;
         RequestHandlerCallback<string> nextStep = () =>

@@ -68,8 +68,8 @@ public sealed partial class Encina(
 
     private void LogSendOutcome<TResponse>(Type requestType, Type handlerType, Either<EncinaError, TResponse> outcome)
     {
-        (bool IsSuccess, EncinaError? Error) resultInfo = ExtractOutcome(outcome);
-        LogSendOutcomeCore(requestType, handlerType, resultInfo.IsSuccess, resultInfo.Error);
+        (bool IsSuccess, EncinaError? Error) = ExtractOutcome(outcome);
+        LogSendOutcomeCore(requestType, handlerType, IsSuccess, Error);
     }
 
     private void LogSendOutcomeCore(Type requestType, Type handlerType, bool isSuccess, EncinaError? error)
@@ -99,7 +99,7 @@ public sealed partial class Encina(
     private static (bool IsSuccess, EncinaError? Error) ExtractOutcome<TResponse>(Either<EncinaError, TResponse> outcome)
         => outcome.Match(
             Left: err => (IsSuccess: false, Error: (EncinaError?)err),
-            Right: _ => (IsSuccess: true, Error: (EncinaError?)null));
+            Right: _ => (IsSuccess: true, Error: null));
 
     private static RequestHandlerBase CreateRequestHandlerWrapper(Type requestType, Type responseType)
     {
@@ -134,40 +134,6 @@ public sealed partial class Encina(
             Either<EncinaError, TResponse> outcome = await pipeline().ConfigureAwait(false);
             return outcome;
         }
-    }
-
-    // Exposed for tests that reflect on the private pipeline helpers to validate cancellation semantics.
-    private static async Task<Option<EncinaError>> ExecutePostProcessorAsync<TRequest, TResponse>(
-        IRequestPostProcessor<TRequest, TResponse> postProcessor,
-        TRequest request,
-        IRequestContext context,
-        Either<EncinaError, TResponse> response,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await postProcessor.Process(request, context, response, cancellationToken).ConfigureAwait(false);
-            return Option<EncinaError>.None;
-        }
-        catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
-        {
-            string message = $"Post-processor {postProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
-            var metadata = new Dictionary<string, object?>
-            {
-                ["postProcessor"] = postProcessor.GetType().FullName,
-                ["request"] = typeof(TRequest).FullName,
-                ["stage"] = "postprocessor"
-            };
-            return Some(EncinaErrors.Create(EncinaErrorCodes.PostProcessorCancelled, message, ex, metadata));
-        }
-        // Pure ROP: Any other exception indicates a bug in the postprocessor and will propagate (fail-fast)
-    }
-
-    // Exposed for tests that reflect on the private notification helper to validate handler invocation semantics.
-    private static Task<Either<EncinaError, Unit>> InvokeNotificationHandler<TNotification>(object handler, TNotification notification, CancellationToken cancellationToken)
-        where TNotification : INotification
-    {
-        return NotificationDispatcher.InvokeNotificationHandler(handler, notification, cancellationToken);
     }
 
     internal static bool IsCancellationCode(string errorCode)

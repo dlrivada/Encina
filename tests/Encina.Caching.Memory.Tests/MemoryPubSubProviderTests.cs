@@ -139,7 +139,7 @@ public sealed class MemoryPubSubProviderTests
     {
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>("handler", () =>
-            _sut.SubscribeAsync("channel", (Func<string, Task>)null!, CancellationToken.None));
+            _sut.SubscribeAsync("channel", null!, CancellationToken.None));
     }
 
     [Fact]

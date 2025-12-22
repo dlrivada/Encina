@@ -108,9 +108,9 @@ public sealed partial class Encina
 
                 // --- OBSERVABILITY PHASE ---
                 // Track metrics based on success or failure
-                (bool IsSuccess, EncinaError? Error) resultInfo = ExtractOutcome(outcome);
-                string reason = resultInfo.Error?.GetEncinaCode() ?? string.Empty;
-                if (resultInfo.IsSuccess)
+                (bool IsSuccess, EncinaError? Error) = ExtractOutcome(outcome);
+                string reason = Error?.GetEncinaCode() ?? string.Empty;
+                if (IsSuccess)
                 {
                     metrics?.TrackSuccess(requestKind, requestType.Name, stopwatch.Elapsed);
                 }

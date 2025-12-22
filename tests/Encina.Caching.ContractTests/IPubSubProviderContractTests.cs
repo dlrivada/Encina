@@ -115,7 +115,7 @@ public abstract class IPubSubProviderContractTests : IAsyncLifetime
     {
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            Provider.SubscribeAsync("channel", (Func<string, Task>)null!, CancellationToken.None));
+            Provider.SubscribeAsync("channel", null!, CancellationToken.None));
     }
 
     [Fact]
