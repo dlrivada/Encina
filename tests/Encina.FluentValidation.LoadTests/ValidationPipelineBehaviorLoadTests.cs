@@ -34,9 +34,9 @@ public sealed class ValidationPipelineBehaviorLoadTests
 
     private sealed class TestCommandHandler : ICommandHandler<TestCommand, Guid>
     {
-        public Task<Either<MediatorError, Guid>> Handle(TestCommand request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Guid>> Handle(TestCommand request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, Guid>(Guid.NewGuid()));
+            return Task.FromResult(Right<EncinaError, Guid>(Guid.NewGuid()));
         }
     }
 
@@ -58,9 +58,9 @@ public sealed class ValidationPipelineBehaviorLoadTests
         var scenario = Scenario.Create("valid_commands", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new TestCommand("John Doe", "john@example.com");
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsRight ? Response.Ok() : Response.Fail<Guid>(statusCode: "validation_failed");
         })
         .WithLoadSimulations(
@@ -96,9 +96,9 @@ public sealed class ValidationPipelineBehaviorLoadTests
         var scenario = Scenario.Create("invalid_commands", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new TestCommand("", "invalid");
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsLeft ? Response.Ok() : Response.Fail<Guid>(statusCode: "expected_validation_failure");
         })
         .WithLoadSimulations(
@@ -134,11 +134,11 @@ public sealed class ValidationPipelineBehaviorLoadTests
         var scenario = Scenario.Create("mixed_commands", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = context.InvocationNumber % 2 == 0
                 ? new TestCommand("John", "john@example.com")
                 : new TestCommand("", "");
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             var expectedOutcome = context.InvocationNumber % 2 == 0 ? result.IsRight : result.IsLeft;
             return expectedOutcome ? Response.Ok() : Response.Fail<Guid>(statusCode: "unexpected");
         })
@@ -175,9 +175,9 @@ public sealed class ValidationPipelineBehaviorLoadTests
         var scenario = Scenario.Create("endurance", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new TestCommand("John", "john@example.com");
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsRight ? Response.Ok() : Response.Fail<Guid>(statusCode: "failed");
         })
         .WithLoadSimulations(
@@ -215,9 +215,9 @@ public sealed class ValidationPipelineBehaviorLoadTests
         var scenario = Scenario.Create("multiple_validators", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new TestCommand("John", "john@example.com");
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsRight ? Response.Ok() : Response.Fail<Guid>(statusCode: "failed");
         })
         .WithLoadSimulations(
@@ -253,9 +253,9 @@ public sealed class ValidationPipelineBehaviorLoadTests
         var scenario = Scenario.Create("burst_load", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new TestCommand("John", "john@example.com");
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsRight ? Response.Ok() : Response.Fail<Guid>(statusCode: "failed");
         })
         .WithLoadSimulations(
@@ -293,9 +293,9 @@ public sealed class ValidationPipelineBehaviorLoadTests
         var scenario = Scenario.Create("memory_pressure", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new TestCommand("John", "john@example.com");
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsRight ? Response.Ok() : Response.Fail<Guid>(statusCode: "failed");
         })
         .WithLoadSimulations(

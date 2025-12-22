@@ -38,7 +38,7 @@ public sealed class AuthorizationPipelineBehaviorLoadTests
             var requestContext = RequestContext.CreateForTest();
 
             RequestHandlerCallback<string> nextStep = () =>
-                ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ValueTask.FromResult(Right<EncinaError, string>("success"));
 
             var result = await behavior.Handle(request, requestContext, nextStep, CancellationToken.None);
 
@@ -72,7 +72,7 @@ public sealed class AuthorizationPipelineBehaviorLoadTests
             var requestContext = RequestContext.CreateForTest();
 
             RequestHandlerCallback<string> nextStep = () =>
-                ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ValueTask.FromResult(Right<EncinaError, string>("success"));
 
             var result = await behavior.Handle(request, requestContext, nextStep, CancellationToken.None);
 
@@ -107,7 +107,7 @@ public sealed class AuthorizationPipelineBehaviorLoadTests
             var requestContext = RequestContext.CreateForTest();
 
             RequestHandlerCallback<string> nextStep = () =>
-                ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ValueTask.FromResult(Right<EncinaError, string>("success"));
 
             var result = await behavior.Handle(request, requestContext, nextStep, CancellationToken.None);
 
@@ -145,7 +145,7 @@ public sealed class AuthorizationPipelineBehaviorLoadTests
             var requestContext = RequestContext.CreateForTest();
 
             RequestHandlerCallback<string> nextStep = () =>
-                ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ValueTask.FromResult(Right<EncinaError, string>("success"));
 
             var result = await behavior.Handle(request, requestContext, nextStep, CancellationToken.None);
             return result.IsRight ? Response.Ok() : Response.Fail<string>(statusCode: "auth_failed");
@@ -162,7 +162,7 @@ public sealed class AuthorizationPipelineBehaviorLoadTests
             var requestContext = RequestContext.CreateForTest();
 
             RequestHandlerCallback<string> nextStep = () =>
-                ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ValueTask.FromResult(Right<EncinaError, string>("success"));
 
             var result = await behavior.Handle(request, requestContext, nextStep, CancellationToken.None);
             return result.IsLeft ? Response.Ok() : Response.Fail<string>(statusCode: "expected_error");

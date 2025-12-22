@@ -54,7 +54,7 @@ public interface IRequestContext
 // UPDATED: Behavior signature
 public interface IPipelineBehavior<TRequest, TResponse>
 {
-    ValueTask<Either<MediatorError, TResponse>> Handle(
+    ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,  // NEW PARAMETER
         RequestHandlerCallback<TResponse> nextStep,
@@ -76,7 +76,7 @@ public interface IRequestPostProcessor<in TRequest, TResponse>
     Task Process(
         TRequest request,
         IRequestContext context,  // NEW PARAMETER
-        Either<MediatorError, TResponse> response,
+        Either<EncinaError, TResponse> response,
         CancellationToken cancellationToken);
 }
 
@@ -215,7 +215,7 @@ public sealed class RequestContext : IRequestContext
 1. ✅ Create `IRequestHandlerMetadataProvider` interface
 2. ✅ Create `HandlerMetadata` record
 3. ✅ Implement `RequestHandlerMetadataProvider` with caching
-4. ✅ Update `MediatorAssemblyScanner` to collect handler metadata
+4. ✅ Update `EncinaAssemblyScanner` to collect handler metadata
 5. ✅ Register provider as singleton in DI
 6. ✅ Add tests for metadata discovery
 7. ✅ Add performance benchmarks (reflection cost)
@@ -225,7 +225,7 @@ public sealed class RequestContext : IRequestContext
 - `src/Encina/Abstractions/IRequestHandlerMetadataProvider.cs` (NEW)
 - `src/Encina/Core/HandlerMetadata.cs` (NEW)
 - `src/Encina/Core/RequestHandlerMetadataProvider.cs` (NEW)
-- `src/Encina/Dispatchers/MediatorAssemblyScanner.cs` (UPDATED)
+- `src/Encina/Dispatchers/EncinaAssemblyScanner.cs` (UPDATED)
 - `src/Encina/Core/ServiceCollectionExtensions.cs` (UPDATED)
 - `tests/Encina.Tests/RequestHandlerMetadataProviderTests.cs` (NEW)
 - `benchmarks/Encina.Benchmarks/MetadataProviderBenchmarks.cs` (NEW)
@@ -248,7 +248,7 @@ public sealed class RequestContext : IRequestContext
 **Tasks:**
 
 1. ✅ Create new project `Encina.AspNetCore`
-2. ✅ Create `MediatorContextMiddleware` to extract context from HttpContext
+2. ✅ Create `EncinaContextMiddleware` to extract context from HttpContext
 3. ✅ Extension method: `app.UseEncinaContext()`
 4. ✅ Extension method: `services.AddEncinaAspNetCore()`
 5. ✅ Support for custom context factories
@@ -260,7 +260,7 @@ public sealed class RequestContext : IRequestContext
 - Auto-extract UserId from ClaimsPrincipal
 - Auto-extract CorrelationId from Activity or TraceIdentifier
 - Auto-extract IdempotencyKey from header "Idempotency-Key"
-- Store context in HttpContext.Items for access outside mediator
+- Store context in HttpContext.Items for access outside Encina
 
 **Estimated LOC:** ~150
 
@@ -273,7 +273,7 @@ public sealed class RequestContext : IRequestContext
 1. ✅ Create `ValidationBehavior<,>`
 2. ✅ Extension: `cfg.AddFluentValidation()`
 3. ✅ Auto-discover validators from assemblies
-4. ✅ Return validation errors as `Left<MediatorError>`
+4. ✅ Return validation errors as `Left<EncinaError>`
 5. ✅ Tests
 6. ✅ Documentation
 

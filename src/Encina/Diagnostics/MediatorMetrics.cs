@@ -10,7 +10,7 @@ namespace Encina;
 /// Can be customized to integrate with other observability systems (Application
 /// Insights, Prometheus, and so on). The default implementation uses <see cref="Meter"/>.
 /// </remarks>
-public interface IMediatorMetrics
+public interface IEncinaMetrics
 {
     /// <summary>
     /// Records a successful request execution.
@@ -41,7 +41,7 @@ public interface IMediatorMetrics
 /// <item><description><c>Encina.request.duration</c> (Histogram in milliseconds)</description></item>
 /// </list>
 /// </remarks>
-public sealed class MediatorMetrics : IMediatorMetrics
+public sealed class EncinaMetrics : IEncinaMetrics
 {
     private static readonly Meter Meter = new("Encina", "1.0");
     private readonly Counter<long> _successCounter = Meter.CreateCounter<long>("Encina.request.success");

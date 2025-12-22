@@ -20,7 +20,7 @@ namespace Encina;
 ///     public Task Process(
 ///         TRequest request,
 ///         IRequestContext context,
-///         Either&lt;MediatorError, TResponse&gt; response,
+///         Either&lt;EncinaError, TResponse&gt; response,
 ///         CancellationToken cancellationToken)
 ///     {
 ///         await _auditLogger.LogAsync(new AuditEntry
@@ -51,6 +51,6 @@ public interface IRequestPostProcessor<in TRequest, TResponse>
     Task Process(
         TRequest request,
         IRequestContext context,
-        Either<MediatorError, TResponse> response,
+        Either<EncinaError, TResponse> response,
         CancellationToken cancellationToken);
 }

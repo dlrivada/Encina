@@ -35,7 +35,7 @@ public static class ServiceCollectionExtensions
             opt.EnablePersistedQueries = options.EnablePersistedQueries;
         });
 
-        services.TryAddScoped<IGraphQLMediatorBridge, GraphQLMediatorBridge>();
+        services.TryAddScoped<IGraphQLEncinaBridge, GraphQLEncinaBridge>();
 
         return services;
     }

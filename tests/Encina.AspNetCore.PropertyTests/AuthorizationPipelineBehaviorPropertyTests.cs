@@ -32,7 +32,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
             RequestHandlerCallback<string> nextStep = () =>
             {
                 nextStepCalled = true;
-                return ValueTask.FromResult(Right<MediatorError, string>("success"));
+                return ValueTask.FromResult(Right<EncinaError, string>("success"));
             };
 
             await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -55,7 +55,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
             var request = new AuthorizedRequest();
 
             RequestHandlerCallback<string> nextStep = () =>
-                ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ValueTask.FromResult(Right<EncinaError, string>("success"));
 
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
@@ -83,7 +83,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
             var request = new AuthorizedRequest();
 
             RequestHandlerCallback<string> nextStep = () =>
-                ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ValueTask.FromResult(Right<EncinaError, string>("success"));
 
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
@@ -113,7 +113,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
             RequestHandlerCallback<string> nextStep = () =>
             {
                 nextStepCalled = true;
-                return ValueTask.FromResult(Right<MediatorError, string>("success"));
+                return ValueTask.FromResult(Right<EncinaError, string>("success"));
             };
 
             await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -136,7 +136,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
             var context = RequestContext.CreateForTest();
 
             RequestHandlerCallback<string> nextStep = () =>
-                ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ValueTask.FromResult(Right<EncinaError, string>("success"));
 
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
@@ -166,7 +166,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
             RequestHandlerCallback<string> nextStep = () =>
             {
                 nextStepCalled = true;
-                return ValueTask.FromResult(Right<MediatorError, string>("success"));
+                return ValueTask.FromResult(Right<EncinaError, string>("success"));
             };
 
             await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -190,7 +190,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
             var context = RequestContext.CreateForTest();
 
             RequestHandlerCallback<string> nextStep = () =>
-                ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ValueTask.FromResult(Right<EncinaError, string>("success"));
 
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
@@ -221,7 +221,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
             RequestHandlerCallback<string> nextStep = () =>
             {
                 nextStepCalled = true;
-                return ValueTask.FromResult(Right<MediatorError, string>("success"));
+                return ValueTask.FromResult(Right<EncinaError, string>("success"));
             };
 
             await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -243,7 +243,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
             var context = RequestContext.CreateForTest();
 
             RequestHandlerCallback<string> nextStep = () =>
-                ValueTask.FromResult(Right<MediatorError, string>(expectedResult));
+                ValueTask.FromResult(Right<EncinaError, string>(expectedResult));
 
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
@@ -264,10 +264,10 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
             var behavior = CreateBehavior<UnauthorizedRequest, string>();
             var request = new UnauthorizedRequest();
             var context = RequestContext.CreateForTest();
-            var expectedError = MediatorErrors.Create("test.error", errorMessage);
+            var expectedError = EncinaErrors.Create("test.error", errorMessage);
 
             RequestHandlerCallback<string> nextStep = () =>
-                ValueTask.FromResult(Left<MediatorError, string>(expectedError));
+                ValueTask.FromResult(Left<EncinaError, string>(expectedError));
 
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 

@@ -25,7 +25,7 @@ namespace Encina.Caching;
 ///     private readonly ICacheProvider _cache;
 ///     private readonly IProductRepository _repository;
 ///
-///     public async ValueTask&lt;Either&lt;MediatorError, Product&gt;&gt; Handle(
+///     public async ValueTask&lt;Either&lt;EncinaError, Product&gt;&gt; Handle(
 ///         GetProductQuery query,
 ///         IRequestContext context,
 ///         CancellationToken cancellationToken)

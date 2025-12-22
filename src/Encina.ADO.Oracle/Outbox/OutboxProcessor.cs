@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Encina.ADO.Oracle.Outbox;
 
 /// <summary>
-/// Background service that processes pending outbox messages and publishes them through the mediator.
+/// Background service that processes pending outbox messages and publishes them through the Encina.
 /// Runs periodically to ensure reliable event delivery with retry logic.
 /// </summary>
 public sealed class OutboxProcessor : BackgroundService
@@ -73,7 +73,7 @@ public sealed class OutboxProcessor : BackgroundService
     {
         using var scope = _serviceProvider.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
 
         var messages = await store.GetPendingMessagesAsync(
             _options.BatchSize,
@@ -130,7 +130,7 @@ public sealed class OutboxProcessor : BackgroundService
                 }
 
                 // Publish notification
-                await mediator.Publish((INotification)notification, cancellationToken).ConfigureAwait(false);
+                await Encina.Publish((INotification)notification, cancellationToken).ConfigureAwait(false);
 
                 // Mark as processed
                 await store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);

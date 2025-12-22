@@ -15,8 +15,8 @@ public interface IKafkaMessagePublisher
     /// <param name="topic">The topic name. If null, uses the default topic.</param>
     /// <param name="key">The partition key. If null, round-robin partitioning is used.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the delivery result.</returns>
-    ValueTask<Either<MediatorError, KafkaDeliveryResult>> ProduceAsync<TMessage>(
+    /// <returns>Either a EncinaError or the delivery result.</returns>
+    ValueTask<Either<EncinaError, KafkaDeliveryResult>> ProduceAsync<TMessage>(
         TMessage message,
         string? topic = null,
         string? key = null,
@@ -30,8 +30,8 @@ public interface IKafkaMessagePublisher
     /// <param name="messages">The messages to produce with their optional keys.</param>
     /// <param name="topic">The topic name. If null, uses the default topic.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the list of delivery results.</returns>
-    ValueTask<Either<MediatorError, IReadOnlyList<KafkaDeliveryResult>>> ProduceBatchAsync<TMessage>(
+    /// <returns>Either a EncinaError or the list of delivery results.</returns>
+    ValueTask<Either<EncinaError, IReadOnlyList<KafkaDeliveryResult>>> ProduceBatchAsync<TMessage>(
         IEnumerable<(TMessage Message, string? Key)> messages,
         string? topic = null,
         CancellationToken cancellationToken = default)
@@ -46,8 +46,8 @@ public interface IKafkaMessagePublisher
     /// <param name="topic">The topic name. If null, uses the default topic.</param>
     /// <param name="key">The partition key. If null, round-robin partitioning is used.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the delivery result.</returns>
-    ValueTask<Either<MediatorError, KafkaDeliveryResult>> ProduceWithHeadersAsync<TMessage>(
+    /// <returns>Either a EncinaError or the delivery result.</returns>
+    ValueTask<Either<EncinaError, KafkaDeliveryResult>> ProduceWithHeadersAsync<TMessage>(
         TMessage message,
         IDictionary<string, byte[]> headers,
         string? topic = null,

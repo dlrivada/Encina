@@ -12,27 +12,27 @@ namespace Encina.Quartz;
 public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
     where TRequest : IRequest<TResponse>
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger<QuartzRequestJob<TRequest, TResponse>> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="QuartzRequestJob{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="mediator">The mediator instance.</param>
+    /// <param name="Encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     public QuartzRequestJob(
-        IMediator mediator,
+        IEncina Encina,
         ILogger<QuartzRequestJob<TRequest, TResponse>> logger)
     {
-        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(Encina);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _mediator = mediator;
+        _Encina = Encina;
         _logger = logger;
     }
 
     /// <summary>
-    /// Executes the Quartz job by sending the request through the mediator.
+    /// Executes the Quartz job by sending the request through the Encina.
     /// </summary>
     /// <param name="context">The Quartz job execution context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
@@ -53,7 +53,7 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
         {
             Log.ExecutingRequestJob(_logger, context.JobDetail.Key, typeof(TRequest).Name);
 
-            var result = await _mediator.Send(request, context.CancellationToken)
+            var result = await _Encina.Send(request, context.CancellationToken)
                 .ConfigureAwait(false);
 
             result.Match(

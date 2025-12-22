@@ -13,7 +13,7 @@ namespace Encina.Dapr;
 /// <remarks>
 /// This handler:
 /// - Executes state operations (get/save/delete) through Dapr State Management API
-/// - Converts <see cref="DaprException"/> to <see cref="MediatorError"/> for Railway Oriented Programming
+/// - Converts <see cref="DaprException"/> to <see cref="EncinaError"/> for Railway Oriented Programming
 /// - Supports any Dapr state store (Redis, Cosmos DB, SQL Server, etc.)
 /// - Provides automatic retry and consistency guarantees via Dapr sidecar
 /// </remarks>
@@ -44,9 +44,9 @@ public sealed partial class DaprStateHandler<TRequest, TResponse>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
     /// A task that represents the asynchronous operation.
-    /// The task result contains either the response or a mediator error.
+    /// The task result contains either the response or a Encina error.
     /// </returns>
-    public async Task<Either<MediatorError, TResponse>> Handle(
+    public async Task<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         CancellationToken cancellationToken)
     {
@@ -64,7 +64,7 @@ public sealed partial class DaprStateHandler<TRequest, TResponse>
         {
             LogStateOperationFailed(request.StoreName, request.StateKey, daprEx);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Dapr state operation failed for store '{request.StoreName}', key '{request.StateKey}': {daprEx.Message}",
                 daprEx);
         }
@@ -72,7 +72,7 @@ public sealed partial class DaprStateHandler<TRequest, TResponse>
         {
             LogStateOperationFailed(request.StoreName, request.StateKey, ex);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Unexpected error during state operation for store '{request.StoreName}', key '{request.StateKey}': {ex.Message}",
                 ex);
         }

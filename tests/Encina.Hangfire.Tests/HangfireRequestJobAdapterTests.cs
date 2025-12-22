@@ -8,15 +8,15 @@ namespace Encina.Hangfire.Tests;
 
 public class HangfireRequestJobAdapterTests
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger<HangfireRequestJobAdapter<TestRequest, TestResponse>> _logger;
     private readonly HangfireRequestJobAdapter<TestRequest, TestResponse> _adapter;
 
     public HangfireRequestJobAdapterTests()
     {
-        _mediator = Substitute.For<IMediator>();
+        _Encina = Substitute.For<IEncina>();
         _logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, TestResponse>>>();
-        _adapter = new HangfireRequestJobAdapter<TestRequest, TestResponse>(_mediator, _logger);
+        _adapter = new HangfireRequestJobAdapter<TestRequest, TestResponse>(_Encina, _logger);
     }
 
     [Fact]
@@ -25,8 +25,8 @@ public class HangfireRequestJobAdapterTests
         // Arrange
         var request = new TestRequest("test-data");
         var expectedResponse = new TestResponse("success");
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, TestResponse>(expectedResponse));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(expectedResponse));
 
         // Act
         var result = await _adapter.ExecuteAsync(request);
@@ -39,7 +39,7 @@ public class HangfireRequestJobAdapterTests
         );
         actualResponse.Should().Be(expectedResponse);
 
-        await _mediator.Received(1).Send(
+        await _Encina.Received(1).Send(
             Arg.Is<TestRequest>(r => r.Data == "test-data"),
             Arg.Any<CancellationToken>());
     }
@@ -49,9 +49,9 @@ public class HangfireRequestJobAdapterTests
     {
         // Arrange
         var request = new TestRequest("test-data");
-        var error = MediatorErrors.Create("test.error", "Test error message");
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Left<MediatorError, TestResponse>(error));
+        var error = EncinaErrors.Create("test.error", "Test error message");
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
 
         // Act
         var result = await _adapter.ExecuteAsync(request);
@@ -70,8 +70,8 @@ public class HangfireRequestJobAdapterTests
     {
         // Arrange
         var request = new TestRequest("test-data");
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, TestResponse>(new TestResponse("success")));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(new TestResponse("success")));
 
         // Act
         await _adapter.ExecuteAsync(request);
@@ -90,8 +90,8 @@ public class HangfireRequestJobAdapterTests
     {
         // Arrange
         var request = new TestRequest("test-data");
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, TestResponse>(new TestResponse("success")));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(new TestResponse("success")));
 
         // Act
         await _adapter.ExecuteAsync(request);
@@ -110,9 +110,9 @@ public class HangfireRequestJobAdapterTests
     {
         // Arrange
         var request = new TestRequest("test-data");
-        var error = MediatorErrors.Create("test.error", "Test error");
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Left<MediatorError, TestResponse>(error));
+        var error = EncinaErrors.Create("test.error", "Test error");
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
 
         // Act
         await _adapter.ExecuteAsync(request);
@@ -132,8 +132,8 @@ public class HangfireRequestJobAdapterTests
         // Arrange
         var request = new TestRequest("test-data");
         var exception = new InvalidOperationException("Test exception");
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns<Either<MediatorError, TestResponse>>(_ => throw exception);
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Either<EncinaError, TestResponse>>(_ => throw exception);
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -153,14 +153,14 @@ public class HangfireRequestJobAdapterTests
         // Arrange
         var request = new TestRequest("test-data");
         var cts = new CancellationTokenSource();
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, TestResponse>(new TestResponse("success")));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(new TestResponse("success")));
 
         // Act
         await _adapter.ExecuteAsync(request, cts.Token);
 
         // Assert
-        await _mediator.Received(1).Send(
+        await _Encina.Received(1).Send(
             Arg.Any<TestRequest>(),
             Arg.Is<CancellationToken>(ct => ct == cts.Token));
     }

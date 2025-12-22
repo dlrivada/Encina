@@ -16,7 +16,7 @@ namespace Encina;
 /// public sealed class LoggingBehavior&lt;TRequest, TResponse&gt; : IPipelineBehavior&lt;TRequest, TResponse&gt;
 ///     where TRequest : IRequest&lt;TResponse&gt;
 /// {
-///     public async ValueTask&lt;Either&lt;MediatorError, TResponse&gt;&gt; Handle(
+///     public async ValueTask&lt;Either&lt;EncinaError, TResponse&gt;&gt; Handle(
 ///         TRequest request,
 ///         IRequestContext context,
 ///         RequestHandlerCallback&lt;TResponse&gt; nextStep,
@@ -45,7 +45,7 @@ public interface IPipelineBehavior<TRequest, TResponse>
     /// <param name="nextStep">Callback to the next behavior or handler.</param>
     /// <param name="cancellationToken">Token to cancel the flow.</param>
     /// <returns>Final result or the modified response from the behavior.</returns>
-    ValueTask<Either<MediatorError, TResponse>> Handle(
+    ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,

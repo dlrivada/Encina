@@ -164,7 +164,7 @@ public sealed class InboxPipelineBehaviorGuardTests
         var logger = Substitute.For<ILogger<InboxPipelineBehavior<TestRequest, string>>>();
         var behavior = new InboxPipelineBehavior<TestRequest, string>(connection, options, logger);
         var context = Substitute.For<IRequestContext>();
-        RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<MediatorError, string>>("result");
+        RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<EncinaError, string>>("result");
 
         // Act
         var act = async () => await behavior.Handle(null!, context, next, CancellationToken.None);
@@ -186,7 +186,7 @@ public sealed class InboxPipelineBehaviorGuardTests
         var logger = Substitute.For<ILogger<InboxPipelineBehavior<TestRequest, string>>>();
         var behavior = new InboxPipelineBehavior<TestRequest, string>(connection, options, logger);
         var request = new TestRequest("test");
-        RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<MediatorError, string>>("result");
+        RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<EncinaError, string>>("result");
 
         // Act
         var act = async () => await behavior.Handle(request, null!, next, CancellationToken.None);

@@ -92,10 +92,10 @@ public class JobSchedulingBenchmarks
 
     private sealed class ScheduleJobCommandHandler : ICommandHandler<ScheduleJobCommand, Guid>
     {
-        public Task<Either<MediatorError, Guid>> Handle(ScheduleJobCommand request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Guid>> Handle(ScheduleJobCommand request, CancellationToken cancellationToken)
         {
             // Simulate minimal work
-            return Task.FromResult(Right<MediatorError, Guid>(request.JobId));
+            return Task.FromResult(Right<EncinaError, Guid>(request.JobId));
         }
     }
 }

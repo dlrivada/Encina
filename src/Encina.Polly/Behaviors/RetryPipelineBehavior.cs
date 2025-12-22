@@ -26,7 +26,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
     }
 
     /// <inheritdoc/>
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,
@@ -53,18 +53,18 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
         catch (Exception ex)
         {
             LogRetryExhausted(_logger, typeof(TRequest).Name, retryAttribute.MaxAttempts, ex);
-            return MediatorError.New(ex);
+            return EncinaError.New(ex);
         }
     }
 
-    private ResiliencePipeline<Either<MediatorError, TResponse>> BuildRetryPipeline(
+    private ResiliencePipeline<Either<EncinaError, TResponse>> BuildRetryPipeline(
         RetryAttribute config,
         TRequest request)
     {
         var requestType = typeof(TRequest).Name;
 
-        return new ResiliencePipelineBuilder<Either<MediatorError, TResponse>>()
-            .AddRetry(new RetryStrategyOptions<Either<MediatorError, TResponse>>
+        return new ResiliencePipelineBuilder<Either<EncinaError, TResponse>>()
+            .AddRetry(new RetryStrategyOptions<Either<EncinaError, TResponse>>
             {
                 MaxRetryAttempts = config.MaxAttempts - 1, // -1 because Polly counts retries, not total attempts
                 Delay = TimeSpan.FromMilliseconds(config.BaseDelayMs),
@@ -76,7 +76,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
                     BackoffType.Exponential => DelayBackoffType.Exponential,
                     _ => DelayBackoffType.Exponential
                 },
-                ShouldHandle = new PredicateBuilder<Either<MediatorError, TResponse>>()
+                ShouldHandle = new PredicateBuilder<Either<EncinaError, TResponse>>()
                     .HandleResult(result => ShouldRetry(result, config))
                     .Handle<Exception>(ex => ShouldRetryException(ex, config)),
                 OnRetry = args =>
@@ -102,7 +102,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
             .Build();
     }
 
-    private static bool ShouldRetry(Either<MediatorError, TResponse> result, RetryAttribute config)
+    private static bool ShouldRetry(Either<EncinaError, TResponse> result, RetryAttribute config)
     {
         // Only retry on Left (error) results
         return result.IsLeft;

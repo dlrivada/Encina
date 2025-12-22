@@ -33,31 +33,31 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse>(IFuncti
     private readonly IFunctionalFailureDetector _failureDetector = failureDetector ?? NullFunctionalFailureDetector.Instance;
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(TCommand request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(TCommand request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
     {
-        if (!MediatorBehaviorGuards.TryValidateRequest(GetType(), request, out var failure))
+        if (!EncinaBehaviorGuards.TryValidateRequest(GetType(), request, out EncinaError failure))
         {
-            return Left<MediatorError, TResponse>(failure);
+            return Left<EncinaError, TResponse>(failure);
         }
 
-        if (!MediatorBehaviorGuards.TryValidateNextStep(GetType(), nextStep, out failure))
+        if (!EncinaBehaviorGuards.TryValidateNextStep(GetType(), nextStep, out failure))
         {
-            return Left<MediatorError, TResponse>(failure);
+            return Left<EncinaError, TResponse>(failure);
         }
 
-        using var activity = MediatorDiagnostics.ActivitySource.HasListeners()
-            ? MediatorDiagnostics.ActivitySource.StartActivity(string.Concat("Mediator.Command.", typeof(TCommand).Name), ActivityKind.Internal)
+        using Activity? activity = EncinaDiagnostics.ActivitySource.HasListeners()
+            ? EncinaDiagnostics.ActivitySource.StartActivity(string.Concat("Encina.Command.", typeof(TCommand).Name), ActivityKind.Internal)
             : null;
 
         if (activity is not null)
         {
-            activity.SetTag("mediator.request_kind", "command");
-            activity.SetTag("mediator.request_type", typeof(TCommand).FullName);
-            activity.SetTag("mediator.request_name", typeof(TCommand).Name);
-            activity.SetTag("mediator.response_type", typeof(TResponse).FullName);
+            activity.SetTag("Encina.request_kind", "command");
+            activity.SetTag("Encina.request_type", typeof(TCommand).FullName);
+            activity.SetTag("Encina.request_name", typeof(TCommand).Name);
+            activity.SetTag("Encina.response_type", typeof(TResponse).FullName);
         }
 
-        Either<MediatorError, TResponse> outcome;
+        Either<EncinaError, TResponse> outcome;
 
         try
         {
@@ -66,39 +66,39 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse>(IFuncti
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
             activity?.SetStatus(ActivityStatusCode.Error, "cancelled");
-            activity?.SetTag("mediator.cancelled", true);
-            return Left<MediatorError, TResponse>(MediatorErrors.Create(MediatorErrorCodes.BehaviorCancelled, $"Behavior {GetType().Name} cancelled the {typeof(TCommand).Name} request.", ex));
+            activity?.SetTag("Encina.cancelled", true);
+            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, $"Behavior {GetType().Name} cancelled the {typeof(TCommand).Name} request.", ex));
         }
         catch (Exception ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             activity?.SetTag("exception.type", ex.GetType().FullName);
             activity?.SetTag("exception.message", ex.Message);
-            var error = MediatorErrors.FromException(MediatorErrorCodes.BehaviorException, ex, $"Error running {GetType().Name} for {typeof(TCommand).Name}.");
-            return Left<MediatorError, TResponse>(error);
+            EncinaError error = EncinaErrors.FromException(EncinaErrorCodes.BehaviorException, ex, $"Error running {GetType().Name} for {typeof(TCommand).Name}.");
+            return Left<EncinaError, TResponse>(error);
         }
         _ = outcome.Match(
             Right: response =>
             {
-                if (_failureDetector.TryExtractFailure(response, out var failureReason, out var capturedFailure))
+                if (_failureDetector.TryExtractFailure(response, out string? failureReason, out object? capturedFailure))
                 {
                     activity?.SetStatus(ActivityStatusCode.Error, failureReason);
-                    activity?.SetTag("mediator.functional_failure", true);
+                    activity?.SetTag("Encina.functional_failure", true);
                     if (!string.IsNullOrWhiteSpace(failureReason))
                     {
-                        activity?.SetTag("mediator.failure_reason", failureReason);
+                        activity?.SetTag("Encina.failure_reason", failureReason);
                     }
 
-                    var errorCode = _failureDetector.TryGetErrorCode(capturedFailure);
+                    string? errorCode = _failureDetector.TryGetErrorCode(capturedFailure);
                     if (!string.IsNullOrWhiteSpace(errorCode))
                     {
-                        activity?.SetTag("mediator.failure_code", errorCode);
+                        activity?.SetTag("Encina.failure_code", errorCode);
                     }
 
-                    var errorMessage = _failureDetector.TryGetErrorMessage(capturedFailure);
+                    string? errorMessage = _failureDetector.TryGetErrorMessage(capturedFailure);
                     if (!string.IsNullOrWhiteSpace(errorMessage))
                     {
-                        activity?.SetTag("mediator.failure_message", errorMessage);
+                        activity?.SetTag("Encina.failure_message", errorMessage);
                     }
                 }
                 else
@@ -110,10 +110,10 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse>(IFuncti
             },
             Left: error =>
             {
-                var effectiveError = error;
+                EncinaError effectiveError = error;
                 activity?.SetStatus(ActivityStatusCode.Error, effectiveError.Message);
-                activity?.SetTag("mediator.pipeline_failure", true);
-                activity?.SetTag("mediator.failure_reason", effectiveError.GetMediatorCode());
+                activity?.SetTag("Encina.pipeline_failure", true);
+                activity?.SetTag("Encina.failure_reason", effectiveError.GetEncinaCode());
                 return Unit.Default;
             });
 

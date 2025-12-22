@@ -70,7 +70,7 @@ public record OrderCreatedEvent(Guid OrderId) : INotification;
 // Command handler
 public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 {
-    public async ValueTask<Either<MediatorError, Order>> Handle(...)
+    public async ValueTask<Either<EncinaError, Order>> Handle(...)
     {
         var order = new Order { Id = Guid.NewGuid(), ... };
         _dbContext.Orders.Add(order);
@@ -100,8 +100,8 @@ public record ProcessPaymentCommand(decimal Amount, string PaymentId)
     : ICommand<Receipt>, IIdempotentRequest;
 
 // If same PaymentId arrives twice, cached receipt is returned
-var result1 = await mediator.Send(command); // Processes
-var result2 = await mediator.Send(command); // Returns cached result
+var result1 = await Encina.Send(command); // Processes
+var result2 = await Encina.Send(command); // Returns cached result
 ```
 
 ### 3. **Saga Pattern** (Distributed Transactions)
@@ -119,7 +119,7 @@ public class OrderProcessingSaga : Saga<OrderData>
         AddStep(
             execute: async (data, ctx, ct) =>
             {
-                var result = await _mediator.Send(new ReserveInventoryCommand(...), ct);
+                var result = await _Encina.Send(new ReserveInventoryCommand(...), ct);
                 return result.Match(
                     Right: reservation => { data.ReservationId = reservation.Id; return data; },
                     Left: error => error
@@ -129,7 +129,7 @@ public class OrderProcessingSaga : Saga<OrderData>
             {
                 // Rollback: Cancel reservation
                 if (data.ReservationId.HasValue)
-                    await _mediator.Send(new CancelReservationCommand(data.ReservationId.Value), ct);
+                    await _Encina.Send(new CancelReservationCommand(data.ReservationId.Value), ct);
             }
         );
 
@@ -155,7 +155,7 @@ public class OrderHandler : ICommandHandler<CreateOrderCommand, Order>
 {
     private readonly IMessageScheduler _scheduler;
 
-    public async ValueTask<Either<MediatorError, Order>> Handle(...)
+    public async ValueTask<Either<EncinaError, Order>> Handle(...)
     {
         var order = new Order { ... };
 
@@ -205,7 +205,7 @@ public record UpdateInventoryCommand(...) : ICommand;
 | Feature | Encina.Scheduling | Hangfire | Quartz.NET |
 |---------|--------------------------|----------|------------|
 | **Focus** | Domain messages (commands/events) | General-purpose jobs | General-purpose jobs |
-| **Integration** | Native mediator pattern | External library | External library |
+| **Integration** | Native Encina pattern | External library | External library |
 | **Persistence** | Your database (EF/Dapper/ADO) | Own schema | Own schema |
 | **UI** | No (use your own tools) | Dashboard included | No (3rd party) |
 | **Cron Jobs** | Yes | Yes | Yes |

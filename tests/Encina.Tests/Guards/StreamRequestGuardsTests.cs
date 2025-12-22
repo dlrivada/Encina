@@ -6,7 +6,7 @@ using static LanguageExt.Prelude;
 namespace Encina.Tests.Guards;
 
 /// <summary>
-/// Guard clause tests for Stream Request validation in <see cref="MediatorRequestGuards"/>.
+/// Guard clause tests for Stream Request validation in <see cref="EncinaRequestGuards"/>.
 /// Tests ensure proper null validation and error handling for streaming requests.
 /// </summary>
 public sealed class StreamRequestGuardsTests
@@ -20,7 +20,7 @@ public sealed class StreamRequestGuardsTests
         var request = new TestStreamRequest();
 
         // Act
-        var result = MediatorRequestGuards.TryValidateStreamRequest<int>(request, out var error);
+        var result = EncinaRequestGuards.TryValidateStreamRequest<int>(request, out var error);
 
         // Assert
         result.Should().BeTrue();
@@ -35,19 +35,19 @@ public sealed class StreamRequestGuardsTests
         IStreamRequest<int>? request = null;
 
         // Act
-        var result = MediatorRequestGuards.TryValidateStreamRequest<int>(request, out var error);
+        var result = EncinaRequestGuards.TryValidateStreamRequest<int>(request, out var error);
 
         // Assert
         result.Should().BeFalse();
         error.IsLeft.Should().BeTrue();
 
-        var mediatorError = error.Match(
+        var EncinaError = error.Match(
             Left: e => e,
             Right: _ => throw new InvalidOperationException("Expected Left but got Right"));
 
-        mediatorError.GetMediatorCode().Should().Be(MediatorErrorCodes.RequestNull);
-        mediatorError.Message.Should().Contain("stream request");
-        mediatorError.Message.Should().Contain("cannot be null");
+        EncinaError.GetEncinaCode().Should().Be(EncinaErrorCodes.RequestNull);
+        EncinaError.Message.Should().Contain("stream request");
+        EncinaError.Message.Should().Contain("cannot be null");
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class StreamRequestGuardsTests
         var request = new TestStreamRequest();
 
         // Act
-        var result = MediatorRequestGuards.TryValidateStreamRequest<string>(request, out var error);
+        var result = EncinaRequestGuards.TryValidateStreamRequest<string>(request, out var error);
 
         // Assert - request is valid even though TItem type doesn't match
         // (type checking is done elsewhere in the pipeline)
@@ -74,8 +74,8 @@ public sealed class StreamRequestGuardsTests
         IStreamRequest<string>? request2 = null;
 
         // Act
-        var result1 = MediatorRequestGuards.TryValidateStreamRequest<int>(request1, out var error1);
-        var result2 = MediatorRequestGuards.TryValidateStreamRequest<string>(request2, out var error2);
+        var result1 = EncinaRequestGuards.TryValidateStreamRequest<int>(request1, out var error1);
+        var result2 = EncinaRequestGuards.TryValidateStreamRequest<string>(request2, out var error2);
 
         // Assert
         result1.Should().BeTrue();
@@ -91,17 +91,17 @@ public sealed class StreamRequestGuardsTests
         IStreamRequest<int>? request = null;
 
         // Act
-        var result = MediatorRequestGuards.TryValidateStreamRequest<int>(request, out var error);
+        var result = EncinaRequestGuards.TryValidateStreamRequest<int>(request, out var error);
 
         // Assert
         result.Should().BeFalse();
 
-        var mediatorError = error.Match(
+        var EncinaError = error.Match(
             Left: e => e,
             Right: _ => throw new InvalidOperationException("Expected Left"));
 
-        mediatorError.Message.Should().Be("The stream request cannot be null.");
-        mediatorError.GetMediatorCode().Should().Be(MediatorErrorCodes.RequestNull);
+        EncinaError.Message.Should().Be("The stream request cannot be null.");
+        EncinaError.GetEncinaCode().Should().Be(EncinaErrorCodes.RequestNull);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class StreamRequestGuardsTests
         var complexRequest = new ComplexStreamRequest(ComplexRequestValues, DateTime.UtcNow);
 
         // Act
-        var result = MediatorRequestGuards.TryValidateStreamRequest<int>(complexRequest, out var error);
+        var result = EncinaRequestGuards.TryValidateStreamRequest<int>(complexRequest, out var error);
 
         // Assert
         result.Should().BeTrue();

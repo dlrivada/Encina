@@ -9,12 +9,12 @@ using Microsoft.Extensions.Options;
 namespace Encina.SignalR;
 
 /// <summary>
-/// Base SignalR hub that provides mediator integration for real-time communication.
+/// Base SignalR hub that provides Encina integration for real-time communication.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Inherit from this class to create hubs that can send commands and queries
-/// through the mediator from SignalR clients.
+/// through the Encina from SignalR clients.
 /// </para>
 /// <para>
 /// Clients can invoke:
@@ -28,10 +28,10 @@ namespace Encina.SignalR;
 /// <example>
 /// <code>
 /// // Server-side: Create your application hub
-/// public class AppHub : MediatorHub
+/// public class AppHub : EncinaHub
 /// {
-///     public AppHub(IMediator mediator, IOptions&lt;SignalROptions&gt; options, ILogger&lt;AppHub&gt; logger)
-///         : base(mediator, options, logger)
+///     public AppHub(IEncina Encina, IOptions&lt;SignalROptions&gt; options, ILogger&lt;AppHub&gt; logger)
+///         : base(Encina, options, logger)
 ///     {
 ///     }
 ///
@@ -47,35 +47,35 @@ namespace Encina.SignalR;
 /// // const data = await connection.invoke("SendQuery", "GetOrderQuery", { orderId: "123" });
 /// </code>
 /// </example>
-public abstract class MediatorHub : Hub
+public abstract class EncinaHub : Hub
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly SignalROptions _options;
     private readonly ILogger _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="MediatorHub"/> class.
+    /// Initializes a new instance of the <see cref="EncinaHub"/> class.
     /// </summary>
-    /// <param name="mediator">The mediator instance.</param>
+    /// <param name="Encina">The Encina instance.</param>
     /// <param name="options">The SignalR options.</param>
     /// <param name="logger">The logger instance.</param>
-    protected MediatorHub(
-        IMediator mediator,
+    protected EncinaHub(
+        IEncina Encina,
         IOptions<SignalROptions> options,
         ILogger logger)
     {
-        _mediator = mediator;
+        _Encina = Encina;
         _options = options.Value;
         _logger = logger;
     }
 
     /// <summary>
-    /// Gets the mediator instance for use in derived hubs.
+    /// Gets the Encina instance for use in derived hubs.
     /// </summary>
-    protected IMediator Mediator => _mediator;
+    protected IEncina Encina => _Encina;
 
     /// <summary>
-    /// Sends a command through the mediator and returns the result.
+    /// Sends a command through the Encina and returns the result.
     /// </summary>
     /// <param name="commandTypeName">The fully qualified name or simple name of the command type.</param>
     /// <param name="commandJson">The command data as a JSON object.</param>
@@ -100,7 +100,7 @@ public abstract class MediatorHub : Hub
                 return CreateErrorResponse("command.deserialization_failed", "Failed to deserialize command.");
             }
 
-            var result = await _mediator.Send((dynamic)command, Context.ConnectionAborted);
+            var result = await _Encina.Send((dynamic)command, Context.ConnectionAborted);
 
             return ConvertResult(result);
         }
@@ -112,7 +112,7 @@ public abstract class MediatorHub : Hub
     }
 
     /// <summary>
-    /// Sends a query through the mediator and returns the result.
+    /// Sends a query through the Encina and returns the result.
     /// </summary>
     /// <param name="queryTypeName">The fully qualified name or simple name of the query type.</param>
     /// <param name="queryJson">The query data as a JSON object.</param>
@@ -133,7 +133,7 @@ public abstract class MediatorHub : Hub
                 return CreateErrorResponse("query.deserialization_failed", "Failed to deserialize query.");
             }
 
-            var result = await _mediator.Send((dynamic)query, Context.ConnectionAborted);
+            var result = await _Encina.Send((dynamic)query, Context.ConnectionAborted);
 
             return ConvertResult(result);
         }
@@ -145,7 +145,7 @@ public abstract class MediatorHub : Hub
     }
 
     /// <summary>
-    /// Publishes a notification through the mediator.
+    /// Publishes a notification through the Encina.
     /// </summary>
     /// <param name="notificationTypeName">The fully qualified name or simple name of the notification type.</param>
     /// <param name="notificationJson">The notification data as a JSON object.</param>
@@ -168,7 +168,7 @@ public abstract class MediatorHub : Hub
                 return;
             }
 
-            await _mediator.Publish((dynamic)notification, Context.ConnectionAborted);
+            await _Encina.Publish((dynamic)notification, Context.ConnectionAborted);
         }
         catch (Exception ex)
         {
@@ -223,7 +223,7 @@ public abstract class MediatorHub : Hub
     /// <summary>
     /// Converts an Either result to a response object.
     /// </summary>
-    private object ConvertResult<T>(Either<MediatorError, T> result)
+    private object ConvertResult<T>(Either<EncinaError, T> result)
     {
         return result.Match<object>(
             Right: value => new { success = true, data = value },

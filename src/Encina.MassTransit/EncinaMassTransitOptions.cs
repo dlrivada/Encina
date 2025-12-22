@@ -18,11 +18,11 @@ public sealed class EncinaMassTransitOptions
     public bool AutoRegisterNotificationConsumers { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets a value indicating whether to throw exceptions on mediator errors.
+    /// Gets or sets a value indicating whether to throw exceptions on Encina errors.
     /// When false, errors are logged but not thrown, allowing message to be acknowledged.
     /// Default is true.
     /// </summary>
-    public bool ThrowOnMediatorError { get; set; } = true;
+    public bool ThrowOnEncinaError { get; set; } = true;
 
     /// <summary>
     /// Gets or sets the prefix for queue names generated from message types.

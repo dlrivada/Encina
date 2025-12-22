@@ -4,9 +4,9 @@ _layout: landing
 
 # Encina
 
-**Railway Oriented Mediator for .NET 10**
+**Railway Oriented Encina for .NET 10**
 
-Encina is a lightweight, functional mediator abstraction for .NET applications that embraces Railway Oriented Programming (ROP) principles. Built on top of [LanguageExt](https://github.com/louthy/language-ext), it provides explicit request/response contracts, composable pipeline behaviors, and rich observability features for building maintainable CQRS-style applications.
+Encina is a lightweight, functional Encina abstraction for .NET applications that embraces Railway Oriented Programming (ROP) principles. Built on top of [LanguageExt](https://github.com/louthy/language-ext), it provides explicit request/response contracts, composable pipeline behaviors, and rich observability features for building maintainable CQRS-style applications.
 
 [![.NET Quality Gate](https://github.com/dlrivada/Encina/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/dotnet-ci.yml)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
@@ -14,13 +14,13 @@ Encina is a lightweight, functional mediator abstraction for .NET applications t
 
 ## Key Features
 
-- **Functional Error Handling**: All operations return `Either<MediatorError, TValue>` for explicit, type-safe error handling
+- **Functional Error Handling**: All operations return `Either<EncinaError, TValue>` for explicit, type-safe error handling
 - **Zero Exceptions Policy**: Operational failures travel through functional rails instead of exceptions
 - **Pipeline Composition**: Ordered behaviors, pre-processors, and post-processors for cross-cutting concerns
 - **Rich Observability**: Built-in OpenTelemetry support with activities, metrics, and structured logging
 - **CQRS Contracts**: Explicit `ICommand<T>`, `IQuery<T>`, and `INotification` interfaces
 - **Assembly Scanning**: Automatic discovery and registration of handlers, behaviors, and processors
-- **Functional Failure Detection**: Translate domain envelopes into consistent mediator errors
+- **Functional Failure Detection**: Translate domain envelopes into consistent Encina errors
 
 ## Getting Started
 
@@ -48,10 +48,10 @@ services.AddEncina(cfg =>
 ```csharp
 public sealed record RegisterUser(string Email, string Password) : ICommand<Unit>;
 
-var result = await mediator.Send(new RegisterUser("user@example.com", "Pass@123"), ct);
+var result = await Encina.Send(new RegisterUser("user@example.com", "Pass@123"), ct);
 
 result.Match(
-    Left: error => logger.LogWarning("Registration failed: {Code}", error.GetMediatorCode()),
+    Left: error => logger.LogWarning("Registration failed: {Code}", error.GetEncinaCode()),
     Right: _ => logger.LogInformation("User registered successfully"));
 ```
 

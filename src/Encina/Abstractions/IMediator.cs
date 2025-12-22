@@ -14,20 +14,20 @@ namespace Encina;
 /// <code>
 /// var services = new ServiceCollection();
 /// services.AddEncina(typeof(CreateReservation).Assembly);
-/// var mediator = services.BuildServiceProvider().GetRequiredService&lt;IMediator&gt;();
+/// var Encina = services.BuildServiceProvider().GetRequiredService&lt;IEncina&gt;();
 ///
-/// var result = await mediator.Send(new CreateReservation(/* ... */), cancellationToken);
+/// var result = await Encina.Send(new CreateReservation(/* ... */), cancellationToken);
 ///
 /// await result.Match(
 ///     Left: error =>
 ///     {
-///         Console.WriteLine($"Reservation failed: {error.GetMediatorCode()} - {error.Message}");
+///         Console.WriteLine($"Reservation failed: {error.GetEncinaCode()} - {error.Message}");
 ///         return Task.CompletedTask;
 ///     },
-///     Right: reservation => mediator.Publish(new ReservationCreatedNotification(reservation), cancellationToken));
+///     Right: reservation => Encina.Publish(new ReservationCreatedNotification(reservation), cancellationToken));
 /// </code>
 /// </example>
-public interface IMediator
+public interface IEncina
 {
     /// <summary>
     /// Sends a request that expects a <typeparamref name="TResponse"/> response.
@@ -36,7 +36,7 @@ public interface IMediator
     /// <param name="request">Request to process.</param>
     /// <param name="cancellationToken">Optional token to cancel the operation.</param>
     /// <returns>Response produced by the handler after flowing through the pipeline.</returns>
-    ValueTask<Either<MediatorError, TResponse>> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default);
+    ValueTask<Either<EncinaError, TResponse>> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Publishes a notification that may be handled by zero or more handlers.
@@ -44,7 +44,7 @@ public interface IMediator
     /// <typeparam name="TNotification">Notification type being distributed.</typeparam>
     /// <param name="notification">Instance to propagate.</param>
     /// <param name="cancellationToken">Optional token to cancel the dispatch.</param>
-    ValueTask<Either<MediatorError, Unit>> Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+    ValueTask<Either<EncinaError, Unit>> Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
         where TNotification : INotification;
 
     /// <summary>
@@ -54,7 +54,7 @@ public interface IMediator
     /// <param name="request">Stream request to process.</param>
     /// <param name="cancellationToken">Optional token to cancel the stream iteration.</param>
     /// <returns>
-    /// Async enumerable of <c>Either&lt;MediatorError, TItem&gt;</c>, where each element
+    /// Async enumerable of <c>Either&lt;EncinaError, TItem&gt;</c>, where each element
     /// represents either an error (Left) or a successful item (Right).
     /// </returns>
     /// <remarks>
@@ -72,7 +72,7 @@ public interface IMediator
     /// </remarks>
     /// <example>
     /// <code>
-    /// await foreach (var result in mediator.Stream(new StreamProductsQuery(), cancellationToken))
+    /// await foreach (var result in Encina.Stream(new StreamProductsQuery(), cancellationToken))
     /// {
     ///     result.Match(
     ///         Left: error => _logger.LogError("Failed to fetch product: {Error}", error.Message),
@@ -80,5 +80,5 @@ public interface IMediator
     /// }
     /// </code>
     /// </example>
-    IAsyncEnumerable<Either<MediatorError, TItem>> Stream<TItem>(IStreamRequest<TItem> request, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<Either<EncinaError, TItem>> Stream<TItem>(IStreamRequest<TItem> request, CancellationToken cancellationToken = default);
 }

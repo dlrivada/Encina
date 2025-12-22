@@ -105,7 +105,7 @@ public class CacheInvalidationPipelineBehaviorGuardTests
         var act = async () => await behavior.Handle(
             request,
             context,
-            () => ValueTask.FromResult(LanguageExt.Prelude.Right<MediatorError, string>("result")),
+            () => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("result")),
             CancellationToken.None);
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("request");
     }
@@ -130,7 +130,7 @@ public class CacheInvalidationPipelineBehaviorGuardTests
         var act = async () => await behavior.Handle(
             request,
             context,
-            () => ValueTask.FromResult(LanguageExt.Prelude.Right<MediatorError, string>("result")),
+            () => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("result")),
             CancellationToken.None);
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
     }

@@ -59,7 +59,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
     }
 
     /// <inheritdoc/>
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,

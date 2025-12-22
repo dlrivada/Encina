@@ -20,7 +20,7 @@
 | **Cuándo se ejecuta** | **ANTES** del handler (pipeline behavior) | **DENTRO** del handler |
 | **Qué valida** | Input del request (validación externa) | Preconditions/invariants (defensive programming) |
 | **Propósito** | Validación de input del usuario | Defensive programming contra bugs |
-| **Retorna** | `Left<MediatorError>` automáticamente | Throw exception o custom error |
+| **Retorna** | `Left<EncinaError>` automáticamente | Throw exception o custom error |
 | **Patrón** | Pipeline interception | Guard pattern |
 
 **Conclusión clave**: Guard Clauses NO es un pipeline behavior. Requiere un diseño completamente diferente.
@@ -49,7 +49,7 @@ public class CreateUserValidator : AbstractValidator<CreateUser>
 // Handler recibe request VÁLIDO
 public class CreateUserHandler : ICommandHandler<CreateUser, User>
 {
-    public async Task<Either<MediatorError, User>> Handle(CreateUser request, CancellationToken ct)
+    public async Task<Either<EncinaError, User>> Handle(CreateUser request, CancellationToken ct)
     {
         // request.Email ya está validado como email válido
         var user = new User(request.Email, request.Password);
@@ -66,7 +66,7 @@ public class CreateUserHandler : ICommandHandler<CreateUser, User>
 {
     private readonly IUserRepository _users;
 
-    public async Task<Either<MediatorError, User>> Handle(CreateUser request, CancellationToken ct)
+    public async Task<Either<EncinaError, User>> Handle(CreateUser request, CancellationToken ct)
     {
         // Guard contra bugs de programación
         Guard.Against.Null(request, nameof(request));
@@ -112,7 +112,7 @@ public class User
 // ❌ NO tiene sentido - los guards son para DENTRO del handler
 public class GuardClausesBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(...)
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(...)
     {
         // ¿Qué validar aquí? Los guards son específicos de cada handler
         // No hay forma genérica de saber qué preconditions validar
@@ -141,7 +141,7 @@ public static class GuardExtensions
     /// <summary>
     /// Wraps Guard.Against.Null to return Either instead of throwing
     /// </summary>
-    public static Either<MediatorError, T> GuardNotNull<T>(
+    public static Either<EncinaError, T> GuardNotNull<T>(
         this T value,
         string parameterName,
         string? message = null) where T : class
@@ -149,18 +149,18 @@ public static class GuardExtensions
         try
         {
             Guard.Against.Null(value, parameterName, message);
-            return Right<MediatorError, T>(value);
+            return Right<EncinaError, T>(value);
         }
         catch (ArgumentNullException ex)
         {
-            return Left<MediatorError, T>(MediatorError.New(ex, message ?? ex.Message));
+            return Left<EncinaError, T>(EncinaError.New(ex, message ?? ex.Message));
         }
     }
 
     /// <summary>
     /// Wraps Guard.Against.NullOrEmpty to return Either
     /// </summary>
-    public static Either<MediatorError, string> GuardNotNullOrEmpty(
+    public static Either<EncinaError, string> GuardNotNullOrEmpty(
         this string value,
         string parameterName,
         string? message = null)
@@ -168,18 +168,18 @@ public static class GuardExtensions
         try
         {
             Guard.Against.NullOrEmpty(value, parameterName, message);
-            return Right<MediatorError, string>(value);
+            return Right<EncinaError, string>(value);
         }
         catch (ArgumentException ex)
         {
-            return Left<MediatorError, string>(MediatorError.New(ex, message ?? ex.Message));
+            return Left<EncinaError, string>(EncinaError.New(ex, message ?? ex.Message));
         }
     }
 
     /// <summary>
     /// Wraps Guard.Against.NegativeOrZero to return Either
     /// </summary>
-    public static Either<MediatorError, T> GuardPositive<T>(
+    public static Either<EncinaError, T> GuardPositive<T>(
         this T value,
         string parameterName,
         string? message = null) where T : struct, IComparable
@@ -187,11 +187,11 @@ public static class GuardExtensions
         try
         {
             Guard.Against.NegativeOrZero(value, parameterName, message);
-            return Right<MediatorError, T>(value);
+            return Right<EncinaError, T>(value);
         }
         catch (ArgumentException ex)
         {
-            return Left<MediatorError, T>(MediatorError.New(ex, message ?? ex.Message));
+            return Left<EncinaError, T>(EncinaError.New(ex, message ?? ex.Message));
         }
     }
 
@@ -206,7 +206,7 @@ public class CreateOrderHandler : ICommandHandler<CreateOrder, OrderId>
 {
     private readonly IOrderRepository _orders;
 
-    public async Task<Either<MediatorError, OrderId>> Handle(
+    public async Task<Either<EncinaError, OrderId>> Handle(
         CreateOrder request,
         CancellationToken ct)
     {
@@ -225,7 +225,7 @@ public class CreateOrderHandler : ICommandHandler<CreateOrder, OrderId>
             {
                 var order = new Order(customer.Id, request.Items);
                 await _orders.Save(order, ct);
-                return Right<MediatorError, OrderId>(order.Id);
+                return Right<EncinaError, OrderId>(order.Id);
             });
     }
 }
@@ -257,7 +257,7 @@ public static class GuardHelpers
     /// <summary>
     /// Validates and returns Left if guard fails, otherwise continues
     /// </summary>
-    public static Either<MediatorError, Unit> EnsureNotNull<T>(
+    public static Either<EncinaError, Unit> EnsureNotNull<T>(
         T value,
         string parameterName,
         string? message = null) where T : class
@@ -265,11 +265,11 @@ public static class GuardHelpers
         try
         {
             Guard.Against.Null(value, parameterName, message);
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (ArgumentNullException ex)
         {
-            return Left<MediatorError, Unit>(MediatorError.New(ex, message ?? ex.Message));
+            return Left<EncinaError, Unit>(EncinaError.New(ex, message ?? ex.Message));
         }
     }
 
@@ -280,7 +280,7 @@ public static class GuardHelpers
 **Uso imperativo**:
 
 ```csharp
-public async Task<Either<MediatorError, OrderId>> Handle(
+public async Task<Either<EncinaError, OrderId>> Handle(
     CreateOrder request,
     CancellationToken ct)
 {
@@ -294,7 +294,7 @@ public async Task<Either<MediatorError, OrderId>> Handle(
     // Continuar con lógica del handler
     var order = new Order(request.CustomerId, request.Items);
     await _orders.Save(order, ct);
-    return Right<MediatorError, OrderId>(order.Id);
+    return Right<EncinaError, OrderId>(order.Id);
 }
 ```
 
@@ -312,8 +312,8 @@ namespace Encina.GuardClauses;
 /// </summary>
 public static class GuardExtensions
 {
-    public static Either<MediatorError, T> GuardNotNull<T>(this T value, string name, string? msg = null) { ... }
-    public static Either<MediatorError, string> GuardNotEmpty(this string value, string name, string? msg = null) { ... }
+    public static Either<EncinaError, T> GuardNotNull<T>(this T value, string name, string? msg = null) { ... }
+    public static Either<EncinaError, string> GuardNotEmpty(this string value, string name, string? msg = null) { ... }
     // ... más guards funcionales
 }
 
@@ -322,8 +322,8 @@ public static class GuardExtensions
 /// </summary>
 public static class GuardHelpers
 {
-    public static Either<MediatorError, Unit> EnsureNotNull<T>(T value, string name, string? msg = null) { ... }
-    public static Either<MediatorError, Unit> EnsureNotEmpty(string value, string name, string? msg = null) { ... }
+    public static Either<EncinaError, Unit> EnsureNotNull<T>(T value, string name, string? msg = null) { ... }
+    public static Either<EncinaError, Unit> EnsureNotEmpty(string value, string name, string? msg = null) { ... }
     // ... más helpers imperativos
 }
 ```
@@ -363,7 +363,7 @@ return await CreateUser(request.Email);
 **Lo que se AGREGA**:
 
 - ✅ Nuevo package: `Encina.GuardClauses`
-- ✅ Extension methods para `Either<MediatorError, T>`
+- ✅ Extension methods para `Either<EncinaError, T>`
 - ✅ Helpers opcionales para estilo imperativo
 - ✅ Documentación y ejemplos
 
@@ -380,7 +380,7 @@ return await CreateUser(request.Email);
 ### ✅ Ventajas de Implementar GuardClauses
 
 1. **Defensive Programming con ROP**
-   - Integra guards con Either<MediatorError, T>
+   - Integra guards con Either<EncinaError, T>
    - Mantiene la filosofía funcional de Encina
 
 2. **Complementa Validación de Input**
@@ -419,7 +419,7 @@ return await CreateUser(request.Email);
    // ¿Por qué validar de nuevo con guards?
    public class CreateUserHandler : ICommandHandler<CreateUser, User>
    {
-       public Task<Either<MediatorError, User>> Handle(CreateUser request, CancellationToken ct)
+       public Task<Either<EncinaError, User>> Handle(CreateUser request, CancellationToken ct)
        {
            // Redundante si FluentValidation ya lo validó
            return request.Email.GuardNotEmpty(nameof(request.Email))
@@ -454,16 +454,16 @@ return await CreateUser(request.Email);
 
    ```csharp
    // Cada guard tiene try-catch
-   public static Either<MediatorError, T> GuardNotNull<T>(this T value, string name)
+   public static Either<EncinaError, T> GuardNotNull<T>(this T value, string name)
    {
        try
        {
            Guard.Against.Null(value, name); // Puede lanzar exception
-           return Right<MediatorError, T>(value);
+           return Right<EncinaError, T>(value);
        }
        catch (ArgumentNullException ex) // Wrapping exception
        {
-           return Left<MediatorError, T>(MediatorError.New(ex));
+           return Left<EncinaError, T>(EncinaError.New(ex));
        }
    }
    ```
@@ -500,7 +500,7 @@ public class Order
 ```csharp
 public class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
 {
-    public async Task<Either<MediatorError, Unit>> Handle(CancelOrder request, CancellationToken ct)
+    public async Task<Either<EncinaError, Unit>> Handle(CancelOrder request, CancellationToken ct)
     {
         var order = await _orders.FindById(request.OrderId, ct);
 
@@ -508,13 +508,13 @@ public class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
         return order
             .GuardNotNull(nameof(order), $"Order {request.OrderId} not found")
             .Bind(o => o.Status == OrderStatus.Cancelled
-                ? Left<MediatorError, Order>(MediatorError.New("Order already cancelled"))
-                : Right<MediatorError, Order>(o))
+                ? Left<EncinaError, Order>(EncinaError.New("Order already cancelled"))
+                : Right<EncinaError, Order>(o))
             .BindAsync(async o =>
             {
                 o.Cancel();
                 await _orders.Save(o, ct);
-                return Right<MediatorError, Unit>(Unit.Default);
+                return Right<EncinaError, Unit>(Unit.Default);
             });
     }
 }
@@ -525,14 +525,14 @@ public class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
 ```csharp
 public class OrderDomainService
 {
-    public Either<MediatorError, Order> CreateOrder(Customer customer, List<OrderItem> items)
+    public Either<EncinaError, Order> CreateOrder(Customer customer, List<OrderItem> items)
     {
         // Guards validan preconditions del método
         return customer
             .GuardNotNull(nameof(customer))
             .Bind(c => c.IsActive
-                ? Right<MediatorError, Customer>(c)
-                : Left<MediatorError, Customer>(MediatorError.New("Customer is inactive")))
+                ? Right<EncinaError, Customer>(c)
+                : Left<EncinaError, Customer>(EncinaError.New("Customer is inactive")))
             .Bind(c => items
                 .GuardNotNullOrEmpty(nameof(items))
                 .Map(_ => c))
@@ -549,7 +549,7 @@ public class OrderDomainService
 // ❌ Redundante - FluentValidation ya validó esto
 public class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 {
-    public Task<Either<MediatorError, UserId>> Handle(CreateUser request, CancellationToken ct)
+    public Task<Either<EncinaError, UserId>> Handle(CreateUser request, CancellationToken ct)
     {
         // Si FluentValidation ya validó que Email no es null/empty,
         // ¿para qué validar de nuevo con guards?
@@ -561,7 +561,7 @@ public class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 }
 
 // ✅ Mejor: Confiar en la validación de input
-public Task<Either<MediatorError, UserId>> Handle(CreateUser request, CancellationToken ct)
+public Task<Either<EncinaError, UserId>> Handle(CreateUser request, CancellationToken ct)
 {
     // request.Email ya está validado por FluentValidation
     return CreateUser(request.Email);
@@ -637,7 +637,7 @@ El README debe dejar MUY claro:
 ```csharp
 public class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 {
-    public Task<Either<MediatorError, UserId>> Handle(CreateUser request, CancellationToken ct)
+    public Task<Either<EncinaError, UserId>> Handle(CreateUser request, CancellationToken ct)
     {
         // ❌ BAD: Input already validated by FluentValidation
         return request.Email
@@ -666,7 +666,7 @@ public class User
 ```csharp
 public class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
 {
-    public async Task<Either<MediatorError, Unit>> Handle(CancelOrder request, CancellationToken ct)
+    public async Task<Either<EncinaError, Unit>> Handle(CancelOrder request, CancellationToken ct)
     {
         var order = await _orders.FindById(request.OrderId, ct);
 
@@ -674,8 +674,8 @@ public class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
         return order
             .GuardNotNull(nameof(order), $"Order {request.OrderId} not found")
             .Bind(o => o.CanBeCancelled()
-                ? Right<MediatorError, Order>(o)
-                : Left<MediatorError, Order>(MediatorError.New("Order cannot be cancelled")))
+                ? Right<EncinaError, Order>(o)
+                : Left<EncinaError, Order>(EncinaError.New("Order cannot be cancelled")))
             .BindAsync(async o =>
             {
                 o.Cancel();

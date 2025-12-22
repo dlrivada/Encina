@@ -12,7 +12,7 @@ namespace Encina.Tests.Integration;
 
 /// <summary>
 /// Integration tests for Stream Requests.
-/// Tests end-to-end scenarios with real DI container and IMediator.
+/// Tests end-to-end scenarios with real DI container and IEncina.
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class StreamRequestIntegrationTests
@@ -27,13 +27,13 @@ public sealed class StreamRequestIntegrationTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 10);
 
         // Act
         var results = new List<int>();
-        await foreach (var item in mediator.Stream(request))
+        await foreach (var item in Encina.Stream(request))
         {
             item.IfRight(value => results.Add(value));
         }
@@ -52,13 +52,13 @@ public sealed class StreamRequestIntegrationTests
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
         services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, DoubleValueBehavior>();
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 5);
 
         // Act
         var results = new List<int>();
-        await foreach (var item in mediator.Stream(request))
+        await foreach (var item in Encina.Stream(request))
         {
             item.IfRight(value => results.Add(value));
         }
@@ -80,13 +80,13 @@ public sealed class StreamRequestIntegrationTests
         services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, AddFiveBehavior>();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 3);
 
         // Act
         var results = new List<int>();
-        await foreach (var item in mediator.Stream(request))
+        await foreach (var item in Encina.Stream(request))
         {
             item.IfRight(value => results.Add(value));
         }
@@ -108,13 +108,13 @@ public sealed class StreamRequestIntegrationTests
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
         services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, GreaterThanFiveBehavior>();
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 10);
 
         // Act
         var results = new List<int>();
-        await foreach (var item in mediator.Stream(request))
+        await foreach (var item in Encina.Stream(request))
         {
             item.IfRight(value => results.Add(value));
         }
@@ -136,13 +136,13 @@ public sealed class StreamRequestIntegrationTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<ErrorStreamRequest, int>, ErrorStreamHandler>();
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var request = new ErrorStreamRequest(TotalItems: 10, ErrorAtPosition: 5);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(request))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(request))
         {
             results.Add(item);
         }
@@ -152,7 +152,7 @@ public sealed class StreamRequestIntegrationTests
         results[4].IsLeft.Should().BeTrue("error should be at position 5");
 
         var errorCode = results[4].Match(
-            Left: error => error.GetMediatorCode(),
+            Left: error => error.GetEncinaCode(),
             Right: _ => throw new InvalidOperationException("Expected Left"));
 
         errorCode.Should().Be("STREAM_ERROR");
@@ -167,13 +167,13 @@ public sealed class StreamRequestIntegrationTests
         services.AddTransient<IStreamRequestHandler<ErrorStreamRequest, int>, ErrorStreamHandler>();
         services.AddTransient<IStreamPipelineBehavior<ErrorStreamRequest, int>, ErrorRecoveryBehavior>();
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var request = new ErrorStreamRequest(TotalItems: 5, ErrorAtPosition: 3);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(request))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(request))
         {
             results.Add(item);
         }
@@ -195,7 +195,7 @@ public sealed class StreamRequestIntegrationTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 100);
         using var cts = new CancellationTokenSource();
@@ -204,7 +204,7 @@ public sealed class StreamRequestIntegrationTests
         var count = 0;
         try
         {
-            await foreach (var item in mediator.Stream(request, cts.Token))
+            await foreach (var item in Encina.Stream(request, cts.Token))
             {
                 item.IfRight(_ => count++);
 
@@ -236,7 +236,7 @@ public sealed class StreamRequestIntegrationTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, FastNumberStreamHandler>();
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 10_000);
 
@@ -244,7 +244,7 @@ public sealed class StreamRequestIntegrationTests
         var count = 0;
         var startTime = DateTime.UtcNow;
 
-        await foreach (var item in mediator.Stream(request))
+        await foreach (var item in Encina.Stream(request))
         {
             item.IfRight(_ => count++);
         }
@@ -265,7 +265,7 @@ public sealed class StreamRequestIntegrationTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var request1 = new NumberStreamRequest(Start: 1, Count: 50);
         var request2 = new NumberStreamRequest(Start: 100, Count: 50);
@@ -275,7 +275,7 @@ public sealed class StreamRequestIntegrationTests
         var task1 = Task.Run(async () =>
         {
             var results = new List<int>();
-            await foreach (var item in mediator.Stream(request1))
+            await foreach (var item in Encina.Stream(request1))
             {
                 item.IfRight(value => results.Add(value));
             }
@@ -285,7 +285,7 @@ public sealed class StreamRequestIntegrationTests
         var task2 = Task.Run(async () =>
         {
             var results = new List<int>();
-            await foreach (var item in mediator.Stream(request2))
+            await foreach (var item in Encina.Stream(request2))
             {
                 item.IfRight(value => results.Add(value));
             }
@@ -295,7 +295,7 @@ public sealed class StreamRequestIntegrationTests
         var task3 = Task.Run(async () =>
         {
             var results = new List<int>();
-            await foreach (var item in mediator.Stream(request3))
+            await foreach (var item in Encina.Stream(request3))
             {
                 item.IfRight(value => results.Add(value));
             }
@@ -327,13 +327,13 @@ public sealed class StreamRequestIntegrationTests
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
         services.AddSingleton<IStreamPipelineBehavior<NumberStreamRequest, int>>(loggingBehavior);
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 20);
 
         // Act
         var results = new List<int>();
-        await foreach (var item in mediator.Stream(request))
+        await foreach (var item in Encina.Stream(request))
         {
             item.IfRight(value => results.Add(value));
         }
@@ -353,7 +353,7 @@ public sealed class StreamRequestIntegrationTests
 
     private sealed class NumberStreamHandler : IStreamRequestHandler<NumberStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             NumberStreamRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
@@ -361,14 +361,14 @@ public sealed class StreamRequestIntegrationTests
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 await Task.Delay(1, cancellationToken);
-                yield return Right<MediatorError, int>(request.Start + i);
+                yield return Right<EncinaError, int>(request.Start + i);
             }
         }
     }
 
     private sealed class FastNumberStreamHandler : IStreamRequestHandler<NumberStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             NumberStreamRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
@@ -376,7 +376,7 @@ public sealed class StreamRequestIntegrationTests
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 // No delay for performance testing
-                yield return Right<MediatorError, int>(request.Start + i);
+                yield return Right<EncinaError, int>(request.Start + i);
             }
 
             await Task.CompletedTask;
@@ -385,7 +385,7 @@ public sealed class StreamRequestIntegrationTests
 
     private sealed class ErrorStreamHandler : IStreamRequestHandler<ErrorStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             ErrorStreamRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
@@ -393,13 +393,13 @@ public sealed class StreamRequestIntegrationTests
             {
                 if (i == request.ErrorAtPosition)
                 {
-                    yield return Left<MediatorError, int>(
-                        MediatorErrors.Create("STREAM_ERROR", $"Error at position {i}"));
+                    yield return Left<EncinaError, int>(
+                        EncinaErrors.Create("STREAM_ERROR", $"Error at position {i}"));
                 }
                 else
                 {
                     await Task.Delay(1, cancellationToken);
-                    yield return Right<MediatorError, int>(i);
+                    yield return Right<EncinaError, int>(i);
                 }
             }
         }
@@ -407,7 +407,7 @@ public sealed class StreamRequestIntegrationTests
 
     private sealed class DoubleValueBehavior : IStreamPipelineBehavior<NumberStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             NumberStreamRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -422,7 +422,7 @@ public sealed class StreamRequestIntegrationTests
 
     private sealed class AddFiveBehavior : IStreamPipelineBehavior<NumberStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             NumberStreamRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -437,7 +437,7 @@ public sealed class StreamRequestIntegrationTests
 
     private sealed class GreaterThanFiveBehavior : IStreamPipelineBehavior<NumberStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             NumberStreamRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -459,7 +459,7 @@ public sealed class StreamRequestIntegrationTests
 
     private sealed class ErrorRecoveryBehavior : IStreamPipelineBehavior<ErrorStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             ErrorStreamRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -469,8 +469,8 @@ public sealed class StreamRequestIntegrationTests
             {
                 // Convert errors to success with value -1
                 yield return item.Match(
-                    Left: _ => Right<MediatorError, int>(-1),
-                    Right: value => Right<MediatorError, int>(value));
+                    Left: _ => Right<EncinaError, int>(-1),
+                    Right: value => Right<EncinaError, int>(value));
             }
         }
     }
@@ -479,7 +479,7 @@ public sealed class StreamRequestIntegrationTests
     {
         public int ProcessedCount { get; private set; }
 
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             NumberStreamRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,

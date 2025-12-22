@@ -31,7 +31,7 @@ This document analyzes Encina's current extensibility capabilities and readiness
 public interface IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
-    ValueTask<Either<MediatorError, TResponse>> Handle(
+    ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken);
@@ -78,7 +78,7 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
     public ValidationBehavior(IEnumerable<IValidator<TRequest>> validators)
         => _validators = validators;
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -101,8 +101,8 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
             {
                 ["validation_errors"] = errors.Select(e => new { e.PropertyName, e.ErrorMessage })
             };
-            return Left<MediatorError, TResponse>(
-                MediatorErrors.Create("VALIDATION_FAILED", "One or more validation errors occurred.", null, metadata));
+            return Left<EncinaError, TResponse>(
+                EncinaErrors.Create("VALIDATION_FAILED", "One or more validation errors occurred.", null, metadata));
         }
 
         return await nextStep();
@@ -178,7 +178,7 @@ public interface IRequestPostProcessor<in TRequest, TResponse>
 {
     Task Process(
         TRequest request,
-        Either<MediatorError, TResponse> response,
+        Either<EncinaError, TResponse> response,
         CancellationToken cancellationToken);
 }
 ```
@@ -219,7 +219,7 @@ public sealed class EventPublisherPostProcessor<TRequest, TResponse>
 
     public async Task Process(
         TRequest request,
-        Either<MediatorError, TResponse> response,
+        Either<EncinaError, TResponse> response,
         CancellationToken cancellationToken)
     {
         await response.Match(
@@ -272,14 +272,14 @@ public interface IFunctionalFailureDetector
 
 **Current Built-in Support:**
 
-**MediatorDiagnostics:**
+**EncinaDiagnostics:**
 
 - ✅ `ActivitySource` for distributed tracing
 - ✅ Automatic span creation for Send operations
 - ✅ Tag enrichment (request type, handler, error codes)
 - ✅ OpenTelemetry-compatible
 
-**MediatorMetrics:**
+**EncinaMetrics:**
 
 - ✅ Histogram for request duration
 - ✅ Counter for total requests
@@ -298,12 +298,12 @@ public interface IFunctionalFailureDetector
 ```csharp
 services.AddOpenTelemetry()
     .WithTracing(builder => builder
-        .AddSource("Encina")  // MediatorDiagnostics.ActivitySource
+        .AddSource("Encina")  // EncinaDiagnostics.ActivitySource
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddJaegerExporter())
     .WithMetrics(builder => builder
-        .AddMeter("Encina.Metrics")  // MediatorMetrics.Meter
+        .AddMeter("Encina.Metrics")  // EncinaMetrics.Meter
         .AddPrometheusExporter());
 ```
 
@@ -326,7 +326,7 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
     public LoggingBehavior(ILogger<LoggingBehavior<TRequest, TResponse>> logger)
         => _logger = logger;
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -341,7 +341,7 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
             Right: _ => _logger.LogInformation("Handled {RequestType} in {ElapsedMs}ms",
                 typeof(TRequest).Name, sw.ElapsedMilliseconds),
             Left: error => _logger.LogError("Failed {RequestType} with {ErrorCode}: {ErrorMessage}",
-                typeof(TRequest).Name, error.GetMediatorCode(), error.Message)
+                typeof(TRequest).Name, error.GetEncinaCode(), error.Message)
         );
 
         return result;
@@ -376,7 +376,7 @@ public sealed class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior
     public TransactionBehavior(ApplicationDbContext dbContext)
         => _dbContext = dbContext;
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -397,12 +397,12 @@ public sealed class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior
                 {
                     await _dbContext.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
-                    return Right<MediatorError, TResponse>(response);
+                    return Right<EncinaError, TResponse>(response);
                 },
                 Left: async error =>
                 {
                     await transaction.RollbackAsync(cancellationToken);
-                    return Left<MediatorError, TResponse>(error);
+                    return Left<EncinaError, TResponse>(error);
                 }
             );
         }
@@ -436,7 +436,7 @@ public sealed class CachingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
         _logger = logger;
     }
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -449,7 +449,7 @@ public sealed class CachingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
         {
             _logger.LogDebug("Cache hit for {CacheKey}", cacheKey);
             var cachedResponse = JsonSerializer.Deserialize<TResponse>(cached);
-            return Right<MediatorError, TResponse>(cachedResponse!);
+            return Right<EncinaError, TResponse>(cachedResponse!);
         }
 
         // Execute handler
@@ -497,7 +497,7 @@ public sealed class OutboxBehavior<TRequest, TResponse> : IPipelineBehavior<TReq
     public OutboxBehavior(ApplicationDbContext dbContext)
         => _dbContext = dbContext;
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -554,7 +554,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse> : IPipelineBehavior
     public IdempotencyBehavior(IIdempotencyStore store)
         => _store = store;
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -564,7 +564,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse> : IPipelineBehavior
         // Check if already processed
         var existing = await _store.GetAsync<TResponse>(idempotencyKey, cancellationToken);
         if (existing is not null)
-            return Right<MediatorError, TResponse>(existing);
+            return Right<EncinaError, TResponse>(existing);
 
         // Execute handler
         var result = await nextStep();
@@ -617,7 +617,7 @@ public sealed class PollyBehavior<TRequest, TResponse> : IPipelineBehavior<TRequ
         })
         .Build();
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -630,8 +630,8 @@ public sealed class PollyBehavior<TRequest, TResponse> : IPipelineBehavior<TRequ
         }
         catch (BrokenCircuitException ex)
         {
-            return Left<MediatorError, TResponse>(
-                MediatorErrors.Create("CIRCUIT_OPEN", "Circuit breaker is open", ex));
+            return Left<EncinaError, TResponse>(
+                EncinaErrors.Create("CIRCUIT_OPEN", "Circuit breaker is open", ex));
         }
     }
 }
@@ -660,7 +660,7 @@ public sealed class AuthorizationBehavior<TRequest, TResponse> : IPipelineBehavi
         _currentUser = currentUser;
     }
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -681,8 +681,8 @@ public sealed class AuthorizationBehavior<TRequest, TResponse> : IPipelineBehavi
 
             if (!result.Succeeded)
             {
-                return Left<MediatorError, TResponse>(
-                    MediatorErrors.Create("UNAUTHORIZED", "Insufficient permissions"));
+                return Left<EncinaError, TResponse>(
+                    EncinaErrors.Create("UNAUTHORIZED", "Insufficient permissions"));
             }
         }
 
@@ -716,7 +716,7 @@ public sealed class RateLimitingBehavior<TRequest, TResponse> : IPipelineBehavio
         _currentUser = currentUser;
     }
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -730,8 +730,8 @@ public sealed class RateLimitingBehavior<TRequest, TResponse> : IPipelineBehavio
 
         if (!lease.IsAcquired)
         {
-            return Left<MediatorError, TResponse>(
-                MediatorErrors.Create("RATE_LIMIT_EXCEEDED", "Too many requests"));
+            return Left<EncinaError, TResponse>(
+                EncinaErrors.Create("RATE_LIMIT_EXCEEDED", "Too many requests"));
         }
 
         return await nextStep();
@@ -754,7 +754,7 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrder, OrderCreat
     public CreateOrderHandler(IEventStore eventStore)
         => _eventStore = eventStore;
 
-    public async ValueTask<Either<MediatorError, OrderCreated>> Handle(
+    public async ValueTask<Either<EncinaError, OrderCreated>> Handle(
         CreateOrder request,
         CancellationToken cancellationToken)
     {
@@ -767,7 +767,7 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrder, OrderCreat
             new[] { @event },
             cancellationToken);
 
-        return Right<MediatorError, OrderCreated>(new OrderCreated(orderId));
+        return Right<EncinaError, OrderCreated>(new OrderCreated(orderId));
     }
 }
 ```
@@ -807,7 +807,7 @@ public interface IRequestContext
 public interface IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
-    ValueTask<Either<MediatorError, TResponse>> Handle(
+    ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,  // NEW
         RequestHandlerCallback<TResponse> nextStep,
@@ -858,7 +858,7 @@ public record CreateOrder(...) : ICommand<Order>, IHasMetadata
 ```csharp
 public interface IPipelineBehavior<TRequest, TResponse>
 {
-    ValueTask<Either<MediatorError, TResponse>> Handle(
+    ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         HandlerMetadata metadata,  // NEW: { HandlerType, Attributes }
         RequestHandlerCallback<TResponse> nextStep,
@@ -881,7 +881,7 @@ public sealed class CachingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
 {
     private readonly IRequestHandlerMetadataProvider _metadataProvider;
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(...)
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(...)
     {
         var metadata = _metadataProvider.GetMetadata<TRequest, TResponse>();
         var cacheAttribute = metadata.HandlerType.GetCustomAttribute<CacheForAttribute>();
@@ -919,11 +919,11 @@ public sealed class DomainEventPublisherPostProcessor<TRequest, TResponse>
     : IRequestPostProcessor<TRequest, TResponse>
     where TRequest : IRequest<TResponse>, IEventEmitter
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
 
     public async Task Process(
         TRequest request,
-        Either<MediatorError, TResponse> response,
+        Either<EncinaError, TResponse> response,
         CancellationToken cancellationToken)
     {
         await response.Match(
@@ -931,7 +931,7 @@ public sealed class DomainEventPublisherPostProcessor<TRequest, TResponse>
             {
                 foreach (var @event in request.GetDomainEvents())
                 {
-                    await _mediator.Publish(@event, cancellationToken);
+                    await _Encina.Publish(@event, cancellationToken);
                 }
             },
             Left: _ => Task.CompletedTask

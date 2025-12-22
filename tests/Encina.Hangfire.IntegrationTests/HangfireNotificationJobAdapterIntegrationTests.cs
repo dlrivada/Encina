@@ -9,7 +9,7 @@ namespace Encina.Hangfire.IntegrationTests;
 
 /// <summary>
 /// Integration tests for HangfireNotificationJobAdapter.
-/// Tests end-to-end scenarios with DI container and real mediator.
+/// Tests end-to-end scenarios with DI container and real Encina.
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class HangfireNotificationJobAdapterIntegrationTests
@@ -25,10 +25,10 @@ public sealed class HangfireNotificationJobAdapterIntegrationTests
             new TestNotificationHandler(() => handlerInvoked = true));
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
 
-        var adapter = new HangfireNotificationJobAdapter<TestNotification>(mediator, logger);
+        var adapter = new HangfireNotificationJobAdapter<TestNotification>(Encina, logger);
         var notification = new TestNotification("integration-test");
 
         // Act
@@ -53,10 +53,10 @@ public sealed class HangfireNotificationJobAdapterIntegrationTests
             new TestNotificationHandler(() => handler2Invoked = true));
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
 
-        var adapter = new HangfireNotificationJobAdapter<TestNotification>(mediator, logger);
+        var adapter = new HangfireNotificationJobAdapter<TestNotification>(Encina, logger);
         var notification = new TestNotification("multi-handler-test");
 
         // Act
@@ -80,11 +80,11 @@ public sealed class TestNotificationHandler : INotificationHandler<TestNotificat
         _onHandle = onHandle;
     }
 
-    public Task<Either<MediatorError, Unit>> Handle(
+    public Task<Either<EncinaError, Unit>> Handle(
         TestNotification notification,
         CancellationToken cancellationToken)
     {
         _onHandle();
-        return Task.FromResult(Right<MediatorError, Unit>(unit));
+        return Task.FromResult(Right<EncinaError, Unit>(unit));
     }
 }

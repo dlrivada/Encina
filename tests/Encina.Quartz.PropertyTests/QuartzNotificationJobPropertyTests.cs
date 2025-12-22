@@ -16,7 +16,7 @@ public sealed class QuartzNotificationJobPropertyTests
     [Fact]
     public async Task Property_SuccessfulPublication_AlwaysCompletes()
     {
-        // Property: When mediator succeeds, job ALWAYS completes without exception
+        // Property: When Encina succeeds, job ALWAYS completes without exception
 
         var testNotifications = new[]
         {
@@ -28,18 +28,18 @@ public sealed class QuartzNotificationJobPropertyTests
         foreach (var notification in testNotifications)
         {
             // Arrange
-            var mediator = Substitute.For<IMediator>();
+            var Encina = Substitute.For<IEncina>();
             var logger = Substitute.For<ILogger<QuartzNotificationJob<TestNotification>>>();
-            var job = new QuartzNotificationJob<TestNotification>(mediator, logger);
+            var job = new QuartzNotificationJob<TestNotification>(Encina, logger);
             var context = CreateJobExecutionContext(notification);
 
-            mediator.Publish(notification, Arg.Any<CancellationToken>())
-                .Returns(Right<MediatorError, Unit>(unit));
+            Encina.Publish(notification, Arg.Any<CancellationToken>())
+                .Returns(Right<EncinaError, Unit>(unit));
 
             // Act & Assert - Should not throw
             await job.Execute(context);
 
-            await mediator.Received(1).Publish(notification, Arg.Any<CancellationToken>());
+            await Encina.Received(1).Publish(notification, Arg.Any<CancellationToken>());
         }
     }
 
@@ -49,20 +49,20 @@ public sealed class QuartzNotificationJobPropertyTests
         // Property: Same notification ALWAYS produces same outcome
 
         var notification = new TestNotification("idempotent-test");
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzNotificationJob<TestNotification>>>();
-        var job = new QuartzNotificationJob<TestNotification>(mediator, logger);
+        var job = new QuartzNotificationJob<TestNotification>(Encina, logger);
 
-        mediator.Publish(notification, Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, Unit>(unit));
+        Encina.Publish(notification, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(unit));
 
         // Act - Multiple publications
         await job.Execute(CreateJobExecutionContext(notification));
         await job.Execute(CreateJobExecutionContext(notification));
         await job.Execute(CreateJobExecutionContext(notification));
 
-        // Assert - Mediator invoked 3 times (once per call)
-        await mediator.Received(3).Publish(notification, Arg.Any<CancellationToken>());
+        // Assert - Encina invoked 3 times (once per call)
+        await Encina.Received(3).Publish(notification, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -70,12 +70,12 @@ public sealed class QuartzNotificationJobPropertyTests
     {
         // Property: Concurrent publications are thread-safe
 
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzNotificationJob<TestNotification>>>();
-        var job = new QuartzNotificationJob<TestNotification>(mediator, logger);
+        var job = new QuartzNotificationJob<TestNotification>(Encina, logger);
 
-        mediator.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, Unit>(unit));
+        Encina.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(unit));
 
         // Act - Execute concurrently
         var tasks = Enumerable.Range(0, 20)
@@ -93,9 +93,9 @@ public sealed class QuartzNotificationJobPropertyTests
     }
 
     [Fact]
-    public async Task Property_MediatorInvocation_AlwaysCalledExactlyOnce()
+    public async Task Property_EncinaInvocation_AlwaysCalledExactlyOnce()
     {
-        // Property: Mediator ALWAYS invoked exactly once per publication
+        // Property: Encina ALWAYS invoked exactly once per publication
 
         var testNotifications = new[]
         {
@@ -106,19 +106,19 @@ public sealed class QuartzNotificationJobPropertyTests
 
         foreach (var notification in testNotifications)
         {
-            var mediator = Substitute.For<IMediator>();
+            var Encina = Substitute.For<IEncina>();
             var logger = Substitute.For<ILogger<QuartzNotificationJob<TestNotification>>>();
-            var job = new QuartzNotificationJob<TestNotification>(mediator, logger);
+            var job = new QuartzNotificationJob<TestNotification>(Encina, logger);
             var context = CreateJobExecutionContext(notification);
 
-            mediator.Publish(notification, Arg.Any<CancellationToken>())
-                .Returns(Right<MediatorError, Unit>(unit));
+            Encina.Publish(notification, Arg.Any<CancellationToken>())
+                .Returns(Right<EncinaError, Unit>(unit));
 
             // Act
             await job.Execute(context);
 
             // Assert
-            await mediator.Received(1).Publish(notification, Arg.Any<CancellationToken>());
+            await Encina.Received(1).Publish(notification, Arg.Any<CancellationToken>());
         }
     }
 
@@ -127,9 +127,9 @@ public sealed class QuartzNotificationJobPropertyTests
     {
         // Property: Missing notification ALWAYS throws JobExecutionException
 
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzNotificationJob<TestNotification>>>();
-        var job = new QuartzNotificationJob<TestNotification>(mediator, logger);
+        var job = new QuartzNotificationJob<TestNotification>(Encina, logger);
         var context = CreateJobExecutionContext<TestNotification>(null);
 
         // Act & Assert

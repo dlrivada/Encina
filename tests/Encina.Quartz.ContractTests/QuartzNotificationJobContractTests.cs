@@ -13,24 +13,24 @@ namespace Encina.Quartz.ContractTests;
 public sealed class QuartzNotificationJobContractTests
 {
     [Fact]
-    public async Task Execute_WithValidNotification_ShouldInvokeMediatorPublish()
+    public async Task Execute_WithValidNotification_ShouldInvokeEncinaPublish()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzNotificationJob<TestNotification>>>();
-        var job = new QuartzNotificationJob<TestNotification>(mediator, logger);
+        var job = new QuartzNotificationJob<TestNotification>(Encina, logger);
         var notification = new TestNotification("test message");
 
         var context = CreateJobExecutionContext(notification);
 
-        mediator.Publish(notification, Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, Unit>(unit));
+        Encina.Publish(notification, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(unit));
 
         // Act
         await job.Execute(context);
 
         // Assert
-        await mediator.Received(1).Publish(notification, Arg.Any<CancellationToken>());
+        await Encina.Received(1).Publish(notification, Arg.Any<CancellationToken>());
     }
 
 
@@ -38,9 +38,9 @@ public sealed class QuartzNotificationJobContractTests
     public async Task Execute_WithMissingNotification_ShouldThrowJobExecutionException()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzNotificationJob<TestNotification>>>();
-        var job = new QuartzNotificationJob<TestNotification>(mediator, logger);
+        var job = new QuartzNotificationJob<TestNotification>(Encina, logger);
 
         var context = CreateJobExecutionContext<TestNotification>(null); // No notification in JobDataMap
 

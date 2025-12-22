@@ -10,8 +10,8 @@ namespace Encina.Polly.Benchmarks;
 [SimpleJob(warmupCount: 3, iterationCount: 5)]
 public class CircuitBreakerBenchmarks
 {
-    private IMediator _mediatorWithCircuitBreaker = null!;
-    private IMediator _mediatorWithoutCircuitBreaker = null!;
+    private IEncina _EncinaWithCircuitBreaker = null!;
+    private IEncina _EncinaWithoutCircuitBreaker = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -23,28 +23,28 @@ public class CircuitBreakerBenchmarks
         servicesWithCB.AddLogging();
         servicesWithCB.AddTransient<CircuitBreakerRequestHandler>();
         servicesWithCB.AddTransient<NoCircuitBreakerRequestHandler>();
-        _mediatorWithCircuitBreaker = servicesWithCB.BuildServiceProvider().GetRequiredService<IMediator>();
+        _EncinaWithCircuitBreaker = servicesWithCB.BuildServiceProvider().GetRequiredService<IEncina>();
 
         // Without Circuit Breaker
         var servicesWithoutCB = new ServiceCollection();
         servicesWithoutCB.AddEncina(config => { });
         servicesWithoutCB.AddLogging();
         servicesWithoutCB.AddTransient<NoCircuitBreakerRequestHandler>();
-        _mediatorWithoutCircuitBreaker = servicesWithoutCB.BuildServiceProvider().GetRequiredService<IMediator>();
+        _EncinaWithoutCircuitBreaker = servicesWithoutCB.BuildServiceProvider().GetRequiredService<IEncina>();
     }
 
     [Benchmark(Baseline = true)]
     public async Task NoCircuitBreakerAttribute_Baseline()
     {
         var request = new NoCircuitBreakerRequest();
-        _ = await _mediatorWithoutCircuitBreaker.Send(request);
+        _ = await _EncinaWithoutCircuitBreaker.Send(request);
     }
 
     [Benchmark]
     public async Task WithCircuitBreakerAttribute_ClosedState()
     {
         var request = new CircuitBreakerRequest();
-        _ = await _mediatorWithCircuitBreaker.Send(request);
+        _ = await _EncinaWithCircuitBreaker.Send(request);
     }
 
     // Test types
@@ -55,17 +55,17 @@ public class CircuitBreakerBenchmarks
 
     private sealed class CircuitBreakerRequestHandler : IRequestHandler<CircuitBreakerRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(CircuitBreakerRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(CircuitBreakerRequest request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, string>("Success"));
+            return Task.FromResult(Right<EncinaError, string>("Success"));
         }
     }
 
     private sealed class NoCircuitBreakerRequestHandler : IRequestHandler<NoCircuitBreakerRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(NoCircuitBreakerRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(NoCircuitBreakerRequest request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, string>("Success"));
+            return Task.FromResult(Right<EncinaError, string>("Success"));
         }
     }
 }

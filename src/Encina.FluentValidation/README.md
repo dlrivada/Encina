@@ -8,7 +8,7 @@ FluentValidation integration for Encina with Railway Oriented Programming (ROP) 
 ## Features
 
 - 🚦 **Automatic Request Validation** - Validates requests before handler execution
-- 🛤️ **ROP Integration** - Returns validation failures as `Left<MediatorError>` for functional error handling
+- 🛤️ **ROP Integration** - Returns validation failures as `Left<EncinaError>` for functional error handling
 - 🎯 **Zero Boilerplate** - No need to manually call validators in handlers
 - 🔄 **Context Enrichment** - Passes correlation ID, user ID, and tenant ID to validators
 - ⚡ **Parallel Validation** - Runs multiple validators concurrently for better performance
@@ -74,7 +74,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 
     public CreateUserHandler(IUserRepository users) => _users = users;
 
-    public async Task<Either<MediatorError, UserId>> Handle(
+    public async Task<Either<EncinaError, UserId>> Handle(
         CreateUser request,
         CancellationToken ct)
     {
@@ -83,7 +83,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 
         var user = new User(request.Email, request.Name, request.Age);
         await _users.Save(user, ct);
-        return Right<MediatorError, UserId>(user.Id);
+        return Right<EncinaError, UserId>(user.Id);
     }
 }
 ```
@@ -91,7 +91,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 ### 4. Handle Validation Errors Functionally
 
 ```csharp
-var result = await mediator.Send(new CreateUser("invalid-email", "", 15));
+var result = await Encina.Send(new CreateUser("invalid-email", "", 15));
 
 result.Match(
     Right: userId => Console.WriteLine($"User created: {userId}"),
@@ -196,7 +196,7 @@ services.AddEncinaFluentValidation(typeof(CreateUser).Assembly);
 When validation fails, the error structure looks like this:
 
 ```csharp
-MediatorError
+EncinaError
 {
     Message = "Validation failed for CreateUser with 3 error(s).",
     Exception = Some(ValidationException
@@ -219,7 +219,7 @@ The `ValidationPipelineBehavior<TRequest, TResponse>` intercepts all requests:
 2. **Enrich Context**: Passes correlation ID, user ID, tenant ID to validation context
 3. **Parallel Validation**: Runs all validators concurrently using `Task.WhenAll`
 4. **Aggregate Failures**: Collects all validation errors from all validators
-5. **Short-Circuit**: If validation fails, returns `Left<MediatorError>` with `ValidationException`
+5. **Short-Circuit**: If validation fails, returns `Left<EncinaError>` with `ValidationException`
 6. **Continue**: If validation passes, calls the next pipeline step (handler)
 
 ## Performance
@@ -234,9 +234,9 @@ The `ValidationPipelineBehavior<TRequest, TResponse>` intercepts all requests:
 Example of extracting validation errors in minimal APIs:
 
 ```csharp
-app.MapPost("/users", async (CreateUser request, IMediator mediator) =>
+app.MapPost("/users", async (CreateUser request, IEncina Encina) =>
 {
-    var result = await mediator.Send(request);
+    var result = await Encina.Send(request);
 
     return result.Match(
         Right: userId => Results.Created($"/users/{userId}", userId),
@@ -322,7 +322,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
     private readonly IValidator<CreateUser> _validator;
     private readonly IUserRepository _users;
 
-    public async Task<Either<MediatorError, UserId>> Handle(
+    public async Task<Either<EncinaError, UserId>> Handle(
         CreateUser request,
         CancellationToken ct)
     {
@@ -330,7 +330,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
         var validation = await _validator.ValidateAsync(request, ct);
         if (!validation.IsValid)
         {
-            return MediatorError.New(new ValidationException(validation.Errors));
+            return EncinaError.New(new ValidationException(validation.Errors));
         }
 
         var user = new User(request.Email, request.Name, request.Age);
@@ -347,7 +347,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 {
     private readonly IUserRepository _users;
 
-    public async Task<Either<MediatorError, UserId>> Handle(
+    public async Task<Either<EncinaError, UserId>> Handle(
         CreateUser request,
         CancellationToken ct)
     {
@@ -369,7 +369,7 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 
 ## Related Packages
 
-- **Encina** - Core mediator library
+- **Encina** - Core Encina library
 - **Encina.AspNetCore** - ASP.NET Core integration (coming soon)
 - **Encina.OpenTelemetry** - Distributed tracing (coming soon)
 

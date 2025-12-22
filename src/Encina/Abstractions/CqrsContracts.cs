@@ -3,13 +3,13 @@ using LanguageExt;
 namespace Encina;
 
 /// <summary>
-/// Represents a command flowing through the mediator.
+/// Represents a command flowing through the Encina.
 /// </summary>
 /// <typeparam name="TResponse">Type returned by the handler when the command finishes.</typeparam>
 /// <remarks>
 /// Commands typically mutate state or trigger side effects. Keep responses explicit (for example
-/// <c>Unit</c> or domain DTOs) so the mediator can wrap failures in
-/// <c>Either&lt;MediatorError, TResponse&gt;</c> while honoring the Zero Exceptions policy.
+/// <c>Unit</c> or domain DTOs) so the Encina can wrap failures in
+/// <c>Either&lt;EncinaError, TResponse&gt;</c> while honoring the Zero Exceptions policy.
 /// </remarks>
 /// <example>
 /// <code>

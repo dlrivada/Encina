@@ -41,7 +41,7 @@ namespace Encina.EntityFrameworkCore;
 /// public record UpdateInventoryCommand(int ProductId, int Quantity) : ICommand;
 ///
 /// // Both will be wrapped in a transaction automatically
-/// var result = await mediator.Send(command);
+/// var result = await Encina.Send(command);
 /// // Transaction committed if Right, rolled back if Left or exception
 /// </code>
 /// </example>
@@ -69,7 +69,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
     }
 
     /// <inheritdoc/>
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,

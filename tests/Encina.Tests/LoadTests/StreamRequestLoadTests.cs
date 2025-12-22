@@ -45,11 +45,11 @@ public sealed class StreamRequestLoadTests
         var scenario = Scenario.Create("concurrent_streams", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var request = new LoadStreamRequest(ItemCount: 100);
 
             var count = 0;
-            await foreach (var item in mediator.Stream(request))
+            await foreach (var item in Encina.Stream(request))
             {
                 item.IfRight(_ => count++);
             }
@@ -88,11 +88,11 @@ public sealed class StreamRequestLoadTests
         var scenario = Scenario.Create("large_stream_throughput", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var request = new LoadStreamRequest(ItemCount: 1000);
 
             var count = 0;
-            await foreach (var item in mediator.Stream(request))
+            await foreach (var item in Encina.Stream(request))
             {
                 item.IfRight(_ => count++);
             }
@@ -132,11 +132,11 @@ public sealed class StreamRequestLoadTests
         var scenario = Scenario.Create("stream_with_behaviors", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var request = new LoadStreamRequest(ItemCount: 50);
 
             var count = 0;
-            await foreach (var item in mediator.Stream(request))
+            await foreach (var item in Encina.Stream(request))
             {
                 item.IfRight(_ => count++);
             }
@@ -174,11 +174,11 @@ public sealed class StreamRequestLoadTests
         var scenario = Scenario.Create("endurance_streaming", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var request = new LoadStreamRequest(ItemCount: 200);
 
             var count = 0;
-            await foreach (var item in mediator.Stream(request))
+            await foreach (var item in Encina.Stream(request))
             {
                 item.IfRight(_ => count++);
             }
@@ -216,13 +216,13 @@ public sealed class StreamRequestLoadTests
         var scenario = Scenario.Create("error_stream_handling", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var request = new ErrorStreamRequest(TotalItems: 100, ErrorInterval: 10);
 
             var successCount = 0;
             var errorCount = 0;
 
-            await foreach (var item in mediator.Stream(request))
+            await foreach (var item in Encina.Stream(request))
             {
                 _ = item.Match(
                     Left: _ => errorCount++,
@@ -265,14 +265,14 @@ public sealed class StreamRequestLoadTests
         var scenario = Scenario.Create("cancellation_handling", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var request = new LoadStreamRequest(ItemCount: 1000);
             using var cts = new CancellationTokenSource();
 
             var count = 0;
             try
             {
-                await foreach (var item in mediator.Stream(request, cts.Token))
+                await foreach (var item in Encina.Stream(request, cts.Token))
                 {
                     item.IfRight(_ => count++);
 
@@ -323,11 +323,11 @@ public sealed class StreamRequestLoadTests
         var scenario = Scenario.Create("memory_pressure", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var request = new LoadStreamRequest(ItemCount: 10);
 
             var count = 0;
-            await foreach (var item in mediator.Stream(request))
+            await foreach (var item in Encina.Stream(request))
             {
                 item.IfRight(_ => count++);
             }
@@ -365,11 +365,11 @@ public sealed class StreamRequestLoadTests
         var scenario = Scenario.Create("burst_load", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var request = new LoadStreamRequest(ItemCount: 100);
 
             var count = 0;
-            await foreach (var item in mediator.Stream(request))
+            await foreach (var item in Encina.Stream(request))
             {
                 item.IfRight(_ => count++);
             }
@@ -404,14 +404,14 @@ public sealed class StreamRequestLoadTests
 
     private sealed class LoadStreamHandler : IStreamRequestHandler<LoadStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             LoadStreamRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             for (var i = 1; i <= request.ItemCount; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                yield return Right<MediatorError, int>(i);
+                yield return Right<EncinaError, int>(i);
             }
 
             await Task.CompletedTask;
@@ -420,7 +420,7 @@ public sealed class StreamRequestLoadTests
 
     private sealed class ErrorStreamHandler : IStreamRequestHandler<ErrorStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             ErrorStreamRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
@@ -428,12 +428,12 @@ public sealed class StreamRequestLoadTests
             {
                 if (i % request.ErrorInterval == 0)
                 {
-                    yield return Left<MediatorError, int>(
-                        MediatorErrors.Create("LOAD_ERROR", $"Error at item {i}"));
+                    yield return Left<EncinaError, int>(
+                        EncinaErrors.Create("LOAD_ERROR", $"Error at item {i}"));
                 }
                 else
                 {
-                    yield return Right<MediatorError, int>(i);
+                    yield return Right<EncinaError, int>(i);
                 }
             }
 
@@ -443,7 +443,7 @@ public sealed class StreamRequestLoadTests
 
     private sealed class MultiplyBehavior : IStreamPipelineBehavior<LoadStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             LoadStreamRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -458,7 +458,7 @@ public sealed class StreamRequestLoadTests
 
     private sealed class FilterBehavior : IStreamPipelineBehavior<LoadStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             LoadStreamRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,

@@ -4,9 +4,9 @@ using System.Reflection;
 namespace Encina;
 
 /// <summary>
-/// Scans assemblies to discover mediator handlers, behaviors, and processors.
+/// Scans assemblies to discover Encina handlers, behaviors, and processors.
 /// </summary>
-internal static class MediatorAssemblyScanner
+internal static class EncinaAssemblyScanner
 {
     private static readonly ConcurrentDictionary<Assembly, AssemblyScanResult> Cache = new();
 
@@ -26,16 +26,16 @@ internal static class MediatorAssemblyScanner
         var streamHandlerRegistrations = new List<TypeRegistration>();
         var streamPipelineRegistrations = new List<TypeRegistration>();
 
-        foreach (var type in GetLoadableTypes(assembly))
+        foreach (Type? type in GetLoadableTypes(assembly))
         {
             if (type is null || !type.IsClass || type.IsAbstract)
             {
                 continue;
             }
 
-            foreach (var implementedInterface in type.GetInterfaces().Where(i => i.IsGenericType))
+            foreach (Type? implementedInterface in type.GetInterfaces().Where(i => i.IsGenericType))
             {
-                var genericDefinition = implementedInterface.GetGenericTypeDefinition();
+                Type genericDefinition = implementedInterface.GetGenericTypeDefinition();
 
                 if (genericDefinition == typeof(IRequestHandler<,>))
                 {
@@ -47,21 +47,21 @@ internal static class MediatorAssemblyScanner
                 }
                 else if (genericDefinition == typeof(IPipelineBehavior<,>))
                 {
-                    var serviceType = implementedInterface.ContainsGenericParameters
+                    Type serviceType = implementedInterface.ContainsGenericParameters
                         ? typeof(IPipelineBehavior<,>)
                         : implementedInterface;
                     pipelineRegistrations.Add(new TypeRegistration(serviceType, type));
                 }
                 else if (genericDefinition == typeof(IRequestPreProcessor<>))
                 {
-                    var serviceType = implementedInterface.ContainsGenericParameters
+                    Type serviceType = implementedInterface.ContainsGenericParameters
                         ? typeof(IRequestPreProcessor<>)
                         : implementedInterface;
                     preProcessorRegistrations.Add(new TypeRegistration(serviceType, type));
                 }
                 else if (genericDefinition == typeof(IRequestPostProcessor<,>))
                 {
-                    var serviceType = implementedInterface.ContainsGenericParameters
+                    Type serviceType = implementedInterface.ContainsGenericParameters
                         ? typeof(IRequestPostProcessor<,>)
                         : implementedInterface;
                     postProcessorRegistrations.Add(new TypeRegistration(serviceType, type));
@@ -72,7 +72,7 @@ internal static class MediatorAssemblyScanner
                 }
                 else if (genericDefinition == typeof(IStreamPipelineBehavior<,>))
                 {
-                    var serviceType = implementedInterface.ContainsGenericParameters
+                    Type serviceType = implementedInterface.ContainsGenericParameters
                         ? typeof(IStreamPipelineBehavior<,>)
                         : implementedInterface;
                     streamPipelineRegistrations.Add(new TypeRegistration(serviceType, type));

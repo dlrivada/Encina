@@ -15,7 +15,7 @@ namespace Encina;
 /// that yields items one at a time, allowing efficient memory usage and early cancellation.
 /// </para>
 /// <para>
-/// Each yielded item is wrapped in <c>Either&lt;MediatorError, TItem&gt;</c> to support
+/// Each yielded item is wrapped in <c>Either&lt;EncinaError, TItem&gt;</c> to support
 /// Railway Oriented Programming. Errors can be yielded mid-stream without terminating
 /// the entire sequence, allowing partial results and graceful degradation.
 /// </para>

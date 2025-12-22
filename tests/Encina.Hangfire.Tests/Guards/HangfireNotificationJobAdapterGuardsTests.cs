@@ -10,29 +10,29 @@ namespace Encina.Hangfire.Tests.Guards;
 public class HangfireNotificationJobAdapterGuardsTests
 {
     [Fact]
-    public void Constructor_WithNullMediator_ThrowsArgumentNullException()
+    public void Constructor_WithNullEncina_ThrowsArgumentNullException()
     {
         // Arrange
-        IMediator mediator = null!;
+        IEncina Encina = null!;
         var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<HangfireTestNotification>>>();
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new HangfireNotificationJobAdapter<HangfireTestNotification>(mediator, logger));
+            new HangfireNotificationJobAdapter<HangfireTestNotification>(Encina, logger));
 
-        exception.ParamName.Should().Be("mediator");
+        exception.ParamName.Should().Be("Encina");
     }
 
     [Fact]
     public void Constructor_WithNullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         ILogger<HangfireNotificationJobAdapter<HangfireTestNotification>> logger = null!;
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new HangfireNotificationJobAdapter<HangfireTestNotification>(mediator, logger));
+            new HangfireNotificationJobAdapter<HangfireTestNotification>(Encina, logger));
 
         exception.ParamName.Should().Be("logger");
     }
@@ -41,9 +41,9 @@ public class HangfireNotificationJobAdapterGuardsTests
     public async Task PublishAsync_WithNullNotification_ThrowsArgumentNullException()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<HangfireTestNotification>>>();
-        var adapter = new HangfireNotificationJobAdapter<HangfireTestNotification>(mediator, logger);
+        var adapter = new HangfireNotificationJobAdapter<HangfireTestNotification>(Encina, logger);
         HangfireTestNotification notification = null!;
 
         // Act & Assert

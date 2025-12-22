@@ -21,7 +21,7 @@
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 ![Mutation](https://img.shields.io/badge/mutation-79.75%25-4C934C.svg)
 
-Encina is a lightweight mediator abstraction for .NET applications that lean on functional programming principles. It keeps request and response contracts explicit, integrates naturally with [LanguageExt](https://github.com/louthy/language-ext), and embraces pipeline behaviors so cross-cutting concerns stay composable.
+Encina is a lightweight Encina abstraction for .NET applications that lean on functional programming principles. It keeps request and response contracts explicit, integrates naturally with [LanguageExt](https://github.com/louthy/language-ext), and embraces pipeline behaviors so cross-cutting concerns stay composable.
 
 > ℹ️ Repository layout
 >
@@ -59,7 +59,7 @@ Encina is a lightweight mediator abstraction for .NET applications that lean on 
 
 ## Why Encina
 
-- Built for functional error handling with `Either` and `Option` from LanguageExt, backed by the mediator's `MediatorError` wrapper for rich metadata.
+- Built for functional error handling with `Either` and `Option` from LanguageExt, backed by the Encina's `EncinaError` wrapper for rich metadata.
 - Lightweight dependency footprint: `LanguageExt.Core` and `Microsoft.Extensions.*` abstractions.
 - Pipelines, pre-processors, and post-processors make cross-cutting concerns pluggable.
 - Provides telemetry hooks (logging, metrics, activity tracing) without coupling to specific vendors.
@@ -70,11 +70,11 @@ Encina is a lightweight mediator abstraction for .NET applications that lean on 
 
 Encina takes cues from MediatR, Kommand, and Wolverine, but positions itself as a functional, observable application pipeline for CQRS-style work.
 
-- **Messaging model:** Commands, queries, and notifications with explicit contracts; `Send`/`Publish` return `ValueTask<Either<MediatorError, TValue>>` to keep async overhead low and failures explicit.
+- **Messaging model:** Commands, queries, and notifications with explicit contracts; `Send`/`Publish` return `ValueTask<Either<EncinaError, TValue>>` to keep async overhead low and failures explicit.
 - **Pipeline composition:** Ordered behaviors plus request pre/post processors to layer validation, retries, timeouts, audits, and tracing without touching handlers; works with open or closed generics.
 - **Discovery & DI integration:** Assembly scanning for handlers, notifications, behaviors, and processors; configurable handler lifetimes; legacy aliases (`AddApplicationMessaging`) for drop-in adoption; caches avoid repeated reflection.
-- **Observability first:** Built-in logging scopes and `ActivitySource` spans, metrics via `IMediatorMetrics` counters/histograms, and OTEL-ready defaults for traces and metrics.
-- **Functional failure handling:** `IFunctionalFailureDetector` lets you translate domain envelopes into `MediatorError` with consistent codes/messages; ships with a null detector for opt-in mapping.
+- **Observability first:** Built-in logging scopes and `ActivitySource` spans, metrics via `IEncinaMetrics` counters/histograms, and OTEL-ready defaults for traces and metrics.
+- **Functional failure handling:** `IFunctionalFailureDetector` lets you translate domain envelopes into `EncinaError` with consistent codes/messages; ships with a null detector for opt-in mapping.
 - **Notification fan-out:** Publishes to zero or many handlers with per-handler error logging, cancellation awareness, and functional results instead of exceptions.
 - **Quality & reliability toolchain:** Benchmarks, load harnesses, mutation testing, and coverage guardrails are baked into the repo to keep regressions visible.
 
@@ -112,37 +112,37 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and [docs/history/](docs/hi
 | --- | --- | --- |
 | Contratos CQRS | `ICommand`/`IQuery`/`INotification`, handlers y callbacks explícitos; resultados funcionales (`Either`, `Unit`). | [Handlers and Contracts](#handlers-and-contracts) |
 | Pipeline y cross-cutting | Behaviors ordenados, pre/post processors, soporta genéricos abiertos/cerrados y timeouts/reintentos vía behaviors personalizados. | [Pipeline Behaviors](#pipeline-behaviors) |
-| Observabilidad | `MediatorDiagnostics` (logging + ActivitySource), `IMediatorMetrics` (counters/histogram), behaviors de métricas y trazas listos para OTEL. | [Diagnostics and Metrics](#diagnostics-and-metrics) |
-| Gestión de errores | `MediatorError`, iniciativa Zero Exceptions, `IFunctionalFailureDetector` para mapear envelopes de dominio a códigos consistentes. | [Zero Exceptions Initiative](#zero-exceptions-initiative) y [Functional Failure Detection](#functional-failure-detection) |
+| Observabilidad | `EncinaDiagnostics` (logging + ActivitySource), `IEncinaMetrics` (counters/histogram), behaviors de métricas y trazas listos para OTEL. | [Diagnostics and Metrics](#diagnostics-and-metrics) |
+| Gestión de errores | `EncinaError`, iniciativa Zero Exceptions, `IFunctionalFailureDetector` para mapear envelopes de dominio a códigos consistentes. | [Zero Exceptions Initiative](#zero-exceptions-initiative) y [Functional Failure Detection](#functional-failure-detection) |
 | Descubrimiento y DI | Escaneo de ensamblados, registro de handlers/behaviors/processors, control de lifetimes, alias `AddApplicationMessaging`. | [Configuration Reference](#configuration-reference) |
 | Notificaciones | Fan-out con múltiples handlers, registro de fallos por handler, cancelación y resultados funcionales en lugar de excepciones. | [Handlers and Contracts](#handlers-and-contracts) |
 | Calidad continua | Benchmarks, NBomber, Stryker, cobertura, umbrales en CI con scripts de apoyo y badges. | [Quality Checklist](#quality-checklist) |
 
 ### Dónde leer código rápidamente
 
-- Mediador y contratos: [`Encina.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/Encina.cs), [`IMediator.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IMediator.cs), [`IRequest.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IRequest.cs), [`INotification.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/INotification.cs).
-- Registro y escaneo: [`ServiceCollectionExtensions.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/ServiceCollectionExtensions.cs), [`MediatorAssemblyScanner.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/MediatorAssemblyScanner.cs).
+- Mediador y contratos: [`Encina.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/Encina.cs), [`IEncina.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IEncina.cs), [`IRequest.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IRequest.cs), [`INotification.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/INotification.cs).
+- Registro y escaneo: [`ServiceCollectionExtensions.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/ServiceCollectionExtensions.cs), [`EncinaAssemblyScanner.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/EncinaAssemblyScanner.cs).
 - Pipelines y callbacks: [`IPipelineBehavior.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IPipelineBehavior.cs), [`IRequestPreProcessor.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IRequestPreProcessor.cs), [`IRequestPostProcessor.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IRequestPostProcessor.cs), behaviors en [`Behaviors/`](https://github.com/dlrivada/Encina/tree/main/src/Encina/Behaviors).
-- Observabilidad y métricas: [`MediatorDiagnostics.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/MediatorDiagnostics.cs), [`MediatorMetrics.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/MediatorMetrics.cs).
-- Errores y ROP: [`MediatorError.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/MediatorError.cs), [`MediatorResult.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/MediatorResult.cs), [`IFunctionalFailureDetector.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IFunctionalFailureDetector.cs), [`NullFunctionalFailureDetector.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/NullFunctionalFailureDetector.cs).
+- Observabilidad y métricas: [`EncinaDiagnostics.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/EncinaDiagnostics.cs), [`EncinaMetrics.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/EncinaMetrics.cs).
+- Errores y ROP: [`EncinaError.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/EncinaError.cs), [`EncinaResult.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/EncinaResult.cs), [`IFunctionalFailureDetector.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IFunctionalFailureDetector.cs), [`NullFunctionalFailureDetector.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/NullFunctionalFailureDetector.cs).
 
 ### Snippets rápidos
 
 #### Enviar comando (ROP sobre Either)
 
 ```csharp
-var result = await mediator.Send(new RegisterUser("user@example.com", "Pass@123"), ct);
+var result = await Encina.Send(new RegisterUser("user@example.com", "Pass@123"), ct);
 
 result.Match(
-    Left: err => logger.LogWarning("Registration failed {Code}", err.GetMediatorCode()),
+    Left: err => logger.LogWarning("Registration failed {Code}", err.GetEncinaCode()),
     Right: _ => logger.LogInformation("User registered"));
 ```
 
 #### Publicar notificación fan-out
 
 ```csharp
-await mediator.Publish(new SendWelcomeEmail("user@example.com"), ct);
-// Handlers run independently; failures surface as MediatorError instead of exceptions.
+await Encina.Publish(new SendWelcomeEmail("user@example.com"), ct);
+// Handlers run independently; failures surface as EncinaError instead of exceptions.
 ```
 
 #### Behavior personalizado (timeout)
@@ -151,7 +151,7 @@ await mediator.Publish(new SendWelcomeEmail("user@example.com"), ct);
 public sealed class TimeoutBehavior<TReq, TRes> : IPipelineBehavior<TReq, TRes>
     where TReq : IRequest<TRes>
 {
-    public async ValueTask<Either<MediatorError, TRes>> Handle(
+    public async ValueTask<Either<EncinaError, TRes>> Handle(
         TReq request,
         RequestHandlerCallback<TRes> next,
         CancellationToken ct)
@@ -160,7 +160,7 @@ public sealed class TimeoutBehavior<TReq, TRes> : IPipelineBehavior<TReq, TRes>
         cts.CancelAfter(TimeSpan.FromSeconds(5));
         try { return await next().WaitAsync(cts.Token).ConfigureAwait(false); }
         catch (OperationCanceledException ex) when (cts.IsCancellationRequested)
-        { return MediatorErrors.FromException("mediator.timeout", ex, "Timed out"); }
+        { return EncinaErrors.FromException("Encina.timeout", ex, "Timed out"); }
     }
 }
 ```
@@ -198,7 +198,7 @@ services.AddSingleton<IFunctionalFailureDetector, AppFailureDetector>();
 
 ## Zero Exceptions Initiative
 
-Encina is evolving toward a Zero Exceptions policy, where mediator operations stop throwing in expected operational scenarios. Handlers, behaviors, and the mediator itself report failures through functional results (`Either<MediatorError, TValue>`, `Option<T>`, etc.), keeping execution on the ROP rails. During the transition we track remaining throw sites and wrap them in functional results, reserving exceptions for truly exceptional failures. `MediatorErrors` exposes factory helpers to encapsulate exceptions inside `MediatorError` instances.
+Encina is evolving toward a Zero Exceptions policy, where Encina operations stop throwing in expected operational scenarios. Handlers, behaviors, and the Encina itself report failures through functional results (`Either<EncinaError, TValue>`, `Option<T>`, etc.), keeping execution on the ROP rails. During the transition we track remaining throw sites and wrap them in functional results, reserving exceptions for truly exceptional failures. `EncinaErrors` exposes factory helpers to encapsulate exceptions inside `EncinaError` instances.
 
 ## Quick Start
 
@@ -240,7 +240,7 @@ services.AddEncina(cfg =>
 services.AddSingleton<IFunctionalFailureDetector, AppFunctionalFailureDetector>();
 
 await using var provider = services.BuildServiceProvider();
-var mediator = provider.GetRequiredService<IMediator>();
+var Encina = provider.GetRequiredService<IEncina>();
 ```
 
 ### 3. Send a Command
@@ -261,10 +261,10 @@ public sealed class RegisterUserHandler : ICommandHandler<RegisterUser, Unit>
     }
 }
 
-var result = await mediator.Send(new RegisterUser("user@example.com", "Pass@123"), cancellationToken);
+var result = await Encina.Send(new RegisterUser("user@example.com", "Pass@123"), cancellationToken);
 
 result.Match(
-    Left: error => Console.WriteLine($"Registration failed: {error.GetMediatorCode()}"),
+    Left: error => Console.WriteLine($"Registration failed: {error.GetEncinaCode()}"),
     Right: _ => Console.WriteLine("User registered"));
 ```
 
@@ -279,7 +279,7 @@ public sealed class GetUserProfileHandler : IQueryHandler<GetUserProfile, UserPr
         => Users.FindAsync(query.Email, ct);
 }
 
-var profileResult = await mediator.Send(new GetUserProfile("user@example.com"), cancellationToken);
+var profileResult = await Encina.Send(new GetUserProfile("user@example.com"), cancellationToken);
 
 profileResult.Match(
     Left: error => Console.WriteLine($"Lookup failed: {error.Message}"),
@@ -292,19 +292,19 @@ profileResult.Match(
 sequenceDiagram
     autonumber
     participant Caller
-    participant Mediator
+    participant Encina
     participant Pipeline as Pipeline Behaviors
     participant Handler
     participant FailureDetector as Failure Detector
 
-    Caller->>Mediator: Send(request)
-    Mediator->>Pipeline: Execute(request)
+    Caller->>Encina: Send(request)
+    Encina->>Pipeline: Execute(request)
     Pipeline->>Handler: Handle(request, ct)
     Handler-->>Pipeline: TValue
     Pipeline->>FailureDetector: Inspect(result)
-    FailureDetector-->>Pipeline: Either<MediatorError, TValue>
-    Pipeline-->>Mediator: Either<MediatorError, TValue>
-    Mediator-->>Caller: Either<MediatorError, TValue>
+    FailureDetector-->>Pipeline: Either<EncinaError, TValue>
+    Pipeline-->>Encina: Either<EncinaError, TValue>
+    Encina-->>Caller: Either<EncinaError, TValue>
 ```
 
 ## Handlers and Contracts
@@ -313,8 +313,8 @@ Encina relies on explicit interfaces and result types so each operation document
 
 | Contract | Purpose | Default Expectations |
 | --- | --- | --- |
-| `ICommand<TResult>` | Mutation or side effect returning `TResult`. | Handler returns `TResult`; mediator lifts to `Either<MediatorError, TResult>`. |
-| `IQuery<TResult>` | Read operation returning `TResult`. | Handler returns `TResult`; mediator lifts to `Either<MediatorError, TResult>`. |
+| `ICommand<TResult>` | Mutation or side effect returning `TResult`. | Handler returns `TResult`; Encina lifts to `Either<EncinaError, TResult>`. |
+| `IQuery<TResult>` | Read operation returning `TResult`. | Handler returns `TResult`; Encina lifts to `Either<EncinaError, TResult>`. |
 | `INotification` | Fire-and-forget signals. | Zero or more notification handlers. |
 
 ```csharp
@@ -326,7 +326,7 @@ public sealed class SendWelcomeEmailHandler : INotificationHandler<SendWelcomeEm
         => EmailGateway.SendAsync(notification.Email, ct);
 }
 
-var publishResult = await mediator.Publish(new SendWelcomeEmail("user@example.com"), cancellationToken);
+var publishResult = await Encina.Publish(new SendWelcomeEmail("user@example.com"), cancellationToken);
 
 publishResult.Match(
     Left: error => Console.WriteLine($"Notification failed: {error.Message}"),
@@ -353,7 +353,7 @@ services.AddEncina(cfg =>
 | --- | --- |
 | `CommandActivityPipelineBehavior<,>` | Creates OpenTelemetry `Activity` scopes for commands and annotates functional failures. |
 | `QueryActivityPipelineBehavior<,>` | Emits tracing spans for queries and records failure metadata. |
-| `CommandMetricsPipelineBehavior<,>` | Updates mediator counters/histograms after each command. |
+| `CommandMetricsPipelineBehavior<,>` | Updates Encina counters/histograms after each command. |
 | `QueryMetricsPipelineBehavior<,>` | Tracks success/failure metrics for queries, including functional errors. |
 
 ### Custom Behavior Example
@@ -366,7 +366,7 @@ public sealed class TimeoutPipelineBehavior<TRequest, TResponse> : IPipelineBeha
 {
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(5);
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -380,7 +380,7 @@ public sealed class TimeoutPipelineBehavior<TRequest, TResponse> : IPipelineBeha
         }
         catch (OperationCanceledException ex) when (cts.IsCancellationRequested)
         {
-            return MediatorErrors.FromException("mediator.timeout", ex, $"Timeout while running {typeof(TRequest).Name}.");
+            return EncinaErrors.FromException("Encina.timeout", ex, $"Timeout while running {typeof(TRequest).Name}.");
         }
     }
 }
@@ -390,7 +390,7 @@ cfg.AddPipelineBehavior(typeof(TimeoutPipelineBehavior<,>));
 
 ## Functional Failure Detection
 
-Functional failure detection inspects handler results to translate domain-specific error envelopes into consistent mediator failures.
+Functional failure detection inspects handler results to translate domain-specific error envelopes into consistent Encina failures.
 
 ```csharp
 public sealed class AppFunctionalFailureDetector : IFunctionalFailureDetector
@@ -421,8 +421,8 @@ services.AddSingleton<IFunctionalFailureDetector, AppFunctionalFailureDetector>(
 
 ## Diagnostics and Metrics
 
-- `MediatorDiagnostics` wires logging scopes and structured information for each request.
-- `MediatorMetrics` exposes counters and histograms via `System.Diagnostics.Metrics`.
+- `EncinaDiagnostics` wires logging scopes and structured information for each request.
+- `EncinaMetrics` exposes counters and histograms via `System.Diagnostics.Metrics`.
 - `ActivityPipelineBehavior` integrates with `System.Diagnostics.ActivitySource` so OpenTelemetry exporters can pick up traces.
 
 ```csharp
@@ -433,7 +433,7 @@ services.AddOpenTelemetry()
 
 ## Error Metadata
 
-`MediatorError` retains an internal `MetadataException` whose immutable metadata can be retrieved via `GetMediatorMetadata()`. Keys are consistent across the pipeline to aid diagnostics:
+`EncinaError` retains an internal `MetadataException` whose immutable metadata can be retrieved via `GetEncinaMetadata()`. Keys are consistent across the pipeline to aid diagnostics:
 
 - `handler`: fully qualified handler type when available.
 - `request` / `notification`: type involved in the failure.
@@ -445,13 +445,13 @@ services.AddOpenTelemetry()
 Usage example:
 
 ```csharp
-var outcome = await mediator.Send(new DoSomething(), ct);
+var outcome = await Encina.Send(new DoSomething(), ct);
 
 outcome.Match(
     Left: err =>
     {
-        var metadata = err.GetMediatorMetadata();
-        var code = err.GetMediatorCode();
+        var metadata = err.GetEncinaMetadata();
+        var code = err.GetEncinaCode();
         logger.LogWarning("Failure {Code} at {Stage} by {Handler}",
             code,
             metadata.TryGetValue("stage", out var stage) ? stage : "unknown",
@@ -518,10 +518,10 @@ Use `scripts/analyze-mutation-report.cs <filter>` to inspect survivors by file f
 
 The suite exercises:
 
-- Mediator orchestration across happy-path and exceptional flows.
+- Encina orchestration across happy-path and exceptional flows.
 - Command/query telemetry behaviors (activities, metrics, cancellation, functional failures).
 - Service registration helpers and configuration guards.
-- Default implementations such as `MediatorMetrics` and the null functional failure detector.
+- Default implementations such as `EncinaMetrics` and the null functional failure detector.
 
 ### Load Harnesses
 
@@ -560,16 +560,16 @@ The living roadmap in `QUALITY_SECURITY_ROADMAP.md` complements this README with
 - **Can I use it without LanguageExt?** Handlers rely on `Either` and `Unit` from LanguageExt; alternative abstractions would require custom adapters.
 - **How do I handle retries?** Wrap logic inside a custom pipeline behavior or delegate to Polly policies executed inside the handler.
 - **Is streaming supported?** Streaming notifications are supported via processors that work with `IAsyncEnumerable` payloads.
-- **How do I log error metadata?** Use `GetMediatorCode()` for the canonical code and `GetMediatorMetadata()` for context (handler, stage, request/notification). Example:
+- **How do I log error metadata?** Use `GetEncinaCode()` for the canonical code and `GetEncinaMetadata()` for context (handler, stage, request/notification). Example:
 
     ```csharp
-    var outcome = await mediator.Publish(notification, ct);
+    var outcome = await Encina.Publish(notification, ct);
     outcome.Match(
             Left: err =>
             {
-                    var meta = err.GetMediatorMetadata();
+                    var meta = err.GetEncinaMetadata();
                     logger.LogError("{Code} at {Stage} by {Handler}",
-                            err.GetMediatorCode(),
+                            err.GetEncinaCode(),
                             meta.TryGetValue("stage", out var stage) ? stage : "n/a",
                             meta.TryGetValue("handler", out var handler) ? handler : "n/a");
             },

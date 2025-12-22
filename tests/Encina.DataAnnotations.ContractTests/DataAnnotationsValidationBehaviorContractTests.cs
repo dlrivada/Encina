@@ -43,7 +43,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         RequestHandlerCallback<string> nextStep = () =>
         {
             nextStepInvoked = true;
-            return new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            return new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
         };
 
         // Act
@@ -65,7 +65,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         RequestHandlerCallback<string> nextStep = () =>
         {
             nextStepInvoked = true;
-            return new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            return new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
         };
 
         // Act
@@ -84,7 +84,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         var context = RequestContext.Create();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -102,7 +102,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         var context = RequestContext.Create();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -136,7 +136,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         RequestHandlerCallback<string> nextStep = () =>
         {
             nextStepInvoked = true;
-            return new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            return new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
         };
 
         // Act
@@ -167,7 +167,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         };
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -194,7 +194,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         };
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -221,7 +221,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         };
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -247,7 +247,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         };
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         await behavior.Handle(request, context, nextStep, cts.Token);
@@ -265,7 +265,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         var context = RequestContext.Create();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -297,7 +297,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         var context = RequestContext.Create();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);

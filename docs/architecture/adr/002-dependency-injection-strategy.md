@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Date:** 2025-12-12
 **Deciders:** Architecture Team
-**Technical Story:** Establish service lifetime and resolution patterns for mediator components
+**Technical Story:** Establish service lifetime and resolution patterns for Encina components
 
 ## Context
 
@@ -16,12 +16,12 @@ Encina needs a robust dependency injection strategy that:
 - Minimizes memory allocations and service resolution overhead
 - Allows flexible registration patterns (manual, assembly scanning, open generics)
 
-The mediator orchestrates multiple component types with different lifecycle needs:
+The Encina orchestrates multiple component types with different lifecycle needs:
 
 - **Handlers:** Process individual requests/notifications (may be stateful, database-dependent)
 - **Behaviors:** Cross-cutting concerns that wrap handlers (logging, caching, validation)
 - **Pre/Post Processors:** Side-effect operations (auditing, metrics, enrichment)
-- **Mediator Instance:** Coordinates pipeline execution and manages scopes
+- **Encina Instance:** Coordinates pipeline execution and manages scopes
 
 ## Decision
 
@@ -31,13 +31,13 @@ We adopt **Microsoft.Extensions.DependencyInjection** as the DI container with t
 
 | Component Type | Lifetime | Rationale |
 |---------------|----------|-----------|
-| `IMediator` (Encina) | **Singleton** | Stateless coordinator, safe to share across application lifetime |
+| `IEncina` (Encina) | **Singleton** | Stateless coordinator, safe to share across application lifetime |
 | `IRequestHandler<,>` | **Transient** (default) or **Scoped** | Allows stateful handlers, fresh instance per request, supports DbContext injection |
 | `INotificationHandler<>` | **Transient** (default) or **Scoped** | Same as request handlers - fresh instance per notification |
 | `IPipelineBehavior<,>` | **Transient** (default) or **Scoped** | Allows stateful behaviors (e.g., caching), fresh instance per pipeline |
 | `IRequestPreProcessor<>` | **Transient** (default) or **Scoped** | Fresh instance per request |
 | `IRequestPostProcessor<,>` | **Transient** (default) or **Scoped** | Fresh instance per request |
-| `IMediatorMetrics` | **Singleton** | Aggregates metrics across all requests |
+| `IEncinaMetrics` | **Singleton** | Aggregates metrics across all requests |
 
 **Important:** Handlers, behaviors, and processors are registered as **Transient** by default, but **Scoped** is the recommended lifetime for handlers that depend on scoped services like Entity Framework's `DbContext`.
 
@@ -61,7 +61,7 @@ var serviceProvider = scope.ServiceProvider;
 #### 1. Manual Registration (Full Control)
 
 ```csharp
-services.AddMediator();
+services.AddEncina();
 services.AddScoped<IRequestHandler<GetUserQuery, User>, GetUserHandler>();
 services.AddTransient<IPipelineBehavior<GetUserQuery, User>, CachingBehavior<GetUserQuery, User>>();
 ```
@@ -71,11 +71,11 @@ services.AddTransient<IPipelineBehavior<GetUserQuery, User>, CachingBehavior<Get
 #### 2. Assembly Scanning (Convention-Based)
 
 ```csharp
-services.AddMediator(options =>
+services.AddEncina(options =>
 {
     options.ServiceLifetime = ServiceLifetime.Scoped; // Default for handlers/behaviors
 });
-services.RegisterMediatorHandlers(typeof(GetUserHandler).Assembly);
+services.RegisterEncinaHandlers(typeof(GetUserHandler).Assembly);
 ```
 
 **Use when:** Many handlers, following naming conventions, production applications.
@@ -100,7 +100,7 @@ var handler = serviceProvider.GetService(handlerType);
 
 if (handler is null)
 {
-    return MediatorErrors.Create(MediatorErrorCodes.RequestHandlerMissing, ...);
+    return EncinaErrors.Create(EncinaErrorCodes.RequestHandlerMissing, ...);
 }
 ```
 
@@ -143,7 +143,7 @@ var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TRespons
 - **Standard Patterns:** Follows .NET ecosystem conventions (familiar to all .NET developers)
 - **Assembly Scanning:** Automatic handler registration reduces boilerplate
 - **Open Generics:** Cross-cutting behaviors work without per-type registration
-- **Memory Efficiency:** Singleton mediator minimizes allocations
+- **Memory Efficiency:** Singleton Encina minimizes allocations
 
 ### Negative
 
@@ -155,7 +155,7 @@ var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TRespons
 ### Neutral
 
 - **Handler Lifetime Choice:** Library provides defaults but allows override (Transient/Scoped choice left to consumer)
-- **No Constructor Injection:** Mediator itself uses `IServiceScopeFactory` instead of direct service injection (intentional for scope control)
+- **No Constructor Injection:** Encina itself uses `IServiceScopeFactory` instead of direct service injection (intentional for scope control)
 
 ## Implementation Details
 
@@ -173,19 +173,19 @@ public Encina(IServiceScopeFactory scopeFactory, ILogger<Encina> logger)
 
 - Enables explicit scope creation for request isolation
 - Prevents accidental singleton service resolution when scoped is intended
-- Gives mediator control over service lifetime boundaries
+- Gives Encina control over service lifetime boundaries
 
 ### Registration Extension Method
 
 ```csharp
-public static IServiceCollection AddMediator(
+public static IServiceCollection AddEncina(
     this IServiceCollection services,
     Action<EncinaConfiguration>? configure = null)
 {
     var config = new EncinaConfiguration();
     configure?.Invoke(config);
 
-    services.TryAddSingleton<IMediator, Encina>();
+    services.TryAddSingleton<IEncina, Encina>();
 
     // Optional: Register default behaviors
     if (config.RegisterDefaultBehaviors)
@@ -200,7 +200,7 @@ public static IServiceCollection AddMediator(
 ### Assembly Scanning Strategy
 
 ```csharp
-public static IServiceCollection RegisterMediatorHandlers(
+public static IServiceCollection RegisterEncinaHandlers(
     this IServiceCollection services,
     Assembly assembly,
     ServiceLifetime lifetime = ServiceLifetime.Scoped)
@@ -272,7 +272,7 @@ public async Task Send_CallsHandler()
 {
     // Arrange
     var services = new ServiceCollection();
-    services.AddMediator();
+    services.AddEncina();
 
     var mockHandler = new Mock<IRequestHandler<GetUserQuery, User>>();
     mockHandler.Setup(h => h.Handle(It.IsAny<GetUserQuery>(), It.IsAny<CancellationToken>()))
@@ -281,10 +281,10 @@ public async Task Send_CallsHandler()
     services.AddScoped<IRequestHandler<GetUserQuery, User>>(_ => mockHandler.Object);
 
     var provider = services.BuildServiceProvider();
-    var mediator = provider.GetRequiredService<IMediator>();
+    var Encina = provider.GetRequiredService<IEncina>();
 
     // Act
-    var result = await mediator.Send(new GetUserQuery(1));
+    var result = await Encina.Send(new GetUserQuery(1));
 
     // Assert
     result.IsRight.Should().BeTrue();

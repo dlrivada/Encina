@@ -5,7 +5,7 @@ namespace Encina;
 /// <summary>
 /// Provides the activity source consumed by telemetry-oriented behaviors.
 /// </summary>
-internal static class MediatorDiagnostics
+internal static class EncinaDiagnostics
 {
     internal static readonly ActivitySource ActivitySource = new("Encina", "1.0");
 
@@ -16,11 +16,11 @@ internal static class MediatorDiagnostics
             return null;
         }
 
-        var activity = ActivitySource.StartActivity("Encina.Send", ActivityKind.Internal);
-        activity?.SetTag("mediator.request_type", requestType.FullName);
-        activity?.SetTag("mediator.request_name", requestType.Name);
-        activity?.SetTag("mediator.response_type", responseType.FullName);
-        activity?.SetTag("mediator.request_kind", requestKind);
+        Activity? activity = ActivitySource.StartActivity("Encina.Send", ActivityKind.Internal);
+        activity?.SetTag("Encina.request_type", requestType.FullName);
+        activity?.SetTag("Encina.request_name", requestType.Name);
+        activity?.SetTag("Encina.response_type", responseType.FullName);
+        activity?.SetTag("Encina.request_kind", requestKind);
         return activity;
     }
 
@@ -33,7 +33,7 @@ internal static class MediatorDiagnostics
 
         if (!string.IsNullOrWhiteSpace(errorCode))
         {
-            activity.SetTag("mediator.failure_reason", errorCode);
+            activity.SetTag("Encina.failure_reason", errorCode);
         }
 
         activity.SetStatus(isSuccess ? ActivityStatusCode.Ok : ActivityStatusCode.Error, errorMessage);
@@ -47,16 +47,16 @@ internal static class MediatorDiagnostics
             return null;
         }
 
-        var activity = ActivitySource.StartActivity("Encina.Stream", ActivityKind.Internal);
-        activity?.SetTag("mediator.request_type", requestType.FullName);
-        activity?.SetTag("mediator.request_name", requestType.Name);
-        activity?.SetTag("mediator.item_type", itemType.FullName);
-        activity?.SetTag("mediator.item_name", itemType.Name);
+        Activity? activity = ActivitySource.StartActivity("Encina.Stream", ActivityKind.Internal);
+        activity?.SetTag("Encina.request_type", requestType.FullName);
+        activity?.SetTag("Encina.request_name", requestType.Name);
+        activity?.SetTag("Encina.item_type", itemType.FullName);
+        activity?.SetTag("Encina.item_name", itemType.Name);
         return activity;
     }
 
     internal static void RecordStreamItemCount(Activity? activity, int itemCount)
     {
-        activity?.SetTag("mediator.stream_item_count", itemCount);
+        activity?.SetTag("Encina.stream_item_count", itemCount);
     }
 }

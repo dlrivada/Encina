@@ -16,8 +16,8 @@ public interface IMQTTMessagePublisher
     /// <param name="qos">The quality of service level. If null, uses the default QoS.</param>
     /// <param name="retain">Whether to retain the message on the broker.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or Unit on success.</returns>
-    ValueTask<Either<MediatorError, Unit>> PublishAsync<TMessage>(
+    /// <returns>Either a EncinaError or Unit on success.</returns>
+    ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         string? topic = null,
         MqttQualityOfService? qos = null,

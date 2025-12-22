@@ -8,7 +8,7 @@ namespace Encina.DataAnnotations.IntegrationTests;
 
 /// <summary>
 /// Integration tests for DataAnnotationsValidationBehavior.
-/// Tests end-to-end scenarios with DI container and real mediator.
+/// Tests end-to-end scenarios with DI container and real Encina.
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class DataAnnotationsValidationBehaviorIntegrationTests
@@ -25,9 +25,9 @@ public sealed class DataAnnotationsValidationBehaviorIntegrationTests
 
     private sealed class TestCommandHandler : ICommandHandler<TestCommand, Guid>
     {
-        public Task<Either<MediatorError, Guid>> Handle(TestCommand request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Guid>> Handle(TestCommand request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, Guid>(Guid.NewGuid()));
+            return Task.FromResult(Right<EncinaError, Guid>(Guid.NewGuid()));
         }
     }
 
@@ -43,11 +43,11 @@ public sealed class DataAnnotationsValidationBehaviorIntegrationTests
             sp.GetRequiredService<DataAnnotationsValidationBehavior<TestCommand, Guid>>());
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var command = new TestCommand { Name = "John", Email = "john@example.com" };
 
         // Act
-        var result = await mediator.Send(command);
+        var result = await Encina.Send(command);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -65,11 +65,11 @@ public sealed class DataAnnotationsValidationBehaviorIntegrationTests
             sp.GetRequiredService<DataAnnotationsValidationBehavior<TestCommand, Guid>>());
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var command = new TestCommand { Name = "", Email = "invalid-email" };
 
         // Act
-        var result = await mediator.Send(command);
+        var result = await Encina.Send(command);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
@@ -95,11 +95,11 @@ public sealed class DataAnnotationsValidationBehaviorIntegrationTests
             sp.GetRequiredService<DataAnnotationsValidationBehavior<TestCommand, Guid>>());
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var command = new TestCommand { Name = "", Email = "" };
 
         // Act
-        var result = await mediator.Send(command);
+        var result = await Encina.Send(command);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
@@ -129,11 +129,11 @@ public sealed class DataAnnotationsValidationBehaviorIntegrationTests
             sp.GetRequiredService<DataAnnotationsValidationBehavior<NoValidationCommand, Guid>>());
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var command = new NoValidationCommand { Value = "" };
 
         // Act
-        var result = await mediator.Send(command);
+        var result = await Encina.Send(command);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -155,16 +155,16 @@ public sealed class DataAnnotationsValidationBehaviorIntegrationTests
         // Act - Valid in scope 1
         using (var scope1 = provider.CreateScope())
         {
-            var mediator1 = scope1.ServiceProvider.GetRequiredService<IMediator>();
-            var result1 = await mediator1.Send(new TestCommand { Name = "user1", Email = "user1@example.com" });
+            var Encina1 = scope1.ServiceProvider.GetRequiredService<IEncina>();
+            var result1 = await Encina1.Send(new TestCommand { Name = "user1", Email = "user1@example.com" });
             result1.IsRight.ShouldBeTrue();
         }
 
         // Act - Invalid in scope 2
         using (var scope2 = provider.CreateScope())
         {
-            var mediator2 = scope2.ServiceProvider.GetRequiredService<IMediator>();
-            var result2 = await mediator2.Send(new TestCommand { Name = "", Email = "" });
+            var Encina2 = scope2.ServiceProvider.GetRequiredService<IEncina>();
+            var result2 = await Encina2.Send(new TestCommand { Name = "", Email = "" });
             result2.IsLeft.ShouldBeTrue();
         }
     }
@@ -181,14 +181,14 @@ public sealed class DataAnnotationsValidationBehaviorIntegrationTests
             sp.GetRequiredService<DataAnnotationsValidationBehavior<TestCommand, Guid>>());
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var command = new TestCommand { Name = "John", Email = "john@example.com" };
 
         var cts = new CancellationTokenSource();
         cts.Cancel();
 
         // Act
-        var result = await mediator.Send(command, cancellationToken: cts.Token);
+        var result = await Encina.Send(command, cancellationToken: cts.Token);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
@@ -202,9 +202,9 @@ public sealed class DataAnnotationsValidationBehaviorIntegrationTests
 
     private sealed class NoValidationCommandHandler : ICommandHandler<NoValidationCommand, Guid>
     {
-        public Task<Either<MediatorError, Guid>> Handle(NoValidationCommand request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Guid>> Handle(NoValidationCommand request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, Guid>(Guid.NewGuid()));
+            return Task.FromResult(Right<EncinaError, Guid>(Guid.NewGuid()));
         }
     }
 }

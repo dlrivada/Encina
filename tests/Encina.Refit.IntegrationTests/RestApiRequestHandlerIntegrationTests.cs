@@ -43,7 +43,7 @@ public class RestApiRequestHandlerIntegrationTests
     }
 
     [Fact]
-    public async Task EndToEnd_404NotFound_ShouldReturnMediatorError()
+    public async Task EndToEnd_404NotFound_ShouldReturnEncinaError()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -71,7 +71,7 @@ public class RestApiRequestHandlerIntegrationTests
     }
 
     [Fact]
-    public async Task EndToEnd_500InternalServerError_ShouldReturnMediatorError()
+    public async Task EndToEnd_500InternalServerError_ShouldReturnEncinaError()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -99,7 +99,7 @@ public class RestApiRequestHandlerIntegrationTests
     }
 
     [Fact]
-    public async Task EndToEnd_NetworkError_ShouldReturnMediatorError()
+    public async Task EndToEnd_NetworkError_ShouldReturnEncinaError()
     {
         // Arrange
         var services = new ServiceCollection();

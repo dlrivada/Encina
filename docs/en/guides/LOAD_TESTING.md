@@ -25,7 +25,7 @@ dotnet run --file scripts/run-load-harness.cs -- --duration 00:01:00 --send-work
 - `--send-workers <int>`: parallel send loops (default = logical core count).
 - `--publish-workers <int>`: parallel publish loops (default = half logical core count, minimum 1).
 
-Each worker resolves `IMediator` per iteration and issues either a synthetic command or notification. Results are aggregated into a summary that includes total operations, success/failure counts, mean latency, and throughput estimates.
+Each worker resolves `IEncina` per iteration and issues either a synthetic command or notification. Results are aggregated into a summary that includes total operations, success/failure counts, mean latency, and throughput estimates.
 
 ## Capturing CPU and Memory Metrics
 

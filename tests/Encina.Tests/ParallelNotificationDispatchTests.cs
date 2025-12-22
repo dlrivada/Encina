@@ -18,11 +18,11 @@ public sealed class ParallelNotificationDispatchTests
     public async Task ParallelDispatch_ShouldInvokeAllHandlers()
     {
         // Arrange
-        var mediator = CreateMediator(NotificationDispatchStrategy.Parallel);
+        var Encina = CreateEncina(NotificationDispatchStrategy.Parallel);
         var notification = new TestNotification("test");
 
         // Act
-        var result = await mediator.Publish(notification, CancellationToken.None);
+        var result = await Encina.Publish(notification, CancellationToken.None);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -36,11 +36,11 @@ public sealed class ParallelNotificationDispatchTests
     public async Task ParallelWhenAllDispatch_ShouldInvokeAllHandlers()
     {
         // Arrange
-        var mediator = CreateMediator(NotificationDispatchStrategy.ParallelWhenAll);
+        var Encina = CreateEncina(NotificationDispatchStrategy.ParallelWhenAll);
         var notification = new TestNotification("test");
 
         // Act
-        var result = await mediator.Publish(notification, CancellationToken.None);
+        var result = await Encina.Publish(notification, CancellationToken.None);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -54,11 +54,11 @@ public sealed class ParallelNotificationDispatchTests
     public async Task SequentialDispatch_ShouldMaintainOrder()
     {
         // Arrange
-        var mediator = CreateMediator(NotificationDispatchStrategy.Sequential);
+        var Encina = CreateEncina(NotificationDispatchStrategy.Sequential);
         var notification = new TestNotification("test");
 
         // Act
-        var result = await mediator.Publish(notification, CancellationToken.None);
+        var result = await Encina.Publish(notification, CancellationToken.None);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -82,7 +82,7 @@ public sealed class ParallelNotificationDispatchTests
             options.Strategy = NotificationDispatchStrategy.Parallel;
             options.MaxDegreeOfParallelism = 1; // Force sequential-like execution to test cancellation
         });
-        services.AddScoped<IMediator, Encina>();
+        services.AddScoped<IEncina, Encina>();
         services.AddScoped<INotificationHandler<FailingNotification>>(_ =>
             new FirstFailingHandler(executionOrder, lockObj));
         services.AddScoped<INotificationHandler<FailingNotification>>(_ =>
@@ -91,16 +91,16 @@ public sealed class ParallelNotificationDispatchTests
             new ThirdSlowHandler(executionOrder, lockObj));
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var notification = new FailingNotification();
 
         // Act
-        var result = await mediator.Publish(notification, CancellationToken.None);
+        var result = await Encina.Publish(notification, CancellationToken.None);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
         result.Match(
-            Left: err => err.GetMediatorCode().ShouldBe(MediatorErrorCodes.NotificationInvokeException),
+            Left: err => err.GetEncinaCode().ShouldBe(EncinaErrorCodes.NotificationInvokeException),
             Right: _ => throw new InvalidOperationException("Expected failure"));
 
         // First handler should have run and failed
@@ -117,16 +117,16 @@ public sealed class ParallelNotificationDispatchTests
         {
             options.Strategy = NotificationDispatchStrategy.ParallelWhenAll;
         });
-        services.AddScoped<IMediator, Encina>();
+        services.AddScoped<IEncina, Encina>();
         services.AddScoped<INotificationHandler<AllFailNotification>>(_ => new FailingHandlerA());
         services.AddScoped<INotificationHandler<AllFailNotification>>(_ => new FailingHandlerB());
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var notification = new AllFailNotification();
 
         // Act
-        var result = await mediator.Publish(notification, CancellationToken.None);
+        var result = await Encina.Publish(notification, CancellationToken.None);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
@@ -134,9 +134,9 @@ public sealed class ParallelNotificationDispatchTests
             Left: err =>
             {
                 // Should aggregate multiple failures
-                var code = err.GetMediatorCode();
-                (code == MediatorErrorCodes.NotificationMultipleFailures ||
-                 code == MediatorErrorCodes.NotificationInvokeException).ShouldBeTrue();
+                var code = err.GetEncinaCode();
+                (code == EncinaErrorCodes.NotificationMultipleFailures ||
+                 code == EncinaErrorCodes.NotificationInvokeException).ShouldBeTrue();
             },
             Right: _ => throw new InvalidOperationException("Expected failure"));
     }
@@ -151,19 +151,19 @@ public sealed class ParallelNotificationDispatchTests
         {
             options.Strategy = NotificationDispatchStrategy.Parallel;
         });
-        services.AddScoped<IMediator, Encina>();
+        services.AddScoped<IEncina, Encina>();
         services.AddScoped<INotificationHandler<SlowNotification>>(_ => new SlowHandler(cts));
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act
-        var result = await mediator.Publish(new SlowNotification(), cts.Token);
+        var result = await Encina.Publish(new SlowNotification(), cts.Token);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
         result.Match(
-            Left: err => err.GetMediatorCode().ShouldContain("cancelled", Case.Insensitive),
+            Left: err => err.GetEncinaCode().ShouldContain("cancelled", Case.Insensitive),
             Right: _ => throw new InvalidOperationException("Expected cancellation"));
     }
 
@@ -176,14 +176,14 @@ public sealed class ParallelNotificationDispatchTests
         {
             options.Strategy = NotificationDispatchStrategy.Parallel;
         });
-        services.AddScoped<IMediator, Encina>();
+        services.AddScoped<IEncina, Encina>();
         // No handlers registered
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act
-        var result = await mediator.Publish(new EmptyNotification(), CancellationToken.None);
+        var result = await Encina.Publish(new EmptyNotification(), CancellationToken.None);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -199,15 +199,15 @@ public sealed class ParallelNotificationDispatchTests
         {
             options.Strategy = NotificationDispatchStrategy.Parallel;
         });
-        services.AddScoped<IMediator, Encina>();
+        services.AddScoped<IEncina, Encina>();
         services.AddScoped<INotificationHandler<SingleNotification>>(_ =>
             new SingleHandler(() => executed = true));
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act
-        var result = await mediator.Publish(new SingleNotification(), CancellationToken.None);
+        var result = await Encina.Publish(new SingleNotification(), CancellationToken.None);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -228,7 +228,7 @@ public sealed class ParallelNotificationDispatchTests
             options.Strategy = NotificationDispatchStrategy.Parallel;
             options.MaxDegreeOfParallelism = 2; // Limit to 2 concurrent
         });
-        services.AddScoped<IMediator, Encina>();
+        services.AddScoped<IEncina, Encina>();
 
         // Add 5 handlers that track concurrency
         for (var i = 0; i < 5; i++)
@@ -242,10 +242,10 @@ public sealed class ParallelNotificationDispatchTests
         }
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act
-        var result = await mediator.Publish(new ConcurrencyNotification(), CancellationToken.None);
+        var result = await Encina.Publish(new ConcurrencyNotification(), CancellationToken.None);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -264,22 +264,22 @@ public sealed class ParallelNotificationDispatchTests
         {
             options.Strategy = strategy;
         });
-        services.AddScoped<IMediator, Encina>();
+        services.AddScoped<IEncina, Encina>();
         // Register a factory that returns null (simulating edge case)
         services.AddScoped<INotificationHandler<TestNotification>>(_ => null!);
         services.AddScoped<INotificationHandler<TestNotification>>(_ => new TestHandler1(new List<string>(), new object()));
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act
-        var result = await mediator.Publish(new TestNotification("test"), CancellationToken.None);
+        var result = await Encina.Publish(new TestNotification("test"), CancellationToken.None);
 
         // Assert
         result.IsRight.ShouldBeTrue();
     }
 
-    private IMediator CreateMediator(NotificationDispatchStrategy strategy)
+    private IEncina CreateEncina(NotificationDispatchStrategy strategy)
     {
         var services = new ServiceCollection();
 
@@ -288,13 +288,13 @@ public sealed class ParallelNotificationDispatchTests
             options.Strategy = strategy;
         });
 
-        services.AddScoped<IMediator, Encina>();
+        services.AddScoped<IEncina, Encina>();
         services.AddScoped<INotificationHandler<TestNotification>>(_ => new TestHandler1(_executionOrder, _lock));
         services.AddScoped<INotificationHandler<TestNotification>>(_ => new TestHandler2(_executionOrder, _lock));
         services.AddScoped<INotificationHandler<TestNotification>>(_ => new TestHandler3(_executionOrder, _lock));
 
         var provider = services.BuildServiceProvider();
-        return provider.GetRequiredService<IMediator>();
+        return provider.GetRequiredService<IEncina>();
     }
 
     // Test notifications
@@ -309,62 +309,62 @@ public sealed class ParallelNotificationDispatchTests
     // Test handlers
     private sealed class TestHandler1(List<string> order, object lockObj) : INotificationHandler<TestNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(TestNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(TestNotification notification, CancellationToken cancellationToken)
         {
             lock (lockObj)
             {
                 order.Add("Handler1");
             }
-            return Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 
     private sealed class TestHandler2(List<string> order, object lockObj) : INotificationHandler<TestNotification>
     {
-        public async Task<Either<MediatorError, Unit>> Handle(TestNotification notification, CancellationToken cancellationToken)
+        public async Task<Either<EncinaError, Unit>> Handle(TestNotification notification, CancellationToken cancellationToken)
         {
             await Task.Delay(10, cancellationToken); // Small delay to allow parallel execution to interleave
             lock (lockObj)
             {
                 order.Add("Handler2");
             }
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
     }
 
     private sealed class TestHandler3(List<string> order, object lockObj) : INotificationHandler<TestNotification>
     {
-        public async Task<Either<MediatorError, Unit>> Handle(TestNotification notification, CancellationToken cancellationToken)
+        public async Task<Either<EncinaError, Unit>> Handle(TestNotification notification, CancellationToken cancellationToken)
         {
             await Task.Delay(5, cancellationToken);
             lock (lockObj)
             {
                 order.Add("Handler3");
             }
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
     }
 
     private sealed class FirstFailingHandler(List<string> order, object lockObj) : INotificationHandler<FailingNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(FailingNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(FailingNotification notification, CancellationToken cancellationToken)
         {
             lock (lockObj)
             {
                 order.Add("First:Start");
             }
-            var error = MediatorErrors.Create(MediatorErrorCodes.NotificationInvokeException, "First handler failed");
+            var error = EncinaErrors.Create(EncinaErrorCodes.NotificationInvokeException, "First handler failed");
             lock (lockObj)
             {
                 order.Add("First:Failed");
             }
-            return Task.FromResult(Left<MediatorError, Unit>(error));
+            return Task.FromResult(Left<EncinaError, Unit>(error));
         }
     }
 
     private sealed class SecondSlowHandler(List<string> order, object lockObj) : INotificationHandler<FailingNotification>
     {
-        public async Task<Either<MediatorError, Unit>> Handle(FailingNotification notification, CancellationToken cancellationToken)
+        public async Task<Either<EncinaError, Unit>> Handle(FailingNotification notification, CancellationToken cancellationToken)
         {
             lock (lockObj)
             {
@@ -375,13 +375,13 @@ public sealed class ParallelNotificationDispatchTests
             {
                 order.Add("Second:End");
             }
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
     }
 
     private sealed class ThirdSlowHandler(List<string> order, object lockObj) : INotificationHandler<FailingNotification>
     {
-        public async Task<Either<MediatorError, Unit>> Handle(FailingNotification notification, CancellationToken cancellationToken)
+        public async Task<Either<EncinaError, Unit>> Handle(FailingNotification notification, CancellationToken cancellationToken)
         {
             lock (lockObj)
             {
@@ -392,31 +392,31 @@ public sealed class ParallelNotificationDispatchTests
             {
                 order.Add("Third:End");
             }
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
     }
 
     private sealed class FailingHandlerA : INotificationHandler<AllFailNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(AllFailNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(AllFailNotification notification, CancellationToken cancellationToken)
         {
-            var error = MediatorErrors.Create(MediatorErrorCodes.NotificationInvokeException, "Handler A failed");
-            return Task.FromResult(Left<MediatorError, Unit>(error));
+            var error = EncinaErrors.Create(EncinaErrorCodes.NotificationInvokeException, "Handler A failed");
+            return Task.FromResult(Left<EncinaError, Unit>(error));
         }
     }
 
     private sealed class FailingHandlerB : INotificationHandler<AllFailNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(AllFailNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(AllFailNotification notification, CancellationToken cancellationToken)
         {
-            var error = MediatorErrors.Create(MediatorErrorCodes.NotificationInvokeException, "Handler B failed");
-            return Task.FromResult(Left<MediatorError, Unit>(error));
+            var error = EncinaErrors.Create(EncinaErrorCodes.NotificationInvokeException, "Handler B failed");
+            return Task.FromResult(Left<EncinaError, Unit>(error));
         }
     }
 
     private sealed class SlowHandler(CancellationTokenSource cts) : INotificationHandler<SlowNotification>
     {
-        public async Task<Either<MediatorError, Unit>> Handle(SlowNotification notification, CancellationToken cancellationToken)
+        public async Task<Either<EncinaError, Unit>> Handle(SlowNotification notification, CancellationToken cancellationToken)
         {
             // Cancel after a short delay
             _ = Task.Run(async () =>
@@ -426,22 +426,22 @@ public sealed class ParallelNotificationDispatchTests
             }, CancellationToken.None);
 
             await Task.Delay(1000, cancellationToken);
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
     }
 
     private sealed class SingleHandler(Action onExecute) : INotificationHandler<SingleNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(SingleNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(SingleNotification notification, CancellationToken cancellationToken)
         {
             onExecute();
-            return Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 
     private sealed class ConcurrencyHandler(object lockObj, Func<int> getCurrent, Action<int> setCurrent) : INotificationHandler<ConcurrencyNotification>
     {
-        public async Task<Either<MediatorError, Unit>> Handle(ConcurrencyNotification notification, CancellationToken cancellationToken)
+        public async Task<Either<EncinaError, Unit>> Handle(ConcurrencyNotification notification, CancellationToken cancellationToken)
         {
             lock (lockObj)
             {
@@ -455,7 +455,7 @@ public sealed class ParallelNotificationDispatchTests
                 setCurrent(getCurrent() - 1);
             }
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
     }
 }

@@ -41,7 +41,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         var context = RequestContext.Create();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act & Assert
         await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -58,7 +58,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         IRequestContext nullContext = null!;
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act & Assert
         await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -93,7 +93,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         RequestHandlerCallback<string> nextStep = () =>
         {
             nextCalled = true;
-            return new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            return new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
         };
 
         // Act
@@ -114,7 +114,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         var context = RequestContext.Create();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -133,7 +133,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         var context = RequestContext.Create();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -154,7 +154,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         cts.Cancel();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, cts.Token);
@@ -179,7 +179,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         var context = RequestContext.Create();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -198,7 +198,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         var context = RequestContext.Create(); // No UserId, TenantId
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);

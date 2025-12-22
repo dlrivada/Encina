@@ -5,7 +5,7 @@ namespace Encina.GraphQL;
 /// <summary>
 /// Interface for bridging GraphQL operations to Encina.
 /// </summary>
-public interface IGraphQLMediatorBridge
+public interface IGraphQLEncinaBridge
 {
     /// <summary>
     /// Sends a query request and returns the response.
@@ -14,8 +14,8 @@ public interface IGraphQLMediatorBridge
     /// <typeparam name="TResult">The type of the result.</typeparam>
     /// <param name="query">The query to execute.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the result.</returns>
-    ValueTask<Either<MediatorError, TResult>> QueryAsync<TQuery, TResult>(
+    /// <returns>Either a EncinaError or the result.</returns>
+    ValueTask<Either<EncinaError, TResult>> QueryAsync<TQuery, TResult>(
         TQuery query,
         CancellationToken cancellationToken = default)
         where TQuery : class, IRequest<TResult>;
@@ -27,8 +27,8 @@ public interface IGraphQLMediatorBridge
     /// <typeparam name="TResult">The type of the result.</typeparam>
     /// <param name="mutation">The mutation to execute.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the result.</returns>
-    ValueTask<Either<MediatorError, TResult>> MutateAsync<TMutation, TResult>(
+    /// <returns>Either a EncinaError or the result.</returns>
+    ValueTask<Either<EncinaError, TResult>> MutateAsync<TMutation, TResult>(
         TMutation mutation,
         CancellationToken cancellationToken = default)
         where TMutation : class, IRequest<TResult>;
@@ -41,7 +41,7 @@ public interface IGraphQLMediatorBridge
     /// <param name="subscription">The subscription request.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>An async enumerable of results.</returns>
-    IAsyncEnumerable<Either<MediatorError, TResult>> SubscribeAsync<TSubscription, TResult>(
+    IAsyncEnumerable<Either<EncinaError, TResult>> SubscribeAsync<TSubscription, TResult>(
         TSubscription subscription,
         CancellationToken cancellationToken = default)
         where TSubscription : class;

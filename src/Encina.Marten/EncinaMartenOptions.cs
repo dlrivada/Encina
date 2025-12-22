@@ -19,7 +19,7 @@ public sealed class EncinaMartenOptions
 
     /// <summary>
     /// Gets or sets a value indicating whether to throw on concurrency conflicts.
-    /// When false, returns a MediatorError instead. Default is false.
+    /// When false, returns a EncinaError instead. Default is false.
     /// </summary>
     public bool ThrowOnConcurrencyConflict { get; set; }
 

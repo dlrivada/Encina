@@ -47,7 +47,7 @@ We will add `IRequestContext` as an **explicit parameter** to all pipeline inter
 namespace Encina;
 
 /// <summary>
-/// Ambient context that flows through the mediator pipeline.
+/// Ambient context that flows through the Encina pipeline.
 /// Created per request, immutable, supports enrichment.
 /// </summary>
 public interface IRequestContext
@@ -107,7 +107,7 @@ public interface IRequestContext
 public interface IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
-    ValueTask<Either<MediatorError, TResponse>> Handle(
+    ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,  // NEW: Always available
         RequestHandlerCallback<TResponse> nextStep,
@@ -127,7 +127,7 @@ public interface IRequestPostProcessor<in TRequest, TResponse>
     Task Process(
         TRequest request,
         IRequestContext context,  // NEW: Read-only access
-        Either<MediatorError, TResponse> response,
+        Either<EncinaError, TResponse> response,
         CancellationToken cancellationToken);
 }
 ```
@@ -214,7 +214,7 @@ public sealed class CachingBehavior<TRequest, TResponse>
     private readonly IRequestHandlerMetadataProvider _metadata;
     private readonly IDistributedCache _cache;
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,
@@ -334,7 +334,7 @@ Core remains minimal, integrations via satellite packages:
    - Reflection-based implementation with caching
    - Register as singleton in DI
 
-2. **Update `MediatorAssemblyScanner`**
+2. **Update `EncinaAssemblyScanner`**
    - Build handler metadata cache during scanning
    - Store attributes, lifetime, type info
 
@@ -458,7 +458,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
 {
     private readonly IRequestContextAccessor _contextAccessor;
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(...)
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(...)
     {
         var context = await _contextAccessor.GetCurrentContext();
     }
@@ -474,7 +474,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
 ### ✅ CHOSEN: Explicit Parameter
 
 ```csharp
-public async ValueTask<Either<MediatorError, TResponse>> Handle(
+public async ValueTask<Either<EncinaError, TResponse>> Handle(
     TRequest request,
     IRequestContext context,  // Clear, always available
     RequestHandlerCallback<TResponse> nextStep,
@@ -500,7 +500,7 @@ public async ValueTask<Either<MediatorError, TResponse>> Handle(
 public sealed class LoggingBehavior<TRequest, TResponse>
     : IPipelineBehavior<TRequest, TResponse>
 {
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -516,7 +516,7 @@ public sealed class LoggingBehavior<TRequest, TResponse>
 public sealed class LoggingBehavior<TRequest, TResponse>
     : IPipelineBehavior<TRequest, TResponse>
 {
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,  // NEW
         RequestHandlerCallback<TResponse> nextStep,

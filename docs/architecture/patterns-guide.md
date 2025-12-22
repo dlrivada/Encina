@@ -1,10 +1,10 @@
 # Design Patterns Guide
 
-This guide explains the key design patterns used in Encina, their purpose, implementation details, and how they work together to create a robust, maintainable mediator library.
+This guide explains the key design patterns used in Encina, their purpose, implementation details, and how they work together to create a robust, maintainable Encina library.
 
 ## Table of Contents
 
-1. [Mediator Pattern](#mediator-pattern)
+1. [Encina Pattern](#Encina-pattern)
 2. [Railway Oriented Programming](#railway-oriented-programming)
 3. [Chain of Responsibility](#chain-of-responsibility)
 4. [Decorator Pattern](#decorator-pattern)
@@ -17,7 +17,7 @@ This guide explains the key design patterns used in Encina, their purpose, imple
 
 ---
 
-## Mediator Pattern
+## Encina Pattern
 
 ### Purpose
 
@@ -25,7 +25,7 @@ Reduce coupling between components by introducing a central coordinator that han
 
 ### Problem
 
-Without a mediator:
+Without a Encina:
 
 ```csharp
 // Controller tightly coupled to business logic
@@ -61,17 +61,17 @@ public class UserController
 - Cross-cutting concerns (validation, caching, logging) scattered across controllers
 - Difficult to add new functionality without modifying existing code
 
-### Solution with Mediator
+### Solution with Encina
 
 ```csharp
-// Controller only depends on IMediator
+// Controller only depends on IEncina
 public class UserController
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
 
     public async Task<IActionResult> CreateUser(CreateUserRequest request)
     {
-        var result = await _mediator.Send(new CreateUserCommand(request.Email, request.Name));
+        var result = await _Encina.Send(new CreateUserCommand(request.Email, request.Name));
 
         return result.Match(
             Right: user => Ok(user),
@@ -95,12 +95,12 @@ public class CreateUserHandler : IRequestHandler<CreateUserCommand, User>
 // Cross-cutting concerns in behaviors
 public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request, RequestHandlerCallback<TResponse> next, CancellationToken ct)
     {
         // Validation logic applies to ALL requests
         if (request is IValidatable validatable && !validatable.IsValid())
-            return Left(MediatorErrors.ValidationFailed);
+            return Left(EncinaErrors.ValidationFailed);
 
         return await next();
     }
@@ -117,18 +117,18 @@ public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TReques
 ### Implementation in Encina
 
 ```csharp
-public sealed partial class Encina : IMediator
+public sealed partial class Encina : IEncina
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<Encina> _logger;
 
-    public ValueTask<Either<MediatorError, TResponse>> Send<TResponse>(
+    public ValueTask<Either<EncinaError, TResponse>> Send<TResponse>(
         IRequest<TResponse> request, CancellationToken ct = default)
     {
-        if (!MediatorRequestGuards.TryValidateRequest<TResponse>(request, out var error))
-            return new ValueTask<Either<MediatorError, TResponse>>(error);
+        if (!EncinaRequestGuards.TryValidateRequest<TResponse>(request, out var error))
+            return new ValueTask<Either<EncinaError, TResponse>>(error);
 
-        return new ValueTask<Either<MediatorError, TResponse>>(
+        return new ValueTask<Either<EncinaError, TResponse>>(
             RequestDispatcher.ExecuteAsync(this, request, ct));
     }
 }
@@ -171,14 +171,14 @@ var user = await GetUser(123); // May throw - not visible in code
 ### Solution with Railway Oriented Programming
 
 ```csharp
-public async Task<Either<MediatorError, User>> GetUser(int id)
+public async Task<Either<EncinaError, User>> GetUser(int id)
 {
     var user = await _userRepo.FindById(id);
     if (user is null)
-        return Left(MediatorErrors.NotFound("User not found"));
+        return Left(EncinaErrors.NotFound("User not found"));
 
     if (!user.IsActive)
-        return Left(MediatorErrors.InvalidOperation("User inactive"));
+        return Left(EncinaErrors.InvalidOperation("User inactive"));
 
     return Right(user);
 }
@@ -205,7 +205,7 @@ Error Path (Left):             Error ←  Error  ←   Error
 
 ```csharp
 // Pipeline execution with short-circuiting
-private static async ValueTask<Either<MediatorError, TResponse>> ExecutePipelineAsync(...)
+private static async ValueTask<Either<EncinaError, TResponse>> ExecutePipelineAsync(...)
 {
     // Pre-processors
     foreach (var preProcessor in preProcessors)
@@ -214,7 +214,7 @@ private static async ValueTask<Either<MediatorError, TResponse>> ExecutePipeline
         if (failure.IsSome)
         {
             // Short-circuit: Return error immediately
-            return Left<MediatorError, TResponse>(failure.Match(err => err, () => MediatorErrors.Unknown));
+            return Left<EncinaError, TResponse>(failure.Match(err => err, () => EncinaErrors.Unknown));
         }
     }
 
@@ -227,7 +227,7 @@ private static async ValueTask<Either<MediatorError, TResponse>> ExecutePipeline
         var failure = await ExecutePostProcessorAsync(postProcessor, request, response, ct);
         if (failure.IsSome)
         {
-            return Left<MediatorError, TResponse>(/* error */);
+            return Left<EncinaError, TResponse>(/* error */);
         }
     }
 
@@ -246,12 +246,12 @@ private static async ValueTask<Either<MediatorError, TResponse>> ExecutePipeline
 
 ```csharp
 // Map: Transform the Right value
-var result = await mediator.Send(new GetUserQuery(1));
-var nameResult = result.Map(user => user.Name); // Either<MediatorError, string>
+var result = await Encina.Send(new GetUserQuery(1));
+var nameResult = result.Map(user => user.Name); // Either<EncinaError, string>
 
 // Bind: Chain operations that return Either
-var result = await mediator.Send(new GetUserQuery(1));
-var ordersResult = result.Bind(user => mediator.Send(new GetOrdersQuery(user.Id)));
+var result = await Encina.Send(new GetUserQuery(1));
+var ordersResult = result.Bind(user => Encina.Send(new GetOrdersQuery(user.Id)));
 
 // Match: Extract value with exhaustive pattern matching
 result.Match(
@@ -302,7 +302,7 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 {
     private readonly ILogger _logger;
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request, RequestHandlerCallback<TResponse> next, CancellationToken ct)
     {
         _logger.LogInformation("Processing {RequestType}", typeof(TRequest).Name);
@@ -320,11 +320,11 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 
 public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request, RequestHandlerCallback<TResponse> next, CancellationToken ct)
     {
         if (request is IValidatable validatable && !validatable.IsValid())
-            return Left(MediatorErrors.ValidationFailed); // Short-circuit
+            return Left(EncinaErrors.ValidationFailed); // Short-circuit
 
         return await next(); // Continue chain
     }
@@ -427,7 +427,7 @@ public class CachingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 {
     private readonly ICache _cache;
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request, RequestHandlerCallback<TResponse> next, CancellationToken ct)
     {
         var key = $"{typeof(TRequest).Name}:{GetCacheKey(request)}";
@@ -501,14 +501,14 @@ public async Task CreateOrder(Order order)
 // Publisher: Raise notification
 public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Order>
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
 
     public async Task<Order> Handle(CreateOrderCommand request, CancellationToken ct)
     {
         var order = await _orderRepo.Save(request);
 
         // Publish notification (decoupled)
-        await _mediator.Publish(new OrderCreatedNotification(order), ct);
+        await _Encina.Publish(new OrderCreatedNotification(order), ct);
 
         return order;
     }
@@ -544,8 +544,8 @@ public class TrackOrderAnalyticsHandler : INotificationHandler<OrderCreatedNotif
 
 ```csharp
 // NotificationDispatcher broadcasts to all handlers
-public static async Task<Either<MediatorError, Unit>> ExecuteAsync<TNotification>(
-    Encina mediator, TNotification notification, CancellationToken ct)
+public static async Task<Either<EncinaError, Unit>> ExecuteAsync<TNotification>(
+    Encina Encina, TNotification notification, CancellationToken ct)
     where TNotification : INotification
 {
     var notificationType = notification?.GetType() ?? typeof(TNotification);
@@ -555,7 +555,7 @@ public static async Task<Either<MediatorError, Unit>> ExecuteAsync<TNotification
     var handlers = serviceProvider.GetServices(handlerType).ToList();
 
     if (handlers.Count == 0)
-        return Right<MediatorError, Unit>(Unit.Default); // No handlers is OK
+        return Right<EncinaError, Unit>(Unit.Default); // No handlers is OK
 
     // Execute each handler sequentially
     foreach (var handler in handlers)
@@ -564,7 +564,7 @@ public static async Task<Either<MediatorError, Unit>> ExecuteAsync<TNotification
         if (result.IsLeft) return result; // Fail-fast on first error
     }
 
-    return Right<MediatorError, Unit>(Unit.Default);
+    return Right<EncinaError, Unit>(Unit.Default);
 }
 ```
 
@@ -590,7 +590,7 @@ internal interface IRequestHandlerWrapper
 {
     Type HandlerServiceType { get; }
     object? ResolveHandler(IServiceProvider serviceProvider);
-    Task<object> Handle(Encina mediator, object request, object handler,
+    Task<object> Handle(Encina Encina, object request, object handler,
                        IServiceProvider serviceProvider, CancellationToken ct);
 }
 
@@ -603,7 +603,7 @@ internal sealed class RequestHandlerWrapper<TRequest, TResponse> : IRequestHandl
     public object? ResolveHandler(IServiceProvider serviceProvider)
         => serviceProvider.GetService<IRequestHandler<TRequest, TResponse>>();
 
-    public async Task<object> Handle(Encina mediator, object request, object handler,
+    public async Task<object> Handle(Encina Encina, object request, object handler,
                                     IServiceProvider serviceProvider, CancellationToken ct)
     {
         var typedRequest = (TRequest)request;
@@ -643,14 +643,14 @@ Validate preconditions early and fail fast with clear error messages.
 Validation logic scattered throughout methods:
 
 ```csharp
-public async Task<Either<MediatorError, TResponse>> Send<TResponse>(
+public async Task<Either<EncinaError, TResponse>> Send<TResponse>(
     IRequest<TResponse> request, CancellationToken ct)
 {
     if (request is null)
     {
         var message = "The request cannot be null.";
-        var error = MediatorErrors.Create(MediatorErrorCodes.RequestNull, message);
-        return Left<MediatorError, TResponse>(error);
+        var error = EncinaErrors.Create(EncinaErrorCodes.RequestNull, message);
+        return Left<EncinaError, TResponse>(error);
     }
 
     // Duplicate validation logic in every method
@@ -661,10 +661,10 @@ public async Task<Either<MediatorError, TResponse>> Send<TResponse>(
 
 ```csharp
 // Centralized guard clauses
-internal static class MediatorRequestGuards
+internal static class EncinaRequestGuards
 {
     public static bool TryValidateRequest<TResponse>(
-        object? request, out Either<MediatorError, TResponse> error)
+        object? request, out Either<EncinaError, TResponse> error)
     {
         if (request is not null)
         {
@@ -673,14 +673,14 @@ internal static class MediatorRequestGuards
         }
 
         const string message = "The request cannot be null.";
-        error = Left<MediatorError, TResponse>(
-            MediatorErrors.Create(MediatorErrorCodes.RequestNull, message));
+        error = Left<EncinaError, TResponse>(
+            EncinaErrors.Create(EncinaErrorCodes.RequestNull, message));
         return false;
     }
 
     public static bool TryValidateHandler<TResponse>(
         object? handler, Type requestType, Type responseType,
-        out Either<MediatorError, TResponse> error)
+        out Either<EncinaError, TResponse> error)
     {
         if (handler is not null)
         {
@@ -695,20 +695,20 @@ internal static class MediatorRequestGuards
             ["responseType"] = responseType.FullName,
             ["stage"] = "handler_resolution"
         };
-        error = Left<MediatorError, TResponse>(
-            MediatorErrors.Create(MediatorErrorCodes.RequestHandlerMissing, message, details: metadata));
+        error = Left<EncinaError, TResponse>(
+            EncinaErrors.Create(EncinaErrorCodes.RequestHandlerMissing, message, details: metadata));
         return false;
     }
 }
 
 // Usage
-public ValueTask<Either<MediatorError, TResponse>> Send<TResponse>(
+public ValueTask<Either<EncinaError, TResponse>> Send<TResponse>(
     IRequest<TResponse> request, CancellationToken ct = default)
 {
-    if (!MediatorRequestGuards.TryValidateRequest<TResponse>(request, out var error))
-        return new ValueTask<Either<MediatorError, TResponse>>(error);
+    if (!EncinaRequestGuards.TryValidateRequest<TResponse>(request, out var error))
+        return new ValueTask<Either<EncinaError, TResponse>>(error);
 
-    return new ValueTask<Either<MediatorError, TResponse>>(
+    return new ValueTask<Either<EncinaError, TResponse>>(
         RequestDispatcher.ExecuteAsync(this, request, ct));
 }
 ```
@@ -797,7 +797,7 @@ await result;
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Mediator Pattern                         │
+│                     Encina Pattern                         │
 │  (Encina coordinates all communication)              │
 └────────────┬────────────────────────────────────────────────┘
              │
@@ -826,11 +826,11 @@ await result;
 ### Example: Complete Request Flow
 
 ```csharp
-// 1. Mediator Pattern: Client sends request through mediator
-var result = await mediator.Send(new GetUserQuery(123));
+// 1. Encina Pattern: Client sends request through Encina
+var result = await Encina.Send(new GetUserQuery(123));
 
 // 2. Guard Clauses: Validate request not null
-if (!MediatorRequestGuards.TryValidateRequest(request, out var error))
+if (!EncinaRequestGuards.TryValidateRequest(request, out var error))
     return error;
 
 // 3. Factory Pattern: Get cached wrapper
@@ -844,10 +844,10 @@ var pipeline = pipelineBuilder.Build(serviceProvider);
 // Pipeline = PreProc → Logging → Validation → Caching → Handler → PostProc
 
 // 6. Railway Oriented Programming: Execute with short-circuiting
-var response = await pipeline(); // Either<MediatorError, User>
+var response = await pipeline(); // Either<EncinaError, User>
 
 // 7. Observer Pattern (optional): Publish notification
-await mediator.Publish(new UserRetrievedNotification(user));
+await Encina.Publish(new UserRetrievedNotification(user));
 
 // 8. Expression Tree Compilation: Fast notification handler invocation
 var invoker = NotificationHandlerInvokerCache.GetOrAdd(key, Compile);
@@ -866,7 +866,7 @@ result.Match(
 
 | Pattern | Primary Benefit | Used In |
 |---------|----------------|---------|
-| **Mediator** | Decoupling | Encina |
+| **Encina** | Decoupling | Encina |
 | **Railway Oriented Programming** | Explicit errors | All async operations |
 | **Chain of Responsibility** | Composable behaviors | Pipeline behaviors |
 | **Decorator** | Dynamic functionality | Pipeline behaviors |
@@ -874,11 +874,11 @@ result.Match(
 | **Factory** | Type erasure & caching | RequestHandlerWrapper |
 | **Dependency Injection** | Loose coupling | All component resolution |
 | **Expression Trees** | Performance | Notification handler invocation |
-| **Guard Clauses** | Early validation | MediatorRequestGuards |
+| **Guard Clauses** | Early validation | EncinaRequestGuards |
 
 ## Further Reading
 
-- [Mediator Pattern](https://refactoring.guru/design-patterns/mediator)
+- [Encina Pattern](https://refactoring.guru/design-patterns/Encina)
 - [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/)
 - [Chain of Responsibility](https://refactoring.guru/design-patterns/chain-of-responsibility)
 - [Decorator Pattern](https://refactoring.guru/design-patterns/decorator)

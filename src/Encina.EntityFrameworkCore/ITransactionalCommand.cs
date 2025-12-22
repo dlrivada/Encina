@@ -26,7 +26,7 @@ namespace Encina.EntityFrameworkCore;
 /// {
 ///     private readonly AppDbContext _dbContext;
 ///
-///     public async ValueTask&lt;Either&lt;MediatorError, Order&gt;&gt; Handle(
+///     public async ValueTask&lt;Either&lt;EncinaError, Order&gt;&gt; Handle(
 ///         CreateOrderCommand request,
 ///         IRequestContext context,
 ///         CancellationToken cancellationToken)

@@ -42,7 +42,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> PublishAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         string? routingKey = null,
         CancellationToken cancellationToken = default)
@@ -75,14 +75,14 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
 
             Log.SuccessfullyPublishedMessage(_logger, typeof(TMessage).Name);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "RABBITMQ_PUBLISH_FAILED",
                     ex,
                     $"Failed to publish message of type {typeof(TMessage).Name}."));
@@ -90,7 +90,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> SendToQueueAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, Unit>> SendToQueueAsync<TMessage>(
         string queueName,
         TMessage message,
         CancellationToken cancellationToken = default)
@@ -122,14 +122,14 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
 
             Log.SuccessfullySentToQueue(_logger, typeof(TMessage).Name, queueName);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToSendToQueue(_logger, ex, typeof(TMessage).Name, queueName);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "RABBITMQ_SEND_FAILED",
                     ex,
                     $"Failed to send message of type {typeof(TMessage).Name} to queue {queueName}."));
@@ -137,7 +137,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, TResponse>> RequestAsync<TRequest, TResponse>(
+    public async ValueTask<Either<EncinaError, TResponse>> RequestAsync<TRequest, TResponse>(
         TRequest request,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
@@ -150,8 +150,8 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
         // For now, return a not implemented error
         await Task.CompletedTask;
 
-        return Left<MediatorError, TResponse>(
-            MediatorErrors.Create(
+        return Left<EncinaError, TResponse>(
+            EncinaErrors.Create(
                 "RABBITMQ_RPC_NOT_IMPLEMENTED",
                 "RPC pattern is not yet implemented. Use MassTransit for request/reply patterns."));
     }

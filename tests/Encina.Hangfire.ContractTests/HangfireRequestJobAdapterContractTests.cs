@@ -12,23 +12,23 @@ namespace Encina.Hangfire.ContractTests;
 public sealed class HangfireRequestJobAdapterContractTests
 {
     [Fact]
-    public async Task ExecuteAsync_WithValidRequest_ShouldInvokeMediatorSend()
+    public async Task ExecuteAsync_WithValidRequest_ShouldInvokeEncinaSend()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, TestResponse>>>();
-        var adapter = new HangfireRequestJobAdapter<TestRequest, TestResponse>(mediator, logger);
+        var adapter = new HangfireRequestJobAdapter<TestRequest, TestResponse>(Encina, logger);
         var request = new TestRequest("test");
         var expectedResponse = new TestResponse("result");
 
-        mediator.Send(request, Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, TestResponse>(expectedResponse));
+        Encina.Send(request, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(expectedResponse));
 
         // Act
         var result = await adapter.ExecuteAsync(request);
 
         // Assert
-        await mediator.Received(1).Send(request, Arg.Any<CancellationToken>());
+        await Encina.Received(1).Send(request, Arg.Any<CancellationToken>());
 
         result.Match(
             Left: _ => Assert.Fail("Expected Right but got Left"),
@@ -36,17 +36,17 @@ public sealed class HangfireRequestJobAdapterContractTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenMediatorReturnsError_ShouldReturnError()
+    public async Task ExecuteAsync_WhenEncinaReturnsError_ShouldReturnError()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, TestResponse>>>();
-        var adapter = new HangfireRequestJobAdapter<TestRequest, TestResponse>(mediator, logger);
+        var adapter = new HangfireRequestJobAdapter<TestRequest, TestResponse>(Encina, logger);
         var request = new TestRequest("test");
-        var expectedError = MediatorErrors.Create("test.error", "Test error");
+        var expectedError = EncinaErrors.Create("test.error", "Test error");
 
-        mediator.Send(request, Arg.Any<CancellationToken>())
-            .Returns(Left<MediatorError, TestResponse>(expectedError));
+        Encina.Send(request, Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(expectedError));
 
         // Act
         var result = await adapter.ExecuteAsync(request);

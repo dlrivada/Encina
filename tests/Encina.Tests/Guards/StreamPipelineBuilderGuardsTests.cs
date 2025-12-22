@@ -230,18 +230,18 @@ public sealed class StreamPipelineBuilderGuardsTests
 
     private sealed class TestStreamHandler : IStreamRequestHandler<TestStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             TestStreamRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            yield return Right<MediatorError, int>(1);
+            yield return Right<EncinaError, int>(1);
             await Task.CompletedTask;
         }
     }
 
     private sealed class TestStreamBehavior : IStreamPipelineBehavior<TestStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             TestStreamRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,

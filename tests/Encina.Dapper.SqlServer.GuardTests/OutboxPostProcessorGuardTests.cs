@@ -61,7 +61,7 @@ public sealed class OutboxPostProcessorGuardTests
         var logger = Substitute.For<ILogger<OutboxPostProcessor<TestRequest, string>>>();
         var processor = new OutboxPostProcessor<TestRequest, string>(outboxStore, logger);
         var context = Substitute.For<IRequestContext>();
-        Either<MediatorError, string> result = Right<MediatorError, string>("success");
+        Either<EncinaError, string> result = Right<EncinaError, string>("success");
 
         // Act
         var act = async () => await processor.Process(null!, context, result, CancellationToken.None);
@@ -82,7 +82,7 @@ public sealed class OutboxPostProcessorGuardTests
         var logger = Substitute.For<ILogger<OutboxPostProcessor<TestRequest, string>>>();
         var processor = new OutboxPostProcessor<TestRequest, string>(outboxStore, logger);
         var request = new TestRequest("test");
-        Either<MediatorError, string> result = Right<MediatorError, string>("success");
+        Either<EncinaError, string> result = Right<EncinaError, string>("success");
 
         // Act
         var act = async () => await processor.Process(request, null!, result, CancellationToken.None);

@@ -38,7 +38,7 @@ public class StandardResiliencePipelineBehaviorContractTests
 
         // Assert
         handleMethod.Should().NotBeNull();
-        handleMethod!.ReturnType.Should().BeAssignableTo<ValueTask<Either<MediatorError, TestResponse>>>();
+        handleMethod!.ReturnType.Should().BeAssignableTo<ValueTask<Either<EncinaError, TestResponse>>>();
     }
 
     [Fact]
@@ -148,13 +148,13 @@ public class StandardResiliencePipelineBehaviorContractTests
 
         var request = new TestRequest();
         var context = RequestContext.Create(Guid.NewGuid().ToString());
-        RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<MediatorError, TestResponse>>(new TestResponse());
+        RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<EncinaError, TestResponse>>(new TestResponse());
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.Should().BeAssignableTo<Either<MediatorError, TestResponse>>();
+        result.Should().BeAssignableTo<Either<EncinaError, TestResponse>>();
     }
 
     // Test helper classes

@@ -9,27 +9,27 @@ namespace Encina.Hangfire;
 public sealed class HangfireNotificationJobAdapter<TNotification>
     where TNotification : INotification
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger<HangfireNotificationJobAdapter<TNotification>> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HangfireNotificationJobAdapter{TNotification}"/> class.
     /// </summary>
-    /// <param name="mediator">The mediator instance.</param>
+    /// <param name="Encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     public HangfireNotificationJobAdapter(
-        IMediator mediator,
+        IEncina Encina,
         ILogger<HangfireNotificationJobAdapter<TNotification>> logger)
     {
-        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(Encina);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _mediator = mediator;
+        _Encina = Encina;
         _logger = logger;
     }
 
     /// <summary>
-    /// Publishes the notification through the mediator as a Hangfire job.
+    /// Publishes the notification through the Encina as a Hangfire job.
     /// </summary>
     /// <param name="notification">The notification to publish.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -44,7 +44,7 @@ public sealed class HangfireNotificationJobAdapter<TNotification>
         {
             Log.PublishingNotificationJob(_logger, typeof(TNotification).Name);
 
-            await _mediator.Publish(notification, cancellationToken)
+            await _Encina.Publish(notification, cancellationToken)
                 .ConfigureAwait(false);
 
             Log.NotificationJobCompleted(_logger, typeof(TNotification).Name);

@@ -122,7 +122,7 @@ public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Order
 {
     private readonly AppDbContext _dbContext;
 
-    public async Task<Either<MediatorError, Order>> Handle(
+    public async Task<Either<EncinaError, Order>> Handle(
         PlaceOrderCommand request,
         CancellationToken cancellationToken)
     {
@@ -172,7 +172,7 @@ Prevents duplicate processing of external messages through idempotent storage.
 ```csharp
 public class WebhookController : ControllerBase
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
 
     [HttpPost("webhooks/payment")]
     public async Task<IActionResult> HandlePaymentWebhook(
@@ -189,7 +189,7 @@ public class WebhookController : ControllerBase
         // InboxPipelineBehavior will check if webhookId was already processed
         // If yes, returns cached response without executing handler
         // If no, executes handler and stores result in inbox
-        var result = await _mediator.Send(command);
+        var result = await _Encina.Send(command);
 
         return result.Match(
             success => Ok(success),
@@ -233,7 +233,7 @@ Coordinates distributed transactions across multiple services with compensation 
 ```csharp
 public class OrderFulfillmentSaga : Saga<OrderFulfillmentSagaData>
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ISagaStore _sagaStore;
 
     protected override async Task ExecuteAsync(
@@ -242,22 +242,22 @@ public class OrderFulfillmentSaga : Saga<OrderFulfillmentSagaData>
     {
         // Step 1: Reserve inventory
         await ExecuteStepAsync(
-            async () => await _mediator.Send(new ReserveInventoryCommand(data.OrderId)),
-            async () => await _mediator.Send(new ReleaseInventoryCommand(data.OrderId)),
+            async () => await _Encina.Send(new ReserveInventoryCommand(data.OrderId)),
+            async () => await _Encina.Send(new ReleaseInventoryCommand(data.OrderId)),
             cancellationToken
         );
 
         // Step 2: Process payment
         await ExecuteStepAsync(
-            async () => await _mediator.Send(new ProcessPaymentCommand(data.OrderId, data.Amount)),
-            async () => await _mediator.Send(new RefundPaymentCommand(data.OrderId)),
+            async () => await _Encina.Send(new ProcessPaymentCommand(data.OrderId, data.Amount)),
+            async () => await _Encina.Send(new RefundPaymentCommand(data.OrderId)),
             cancellationToken
         );
 
         // Step 3: Ship order
         await ExecuteStepAsync(
-            async () => await _mediator.Send(new ShipOrderCommand(data.OrderId)),
-            async () => await _mediator.Send(new CancelShipmentCommand(data.OrderId)),
+            async () => await _Encina.Send(new ShipOrderCommand(data.OrderId)),
+            async () => await _Encina.Send(new CancelShipmentCommand(data.OrderId)),
             cancellationToken
         );
     }
@@ -348,7 +348,7 @@ public class OrderService
 
 1. Messages stored in `ScheduledMessages` table
 2. Background processor polls for due messages
-3. Deserializes and executes commands via mediator
+3. Deserializes and executes commands via Encina
 4. Marks as processed on success
 5. Reschedules recurring messages automatically
 6. Dead-letter handling for max retry failures
@@ -381,7 +381,7 @@ public class TransferMoneyCommandHandler : IRequestHandler<TransferMoneyCommand,
 {
     private readonly AppDbContext _dbContext;
 
-    public async Task<Either<MediatorError, TransferResult>> Handle(
+    public async Task<Either<EncinaError, TransferResult>> Handle(
         TransferMoneyCommand request,
         CancellationToken cancellationToken)
     {
@@ -389,10 +389,10 @@ public class TransferMoneyCommandHandler : IRequestHandler<TransferMoneyCommand,
         var toAccount = await _dbContext.Accounts.FindAsync(request.ToAccountId);
 
         if (fromAccount == null || toAccount == null)
-            return MediatorError.NotFound("Account not found");
+            return EncinaError.NotFound("Account not found");
 
         if (fromAccount.Balance < request.Amount)
-            return MediatorError.Validation("Insufficient balance");
+            return EncinaError.Validation("Insufficient balance");
 
         fromAccount.Balance -= request.Amount;
         toAccount.Balance += request.Amount;
@@ -412,7 +412,7 @@ public class TransferMoneyCommandHandler : IRequestHandler<TransferMoneyCommand,
 1. `TransactionPipelineBehavior` wraps handler execution
 2. Begins transaction before handler invocation
 3. Commits transaction on `Right<TResponse>` (success)
-4. Rolls back transaction on `Left<MediatorError>` (failure)
+4. Rolls back transaction on `Left<EncinaError>` (failure)
 5. Exception safety with proper disposal
 
 **Configuration:**
@@ -561,7 +561,7 @@ await inboxStore.SaveChangesAsync();
 ```csharp
 _dbContext.Orders.Add(order);
 await _dbContext.SaveChangesAsync();
-await _mediator.Publish(new OrderPlacedEvent(order.Id));
+await _Encina.Publish(new OrderPlacedEvent(order.Id));
 ```
 
 **After:**
@@ -598,7 +598,7 @@ return result;
 config.UseInbox = true;
 
 // InboxPipelineBehavior handles idempotency automatically
-var result = await _mediator.Send(new ProcessWebhookCommand(webhook));
+var result = await _Encina.Send(new ProcessWebhookCommand(webhook));
 return result;
 ```
 
@@ -665,7 +665,7 @@ return result;
 
 ## Related Packages
 
-- **Encina**: Core mediator implementation with Railway Oriented Programming
+- **Encina**: Core Encina implementation with Railway Oriented Programming
 - **Encina.Messaging**: Shared abstractions for messaging patterns
 - **Encina.AspNetCore**: ASP.NET Core integration with endpoint filters and middleware
 

@@ -180,11 +180,11 @@ public sealed class ConfigurationProperties
     public bool AssemblyScanner_ReturnsCachedInstance(NonNegativeInt invocations)
     {
         var assembly = typeof(global::Encina.Encina).Assembly;
-        var first = global::Encina.MediatorAssemblyScanner.GetRegistrations(assembly);
+        var first = global::Encina.EncinaAssemblyScanner.GetRegistrations(assembly);
 
         for (var i = 0; i <= invocations.Get; i++)
         {
-            var current = global::Encina.MediatorAssemblyScanner.GetRegistrations(assembly);
+            var current = global::Encina.EncinaAssemblyScanner.GetRegistrations(assembly);
             if (!ReferenceEquals(first, current))
             {
                 return false;
@@ -229,7 +229,7 @@ public sealed class ConfigurationProperties
         _ => HandlerExecution.Success
     };
 
-    private sealed record ExecutionResult(Either<MediatorError, int> Outcome, IReadOnlyList<string> Events);
+    private sealed record ExecutionResult(Either<EncinaError, int> Outcome, IReadOnlyList<string> Events);
 
     private static List<Type> OrderedDistinct(IEnumerable<Type> sequence)
     {
@@ -290,7 +290,7 @@ public sealed class ConfigurationProperties
         var preProcessors = SelectCandidates(preIndices, TrackingPreProcessorPool);
         var postProcessors = SelectCandidates(postIndices, TrackingPostProcessorPool);
 
-        var result = ExecuteMediator(pipeline, preProcessors, postProcessors, HandlerExecution.Success);
+        var result = ExecuteEncina(pipeline, preProcessors, postProcessors, HandlerExecution.Success);
         var expected = BuildExpectedTimeline(pipeline, preProcessors, postProcessors, HandlerExecution.Success);
 
         return result.Outcome.Match(
@@ -310,7 +310,7 @@ public sealed class ConfigurationProperties
         var preProcessors = SelectCandidates(preIndices, TrackingPreProcessorPool);
         var postProcessors = SelectCandidates(postIndices, TrackingPostProcessorPool);
 
-        var result = ExecuteMediator(pipeline, preProcessors, postProcessors, outcome);
+        var result = ExecuteEncina(pipeline, preProcessors, postProcessors, outcome);
         var expected = BuildExpectedTimeline(pipeline, preProcessors, postProcessors, outcome);
 
         return outcome switch
@@ -352,7 +352,7 @@ public sealed class ConfigurationProperties
         return ordered;
     }
 
-    private static ExecutionResult ExecuteMediator(
+    private static ExecutionResult ExecuteEncina(
         IReadOnlyList<(Type Type, string Label)> pipeline,
         IReadOnlyList<(Type Type, string Label)> preProcessors,
         IReadOnlyList<(Type Type, string Label)> postProcessors,
@@ -384,12 +384,12 @@ public sealed class ConfigurationProperties
         var recorder = provider.GetRequiredService<CallRecorder>();
         recorder.Clear();
 
-        var mediator = new global::Encina.Encina(provider.GetRequiredService<IServiceScopeFactory>());
+        var Encina = new global::Encina.Encina(provider.GetRequiredService<IServiceScopeFactory>());
         var request = new TrackedRequest(DeterministicValue, execution);
         var tokenSource = execution == HandlerExecution.Cancellation ? new CancellationTokenSource() : null;
         tokenSource?.Cancel();
 
-        var outcome = mediator.Send(request, tokenSource?.Token ?? CancellationToken.None)
+        var outcome = Encina.Send(request, tokenSource?.Token ?? CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
@@ -424,23 +424,23 @@ public sealed class ConfigurationProperties
     {
         private readonly CallRecorder _recorder = recorder;
 
-        public Task<Either<MediatorError, int>> Handle(TrackedRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, int>> Handle(TrackedRequest request, CancellationToken cancellationToken)
         {
             _recorder.Add("handler");
 
             return request.Execution switch
             {
-                HandlerExecution.Success => Task.FromResult(Right<MediatorError, int>(request.Value)),
+                HandlerExecution.Success => Task.FromResult(Right<EncinaError, int>(request.Value)),
                 HandlerExecution.Exception => ThrowAsFault<int>(),
                 HandlerExecution.Cancellation => ThrowAsCancellation<int>(cancellationToken),
-                _ => Task.FromResult(Right<MediatorError, int>(request.Value))
+                _ => Task.FromResult(Right<EncinaError, int>(request.Value))
             };
 
-            static Task<Either<MediatorError, T>> ThrowAsFault<T>() => Task.FromException<Either<MediatorError, T>>(new InvalidOperationException("boom"));
+            static Task<Either<EncinaError, T>> ThrowAsFault<T>() => Task.FromException<Either<EncinaError, T>>(new InvalidOperationException("boom"));
 
-            static Task<Either<MediatorError, T>> ThrowAsCancellation<T>(CancellationToken token)
+            static Task<Either<EncinaError, T>> ThrowAsCancellation<T>(CancellationToken token)
             {
-                var source = Task.FromCanceled<Either<MediatorError, T>>(token);
+                var source = Task.FromCanceled<Either<EncinaError, T>>(token);
                 return source;
             }
         }
@@ -483,7 +483,7 @@ public sealed class ConfigurationProperties
 
         protected abstract string Label { get; }
 
-        public async ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+        public async ValueTask<Either<EncinaError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
         {
             _recorder.Add($"behavior:{Label}:enter");
             try
@@ -555,7 +555,7 @@ public sealed class ConfigurationProperties
 
         protected abstract string Label { get; }
 
-        public Task Process(TRequest request, IRequestContext context, Either<MediatorError, TResponse> response, CancellationToken cancellationToken)
+        public Task Process(TRequest request, IRequestContext context, Either<EncinaError, TResponse> response, CancellationToken cancellationToken)
         {
             if (response.IsRight)
             {

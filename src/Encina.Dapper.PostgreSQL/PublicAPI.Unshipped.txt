@@ -25,7 +25,7 @@ Encina.Dapper.PostgreSQL.Inbox.InboxMessage.Response.set -> void
 Encina.Dapper.PostgreSQL.Inbox.InboxMessage.RetryCount.get -> int
 Encina.Dapper.PostgreSQL.Inbox.InboxMessage.RetryCount.set -> void
 Encina.Dapper.PostgreSQL.Inbox.InboxPipelineBehavior<TRequest, TResponse>
-Encina.Dapper.PostgreSQL.Inbox.InboxPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.Dapper.PostgreSQL.Inbox.InboxPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Dapper.PostgreSQL.Inbox.InboxPipelineBehavior<TRequest, TResponse>.InboxPipelineBehavior(System.Data.IDbConnection! connection, Encina.Messaging.Inbox.InboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Dapper.PostgreSQL.Inbox.InboxPipelineBehavior<TRequest, TResponse>!>! logger, string! tableName = "InboxMessages") -> void
 Encina.Dapper.PostgreSQL.Inbox.InboxStoreDapper
 Encina.Dapper.PostgreSQL.Inbox.InboxStoreDapper.AddAsync(Encina.Messaging.Inbox.IInboxMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -60,7 +60,7 @@ Encina.Dapper.PostgreSQL.Outbox.OutboxMessage.RetryCount.get -> int
 Encina.Dapper.PostgreSQL.Outbox.OutboxMessage.RetryCount.set -> void
 Encina.Dapper.PostgreSQL.Outbox.OutboxPostProcessor<TRequest, TResponse>
 Encina.Dapper.PostgreSQL.Outbox.OutboxPostProcessor<TRequest, TResponse>.OutboxPostProcessor(Encina.Messaging.Outbox.IOutboxStore! outboxStore, Microsoft.Extensions.Logging.ILogger<Encina.Dapper.PostgreSQL.Outbox.OutboxPostProcessor<TRequest, TResponse>!>! logger) -> void
-Encina.Dapper.PostgreSQL.Outbox.OutboxPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, LanguageExt.Either<Encina.MediatorError, TResponse> result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Dapper.PostgreSQL.Outbox.OutboxPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, LanguageExt.Either<Encina.EncinaError, TResponse> result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Encina.Dapper.PostgreSQL.Outbox.OutboxProcessor
 Encina.Dapper.PostgreSQL.Outbox.OutboxProcessor.OutboxProcessor(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Dapper.PostgreSQL.Outbox.OutboxProcessor!>! logger, Encina.Messaging.Outbox.OutboxOptions! options) -> void
 Encina.Dapper.PostgreSQL.Outbox.OutboxStoreDapper
@@ -137,7 +137,7 @@ Encina.Dapper.PostgreSQL.Scheduling.ScheduledMessageStoreDapper.SaveChangesAsync
 Encina.Dapper.PostgreSQL.Scheduling.ScheduledMessageStoreDapper.ScheduledMessageStoreDapper(System.Data.IDbConnection! connection, string! tableName = "ScheduledMessages") -> void
 Encina.Dapper.PostgreSQL.ServiceCollectionExtensions
 Encina.Dapper.PostgreSQL.TransactionPipelineBehavior<TRequest, TResponse>
-Encina.Dapper.PostgreSQL.TransactionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! next, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.MediatorError, TResponse>>
+Encina.Dapper.PostgreSQL.TransactionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! next, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Dapper.PostgreSQL.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(System.Data.IDbConnection! connection) -> void
 static Encina.Dapper.PostgreSQL.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Dapper.PostgreSQL.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

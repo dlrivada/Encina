@@ -37,7 +37,7 @@ namespace Encina.Dapr;
 /// }
 ///
 /// // Use through Encina
-/// var result = await mediator.Send(new OrderPlacedEvent("12345", 99.99m));
+/// var result = await Encina.Send(new OrderPlacedEvent("12345", 99.99m));
 /// result.Match(
 ///     Right: _ => Console.WriteLine("Event published successfully"),
 ///     Left: error => Console.WriteLine($"Error: {error.Message}")

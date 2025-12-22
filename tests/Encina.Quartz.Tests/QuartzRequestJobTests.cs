@@ -8,16 +8,16 @@ namespace Encina.Quartz.Tests;
 
 public class QuartzRequestJobTests
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger<QuartzRequestJob<TestRequest, TestResponse>> _logger;
     private readonly QuartzRequestJob<TestRequest, TestResponse> _job;
     private readonly IJobExecutionContext _context;
 
     public QuartzRequestJobTests()
     {
-        _mediator = Substitute.For<IMediator>();
+        _Encina = Substitute.For<IEncina>();
         _logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, TestResponse>>>();
-        _job = new QuartzRequestJob<TestRequest, TestResponse>(_mediator, _logger);
+        _job = new QuartzRequestJob<TestRequest, TestResponse>(_Encina, _logger);
         _context = Substitute.For<IJobExecutionContext>();
 
         // Setup default JobDataMap
@@ -35,14 +35,14 @@ public class QuartzRequestJobTests
         var request = new TestRequest("test-data");
         var expectedResponse = new TestResponse("success");
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, TestResponse>(expectedResponse));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(expectedResponse));
 
         // Act
         await _job.Execute(_context);
 
         // Assert
-        await _mediator.Received(1).Send(
+        await _Encina.Received(1).Send(
             Arg.Is<TestRequest>(r => r.Data == "test-data"),
             Arg.Any<CancellationToken>());
 
@@ -54,10 +54,10 @@ public class QuartzRequestJobTests
     {
         // Arrange
         var request = new TestRequest("test-data");
-        var error = MediatorErrors.Create("test.error", "Test error message");
+        var error = EncinaErrors.Create("test.error", "Test error message");
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Left<MediatorError, TestResponse>(error));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<JobExecutionException>(() => _job.Execute(_context));
@@ -83,8 +83,8 @@ public class QuartzRequestJobTests
         // Arrange
         var request = new TestRequest("test-data");
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, TestResponse>(new TestResponse("success")));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(new TestResponse("success")));
 
         // Act
         await _job.Execute(_context);
@@ -104,8 +104,8 @@ public class QuartzRequestJobTests
         // Arrange
         var request = new TestRequest("test-data");
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, TestResponse>(new TestResponse("success")));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(new TestResponse("success")));
 
         // Act
         await _job.Execute(_context);
@@ -124,10 +124,10 @@ public class QuartzRequestJobTests
     {
         // Arrange
         var request = new TestRequest("test-data");
-        var error = MediatorErrors.Create("test.error", "Test error");
+        var error = EncinaErrors.Create("test.error", "Test error");
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Left<MediatorError, TestResponse>(error));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
 
         // Act
         try
@@ -155,8 +155,8 @@ public class QuartzRequestJobTests
         var request = new TestRequest("test-data");
         var exception = new InvalidOperationException("Test exception");
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns<Either<MediatorError, TestResponse>>(_ => throw exception);
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Either<EncinaError, TestResponse>>(_ => throw exception);
 
         // Act & Assert
         var jobException = await Assert.ThrowsAsync<JobExecutionException>(() => _job.Execute(_context));
@@ -178,14 +178,14 @@ public class QuartzRequestJobTests
         var cts = new CancellationTokenSource();
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
         _context.CancellationToken.Returns(cts.Token);
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, TestResponse>(new TestResponse("success")));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(new TestResponse("success")));
 
         // Act
         await _job.Execute(_context);
 
         // Assert
-        await _mediator.Received(1).Send(
+        await _Encina.Received(1).Send(
             Arg.Any<TestRequest>(),
             Arg.Is<CancellationToken>(ct => ct == cts.Token));
     }

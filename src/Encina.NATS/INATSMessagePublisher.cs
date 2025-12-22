@@ -14,8 +14,8 @@ public interface INATSMessagePublisher
     /// <param name="message">The message to publish.</param>
     /// <param name="subject">The subject. If null, derived from message type.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or Unit on success.</returns>
-    ValueTask<Either<MediatorError, Unit>> PublishAsync<TMessage>(
+    /// <returns>Either a EncinaError or Unit on success.</returns>
+    ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         string? subject = null,
         CancellationToken cancellationToken = default)
@@ -30,8 +30,8 @@ public interface INATSMessagePublisher
     /// <param name="subject">The subject. If null, derived from request type.</param>
     /// <param name="timeout">The timeout for the reply.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the response.</returns>
-    ValueTask<Either<MediatorError, TResponse>> RequestAsync<TRequest, TResponse>(
+    /// <returns>Either a EncinaError or the response.</returns>
+    ValueTask<Either<EncinaError, TResponse>> RequestAsync<TRequest, TResponse>(
         TRequest request,
         string? subject = null,
         TimeSpan? timeout = null,
@@ -46,8 +46,8 @@ public interface INATSMessagePublisher
     /// <param name="message">The message to publish.</param>
     /// <param name="subject">The subject. If null, derived from message type.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the publish acknowledgment.</returns>
-    ValueTask<Either<MediatorError, NATSPublishAck>> JetStreamPublishAsync<TMessage>(
+    /// <returns>Either a EncinaError or the publish acknowledgment.</returns>
+    ValueTask<Either<EncinaError, NATSPublishAck>> JetStreamPublishAsync<TMessage>(
         TMessage message,
         string? subject = null,
         CancellationToken cancellationToken = default)

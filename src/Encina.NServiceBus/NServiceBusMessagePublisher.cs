@@ -37,7 +37,7 @@ public sealed class NServiceBusMessagePublisher : INServiceBusMessagePublisher
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> SendAsync<TCommand>(
+    public async ValueTask<Either<EncinaError, Unit>> SendAsync<TCommand>(
         TCommand command,
         CancellationToken cancellationToken = default)
         where TCommand : class
@@ -53,14 +53,14 @@ public sealed class NServiceBusMessagePublisher : INServiceBusMessagePublisher
 
             Log.SuccessfullySentCommand(_logger, typeof(TCommand).Name);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToSendCommand(_logger, ex, typeof(TCommand).Name);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "NSERVICEBUS_SEND_FAILED",
                     ex,
                     $"Failed to send command of type {typeof(TCommand).Name}."));
@@ -68,7 +68,7 @@ public sealed class NServiceBusMessagePublisher : INServiceBusMessagePublisher
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> PublishAsync<TEvent>(
+    public async ValueTask<Either<EncinaError, Unit>> PublishAsync<TEvent>(
         TEvent eventMessage,
         CancellationToken cancellationToken = default)
         where TEvent : class
@@ -84,14 +84,14 @@ public sealed class NServiceBusMessagePublisher : INServiceBusMessagePublisher
 
             Log.SuccessfullyPublishedEvent(_logger, typeof(TEvent).Name);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToPublishEvent(_logger, ex, typeof(TEvent).Name);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "NSERVICEBUS_PUBLISH_FAILED",
                     ex,
                     $"Failed to publish event of type {typeof(TEvent).Name}."));
@@ -99,7 +99,7 @@ public sealed class NServiceBusMessagePublisher : INServiceBusMessagePublisher
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> ScheduleAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, Unit>> ScheduleAsync<TMessage>(
         TMessage message,
         DateTimeOffset deliveryTime,
         CancellationToken cancellationToken = default)
@@ -118,14 +118,14 @@ public sealed class NServiceBusMessagePublisher : INServiceBusMessagePublisher
 
             Log.SuccessfullyScheduledMessage(_logger, typeof(TMessage).Name, deliveryTime);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToScheduleMessage(_logger, ex, typeof(TMessage).Name);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "NSERVICEBUS_SCHEDULE_FAILED",
                     ex,
                     $"Failed to schedule message of type {typeof(TMessage).Name} for {deliveryTime}."));

@@ -36,7 +36,7 @@ public sealed class WolverineMessagePublisher : IWolverineMessagePublisher
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> PublishAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         CancellationToken cancellationToken = default)
         where TMessage : class
@@ -51,14 +51,14 @@ public sealed class WolverineMessagePublisher : IWolverineMessagePublisher
 
             Log.SuccessfullyPublishedMessage(_logger, typeof(TMessage).Name);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "WOLVERINE_PUBLISH_FAILED",
                     ex,
                     $"Failed to publish message of type {typeof(TMessage).Name}."));
@@ -66,7 +66,7 @@ public sealed class WolverineMessagePublisher : IWolverineMessagePublisher
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> SendToEndpointAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, Unit>> SendToEndpointAsync<TMessage>(
         string endpointName,
         TMessage message,
         CancellationToken cancellationToken = default)
@@ -83,14 +83,14 @@ public sealed class WolverineMessagePublisher : IWolverineMessagePublisher
 
             Log.SuccessfullySentToEndpoint(_logger, typeof(TMessage).Name, endpointName);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToSendToEndpoint(_logger, ex, typeof(TMessage).Name, endpointName);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "WOLVERINE_SEND_FAILED",
                     ex,
                     $"Failed to send message of type {typeof(TMessage).Name} to endpoint {endpointName}."));
@@ -98,7 +98,7 @@ public sealed class WolverineMessagePublisher : IWolverineMessagePublisher
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> ScheduleAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, Unit>> ScheduleAsync<TMessage>(
         TMessage message,
         DateTimeOffset scheduledTime,
         CancellationToken cancellationToken = default)
@@ -114,14 +114,14 @@ public sealed class WolverineMessagePublisher : IWolverineMessagePublisher
 
             Log.SuccessfullyScheduledMessage(_logger, typeof(TMessage).Name, scheduledTime);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToScheduleMessage(_logger, ex, typeof(TMessage).Name, scheduledTime);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "WOLVERINE_SCHEDULE_FAILED",
                     ex,
                     $"Failed to schedule message of type {typeof(TMessage).Name} for {scheduledTime}."));

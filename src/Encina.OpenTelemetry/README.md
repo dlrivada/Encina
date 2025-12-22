@@ -1,6 +1,6 @@
 # Encina.OpenTelemetry
 
-OpenTelemetry integration for Encina - automatic tracing, metrics, and logging for mediator operations.
+OpenTelemetry integration for Encina - automatic tracing, metrics, and logging for Encina operations.
 
 ## Installation
 
@@ -11,7 +11,7 @@ dotnet add package Encina.OpenTelemetry
 ## Features
 
 - **Automatic Tracing**: Integrates with Encina's built-in `ActivitySource` for distributed tracing
-- **Metrics Collection**: Exposes mediator metrics through OpenTelemetry's `Meter` API
+- **Metrics Collection**: Exposes Encina metrics through OpenTelemetry's `Meter` API
 - **Runtime Instrumentation**: Includes .NET runtime metrics (GC, ThreadPool, etc.)
 - **Easy Configuration**: Simple extension methods for OpenTelemetry builders
 
@@ -111,6 +111,7 @@ Encina automatically creates `Activity` spans for:
 - **Notifications**: Each notification dispatch creates spans for fan-out handlers
 
 All spans include:
+
 - Request type name
 - Handler type name
 - Execution duration
@@ -182,9 +183,11 @@ builder.Services.AddOpenTelemetry()
 1. **Set Meaningful Service Names**: Use descriptive service names that reflect your application's purpose
 2. **Include Version Information**: Always set `ServiceVersion` for tracking deployments
 3. **Use Sampling in Production**: Configure trace sampling to reduce overhead:
+
    ```csharp
    tracing.SetSampler(new TraceIdRatioBasedSampler(0.1)); // 10% sampling
    ```
+
 4. **Monitor Metric Cardinality**: Be cautious with high-cardinality labels
 5. **Correlate Logs with Traces**: Use OpenTelemetry's logging integration for complete observability
 
@@ -215,6 +218,7 @@ This project is licensed under the same license as Encina. See LICENSE for detai
 ---
 
 **Sources:**
+
 - [Microsoft.CodeAnalysis.PublicApiAnalyzers](https://www.nuget.org/packages/Microsoft.CodeAnalysis.PublicApiAnalyzers/)
 - [.NET 10 Documentation](https://learn.microsoft.com/en-us/dotnet/)
 - [PublicApiAnalyzers Help](https://github.com/dotnet/roslyn-analyzers/blob/ab7019ee000e20e0b822f6fca7d64eef4e09995d/src/PublicApiAnalyzers/PublicApiAnalyzers.Help.md)

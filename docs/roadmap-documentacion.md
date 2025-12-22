@@ -126,7 +126,7 @@ docs.nestjs.com/
    │   ├── introduction.md
    │   ├── quickstart.md
    │   ├── fundamentals/
-   │   │   ├── mediator-pattern.md
+   │   │   ├── Encina-pattern.md
    │   │   ├── handlers.md
    │   │   ├── pipeline-behaviors.md
    │   │   ├── notifications.md
@@ -167,7 +167,7 @@ docs.nestjs.com/
    │       ├── from-nestjs.md
    │       └── from-masstransit.md
    ├── samples/
-   │   ├── 01-basic-mediator/
+   │   ├── 01-basic-Encina/
    │   ├── 02-cqrs-complete/
    │   ├── 03-entity-framework/
    │   ├── 04-dapper-integration/
@@ -243,7 +243,7 @@ docs.nestjs.com/
   }
   
   // Uso
-  var product = await mediator.Send(new GetProductQuery(123));
+  var product = await Encina.Send(new GetProductQuery(123));
   ```
 
 - [ ] **Installation & Setup**
@@ -254,8 +254,8 @@ docs.nestjs.com/
 
 ##### 1.2 **Fundamentals (Semana 3-6)**
 
-- [ ] **Mediator Pattern Deep Dive**
-  - `IMediator`, `IRequest<T>`, `IRequestHandler<TRequest, TResponse>`
+- [ ] **Encina Pattern Deep Dive**
+  - `IEncina`, `IRequest<T>`, `IRequestHandler<TRequest, TResponse>`
   - Request/Response vs Commands (void)
   - Sync vs Async
   
@@ -396,7 +396,7 @@ docs.nestjs.com/
 
 ###### **Básicos (Semana 1-2)**
 
-1. **01-basic-mediator**
+1. **01-basic-Encina**
    - Simple CRUD con in-memory data
    - Commands: CreateProduct, UpdateProduct, DeleteProduct
    - Queries: GetProduct, ListProducts
@@ -754,7 +754,7 @@ Encina Advanced (4 módulos, 30 lecciones, 3 horas)
   - "Redis Caching Best Practices"
   
 - [ ] **Blog Posts (SEO)**
-  - "Why We Built Encina: A Better Mediator for .NET"
+  - "Why We Built Encina: A Better Encina for .NET"
   - "CQRS Without the Boilerplate"
   - "10 Database Providers: Which One to Choose?"
   - "Caching Done Right: Distributed Locks and Pub/Sub"
@@ -1126,8 +1126,8 @@ Encina Advanced (4 módulos, 30 lecciones, 3 horas)
 ### Semana 3-4: Contenido Inicial
 
 7. [ ] Escribir Introduction + Quickstart (2 páginas)
-2. [ ] Escribir Fundamentals: Mediator Pattern (1 página)
-3. [ ] Crear 01-basic-mediator example
+2. [ ] Escribir Fundamentals: Encina Pattern (1 página)
+3. [ ] Crear 01-basic-Encina example
 4. [ ] Crear 02-cqrs-complete example
 5. [ ] Setup CI/CD para ejemplos
 

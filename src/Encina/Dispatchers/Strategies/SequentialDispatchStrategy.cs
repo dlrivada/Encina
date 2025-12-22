@@ -20,28 +20,28 @@ internal sealed class SequentialDispatchStrategy : INotificationDispatchStrategy
     private SequentialDispatchStrategy() { }
 
     /// <inheritdoc />
-    public async Task<Either<MediatorError, Unit>> DispatchAsync<TNotification>(
+    public async Task<Either<EncinaError, Unit>> DispatchAsync<TNotification>(
         IReadOnlyList<object> handlers,
         TNotification notification,
-        Func<object, TNotification, CancellationToken, Task<Either<MediatorError, Unit>>> invoker,
+        Func<object, TNotification, CancellationToken, Task<Either<EncinaError, Unit>>> invoker,
         CancellationToken cancellationToken)
         where TNotification : INotification
     {
-        for (var i = 0; i < handlers.Count; i++)
+        for (int i = 0; i < handlers.Count; i++)
         {
-            var handler = handlers[i];
+            object? handler = handlers[i];
             if (handler is null)
             {
                 continue;
             }
 
-            var result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
+            Either<EncinaError, Unit> result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
             if (result.IsLeft)
             {
                 return result; // Fail-fast: stop on first error
             }
         }
 
-        return Right<MediatorError, Unit>(Unit.Default);
+        return Right<EncinaError, Unit>(Unit.Default);
     }
 }

@@ -33,9 +33,9 @@ public sealed class MiniValidationBehaviorLoadTests
 
     private sealed class TestCommandHandler : ICommandHandler<TestCommand, Guid>
     {
-        public Task<Either<MediatorError, Guid>> Handle(TestCommand request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Guid>> Handle(TestCommand request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, Guid>(Guid.NewGuid()));
+            return Task.FromResult(Right<EncinaError, Guid>(Guid.NewGuid()));
         }
     }
 
@@ -56,9 +56,9 @@ public sealed class MiniValidationBehaviorLoadTests
         var scenario = Scenario.Create("valid_commands", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new TestCommand { Name = "John Doe", Email = "john@example.com" };
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsRight ? Response.Ok() : Response.Fail<Guid>(statusCode: "validation_failed");
         })
         .WithLoadSimulations(
@@ -93,9 +93,9 @@ public sealed class MiniValidationBehaviorLoadTests
         var scenario = Scenario.Create("invalid_commands", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new TestCommand { Name = "", Email = "invalid" };
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsLeft ? Response.Ok() : Response.Fail<Guid>(statusCode: "expected_validation_failure");
         })
         .WithLoadSimulations(
@@ -130,11 +130,11 @@ public sealed class MiniValidationBehaviorLoadTests
         var scenario = Scenario.Create("mixed_commands", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = context.InvocationNumber % 2 == 0
                 ? new TestCommand { Name = "John", Email = "john@example.com" }
                 : new TestCommand { Name = "", Email = "" };
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             var expectedOutcome = context.InvocationNumber % 2 == 0 ? result.IsRight : result.IsLeft;
             return expectedOutcome ? Response.Ok() : Response.Fail<Guid>(statusCode: "unexpected");
         })
@@ -170,9 +170,9 @@ public sealed class MiniValidationBehaviorLoadTests
         var scenario = Scenario.Create("endurance", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new TestCommand { Name = "John", Email = "john@example.com" };
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsRight ? Response.Ok() : Response.Fail<Guid>(statusCode: "failed");
         })
         .WithLoadSimulations(
@@ -207,9 +207,9 @@ public sealed class MiniValidationBehaviorLoadTests
         var scenario = Scenario.Create("burst_load", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new TestCommand { Name = "John", Email = "john@example.com" };
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsRight ? Response.Ok() : Response.Fail<Guid>(statusCode: "failed");
         })
         .WithLoadSimulations(
@@ -246,9 +246,9 @@ public sealed class MiniValidationBehaviorLoadTests
         var scenario = Scenario.Create("memory_pressure", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new TestCommand { Name = "John", Email = "john@example.com" };
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsRight ? Response.Ok() : Response.Fail<Guid>(statusCode: "failed");
         })
         .WithLoadSimulations(
@@ -283,7 +283,7 @@ public sealed class MiniValidationBehaviorLoadTests
         var scenario = Scenario.Create("complex_validation", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new ComplexCommand
             {
                 Name = "John Doe",
@@ -291,7 +291,7 @@ public sealed class MiniValidationBehaviorLoadTests
                 Age = 25,
                 Phone = "123-456-7890"
             };
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsRight ? Response.Ok() : Response.Fail<Guid>(statusCode: "validation_failed");
         })
         .WithLoadSimulations(
@@ -330,9 +330,9 @@ public sealed class MiniValidationBehaviorLoadTests
 
     private sealed class ComplexCommandHandler : ICommandHandler<ComplexCommand, Guid>
     {
-        public Task<Either<MediatorError, Guid>> Handle(ComplexCommand request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Guid>> Handle(ComplexCommand request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, Guid>(Guid.NewGuid()));
+            return Task.FromResult(Right<EncinaError, Guid>(Guid.NewGuid()));
         }
     }
 }

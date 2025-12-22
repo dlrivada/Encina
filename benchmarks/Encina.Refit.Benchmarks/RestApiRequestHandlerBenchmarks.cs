@@ -17,7 +17,7 @@ namespace Encina.Refit.Benchmarks;
 public class RestApiRequestHandlerBenchmarks
 {
     private IServiceProvider _serviceProvider = null!;
-    private IEncina _mediator = null!;
+    private IEncina _Encina = null!;
     private ITodoApi _directClient = null!;
 
     [GlobalSetup]
@@ -36,7 +36,7 @@ public class RestApiRequestHandlerBenchmarks
         });
 
         _serviceProvider = services.BuildServiceProvider();
-        _mediator = _serviceProvider.GetRequiredService<IEncina>();
+        _Encina = _serviceProvider.GetRequiredService<IEncina>();
         _directClient = _serviceProvider.GetRequiredService<ITodoApi>();
     }
 
@@ -50,7 +50,7 @@ public class RestApiRequestHandlerBenchmarks
     public async Task<Todo?> EncinaRefitCall()
     {
         var request = new GetTodoRequest(1);
-        var result = await _mediator.Send(request);
+        var result = await _Encina.Send(request);
 
         return result.Match(
             Right: todo => todo,
@@ -75,7 +75,7 @@ public class RestApiRequestHandlerBenchmarks
             .Select(async id =>
             {
                 var request = new GetTodoRequest(id);
-                var result = await _mediator.Send(request);
+                var result = await _Encina.Send(request);
                 return result.Match(
                     Right: todo => todo,
                     Left: _ => new Todo()
@@ -104,7 +104,7 @@ public class RestApiRequestHandlerBenchmarks
         for (int i = 1; i <= 5; i++)
         {
             var request = new GetTodoRequest(i);
-            var result = await _mediator.Send(request);
+            var result = await _Encina.Send(request);
             result.IfRight(todo => todos.Add(todo));
         }
         return todos;

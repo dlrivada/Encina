@@ -18,7 +18,7 @@ public class DelegateInvocationBenchmarks
     private CancellationToken _ct;
 
     // Different invocation strategies
-    private Func<SampleHandler, SampleNotification, CancellationToken, Task<Either<MediatorError, Unit>>> _compiledDelegate = default!;
+    private Func<SampleHandler, SampleNotification, CancellationToken, Task<Either<EncinaError, Unit>>> _compiledDelegate = default!;
     private MethodInfo _methodInfo = default!;
 
     [GlobalSetup]
@@ -66,7 +66,7 @@ public class DelegateInvocationBenchmarks
     [Benchmark]
     public async Task<Unit> MethodInfoInvoke()
     {
-        var task = (Task<Either<MediatorError, Unit>>)_methodInfo.Invoke(_handler, new object[] { _notification, _ct })!;
+        var task = (Task<Either<EncinaError, Unit>>)_methodInfo.Invoke(_handler, new object[] { _notification, _ct })!;
         var result = await task.ConfigureAwait(false);
         return result.Match(
             Left: _ => Unit.Default,
@@ -82,7 +82,7 @@ public class DelegateInvocationBenchmarks
         // Cache the generic type to avoid CLR internal errors from repeated MakeGenericType calls
         var handlerType = _genericHandlerType;
         var method = handlerType.GetMethod("Handle")!;
-        var task = (Task<Either<MediatorError, Unit>>)method.Invoke(_handler, new object[] { _notification, _ct })!;
+        var task = (Task<Either<EncinaError, Unit>>)method.Invoke(_handler, new object[] { _notification, _ct })!;
         var result = await task.ConfigureAwait(false);
         return result.Match(
             Left: _ => Unit.Default,
@@ -95,12 +95,12 @@ public class DelegateInvocationBenchmarks
     /// Simulates the first call cost: expression compilation
     /// </summary>
     [Benchmark]
-    public Func<SampleHandler, SampleNotification, CancellationToken, Task<Either<MediatorError, Unit>>> ExpressionCompilation()
+    public Func<SampleHandler, SampleNotification, CancellationToken, Task<Either<EncinaError, Unit>>> ExpressionCompilation()
     {
         return CreateCompiledDelegate(_methodInfo);
     }
 
-    private static Func<SampleHandler, SampleNotification, CancellationToken, Task<Either<MediatorError, Unit>>> CreateCompiledDelegate(MethodInfo method)
+    private static Func<SampleHandler, SampleNotification, CancellationToken, Task<Either<EncinaError, Unit>>> CreateCompiledDelegate(MethodInfo method)
     {
         // Simulate what Encina does in NotificationHandlerInvokerCache
         var handlerParam = Expression.Parameter(typeof(SampleHandler), "handler");
@@ -109,7 +109,7 @@ public class DelegateInvocationBenchmarks
 
         var call = Expression.Call(handlerParam, method, notificationParam, ctParam);
 
-        var lambda = Expression.Lambda<Func<SampleHandler, SampleNotification, CancellationToken, Task<Either<MediatorError, Unit>>>>(
+        var lambda = Expression.Lambda<Func<SampleHandler, SampleNotification, CancellationToken, Task<Either<EncinaError, Unit>>>>(
             call, handlerParam, notificationParam, ctParam);
 
         return lambda.Compile();
@@ -120,10 +120,10 @@ public class DelegateInvocationBenchmarks
 
     public sealed class SampleHandler : INotificationHandler<SampleNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
         {
             // Minimal work to isolate invocation overhead
-            return Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 }

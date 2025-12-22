@@ -5,7 +5,7 @@ namespace Encina.Dispatchers.Strategies;
 
 /// <summary>
 /// Dispatches notifications to all handlers in parallel, waiting for all to complete.
-/// Errors are aggregated into a single <see cref="MediatorError"/> containing all failure details.
+/// Errors are aggregated into a single <see cref="EncinaError"/> containing all failure details.
 /// </summary>
 /// <remarks>
 /// <para>Suitable when all handlers must attempt execution regardless of individual failures.</para>
@@ -28,76 +28,76 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
     }
 
     /// <inheritdoc />
-    public async Task<Either<MediatorError, Unit>> DispatchAsync<TNotification>(
+    public async Task<Either<EncinaError, Unit>> DispatchAsync<TNotification>(
         IReadOnlyList<object> handlers,
         TNotification notification,
-        Func<object, TNotification, CancellationToken, Task<Either<MediatorError, Unit>>> invoker,
+        Func<object, TNotification, CancellationToken, Task<Either<EncinaError, Unit>>> invoker,
         CancellationToken cancellationToken)
         where TNotification : INotification
     {
         if (handlers.Count == 0)
         {
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
 
         // Single handler - no parallelism needed
         if (handlers.Count == 1)
         {
-            var handler = handlers[0];
+            object? handler = handlers[0];
             return handler is null
-                ? Right<MediatorError, Unit>(Unit.Default)
+                ? Right<EncinaError, Unit>(Unit.Default)
                 : await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
         }
 
         // Use SemaphoreSlim for throttling
         using var semaphore = new SemaphoreSlim(_maxDegreeOfParallelism, _maxDegreeOfParallelism);
 
-        var tasks = new List<Task<(object Handler, Either<MediatorError, Unit> Result)>>(handlers.Count);
+        var tasks = new List<Task<(object Handler, Either<EncinaError, Unit> Result)>>(handlers.Count);
 
-        foreach (var handler in handlers)
+        foreach (object? handler in handlers)
         {
             if (handler is null)
             {
                 continue;
             }
 
-            var capturedHandler = handler;
+            object capturedHandler = handler;
             tasks.Add(ExecuteWithThrottlingAsync(capturedHandler, notification, invoker, semaphore, cancellationToken));
         }
 
-        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        (object Handler, Either<EncinaError, Unit> Result)[] results = await Task.WhenAll(tasks).ConfigureAwait(false);
 
         // Collect all errors
-        var errors = new List<(object Handler, MediatorError Error)>();
-        foreach (var (handler, result) in results)
+        var errors = new List<(object Handler, EncinaError Error)>();
+        foreach ((object? handler, Either<EncinaError, Unit> result) in results)
         {
             if (result.IsLeft)
             {
-                var error = result.Match(
+                EncinaError error = result.Match(
                     Left: err => err,
-                    Right: _ => MediatorErrors.Unknown);
+                    Right: _ => EncinaErrors.Unknown);
                 errors.Add((handler, error));
             }
         }
 
         if (errors.Count == 0)
         {
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
 
         if (errors.Count == 1)
         {
-            return Left<MediatorError, Unit>(errors[0].Error);
+            return Left<EncinaError, Unit>(errors[0].Error);
         }
 
         // Aggregate multiple errors
-        return Left<MediatorError, Unit>(CreateAggregateError(errors, notification));
+        return Left<EncinaError, Unit>(CreateAggregateError(errors, notification));
     }
 
-    private static async Task<(object Handler, Either<MediatorError, Unit> Result)> ExecuteWithThrottlingAsync<TNotification>(
+    private static async Task<(object Handler, Either<EncinaError, Unit> Result)> ExecuteWithThrottlingAsync<TNotification>(
         object handler,
         TNotification notification,
-        Func<object, TNotification, CancellationToken, Task<Either<MediatorError, Unit>>> invoker,
+        Func<object, TNotification, CancellationToken, Task<Either<EncinaError, Unit>>> invoker,
         SemaphoreSlim semaphore,
         CancellationToken cancellationToken)
         where TNotification : INotification
@@ -105,24 +105,24 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
         await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
+            Either<EncinaError, Unit> result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
             return (handler, result);
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            var error = MediatorErrors.Create(
-                MediatorErrorCodes.NotificationCancelled,
+            EncinaError error = EncinaErrors.Create(
+                EncinaErrorCodes.NotificationCancelled,
                 $"Handler {handler.GetType().Name} was cancelled.",
                 ex);
-            return (handler, Left<MediatorError, Unit>(error));
+            return (handler, Left<EncinaError, Unit>(error));
         }
         catch (Exception ex)
         {
-            var error = MediatorErrors.FromException(
-                MediatorErrorCodes.NotificationException,
+            EncinaError error = EncinaErrors.FromException(
+                EncinaErrorCodes.NotificationException,
                 ex,
                 $"Handler {handler.GetType().Name} threw an unexpected exception.");
-            return (handler, Left<MediatorError, Unit>(error));
+            return (handler, Left<EncinaError, Unit>(error));
         }
         finally
         {
@@ -130,17 +130,17 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
         }
     }
 
-    private static MediatorError CreateAggregateError<TNotification>(
-        List<(object Handler, MediatorError Error)> errors,
+    private static EncinaError CreateAggregateError<TNotification>(
+        List<(object Handler, EncinaError Error)> errors,
         TNotification notification)
     {
-        var notificationName = notification?.GetType().Name ?? typeof(TNotification).Name;
-        var message = $"Multiple notification handlers failed for {notificationName} ({errors.Count} errors)";
+        string notificationName = notification?.GetType().Name ?? typeof(TNotification).Name;
+        string message = $"Multiple notification handlers failed for {notificationName} ({errors.Count} errors)";
 
         var errorDetails = errors.Select(e => new Dictionary<string, object?>
         {
             ["handler"] = e.Handler.GetType().FullName,
-            ["code"] = e.Error.GetMediatorCode(),
+            ["code"] = e.Error.GetEncinaCode(),
             ["message"] = e.Error.Message
         }).ToList();
 
@@ -152,8 +152,8 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
             ["failed_handlers"] = errors.Select(e => e.Handler.GetType().Name).ToList()
         };
 
-        return MediatorErrors.Create(
-            MediatorErrorCodes.NotificationMultipleFailures,
+        return EncinaErrors.Create(
+            EncinaErrorCodes.NotificationMultipleFailures,
             message,
             details: metadata);
     }

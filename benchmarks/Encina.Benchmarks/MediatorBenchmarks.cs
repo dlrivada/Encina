@@ -21,7 +21,7 @@ public static class Program
                 "performance"));
 
         // Run all benchmark suites
-        BenchmarkRunner.Run<MediatorBenchmarks>(config);
+        BenchmarkRunner.Run<EncinaBenchmarks>(config);
         BenchmarkRunner.Run<DelegateInvocationBenchmarks>(config);
         BenchmarkRunner.Run<StreamRequestBenchmarks>(config);
 
@@ -62,7 +62,7 @@ public static class Program
 }
 
 [MemoryDiagnoser]
-public class MediatorBenchmarks
+public class EncinaBenchmarks
 {
     private IServiceProvider _provider = default!;
 
@@ -77,7 +77,7 @@ public class MediatorBenchmarks
             options.AddPipelineBehavior(typeof(TracingPipelineBehavior<,>));
             options.AddRequestPreProcessor(typeof(TracingPreProcessor<>));
             options.AddRequestPostProcessor(typeof(TracingPostProcessor<,>));
-        }, typeof(Encina).Assembly, typeof(MediatorBenchmarks).Assembly);
+        }, typeof(Encina).Assembly, typeof(EncinaBenchmarks).Assembly);
 
         services.AddScoped<IRequestHandler<SampleCommand, int>, SampleCommandHandler>();
         services.AddScoped<INotificationHandler<SampleNotification>, NotificationHandlerOne>();
@@ -90,9 +90,9 @@ public class MediatorBenchmarks
     public async Task<int> Send_Command_WithInstrumentation()
     {
         using var scope = _provider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var command = new SampleCommand(Guid.NewGuid());
-        var outcome = await mediator.Send(command).ConfigureAwait(false);
+        var outcome = await Encina.Send(command).ConfigureAwait(false);
         return outcome.Match(
             Left: error => throw new InvalidOperationException($"Sample command failed: {error.Message}"),
             Right: value => value);
@@ -102,8 +102,8 @@ public class MediatorBenchmarks
     public async Task<int> Publish_Notification_WithMultipleHandlers()
     {
         using var scope = _provider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        await mediator.Publish(new SampleNotification(Guid.NewGuid())).ConfigureAwait(false);
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+        await Encina.Publish(new SampleNotification(Guid.NewGuid())).ConfigureAwait(false);
         return scope.ServiceProvider.GetRequiredService<CallRecorder>().InvocationCount;
     }
 
@@ -111,42 +111,42 @@ public class MediatorBenchmarks
 
     private sealed class SampleCommandHandler : ICommandHandler<SampleCommand, int>
     {
-        public Task<Either<MediatorError, int>> Handle(SampleCommand request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, int>> Handle(SampleCommand request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, int>(request.RequestId.GetHashCode()));
+            return Task.FromResult(Right<EncinaError, int>(request.RequestId.GetHashCode()));
         }
     }
 
     private sealed record SampleNotification(Guid NotificationId) : INotification;
 
-    private sealed class NotificationHandlerOne(MediatorBenchmarks.CallRecorder recorder) : INotificationHandler<SampleNotification>
+    private sealed class NotificationHandlerOne(EncinaBenchmarks.CallRecorder recorder) : INotificationHandler<SampleNotification>
     {
         private readonly CallRecorder _recorder = recorder;
 
-        public Task<Either<MediatorError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
         {
             _recorder.Register("handler-one");
-            return Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 
-    private sealed class NotificationHandlerTwo(MediatorBenchmarks.CallRecorder recorder) : INotificationHandler<SampleNotification>
+    private sealed class NotificationHandlerTwo(EncinaBenchmarks.CallRecorder recorder) : INotificationHandler<SampleNotification>
     {
         private readonly CallRecorder _recorder = recorder;
 
-        public Task<Either<MediatorError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
         {
             _recorder.Register("handler-two");
-            return Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 
-    private sealed class TracingPipelineBehavior<TRequest, TResponse>(MediatorBenchmarks.CallRecorder recorder) : IPipelineBehavior<TRequest, TResponse>
+    private sealed class TracingPipelineBehavior<TRequest, TResponse>(EncinaBenchmarks.CallRecorder recorder) : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
         private readonly CallRecorder _recorder = recorder;
 
-        public async ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+        public async ValueTask<Either<EncinaError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
         {
             _recorder.Register("pipeline:enter");
             try
@@ -160,7 +160,7 @@ public class MediatorBenchmarks
         }
     }
 
-    private sealed class TracingPreProcessor<TRequest>(MediatorBenchmarks.CallRecorder recorder) : IRequestPreProcessor<TRequest>
+    private sealed class TracingPreProcessor<TRequest>(EncinaBenchmarks.CallRecorder recorder) : IRequestPreProcessor<TRequest>
     {
         private readonly CallRecorder _recorder = recorder;
 
@@ -171,11 +171,11 @@ public class MediatorBenchmarks
         }
     }
 
-    private sealed class TracingPostProcessor<TRequest, TResponse>(MediatorBenchmarks.CallRecorder recorder) : IRequestPostProcessor<TRequest, TResponse>
+    private sealed class TracingPostProcessor<TRequest, TResponse>(EncinaBenchmarks.CallRecorder recorder) : IRequestPostProcessor<TRequest, TResponse>
     {
         private readonly CallRecorder _recorder = recorder;
 
-        public Task Process(TRequest request, IRequestContext context, Either<MediatorError, TResponse> response, CancellationToken cancellationToken)
+        public Task Process(TRequest request, IRequestContext context, Either<EncinaError, TResponse> response, CancellationToken cancellationToken)
         {
             _recorder.Register("post");
             return Task.CompletedTask;

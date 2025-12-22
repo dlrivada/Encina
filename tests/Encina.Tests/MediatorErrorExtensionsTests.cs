@@ -2,59 +2,59 @@
 
 namespace Encina.Tests;
 
-public sealed class MediatorErrorExtensionsTests
+public sealed class EncinaErrorExtensionsTests
 {
     [Fact]
-    public void GetMediatorCode_ReturnsMediatorCode_ForMediatorExceptions()
+    public void GetEncinaCode_ReturnsEncinaCode_ForEncinaExceptions()
     {
-        var error = MediatorErrors.Create("mediator.test", "boom");
+        var error = EncinaErrors.Create("Encina.test", "boom");
 
-        error.GetMediatorCode().ShouldBe("mediator.test");
+        error.GetEncinaCode().ShouldBe("Encina.test");
     }
 
     [Fact]
-    public void GetMediatorCode_ReturnsExceptionTypeName_WhenMetadataIsNonMediator()
+    public void GetEncinaCode_ReturnsExceptionTypeName_WhenMetadataIsNonEncina()
     {
-        var error = MediatorError.New("boom", new InvalidOperationException("oops"));
+        var error = EncinaError.New("boom", new InvalidOperationException("oops"));
 
-        error.GetMediatorCode().ShouldBe(nameof(InvalidOperationException));
+        error.GetEncinaCode().ShouldBe(nameof(InvalidOperationException));
     }
 
     [Fact]
-    public void GetMediatorCode_DefaultsToUnknown_WhenMessageIsMissing()
+    public void GetEncinaCode_DefaultsToUnknown_WhenMessageIsMissing()
     {
-        var error = default(MediatorError);
+        var error = default(EncinaError);
 
-        error.GetMediatorCode().ShouldBe("mediator.unknown");
+        error.GetEncinaCode().ShouldBe("Encina.unknown");
     }
 
     [Fact]
-    public void GetMediatorCode_UsesMessage_WhenNoMetadataAndMessagePresent()
+    public void GetEncinaCode_UsesMessage_WhenNoMetadataAndMessagePresent()
     {
-        var error = MediatorError.New("custom-code");
+        var error = EncinaError.New("custom-code");
 
-        error.GetMediatorCode().ShouldBe("custom-code");
+        error.GetEncinaCode().ShouldBe("custom-code");
     }
 
     [Fact]
-    public void GetMediatorDetails_ReturnsDetails_FromMediatorException()
+    public void GetEncinaDetails_ReturnsDetails_FromEncinaException()
     {
         var details = new { Value = 42 };
-        var error = MediatorErrors.Create("mediator.details", "boom", details: details);
+        var error = EncinaErrors.Create("Encina.details", "boom", details: details);
 
-        error.GetMediatorDetails().ShouldBe(details);
+        error.GetEncinaDetails().ShouldBe(details);
     }
 
     [Fact]
-    public void GetMediatorDetails_ReturnsNull_ForNonMediatorMetadata()
+    public void GetEncinaDetails_ReturnsNull_ForNonEncinaMetadata()
     {
-        var error = MediatorError.New("boom", new InvalidOperationException("oops"));
+        var error = EncinaError.New("boom", new InvalidOperationException("oops"));
 
-        error.GetMediatorDetails().ShouldBeNull();
+        error.GetEncinaDetails().ShouldBeNull();
     }
 
     [Fact]
-    public void GetMediatorMetadata_ReturnsMetadata_FromMediatorException()
+    public void GetEncinaMetadata_ReturnsMetadata_FromEncinaException()
     {
         var details = new Dictionary<string, object?>
         {
@@ -63,9 +63,9 @@ public sealed class MediatorErrorExtensionsTests
             ["stage"] = "handler"
         };
 
-        var error = MediatorErrors.Create("mediator.metadata", "boom", details: details);
+        var error = EncinaErrors.Create("Encina.metadata", "boom", details: details);
 
-        var metadata = error.GetMediatorMetadata();
+        var metadata = error.GetEncinaMetadata();
 
         metadata.ShouldNotBeNull();
         metadata.ShouldContainKey("handler");
@@ -74,95 +74,95 @@ public sealed class MediatorErrorExtensionsTests
     }
 
     [Fact]
-    public void GetMediatorMetadata_ReturnsEmpty_ForNonMediatorMetadata()
+    public void GetEncinaMetadata_ReturnsEmpty_ForNonEncinaMetadata()
     {
-        var error = MediatorError.New("boom", new InvalidOperationException("oops"));
+        var error = EncinaError.New("boom", new InvalidOperationException("oops"));
 
-        var metadata = error.GetMediatorMetadata();
+        var metadata = error.GetEncinaMetadata();
 
         metadata.ShouldNotBeNull();
         metadata.ShouldBeEmpty();
     }
 
     [Fact]
-    public void MediatorError_New_WithNullException_ReturnsErrorWithoutException()
+    public void EncinaError_New_WithNullException_ReturnsErrorWithoutException()
     {
-        var error = MediatorError.New("test message", (Exception?)null);
+        var error = EncinaError.New("test message", (Exception?)null);
 
         error.Message.ShouldBe("test message");
         error.Exception.IsNone.ShouldBeTrue();
     }
 
     [Fact]
-    public void MediatorError_New_FromNullException_UsesDefaultMessage()
+    public void EncinaError_New_FromNullException_UsesDefaultMessage()
     {
-        var error = MediatorError.New((Exception)null!);
+        var error = EncinaError.New((Exception)null!);
 
         error.Message.ShouldBe("An error occurred");
         error.Exception.IsNone.ShouldBeTrue();
     }
 
     [Fact]
-    public void MediatorError_New_FromNullExceptionWithMessage_UsesProvidedMessage()
+    public void EncinaError_New_FromNullExceptionWithMessage_UsesProvidedMessage()
     {
-        var error = MediatorError.New((Exception)null!, "custom message");
+        var error = EncinaError.New((Exception)null!, "custom message");
 
         error.Message.ShouldBe("custom message");
         error.Exception.IsNone.ShouldBeTrue();
     }
 
     [Fact]
-    public void MediatorError_New_WithEmptyMessage_UsesDefaultMessage()
+    public void EncinaError_New_WithEmptyMessage_UsesDefaultMessage()
     {
-        var error = MediatorError.New("");
+        var error = EncinaError.New("");
 
         error.Message.ShouldBe("An error occurred");
     }
 
     [Fact]
-    public void MediatorError_New_WithWhitespaceMessage_UsesDefaultMessage()
+    public void EncinaError_New_WithWhitespaceMessage_UsesDefaultMessage()
     {
-        var error = MediatorError.New("   ");
+        var error = EncinaError.New("   ");
 
         error.Message.ShouldBe("An error occurred");
     }
 
     [Fact]
-    public void MediatorError_ImplicitConversionFromString_CreatesError()
+    public void EncinaError_ImplicitConversionFromString_CreatesError()
     {
-        MediatorError error = "test error";
+        EncinaError error = "test error";
 
         error.Message.ShouldBe("test error");
         error.Exception.IsNone.ShouldBeTrue();
     }
 
     [Fact]
-    public void MediatorError_ImplicitConversionFromException_CreatesError()
+    public void EncinaError_ImplicitConversionFromException_CreatesError()
     {
         var exception = new InvalidOperationException("test exception");
-        MediatorError error = exception;
+        EncinaError error = exception;
 
         error.Message.ShouldBe("test exception");
         error.Exception.IsSome.ShouldBeTrue();
     }
 
     [Fact]
-    public void MediatorError_New_WithExceptionWithNullMessage_UsesExceptionMessage()
+    public void EncinaError_New_WithExceptionWithNullMessage_UsesExceptionMessage()
     {
         var exception = new InvalidOperationException(); // Exception with default message
-        var error = MediatorError.New(exception);
+        var error = EncinaError.New(exception);
 
         error.Message.ShouldNotBeNullOrWhiteSpace();
         error.Exception.IsSome.ShouldBeTrue();
     }
 
     [Fact]
-    public void MediatorError_New_WithMediatorException_NormalizesInnerException()
+    public void EncinaError_New_WithEncinaException_NormalizesInnerException()
     {
         var innerException = new InvalidOperationException("inner");
-        var mediatorException = new MediatorException("mediator.test", "wrapper", innerException, details: null);
+        var EncinaException = new EncinaException("Encina.test", "wrapper", innerException, details: null);
 
-        var error = MediatorError.New(mediatorException);
+        var error = EncinaError.New(EncinaException);
 
         error.Message.ShouldBe("wrapper");
         error.Exception.IsSome.ShouldBeTrue();
@@ -172,30 +172,30 @@ public sealed class MediatorErrorExtensionsTests
     }
 
     [Fact]
-    public void MediatorErrors_Create_WithNonDictionaryDetails_WrapsInMetadata()
+    public void EncinaErrors_Create_WithNonDictionaryDetails_WrapsInMetadata()
     {
         var customDetail = new { Value = 42, Name = "Test" };
-        var error = MediatorErrors.Create("test.code", "test message", details: customDetail);
+        var error = EncinaErrors.Create("test.code", "test message", details: customDetail);
 
-        error.GetMediatorCode().ShouldBe("test.code");
+        error.GetEncinaCode().ShouldBe("test.code");
         error.Message.ShouldBe("test message");
 
-        var details = error.GetMediatorDetails();
+        var details = error.GetEncinaDetails();
         details.ShouldBe(customDetail);
 
-        var metadata = error.GetMediatorMetadata();
+        var metadata = error.GetEncinaMetadata();
         metadata.ShouldNotBeNull();
         metadata.ShouldContainKey("detail");
         metadata["detail"].ShouldBe(customDetail);
     }
 
     [Fact]
-    public void GetMediatorMetadata_ReturnsEmptyDictionary_WhenMetadataIsNull()
+    public void GetEncinaMetadata_ReturnsEmptyDictionary_WhenMetadataIsNull()
     {
         // Create an error with dictionary details that could potentially be null
-        var error = MediatorErrors.Create("test.null", "test", details: (IReadOnlyDictionary<string, object?>?)null);
+        var error = EncinaErrors.Create("test.null", "test", details: (IReadOnlyDictionary<string, object?>?)null);
 
-        var metadata = error.GetMediatorMetadata();
+        var metadata = error.GetEncinaMetadata();
 
         metadata.ShouldNotBeNull();
         metadata.ShouldBeEmpty();

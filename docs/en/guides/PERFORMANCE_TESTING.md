@@ -2,7 +2,7 @@
 
 ## Objectives
 
-- Quantify mediator send/publish overhead using BenchmarkDotNet.
+- Quantify Encina send/publish overhead using BenchmarkDotNet.
 - Surface allocation profiles and latency buckets for common request flows.
 
 ## Tooling Plan
@@ -25,7 +25,7 @@ The latest Release run (Core i9-13900KS, .NET 10.0.100) produced the following m
 | `Send_Command_WithInstrumentation` | 1.352 μs | 4.50 KB |
 | `Publish_Notification_WithMultipleHandlers` | 0.987 μs | 2.38 KB |
 
-Artifacts reside at `artifacts/performance/2025-12-08.134404/`. Update this table whenever the mediator pipeline or hardware baseline changes materially.
+Artifacts reside at `artifacts/performance/2025-12-08.134404/`. Update this table whenever the Encina pipeline or hardware baseline changes materially.
 
 ### Trend History
 

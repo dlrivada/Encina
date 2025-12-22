@@ -15,7 +15,7 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
     where TRequest : ICommand<TResponse>
 {
     private readonly IDocumentSession _session;
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger<EventPublishingPipelineBehavior<TRequest, TResponse>> _logger;
     private readonly EncinaMartenOptions _options;
 
@@ -23,28 +23,28 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
     /// Initializes a new instance of the <see cref="EventPublishingPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
     /// <param name="session">The Marten document session.</param>
-    /// <param name="mediator">The mediator for publishing events.</param>
+    /// <param name="Encina">The Encina for publishing events.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
     public EventPublishingPipelineBehavior(
         IDocumentSession session,
-        IMediator mediator,
+        IEncina Encina,
         ILogger<EventPublishingPipelineBehavior<TRequest, TResponse>> logger,
         IOptions<EncinaMartenOptions> options)
     {
         ArgumentNullException.ThrowIfNull(session);
-        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(Encina);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
 
         _session = session;
-        _mediator = mediator;
+        _Encina = Encina;
         _logger = logger;
         _options = options.Value;
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,
@@ -76,18 +76,18 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
         // Publish each domain event
         foreach (var domainEvent in pendingEvents)
         {
-            var publishResult = await _mediator.Publish(domainEvent, cancellationToken).ConfigureAwait(false);
+            var publishResult = await _Encina.Publish(domainEvent, cancellationToken).ConfigureAwait(false);
 
             if (publishResult.IsLeft)
             {
                 var error = publishResult.Match(
                     Left: err => err,
-                    Right: _ => MediatorErrors.Unknown);
+                    Right: _ => EncinaErrors.Unknown);
 
                 Log.FailedToPublishDomainEvent(_logger, domainEvent.GetType().Name, error.Message);
 
-                return Left<MediatorError, TResponse>(
-                    MediatorErrors.Create(
+                return Left<EncinaError, TResponse>(
+                    EncinaErrors.Create(
                         MartenErrorCodes.PublishEventsFailed,
                         $"Failed to publish domain event {domainEvent.GetType().Name}: {error.Message}"));
             }

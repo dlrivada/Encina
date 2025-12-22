@@ -15,7 +15,7 @@ public sealed class HangfireNotificationJobAdapterPropertyTests
     [Fact]
     public async Task Property_SuccessfulPublication_AlwaysCompletes()
     {
-        // Property: When mediator succeeds, adapter ALWAYS completes without exception
+        // Property: When Encina succeeds, adapter ALWAYS completes without exception
 
         var testNotifications = new[]
         {
@@ -27,17 +27,17 @@ public sealed class HangfireNotificationJobAdapterPropertyTests
         foreach (var notification in testNotifications)
         {
             // Arrange
-            var mediator = Substitute.For<IMediator>();
+            var Encina = Substitute.For<IEncina>();
             var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
-            var adapter = new HangfireNotificationJobAdapter<TestNotification>(mediator, logger);
+            var adapter = new HangfireNotificationJobAdapter<TestNotification>(Encina, logger);
 
-            mediator.Publish(notification, Arg.Any<CancellationToken>())
-                .Returns(Right<MediatorError, Unit>(unit));
+            Encina.Publish(notification, Arg.Any<CancellationToken>())
+                .Returns(Right<EncinaError, Unit>(unit));
 
             // Act & Assert - Should not throw
             await adapter.PublishAsync(notification);
 
-            await mediator.Received(1).Publish(notification, Arg.Any<CancellationToken>());
+            await Encina.Received(1).Publish(notification, Arg.Any<CancellationToken>());
         }
     }
 
@@ -47,20 +47,20 @@ public sealed class HangfireNotificationJobAdapterPropertyTests
         // Property: Same notification ALWAYS produces same outcome
 
         var notification = new TestNotification("idempotent-test");
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
-        var adapter = new HangfireNotificationJobAdapter<TestNotification>(mediator, logger);
+        var adapter = new HangfireNotificationJobAdapter<TestNotification>(Encina, logger);
 
-        mediator.Publish(notification, Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, Unit>(unit));
+        Encina.Publish(notification, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(unit));
 
         // Act - Multiple publications
         await adapter.PublishAsync(notification);
         await adapter.PublishAsync(notification);
         await adapter.PublishAsync(notification);
 
-        // Assert - Mediator invoked 3 times (once per call)
-        await mediator.Received(3).Publish(notification, Arg.Any<CancellationToken>());
+        // Assert - Encina invoked 3 times (once per call)
+        await Encina.Received(3).Publish(notification, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -68,12 +68,12 @@ public sealed class HangfireNotificationJobAdapterPropertyTests
     {
         // Property: Concurrent publications are thread-safe
 
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
-        var adapter = new HangfireNotificationJobAdapter<TestNotification>(mediator, logger);
+        var adapter = new HangfireNotificationJobAdapter<TestNotification>(Encina, logger);
 
-        mediator.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, Unit>(unit));
+        Encina.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(unit));
 
         // Act - Execute concurrently
         var tasks = Enumerable.Range(0, 20)
@@ -87,9 +87,9 @@ public sealed class HangfireNotificationJobAdapterPropertyTests
     }
 
     [Fact]
-    public async Task Property_MediatorInvocation_AlwaysCalledExactlyOnce()
+    public async Task Property_EncinaInvocation_AlwaysCalledExactlyOnce()
     {
-        // Property: Mediator ALWAYS invoked exactly once per publication
+        // Property: Encina ALWAYS invoked exactly once per publication
 
         var testNotifications = new[]
         {
@@ -100,18 +100,18 @@ public sealed class HangfireNotificationJobAdapterPropertyTests
 
         foreach (var notification in testNotifications)
         {
-            var mediator = Substitute.For<IMediator>();
+            var Encina = Substitute.For<IEncina>();
             var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
-            var adapter = new HangfireNotificationJobAdapter<TestNotification>(mediator, logger);
+            var adapter = new HangfireNotificationJobAdapter<TestNotification>(Encina, logger);
 
-            mediator.Publish(notification, Arg.Any<CancellationToken>())
-                .Returns(Right<MediatorError, Unit>(unit));
+            Encina.Publish(notification, Arg.Any<CancellationToken>())
+                .Returns(Right<EncinaError, Unit>(unit));
 
             // Act
             await adapter.PublishAsync(notification);
 
             // Assert
-            await mediator.Received(1).Publish(notification, Arg.Any<CancellationToken>());
+            await Encina.Received(1).Publish(notification, Arg.Any<CancellationToken>());
         }
     }
 
@@ -120,9 +120,9 @@ public sealed class HangfireNotificationJobAdapterPropertyTests
     {
         // Property: Different notifications execute independently
 
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
-        var adapter = new HangfireNotificationJobAdapter<TestNotification>(mediator, logger);
+        var adapter = new HangfireNotificationJobAdapter<TestNotification>(Encina, logger);
 
         var notifications = new[]
         {
@@ -131,8 +131,8 @@ public sealed class HangfireNotificationJobAdapterPropertyTests
             new TestNotification("notif-C"),
         };
 
-        mediator.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, Unit>(unit));
+        Encina.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(unit));
 
         // Act
         foreach (var notification in notifications)
@@ -143,7 +143,7 @@ public sealed class HangfireNotificationJobAdapterPropertyTests
         // Assert - Each notification published independently
         foreach (var notification in notifications)
         {
-            await mediator.Received(1).Publish(notification, Arg.Any<CancellationToken>());
+            await Encina.Received(1).Publish(notification, Arg.Any<CancellationToken>());
         }
     }
 }

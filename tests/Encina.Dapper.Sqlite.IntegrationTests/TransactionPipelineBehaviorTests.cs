@@ -48,7 +48,7 @@ public sealed class TransactionPipelineBehaviorTests : IClassFixture<SqliteFixtu
             command.Parameters.Add(new SqliteParameter("@Created", DateTime.UtcNow.ToString("O")));
             await command.ExecuteNonQueryAsync();
 
-            return Right<MediatorError, string>("Success");
+            return Right<EncinaError, string>("Success");
         };
 
         // Act
@@ -89,7 +89,7 @@ public sealed class TransactionPipelineBehaviorTests : IClassFixture<SqliteFixtu
             await command.ExecuteNonQueryAsync();
 
             // Return error (Left)
-            return MediatorErrors.Create("test.error", "Test error");
+            return EncinaErrors.Create("test.error", "Test error");
         };
 
         // Act
@@ -156,7 +156,7 @@ public sealed class TransactionPipelineBehaviorTests : IClassFixture<SqliteFixtu
             // Verify connection is open
             Assert.Equal(ConnectionState.Open, connection.State);
             await Task.CompletedTask;
-            return Right<MediatorError, string>("Success");
+            return Right<EncinaError, string>("Success");
         };
 
         // Act
@@ -195,7 +195,7 @@ public sealed class TransactionPipelineBehaviorTests : IClassFixture<SqliteFixtu
             cmd2.Parameters.Add(new SqliteParameter("@Expires", DateTime.UtcNow.AddDays(7).ToString("O")));
             await cmd2.ExecuteNonQueryAsync();
 
-            return Right<MediatorError, string>("Success");
+            return Right<EncinaError, string>("Success");
         };
 
         // Act
@@ -246,7 +246,7 @@ public sealed class TransactionPipelineBehaviorTests : IClassFixture<SqliteFixtu
             await cmd2.ExecuteNonQueryAsync();
 
             // Return error
-            return MediatorErrors.Create("test.error", "Test error");
+            return EncinaErrors.Create("test.error", "Test error");
         };
 
         // Act

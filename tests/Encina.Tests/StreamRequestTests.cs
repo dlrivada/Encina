@@ -22,7 +22,7 @@ public sealed class StreamRequestTests
 
     public sealed class StreamNumbersHandler : IStreamRequestHandler<StreamNumbersQuery, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             StreamNumbersQuery request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
@@ -30,7 +30,7 @@ public sealed class StreamRequestTests
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 await Task.Delay(1, cancellationToken); // Simulate async work
-                yield return Right<MediatorError, int>(i);
+                yield return Right<EncinaError, int>(i);
             }
         }
     }
@@ -39,7 +39,7 @@ public sealed class StreamRequestTests
 
     public sealed class StreamWithErrorsHandler : IStreamRequestHandler<StreamWithErrorsQuery, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             StreamWithErrorsQuery request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
@@ -47,13 +47,13 @@ public sealed class StreamRequestTests
             {
                 if (i % request.ErrorEveryN == 0)
                 {
-                    yield return Left<MediatorError, int>(
-                        MediatorErrors.Create("TEST_ERROR", $"Error at item {i}"));
+                    yield return Left<EncinaError, int>(
+                        EncinaErrors.Create("TEST_ERROR", $"Error at item {i}"));
                 }
                 else
                 {
                     await Task.Delay(1, cancellationToken);
-                    yield return Right<MediatorError, int>(i);
+                    yield return Right<EncinaError, int>(i);
                 }
             }
         }
@@ -68,13 +68,13 @@ public sealed class StreamRequestTests
         var services = new ServiceCollection();
         services.AddEncina(typeof(StreamRequestTests).Assembly);
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var query = new StreamNumbersQuery(5);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(query))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(query))
         {
             results.Add(item);
         }
@@ -94,13 +94,13 @@ public sealed class StreamRequestTests
         var services = new ServiceCollection();
         services.AddEncina(typeof(StreamRequestTests).Assembly);
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         IStreamRequest<int> nullRequest = null!;
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(nullRequest))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(nullRequest))
         {
             results.Add(item);
         }
@@ -111,7 +111,7 @@ public sealed class StreamRequestTests
         _ = results[0].Match(
             Left: error =>
             {
-                error.GetMediatorCode().Should().Be(MediatorErrorCodes.RequestNull);
+                error.GetEncinaCode().Should().Be(EncinaErrorCodes.RequestNull);
                 return Unit.Default;
             },
             Right: _ => Unit.Default);
@@ -124,13 +124,13 @@ public sealed class StreamRequestTests
         var services = new ServiceCollection();
         services.AddEncina(typeof(StreamRequestTests).Assembly);
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var query = new StreamWithErrorsQuery(TotalCount: 10, ErrorEveryN: 3);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(query))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(query))
         {
             results.Add(item);
         }
@@ -152,16 +152,16 @@ public sealed class StreamRequestTests
         var services = new ServiceCollection();
         services.AddEncina(typeof(StreamRequestTests).Assembly);
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var query = new StreamNumbersQuery(100);
         using var cts = new CancellationTokenSource();
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
+        var results = new List<Either<EncinaError, int>>();
         try
         {
-            await foreach (var item in mediator.Stream(query, cts.Token))
+            await foreach (var item in Encina.Stream(query, cts.Token))
             {
                 results.Add(item);
 
@@ -189,13 +189,13 @@ public sealed class StreamRequestTests
         var services = new ServiceCollection();
         services.AddEncina(); // No handlers registered
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var query = new StreamNumbersQuery(5);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(query))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(query))
         {
             results.Add(item);
         }
@@ -206,7 +206,7 @@ public sealed class StreamRequestTests
         _ = results[0].Match(
             Left: error =>
             {
-                error.GetMediatorCode().Should().Be(MediatorErrorCodes.HandlerMissing);
+                error.GetEncinaCode().Should().Be(EncinaErrorCodes.HandlerMissing);
                 error.Message.Should().Contain("No handler registered");
                 return Unit.Default;
             },
@@ -220,13 +220,13 @@ public sealed class StreamRequestTests
         var services = new ServiceCollection();
         services.AddEncina(typeof(StreamRequestTests).Assembly);
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var query = new StreamNumbersQuery(100);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(query))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(query))
         {
             results.Add(item);
 

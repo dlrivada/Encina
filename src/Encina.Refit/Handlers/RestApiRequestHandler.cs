@@ -14,7 +14,7 @@ namespace Encina.Refit;
 /// This handler automatically:
 /// - Resolves the Refit client from DI
 /// - Executes the API call through the request's ExecuteAsync method
-/// - Converts HTTP errors to MediatorError (Railway Oriented Programming)
+/// - Converts HTTP errors to EncinaError (Railway Oriented Programming)
 /// - Handles ApiException (from Refit) and general exceptions
 /// </remarks>
 public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TResponse>
@@ -41,7 +41,7 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
     /// <summary>
     /// Handles the REST API request.
     /// </summary>
-    public async Task<Either<MediatorError, TResponse>> Handle(
+    public async Task<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         CancellationToken cancellationToken)
     {
@@ -68,7 +68,7 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
                 apiEx.Message,
                 string.Empty);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"API call failed with status {apiEx.StatusCode}: {apiEx.Content ?? apiEx.Message}",
                 apiEx);
         }
@@ -77,7 +77,7 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
             // General HTTP request failure
             LogHttpException(requestType, apiClientType, httpEx.Message, string.Empty);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"HTTP request failed: {httpEx.Message}",
                 httpEx);
         }
@@ -86,7 +86,7 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
             // Request was cancelled by caller
             LogRequestCancelled(requestType, apiClientType, string.Empty);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"API request was cancelled",
                 tcEx);
         }
@@ -95,7 +95,7 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
             // Timeout (not cancelled by caller)
             LogRequestTimedOut(requestType, apiClientType, string.Empty);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"API request timed out",
                 tcEx);
         }
@@ -103,7 +103,7 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
         {
             LogUnexpectedException(requestType, apiClientType, ex.Message, string.Empty);
 
-            return MediatorError.New(ex);
+            return EncinaError.New(ex);
         }
     }
 

@@ -41,11 +41,11 @@ public class StreamRequestBenchmarks
     public async Task<int> Stream_SmallDataset_10Items()
     {
         using var scope = _provider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var request = new SmallStreamRequest();
 
         var count = 0;
-        await foreach (var item in mediator.Stream(request))
+        await foreach (var item in Encina.Stream(request))
         {
             _ = item.Match(
                 Left: _ => count,
@@ -59,11 +59,11 @@ public class StreamRequestBenchmarks
     public async Task<int> Stream_MediumDataset_100Items()
     {
         using var scope = _provider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var request = new MediumStreamRequest();
 
         var count = 0;
-        await foreach (var item in mediator.Stream(request))
+        await foreach (var item in Encina.Stream(request))
         {
             _ = item.Match(
                 Left: _ => count,
@@ -77,11 +77,11 @@ public class StreamRequestBenchmarks
     public async Task<int> Stream_LargeDataset_1000Items()
     {
         using var scope = _provider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var request = new LargeStreamRequest();
 
         var count = 0;
-        await foreach (var item in mediator.Stream(request))
+        await foreach (var item in Encina.Stream(request))
         {
             _ = item.Match(
                 Left: _ => count,
@@ -95,11 +95,11 @@ public class StreamRequestBenchmarks
     public async Task<int> Stream_WithPipelineBehaviors()
     {
         using var scope = _provider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var request = new StreamWithBehaviorRequest();
 
         var count = 0;
-        await foreach (var item in mediator.Stream(request))
+        await foreach (var item in Encina.Stream(request))
         {
             _ = item.Match(
                 Left: _ => count,
@@ -113,11 +113,11 @@ public class StreamRequestBenchmarks
     public async Task<int> Stream_MaterializeToList_100Items()
     {
         using var scope = _provider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var request = new MediumStreamRequest();
 
         var results = new List<int>();
-        await foreach (var item in mediator.Stream(request))
+        await foreach (var item in Encina.Stream(request))
         {
             item.IfRight(value => results.Add(value));
         }
@@ -129,11 +129,11 @@ public class StreamRequestBenchmarks
     public async Task<int> Stream_CountOnly_NoMaterialization()
     {
         using var scope = _provider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var request = new MediumStreamRequest();
 
         var count = 0;
-        await foreach (var item in mediator.Stream(request))
+        await foreach (var item in Encina.Stream(request))
         {
             _ = item.Match(
                 Left: _ => count,
@@ -147,14 +147,14 @@ public class StreamRequestBenchmarks
     public async Task<int> Stream_WithCancellation_EarlyExit()
     {
         using var scope = _provider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var request = new LargeStreamRequest();
         using var cts = new CancellationTokenSource();
 
         var count = 0;
         try
         {
-            await foreach (var item in mediator.Stream(request, cts.Token))
+            await foreach (var item in Encina.Stream(request, cts.Token))
             {
                 _ = item.Match(
                     Left: _ => count,
@@ -175,7 +175,7 @@ public class StreamRequestBenchmarks
     }
 
     [Benchmark]
-    public async Task<int> Stream_DirectHandlerInvocation_NoMediator()
+    public async Task<int> Stream_DirectHandlerInvocation_NoEncina()
     {
         var handler = new MediumStreamHandler();
         var request = new MediumStreamRequest();
@@ -200,14 +200,14 @@ public class StreamRequestBenchmarks
 
     private sealed class SmallStreamHandler : IStreamRequestHandler<SmallStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             SmallStreamRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             for (var i = 1; i <= 10; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                yield return Right<MediatorError, int>(i);
+                yield return Right<EncinaError, int>(i);
             }
 
             await Task.CompletedTask;
@@ -216,14 +216,14 @@ public class StreamRequestBenchmarks
 
     private sealed class MediumStreamHandler : IStreamRequestHandler<MediumStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             MediumStreamRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             for (var i = 1; i <= 100; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                yield return Right<MediatorError, int>(i);
+                yield return Right<EncinaError, int>(i);
             }
 
             await Task.CompletedTask;
@@ -232,14 +232,14 @@ public class StreamRequestBenchmarks
 
     private sealed class LargeStreamHandler : IStreamRequestHandler<LargeStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             LargeStreamRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             for (var i = 1; i <= 1000; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                yield return Right<MediatorError, int>(i);
+                yield return Right<EncinaError, int>(i);
             }
 
             await Task.CompletedTask;
@@ -248,14 +248,14 @@ public class StreamRequestBenchmarks
 
     private sealed class SimpleStreamHandler : IStreamRequestHandler<StreamWithBehaviorRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             StreamWithBehaviorRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             for (var i = 1; i <= 100; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                yield return Right<MediatorError, int>(i);
+                yield return Right<EncinaError, int>(i);
             }
 
             await Task.CompletedTask;
@@ -264,7 +264,7 @@ public class StreamRequestBenchmarks
 
     private sealed class MultiplyByTwoBehavior : IStreamPipelineBehavior<StreamWithBehaviorRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             StreamWithBehaviorRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -279,7 +279,7 @@ public class StreamRequestBenchmarks
 
     private sealed class FilterEvenBehavior : IStreamPipelineBehavior<StreamWithBehaviorRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             StreamWithBehaviorRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,

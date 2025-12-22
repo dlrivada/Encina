@@ -6,16 +6,16 @@ namespace Encina.Quartz.Tests;
 
 public class QuartzNotificationJobTests
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger<QuartzNotificationJob<TestNotification>> _logger;
     private readonly QuartzNotificationJob<TestNotification> _job;
     private readonly IJobExecutionContext _context;
 
     public QuartzNotificationJobTests()
     {
-        _mediator = Substitute.For<IMediator>();
+        _Encina = Substitute.For<IEncina>();
         _logger = Substitute.For<ILogger<QuartzNotificationJob<TestNotification>>>();
-        _job = new QuartzNotificationJob<TestNotification>(_mediator, _logger);
+        _job = new QuartzNotificationJob<TestNotification>(_Encina, _logger);
         _context = Substitute.For<IJobExecutionContext>();
 
         // Setup default JobDataMap
@@ -37,7 +37,7 @@ public class QuartzNotificationJobTests
         await _job.Execute(_context);
 
         // Assert
-        await _mediator.Received(1).Publish(
+        await _Encina.Received(1).Publish(
             Arg.Is<TestNotification>(n => n.Message == "test-message"),
             Arg.Any<CancellationToken>());
     }
@@ -100,7 +100,7 @@ public class QuartzNotificationJobTests
         var notification = new TestNotification("test-message");
         var exception = new InvalidOperationException("Test exception");
         _context.JobDetail.JobDataMap.Put(QuartzConstants.NotificationKey, notification);
-        _mediator.When(m => m.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>()))
+        _Encina.When(m => m.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>()))
             .Do(_ => throw exception);
 
         // Act & Assert
@@ -128,7 +128,7 @@ public class QuartzNotificationJobTests
         await _job.Execute(_context);
 
         // Assert
-        await _mediator.Received(1).Publish(
+        await _Encina.Received(1).Publish(
             Arg.Any<TestNotification>(),
             Arg.Is<CancellationToken>(ct => ct == cts.Token));
     }

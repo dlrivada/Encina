@@ -41,7 +41,7 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposab
     public bool IsConnected => _client.IsConnected;
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> PublishAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         string? topic = null,
         MqttQualityOfService? qos = null,
@@ -79,14 +79,14 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposab
 
             Log.SuccessfullyPublishedMessage(_logger, effectiveTopic);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name, effectiveTopic);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "MQTT_PUBLISH_FAILED",
                     ex,
                     $"Failed to publish message of type {typeof(TMessage).Name} to topic {effectiveTopic}."));

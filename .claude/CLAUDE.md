@@ -36,7 +36,7 @@
 
 #### Railway Oriented Programming (ROP)
 
-- Core pattern: `Either<MediatorError, T>`
+- Core pattern: `Either<EncinaError, T>`
 - Explicit error handling, no exceptions for business logic
 - Validation returns `Either` with detailed errors
 
@@ -263,7 +263,7 @@ tests/
 │   ├── PipelineInvariants.cs
 │   └── CacheInvariants.cs
 ├── Encina.GuardClauses.Tests/ # Guard clause tests
-│   ├── MediatorGuardsTests.cs
+│   ├── EncinaGuardsTests.cs
 │   └── OutboxGuardsTests.cs
 ├── Encina.Dapper.SqlServer.Tests/  # Dapper provider tests
 │   ├── Unit/
@@ -487,7 +487,7 @@ var message = new OutboxMessageBuilder()
 - ✅ Encina.InMemory - System.Threading.Channels message bus
 - ✅ Encina.NATS - NATS.Net 2.6.11 with JetStream support
 - ✅ Encina.MQTT - MQTTnet 5.0.1 integration
-- ✅ Encina.gRPC - Grpc.AspNetCore 2.71.0 mediator service
+- ✅ Encina.gRPC - Grpc.AspNetCore 2.71.0 Encina service
 - ✅ Encina.GraphQL - HotChocolate 15.1.11 bridge
 - **Note**: All packages use `#pragma warning disable CA1848` for logging (LoggerMessage delegates pending)
 
@@ -533,6 +533,7 @@ var message = new OutboxMessageBuilder()
 **Mitigations** (ALWAYS use one of these):
 
 1. **Use `-maxcpucount:1` flag** for single-process builds:
+
    ```bash
    dotnet build -maxcpucount:1
    dotnet test -maxcpucount:1
@@ -665,7 +666,7 @@ This project uses a structured approach to track issues, changes, and history.
 
 **All bugs, features, and technical debt MUST be tracked via GitHub Issues.**
 
-Location: https://github.com/dlrivada/Encina/issues
+Location: <https://github.com/dlrivada/Encina/issues>
 
 #### Issue Templates
 

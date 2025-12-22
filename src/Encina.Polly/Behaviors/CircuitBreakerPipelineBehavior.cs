@@ -28,7 +28,7 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
     }
 
     /// <inheritdoc/>
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,
@@ -55,17 +55,17 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
         catch (BrokenCircuitException ex)
         {
             LogCircuitBreakerOpen(_logger, typeof(TRequest).Name, ex);
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Circuit breaker is open for {typeof(TRequest).Name}. Service temporarily unavailable.");
         }
         catch (Exception ex)
         {
             LogCircuitBreakerExecutionFailed(_logger, typeof(TRequest).Name, ex);
-            return MediatorError.New(ex);
+            return EncinaError.New(ex);
         }
     }
 
-    private ResiliencePipeline<Either<MediatorError, TResponse>> GetOrCreateCircuitBreaker(
+    private ResiliencePipeline<Either<EncinaError, TResponse>> GetOrCreateCircuitBreaker(
         CircuitBreakerAttribute config)
     {
         var requestType = typeof(TRequest);
@@ -73,7 +73,7 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
         // Check cache first (thread-safe read)
         if (_circuitBreakerCache.TryGetValue(requestType, out var cached))
         {
-            return (ResiliencePipeline<Either<MediatorError, TResponse>>)cached;
+            return (ResiliencePipeline<Either<EncinaError, TResponse>>)cached;
         }
 
         // Create new circuit breaker (thread-safe write)
@@ -82,7 +82,7 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
             // Double-check after acquiring lock
             if (_circuitBreakerCache.TryGetValue(requestType, out var cachedAfterLock))
             {
-                return (ResiliencePipeline<Either<MediatorError, TResponse>>)cachedAfterLock;
+                return (ResiliencePipeline<Either<EncinaError, TResponse>>)cachedAfterLock;
             }
 
             var pipeline = BuildCircuitBreakerPipeline(config);
@@ -91,19 +91,19 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
         }
     }
 
-    private ResiliencePipeline<Either<MediatorError, TResponse>> BuildCircuitBreakerPipeline(
+    private ResiliencePipeline<Either<EncinaError, TResponse>> BuildCircuitBreakerPipeline(
         CircuitBreakerAttribute config)
     {
         var requestType = typeof(TRequest).Name;
 
-        return new ResiliencePipelineBuilder<Either<MediatorError, TResponse>>()
-            .AddCircuitBreaker(new CircuitBreakerStrategyOptions<Either<MediatorError, TResponse>>
+        return new ResiliencePipelineBuilder<Either<EncinaError, TResponse>>()
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions<Either<EncinaError, TResponse>>
             {
                 FailureRatio = config.FailureRateThreshold,
                 MinimumThroughput = config.MinimumThroughput,
                 SamplingDuration = TimeSpan.FromSeconds(config.SamplingDurationSeconds),
                 BreakDuration = TimeSpan.FromSeconds(config.DurationOfBreakSeconds),
-                ShouldHandle = new PredicateBuilder<Either<MediatorError, TResponse>>()
+                ShouldHandle = new PredicateBuilder<Either<EncinaError, TResponse>>()
                     .HandleResult(result => result.IsLeft)
                     .Handle<Exception>(),
                 OnOpened = args =>

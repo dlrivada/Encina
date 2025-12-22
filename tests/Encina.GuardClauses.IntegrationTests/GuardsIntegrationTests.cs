@@ -7,7 +7,7 @@ namespace Encina.GuardClauses.IntegrationTests;
 
 /// <summary>
 /// Integration tests for Guards with Encina.
-/// Tests end-to-end scenarios with DI container and real mediator.
+/// Tests end-to-end scenarios with DI container and real Encina.
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class GuardsIntegrationTests
@@ -16,22 +16,22 @@ public sealed class GuardsIntegrationTests
 
     private sealed class ValidateUserHandler : ICommandHandler<ValidateUserCommand, Guid>
     {
-        public Task<Either<MediatorError, Guid>> Handle(ValidateUserCommand request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Guid>> Handle(ValidateUserCommand request, CancellationToken cancellationToken)
         {
             // Use Guards for state validation
             if (!Guards.TryValidateNotEmpty(request.Email, nameof(request.Email), out var emailError))
-                return Task.FromResult(Left<MediatorError, Guid>(emailError));
+                return Task.FromResult(Left<EncinaError, Guid>(emailError));
 
             if (!Guards.TryValidateEmail(request.Email, nameof(request.Email), out var emailFormatError))
-                return Task.FromResult(Left<MediatorError, Guid>(emailFormatError));
+                return Task.FromResult(Left<EncinaError, Guid>(emailFormatError));
 
             if (!Guards.TryValidateNotEmpty(request.Password, nameof(request.Password), out var pwdError))
-                return Task.FromResult(Left<MediatorError, Guid>(pwdError));
+                return Task.FromResult(Left<EncinaError, Guid>(pwdError));
 
             if (!Guards.TryValidateInRange(request.Age, nameof(request.Age), 18, 120, out var ageError))
-                return Task.FromResult(Left<MediatorError, Guid>(ageError));
+                return Task.FromResult(Left<EncinaError, Guid>(ageError));
 
-            return Task.FromResult(Right<MediatorError, Guid>(Guid.NewGuid()));
+            return Task.FromResult(Right<EncinaError, Guid>(Guid.NewGuid()));
         }
     }
 
@@ -44,11 +44,11 @@ public sealed class GuardsIntegrationTests
         services.AddTransient<ICommandHandler<ValidateUserCommand, Guid>, ValidateUserHandler>();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var command = new ValidateUserCommand("user@example.com", "SecurePassword123", 25);
 
         // Act
-        var result = await mediator.Send(command);
+        var result = await Encina.Send(command);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -63,11 +63,11 @@ public sealed class GuardsIntegrationTests
         services.AddTransient<ICommandHandler<ValidateUserCommand, Guid>, ValidateUserHandler>();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var command = new ValidateUserCommand("", "SecurePassword123", 25);
 
         // Act
-        var result = await mediator.Send(command);
+        var result = await Encina.Send(command);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
@@ -89,11 +89,11 @@ public sealed class GuardsIntegrationTests
         services.AddTransient<ICommandHandler<ValidateUserCommand, Guid>, ValidateUserHandler>();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var command = new ValidateUserCommand("user@example.com", "SecurePassword123", 15); // Age < 18
 
         // Act
-        var result = await mediator.Send(command);
+        var result = await Encina.Send(command);
 
         // Assert
         result.IsLeft.ShouldBeTrue();

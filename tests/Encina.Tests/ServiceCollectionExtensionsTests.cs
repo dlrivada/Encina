@@ -14,7 +14,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddEncina(typeof(PingCommand).Assembly);
 
         await using var provider = services.BuildServiceProvider();
-        provider.GetRequiredService<IMediator>();
+        provider.GetRequiredService<IEncina>();
 
         var handler = provider.GetRequiredService<IRequestHandler<PingCommand, string>>();
         handler.ShouldBeOfType<PingCommandHandler>();
@@ -65,17 +65,17 @@ public sealed class ServiceCollectionExtensionsTests
         var result = services.AddApplicationMessaging(typeof(PingCommand).Assembly);
 
         result.ShouldBeSameAs(services);
-        services.ShouldContain(d => d.ServiceType == typeof(IMediator));
+        services.ShouldContain(d => d.ServiceType == typeof(IEncina));
     }
 
     [Fact]
-    public void AddEncina_AvoidsDuplicateMediatorRegistrations()
+    public void AddEncina_AvoidsDuplicateEncinaRegistrations()
     {
         var services = new ServiceCollection();
         services.AddEncina(typeof(PingCommand).Assembly);
         services.AddEncina(typeof(PingCommand).Assembly);
 
-        services.Count(d => d.ServiceType == typeof(IMediator)).ShouldBe(1);
+        services.Count(d => d.ServiceType == typeof(IEncina)).ShouldBe(1);
     }
 
     [Fact]
@@ -85,8 +85,8 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddEncina(typeof(PingCommand).Assembly);
 
         services.ShouldContain(descriptor =>
-            descriptor.ServiceType == typeof(IMediatorMetrics)
-            && descriptor.ImplementationType == typeof(MediatorMetrics)
+            descriptor.ServiceType == typeof(IEncinaMetrics)
+            && descriptor.ImplementationType == typeof(EncinaMetrics)
             && descriptor.Lifetime == ServiceLifetime.Singleton);
     }
 
@@ -121,8 +121,8 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddEncina();
 
         await using var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
-        mediator.ShouldNotBeNull();
+        var Encina = provider.GetRequiredService<IEncina>();
+        Encina.ShouldNotBeNull();
 
         var detectorA = provider.GetRequiredService<IFunctionalFailureDetector>();
         var detectorB = provider.GetRequiredService<IFunctionalFailureDetector>();
@@ -147,7 +147,7 @@ public sealed class ServiceCollectionExtensionsTests
     private sealed class ConfiguredPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
     {
-        public ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, TResponse>> Handle(TRequest request, IRequestContext context, RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
             => nextStep();
     }
 
@@ -159,7 +159,7 @@ public sealed class ServiceCollectionExtensionsTests
 
     private sealed class ConfiguredPostProcessor<TRequest, TResponse> : IRequestPostProcessor<TRequest, TResponse>
     {
-        public Task Process(TRequest request, IRequestContext context, Either<MediatorError, TResponse> response, CancellationToken cancellationToken)
+        public Task Process(TRequest request, IRequestContext context, Either<EncinaError, TResponse> response, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 }

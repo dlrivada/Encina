@@ -53,7 +53,7 @@ public class OutboxPostProcessorGuardsTests
 
         TestRequest request = null!;
         var context = Substitute.For<IRequestContext>();
-        Either<MediatorError, string> result = "test";
+        Either<EncinaError, string> result = "test";
 
         // Act & Assert
         var act = async () => await postProcessor.Process(request, context, result, CancellationToken.None);
@@ -73,7 +73,7 @@ public class OutboxPostProcessorGuardsTests
 
         var request = new TestRequest();
         IRequestContext context = null!;
-        Either<MediatorError, string> result = "test";
+        Either<EncinaError, string> result = "test";
 
         // Act & Assert
         var act = async () => await postProcessor.Process(request, context, result, CancellationToken.None);

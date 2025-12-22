@@ -14,8 +14,8 @@ public interface IRabbitMQMessagePublisher
     /// <param name="message">The message to publish.</param>
     /// <param name="routingKey">The routing key for the message.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or Unit on success.</returns>
-    ValueTask<Either<MediatorError, Unit>> PublishAsync<TMessage>(
+    /// <returns>Either a EncinaError or Unit on success.</returns>
+    ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         string? routingKey = null,
         CancellationToken cancellationToken = default)
@@ -28,8 +28,8 @@ public interface IRabbitMQMessagePublisher
     /// <param name="queueName">The name of the queue.</param>
     /// <param name="message">The message to send.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or Unit on success.</returns>
-    ValueTask<Either<MediatorError, Unit>> SendToQueueAsync<TMessage>(
+    /// <returns>Either a EncinaError or Unit on success.</returns>
+    ValueTask<Either<EncinaError, Unit>> SendToQueueAsync<TMessage>(
         string queueName,
         TMessage message,
         CancellationToken cancellationToken = default)
@@ -43,8 +43,8 @@ public interface IRabbitMQMessagePublisher
     /// <param name="request">The request message.</param>
     /// <param name="timeout">The timeout for the reply.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the response.</returns>
-    ValueTask<Either<MediatorError, TResponse>> RequestAsync<TRequest, TResponse>(
+    /// <returns>Either a EncinaError or the response.</returns>
+    ValueTask<Either<EncinaError, TResponse>> RequestAsync<TRequest, TResponse>(
         TRequest request,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)

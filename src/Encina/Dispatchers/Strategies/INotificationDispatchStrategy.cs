@@ -16,10 +16,10 @@ internal interface INotificationDispatchStrategy
     /// <param name="invoker">The delegate to invoke each handler.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Either a success unit or an error.</returns>
-    Task<Either<MediatorError, Unit>> DispatchAsync<TNotification>(
+    Task<Either<EncinaError, Unit>> DispatchAsync<TNotification>(
         IReadOnlyList<object> handlers,
         TNotification notification,
-        Func<object, TNotification, CancellationToken, Task<Either<MediatorError, Unit>>> invoker,
+        Func<object, TNotification, CancellationToken, Task<Either<EncinaError, Unit>>> invoker,
         CancellationToken cancellationToken)
         where TNotification : INotification;
 }

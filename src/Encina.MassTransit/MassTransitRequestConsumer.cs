@@ -13,26 +13,26 @@ namespace Encina.MassTransit;
 public sealed class MassTransitRequestConsumer<TRequest, TResponse> : IConsumer<TRequest>
     where TRequest : class, IRequest<TResponse>
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger<MassTransitRequestConsumer<TRequest, TResponse>> _logger;
     private readonly EncinaMassTransitOptions _options;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MassTransitRequestConsumer{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="mediator">The mediator instance.</param>
+    /// <param name="Encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
     public MassTransitRequestConsumer(
-        IMediator mediator,
+        IEncina Encina,
         ILogger<MassTransitRequestConsumer<TRequest, TResponse>> logger,
         IOptions<EncinaMassTransitOptions> options)
     {
-        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(Encina);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
 
-        _mediator = mediator;
+        _Encina = Encina;
         _logger = logger;
         _options = options.Value;
     }
@@ -50,7 +50,7 @@ public sealed class MassTransitRequestConsumer<TRequest, TResponse> : IConsumer<
 
         Log.ConsumingRequest(_logger, requestType, context.MessageId);
 
-        var result = await _mediator.Send(context.Message, context.CancellationToken)
+        var result = await _Encina.Send(context.Message, context.CancellationToken)
             .ConfigureAwait(false);
 
         result.Match(
@@ -62,9 +62,9 @@ public sealed class MassTransitRequestConsumer<TRequest, TResponse> : IConsumer<
             {
                 Log.FailedToProcessRequest(_logger, requestType, context.MessageId, error.Message);
 
-                if (_options.ThrowOnMediatorError)
+                if (_options.ThrowOnEncinaError)
                 {
-                    throw new MediatorConsumerException(error);
+                    throw new EncinaConsumerException(error);
                 }
             });
     }

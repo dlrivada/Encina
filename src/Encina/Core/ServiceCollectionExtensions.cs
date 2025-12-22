@@ -23,7 +23,7 @@ public static class ServiceCollectionExtensions
         => services.AddEncina(configure, assemblies);
 
     /// <summary>
-    /// Registers the mediator using the default configuration.
+    /// Registers the Encina using the default configuration.
     /// </summary>
     /// <param name="services">Service container.</param>
     /// <param name="assemblies">Assemblies to scan for handlers and behaviors.</param>
@@ -32,7 +32,7 @@ public static class ServiceCollectionExtensions
         => AddEncina(services, configure: null, assemblies);
 
     /// <summary>
-    /// Registers the mediator while allowing custom configuration.
+    /// Registers the Encina while allowing custom configuration.
     /// </summary>
     /// <param name="services">Service container.</param>
     /// <param name="configure">Optional action to adjust scanning and behaviors.</param>
@@ -42,7 +42,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        var configuration = new EncinaConfiguration()
+        EncinaConfiguration configuration = new EncinaConfiguration()
             .RegisterServicesFromAssemblies(assemblies);
 
         configure?.Invoke(configuration);
@@ -52,10 +52,10 @@ public static class ServiceCollectionExtensions
             configuration.RegisterServicesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
         }
 
-        var resolvedAssemblies = configuration.Assemblies.ToArray();
+        Assembly[] resolvedAssemblies = configuration.Assemblies.ToArray();
 
-        services.TryAddScoped<IMediator, Encina>();
-        services.TryAddSingleton<IMediatorMetrics, MediatorMetrics>();
+        services.TryAddScoped<IEncina, Encina>();
+        services.TryAddSingleton<IEncinaMetrics, EncinaMetrics>();
         services.TryAddSingleton<IFunctionalFailureDetector>(NullFunctionalFailureDetector.Instance);
 
         // Register notification dispatch options
@@ -65,9 +65,9 @@ public static class ServiceCollectionExtensions
             options.MaxDegreeOfParallelism = configuration.NotificationDispatch.MaxDegreeOfParallelism;
         });
 
-        foreach (var assembly in resolvedAssemblies.Distinct())
+        foreach (Assembly? assembly in resolvedAssemblies.Distinct())
         {
-            var registrations = MediatorAssemblyScanner.GetRegistrations(assembly);
+            AssemblyScanResult registrations = EncinaAssemblyScanner.GetRegistrations(assembly);
 
             RegisterHandlers(services, registrations.HandlerRegistrations, configuration.HandlerLifetime);
             RegisterNotificationHandlers(services, registrations.NotificationRegistrations, configuration.HandlerLifetime);
@@ -90,7 +90,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     private static void RegisterHandlers(IServiceCollection services, IEnumerable<TypeRegistration> registrations, ServiceLifetime lifetime)
     {
-        foreach (var registration in registrations)
+        foreach (TypeRegistration registration in registrations)
         {
             var descriptor = ServiceDescriptor.Describe(registration.ServiceType, registration.ImplementationType, lifetime);
             services.TryAdd(descriptor);
@@ -102,7 +102,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     private static void RegisterNotificationHandlers(IServiceCollection services, IEnumerable<TypeRegistration> registrations, ServiceLifetime lifetime)
     {
-        foreach (var registration in registrations)
+        foreach (TypeRegistration registration in registrations)
         {
             var descriptor = ServiceDescriptor.Describe(registration.ServiceType, registration.ImplementationType, lifetime);
             services.TryAddEnumerable(descriptor);
@@ -114,7 +114,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     private static void RegisterPipelineBehaviors(IServiceCollection services, IEnumerable<TypeRegistration> registrations)
     {
-        foreach (var registration in registrations)
+        foreach (TypeRegistration registration in registrations)
         {
             TryAddEnumerableByImplementationType(services, registration.ServiceType, registration.ImplementationType);
         }
@@ -125,7 +125,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     private static void RegisterRequestPreProcessors(IServiceCollection services, IEnumerable<TypeRegistration> registrations)
     {
-        foreach (var registration in registrations)
+        foreach (TypeRegistration registration in registrations)
         {
             TryAddEnumerableByImplementationType(services, registration.ServiceType, registration.ImplementationType);
         }
@@ -136,7 +136,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     private static void RegisterRequestPostProcessors(IServiceCollection services, IEnumerable<TypeRegistration> registrations)
     {
-        foreach (var registration in registrations)
+        foreach (TypeRegistration registration in registrations)
         {
             TryAddEnumerableByImplementationType(services, registration.ServiceType, registration.ImplementationType);
         }
@@ -147,7 +147,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     private static void RegisterStreamHandlers(IServiceCollection services, IEnumerable<TypeRegistration> registrations, ServiceLifetime lifetime)
     {
-        foreach (var registration in registrations)
+        foreach (TypeRegistration registration in registrations)
         {
             var descriptor = ServiceDescriptor.Describe(registration.ServiceType, registration.ImplementationType, lifetime);
             services.TryAdd(descriptor);
@@ -159,7 +159,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     private static void RegisterStreamPipelineBehaviors(IServiceCollection services, IEnumerable<TypeRegistration> registrations)
     {
-        foreach (var registration in registrations)
+        foreach (TypeRegistration registration in registrations)
         {
             TryAddEnumerableByImplementationType(services, registration.ServiceType, registration.ImplementationType);
         }
@@ -178,7 +178,7 @@ public static class ServiceCollectionExtensions
     private static void TryAddEnumerableByImplementationType(IServiceCollection services, Type serviceType, Type implementationType)
     {
         // Check if any existing registration for this service type uses the same implementation type
-        var alreadyRegistered = services.Any(descriptor =>
+        bool alreadyRegistered = services.Any(descriptor =>
             descriptor.ServiceType == serviceType &&
             GetImplementationType(descriptor) == implementationType);
 

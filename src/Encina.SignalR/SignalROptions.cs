@@ -17,7 +17,7 @@ public sealed class SignalROptions
 
     /// <summary>
     /// Gets or sets the authorization policy name required for clients to invoke
-    /// mediator methods through the hub.
+    /// Encina methods through the hub.
     /// </summary>
     /// <remarks>
     /// When set, clients must satisfy this policy to call SendCommand, SendQuery, etc.

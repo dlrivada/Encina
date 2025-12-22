@@ -34,7 +34,7 @@ public sealed class MiniValidationBehaviorTests
         RequestHandlerCallback<string> nextStep = () =>
         {
             nextCalled = true;
-            return new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>(expectedResponse));
+            return new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>(expectedResponse));
         };
 
         // Act
@@ -60,7 +60,7 @@ public sealed class MiniValidationBehaviorTests
         RequestHandlerCallback<string> nextStep = () =>
         {
             nextCalled = true;
-            return new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            return new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
         };
 
         // Act
@@ -88,7 +88,7 @@ public sealed class MiniValidationBehaviorTests
         var context = RequestContext.Create();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -113,7 +113,7 @@ public sealed class MiniValidationBehaviorTests
         var context = RequestContext.Create();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -138,7 +138,7 @@ public sealed class MiniValidationBehaviorTests
         var context = RequestContext.Create();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -162,7 +162,7 @@ public sealed class MiniValidationBehaviorTests
         var context = RequestContext.Create();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Right<MediatorError, string>("Success"));
+            new ValueTask<Either<EncinaError, string>>(Right<EncinaError, string>("Success"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);

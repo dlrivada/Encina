@@ -13,7 +13,7 @@ namespace Encina.Dapr;
 /// <remarks>
 /// This handler:
 /// - Uses DaprClient for service invocation
-/// - Handles DaprException and converts to MediatorError
+/// - Handles DaprException and converts to EncinaError
 /// - Provides automatic retries, service discovery, and mTLS via Dapr sidecar
 /// - Integrates with distributed tracing and observability
 /// </remarks>
@@ -40,7 +40,7 @@ public sealed partial class DaprServiceInvocationHandler<TRequest, TResponse>
     /// <summary>
     /// Handles the Dapr service invocation request.
     /// </summary>
-    public async Task<Either<MediatorError, TResponse>> Handle(
+    public async Task<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         CancellationToken cancellationToken)
     {
@@ -73,7 +73,7 @@ public sealed partial class DaprServiceInvocationHandler<TRequest, TResponse>
                 request.MethodName,
                 daprEx.Message);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Dapr service invocation failed for {request.AppId}/{request.MethodName}: {daprEx.Message}",
                 daprEx);
         }
@@ -86,7 +86,7 @@ public sealed partial class DaprServiceInvocationHandler<TRequest, TResponse>
                 request.MethodName,
                 httpEx.Message);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"HTTP error invoking {request.AppId}/{request.MethodName}: {httpEx.Message}",
                 httpEx);
         }
@@ -95,7 +95,7 @@ public sealed partial class DaprServiceInvocationHandler<TRequest, TResponse>
             // Request was cancelled by caller
             LogRequestCancelled(requestType, request.AppId, request.MethodName);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Service invocation to {request.AppId}/{request.MethodName} was cancelled",
                 tcEx);
         }
@@ -104,7 +104,7 @@ public sealed partial class DaprServiceInvocationHandler<TRequest, TResponse>
             // Timeout
             LogRequestTimedOut(requestType, request.AppId, request.MethodName);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Service invocation to {request.AppId}/{request.MethodName} timed out",
                 tcEx);
         }
@@ -116,7 +116,7 @@ public sealed partial class DaprServiceInvocationHandler<TRequest, TResponse>
                 request.MethodName,
                 ex.Message);
 
-            return MediatorError.New(ex);
+            return EncinaError.New(ex);
         }
     }
 

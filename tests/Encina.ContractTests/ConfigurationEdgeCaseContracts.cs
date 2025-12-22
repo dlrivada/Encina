@@ -62,9 +62,9 @@ public sealed class ConfigurationEdgeCaseContracts
 
     private sealed class TestCommandHandler : global::Encina.ICommandHandler<TestCommand, string>
     {
-        public Task<Either<MediatorError, string>> Handle(TestCommand request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(TestCommand request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, string>(request.Payload));
+            return Task.FromResult(Right<EncinaError, string>(request.Payload));
         }
     }
 }

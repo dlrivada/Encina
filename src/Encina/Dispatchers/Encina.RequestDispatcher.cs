@@ -8,7 +8,7 @@ namespace Encina;
 public sealed partial class Encina
 {
     /// <summary>
-    /// Internal dispatcher responsible for orchestrating the execution of a single request through the mediator pipeline.
+    /// Internal dispatcher responsible for orchestrating the execution of a single request through the Encina pipeline.
     /// </summary>
     /// <remarks>
     /// <para><b>Responsibilities:</b></para>
@@ -30,58 +30,58 @@ public sealed partial class Encina
     /// <item>Error Handling: Catch cancellations and exceptions, convert to Either</item>
     /// </list>
     /// <para><b>Error Strategy:</b></para>
-    /// <para>All errors are returned via Either&lt;MediatorError, TResponse&gt; (Railway Oriented Programming).
+    /// <para>All errors are returned via Either&lt;EncinaError, TResponse&gt; (Railway Oriented Programming).
     /// Exceptions are only caught at the dispatcher level and converted to Either for consistent error handling.</para>
     /// </remarks>
     private static class RequestDispatcher
     {
-        public static async Task<Either<MediatorError, TResponse>> ExecuteAsync<TResponse>(Encina mediator, IRequest<TResponse> request, CancellationToken cancellationToken)
+        public static async Task<Either<EncinaError, TResponse>> ExecuteAsync<TResponse>(Encina Encina, IRequest<TResponse> request, CancellationToken cancellationToken)
         {
             // --- SETUP PHASE ---
             // Create a fresh DI scope for this request to ensure proper lifetime management
             // and isolation from other concurrent requests
-            using var scope = mediator._scopeFactory.CreateScope();
-            var serviceProvider = scope.ServiceProvider;
-            var metrics = serviceProvider.GetService<IMediatorMetrics>();
+            using IServiceScope scope = Encina._scopeFactory.CreateScope();
+            IServiceProvider serviceProvider = scope.ServiceProvider;
+            IEncinaMetrics? metrics = serviceProvider.GetService<IEncinaMetrics>();
 
-            var requestType = request.GetType();
-            var requestKind = GetRequestKind(requestType); // Determine if Command, Query, or generic Request
+            Type requestType = request.GetType();
+            string requestKind = GetRequestKind(requestType); // Determine if Command, Query, or generic Request
             var stopwatch = Stopwatch.StartNew();
-            using var activity = MediatorDiagnostics.SendStarted(requestType, typeof(TResponse), requestKind);
+            using Activity? activity = EncinaDiagnostics.SendStarted(requestType, typeof(TResponse), requestKind);
 
             // --- HANDLER RESOLUTION PHASE ---
             // Get or create a cached dispatcher wrapper that knows how to invoke the handler
             // This avoids repeated reflection on every request - wrappers are generated once per request/response type pair
-            var dispatcher = RequestHandlerCache.GetOrAdd(
+            RequestHandlerBase dispatcher = RequestHandlerCache.GetOrAdd(
                 (requestType, typeof(TResponse)),
                 static key => CreateRequestHandlerWrapper(key.Request, key.Response));
 
             // Resolve the actual handler instance from DI
             // May return null if no handler is registered
-            var handler = dispatcher.ResolveHandler(serviceProvider);
+            object? handler = dispatcher.ResolveHandler(serviceProvider);
 
             // --- VALIDATION PHASE ---
             // Validate that a handler was resolved from DI
             // Early return with error if no handler is registered for this request type
-            if (!MediatorRequestGuards.TryValidateHandler<TResponse>(handler, requestType, typeof(TResponse), out var handlerError))
+            if (!EncinaRequestGuards.TryValidateHandler<TResponse>(handler, requestType, typeof(TResponse), out Either<EncinaError, TResponse> handlerError))
             {
-                Log.HandlerMissing(mediator._logger, requestType.Name, typeof(TResponse).Name);
+                Log.HandlerMissing(Encina._logger, requestType.Name, typeof(TResponse).Name);
                 stopwatch.Stop();
-                metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, MediatorErrorCodes.RequestHandlerMissing);
-                var error = handlerError.Match(Left: err => err, Right: _ => MediatorErrors.Unknown);
-                MediatorDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: error.GetMediatorCode(), errorMessage: error.Message);
+                metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, EncinaErrorCodes.RequestHandlerMissing);
+                EncinaError error = handlerError.Match(Left: err => err, Right: _ => EncinaErrors.Unknown);
+                EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: error.GetEncinaCode(), errorMessage: error.Message);
                 return handlerError;
             }
 
             // Validate that the resolved handler is of the expected type
             // This guards against DI misconfiguration where the wrong service is registered
-            if (!MediatorRequestGuards.TryValidateHandlerType<TResponse>(handler!, dispatcher.HandlerServiceType, requestType, out var typeError))
+            if (!EncinaRequestGuards.TryValidateHandlerType<TResponse>(handler!, dispatcher.HandlerServiceType, requestType, out Either<EncinaError, TResponse> typeError))
             {
-                Log.HandlerMissing(mediator._logger, requestType.Name, typeof(TResponse).Name);
+                Log.HandlerMissing(Encina._logger, requestType.Name, typeof(TResponse).Name);
                 stopwatch.Stop();
-                metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, MediatorErrorCodes.RequestHandlerTypeMismatch);
-                var error = typeError.Match(Left: err => err, Right: _ => MediatorErrors.Unknown);
-                MediatorDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: error.GetMediatorCode(), errorMessage: error.Message);
+                metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, EncinaErrorCodes.RequestHandlerTypeMismatch);
+                EncinaError error = typeError.Match(Left: err => err, Right: _ => EncinaErrors.Unknown);
+                EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: error.GetEncinaCode(), errorMessage: error.Message);
                 return typeError;
             }
 
@@ -89,9 +89,9 @@ public sealed partial class Encina
             {
                 // --- EXECUTION PHASE ---
                 // Handler is valid - proceed with pipeline execution
-                Log.ProcessingRequest(mediator._logger, requestType.Name, handler!.GetType().Name);
-                activity?.SetTag("mediator.handler", handler.GetType().FullName);
-                activity?.SetTag("mediator.handler_count", 1);
+                Log.ProcessingRequest(Encina._logger, requestType.Name, handler!.GetType().Name);
+                activity?.SetTag("Encina.handler", handler.GetType().FullName);
+                activity?.SetTag("Encina.handler_count", 1);
 
                 // Invoke the handler through the full pipeline:
                 // 1. Pipeline behaviors (in order of registration)
@@ -99,17 +99,17 @@ public sealed partial class Encina
                 // 3. The actual request handler
                 // 4. Post-processors (in order of registration)
                 // The dispatcher.Handle method delegates to RequestHandlerWrapper which uses PipelineBuilder
-                var outcomeObject = await dispatcher.Handle(mediator, request, handler, serviceProvider, cancellationToken).ConfigureAwait(false);
-                var outcome = (Either<MediatorError, TResponse>)outcomeObject;
+                object outcomeObject = await dispatcher.Handle(Encina, request, handler, serviceProvider, cancellationToken).ConfigureAwait(false);
+                var outcome = (Either<EncinaError, TResponse>)outcomeObject;
 
-                mediator.LogSendOutcome(requestType, handler.GetType(), outcome);
+                Encina.LogSendOutcome(requestType, handler.GetType(), outcome);
 
                 stopwatch.Stop();
 
                 // --- OBSERVABILITY PHASE ---
                 // Track metrics based on success or failure
-                var resultInfo = ExtractOutcome(outcome);
-                var reason = resultInfo.Error?.GetMediatorCode() ?? string.Empty;
+                (bool IsSuccess, EncinaError? Error) resultInfo = ExtractOutcome(outcome);
+                string reason = resultInfo.Error?.GetEncinaCode() ?? string.Empty;
                 if (resultInfo.IsSuccess)
                 {
                     metrics?.TrackSuccess(requestKind, requestType.Name, stopwatch.Elapsed);
@@ -120,14 +120,14 @@ public sealed partial class Encina
                 }
 
                 // Complete the diagnostic activity with appropriate error information
-                var outcomeError = outcome.IsRight
+                EncinaError? outcomeError = outcome.IsRight
                     ? null
-                    : outcome.Match(_ => (MediatorError?)null, err => err);
+                    : outcome.Match(_ => (EncinaError?)null, err => err);
 
-                MediatorDiagnostics.SendCompleted(
+                EncinaDiagnostics.SendCompleted(
                     activity,
                     outcome.IsRight,
-                    errorCode: outcomeError?.GetMediatorCode(),
+                    errorCode: outcomeError?.GetEncinaCode(),
                     errorMessage: outcomeError?.Message);
                 return outcome;
             }
@@ -135,22 +135,22 @@ public sealed partial class Encina
             {
                 // --- CANCELLATION HANDLING ---
                 // Cancellation is expected cooperative behavior, not an error
-                var message = $"The {requestType.Name} request was cancelled.";
+                string message = $"The {requestType.Name} request was cancelled.";
                 var metadata = new Dictionary<string, object?>
                 {
                     ["request"] = requestType.FullName,
                     ["handler"] = handler!.GetType().FullName,
                     ["stage"] = "request"
                 };
-                Log.RequestCancelledDuringSend(mediator._logger, requestType.Name);
+                Log.RequestCancelledDuringSend(Encina._logger, requestType.Name);
                 stopwatch.Stop();
-                metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, MediatorErrorCodes.RequestCancelled);
-                MediatorDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: MediatorErrorCodes.RequestCancelled, errorMessage: message);
-                return Left<MediatorError, TResponse>(MediatorErrors.Create(MediatorErrorCodes.RequestCancelled, message, ex, metadata));
+                metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, EncinaErrorCodes.RequestCancelled);
+                EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: EncinaErrorCodes.RequestCancelled, errorMessage: message);
+                return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestCancelled, message, ex, metadata));
             }
             // Pure ROP: Any other exception (e.g., NullReferenceException, InvalidOperationException)
             // indicates a bug in a handler, behavior, or processor and will propagate to crash the process (fail-fast).
-            // Well-written handlers/behaviors/processors return Either<MediatorError, T> for all expected errors.
+            // Well-written handlers/behaviors/processors return Either<EncinaError, T> for all expected errors.
         }
 
         /// <summary>

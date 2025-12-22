@@ -29,7 +29,7 @@ using var provider = services.BuildServiceProvider(new ServiceProviderOptions
     ValidateScopes = false
 });
 
-await WarmUpMediatorAsync(provider, options).ConfigureAwait(false);
+await WarmUpEncinaAsync(provider, options).ConfigureAwait(false);
 
 var reportDirectory = PrepareReportDirectory(options);
 var scenarios = ScenarioFactory.CreateScenarios(options, provider);
@@ -51,14 +51,14 @@ Console.WriteLine("NBomber run completed.");
 
 ArtifactWriter.WriteArtifacts(reportDirectory, options);
 
-static async Task WarmUpMediatorAsync(IServiceProvider provider, NbomberOptions options)
+static async Task WarmUpEncinaAsync(IServiceProvider provider, NbomberOptions options)
 {
     try
     {
         using var scope = provider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
 
-        var sendResult = await mediator.Send(new PingCommand(-1), CancellationToken.None).ConfigureAwait(false);
+        var sendResult = await Encina.Send(new PingCommand(-1), CancellationToken.None).ConfigureAwait(false);
         if (sendResult.IsLeft)
         {
             Console.WriteLine($"Warm-up send failed: {sendResult.LeftToList().First().Message}");
@@ -66,7 +66,7 @@ static async Task WarmUpMediatorAsync(IServiceProvider provider, NbomberOptions 
 
         if (options.RequiresPublishWarmUp)
         {
-            var publishResult = await mediator.Publish(new BroadcastNotification(-1), CancellationToken.None).ConfigureAwait(false);
+            var publishResult = await Encina.Publish(new BroadcastNotification(-1), CancellationToken.None).ConfigureAwait(false);
             if (publishResult.IsLeft)
             {
                 Console.WriteLine($"Warm-up publish failed: {publishResult.LeftToList().First().Message}");
@@ -112,14 +112,14 @@ internal static class ScenarioFactory
         return Scenario.Create("send_flow", async context =>
         {
             using var scope = scopeFactory.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new PingCommand(HarnessState.NextSendId());
 
-            var outcome = await mediator.Send(command, CancellationToken.None).ConfigureAwait(false);
+            var outcome = await Encina.Send(command, CancellationToken.None).ConfigureAwait(false);
             if (outcome.IsLeft)
             {
                 var error = outcome.LeftToList().First();
-                return Response.Fail(GetErrorMessage(error), statusCode: "mediator_error");
+                return Response.Fail(GetErrorMessage(error), statusCode: "Encina_error");
             }
 
             return Response.Ok();
@@ -133,14 +133,14 @@ internal static class ScenarioFactory
         return Scenario.Create("publish_flow", async context =>
         {
             using var scope = scopeFactory.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var notification = new BroadcastNotification(HarnessState.NextPublishId());
 
-            var outcome = await mediator.Publish(notification, CancellationToken.None).ConfigureAwait(false);
+            var outcome = await Encina.Publish(notification, CancellationToken.None).ConfigureAwait(false);
             if (outcome.IsLeft)
             {
                 var error = outcome.LeftToList().First();
-                return Response.Fail(GetErrorMessage(error), statusCode: "mediator_error");
+                return Response.Fail(GetErrorMessage(error), statusCode: "Encina_error");
             }
 
             return Response.Ok();
@@ -149,8 +149,8 @@ internal static class ScenarioFactory
         .WithLoadSimulations(Simulation.Inject(rate: options.PublishRate, interval: TimeSpan.FromSeconds(1), during: options.Duration));
     }
 
-    private static string GetErrorMessage(MediatorError error)
-        => string.IsNullOrWhiteSpace(error.Message) ? "Mediator failure" : error.Message;
+    private static string GetErrorMessage(EncinaError error)
+        => string.IsNullOrWhiteSpace(error.Message) ? "Encina failure" : error.Message;
 }
 
 
@@ -429,10 +429,10 @@ internal sealed record BroadcastNotification(long Id) : INotification;
 
 internal sealed class PingCommandHandler : IRequestHandler<PingCommand, int>
 {
-    public Task<Either<MediatorError, int>> Handle(PingCommand request, CancellationToken cancellationToken)
+    public Task<Either<EncinaError, int>> Handle(PingCommand request, CancellationToken cancellationToken)
     {
         var computed = unchecked((int)(request.Id % 1_000));
-        return Task.FromResult(Right<MediatorError, int>(computed));
+        return Task.FromResult(Right<EncinaError, int>(computed));
     }
 }
 
@@ -630,8 +630,8 @@ internal sealed class ScenarioMetrics
 
 internal sealed class BroadcastNotificationHandler : INotificationHandler<BroadcastNotification>
 {
-    public Task<Either<MediatorError, Unit>> Handle(BroadcastNotification notification, CancellationToken cancellationToken)
+    public Task<Either<EncinaError, Unit>> Handle(BroadcastNotification notification, CancellationToken cancellationToken)
     {
-        return Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+        return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
     }
 }

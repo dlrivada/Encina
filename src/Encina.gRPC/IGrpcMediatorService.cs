@@ -5,7 +5,7 @@ namespace Encina.gRPC;
 /// <summary>
 /// Interface for exposing Encina operations over gRPC.
 /// </summary>
-public interface IGrpcMediatorService
+public interface IGrpcEncinaService
 {
     /// <summary>
     /// Sends a request and returns the response.
@@ -13,8 +13,8 @@ public interface IGrpcMediatorService
     /// <param name="requestType">The fully qualified type name of the request.</param>
     /// <param name="requestData">The serialized request data.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the serialized response.</returns>
-    ValueTask<Either<MediatorError, byte[]>> SendAsync(
+    /// <returns>Either a EncinaError or the serialized response.</returns>
+    ValueTask<Either<EncinaError, byte[]>> SendAsync(
         string requestType,
         byte[] requestData,
         CancellationToken cancellationToken = default);
@@ -25,8 +25,8 @@ public interface IGrpcMediatorService
     /// <param name="notificationType">The fully qualified type name of the notification.</param>
     /// <param name="notificationData">The serialized notification data.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or Unit on success.</returns>
-    ValueTask<Either<MediatorError, Unit>> PublishAsync(
+    /// <returns>Either a EncinaError or Unit on success.</returns>
+    ValueTask<Either<EncinaError, Unit>> PublishAsync(
         string notificationType,
         byte[] notificationData,
         CancellationToken cancellationToken = default);
@@ -38,7 +38,7 @@ public interface IGrpcMediatorService
     /// <param name="requestData">The serialized request data.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>An async enumerable of serialized responses.</returns>
-    IAsyncEnumerable<Either<MediatorError, byte[]>> StreamAsync(
+    IAsyncEnumerable<Either<EncinaError, byte[]>> StreamAsync(
         string requestType,
         byte[] requestData,
         CancellationToken cancellationToken = default);

@@ -31,10 +31,10 @@ public class StandardResilienceEndToEndTests
         });
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IEncina>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act - Send a request
-        var result = await mediator.Send(new TestRequest { Value = "test" });
+        var result = await Encina.Send(new TestRequest { Value = "test" });
 
         // Assert - Should succeed (rate limiter allows at least one request)
         result.IsRight.Should().BeTrue();
@@ -60,10 +60,10 @@ public class StandardResilienceEndToEndTests
             sp.GetRequiredService<FailingThenSucceedingHandler>());
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IEncina>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act
-        var result = await mediator.Send(new RetryTestRequest());
+        var result = await Encina.Send(new RetryTestRequest());
 
         // Assert - Should eventually succeed after retries
         result.IsRight.Should().BeTrue();
@@ -88,13 +88,13 @@ public class StandardResilienceEndToEndTests
         });
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IEncina>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act - Send multiple failing requests
-        var results = new List<Either<MediatorError, TestResponse>>();
+        var results = new List<Either<EncinaError, TestResponse>>();
         for (int i = 0; i < 5; i++)
         {
-            var result = await mediator.Send(new TestRequest { Value = "fail" });
+            var result = await Encina.Send(new TestRequest { Value = "fail" });
             results.Add(result);
             await Task.Delay(10); // Small delay between requests
         }
@@ -117,10 +117,10 @@ public class StandardResilienceEndToEndTests
         });
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IEncina>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act
-        var result = await mediator.Send(new LongRunningRequest());
+        var result = await Encina.Send(new LongRunningRequest());
 
         // Assert - Should timeout
         result.IsLeft.Should().BeTrue();
@@ -146,10 +146,10 @@ public class StandardResilienceEndToEndTests
         });
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IEncina>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act - Send successful request
-        var result = await mediator.Send(new TestRequest { Value = "success" });
+        var result = await Encina.Send(new TestRequest { Value = "success" });
 
         // Assert
         result.IsRight.Should().BeTrue();
@@ -175,10 +175,10 @@ public class StandardResilienceEndToEndTests
         });
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IEncina>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act
-        var result = await mediator.Send(new TestRequest { Value = "test" });
+        var result = await Encina.Send(new TestRequest { Value = "test" });
 
         // Assert - Should use custom configuration
         result.IsRight.Should().BeTrue();
@@ -209,18 +209,18 @@ public class StandardResilienceEndToEndTests
     // Test handlers
     private class TestRequestHandler : IRequestHandler<TestRequest, TestResponse>
     {
-        public ValueTask<Either<MediatorError, TestResponse>> Handle(
+        public ValueTask<Either<EncinaError, TestResponse>> Handle(
             TestRequest request,
             IRequestContext context,
             CancellationToken cancellationToken)
         {
             if (request.Value == "fail")
             {
-                return ValueTask.FromResult<Either<MediatorError, TestResponse>>(
-                    MediatorError.New("Intentional failure"));
+                return ValueTask.FromResult<Either<EncinaError, TestResponse>>(
+                    EncinaError.New("Intentional failure"));
             }
 
-            return ValueTask.FromResult<Either<MediatorError, TestResponse>>(
+            return ValueTask.FromResult<Either<EncinaError, TestResponse>>(
                 new TestResponse { Message = $"Processed: {request.Value}" });
         }
     }
@@ -229,7 +229,7 @@ public class StandardResilienceEndToEndTests
     {
         public int AttemptCount { get; private set; }
 
-        public ValueTask<Either<MediatorError, RetryTestResponse>> Handle(
+        public ValueTask<Either<EncinaError, RetryTestResponse>> Handle(
             RetryTestRequest request,
             IRequestContext context,
             CancellationToken cancellationToken)
@@ -238,18 +238,18 @@ public class StandardResilienceEndToEndTests
 
             if (AttemptCount < 3)
             {
-                return ValueTask.FromResult<Either<MediatorError, RetryTestResponse>>(
-                    MediatorError.New($"Attempt {AttemptCount} failed"));
+                return ValueTask.FromResult<Either<EncinaError, RetryTestResponse>>(
+                    EncinaError.New($"Attempt {AttemptCount} failed"));
             }
 
-            return ValueTask.FromResult<Either<MediatorError, RetryTestResponse>>(
+            return ValueTask.FromResult<Either<EncinaError, RetryTestResponse>>(
                 new RetryTestResponse { Success = true });
         }
     }
 
     private class LongRunningRequestHandler : IRequestHandler<LongRunningRequest, LongRunningResponse>
     {
-        public async ValueTask<Either<MediatorError, LongRunningResponse>> Handle(
+        public async ValueTask<Either<EncinaError, LongRunningResponse>> Handle(
             LongRunningRequest request,
             IRequestContext context,
             CancellationToken cancellationToken)

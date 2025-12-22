@@ -39,7 +39,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
     }
 
     /// <inheritdoc />
-    public async Task<Either<MediatorError, TAggregate>> LoadAsync(
+    public async Task<Either<EncinaError, TAggregate>> LoadAsync(
         Guid id,
         CancellationToken cancellationToken = default)
     {
@@ -55,22 +55,22 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
             {
                 Log.AggregateNotFound(_logger, typeof(TAggregate).Name, id);
 
-                return Left<MediatorError, TAggregate>(
-                    MediatorErrors.Create(
+                return Left<EncinaError, TAggregate>(
+                    EncinaErrors.Create(
                         MartenErrorCodes.AggregateNotFound,
                         $"Aggregate {typeof(TAggregate).Name} with ID {id} was not found."));
             }
 
             Log.LoadedAggregate(_logger, typeof(TAggregate).Name, id, aggregate.Version);
 
-            return Right<MediatorError, TAggregate>(aggregate);
+            return Right<EncinaError, TAggregate>(aggregate);
         }
         catch (Exception ex)
         {
             Log.ErrorLoadingAggregate(_logger, ex, typeof(TAggregate).Name, id);
 
-            return Left<MediatorError, TAggregate>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, TAggregate>(
+                EncinaErrors.FromException(
                     MartenErrorCodes.LoadFailed,
                     ex,
                     $"Failed to load aggregate {typeof(TAggregate).Name} with ID {id}."));
@@ -78,7 +78,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
     }
 
     /// <inheritdoc />
-    public async Task<Either<MediatorError, TAggregate>> LoadAsync(
+    public async Task<Either<EncinaError, TAggregate>> LoadAsync(
         Guid id,
         int version,
         CancellationToken cancellationToken = default)
@@ -94,18 +94,18 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
 
             if (aggregate is null)
             {
-                return Left<MediatorError, TAggregate>(
-                    MediatorErrors.Create(
+                return Left<EncinaError, TAggregate>(
+                    EncinaErrors.Create(
                         MartenErrorCodes.AggregateNotFound,
                         $"Aggregate {typeof(TAggregate).Name} with ID {id} at version {version} was not found."));
             }
 
-            return Right<MediatorError, TAggregate>(aggregate);
+            return Right<EncinaError, TAggregate>(aggregate);
         }
         catch (Exception ex)
         {
-            return Left<MediatorError, TAggregate>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, TAggregate>(
+                EncinaErrors.FromException(
                     MartenErrorCodes.LoadFailed,
                     ex,
                     $"Failed to load aggregate {typeof(TAggregate).Name} with ID {id} at version {version}."));
@@ -113,7 +113,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
     }
 
     /// <inheritdoc />
-    public async Task<Either<MediatorError, Unit>> SaveAsync(
+    public async Task<Either<EncinaError, Unit>> SaveAsync(
         TAggregate aggregate,
         CancellationToken cancellationToken = default)
     {
@@ -125,7 +125,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
             if (uncommittedEvents.Count == 0)
             {
                 Log.NoUncommittedEvents(_logger, typeof(TAggregate).Name, aggregate.Id);
-                return Right<MediatorError, Unit>(Unit.Default);
+                return Right<EncinaError, Unit>(Unit.Default);
             }
 
             Log.SavingEvents(_logger, uncommittedEvents.Count, typeof(TAggregate).Name, aggregate.Id);
@@ -141,7 +141,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
 
             Log.SavedEvents(_logger, uncommittedEvents.Count, typeof(TAggregate).Name, aggregate.Id);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex) when (IsConcurrencyException(ex))
         {
@@ -152,8 +152,8 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
                 throw;
             }
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     MartenErrorCodes.ConcurrencyConflict,
                     ex,
                     $"Concurrency conflict saving aggregate {typeof(TAggregate).Name} with ID {aggregate.Id}."));
@@ -162,8 +162,8 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
         {
             Log.ErrorSavingAggregate(_logger, ex, typeof(TAggregate).Name, aggregate.Id);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     MartenErrorCodes.SaveFailed,
                     ex,
                     $"Failed to save aggregate {typeof(TAggregate).Name} with ID {aggregate.Id}."));
@@ -171,7 +171,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
     }
 
     /// <inheritdoc />
-    public async Task<Either<MediatorError, Unit>> CreateAsync(
+    public async Task<Either<EncinaError, Unit>> CreateAsync(
         TAggregate aggregate,
         CancellationToken cancellationToken = default)
     {
@@ -182,8 +182,8 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
             var uncommittedEvents = aggregate.UncommittedEvents;
             if (uncommittedEvents.Count == 0)
             {
-                return Left<MediatorError, Unit>(
-                    MediatorErrors.Create(
+                return Left<EncinaError, Unit>(
+                    EncinaErrors.Create(
                         MartenErrorCodes.NoEventsToCreate,
                         "Cannot create aggregate without any events."));
             }
@@ -200,14 +200,14 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
 
             Log.CreatedAggregate(_logger, typeof(TAggregate).Name, aggregate.Id);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex) when (IsStreamCollisionException(ex))
         {
             Log.StreamAlreadyExists(_logger, ex, typeof(TAggregate).Name, aggregate.Id);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     MartenErrorCodes.StreamAlreadyExists,
                     ex,
                     $"Stream already exists for aggregate {typeof(TAggregate).Name} with ID {aggregate.Id}."));
@@ -216,8 +216,8 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
         {
             Log.ErrorCreatingAggregate(_logger, ex, typeof(TAggregate).Name, aggregate.Id);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     MartenErrorCodes.CreateFailed,
                     ex,
                     $"Failed to create aggregate {typeof(TAggregate).Name} with ID {aggregate.Id}."));

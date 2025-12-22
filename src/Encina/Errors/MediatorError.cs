@@ -4,13 +4,13 @@ using static LanguageExt.Prelude;
 namespace Encina;
 
 /// <summary>
-/// Minimal immutable mediator error representation with optional exception metadata.
+/// Minimal immutable Encina error representation with optional exception metadata.
 /// </summary>
-public readonly record struct MediatorError
+public readonly record struct EncinaError
 {
     private static readonly string DefaultMessage = "An error occurred";
 
-    private MediatorError(string message, Option<Exception> exposedException, Option<Exception> metadataException)
+    private EncinaError(string message, Option<Exception> exposedException, Option<Exception> metadataException)
     {
         Message = string.IsNullOrWhiteSpace(message) ? DefaultMessage : message;
         Exception = exposedException;
@@ -28,78 +28,78 @@ public readonly record struct MediatorError
     public Option<Exception> Exception { get; }
 
     /// <summary>
-    /// Exception metadata retained for mediator internals (e.g., codes, details).
+    /// Exception metadata retained for Encina internals (e.g., codes, details).
     /// </summary>
     internal Option<Exception> MetadataException { get; }
 
     /// <summary>
     /// Creates an error from a message.
     /// </summary>
-    public static MediatorError New(string message)
+    public static EncinaError New(string message)
         => new(message, Option<Exception>.None, Option<Exception>.None);
 
     /// <summary>
     /// Creates an error from a message and optional exception.
     /// </summary>
-    public static MediatorError New(string message, Exception? exception)
+    public static EncinaError New(string message, Exception? exception)
     {
         if (exception is null)
         {
-            return new MediatorError(message, Option<Exception>.None, Option<Exception>.None);
+            return new EncinaError(message, Option<Exception>.None, Option<Exception>.None);
         }
 
-        var actualException = exception ?? throw new ArgumentNullException(nameof(exception));
-        return new MediatorError(message, Optional(actualException), Optional(actualException));
+        Exception actualException = exception ?? throw new ArgumentNullException(nameof(exception));
+        return new EncinaError(message, Optional(actualException), Optional(actualException));
     }
 
     /// <summary>
     /// Creates an error from an exception, preserving the exception message by default.
     /// </summary>
-    public static MediatorError New(Exception exception)
+    public static EncinaError New(Exception exception)
     {
         if (exception is null)
         {
-            return new MediatorError(DefaultMessage, Option<Exception>.None, Option<Exception>.None);
+            return new EncinaError(DefaultMessage, Option<Exception>.None, Option<Exception>.None);
         }
 
-        return new MediatorError(exception.Message ?? DefaultMessage, Optional(Normalize(exception)), Optional(exception));
+        return new EncinaError(exception.Message ?? DefaultMessage, Optional(Normalize(exception)), Optional(exception));
     }
 
     /// <summary>
     /// Creates an error from an exception and explicit message override.
     /// </summary>
-    public static MediatorError New(Exception exception, string message)
+    public static EncinaError New(Exception exception, string message)
     {
         if (exception is null)
         {
-            return new MediatorError(message, Option<Exception>.None, Option<Exception>.None);
+            return new EncinaError(message, Option<Exception>.None, Option<Exception>.None);
         }
 
-        return new MediatorError(message, Optional(Normalize(exception)), Optional(exception));
+        return new EncinaError(message, Optional(Normalize(exception)), Optional(exception));
     }
 
-    internal static MediatorError FromMediatorException(MediatorException mediatorException)
+    internal static EncinaError FromEncinaException(EncinaException EncinaException)
     {
-        var exposed = mediatorException.InnerException is { } inner
+        Option<Exception> exposed = EncinaException.InnerException is { } inner
             ? Optional(inner)
-            : Optional<Exception>(mediatorException);
-        return new MediatorError(mediatorException.Message, exposed, Optional<Exception>(mediatorException));
+            : Optional<Exception>(EncinaException);
+        return new EncinaError(EncinaException.Message, exposed, Optional<Exception>(EncinaException));
     }
 
     private static Exception Normalize(Exception exception)
         => exception switch
         {
-            MediatorException mediator when mediator.InnerException is { } inner => inner,
+            EncinaException Encina when Encina.InnerException is { } inner => inner,
             _ => exception
         };
 
     /// <summary>
-    /// Implicit conversion from <see cref="string"/> to <see cref="MediatorError"/>.
+    /// Implicit conversion from <see cref="string"/> to <see cref="EncinaError"/>.
     /// </summary>
-    public static implicit operator MediatorError(string message) => New(message);
+    public static implicit operator EncinaError(string message) => New(message);
 
     /// <summary>
-    /// Implicit conversion from <see cref="Exception"/> to <see cref="MediatorError"/>.
+    /// Implicit conversion from <see cref="Exception"/> to <see cref="EncinaError"/>.
     /// </summary>
-    public static implicit operator MediatorError(Exception exception) => New(exception);
+    public static implicit operator EncinaError(Exception exception) => New(exception);
 }

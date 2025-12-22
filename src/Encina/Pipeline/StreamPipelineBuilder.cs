@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Encina;
 
 /// <summary>
-/// Contract for composing the streaming mediator pipeline (behaviors + handler) into a reusable delegate.
+/// Contract for composing the streaming Encina pipeline (behaviors + handler) into a reusable delegate.
 /// </summary>
 /// <typeparam name="TRequest">Stream request type.</typeparam>
 /// <typeparam name="TItem">Type of each item yielded by the stream.</typeparam>
@@ -64,7 +64,7 @@ internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBu
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
         // Resolve all stream behaviors from DI (fall back to empty array)
-        var behaviors = serviceProvider.GetServices<IStreamPipelineBehavior<TRequest, TItem>>()?.ToArray()
+        IStreamPipelineBehavior<TRequest, TItem>[] behaviors = serviceProvider.GetServices<IStreamPipelineBehavior<TRequest, TItem>>()?.ToArray()
                         ?? Array.Empty<IStreamPipelineBehavior<TRequest, TItem>>();
 
         // Start with the innermost delegate: handler invocation
@@ -74,10 +74,10 @@ internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBu
         // This ensures behaviors execute in registration order when the pipeline runs
         if (behaviors.Length > 0)
         {
-            for (var index = behaviors.Length - 1; index >= 0; index--)
+            for (int index = behaviors.Length - 1; index >= 0; index--)
             {
-                var behavior = behaviors[index];
-                var nextStep = current; // Capture in closure
+                IStreamPipelineBehavior<TRequest, TItem> behavior = behaviors[index];
+                StreamHandlerCallback<TItem> nextStep = current; // Capture in closure
                 current = () => ExecuteBehaviorAsync(behavior, _request, _context, nextStep, _cancellationToken);
             }
         }
@@ -85,25 +85,25 @@ internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBu
         return current;
     }
 
-    private static async IAsyncEnumerable<Either<MediatorError, TItem>> ExecuteHandlerAsync(
+    private static async IAsyncEnumerable<Either<EncinaError, TItem>> ExecuteHandlerAsync(
         IStreamRequestHandler<TRequest, TItem> handler,
         TRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var item in handler.Handle(request, cancellationToken).ConfigureAwait(false))
+        await foreach (Either<EncinaError, TItem> item in handler.Handle(request, cancellationToken).ConfigureAwait(false))
         {
             yield return item;
         }
     }
 
-    private static async IAsyncEnumerable<Either<MediatorError, TItem>> ExecuteBehaviorAsync(
+    private static async IAsyncEnumerable<Either<EncinaError, TItem>> ExecuteBehaviorAsync(
         IStreamPipelineBehavior<TRequest, TItem> behavior,
         TRequest request,
         IRequestContext context,
         StreamHandlerCallback<TItem> nextStep,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var item in behavior.Handle(request, context, nextStep, cancellationToken).ConfigureAwait(false))
+        await foreach (Either<EncinaError, TItem> item in behavior.Handle(request, context, nextStep, cancellationToken).ConfigureAwait(false))
         {
             yield return item;
         }

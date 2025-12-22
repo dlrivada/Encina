@@ -13,42 +13,42 @@ namespace Encina.Quartz.ContractTests;
 public sealed class QuartzRequestJobContractTests
 {
     [Fact]
-    public async Task Execute_WithValidRequest_ShouldInvokeMediatorSend()
+    public async Task Execute_WithValidRequest_ShouldInvokeEncinaSend()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, TestResponse>>>();
-        var job = new QuartzRequestJob<TestRequest, TestResponse>(mediator, logger);
+        var job = new QuartzRequestJob<TestRequest, TestResponse>(Encina, logger);
         var request = new TestRequest("test");
         var expectedResponse = new TestResponse("result");
 
         var context = CreateJobExecutionContext(request);
 
-        mediator.Send(request, Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, TestResponse>(expectedResponse));
+        Encina.Send(request, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(expectedResponse));
 
         // Act
         await job.Execute(context);
 
         // Assert
-        await mediator.Received(1).Send(request, Arg.Any<CancellationToken>());
+        await Encina.Received(1).Send(request, Arg.Any<CancellationToken>());
         context.Result.Should().Be(expectedResponse);
     }
 
     [Fact]
-    public async Task Execute_WhenMediatorReturnsError_ShouldThrowJobExecutionException()
+    public async Task Execute_WhenEncinaReturnsError_ShouldThrowJobExecutionException()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, TestResponse>>>();
-        var job = new QuartzRequestJob<TestRequest, TestResponse>(mediator, logger);
+        var job = new QuartzRequestJob<TestRequest, TestResponse>(Encina, logger);
         var request = new TestRequest("test");
-        var error = MediatorErrors.Create("test.error", "Test error");
+        var error = EncinaErrors.Create("test.error", "Test error");
 
         var context = CreateJobExecutionContext(request);
 
-        mediator.Send(request, Arg.Any<CancellationToken>())
-            .Returns(Left<MediatorError, TestResponse>(error));
+        Encina.Send(request, Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<JobExecutionException>(() =>
@@ -62,9 +62,9 @@ public sealed class QuartzRequestJobContractTests
     public async Task Execute_WithMissingRequest_ShouldThrowJobExecutionException()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, TestResponse>>>();
-        var job = new QuartzRequestJob<TestRequest, TestResponse>(mediator, logger);
+        var job = new QuartzRequestJob<TestRequest, TestResponse>(Encina, logger);
 
         var context = CreateJobExecutionContext<TestRequest>(null); // No request in JobDataMap
 

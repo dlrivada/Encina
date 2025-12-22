@@ -34,7 +34,7 @@ public static class ServiceCollectionExtensions
             opt.EnableCompression = options.EnableCompression;
         });
 
-        services.TryAddScoped<IGrpcMediatorService, GrpcMediatorService>();
+        services.TryAddScoped<IGrpcEncinaService, GrpcEncinaService>();
 
         return services;
     }

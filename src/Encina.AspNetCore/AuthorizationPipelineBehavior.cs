@@ -74,7 +74,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,
@@ -106,7 +106,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext == null)
         {
-            return Left<MediatorError, TResponse>(MediatorErrors.Create(
+            return Left<EncinaError, TResponse>(EncinaErrors.Create(
                 code: "authorization.no_http_context",
                 message: "Authorization requires HTTP context but none is available.",
                 details: new Dictionary<string, object?>
@@ -121,7 +121,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
         // Check if user is authenticated (if any [Authorize] attribute requires it)
         if (user?.Identity?.IsAuthenticated != true)
         {
-            return Left<MediatorError, TResponse>(MediatorErrors.Create(
+            return Left<EncinaError, TResponse>(EncinaErrors.Create(
                 code: "authorization.unauthenticated",
                 message: $"Request '{typeof(TRequest).Name}' requires authentication.",
                 details: new Dictionary<string, object?>
@@ -146,7 +146,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
 
                 if (!policyResult.Succeeded)
                 {
-                    return Left<MediatorError, TResponse>(MediatorErrors.Create(
+                    return Left<EncinaError, TResponse>(EncinaErrors.Create(
                         code: "authorization.policy_failed",
                         message: $"User does not satisfy policy '{authorizeAttribute.Policy}' required by '{typeof(TRequest).Name}'.",
                         details: new Dictionary<string, object?>
@@ -176,7 +176,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
 
                 if (!hasAnyRequiredRole)
                 {
-                    return Left<MediatorError, TResponse>(MediatorErrors.Create(
+                    return Left<EncinaError, TResponse>(EncinaErrors.Create(
                         code: "authorization.insufficient_roles",
                         message: $"User does not have any of the required roles ({string.Join(", ", requiredRoles)}) for '{typeof(TRequest).Name}'.",
                         details: new Dictionary<string, object?>
@@ -192,7 +192,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
 
             // Check authentication schemes (if specified)
             // Note: AuthenticationSchemes is typically handled by ASP.NET Core middleware
-            // before the request reaches the mediator, so we don't need to check it here
+            // before the request reaches the Encina, so we don't need to check it here
         }
 
         // All authorization checks passed

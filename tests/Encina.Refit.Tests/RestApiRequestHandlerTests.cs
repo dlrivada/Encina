@@ -40,7 +40,7 @@ public class RestApiRequestHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ApiException_ShouldReturnMediatorError()
+    public async Task Handle_ApiException_ShouldReturnEncinaError()
     {
         // Arrange
         var request = new TestRequest { ShouldThrowApiException = true };
@@ -77,7 +77,7 @@ public class RestApiRequestHandlerTests
     }
 
     [Fact]
-    public async Task Handle_HttpRequestException_ShouldReturnMediatorError()
+    public async Task Handle_HttpRequestException_ShouldReturnEncinaError()
     {
         // Arrange
         var request = new TestRequest { ShouldThrowHttpRequestException = true };
@@ -133,7 +133,7 @@ public class RestApiRequestHandlerTests
     }
 
     [Fact]
-    public async Task Handle_UnexpectedException_ShouldReturnMediatorError()
+    public async Task Handle_UnexpectedException_ShouldReturnEncinaError()
     {
         // Arrange
         var request = new TestRequest { ShouldThrowUnexpectedException = true };

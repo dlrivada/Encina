@@ -20,7 +20,7 @@ namespace Encina.EntityFrameworkCore.Outbox;
 /// <list type="number">
 /// <item><description>Query for pending messages (not processed, retry time reached)</description></item>
 /// <item><description>Deserialize notification from JSON</description></item>
-/// <item><description>Publish notification via IMediator</description></item>
+/// <item><description>Publish notification via IEncina</description></item>
 /// <item><description>Mark as processed or schedule retry on failure</description></item>
 /// </list>
 /// </para>
@@ -86,7 +86,7 @@ public sealed class OutboxProcessor : BackgroundService
     {
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DbContext>();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
 
         var now = DateTime.UtcNow;
 
@@ -138,7 +138,7 @@ public sealed class OutboxProcessor : BackgroundService
                 }
 
                 // Publish notification
-                await mediator.Publish((INotification)notification, cancellationToken);
+                await Encina.Publish((INotification)notification, cancellationToken);
 
                 // Mark as processed
                 message.ProcessedAtUtc = DateTime.UtcNow;

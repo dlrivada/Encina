@@ -11,7 +11,7 @@ graph TB
     end
 
     subgraph "Encina Core"
-        Mediator[IMediator<br/>Encina]
+        Encina[IEncina<br/>Encina]
         RequestDispatcher[Request Dispatcher]
         NotificationDispatcher[Notification Dispatcher]
     end
@@ -30,13 +30,13 @@ graph TB
 
     subgraph "Infrastructure"
         DI[Dependency Injection<br/>IServiceScopeFactory]
-        Metrics[Metrics & Diagnostics<br/>IMediatorMetrics]
+        Metrics[Metrics & Diagnostics<br/>IEncinaMetrics]
         Logging[Logging<br/>ILogger]
     end
 
-    Client -->|Send/Publish| Mediator
-    Mediator -->|Requests| RequestDispatcher
-    Mediator -->|Notifications| NotificationDispatcher
+    Client -->|Send/Publish| Encina
+    Encina -->|Requests| RequestDispatcher
+    Encina -->|Notifications| NotificationDispatcher
 
     RequestDispatcher -->|Build Pipeline| PipelineBuilder
     PipelineBuilder -->|Compose| PreProc
@@ -52,9 +52,9 @@ graph TB
     RequestDispatcher -->|Track| Metrics
     NotificationDispatcher -->|Track| Metrics
 
-    Mediator -->|Log| Logging
+    Encina -->|Log| Logging
 
-    style Mediator fill:#e1f5ff
+    style Encina fill:#e1f5ff
     style RequestDispatcher fill:#fff4e1
     style NotificationDispatcher fill:#fff4e1
     style ReqHandler fill:#e8f5e9
@@ -66,7 +66,7 @@ graph TB
 ```mermaid
 sequenceDiagram
     participant Client
-    participant Mediator as IMediator
+    participant Encina as IEncina
     participant Dispatcher as RequestDispatcher
     participant DI as ServiceScope
     participant Pipeline as PipelineBuilder
@@ -76,9 +76,9 @@ sequenceDiagram
     participant PostProc as Post-Processor
     participant Metrics
 
-    Client->>Mediator: Send(request)
-    Mediator->>Mediator: Validate request not null
-    Mediator->>Dispatcher: ExecuteAsync(request)
+    Client->>Encina: Send(request)
+    Encina->>Encina: Validate request not null
+    Encina->>Dispatcher: ExecuteAsync(request)
 
     Dispatcher->>DI: CreateScope()
     activate DI
@@ -129,8 +129,8 @@ sequenceDiagram
     Dispatcher->>DI: Dispose scope
     deactivate DI
 
-    Dispatcher-->>Mediator: Either<Error, TResponse>
-    Mediator-->>Client: Either<Error, TResponse>
+    Dispatcher-->>Encina: Either<Error, TResponse>
+    Encina-->>Client: Either<Error, TResponse>
 ```
 
 ## Notification Broadcasting Flow
@@ -138,7 +138,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Client
-    participant Mediator as IMediator
+    participant Encina as IEncina
     participant Dispatcher as NotificationDispatcher
     participant DI as ServiceScope
     participant Cache as InvokerCache
@@ -146,8 +146,8 @@ sequenceDiagram
     participant Handler2 as Handler 2
     participant HandlerN as Handler N
 
-    Client->>Mediator: Publish(notification)
-    Mediator->>Dispatcher: ExecuteAsync(notification)
+    Client->>Encina: Publish(notification)
+    Encina->>Dispatcher: ExecuteAsync(notification)
 
     Dispatcher->>DI: CreateScope()
     activate DI
@@ -155,7 +155,7 @@ sequenceDiagram
     DI-->>Dispatcher: [handler1, handler2, ..., handlerN]
 
     alt No handlers registered
-        Dispatcher-->>Mediator: Right(Unit) - OK
+        Dispatcher-->>Encina: Right(Unit) - OK
     else Handlers exist
         loop For each handler
             Dispatcher->>Cache: GetOrAdd(handlerType, notificationType)
@@ -174,7 +174,7 @@ sequenceDiagram
             deactivate Handler1
 
             alt Handler fails
-                Dispatcher-->>Mediator: Left(error) - Fail fast
+                Dispatcher-->>Encina: Left(error) - Fail fast
             else Handler succeeds
                 Dispatcher->>Handler2: invoker(handler, notification, ct)
                 activate Handler2
@@ -187,8 +187,8 @@ sequenceDiagram
 
     Dispatcher->>DI: Dispose scope
     deactivate DI
-    Dispatcher-->>Mediator: Either<Error, Unit>
-    Mediator-->>Client: Either<Error, Unit>
+    Dispatcher-->>Encina: Either<Error, Unit>
+    Encina-->>Client: Either<Error, Unit>
 ```
 
 ## Component Responsibilities
@@ -217,9 +217,9 @@ sequenceDiagram
 | Component | Responsibility | Lifetime |
 |-----------|---------------|----------|
 | **IServiceScopeFactory** | Creates DI scopes for request isolation | Singleton |
-| **IMediatorMetrics** | Tracks success/failure metrics | Singleton |
+| **IEncinaMetrics** | Tracks success/failure metrics | Singleton |
 | **ILogger** | Diagnostic logging | Singleton |
-| **MediatorDiagnostics** | OpenTelemetry activity/tracing support | Static class |
+| **EncinaDiagnostics** | OpenTelemetry activity/tracing support | Static class |
 
 ## Pipeline Composition Pattern
 
@@ -309,7 +309,7 @@ graph TB
     style Success fill:#4caf50,color:#fff
 ```
 
-**Key Principle:** Any Left value short-circuits the pipeline. All errors flow through the same `Either<MediatorError, TResponse>` type, enabling consistent error handling.
+**Key Principle:** Any Left value short-circuits the pipeline. All errors flow through the same `Either<EncinaError, TResponse>` type, enabling consistent error handling.
 
 ## Caching Architecture
 
@@ -358,14 +358,14 @@ graph TB
         Processors[Pre/Post Processors]
     end
 
-    subgraph "Mediator Layer"
-        Mediator[Encina]
+    subgraph "Encina Layer"
+        Encina[Encina]
         Dispatchers[Dispatchers]
         Pipeline[PipelineBuilder]
     end
 
     subgraph "Abstraction Layer"
-        Contracts[IMediator<br/>IRequest<br/>INotification<br/>IRequestHandler<br/>INotificationHandler<br/>IPipelineBehavior]
+        Contracts[IEncina<br/>IRequest<br/>INotification<br/>IRequestHandler<br/>INotificationHandler<br/>IPipelineBehavior]
     end
 
     subgraph "Infrastructure Layer"
@@ -378,27 +378,27 @@ graph TB
     Behaviors -.->|implements| Contracts
     Processors -.->|implements| Contracts
 
-    Mediator -->|uses| Contracts
-    Mediator -->|uses| Dispatchers
+    Encina -->|uses| Contracts
+    Encina -->|uses| Dispatchers
     Dispatchers -->|uses| Pipeline
 
-    Mediator -->|depends on| DI
-    Mediator -->|depends on| Logging
-    Mediator -->|depends on| LanguageExt
+    Encina -->|depends on| DI
+    Encina -->|depends on| Logging
+    Encina -->|depends on| LanguageExt
 
     Dispatchers -->|depends on| DI
     Pipeline -->|depends on| DI
 
     style Contracts fill:#e1f5ff
     style Handlers fill:#e8f5e9
-    style Mediator fill:#fff4e1
+    style Encina fill:#fff4e1
 ```
 
 ## Key Design Patterns
 
 | Pattern | Component | Purpose |
 |---------|-----------|---------|
-| **Mediator** | Encina | Decouples request sender from handler |
+| **Encina** | Encina | Decouples request sender from handler |
 | **Chain of Responsibility** | Pipeline Behaviors | Sequential processing with short-circuiting |
 | **Decorator** | PipelineBuilder | Dynamically wrap handler with behaviors |
 | **Observer** | Notification Handlers | Multiple subscribers to same event |

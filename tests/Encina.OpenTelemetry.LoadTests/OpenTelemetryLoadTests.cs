@@ -36,13 +36,13 @@ public sealed class OpenTelemetryLoadTests
                 .AddConsoleExporter());
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act - Load test with NBomber
         var scenario = Scenario.Create("send_requests_with_telemetry", async context =>
         {
             var instanceId = int.Parse(context.ScenarioInfo.InstanceId.Split('-').Last(), System.Globalization.CultureInfo.InvariantCulture);
-            var result = await mediator.Send(new LoadTestRequest { Value = instanceId }, CancellationToken.None);
+            var result = await Encina.Send(new LoadTestRequest { Value = instanceId }, CancellationToken.None);
 
             return result.IsRight ? Response.Ok() : Response.Fail<string>(statusCode: result.Match(Right: _ => "", Left: e => e.Message));
         })
@@ -79,12 +79,12 @@ public sealed class OpenTelemetryLoadTests
                 .AddConsoleExporter());
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act - Load test with NBomber
         var scenario = Scenario.Create("publish_notifications_with_telemetry", async context =>
         {
-            var result = await mediator.Publish(new LoadTestNotification { Message = $"msg-{context.ScenarioInfo.InstanceId}" }, CancellationToken.None);
+            var result = await Encina.Publish(new LoadTestNotification { Message = $"msg-{context.ScenarioInfo.InstanceId}" }, CancellationToken.None);
 
             return result.IsRight ? Response.Ok() : Response.Fail<Unit>(statusCode: result.Match(Right: _ => "", Left: e => e.Message));
         })
@@ -114,7 +114,7 @@ public sealed class OpenTelemetryLoadTests
 
     private sealed class LoadTestHandler : IRequestHandler<LoadTestRequest, string>
     {
-        public async Task<Either<MediatorError, string>> Handle(LoadTestRequest request, CancellationToken cancellationToken)
+        public async Task<Either<EncinaError, string>> Handle(LoadTestRequest request, CancellationToken cancellationToken)
         {
             await Task.Delay(1, cancellationToken); // Simulate minimal work
             return $"processed-{request.Value}";
@@ -128,7 +128,7 @@ public sealed class OpenTelemetryLoadTests
 
     private sealed class LoadTestNotificationHandler : INotificationHandler<LoadTestNotification>
     {
-        public async Task<Either<MediatorError, Unit>> Handle(LoadTestNotification notification, CancellationToken cancellationToken)
+        public async Task<Either<EncinaError, Unit>> Handle(LoadTestNotification notification, CancellationToken cancellationToken)
         {
             await Task.Delay(1, cancellationToken); // Simulate minimal work
             return Unit.Default;

@@ -3,11 +3,11 @@
 **Status:** Accepted
 **Date:** 2025-12-12
 **Deciders:** Architecture Team
-**Technical Story:** Establish consistent error handling strategy for mediator pipeline
+**Technical Story:** Establish consistent error handling strategy for Encina pipeline
 
 ## Context
 
-The mediator needs a robust, type-safe error handling strategy that:
+The Encina needs a robust, type-safe error handling strategy that:
 
 - Avoids throwing exceptions for expected failures (validation errors, business rule violations, not found, etc.)
 - Maintains type safety throughout the pipeline
@@ -25,7 +25,7 @@ Traditional exception-based error handling has several drawbacks:
 
 ## Decision
 
-We adopt **Railway Oriented Programming (ROP)** using `Either<MediatorError, TResponse>` from LanguageExt as the return type for all mediator operations.
+We adopt **Railway Oriented Programming (ROP)** using `Either<EncinaError, TResponse>` from LanguageExt as the return type for all Encina operations.
 
 ### Key Principles
 
@@ -40,15 +40,15 @@ We adopt **Railway Oriented Programming (ROP)** using `Either<MediatorError, TRe
 
 ```csharp
 // Public API
-ValueTask<Either<MediatorError, TResponse>> Send<TResponse>(IRequest<TResponse> request, ...);
-ValueTask<Either<MediatorError, Unit>> Publish<TNotification>(TNotification notification, ...);
+ValueTask<Either<EncinaError, TResponse>> Send<TResponse>(IRequest<TResponse> request, ...);
+ValueTask<Either<EncinaError, Unit>> Publish<TNotification>(TNotification notification, ...);
 
 // Pipeline behaviors
-ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> next, ...);
+ValueTask<Either<EncinaError, TResponse>> Handle(TRequest request, RequestHandlerCallback<TResponse> next, ...);
 
 // Handlers now return Either (Pure ROP - no exceptions)
-Task<Either<MediatorError, TResponse>> Handle(TRequest request, CancellationToken cancellationToken);
-Task<Either<MediatorError, Unit>> Handle(TNotification notification, CancellationToken cancellationToken);
+Task<Either<EncinaError, TResponse>> Handle(TRequest request, CancellationToken cancellationToken);
+Task<Either<EncinaError, Unit>> Handle(TNotification notification, CancellationToken cancellationToken);
 ```
 
 **Key Change:** Handlers now return `Either` types directly instead of plain `TResponse`. This completes the Pure ROP migration - handlers are responsible for returning success/failure explicitly rather than throwing exceptions.
@@ -58,17 +58,17 @@ Task<Either<MediatorError, Unit>> Handle(TNotification notification, Cancellatio
 ```
 Request → [Validation Guards] → [Pre-Processors] → [Behaviors] → [Handler] → [Post-Processors] → Response
             ↓ Left                ↓ Left            ↓ Left        ↓ Left        ↓ Left              ↓ Right
-         MediatorError        MediatorError     MediatorError  MediatorError  MediatorError      TResponse
+         EncinaError        EncinaError     EncinaError  EncinaError  EncinaError      TResponse
 ```
 
 Any Left value short-circuits the pipeline and returns immediately.
 
-### MediatorError Structure
+### EncinaError Structure
 
 ```csharp
-public sealed class MediatorError
+public sealed class EncinaError
 {
-    public string Code { get; }           // e.g., "mediator.handler.missing"
+    public string Code { get; }           // e.g., "Encina.handler.missing"
     public string Message { get; }         // Human-readable description
     public Option<Exception> Exception { get; } // Original exception if any
     public IReadOnlyDictionary<string, object?> Details { get; } // Context metadata
@@ -97,7 +97,7 @@ public sealed class MediatorError
 ### Neutral
 
 - **Exception Policy:** Exceptions are allowed in startup/configuration code but discouraged in runtime handlers
-- **Safety Net:** Unexpected exceptions during handler execution are caught and converted to `MediatorError` with code `mediator.handler.exception`
+- **Safety Net:** Unexpected exceptions during handler execution are caught and converted to `EncinaError` with code `Encina.handler.exception`
 - **Interoperability:** External dependencies that throw are wrapped in try-catch and converted to Left
 
 ## Alternatives Considered
@@ -113,7 +113,7 @@ Task<TResponse> Send<TResponse>(IRequest<TResponse> request);
 ### 2. Result<T, E> Pattern (Custom Type)
 
 ```csharp
-ValueTask<Result<TResponse, MediatorError>> Send<TResponse>(...)
+ValueTask<Result<TResponse, EncinaError>> Send<TResponse>(...)
 ```
 
 **Rejected:** Reinventing the wheel. LanguageExt's Either is well-tested and feature-rich.
@@ -121,7 +121,7 @@ ValueTask<Result<TResponse, MediatorError>> Send<TResponse>(...)
 ### 3. Discriminated Unions (C# 10+)
 
 ```csharp
-ValueTask<OneOf<TResponse, MediatorError>> Send<TResponse>(...)
+ValueTask<OneOf<TResponse, EncinaError>> Send<TResponse>(...)
 ```
 
 **Rejected:** OneOf lacks the functional combinators that Either provides (Map, Bind, Match, etc.).
@@ -139,7 +139,7 @@ ValueTask<TResponse?> Send<TResponse>(...)
 ### Success Path
 
 ```csharp
-var result = await mediator.Send(new GetUserQuery(userId));
+var result = await Encina.Send(new GetUserQuery(userId));
 result.Match(
     Right: user => Console.WriteLine($"Found: {user.Name}"),
     Left: error => Console.WriteLine($"Error: {error.Message}")
@@ -149,18 +149,18 @@ result.Match(
 ### Failure Path
 
 ```csharp
-var result = await mediator.Send(new DeleteUserCommand(invalidId));
-// result is Left<MediatorError>("mediator.handler.missing")
+var result = await Encina.Send(new DeleteUserCommand(invalidId));
+// result is Left<EncinaError>("Encina.handler.missing")
 ```
 
 ### Behavior Composition
 
 ```csharp
-public async ValueTask<Either<MediatorError, TResponse>> Handle(...)
+public async ValueTask<Either<EncinaError, TResponse>> Handle(...)
 {
     // Can short-circuit with validation errors
     if (!IsValid(request))
-        return Left(MediatorError.New("validation.failed"));
+        return Left(EncinaError.New("validation.failed"));
 
     // Continue pipeline
     var response = await next();
@@ -201,12 +201,12 @@ public async ValueTask<Either<MediatorError, TResponse>> Handle(...)
 **All runtime operations use Railway Oriented Programming:**
 
 1. **API Entry Points:**
-   - Null request/notification → `Left<MediatorError>` with code `request.null` or `notification.null`
-   - Missing handler → `Left<MediatorError>` with code `request.handler.missing`
-   - Type mismatches → `Left<MediatorError>` with code `request.handler.type_mismatch`
+   - Null request/notification → `Left<EncinaError>` with code `request.null` or `notification.null`
+   - Missing handler → `Left<EncinaError>` with code `request.handler.missing`
+   - Type mismatches → `Left<EncinaError>` with code `request.handler.type_mismatch`
 
 2. **Handler Execution:**
-   - Handlers must return `Left<MediatorError>` for all failures
+   - Handlers must return `Left<EncinaError>` for all failures
    - Validation errors → `Left`
    - Business rule violations → `Left`
    - Not found scenarios → `Left`
@@ -223,9 +223,9 @@ public async ValueTask<Either<MediatorError, TResponse>> Handle(...)
 If a handler accidentally throws an exception during execution:
 
 - The exception is caught at the dispatcher level
-- Converted to `MediatorError` with code `mediator.handler.exception`
+- Converted to `EncinaError` with code `Encina.handler.exception`
 - Logged with full context (handler type, request type, stage)
-- Returned as `Left<MediatorError>` to the caller
+- Returned as `Left<EncinaError>` to the caller
 
 This provides graceful degradation while encouraging proper Either-based error handling.
 

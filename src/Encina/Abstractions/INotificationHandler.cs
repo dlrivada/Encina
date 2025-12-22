@@ -3,7 +3,7 @@ using LanguageExt;
 namespace Encina;
 
 /// <summary>
-/// Processes a notification published by the mediator using Railway Oriented Programming.
+/// Processes a notification published by the Encina using Railway Oriented Programming.
 /// </summary>
 /// <typeparam name="TNotification">Notification type being handled.</typeparam>
 /// <remarks>
@@ -21,11 +21,11 @@ namespace Encina;
 /// <code>
 /// public sealed class AuditReservationHandler : INotificationHandler&lt;ReservationCreatedNotification&gt;
 /// {
-///     public async Task&lt;Either&lt;MediatorError, Unit&gt;&gt; Handle(ReservationCreatedNotification notification, CancellationToken cancellationToken)
+///     public async Task&lt;Either&lt;EncinaError, Unit&gt;&gt; Handle(ReservationCreatedNotification notification, CancellationToken cancellationToken)
 ///     {
 ///         var reservation = await _repository.FindAsync(notification.ReservationId, cancellationToken);
 ///         if (reservation is null)
-///             return Left(MediatorErrors.NotFound("Reservation not found for audit"));
+///             return Left(EncinaErrors.NotFound("Reservation not found for audit"));
 ///
 ///         await _auditLog.RecordAsync(notification.ReservationId, cancellationToken);
 ///         return Right(Unit.Default);
@@ -42,12 +42,12 @@ public interface INotificationHandler<in TNotification>
     /// <param name="notification">Event or signal to process.</param>
     /// <param name="cancellationToken">Token to cancel the operation when needed.</param>
     /// <returns>
-    /// Either a <see cref="MediatorError"/> (Left) if the handler cannot process the notification,
+    /// Either a <see cref="EncinaError"/> (Left) if the handler cannot process the notification,
     /// or <see cref="Unit"/> (Right) on successful processing.
     /// </returns>
     /// <remarks>
     /// Use <c>static LanguageExt.Prelude</c> to access <c>Left</c> and <c>Right</c> factory methods.
     /// If this handler returns Left, subsequent handlers will not be executed (fail-fast behavior).
     /// </remarks>
-    Task<Either<MediatorError, Unit>> Handle(TNotification notification, CancellationToken cancellationToken);
+    Task<Either<EncinaError, Unit>> Handle(TNotification notification, CancellationToken cancellationToken);
 }

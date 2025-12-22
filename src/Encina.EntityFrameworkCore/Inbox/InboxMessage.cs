@@ -72,7 +72,7 @@ public sealed class InboxMessage : IInboxMessage
     /// arrives again, this response is returned without re-processing.
     /// </para>
     /// <para>
-    /// For commands that return <c>Either&lt;MediatorError, T&gt;</c>, this
+    /// For commands that return <c>Either&lt;EncinaError, T&gt;</c>, this
     /// contains the serialized result (both Left and Right cases).
     /// </para>
     /// </remarks>

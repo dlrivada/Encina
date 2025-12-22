@@ -7,7 +7,7 @@ using static LanguageExt.Prelude;
 namespace Encina;
 
 /// <summary>
-/// Contract for composing the mediator pipeline (behaviors + handler) into a reusable delegate.
+/// Contract for composing the Encina pipeline (behaviors + handler) into a reusable delegate.
 /// Intended for future refactor to minimize reflection and allocations in the hot path.
 /// </summary>
 /// <typeparam name="TRequest">Request type.</typeparam>
@@ -17,7 +17,7 @@ internal interface IPipelineBuilder<TRequest, TResponse>
 {
     /// <summary>
     /// Builds the pipeline delegate that executes behaviors and the handler.
-    /// Implementations should keep the rail funcional (ValueTask&lt;Either&lt;MediatorError,TResponse&gt;&gt;).
+    /// Implementations should keep the rail funcional (ValueTask&lt;Either&lt;EncinaError,TResponse&gt;&gt;).
     /// </summary>
     /// <param name="serviceProvider">Resolver for behaviors, pre/post processors y handler.</param>
     /// <returns>Delegate ready to execute the request.</returns>
@@ -31,7 +31,7 @@ internal interface IPipelineBuilder<TRequest, TResponse>
 /// <remarks>
 /// <para><b>Pipeline Order:</b> PreProcessors → Behaviors → Handler → PostProcessors</para>
 /// <para><b>Behavior Composition:</b> Uses nested delegates (Russian doll pattern) to chain behaviors in registration order.</para>
-/// <para><b>Error Strategy:</b> Railway Oriented Programming - errors short-circuit via Either&lt;MediatorError, TResponse&gt;.</para>
+/// <para><b>Error Strategy:</b> Railway Oriented Programming - errors short-circuit via Either&lt;EncinaError, TResponse&gt;.</para>
 /// </remarks>
 internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -61,11 +61,11 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
         // Resolve all pipeline components from DI (fall back to empty arrays)
-        var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>()?.ToArray()
+        IPipelineBehavior<TRequest, TResponse>[] behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>()?.ToArray()
                         ?? System.Array.Empty<IPipelineBehavior<TRequest, TResponse>>();
-        var preProcessors = serviceProvider.GetServices<IRequestPreProcessor<TRequest>>()?.ToArray()
+        IRequestPreProcessor<TRequest>[] preProcessors = serviceProvider.GetServices<IRequestPreProcessor<TRequest>>()?.ToArray()
                          ?? System.Array.Empty<IRequestPreProcessor<TRequest>>();
-        var postProcessors = serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>()?.ToArray()
+        IRequestPostProcessor<TRequest, TResponse>[] postProcessors = serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>()?.ToArray()
                           ?? System.Array.Empty<IRequestPostProcessor<TRequest, TResponse>>();
 
         // Start with the innermost delegate: handler invocation
@@ -75,10 +75,10 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         // This ensures behaviors execute in registration order when the pipeline runs
         if (behaviors.Length > 0)
         {
-            for (var index = behaviors.Length - 1; index >= 0; index--)
+            for (int index = behaviors.Length - 1; index >= 0; index--)
             {
-                var behavior = behaviors[index];
-                var nextStep = current; // Capture in closure
+                IPipelineBehavior<TRequest, TResponse> behavior = behaviors[index];
+                RequestHandlerCallback<TResponse> nextStep = current; // Capture in closure
                 current = () => ExecuteBehaviorAsync(behavior, _request, _context, nextStep, _cancellationToken);
             }
         }
@@ -94,7 +94,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
     /// Uses index-based iteration over arrays to avoid enumerator allocation overhead.
     /// Pre/post processors are passed as ReadOnlySpan for zero-allocation iteration.
     /// </remarks>
-    private static async ValueTask<Either<MediatorError, TResponse>> ExecutePipelineAsync(
+    private static async ValueTask<Either<EncinaError, TResponse>> ExecutePipelineAsync(
         IRequestPreProcessor<TRequest>[] preProcessors,
         IRequestPostProcessor<TRequest, TResponse>[] postProcessors,
         RequestHandlerCallback<TResponse> terminal,
@@ -103,25 +103,25 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         CancellationToken cancellationToken)
     {
         // Pre-processors: index-based iteration avoids enumerator allocation
-        for (var i = 0; i < preProcessors.Length; i++)
+        for (int i = 0; i < preProcessors.Length; i++)
         {
-            var failure = await ExecutePreProcessorAsync(preProcessors[i], request, context, cancellationToken).ConfigureAwait(false);
+            Option<EncinaError> failure = await ExecutePreProcessorAsync(preProcessors[i], request, context, cancellationToken).ConfigureAwait(false);
             if (failure.IsSome)
             {
-                var error = failure.Match(err => err, () => MediatorErrors.Unknown);
-                return Left<MediatorError, TResponse>(error);
+                EncinaError error = failure.Match(err => err, () => EncinaErrors.Unknown);
+                return Left<EncinaError, TResponse>(error);
             }
         }
 
-        var response = await terminal().ConfigureAwait(false);
+        Either<EncinaError, TResponse> response = await terminal().ConfigureAwait(false);
 
         // Post-processors: index-based iteration avoids enumerator allocation
-        for (var i = 0; i < postProcessors.Length; i++)
+        for (int i = 0; i < postProcessors.Length; i++)
         {
-            var failure = await ExecutePostProcessorAsync(postProcessors[i], request, context, response, cancellationToken).ConfigureAwait(false);
+            Option<EncinaError> failure = await ExecutePostProcessorAsync(postProcessors[i], request, context, response, cancellationToken).ConfigureAwait(false);
             if (failure.IsSome)
             {
-                return Left<MediatorError, TResponse>(failure.Match(err => err, () => MediatorErrors.Unknown));
+                return Left<EncinaError, TResponse>(failure.Match(err => err, () => EncinaErrors.Unknown));
             }
         }
 
@@ -142,7 +142,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
     /// rather than a programming error.
     /// </para>
     /// </remarks>
-    private static async ValueTask<Either<MediatorError, TResponse>> ExecuteHandlerAsync(
+    private static async ValueTask<Either<EncinaError, TResponse>> ExecuteHandlerAsync(
         IRequestHandler<TRequest, TResponse> handler,
         TRequest request,
         CancellationToken cancellationToken)
@@ -154,20 +154,20 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
             // Cancellation is expected behavior, convert to Left
-            var message = $"Handler {handler.GetType().Name} was cancelled while processing {typeof(TRequest).Name}.";
+            string message = $"Handler {handler.GetType().Name} was cancelled while processing {typeof(TRequest).Name}.";
             var metadata = new Dictionary<string, object?>
             {
                 ["handler"] = handler.GetType().FullName,
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "handler"
             };
-            return Left<MediatorError, TResponse>(MediatorErrors.Create(MediatorErrorCodes.HandlerCancelled, message, ex, metadata));
+            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.HandlerCancelled, message, ex, metadata));
         }
         // Any other exception (e.g., NullReferenceException, InvalidOperationException) indicates
         // a bug in the handler and will propagate to let the application crash (fail-fast)
     }
 
-    private static async ValueTask<Either<MediatorError, TResponse>> ExecuteBehaviorAsync(
+    private static async ValueTask<Either<EncinaError, TResponse>> ExecuteBehaviorAsync(
         IPipelineBehavior<TRequest, TResponse> behavior,
         TRequest request,
         IRequestContext context,
@@ -180,19 +180,19 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            var message = $"Behavior {behavior.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
+            string message = $"Behavior {behavior.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
             var metadata = new Dictionary<string, object?>
             {
                 ["behavior"] = behavior.GetType().FullName,
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "behavior"
             };
-            return Left<MediatorError, TResponse>(MediatorErrors.Create(MediatorErrorCodes.BehaviorCancelled, message, ex, metadata));
+            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, message, ex, metadata));
         }
         // Pure ROP: Any other exception indicates a bug in the behavior and will propagate (fail-fast)
     }
 
-    private static async Task<Option<MediatorError>> ExecutePreProcessorAsync(
+    private static async Task<Option<EncinaError>> ExecutePreProcessorAsync(
         IRequestPreProcessor<TRequest> preProcessor,
         TRequest request,
         IRequestContext context,
@@ -201,44 +201,44 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
         try
         {
             await preProcessor.Process(request, context, cancellationToken).ConfigureAwait(false);
-            return Option<MediatorError>.None;
+            return Option<EncinaError>.None;
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            var message = $"Pre-processor {preProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
+            string message = $"Pre-processor {preProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
             var preCancellationMetadata = new Dictionary<string, object?>
             {
                 ["preProcessor"] = preProcessor.GetType().FullName,
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "preprocessor"
             };
-            return Some(MediatorErrors.Create(MediatorErrorCodes.PreProcessorCancelled, message, ex, preCancellationMetadata));
+            return Some(EncinaErrors.Create(EncinaErrorCodes.PreProcessorCancelled, message, ex, preCancellationMetadata));
         }
         // Pure ROP: Any other exception indicates a bug in the preprocessor and will propagate (fail-fast)
     }
 
-    private static async Task<Option<MediatorError>> ExecutePostProcessorAsync(
+    private static async Task<Option<EncinaError>> ExecutePostProcessorAsync(
         IRequestPostProcessor<TRequest, TResponse> postProcessor,
         TRequest request,
         IRequestContext context,
-        Either<MediatorError, TResponse> response,
+        Either<EncinaError, TResponse> response,
         CancellationToken cancellationToken)
     {
         try
         {
             await postProcessor.Process(request, context, response, cancellationToken).ConfigureAwait(false);
-            return Option<MediatorError>.None;
+            return Option<EncinaError>.None;
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            var message = $"Post-processor {postProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
+            string message = $"Post-processor {postProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
             var postCancellationMetadata = new Dictionary<string, object?>
             {
                 ["postProcessor"] = postProcessor.GetType().FullName,
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "postprocessor"
             };
-            return Some(MediatorErrors.Create(MediatorErrorCodes.PostProcessorCancelled, message, ex, postCancellationMetadata));
+            return Some(EncinaErrors.Create(EncinaErrorCodes.PostProcessorCancelled, message, ex, postCancellationMetadata));
         }
         // Pure ROP: Any other exception indicates a bug in the postprocessor and will propagate (fail-fast)
     }

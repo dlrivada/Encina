@@ -13,8 +13,8 @@ public interface IInMemoryMessageBus
     /// <typeparam name="TMessage">The type of the message.</typeparam>
     /// <param name="message">The message to publish.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or Unit on success.</returns>
-    ValueTask<Either<MediatorError, Unit>> PublishAsync<TMessage>(
+    /// <returns>Either a EncinaError or Unit on success.</returns>
+    ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         CancellationToken cancellationToken = default)
         where TMessage : class;
@@ -25,8 +25,8 @@ public interface IInMemoryMessageBus
     /// <typeparam name="TMessage">The type of the message.</typeparam>
     /// <param name="message">The message to enqueue.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or Unit on success.</returns>
-    ValueTask<Either<MediatorError, Unit>> EnqueueAsync<TMessage>(
+    /// <returns>Either a EncinaError or Unit on success.</returns>
+    ValueTask<Either<EncinaError, Unit>> EnqueueAsync<TMessage>(
         TMessage message,
         CancellationToken cancellationToken = default)
         where TMessage : class;

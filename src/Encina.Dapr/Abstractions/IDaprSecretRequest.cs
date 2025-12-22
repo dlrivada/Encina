@@ -69,7 +69,7 @@ namespace Encina.Dapr;
 /// }
 ///
 /// // Use through Encina
-/// var result = await mediator.Send(new GetDatabaseConnectionStringQuery());
+/// var result = await Encina.Send(new GetDatabaseConnectionStringQuery());
 /// result.Match(
 ///     Right: connectionString => ConfigureDatabase(connectionString),
 ///     Left: error => Console.WriteLine($"Error retrieving secret: {error.Message}")

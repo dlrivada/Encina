@@ -11,29 +11,29 @@ namespace Encina.Quartz.Tests.Guards;
 public class QuartzNotificationJobGuardsTests
 {
     [Fact]
-    public void Constructor_WithNullMediator_ThrowsArgumentNullException()
+    public void Constructor_WithNullEncina_ThrowsArgumentNullException()
     {
         // Arrange
-        IMediator mediator = null!;
+        IEncina Encina = null!;
         var logger = Substitute.For<ILogger<QuartzNotificationJob<QuartzTestNotification>>>();
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new QuartzNotificationJob<QuartzTestNotification>(mediator, logger));
+            new QuartzNotificationJob<QuartzTestNotification>(Encina, logger));
 
-        exception.ParamName.Should().Be("mediator");
+        exception.ParamName.Should().Be("Encina");
     }
 
     [Fact]
     public void Constructor_WithNullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         ILogger<QuartzNotificationJob<QuartzTestNotification>> logger = null!;
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new QuartzNotificationJob<QuartzTestNotification>(mediator, logger));
+            new QuartzNotificationJob<QuartzTestNotification>(Encina, logger));
 
         exception.ParamName.Should().Be("logger");
     }
@@ -42,9 +42,9 @@ public class QuartzNotificationJobGuardsTests
     public async Task Execute_WithNullContext_ThrowsArgumentNullException()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzNotificationJob<QuartzTestNotification>>>();
-        var job = new QuartzNotificationJob<QuartzTestNotification>(mediator, logger);
+        var job = new QuartzNotificationJob<QuartzTestNotification>(Encina, logger);
         IJobExecutionContext context = null!;
 
         // Act & Assert

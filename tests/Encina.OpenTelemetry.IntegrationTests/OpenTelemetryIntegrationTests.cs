@@ -22,9 +22,9 @@ public class OpenTelemetryIntegrationTests
                 .AddConsoleExporter());
 
         var sp = services.BuildServiceProvider();
-        var mediator = sp.GetRequiredService<IMediator>();
+        var Encina = sp.GetRequiredService<IEncina>();
 
-        var result = await mediator.Send(new PingQuery(), default);
+        var result = await Encina.Send(new PingQuery(), default);
         result.IsRight.Should().BeTrue();
     }
 
@@ -32,7 +32,7 @@ public class OpenTelemetryIntegrationTests
 
     public class PingHandler : IRequestHandler<PingQuery, string>
     {
-        public async Task<Either<MediatorError, string>> Handle(PingQuery request, CancellationToken cancellationToken)
+        public async Task<Either<EncinaError, string>> Handle(PingQuery request, CancellationToken cancellationToken)
         {
             await Task.CompletedTask;
             return "Pong";

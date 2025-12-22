@@ -40,13 +40,13 @@ public class StandardResilienceLoadTests
         });
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IEncina>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act - Send 100 concurrent requests
         var tasks = Enumerable.Range(0, 100).Select(async i =>
         {
             var request = new LoadTestRequest { Value = i };
-            var result = await mediator.Send(request);
+            var result = await Encina.Send(request);
             return result.IsRight || result.IsLeft; // Either success or rate limited
         });
 
@@ -72,13 +72,13 @@ public class StandardResilienceLoadTests
         });
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IEncina>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act - Send 50 requests that fail
         var tasks = Enumerable.Range(0, 50).Select(async i =>
         {
             var request = new LoadTestRequest { Value = -1 }; // Negative value triggers failure
-            var result = await mediator.Send(request);
+            var result = await Encina.Send(request);
             return result;
         });
 
@@ -103,7 +103,7 @@ public class StandardResilienceLoadTests
         });
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IEncina>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act - Send mix of successful and failing requests
         var tasks = Enumerable.Range(0, 100).Select(async i =>
@@ -111,7 +111,7 @@ public class StandardResilienceLoadTests
             // 70% success, 30% failure
             var value = i % 10 < 7 ? i : -1;
             var request = new LoadTestRequest { Value = value };
-            var result = await mediator.Send(request);
+            var result = await Encina.Send(request);
             return (IsSuccess: result.IsRight, Value: value);
         });
 
@@ -136,12 +136,12 @@ public class StandardResilienceLoadTests
         services.AddEncinaStandardResilience();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IEncina>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var scenario = Scenario.Create("constant_load", async context =>
         {
             var request = new LoadTestRequest { Value = context.ScenarioInfo.ThreadNumber };
-            var result = await mediator.Send(request);
+            var result = await Encina.Send(request);
 
             return result.Match(
                 Right: _ => Response.Ok(),
@@ -179,12 +179,12 @@ public class StandardResilienceLoadTests
         services.AddEncinaStandardResilience();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IEncina>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var scenario = Scenario.Create("ramp_up_load", async context =>
         {
             var request = new LoadTestRequest { Value = context.ScenarioInfo.ThreadNumber };
-            var result = await mediator.Send(request);
+            var result = await Encina.Send(request);
 
             return result.Match(
                 Right: _ => Response.Ok(),
@@ -226,7 +226,7 @@ public class StandardResilienceLoadTests
     // Test handler
     private class LoadTestRequestHandler : IRequestHandler<LoadTestRequest, LoadTestResponse>
     {
-        public async ValueTask<Either<MediatorError, LoadTestResponse>> Handle(
+        public async ValueTask<Either<EncinaError, LoadTestResponse>> Handle(
             LoadTestRequest request,
             IRequestContext context,
             CancellationToken cancellationToken)
@@ -236,7 +236,7 @@ public class StandardResilienceLoadTests
 
             if (request.Value < 0)
             {
-                return MediatorError.New("Invalid value");
+                return EncinaError.New("Invalid value");
             }
 
             return new LoadTestResponse { Result = request.Value * 2 };

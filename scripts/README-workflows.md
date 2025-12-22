@@ -7,7 +7,8 @@ These scripts help you monitor and troubleshoot GitHub Actions workflows directl
 You need a GitHub Personal Access Token with `actions:read` or `repo` scope.
 
 **Get a token:**
-1. Go to https://github.com/settings/tokens
+
+1. Go to <https://github.com/settings/tokens>
 2. Click "Generate new token (classic)"
 3. Select scopes: `repo` or `actions:read`
 4. Copy the token
@@ -161,16 +162,20 @@ dotnet run --file scripts/check-latest-workflow.cs
 ## Troubleshooting
 
 **Error: "GITHUB_TOKEN required"**
+
 - Set the environment variable or pass `--token` argument
 
 **Error: "403 Forbidden"**
+
 - Token doesn't have required scope (needs `actions:read` or `repo`)
 - Token might be expired
 
 **No workflows found**
+
 - Check repository name is correct: `--repo owner/repo`
 - Make sure workflows have run at least once
 
 **Rate limiting**
+
 - GitHub API allows 5000 requests/hour for authenticated users
 - Monitor script with 60s interval = 60 requests/hour (safe)

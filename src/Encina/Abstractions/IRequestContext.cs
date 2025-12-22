@@ -1,7 +1,7 @@
 namespace Encina;
 
 /// <summary>
-/// Carries ambient context metadata through the mediator pipeline.
+/// Carries ambient context metadata through the Encina pipeline.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -30,7 +30,7 @@ namespace Encina;
 ///     .WithIdempotencyKey("idempotency-xyz");
 ///
 /// // Accessing in behaviors
-/// public async ValueTask&lt;Either&lt;MediatorError, TResponse&gt;&gt; Handle(
+/// public async ValueTask&lt;Either&lt;EncinaError, TResponse&gt;&gt; Handle(
 ///     TRequest request,
 ///     IRequestContext context,
 ///     RequestHandlerCallback&lt;TResponse&gt; nextStep,

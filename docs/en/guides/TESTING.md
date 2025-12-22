@@ -6,7 +6,7 @@ This guide explains how to exercise the automated test suites that protect Encin
 
 | Suite | Project | Focus |
 |-------|---------|-------|
-| Unit tests | `tests/Encina.Tests` | Behavioural checks for mediators, configuration helpers, and built-in pipeline components. |
+| Unit tests | `tests/Encina.Tests` | Behavioural checks for Encinas, configuration helpers, and built-in pipeline components. |
 | Property tests | `tests/Encina.PropertyTests` | Configuration and pipeline invariants validated with FsCheck across varied inputs. |
 | Contract tests | `tests/Encina.ContractTests` | Structural safeguards that assert the public surface keeps its interoperability guarantees. |
 

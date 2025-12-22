@@ -32,12 +32,12 @@ public class ConsoleExporterIntegrationTests
                 .AddConsoleExporter());
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IMediator>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         var request = new TestRequest { Value = 42 };
 
         // Act
-        var result = await mediator.Send(request, CancellationToken.None);
+        var result = await Encina.Send(request, CancellationToken.None);
 
         // Assert
         result.IsRight.Should().BeTrue();
@@ -72,12 +72,12 @@ public class ConsoleExporterIntegrationTests
                 .AddConsoleExporter());
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IMediator>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         var notification = new TestNotification { Message = "Hello" };
 
         // Act
-        var result = await mediator.Publish(notification, CancellationToken.None);
+        var result = await Encina.Publish(notification, CancellationToken.None);
 
         // Assert
         result.IsRight.Should().BeTrue();
@@ -96,7 +96,7 @@ public class ConsoleExporterIntegrationTests
 
     public class TestRequestHandler : IRequestHandler<TestRequest, TestResponse>
     {
-        public async Task<Either<MediatorError, TestResponse>> Handle(
+        public async Task<Either<EncinaError, TestResponse>> Handle(
             TestRequest request,
             CancellationToken cancellationToken)
         {
@@ -114,7 +114,7 @@ public class ConsoleExporterIntegrationTests
 
     public class TestNotificationHandler : INotificationHandler<TestNotification>
     {
-        public async Task<Either<MediatorError, Unit>> Handle(
+        public async Task<Either<EncinaError, Unit>> Handle(
             TestNotification notification,
             CancellationToken cancellationToken)
         {

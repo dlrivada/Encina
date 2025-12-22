@@ -57,7 +57,7 @@ public class CacheInvalidationBenchmarks : IDisposable
         _context = new BenchmarkRequestContext();
         _command = new InvalidatingCommand(Guid.NewGuid(), "Update");
 
-        _handler = () => ValueTask.FromResult(Either<MediatorError, InvalidationResult>.Right(new InvalidationResult(true)));
+        _handler = () => ValueTask.FromResult(Either<EncinaError, InvalidationResult>.Right(new InvalidationResult(true)));
     }
 
     [GlobalCleanup]
@@ -78,13 +78,13 @@ public class CacheInvalidationBenchmarks : IDisposable
     }
 
     [Benchmark(Baseline = true)]
-    public async Task<Either<MediatorError, InvalidationResult>> Invalidation_NoMatchingKeys()
+    public async Task<Either<EncinaError, InvalidationResult>> Invalidation_NoMatchingKeys()
     {
         return await _behavior.Handle(_command, _context, _handler, CancellationToken.None);
     }
 
     [Benchmark]
-    public async Task<Either<MediatorError, InvalidationResult>> Invalidation_WithMatchingKeys()
+    public async Task<Either<EncinaError, InvalidationResult>> Invalidation_WithMatchingKeys()
     {
         // Pre-populate cache with keys that match the invalidation pattern
         var productId = _command.ProductId;
@@ -132,7 +132,7 @@ public class CacheInvalidationBenchmarks : IDisposable
     [Arguments(50)]
     public async Task Invalidation_ConcurrentCommands(int concurrencyLevel)
     {
-        var tasks = new Task<Either<MediatorError, InvalidationResult>>[concurrencyLevel];
+        var tasks = new Task<Either<EncinaError, InvalidationResult>>[concurrencyLevel];
 
         for (var i = 0; i < concurrencyLevel; i++)
         {

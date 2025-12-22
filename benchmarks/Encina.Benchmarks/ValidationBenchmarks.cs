@@ -70,9 +70,9 @@ public class ValidationBenchmarks
     public async Task<Guid> FluentValidation_ValidCommand()
     {
         using var scope = _fluentProvider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var command = new FluentCommand("John Doe", "john@example.com", 25);
-        var result = await mediator.Send(command);
+        var result = await Encina.Send(command);
         return result.Match(
             Left: error => throw new InvalidOperationException(error.Message),
             Right: id => id);
@@ -82,9 +82,9 @@ public class ValidationBenchmarks
     public async Task<Guid> DataAnnotations_ValidCommand()
     {
         using var scope = _dataAnnotationsProvider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var command = new DataAnnotationsCommand("John Doe", "john@example.com", 25);
-        var result = await mediator.Send(command);
+        var result = await Encina.Send(command);
         return result.Match(
             Left: error => throw new InvalidOperationException(error.Message),
             Right: id => id);
@@ -94,9 +94,9 @@ public class ValidationBenchmarks
     public async Task<Guid> MiniValidator_ValidCommand()
     {
         using var scope = _miniValidatorProvider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var command = new MiniValidatorCommand("John Doe", "john@example.com", 25);
-        var result = await mediator.Send(command);
+        var result = await Encina.Send(command);
         return result.Match(
             Left: error => throw new InvalidOperationException(error.Message),
             Right: id => id);
@@ -106,9 +106,9 @@ public class ValidationBenchmarks
     public async Task<Guid> GuardClauses_ValidCommand()
     {
         using var scope = _guardsProvider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var command = new GuardsCommand("John Doe", "john@example.com", 25);
-        var result = await mediator.Send(command);
+        var result = await Encina.Send(command);
         return result.Match(
             Left: error => throw new InvalidOperationException(error.Message),
             Right: id => id);
@@ -129,8 +129,8 @@ public class ValidationBenchmarks
 
     private sealed class FluentCommandHandler : ICommandHandler<FluentCommand, Guid>
     {
-        public Task<Either<MediatorError, Guid>> Handle(FluentCommand request, CancellationToken cancellationToken)
-            => Task.FromResult(Right<MediatorError, Guid>(Guid.NewGuid()));
+        public Task<Either<EncinaError, Guid>> Handle(FluentCommand request, CancellationToken cancellationToken)
+            => Task.FromResult(Right<EncinaError, Guid>(Guid.NewGuid()));
     }
 
     // DataAnnotations types
@@ -157,8 +157,8 @@ public class ValidationBenchmarks
 
     private sealed class DataAnnotationsCommandHandler : ICommandHandler<DataAnnotationsCommand, Guid>
     {
-        public Task<Either<MediatorError, Guid>> Handle(DataAnnotationsCommand request, CancellationToken cancellationToken)
-            => Task.FromResult(Right<MediatorError, Guid>(Guid.NewGuid()));
+        public Task<Either<EncinaError, Guid>> Handle(DataAnnotationsCommand request, CancellationToken cancellationToken)
+            => Task.FromResult(Right<EncinaError, Guid>(Guid.NewGuid()));
     }
 
     // MiniValidator types
@@ -185,8 +185,8 @@ public class ValidationBenchmarks
 
     private sealed class MiniValidatorCommandHandler : ICommandHandler<MiniValidatorCommand, Guid>
     {
-        public Task<Either<MediatorError, Guid>> Handle(MiniValidatorCommand request, CancellationToken cancellationToken)
-            => Task.FromResult(Right<MediatorError, Guid>(Guid.NewGuid()));
+        public Task<Either<EncinaError, Guid>> Handle(MiniValidatorCommand request, CancellationToken cancellationToken)
+            => Task.FromResult(Right<EncinaError, Guid>(Guid.NewGuid()));
     }
 
     // GuardClauses types
@@ -194,18 +194,18 @@ public class ValidationBenchmarks
 
     private sealed class GuardsCommandHandler : ICommandHandler<GuardsCommand, Guid>
     {
-        public Task<Either<MediatorError, Guid>> Handle(GuardsCommand request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Guid>> Handle(GuardsCommand request, CancellationToken cancellationToken)
         {
             if (!Guards.TryValidateNotEmpty(request.Name, nameof(request.Name), out var nameError))
-                return Task.FromResult(Left<MediatorError, Guid>(nameError));
+                return Task.FromResult(Left<EncinaError, Guid>(nameError));
 
             if (!Guards.TryValidateEmail(request.Email, nameof(request.Email), out var emailError))
-                return Task.FromResult(Left<MediatorError, Guid>(emailError));
+                return Task.FromResult(Left<EncinaError, Guid>(emailError));
 
             if (!Guards.TryValidateInRange(request.Age, nameof(request.Age), 18, 120, out var ageError))
-                return Task.FromResult(Left<MediatorError, Guid>(ageError));
+                return Task.FromResult(Left<EncinaError, Guid>(ageError));
 
-            return Task.FromResult(Right<MediatorError, Guid>(Guid.NewGuid()));
+            return Task.FromResult(Right<EncinaError, Guid>(Guid.NewGuid()));
         }
     }
 }

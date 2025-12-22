@@ -14,8 +14,8 @@ public interface IAzureServiceBusMessagePublisher
     /// <param name="message">The message to send.</param>
     /// <param name="queueName">The queue name. If null, uses the default queue.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or Unit on success.</returns>
-    ValueTask<Either<MediatorError, Unit>> SendToQueueAsync<TMessage>(
+    /// <returns>Either a EncinaError or Unit on success.</returns>
+    ValueTask<Either<EncinaError, Unit>> SendToQueueAsync<TMessage>(
         TMessage message,
         string? queueName = null,
         CancellationToken cancellationToken = default)
@@ -28,8 +28,8 @@ public interface IAzureServiceBusMessagePublisher
     /// <param name="message">The message to publish.</param>
     /// <param name="topicName">The topic name. If null, uses the default topic.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or Unit on success.</returns>
-    ValueTask<Either<MediatorError, Unit>> PublishToTopicAsync<TMessage>(
+    /// <returns>Either a EncinaError or Unit on success.</returns>
+    ValueTask<Either<EncinaError, Unit>> PublishToTopicAsync<TMessage>(
         TMessage message,
         string? topicName = null,
         CancellationToken cancellationToken = default)
@@ -43,8 +43,8 @@ public interface IAzureServiceBusMessagePublisher
     /// <param name="scheduledEnqueueTime">The time to deliver the message.</param>
     /// <param name="queueName">The queue name. If null, uses the default queue.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the sequence number.</returns>
-    ValueTask<Either<MediatorError, long>> ScheduleAsync<TMessage>(
+    /// <returns>Either a EncinaError or the sequence number.</returns>
+    ValueTask<Either<EncinaError, long>> ScheduleAsync<TMessage>(
         TMessage message,
         DateTimeOffset scheduledEnqueueTime,
         string? queueName = null,
@@ -57,8 +57,8 @@ public interface IAzureServiceBusMessagePublisher
     /// <param name="sequenceNumber">The sequence number of the scheduled message.</param>
     /// <param name="queueName">The queue name. If null, uses the default queue.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or Unit on success.</returns>
-    ValueTask<Either<MediatorError, Unit>> CancelScheduledAsync(
+    /// <returns>Either a EncinaError or Unit on success.</returns>
+    ValueTask<Either<EncinaError, Unit>> CancelScheduledAsync(
         long sequenceNumber,
         string? queueName = null,
         CancellationToken cancellationToken = default);

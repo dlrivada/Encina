@@ -48,7 +48,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, string>> SendToQueueAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, string>> SendToQueueAsync<TMessage>(
         TMessage message,
         string? queueUrl = null,
         CancellationToken cancellationToken = default)
@@ -60,8 +60,8 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
         if (string.IsNullOrEmpty(effectiveQueueUrl))
         {
-            return Left<MediatorError, string>(
-                MediatorErrors.Create(
+            return Left<EncinaError, string>(
+                EncinaErrors.Create(
                     "SQS_QUEUE_NOT_CONFIGURED",
                     "Queue URL is not configured."));
         }
@@ -88,14 +88,14 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
             Log.SuccessfullySentMessage(_logger, typeof(TMessage).Name, response.MessageId);
 
-            return Right<MediatorError, string>(response.MessageId);
+            return Right<EncinaError, string>(response.MessageId);
         }
         catch (Exception ex)
         {
             Log.FailedToSendToQueue(_logger, ex, typeof(TMessage).Name, effectiveQueueUrl);
 
-            return Left<MediatorError, string>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, string>(
+                EncinaErrors.FromException(
                     "SQS_SEND_FAILED",
                     ex,
                     $"Failed to send message of type {typeof(TMessage).Name} to queue."));
@@ -103,7 +103,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, string>> PublishToTopicAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, string>> PublishToTopicAsync<TMessage>(
         TMessage message,
         string? topicArn = null,
         CancellationToken cancellationToken = default)
@@ -115,8 +115,8 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
         if (string.IsNullOrEmpty(effectiveTopicArn))
         {
-            return Left<MediatorError, string>(
-                MediatorErrors.Create(
+            return Left<EncinaError, string>(
+                EncinaErrors.Create(
                     "SNS_TOPIC_NOT_CONFIGURED",
                     "Topic ARN is not configured."));
         }
@@ -143,14 +143,14 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
             Log.SuccessfullyPublishedMessage(_logger, typeof(TMessage).Name, response.MessageId);
 
-            return Right<MediatorError, string>(response.MessageId);
+            return Right<EncinaError, string>(response.MessageId);
         }
         catch (Exception ex)
         {
             Log.FailedToPublishToTopic(_logger, ex, typeof(TMessage).Name, effectiveTopicArn);
 
-            return Left<MediatorError, string>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, string>(
+                EncinaErrors.FromException(
                     "SNS_PUBLISH_FAILED",
                     ex,
                     $"Failed to publish message of type {typeof(TMessage).Name} to topic."));
@@ -158,7 +158,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, IReadOnlyList<string>>> SendBatchAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, IReadOnlyList<string>>> SendBatchAsync<TMessage>(
         IEnumerable<TMessage> messages,
         string? queueUrl = null,
         CancellationToken cancellationToken = default)
@@ -170,8 +170,8 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
         if (string.IsNullOrEmpty(effectiveQueueUrl))
         {
-            return Left<MediatorError, IReadOnlyList<string>>(
-                MediatorErrors.Create(
+            return Left<EncinaError, IReadOnlyList<string>>(
+                EncinaErrors.Create(
                     "SQS_QUEUE_NOT_CONFIGURED",
                     "Queue URL is not configured."));
         }
@@ -211,14 +211,14 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
             Log.SuccessfullySentBatch(_logger, messageIds.Count);
 
-            return Right<MediatorError, IReadOnlyList<string>>(messageIds);
+            return Right<EncinaError, IReadOnlyList<string>>(messageIds);
         }
         catch (Exception ex)
         {
             Log.FailedToSendBatch(_logger, ex, typeof(TMessage).Name);
 
-            return Left<MediatorError, IReadOnlyList<string>>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, IReadOnlyList<string>>(
+                EncinaErrors.FromException(
                     "SQS_BATCH_SEND_FAILED",
                     ex,
                     $"Failed to send batch of messages of type {typeof(TMessage).Name}."));
@@ -226,7 +226,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, string>> SendToFifoQueueAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, string>> SendToFifoQueueAsync<TMessage>(
         TMessage message,
         string messageGroupId,
         string? deduplicationId = null,
@@ -241,8 +241,8 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
         if (string.IsNullOrEmpty(effectiveQueueUrl))
         {
-            return Left<MediatorError, string>(
-                MediatorErrors.Create(
+            return Left<EncinaError, string>(
+                EncinaErrors.Create(
                     "SQS_QUEUE_NOT_CONFIGURED",
                     "Queue URL is not configured."));
         }
@@ -271,14 +271,14 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
             Log.SuccessfullySentFifoMessage(_logger, response.MessageId);
 
-            return Right<MediatorError, string>(response.MessageId);
+            return Right<EncinaError, string>(response.MessageId);
         }
         catch (Exception ex)
         {
             Log.FailedToSendFifoMessage(_logger, ex, typeof(TMessage).Name);
 
-            return Left<MediatorError, string>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, string>(
+                EncinaErrors.FromException(
                     "SQS_FIFO_SEND_FAILED",
                     ex,
                     $"Failed to send FIFO message of type {typeof(TMessage).Name}."));

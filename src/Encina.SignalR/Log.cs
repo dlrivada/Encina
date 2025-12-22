@@ -26,7 +26,7 @@ internal static partial class Log
     [LoggerMessage(EventId = 6, Level = LogLevel.Warning, Message = "Property '{PropertyName}' not found on {NotificationType}")]
     public static partial void PropertyNotFound(ILogger logger, string propertyName, string notificationType);
 
-    // MediatorHub: EventIds 11-25
+    // EncinaHub: EventIds 11-25
     [LoggerMessage(EventId = 11, Level = LogLevel.Error, Message = "Error executing command {CommandType}")]
     public static partial void ErrorExecutingCommand(ILogger logger, Exception exception, string commandType);
 

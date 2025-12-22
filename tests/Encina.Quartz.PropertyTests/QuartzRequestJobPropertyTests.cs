@@ -16,7 +16,7 @@ public sealed class QuartzRequestJobPropertyTests
     [Fact]
     public async Task Property_SuccessfulExecution_AlwaysSetsContextResult()
     {
-        // Property: When mediator returns Right, context.Result ALWAYS set
+        // Property: When Encina returns Right, context.Result ALWAYS set
 
         var testCases = new[]
         {
@@ -28,13 +28,13 @@ public sealed class QuartzRequestJobPropertyTests
         foreach (var (expectedResult, request) in testCases)
         {
             // Arrange
-            var mediator = Substitute.For<IMediator>();
+            var Encina = Substitute.For<IEncina>();
             var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
-            var job = new QuartzRequestJob<TestRequest, string>(mediator, logger);
+            var job = new QuartzRequestJob<TestRequest, string>(Encina, logger);
             var context = CreateJobExecutionContext(request);
 
-            mediator.Send(request, Arg.Any<CancellationToken>())
-                .Returns(Right<MediatorError, string>(expectedResult));
+            Encina.Send(request, Arg.Any<CancellationToken>())
+                .Returns(Right<EncinaError, string>(expectedResult));
 
             // Act
             await job.Execute(context);
@@ -45,28 +45,28 @@ public sealed class QuartzRequestJobPropertyTests
     }
 
     [Fact]
-    public async Task Property_MediatorError_AlwaysThrowsJobExecutionException()
+    public async Task Property_EncinaError_AlwaysThrowsJobExecutionException()
     {
-        // Property: When mediator returns Left, ALWAYS throws JobExecutionException
+        // Property: When Encina returns Left, ALWAYS throws JobExecutionException
 
         var testErrors = new[]
         {
-            MediatorErrors.Create("error1", "Error 1"),
-            MediatorErrors.Create("error2", "Error 2"),
-            MediatorErrors.Create("error3", "Error 3"),
+            EncinaErrors.Create("error1", "Error 1"),
+            EncinaErrors.Create("error2", "Error 2"),
+            EncinaErrors.Create("error3", "Error 3"),
         };
 
         foreach (var expectedError in testErrors)
         {
             // Arrange
-            var mediator = Substitute.For<IMediator>();
+            var Encina = Substitute.For<IEncina>();
             var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
-            var job = new QuartzRequestJob<TestRequest, string>(mediator, logger);
+            var job = new QuartzRequestJob<TestRequest, string>(Encina, logger);
             var request = new TestRequest("test");
             var context = CreateJobExecutionContext(request);
 
-            mediator.Send(request, Arg.Any<CancellationToken>())
-                .Returns(Left<MediatorError, string>(expectedError));
+            Encina.Send(request, Arg.Any<CancellationToken>())
+                .Returns(Left<EncinaError, string>(expectedError));
 
             // Act & Assert
             var exception = await Assert.ThrowsAsync<JobExecutionException>(() => job.Execute(context));
@@ -81,12 +81,12 @@ public sealed class QuartzRequestJobPropertyTests
 
         var request = new TestRequest("idempotent-test");
         var expectedResult = "consistent-result";
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
-        var job = new QuartzRequestJob<TestRequest, string>(mediator, logger);
+        var job = new QuartzRequestJob<TestRequest, string>(Encina, logger);
 
-        mediator.Send(request, Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, string>(expectedResult));
+        Encina.Send(request, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, string>(expectedResult));
 
         // Act - Multiple executions
         var context1 = CreateJobExecutionContext(request);
@@ -108,12 +108,12 @@ public sealed class QuartzRequestJobPropertyTests
     {
         // Property: Concurrent executions are thread-safe
 
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
-        var job = new QuartzRequestJob<TestRequest, string>(mediator, logger);
+        var job = new QuartzRequestJob<TestRequest, string>(Encina, logger);
 
-        mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, string>("success"));
+        Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, string>("success"));
 
         // Act - Execute concurrently
         var tasks = Enumerable.Range(0, 20)
@@ -132,9 +132,9 @@ public sealed class QuartzRequestJobPropertyTests
     }
 
     [Fact]
-    public async Task Property_MediatorInvocation_AlwaysCalledExactlyOnce()
+    public async Task Property_EncinaInvocation_AlwaysCalledExactlyOnce()
     {
-        // Property: Mediator ALWAYS invoked exactly once per execution
+        // Property: Encina ALWAYS invoked exactly once per execution
 
         var testRequests = new[]
         {
@@ -145,19 +145,19 @@ public sealed class QuartzRequestJobPropertyTests
 
         foreach (var request in testRequests)
         {
-            var mediator = Substitute.For<IMediator>();
+            var Encina = Substitute.For<IEncina>();
             var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
-            var job = new QuartzRequestJob<TestRequest, string>(mediator, logger);
+            var job = new QuartzRequestJob<TestRequest, string>(Encina, logger);
             var context = CreateJobExecutionContext(request);
 
-            mediator.Send(request, Arg.Any<CancellationToken>())
-                .Returns(Right<MediatorError, string>("result"));
+            Encina.Send(request, Arg.Any<CancellationToken>())
+                .Returns(Right<EncinaError, string>("result"));
 
             // Act
             await job.Execute(context);
 
             // Assert
-            await mediator.Received(1).Send(request, Arg.Any<CancellationToken>());
+            await Encina.Received(1).Send(request, Arg.Any<CancellationToken>());
         }
     }
 

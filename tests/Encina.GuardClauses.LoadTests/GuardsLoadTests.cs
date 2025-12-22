@@ -24,18 +24,18 @@ public sealed class GuardsLoadTests
 
     private sealed class ValidateHandler : ICommandHandler<ValidateCommand, Guid>
     {
-        public Task<Either<MediatorError, Guid>> Handle(ValidateCommand request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Guid>> Handle(ValidateCommand request, CancellationToken cancellationToken)
         {
             if (!Guards.TryValidateNotEmpty(request.Email, nameof(request.Email), out var emailError))
-                return Task.FromResult(Left<MediatorError, Guid>(emailError));
+                return Task.FromResult(Left<EncinaError, Guid>(emailError));
 
             if (!Guards.TryValidateEmail(request.Email, nameof(request.Email), out var formatError))
-                return Task.FromResult(Left<MediatorError, Guid>(formatError));
+                return Task.FromResult(Left<EncinaError, Guid>(formatError));
 
             if (!Guards.TryValidateInRange(request.Age, nameof(request.Age), 18, 120, out var ageError))
-                return Task.FromResult(Left<MediatorError, Guid>(ageError));
+                return Task.FromResult(Left<EncinaError, Guid>(ageError));
 
-            return Task.FromResult(Right<MediatorError, Guid>(Guid.NewGuid()));
+            return Task.FromResult(Right<EncinaError, Guid>(Guid.NewGuid()));
         }
     }
 
@@ -53,9 +53,9 @@ public sealed class GuardsLoadTests
         var scenario = Scenario.Create("valid_commands_guards", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new ValidateCommand("user@example.com", 25);
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsRight ? Response.Ok() : Response.Fail<Guid>(statusCode: "validation_failed");
         })
         .WithLoadSimulations(
@@ -84,9 +84,9 @@ public sealed class GuardsLoadTests
         var scenario = Scenario.Create("invalid_commands_guards", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = new ValidateCommand("", 15); // Invalid
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             return result.IsLeft ? Response.Ok() : Response.Fail<Guid>(statusCode: "expected_validation_failure");
         })
         .WithLoadSimulations(
@@ -115,11 +115,11 @@ public sealed class GuardsLoadTests
         var scenario = Scenario.Create("mixed_commands_guards", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var command = context.InvocationNumber % 2 == 0
                 ? new ValidateCommand("user@example.com", 25)
                 : new ValidateCommand("", 15);
-            var result = await mediator.Send(command);
+            var result = await Encina.Send(command);
             var expectedOutcome = context.InvocationNumber % 2 == 0 ? result.IsRight : result.IsLeft;
             return expectedOutcome ? Response.Ok() : Response.Fail<Guid>(statusCode: "unexpected");
         })

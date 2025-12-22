@@ -9,7 +9,7 @@ namespace Encina.MassTransit.Tests;
 
 public class MassTransitRequestConsumerTests
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger<MassTransitRequestConsumer<TestRequest, TestResponse>> _logger;
     private readonly IOptions<EncinaMassTransitOptions> _options;
     private readonly MassTransitRequestConsumer<TestRequest, TestResponse> _consumer;
@@ -17,11 +17,11 @@ public class MassTransitRequestConsumerTests
 
     public MassTransitRequestConsumerTests()
     {
-        _mediator = Substitute.For<IMediator>();
+        _Encina = Substitute.For<IEncina>();
         _logger = Substitute.For<ILogger<MassTransitRequestConsumer<TestRequest, TestResponse>>>();
         _options = Options.Create(new EncinaMassTransitOptions());
         _context = Substitute.For<ConsumeContext<TestRequest>>();
-        _consumer = new MassTransitRequestConsumer<TestRequest, TestResponse>(_mediator, _logger, _options);
+        _consumer = new MassTransitRequestConsumer<TestRequest, TestResponse>(_Encina, _logger, _options);
     }
 
     [Fact]
@@ -31,14 +31,14 @@ public class MassTransitRequestConsumerTests
         var request = new TestRequest("test-data");
         _context.Message.Returns(request);
         _context.MessageId.Returns(Guid.NewGuid());
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, TestResponse>(new TestResponse("success")));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(new TestResponse("success")));
 
         // Act
         await _consumer.Consume(_context);
 
         // Assert
-        await _mediator.Received(1).Send(
+        await _Encina.Received(1).Send(
             Arg.Is<TestRequest>(r => r.Data == "test-data"),
             Arg.Any<CancellationToken>());
     }
@@ -48,30 +48,30 @@ public class MassTransitRequestConsumerTests
     {
         // Arrange
         var request = new TestRequest("test-data");
-        var error = MediatorError.New("Test error message");
+        var error = EncinaError.New("Test error message");
         _context.Message.Returns(request);
         _context.MessageId.Returns(Guid.NewGuid());
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Left<MediatorError, TestResponse>(error));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<MediatorConsumerException>(
+        var exception = await Assert.ThrowsAsync<EncinaConsumerException>(
             () => _consumer.Consume(_context));
-        exception.MediatorError.Message.Should().Be("Test error message");
+        exception.EncinaError.Message.Should().Be("Test error message");
     }
 
     [Fact]
     public async Task Consume_WithFailedRequest_WhenThrowOnErrorDisabled_DoesNotThrow()
     {
         // Arrange
-        var options = Options.Create(new EncinaMassTransitOptions { ThrowOnMediatorError = false });
-        var consumer = new MassTransitRequestConsumer<TestRequest, TestResponse>(_mediator, _logger, options);
+        var options = Options.Create(new EncinaMassTransitOptions { ThrowOnEncinaError = false });
+        var consumer = new MassTransitRequestConsumer<TestRequest, TestResponse>(_Encina, _logger, options);
         var request = new TestRequest("test-data");
-        var error = MediatorError.New("Test error message");
+        var error = EncinaError.New("Test error message");
         _context.Message.Returns(request);
         _context.MessageId.Returns(Guid.NewGuid());
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Left<MediatorError, TestResponse>(error));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
 
         // Act & Assert (should not throw)
         await consumer.Consume(_context);
@@ -86,20 +86,20 @@ public class MassTransitRequestConsumerTests
         _context.Message.Returns(request);
         _context.MessageId.Returns(Guid.NewGuid());
         _context.CancellationToken.Returns(cts.Token);
-        _mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, TestResponse>(new TestResponse("success")));
+        _Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(new TestResponse("success")));
 
         // Act
         await _consumer.Consume(_context);
 
         // Assert
-        await _mediator.Received(1).Send(
+        await _Encina.Received(1).Send(
             Arg.Any<TestRequest>(),
             Arg.Is<CancellationToken>(ct => ct == cts.Token));
     }
 
     [Fact]
-    public void Constructor_WithNullMediator_ThrowsArgumentNullException()
+    public void Constructor_WithNullEncina_ThrowsArgumentNullException()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
@@ -111,7 +111,7 @@ public class MassTransitRequestConsumerTests
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
-            new MassTransitRequestConsumer<TestRequest, TestResponse>(_mediator, null!, _options));
+            new MassTransitRequestConsumer<TestRequest, TestResponse>(_Encina, null!, _options));
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class MassTransitRequestConsumerTests
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
-            new MassTransitRequestConsumer<TestRequest, TestResponse>(_mediator, _logger, null!));
+            new MassTransitRequestConsumer<TestRequest, TestResponse>(_Encina, _logger, null!));
     }
 
     [Fact]

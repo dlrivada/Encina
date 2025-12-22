@@ -15,7 +15,7 @@ public interface IAggregateRepository<TAggregate>
     /// <param name="id">The aggregate identifier.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>Either an error or the loaded aggregate.</returns>
-    Task<Either<MediatorError, TAggregate>> LoadAsync(
+    Task<Either<EncinaError, TAggregate>> LoadAsync(
         Guid id,
         CancellationToken cancellationToken = default);
 
@@ -26,7 +26,7 @@ public interface IAggregateRepository<TAggregate>
     /// <param name="version">The version to load up to (inclusive).</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>Either an error or the loaded aggregate.</returns>
-    Task<Either<MediatorError, TAggregate>> LoadAsync(
+    Task<Either<EncinaError, TAggregate>> LoadAsync(
         Guid id,
         long version,
         CancellationToken cancellationToken = default);
@@ -37,7 +37,7 @@ public interface IAggregateRepository<TAggregate>
     /// <param name="aggregate">The aggregate to save.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>Either an error or Unit on success.</returns>
-    Task<Either<MediatorError, Unit>> SaveAsync(
+    Task<Either<EncinaError, Unit>> SaveAsync(
         TAggregate aggregate,
         CancellationToken cancellationToken = default);
 
@@ -47,7 +47,7 @@ public interface IAggregateRepository<TAggregate>
     /// <param name="aggregate">The new aggregate to create.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>Either an error or Unit on success.</returns>
-    Task<Either<MediatorError, Unit>> CreateAsync(
+    Task<Either<EncinaError, Unit>> CreateAsync(
         TAggregate aggregate,
         CancellationToken cancellationToken = default);
 }

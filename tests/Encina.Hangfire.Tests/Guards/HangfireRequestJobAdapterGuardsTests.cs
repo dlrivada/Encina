@@ -10,29 +10,29 @@ namespace Encina.Hangfire.Tests.Guards;
 public class HangfireRequestJobAdapterGuardsTests
 {
     [Fact]
-    public void Constructor_WithNullMediator_ThrowsArgumentNullException()
+    public void Constructor_WithNullEncina_ThrowsArgumentNullException()
     {
         // Arrange
-        IMediator mediator = null!;
+        IEncina Encina = null!;
         var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>>>();
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>(mediator, logger));
+            new HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>(Encina, logger));
 
-        exception.ParamName.Should().Be("mediator");
+        exception.ParamName.Should().Be("Encina");
     }
 
     [Fact]
     public void Constructor_WithNullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         ILogger<HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>> logger = null!;
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>(mediator, logger));
+            new HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>(Encina, logger));
 
         exception.ParamName.Should().Be("logger");
     }
@@ -41,9 +41,9 @@ public class HangfireRequestJobAdapterGuardsTests
     public async Task ExecuteAsync_WithNullRequest_ThrowsArgumentNullException()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>>>();
-        var adapter = new HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>(mediator, logger);
+        var adapter = new HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>(Encina, logger);
         HangfireTestRequest request = null!;
 
         // Act & Assert

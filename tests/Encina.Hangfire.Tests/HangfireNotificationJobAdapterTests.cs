@@ -5,15 +5,15 @@ namespace Encina.Hangfire.Tests;
 
 public class HangfireNotificationJobAdapterTests
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger<HangfireNotificationJobAdapter<TestNotification>> _logger;
     private readonly HangfireNotificationJobAdapter<TestNotification> _adapter;
 
     public HangfireNotificationJobAdapterTests()
     {
-        _mediator = Substitute.For<IMediator>();
+        _Encina = Substitute.For<IEncina>();
         _logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
-        _adapter = new HangfireNotificationJobAdapter<TestNotification>(_mediator, _logger);
+        _adapter = new HangfireNotificationJobAdapter<TestNotification>(_Encina, _logger);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public class HangfireNotificationJobAdapterTests
         await _adapter.PublishAsync(notification);
 
         // Assert
-        await _mediator.Received(1).Publish(
+        await _Encina.Received(1).Publish(
             Arg.Is<TestNotification>(n => n.Message == "test-message"),
             Arg.Any<CancellationToken>());
     }
@@ -73,7 +73,7 @@ public class HangfireNotificationJobAdapterTests
         // Arrange
         var notification = new TestNotification("test-message");
         var exception = new InvalidOperationException("Test exception");
-        _mediator.When(m => m.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>()))
+        _Encina.When(m => m.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>()))
             .Do(_ => throw exception);
 
         // Act & Assert
@@ -99,7 +99,7 @@ public class HangfireNotificationJobAdapterTests
         await _adapter.PublishAsync(notification, cts.Token);
 
         // Assert
-        await _mediator.Received(1).Publish(
+        await _Encina.Received(1).Publish(
             Arg.Any<TestNotification>(),
             Arg.Is<CancellationToken>(ct => ct == cts.Token));
     }

@@ -4,12 +4,12 @@ using Shouldly;
 
 namespace Encina.Tests;
 
-public sealed class MediatorMetricsTests
+public sealed class EncinaMetricsTests
 {
     [Fact]
     public void MeterConfiguration_UsesExpectedNameAndVersion()
     {
-        var meterField = typeof(MediatorMetrics).GetField("Meter", BindingFlags.NonPublic | BindingFlags.Static);
+        var meterField = typeof(EncinaMetrics).GetField("Meter", BindingFlags.NonPublic | BindingFlags.Static);
         meterField.ShouldNotBeNull();
 
         var meter = meterField.GetValue(null).ShouldBeOfType<Meter>();
@@ -20,7 +20,7 @@ public sealed class MediatorMetricsTests
     [Fact]
     public void TrackSuccess_EmitsCounterAndDurationHistogram()
     {
-        var metrics = new MediatorMetrics();
+        var metrics = new EncinaMetrics();
         var successMeasurements = new List<(long value, Dictionary<string, object?> tags)>();
         var durationMeasurements = new List<(double value, Dictionary<string, object?> tags)>();
 
@@ -58,7 +58,7 @@ public sealed class MediatorMetricsTests
     [Fact]
     public void TrackFailure_EmitsCounterWithReason()
     {
-        var metrics = new MediatorMetrics();
+        var metrics = new EncinaMetrics();
         var failureMeasurements = new List<(long value, Dictionary<string, object?> tags)>();
         var durationMeasurements = new List<(double value, Dictionary<string, object?> tags)>();
 
@@ -98,7 +98,7 @@ public sealed class MediatorMetricsTests
     [Fact]
     public void TrackFailure_OmitsReasonTagWhenBlank()
     {
-        var metrics = new MediatorMetrics();
+        var metrics = new EncinaMetrics();
         var failureMeasurements = new List<(long value, Dictionary<string, object?> tags)>();
 
         using var listener = CreateListener(
@@ -123,11 +123,11 @@ public sealed class MediatorMetricsTests
     [Fact]
     public void DurationHistogram_UsesMillisecondsUnit()
     {
-        var histogramField = typeof(MediatorMetrics)
+        var histogramField = typeof(EncinaMetrics)
             .GetField("_durationHistogram", BindingFlags.NonPublic | BindingFlags.Instance);
         histogramField.ShouldNotBeNull();
 
-        var metrics = new MediatorMetrics();
+        var metrics = new EncinaMetrics();
         var histogram = histogramField.GetValue(metrics).ShouldBeOfType<Histogram<double>>();
         histogram.Unit.ShouldBe("ms");
     }

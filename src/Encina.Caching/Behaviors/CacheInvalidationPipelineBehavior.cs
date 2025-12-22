@@ -63,7 +63,7 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
     }
 
     /// <inheritdoc/>
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,

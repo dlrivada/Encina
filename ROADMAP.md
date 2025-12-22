@@ -12,7 +12,7 @@
 
 ### Design Principles
 
-- **Functional First**: Pure ROP with `Either<MediatorError, T>` as first-class citizen
+- **Functional First**: Pure ROP with `Either<EncinaError, T>` as first-class citizen
 - **Explicit over Implicit**: Code should be clear and predictable
 - **Performance Conscious**: Zero-allocation hot paths, Expression tree compilation
 - **Composable**: Behaviors are small, composable units
@@ -149,7 +149,7 @@ Restructuring all test projects to use Testcontainers for real database integrat
 | Package | Purpose | Priority |
 |---------|---------|----------|
 | Encina.Cli | Command-line scaffolding & analysis | ⭐⭐⭐⭐ |
-| Encina.Testing | MediatorFixture fluent API | ⭐⭐⭐⭐ |
+| Encina.Testing | EncinaFixture fluent API | ⭐⭐⭐⭐ |
 | Encina.OpenApi | Auto-generation from handlers | ⭐⭐⭐ |
 
 ### Core Improvements
@@ -274,7 +274,7 @@ First-class support for serverless architectures with Azure Functions and AWS La
 
 | Feature | Priority | Complexity | Notes |
 |---------|----------|------------|-------|
-| Function triggers as handlers | ⭐⭐⭐⭐⭐ | Low | HTTP, Timer, Queue, Blob triggers dispatch to mediator |
+| Function triggers as handlers | ⭐⭐⭐⭐⭐ | Low | HTTP, Timer, Queue, Blob triggers dispatch to Encina |
 | Cold start optimization | ⭐⭐⭐⭐ | Medium | Pre-warming, lazy initialization strategies |
 | Durable Functions orchestration | ⭐⭐⭐⭐ | Medium | Saga-like workflows with Durable Functions |
 | Step Functions integration | ⭐⭐⭐ | Medium | AWS Step Functions state machine support |
@@ -287,14 +287,14 @@ First-class support for serverless architectures with Azure Functions and AWS La
 // Azure Functions
 public class OrderFunctions
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
 
     [Function("CreateOrder")]
     public async Task<IActionResult> CreateOrder(
         [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req)
     {
         var command = await req.ReadFromJsonAsync<CreateOrderCommand>();
-        return await _mediator.SendToActionResult(command);
+        return await _Encina.SendToActionResult(command);
     }
 
     [Function("ProcessOrderQueue")]
@@ -303,7 +303,7 @@ public class OrderFunctions
         FunctionContext context)
     {
         // Context automatically propagated (correlation, tenant, etc.)
-        await _mediator.Send(command, context.ToRequestContext());
+        await _Encina.Send(command, context.ToRequestContext());
     }
 }
 
@@ -319,7 +319,7 @@ public async Task<OrderResult> RunOrchestrator(
     [OrchestrationTrigger] TaskOrchestrationContext context)
 {
     var saga = new OrderSaga();
-    return await _mediator.ExecuteSaga(saga, context);
+    return await _Encina.ExecuteSaga(saga, context);
 }
 ```
 
@@ -353,7 +353,7 @@ Tactical DDD patterns with first-class ROP integration for building rich domain 
 | Aggregates | ✅ Strong | `AggregateBase` in Marten/EventStoreDB |
 | Domain Events | 🟡 Partial | Via `INotification` + auto-publishing |
 | Repositories | ✅ Strong | `IAggregateRepository<T>` with ROP |
-| Domain Errors | ✅ Excellent | `MediatorError` + Either monad |
+| Domain Errors | ✅ Excellent | `EncinaError` + Either monad |
 | Value Objects | ❌ Missing | No base class |
 | Entities | ❌ Missing | No interface |
 | Specifications | ❌ Missing | No support |
@@ -408,7 +408,7 @@ public record OrderId(Guid Value) : StronglyTypedId<Guid>(Value)
 // Specification Pattern with ROP
 public interface ISpecification<T>
 {
-    Either<MediatorError, bool> IsSatisfiedBy(T entity);
+    Either<EncinaError, bool> IsSatisfiedBy(T entity);
     ISpecification<T> And(ISpecification<T> other);
     ISpecification<T> Or(ISpecification<T> other);
     ISpecification<T> Not();
@@ -416,20 +416,20 @@ public interface ISpecification<T>
 
 public class OrderMustBeShippable : ISpecification<Order>
 {
-    public Either<MediatorError, bool> IsSatisfiedBy(Order order) =>
+    public Either<EncinaError, bool> IsSatisfiedBy(Order order) =>
         order.Status == OrderStatus.Paid && order.Items.Any()
             ? true
-            : MediatorError.New("order.not_shippable");
+            : EncinaError.New("order.not_shippable");
 }
 
 // Invariant validation in aggregates
 public abstract class AggregateBase
 {
-    protected Either<MediatorError, Unit> EnsureInvariant(
+    protected Either<EncinaError, Unit> EnsureInvariant(
         bool condition, string errorCode, string message) =>
-        condition ? Unit.Default : MediatorError.New(errorCode, message);
+        condition ? Unit.Default : EncinaError.New(errorCode, message);
 
-    public Either<MediatorError, Unit> Ship() =>
+    public Either<EncinaError, Unit> Ship() =>
         EnsureInvariant(Status == OrderStatus.Paid, "order.not_paid", "Cannot ship unpaid order")
             .Map(_ => { RaiseEvent(new OrderShipped(Id)); return Unit.Default; });
 }
@@ -450,13 +450,13 @@ Fluent testing API for handlers, aggregates, and pipelines with first-class ROP 
 | Test Builders | ✅ Strong | `OutboxMessageBuilder`, etc. |
 | Handler Testing | 🟡 Partial | Basic fixtures only |
 | Assertion Extensions | 🟡 Incomplete | Planned |
-| MediatorFixture | ❌ Missing | In Developer Tooling |
+| EncinaFixture | ❌ Missing | In Developer Tooling |
 
 #### Proposed Abstractions
 
 | Feature | Priority | Complexity | Notes |
 |---------|----------|------------|-------|
-| `MediatorFixture` fluent builder | ⭐⭐⭐⭐⭐ | Medium | Configure handlers, behaviors, fakes |
+| `EncinaFixture` fluent builder | ⭐⭐⭐⭐⭐ | Medium | Configure handlers, behaviors, fakes |
 | `AggregateTestBase<T>` | ⭐⭐⭐⭐⭐ | Medium | Given/When/Then for event-sourced aggregates |
 | ROP Assertion Extensions | ⭐⭐⭐⭐⭐ | Low | `ShouldBeSuccess()`, `ShouldBeError()` |
 | Aggregate Assertions | ⭐⭐⭐⭐ | Low | `ShouldHaveRaisedEvent<T>()` |
@@ -466,14 +466,14 @@ Fluent testing API for handlers, aggregates, and pipelines with first-class ROP 
 #### Proposed API
 
 ```csharp
-// MediatorFixture - Fluent test setup
-var mediator = new MediatorFixture()
+// EncinaFixture - Fluent test setup
+var Encina = new EncinaFixture()
     .WithHandler<CreateOrderHandler>()
     .WithBehavior<ValidationBehavior<CreateOrderCommand, OrderId>>()
     .WithFakeRepository(existingOrder, anotherOrder)
     .Build();
 
-var result = await mediator.Send(new CreateOrderCommand(...));
+var result = await Encina.Send(new CreateOrderCommand(...));
 result.ShouldBeSuccess();
 
 // AggregateTestBase - Given/When/Then for Event Sourcing
@@ -497,11 +497,11 @@ public class OrderAggregateTests : AggregateTestBase<Order>
 }
 
 // ROP Assertion Extensions
-public static class MediatorAssertions
+public static class EncinaAssertions
 {
-    public static T ShouldBeSuccess<T>(this Either<MediatorError, T> result);
-    public static MediatorError ShouldBeError<T>(this Either<MediatorError, T> result);
-    public static void ShouldBeError<T>(this Either<MediatorError, T> result, string code);
+    public static T ShouldBeSuccess<T>(this Either<EncinaError, T> result);
+    public static EncinaError ShouldBeError<T>(this Either<EncinaError, T> result);
+    public static void ShouldBeError<T>(this Either<EncinaError, T> result, string code);
 }
 
 // Aggregate Assertions
@@ -513,7 +513,7 @@ public static class AggregateAssertions
 }
 
 // Usage
-var result = await mediator.Send(command);
+var result = await Encina.Send(command);
 result.ShouldBeSuccess();
 
 order.ShouldHaveRaisedEvent<OrderCreated>(e =>
@@ -522,7 +522,7 @@ order.ShouldHaveRaisedEvent<OrderCreated>(e =>
 
 #### Gaps Addressed by This Package
 
-- ❌ → ✅ Fluent mediator setup for isolated tests
+- ❌ → ✅ Fluent Encina setup for isolated tests
 - ❌ → ✅ Given/When/Then syntax for aggregate testing
 - ❌ → ✅ Type-safe ROP assertions
 - ❌ → ✅ Aggregate event assertions
@@ -683,7 +683,7 @@ services.AddEncina(config =>
 
 ### Performance: Source Generators
 
-**Goal**: Compete with Mediator/SwitchMediator for maximum performance and NativeAOT support.
+**Goal**: Compete with Encina/SwitchEncina for maximum performance and NativeAOT support.
 
 **Package**: `Encina.SourceGenerator`
 
@@ -723,9 +723,9 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, OrderId>
 
 // Generated code (simplified)
 [GeneratedCode("Encina.SourceGenerator", "1.0.0")]
-internal static class MediatorDispatcher
+internal static class EncinaDispatcher
 {
-    public static ValueTask<Either<MediatorError, TResponse>> Dispatch<TRequest, TResponse>(
+    public static ValueTask<Either<EncinaError, TResponse>> Dispatch<TRequest, TResponse>(
         TRequest request,
         IServiceProvider sp,
         CancellationToken ct) where TRequest : IRequest<TResponse>
@@ -736,8 +736,8 @@ internal static class MediatorDispatcher
             CreateOrderCommand cmd => DispatchCreateOrder(cmd, sp, ct),
             GetOrderQuery query => DispatchGetOrder(query, sp, ct),
             // ... all handlers generated at compile-time
-            _ => ValueTask.FromResult(Left<MediatorError, TResponse>(
-                MediatorError.New("handler.not_found")))
+            _ => ValueTask.FromResult(Left<EncinaError, TResponse>(
+                EncinaError.New("handler.not_found")))
         };
     }
 }
@@ -753,7 +753,7 @@ services.AddEncinaSourceGenerated(config =>
 #### Compatibility
 
 - ✅ Full API compatibility with reflection-based version
-- ✅ Same `IMediator` interface
+- ✅ Same `IEncina` interface
 - ✅ Gradual migration path
 - ✅ Can coexist with reflection version during transition
 
@@ -815,11 +815,11 @@ var slip = RoutingSlip.Create()
     .AddStep<ShipOrder>()
     .WithCompensation<RefundPayment>(onFailureOf: typeof(ShipOrder));
 
-await _mediator.ExecuteRoutingSlip(order, slip);
+await _Encina.ExecuteRoutingSlip(order, slip);
 
 // Scatter-Gather - parallel requests, aggregate responses
 var request = new GetPriceQuotes(productId);
-var responses = await _mediator.ScatterGather<GetPriceQuotes, PriceQuote>(
+var responses = await _Encina.ScatterGather<GetPriceQuotes, PriceQuote>(
     request,
     targets: new[] { "supplier-a", "supplier-b", "supplier-c" },
     timeout: TimeSpan.FromSeconds(5),
@@ -828,22 +828,22 @@ var responses = await _mediator.ScatterGather<GetPriceQuotes, PriceQuote>(
 var bestPrice = responses.MinBy(r => r.Price);
 
 // Splitter + Aggregator
-var orderLines = await _mediator.Split<Order, OrderLine>(
+var orderLines = await _Encina.Split<Order, OrderLine>(
     order,
     splitter: o => o.Lines);
 
 var results = await Task.WhenAll(orderLines.Select(line =>
-    _mediator.Send(new ProcessOrderLine(line))));
+    _Encina.Send(new ProcessOrderLine(line))));
 
-var summary = await _mediator.Aggregate<OrderLineResult, OrderSummary>(
+var summary = await _Encina.Aggregate<OrderLineResult, OrderSummary>(
     results,
     aggregator: (results) => new OrderSummary(results));
 
 // Claim Check - for large payloads
-var claimCheck = await _mediator.StorePayload(largeDocument);
-await _mediator.Send(new ProcessDocument(claimCheck.Reference));
+var claimCheck = await _Encina.StorePayload(largeDocument);
+await _Encina.Send(new ProcessDocument(claimCheck.Reference));
 // Later...
-var document = await _mediator.RetrievePayload<Document>(claimCheck.Reference);
+var document = await _Encina.RetrievePayload<Document>(claimCheck.Reference);
 
 // Wire Tap - inspect without modifying
 services.AddEncina(config =>
@@ -924,11 +924,11 @@ public class OrderHandler : ICommandHandler<CreateOrderCommand, OrderId>
     private readonly IServiceDiscovery _discovery;
     private readonly HttpClient _httpClient;
 
-    public async Task<Either<MediatorError, OrderId>> Handle(CreateOrderCommand command, CancellationToken ct)
+    public async Task<Either<EncinaError, OrderId>> Handle(CreateOrderCommand command, CancellationToken ct)
     {
         var inventoryService = await _discovery.ResolveAsync("inventory-service", ct);
         if (inventoryService is null)
-            return MediatorError.New("service.not_found", "Inventory service unavailable");
+            return EncinaError.New("service.not_found", "Inventory service unavailable");
 
         var response = await _httpClient.PostAsJsonAsync(
             $"{inventoryService.BaseUrl}/reserve",
@@ -1004,7 +1004,7 @@ Applications must rely on external solutions:
 
 | Capability | Dapr | NServiceBus | MassTransit | Wolverine | Encina (Current) | Encina (Planned) |
 |------------|------|-------------|-------------|-----------|------------------|------------------|
-| **Mediator/CQRS** | ❌ | ❌ | ❌ | ✅ | ✅ ROP-first | ✅ |
+| **Encina/CQRS** | ❌ | ❌ | ❌ | ✅ | ✅ ROP-first | ✅ |
 | **Outbox Pattern** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Inbox Pattern** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Sagas (Orchestration)** | ❌ | ✅ | ✅ State Machine | ✅ Low-ceremony | ✅ Basic | ✅ Advanced |
@@ -1058,7 +1058,7 @@ Applications must rely on external solutions:
 | **Low-Ceremony Sagas** | ⭐⭐⭐⭐⭐ | Messaging | Minimal boilerplate, convention-based |
 | **Source Generators** | ⭐⭐⭐⭐⭐ | SourceGenerator | Zero-reflection, NativeAOT support |
 | **Cascading Messages** | ⭐⭐⭐⭐ | Core | Return messages from handlers |
-| **MediatorOnly Mode** | ⭐⭐⭐⭐ | Core | Disable messaging for pure mediator usage |
+| **EncinaOnly Mode** | ⭐⭐⭐⭐ | Core | Disable messaging for pure Encina usage |
 | **Durable Agent (Background)** | ⭐⭐⭐⭐ | Messaging | Background daemon for durable messaging |
 | **Scheduled Message Testing** | ⭐⭐⭐ | Testing | Test scheduled messages in unit tests |
 
@@ -1212,7 +1212,7 @@ var slip = await RoutingSlip.CreateAsync()
     .WithCompensationOrder(CompensationOrder.ReverseExecution)
     .BuildAsync();
 
-var result = await _mediator.ExecuteRoutingSlipAsync(slip);
+var result = await _Encina.ExecuteRoutingSlipAsync(slip);
 
 result.Match(
     success => logger.LogInformation("Order completed: {OrderId}", order.Id),
@@ -1245,7 +1245,7 @@ result.Match(
 
 ### Renaming: Encina
 
-**Previous Name**: SimpleMediator → **Current Name**: Encina ✅ COMPLETED
+**Previous Name**: SimpleEncina → **Current Name**: Encina ✅ COMPLETED
 
 **Why Encina?** Spanish word for holm oak - symbolizing strength, resilience, and longevity.
 
@@ -1284,7 +1284,7 @@ result.Match(
 | Feature | Reason |
 |---------|--------|
 | Generic Variance | Goes against "explicit over implicit" |
-| MediatorResult<T> Wrapper | Either<L,R> from LanguageExt is sufficient |
+| EncinaResult<T> Wrapper | Either<L,R> from LanguageExt is sufficient |
 | **Encina.Dapr** (deprecated) | Dapr competes with Encina's value proposition. See "Self-Sufficient Architecture". |
 | **Encina.NServiceBus** (deprecated) | Enterprise licensing conflicts with free philosophy. See "Competitive Edge". |
 | **Encina.MassTransit** (deprecated) | Overlapping patterns (Outbox/Inbox/Sagas). See "Competitive Edge". |

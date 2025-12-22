@@ -9,7 +9,7 @@ namespace Encina.Hangfire.IntegrationTests;
 
 /// <summary>
 /// Integration tests for HangfireRequestJobAdapter.
-/// Tests end-to-end scenarios with DI container and real mediator.
+/// Tests end-to-end scenarios with DI container and real Encina.
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class HangfireRequestJobAdapterIntegrationTests
@@ -23,10 +23,10 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
         services.AddTransient<IRequestHandler<TestRequest, string>, TestRequestHandler>();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, string>>>();
 
-        var adapter = new HangfireRequestJobAdapter<TestRequest, string>(mediator, logger);
+        var adapter = new HangfireRequestJobAdapter<TestRequest, string>(Encina, logger);
         var request = new TestRequest("integration-test");
 
         // Act
@@ -48,10 +48,10 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
         services.AddTransient<IRequestHandler<TestRequest, string>, ErrorRequestHandler>();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, string>>>();
 
-        var adapter = new HangfireRequestJobAdapter<TestRequest, string>(mediator, logger);
+        var adapter = new HangfireRequestJobAdapter<TestRequest, string>(Encina, logger);
         var request = new TestRequest("error-test");
 
         // Act
@@ -73,10 +73,10 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
         services.AddTransient<IRequestHandler<TestRequest, string>, CancellableRequestHandler>();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, string>>>();
 
-        var adapter = new HangfireRequestJobAdapter<TestRequest, string>(mediator, logger);
+        var adapter = new HangfireRequestJobAdapter<TestRequest, string>(Encina, logger);
         var cts = new CancellationTokenSource();
         cts.Cancel();
 
@@ -93,37 +93,37 @@ public sealed record TestRequest(string Data) : IRequest<string>;
 
 public sealed class TestRequestHandler : IRequestHandler<TestRequest, string>
 {
-    public Task<Either<MediatorError, string>> Handle(
+    public Task<Either<EncinaError, string>> Handle(
         TestRequest request,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Right<MediatorError, string>($"Processed: {request.Data}"));
+        return Task.FromResult(Right<EncinaError, string>($"Processed: {request.Data}"));
     }
 }
 
 public sealed class ErrorRequestHandler : IRequestHandler<TestRequest, string>
 {
-    public Task<Either<MediatorError, string>> Handle(
+    public Task<Either<EncinaError, string>> Handle(
         TestRequest request,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Left<MediatorError, string>(
-            MediatorErrors.Create("handler.error", "Handler error")));
+        return Task.FromResult(Left<EncinaError, string>(
+            EncinaErrors.Create("handler.error", "Handler error")));
     }
 }
 
 public sealed class CancellableRequestHandler : IRequestHandler<TestRequest, string>
 {
-    public Task<Either<MediatorError, string>> Handle(
+    public Task<Either<EncinaError, string>> Handle(
         TestRequest request,
         CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {
-            return Task.FromResult(Left<MediatorError, string>(
-                MediatorErrors.Create("operation.cancelled", "Operation was cancelled")));
+            return Task.FromResult(Left<EncinaError, string>(
+                EncinaErrors.Create("operation.cancelled", "Operation was cancelled")));
         }
 
-        return Task.FromResult(Right<MediatorError, string>($"Processed: {request.Data}"));
+        return Task.FromResult(Right<EncinaError, string>($"Processed: {request.Data}"));
     }
 }

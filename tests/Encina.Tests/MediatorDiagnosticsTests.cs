@@ -3,13 +3,13 @@ using Shouldly;
 
 namespace Encina.Tests;
 
-public sealed class MediatorDiagnosticsTests
+public sealed class EncinaDiagnosticsTests
 {
     [Fact]
     public void ActivitySource_ExposesStableMetadata()
     {
-        MediatorDiagnostics.ActivitySource.Name.ShouldBe("Encina");
-        MediatorDiagnostics.ActivitySource.Version.ShouldBe("1.0");
+        EncinaDiagnostics.ActivitySource.Name.ShouldBe("Encina");
+        EncinaDiagnostics.ActivitySource.Version.ShouldBe("1.0");
     }
 
     [Fact]
@@ -17,16 +17,16 @@ public sealed class MediatorDiagnosticsTests
     {
         using var listener = CreateListener();
 
-        var activity = MediatorDiagnostics.SendStarted(typeof(MediatorDiagnosticsTests), typeof(string), "request");
+        var activity = EncinaDiagnostics.SendStarted(typeof(EncinaDiagnosticsTests), typeof(string), "request");
 
         activity.ShouldNotBeNull();
         activity!.DisplayName.ShouldBe("Encina.Send");
-        activity.GetTagItem("mediator.request_type").ShouldBe(typeof(MediatorDiagnosticsTests).FullName);
-        activity.GetTagItem("mediator.request_name").ShouldBe(nameof(MediatorDiagnosticsTests));
-        activity.GetTagItem("mediator.response_type").ShouldBe(typeof(string).FullName);
-        activity.GetTagItem("mediator.request_kind").ShouldBe("request");
+        activity.GetTagItem("Encina.request_type").ShouldBe(typeof(EncinaDiagnosticsTests).FullName);
+        activity.GetTagItem("Encina.request_name").ShouldBe(nameof(EncinaDiagnosticsTests));
+        activity.GetTagItem("Encina.response_type").ShouldBe(typeof(string).FullName);
+        activity.GetTagItem("Encina.request_kind").ShouldBe("request");
 
-        MediatorDiagnostics.SendCompleted(activity, isSuccess: true);
+        EncinaDiagnostics.SendCompleted(activity, isSuccess: true);
         activity.Status.ShouldBe(ActivityStatusCode.Ok);
     }
 
@@ -35,14 +35,14 @@ public sealed class MediatorDiagnosticsTests
     {
         using var listener = CreateListener();
 
-        var activity = MediatorDiagnostics.SendStarted(typeof(MediatorDiagnosticsTests), typeof(string), "request");
+        var activity = EncinaDiagnostics.SendStarted(typeof(EncinaDiagnosticsTests), typeof(string), "request");
         activity.ShouldNotBeNull();
 
-        MediatorDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: "handler_missing", errorMessage: "failure");
+        EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: "handler_missing", errorMessage: "failure");
 
         activity!.Status.ShouldBe(ActivityStatusCode.Error);
         activity.StatusDescription.ShouldBe("failure");
-        activity.GetTagItem("mediator.failure_reason").ShouldBe("handler_missing");
+        activity.GetTagItem("Encina.failure_reason").ShouldBe("handler_missing");
     }
 
     private static ActivityListener CreateListener()

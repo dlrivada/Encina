@@ -11,29 +11,29 @@ namespace Encina.Quartz.Tests.Guards;
 public class QuartzRequestJobGuardsTests
 {
     [Fact]
-    public void Constructor_WithNullMediator_ThrowsArgumentNullException()
+    public void Constructor_WithNullEncina_ThrowsArgumentNullException()
     {
         // Arrange
-        IMediator mediator = null!;
+        IEncina Encina = null!;
         var logger = Substitute.For<ILogger<QuartzRequestJob<QuartzTestRequest, QuartzTestResponse>>>();
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new QuartzRequestJob<QuartzTestRequest, QuartzTestResponse>(mediator, logger));
+            new QuartzRequestJob<QuartzTestRequest, QuartzTestResponse>(Encina, logger));
 
-        exception.ParamName.Should().Be("mediator");
+        exception.ParamName.Should().Be("Encina");
     }
 
     [Fact]
     public void Constructor_WithNullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         ILogger<QuartzRequestJob<QuartzTestRequest, QuartzTestResponse>> logger = null!;
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new QuartzRequestJob<QuartzTestRequest, QuartzTestResponse>(mediator, logger));
+            new QuartzRequestJob<QuartzTestRequest, QuartzTestResponse>(Encina, logger));
 
         exception.ParamName.Should().Be("logger");
     }
@@ -42,9 +42,9 @@ public class QuartzRequestJobGuardsTests
     public async Task Execute_WithNullContext_ThrowsArgumentNullException()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzRequestJob<QuartzTestRequest, QuartzTestResponse>>>();
-        var job = new QuartzRequestJob<QuartzTestRequest, QuartzTestResponse>(mediator, logger);
+        var job = new QuartzRequestJob<QuartzTestRequest, QuartzTestResponse>(Encina, logger);
         IJobExecutionContext context = null!;
 
         // Act & Assert

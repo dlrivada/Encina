@@ -34,7 +34,7 @@ public class StandardResiliencePipelineBehaviorPropertyTests
                 var request = new TestRequest();
                 var context = RequestContext.Create(Guid.NewGuid().ToString());
                 RequestHandlerCallback<TestResponse> nextStep = () =>
-                    ValueTask.FromResult<Either<MediatorError, TestResponse>>(expectedResponse);
+                    ValueTask.FromResult<Either<EncinaError, TestResponse>>(expectedResponse);
 
                 // Act
                 var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -66,9 +66,9 @@ public class StandardResiliencePipelineBehaviorPropertyTests
 
                 var request = new TestRequest();
                 var context = RequestContext.Create(Guid.NewGuid().ToString());
-                var error = MediatorError.New(errorMessage);
+                var error = EncinaError.New(errorMessage);
                 RequestHandlerCallback<TestResponse> nextStep = () =>
-                    ValueTask.FromResult<Either<MediatorError, TestResponse>>(error);
+                    ValueTask.FromResult<Either<EncinaError, TestResponse>>(error);
 
                 // Act
                 var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -101,7 +101,7 @@ public class StandardResiliencePipelineBehaviorPropertyTests
                 var request = new TestRequest();
                 var context = RequestContext.Create(Guid.NewGuid().ToString());
                 RequestHandlerCallback<TestResponse> nextStep = () =>
-                    ValueTask.FromResult<Either<MediatorError, TestResponse>>(expectedResponse);
+                    ValueTask.FromResult<Either<EncinaError, TestResponse>>(expectedResponse);
 
                 // Act - Execute twice
                 var result1 = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -137,7 +137,7 @@ public class StandardResiliencePipelineBehaviorPropertyTests
                 var request = new TestRequest();
                 var context = new RequestContext(correlationId);
                 RequestHandlerCallback<TestResponse> nextStep = () =>
-                    ValueTask.FromResult<Either<MediatorError, TestResponse>>(expectedResponse);
+                    ValueTask.FromResult<Either<EncinaError, TestResponse>>(expectedResponse);
 
                 // Act
                 var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -174,7 +174,7 @@ public class StandardResiliencePipelineBehaviorPropertyTests
                     var context = RequestContext.Create(Guid.NewGuid().ToString());
                     var expectedResponse = new TestResponse { Value = value };
                     RequestHandlerCallback<TestResponse> nextStep = () =>
-                        ValueTask.FromResult<Either<MediatorError, TestResponse>>(expectedResponse);
+                        ValueTask.FromResult<Either<EncinaError, TestResponse>>(expectedResponse);
 
                     var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
                     return result.Match(

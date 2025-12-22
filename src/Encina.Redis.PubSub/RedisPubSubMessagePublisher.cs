@@ -39,7 +39,7 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, long>> PublishAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, long>> PublishAsync<TMessage>(
         TMessage message,
         string? channel = null,
         CancellationToken cancellationToken = default)
@@ -66,14 +66,14 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
 
             Log.SuccessfullyPublishedMessage(_logger, subscriberCount);
 
-            return Right<MediatorError, long>(subscriberCount);
+            return Right<EncinaError, long>(subscriberCount);
         }
         catch (Exception ex)
         {
             Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name, effectiveChannel);
 
-            return Left<MediatorError, long>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, long>(
+                EncinaErrors.FromException(
                     "REDIS_PUBLISH_FAILED",
                     ex,
                     $"Failed to publish message of type {typeof(TMessage).Name} to channel {effectiveChannel}."));

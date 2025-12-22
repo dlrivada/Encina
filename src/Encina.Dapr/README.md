@@ -13,7 +13,7 @@ Integrate your Encina applications with Dapr's distributed application runtime b
 ✅ **State Management** - Key/value storage with strong/eventual consistency, transactions, TTL
 ✅ **Bindings** - 100+ input/output bindings for external systems (queues, databases, APIs)
 ✅ **Secrets** - Secure secret retrieval from Azure Key Vault, AWS Secrets Manager, HashiCorp Vault
-✅ **Railway Oriented Programming** - All operations return `Either<MediatorError, T>`
+✅ **Railway Oriented Programming** - All operations return `Either<EncinaError, T>`
 ✅ **Zero Configuration** - Works with default DaprClient or custom configuration
 ✅ **LoggerMessage** - High-performance logging with source generators
 
@@ -68,7 +68,7 @@ public record GetInventoryQuery(int ProductId)
 }
 
 // Use via Encina
-var result = await mediator.Send(new GetInventoryQuery(productId), ct);
+var result = await Encina.Send(new GetInventoryQuery(productId), ct);
 result.Match(
     Right: stock => Console.WriteLine($"Stock: {stock.Quantity}"),
     Left: error => Console.WriteLine($"Error: {error.Message}")
@@ -98,7 +98,7 @@ public record OrderPlacedEvent(string OrderId, decimal Total)
 }
 
 // Publish via Encina
-var result = await mediator.Publish(new OrderPlacedEvent(orderId, total), ct);
+var result = await Encina.Publish(new OrderPlacedEvent(orderId, total), ct);
 result.Match(
     Right: _ => Console.WriteLine("Event published"),
     Left: error => Console.WriteLine($"Error: {error.Message}")
@@ -141,8 +141,8 @@ public record GetUserPreferencesQuery(string UserId)
 }
 
 // Use via Encina
-var saveResult = await mediator.Send(new SaveUserPreferencesCommand(userId, prefs), ct);
-var getResult = await mediator.Send(new GetUserPreferencesQuery(userId), ct);
+var saveResult = await Encina.Send(new SaveUserPreferencesCommand(userId, prefs), ct);
+var getResult = await Encina.Send(new GetUserPreferencesQuery(userId), ct);
 ```
 
 ### 5. Bindings (Input/Output)
@@ -362,12 +362,12 @@ spec:
 
 | Feature | Direct DaprClient | Encina.Dapr |
 |---------|------------------|---------------------|
-| **Railway Oriented Programming** | ❌ Throws exceptions | ✅ Returns `Either<MediatorError, T>` |
+| **Railway Oriented Programming** | ❌ Throws exceptions | ✅ Returns `Either<EncinaError, T>` |
 | **Centralized Error Handling** | ❌ Scattered try/catch | ✅ Pipeline behaviors |
 | **Logging & Telemetry** | ❌ Manual | ✅ Automatic via behaviors |
 | **Validation** | ❌ Manual | ✅ FluentValidation integration |
 | **Caching** | ❌ Manual | ✅ Encina.Caching integration |
-| **Testing** | ⚠️ Mock DaprClient | ✅ Mock IMediator |
+| **Testing** | ⚠️ Mock DaprClient | ✅ Mock IEncina |
 | **Consistency** | ⚠️ Mixed patterns | ✅ Uniform request/response |
 
 ---
@@ -427,10 +427,10 @@ No code changes needed - Dapr sidecar handles all retry logic automatically!
 
 ## Error Handling
 
-All Dapr operations convert `DaprException` to `MediatorError`:
+All Dapr operations convert `DaprException` to `EncinaError`:
 
 ```csharp
-var result = await mediator.Send(new GetInventoryQuery(productId), ct);
+var result = await Encina.Send(new GetInventoryQuery(productId), ct);
 result.Match(
     Right: stock => ProcessStock(stock),
     Left: error =>

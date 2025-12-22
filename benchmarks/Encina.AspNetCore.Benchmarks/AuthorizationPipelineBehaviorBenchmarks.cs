@@ -40,7 +40,7 @@ public class AuthorizationPipelineBehaviorBenchmarks
         _context = RequestContext.CreateForTest();
 
         // Setup next step
-        _nextStep = () => ValueTask.FromResult(Right<MediatorError, string>("success"));
+        _nextStep = () => ValueTask.FromResult(Right<EncinaError, string>("success"));
 
         // Setup behaviors
         var httpContextAccessor = new HttpContextAccessor();
@@ -68,25 +68,25 @@ public class AuthorizationPipelineBehaviorBenchmarks
     }
 
     [Benchmark(Baseline = true)]
-    public async Task<Either<MediatorError, string>> NoAuthorization()
+    public async Task<Either<EncinaError, string>> NoAuthorization()
     {
         return await _noAuthBehavior.Handle(_unauthorizedRequest, _context, _nextStep, CancellationToken.None);
     }
 
     [Benchmark]
-    public async Task<Either<MediatorError, string>> SimpleAuthentication()
+    public async Task<Either<EncinaError, string>> SimpleAuthentication()
     {
         return await _authBehavior.Handle(_authorizedRequest, _context, _nextStep, CancellationToken.None);
     }
 
     [Benchmark]
-    public async Task<Either<MediatorError, string>> RoleBasedAuthorization()
+    public async Task<Either<EncinaError, string>> RoleBasedAuthorization()
     {
         return await _roleBehavior.Handle(_roleBasedRequest, _context, _nextStep, CancellationToken.None);
     }
 
     [Benchmark]
-    public async Task<Either<MediatorError, string>> PolicyBasedAuthorization()
+    public async Task<Either<EncinaError, string>> PolicyBasedAuthorization()
     {
         return await _policyBehavior.Handle(_policyBasedRequest, _context, _nextStep, CancellationToken.None);
     }

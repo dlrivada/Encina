@@ -54,8 +54,8 @@ public class OpenTelemetryBenchmarks
     public async Task<string> Send_Request_Baseline_WithoutOpenTelemetry()
     {
         using var scope = _providerWithoutOtel.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        var result = await mediator.Send(new BenchmarkRequest { Value = 42 }, CancellationToken.None);
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+        var result = await Encina.Send(new BenchmarkRequest { Value = 42 }, CancellationToken.None);
 
         return result.Match(
             Right: value => value,
@@ -70,8 +70,8 @@ public class OpenTelemetryBenchmarks
     public async Task<string> Send_Request_WithOpenTelemetry()
     {
         using var scope = _providerWithOtel.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        var result = await mediator.Send(new BenchmarkRequest { Value = 42 }, CancellationToken.None);
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+        var result = await Encina.Send(new BenchmarkRequest { Value = 42 }, CancellationToken.None);
 
         return result.Match(
             Right: value => value,
@@ -86,8 +86,8 @@ public class OpenTelemetryBenchmarks
     public async Task Publish_Notification_Baseline_WithoutOpenTelemetry()
     {
         using var scope = _providerWithoutOtel.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        var result = await mediator.Publish(new BenchmarkNotification { Message = "test" }, CancellationToken.None);
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+        var result = await Encina.Publish(new BenchmarkNotification { Message = "test" }, CancellationToken.None);
 
         result.Match(
             Right: _ => { },
@@ -102,8 +102,8 @@ public class OpenTelemetryBenchmarks
     public async Task Publish_Notification_WithOpenTelemetry()
     {
         using var scope = _providerWithOtel.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        var result = await mediator.Publish(new BenchmarkNotification { Message = "test" }, CancellationToken.None);
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+        var result = await Encina.Publish(new BenchmarkNotification { Message = "test" }, CancellationToken.None);
 
         result.Match(
             Right: _ => { },
@@ -120,9 +120,9 @@ public class OpenTelemetryBenchmarks
 
     private sealed class BenchmarkRequestHandler : IRequestHandler<BenchmarkRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(BenchmarkRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(BenchmarkRequest request, CancellationToken cancellationToken)
         {
-            return Task.FromResult<Either<MediatorError, string>>($"processed-{request.Value}");
+            return Task.FromResult<Either<EncinaError, string>>($"processed-{request.Value}");
         }
     }
 
@@ -133,9 +133,9 @@ public class OpenTelemetryBenchmarks
 
     private sealed class BenchmarkNotificationHandler : INotificationHandler<BenchmarkNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(BenchmarkNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(BenchmarkNotification notification, CancellationToken cancellationToken)
         {
-            return Task.FromResult<Either<MediatorError, Unit>>(Unit.Default);
+            return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
         }
     }
 

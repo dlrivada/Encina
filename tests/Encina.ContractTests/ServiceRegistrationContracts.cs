@@ -177,21 +177,21 @@ public sealed class ServiceRegistrationContracts
     private sealed class SamplePipelineBehavior<TRequest, TResponse> : global::Encina.IPipelineBehavior<TRequest, TResponse>
         where TRequest : global::Encina.IRequest<TResponse>
     {
-        public ValueTask<Either<MediatorError, TResponse>> Handle(TRequest request, global::Encina.IRequestContext context, global::Encina.RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, TResponse>> Handle(TRequest request, global::Encina.IRequestContext context, global::Encina.RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
             => nextStep();
     }
 
     private sealed class SampleCommandPipelineBehavior<TCommand, TResponse> : global::Encina.ICommandPipelineBehavior<TCommand, TResponse>
         where TCommand : global::Encina.ICommand<TResponse>
     {
-        public ValueTask<Either<MediatorError, TResponse>> Handle(TCommand request, global::Encina.IRequestContext context, global::Encina.RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, TResponse>> Handle(TCommand request, global::Encina.IRequestContext context, global::Encina.RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
             => nextStep();
     }
 
     private sealed class SampleQueryPipelineBehavior<TQuery, TResponse> : global::Encina.IQueryPipelineBehavior<TQuery, TResponse>
         where TQuery : global::Encina.IQuery<TResponse>
     {
-        public ValueTask<Either<MediatorError, TResponse>> Handle(TQuery request, global::Encina.IRequestContext context, global::Encina.RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
+        public ValueTask<Either<EncinaError, TResponse>> Handle(TQuery request, global::Encina.IRequestContext context, global::Encina.RequestHandlerCallback<TResponse> nextStep, CancellationToken cancellationToken)
             => nextStep();
     }
 
@@ -205,7 +205,7 @@ public sealed class ServiceRegistrationContracts
 
     private sealed class SampleRequestPostProcessor<TRequest, TResponse> : global::Encina.IRequestPostProcessor<TRequest, TResponse>
     {
-        public Task Process(TRequest request, global::Encina.IRequestContext context, Either<MediatorError, TResponse> response, CancellationToken cancellationToken)
+        public Task Process(TRequest request, global::Encina.IRequestContext context, Either<EncinaError, TResponse> response, CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
         }

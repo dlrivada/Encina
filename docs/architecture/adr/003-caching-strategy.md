@@ -7,7 +7,7 @@
 
 ## Context
 
-The mediator needs to resolve and invoke handlers dynamically based on request/notification types. Without caching, this requires:
+The Encina needs to resolve and invoke handlers dynamically based on request/notification types. Without caching, this requires:
 
 - Reflection to determine handler types from request types
 - Reflection to invoke handler methods
@@ -19,13 +19,13 @@ The mediator needs to resolve and invoke handlers dynamically based on request/n
 - Reflection is ~10-100x slower than direct method calls
 - `MakeGenericType()` and `MethodInfo.Invoke()` are particularly expensive
 - Request processing happens on the hot path (every API call in typical web applications)
-- Mediator is often invoked hundreds of times per second in production
+- Encina is often invoked hundreds of times per second in production
 
 **Requirements:**
 
 - Minimize reflection overhead without sacrificing type safety
 - Cache compiled delegates for near-native performance
-- Thread-safe caching (mediator is registered as Singleton)
+- Thread-safe caching (Encina is registered as Singleton)
 - Support dynamic handler registration (new handlers can be added at runtime)
 - Keep cache size bounded (no memory leaks from unbounded caches)
 
@@ -155,7 +155,7 @@ internal interface IRequestHandlerWrapper
 {
     Type HandlerServiceType { get; }
     object? ResolveHandler(IServiceProvider serviceProvider);
-    Task<object> Handle(Encina mediator, object request, object handler,
+    Task<object> Handle(Encina Encina, object request, object handler,
                        IServiceProvider serviceProvider, CancellationToken cancellationToken);
 }
 
@@ -167,7 +167,7 @@ internal sealed class RequestHandlerWrapper<TRequest, TResponse> : IRequestHandl
     public object? ResolveHandler(IServiceProvider serviceProvider)
         => serviceProvider.GetService<IRequestHandler<TRequest, TResponse>>();
 
-    public async Task<object> Handle(Encina mediator, object request, object handler,
+    public async Task<object> Handle(Encina Encina, object request, object handler,
                                     IServiceProvider serviceProvider, CancellationToken ct)
     {
         var typedRequest = (TRequest)request;
@@ -231,7 +231,7 @@ internal sealed class RequestHandlerWrapper<TRequest, TResponse> : IRequestHandl
 
 ## Performance Benchmarks
 
-**End-to-End Mediator Performance (BenchmarkDotNet, .NET 10, i9-13900KS):**
+**End-to-End Encina Performance (BenchmarkDotNet, .NET 10, i9-13900KS):**
 
 | Scenario | Mean Latency | Allocated | Notes |
 |----------|-------------|-----------|-------|
@@ -269,7 +269,7 @@ var dispatcher = RequestHandlerCache.GetOrAdd(
     static key => CreateRequestHandlerWrapper(key.Request, key.Response));
 
 var handler = dispatcher.ResolveHandler(serviceProvider);
-var result = await dispatcher.Handle(mediator, request, handler, serviceProvider, ct);
+var result = await dispatcher.Handle(Encina, request, handler, serviceProvider, ct);
 ```
 
 ### Notification Handler Invoker Cache Usage
@@ -320,8 +320,8 @@ var result = method.Invoke(handler, new[] { notification, cancellationToken });
 
 ```csharp
 // Generate dispatcher classes at compile time
-[GeneratedMediator]
-partial class MyMediator { }
+[GeneratedEncina]
+partial class MyEncina { }
 ```
 
 **Rejected:** Limits flexibility, requires code generation in consuming projects, doesn't support dynamic handler registration, harder to debug.

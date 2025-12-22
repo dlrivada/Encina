@@ -120,7 +120,7 @@ public sealed class RequestContext : IRequestContext
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-        var newMetadata = Metadata is ImmutableDictionary<string, object?> immutable
+        ImmutableDictionary<string, object?> newMetadata = Metadata is ImmutableDictionary<string, object?> immutable
             ? immutable.SetItem(key, value)
             : Metadata.ToImmutableDictionary().SetItem(key, value);
 

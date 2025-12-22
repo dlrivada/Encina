@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - LoggerMessage source generators across all packages for CA1848 compliance (2025-12-21)
-- SignalR integration package with MediatorHub base class (2025-12-21)
+- SignalR integration package with EncinaHub base class (2025-12-21)
 - MongoDB provider for messaging patterns (2025-12-21)
 - EventStoreDB integration for event sourcing (2025-12-21)
 - Choreography-based saga abstractions (event-driven) (2025-12-21)
@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Encina.InMemory - System.Threading.Channels message bus
 - Encina.NATS - NATS.Net 2.6.11 with JetStream support
 - Encina.MQTT - MQTTnet 5.0.1 integration
-- Encina.gRPC - Grpc.AspNetCore 2.71.0 mediator service
+- Encina.gRPC - Grpc.AspNetCore 2.71.0 Encina service
 - Encina.GraphQL - HotChocolate 15.1.11 bridge
 
 #### Caching (8 packages)
@@ -138,7 +138,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Encina Core - Pure Railway Oriented Programming with `Either<MediatorError, T>`
+- Encina Core - Pure Railway Oriented Programming with `Either<EncinaError, T>`
 - Request/Notification dispatch with Expression tree compilation
 - Pipeline pattern (Behaviors, PreProcessors, PostProcessors)
 - IRequestContext for ambient context

@@ -63,8 +63,8 @@ Connection strings are defined in `tests/appsettings.Testing.json`:
 | Database   | Host          | Port | User      | Password            |
 |------------|---------------|------|-----------|---------------------|
 | SQL Server | localhost     | 1433 | sa        | Encina123!  |
-| PostgreSQL | localhost     | 5432 | mediator  | Encina123!  |
-| MySQL      | localhost     | 3306 | mediator  | Encina123!  |
+| PostgreSQL | localhost     | 5432 | Encina  | Encina123!  |
+| MySQL      | localhost     | 3306 | Encina  | Encina123!  |
 | Oracle XE  | localhost     | 1521 | system    | Encina123!  |
 | SQLite     | In-memory     | N/A  | N/A       | N/A                 |
 

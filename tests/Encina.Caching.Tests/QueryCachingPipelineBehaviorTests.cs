@@ -97,7 +97,7 @@ public class QueryCachingPipelineBehaviorTests
             sut.Handle(
                 null!,
                 context,
-                () => ValueTask.FromResult(Right<MediatorError, string>("result")),
+                () => ValueTask.FromResult(Right<EncinaError, string>("result")),
                 CancellationToken.None).AsTask());
     }
 
@@ -114,7 +114,7 @@ public class QueryCachingPipelineBehaviorTests
             sut.Handle(
                 request,
                 null!,
-                () => ValueTask.FromResult(Right<MediatorError, string>("result")),
+                () => ValueTask.FromResult(Right<EncinaError, string>("result")),
                 CancellationToken.None).AsTask());
     }
 
@@ -146,7 +146,7 @@ public class QueryCachingPipelineBehaviorTests
         var result = await sut.Handle(
             request,
             context,
-            () => ValueTask.FromResult(Right<MediatorError, string>(expectedResult)),
+            () => ValueTask.FromResult(Right<EncinaError, string>(expectedResult)),
             CancellationToken.None);
 
         // Assert
@@ -181,7 +181,7 @@ public class QueryCachingPipelineBehaviorTests
             () =>
             {
                 nextStepCalled = true;
-                return ValueTask.FromResult(Right<MediatorError, string>("fresh-result"));
+                return ValueTask.FromResult(Right<EncinaError, string>("fresh-result"));
             },
             CancellationToken.None);
 
@@ -210,7 +210,7 @@ public class QueryCachingPipelineBehaviorTests
         var result = await sut.Handle(
             request,
             context,
-            () => ValueTask.FromResult(Right<MediatorError, string>(freshResult)),
+            () => ValueTask.FromResult(Right<EncinaError, string>(freshResult)),
             CancellationToken.None);
 
         // Assert
@@ -233,7 +233,7 @@ public class QueryCachingPipelineBehaviorTests
         var request = new CachedQuery("test");
         var context = CreateContext();
         var cacheKey = "cache:test";
-        var error = MediatorError.New("Test error");
+        var error = EncinaError.New("Test error");
 
         _keyGenerator.GenerateKey<CachedQuery, string>(request, context).Returns(cacheKey);
         _cacheProvider.GetAsync<CacheEntry<string>>(cacheKey, Arg.Any<CancellationToken>())
@@ -243,7 +243,7 @@ public class QueryCachingPipelineBehaviorTests
         var result = await sut.Handle(
             request,
             context,
-            () => ValueTask.FromResult(Left<MediatorError, string>(error)),
+            () => ValueTask.FromResult(Left<EncinaError, string>(error)),
             CancellationToken.None);
 
         // Assert
@@ -275,7 +275,7 @@ public class QueryCachingPipelineBehaviorTests
         var result = await sut.Handle(
             request,
             context,
-            () => ValueTask.FromResult(Right<MediatorError, string>(freshResult)),
+            () => ValueTask.FromResult(Right<EncinaError, string>(freshResult)),
             CancellationToken.None);
 
         // Assert
@@ -302,7 +302,7 @@ public class QueryCachingPipelineBehaviorTests
             sut.Handle(
                 request,
                 context,
-                () => ValueTask.FromResult(Right<MediatorError, string>("result")),
+                () => ValueTask.FromResult(Right<EncinaError, string>("result")),
                 CancellationToken.None).AsTask());
     }
 
@@ -329,7 +329,7 @@ public class QueryCachingPipelineBehaviorTests
         var result = await sut.Handle(
             request,
             context,
-            () => ValueTask.FromResult(Right<MediatorError, string>(expectedResult)),
+            () => ValueTask.FromResult(Right<EncinaError, string>(expectedResult)),
             CancellationToken.None);
 
         // Assert

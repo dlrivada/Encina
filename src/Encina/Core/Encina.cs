@@ -12,14 +12,14 @@ using static LanguageExt.Prelude;
 namespace Encina;
 
 /// <summary>
-/// Default <see cref="IMediator"/> implementation using Microsoft.Extensions.DependencyInjection.
+/// Default <see cref="IEncina"/> implementation using Microsoft.Extensions.DependencyInjection.
 /// </summary>
 /// <remarks>
 /// Creates a scope per request, resolves handlers, behaviors, pre/post processors and publishes
-/// notifications. Includes instrumentation via <see cref="MediatorDiagnostics"/>.
+/// notifications. Includes instrumentation via <see cref="EncinaDiagnostics"/>.
 /// </remarks>
 /// <remarks>
-/// Creates a mediator instance using the provided scope factory.
+/// Creates a Encina instance using the provided scope factory.
 /// </remarks>
 /// <param name="scopeFactory">Factory used to create scopes per operation.</param>
 /// <param name="logger">Optional logger for tracing and diagnostics.</param>
@@ -27,10 +27,10 @@ namespace Encina;
 public sealed partial class Encina(
     IServiceScopeFactory scopeFactory,
     ILogger<Encina>? logger = null,
-    IOptions<NotificationDispatchOptions>? notificationOptions = null) : IMediator
+    IOptions<NotificationDispatchOptions>? notificationOptions = null) : IEncina
 {
     private static readonly ConcurrentDictionary<(Type Request, Type Response), RequestHandlerBase> RequestHandlerCache = new();
-    private static readonly ConcurrentDictionary<(Type Handler, Type Notification), Func<object, object?, CancellationToken, Task<Either<MediatorError, Unit>>>> NotificationHandlerInvokerCache = new();
+    private static readonly ConcurrentDictionary<(Type Handler, Type Notification), Func<object, object?, CancellationToken, Task<Either<EncinaError, Unit>>>> NotificationHandlerInvokerCache = new();
 
     internal readonly IServiceScopeFactory _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
     internal readonly ILogger<Encina> _logger = logger ?? NullLogger<Encina>.Instance;
@@ -46,35 +46,35 @@ public sealed partial class Encina(
         };
 
     /// <inheritdoc />
-    public ValueTask<Either<MediatorError, TResponse>> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+    public ValueTask<Either<EncinaError, TResponse>> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
     {
-        if (!MediatorRequestGuards.TryValidateRequest<TResponse>(request, out var error))
+        if (!EncinaRequestGuards.TryValidateRequest<TResponse>(request, out Either<EncinaError, TResponse> error))
         {
             Log.NullRequest(_logger);
-            return new ValueTask<Either<MediatorError, TResponse>>(error);
+            return new ValueTask<Either<EncinaError, TResponse>>(error);
         }
-        return new ValueTask<Either<MediatorError, TResponse>>(RequestDispatcher.ExecuteAsync(this, request, cancellationToken));
+        return new ValueTask<Either<EncinaError, TResponse>>(RequestDispatcher.ExecuteAsync(this, request, cancellationToken));
     }
 
     /// <inheritdoc />
-    public ValueTask<Either<MediatorError, Unit>> Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+    public ValueTask<Either<EncinaError, Unit>> Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
         where TNotification : INotification
     {
-        if (!MediatorRequestGuards.TryValidateNotification(notification, out var error))
+        if (!EncinaRequestGuards.TryValidateNotification(notification, out Either<EncinaError, Unit> error))
         {
             Log.NotificationNull(_logger);
-            return new ValueTask<Either<MediatorError, Unit>>(error);
+            return new ValueTask<Either<EncinaError, Unit>>(error);
         }
-        return new ValueTask<Either<MediatorError, Unit>>(NotificationDispatcher.ExecuteAsync(this, notification, cancellationToken));
+        return new ValueTask<Either<EncinaError, Unit>>(NotificationDispatcher.ExecuteAsync(this, notification, cancellationToken));
     }
 
-    private void LogSendOutcome<TResponse>(Type requestType, Type handlerType, Either<MediatorError, TResponse> outcome)
+    private void LogSendOutcome<TResponse>(Type requestType, Type handlerType, Either<EncinaError, TResponse> outcome)
     {
-        var resultInfo = ExtractOutcome(outcome);
+        (bool IsSuccess, EncinaError? Error) resultInfo = ExtractOutcome(outcome);
         LogSendOutcomeCore(requestType, handlerType, resultInfo.IsSuccess, resultInfo.Error);
     }
 
-    private void LogSendOutcomeCore(Type requestType, Type handlerType, bool isSuccess, MediatorError? error)
+    private void LogSendOutcomeCore(Type requestType, Type handlerType, bool isSuccess, EncinaError? error)
     {
         if (isSuccess)
         {
@@ -82,10 +82,10 @@ public sealed partial class Encina(
             return;
         }
 
-        var effectiveError = error ?? MediatorErrors.Unknown;
+        EncinaError effectiveError = error ?? EncinaErrors.Unknown;
 
-        var errorCode = effectiveError.GetMediatorCode();
-        var exception = effectiveError.Exception.Match(
+        string errorCode = effectiveError.GetEncinaCode();
+        Exception? exception = effectiveError.Exception.Match(
             Some: ex => (Exception?)ex,
             None: () => null);
 
@@ -98,14 +98,14 @@ public sealed partial class Encina(
         Log.RequestFailed(_logger, requestType.Name, errorCode, effectiveError.Message, exception);
     }
 
-    private static (bool IsSuccess, MediatorError? Error) ExtractOutcome<TResponse>(Either<MediatorError, TResponse> outcome)
+    private static (bool IsSuccess, EncinaError? Error) ExtractOutcome<TResponse>(Either<EncinaError, TResponse> outcome)
         => outcome.Match(
-            Left: err => (IsSuccess: false, Error: (MediatorError?)err),
-            Right: _ => (IsSuccess: true, Error: (MediatorError?)null));
+            Left: err => (IsSuccess: false, Error: (EncinaError?)err),
+            Right: _ => (IsSuccess: true, Error: (EncinaError?)null));
 
     private static RequestHandlerBase CreateRequestHandlerWrapper(Type requestType, Type responseType)
     {
-        var wrapperType = typeof(RequestHandlerWrapper<,>).MakeGenericType(requestType, responseType);
+        Type wrapperType = typeof(RequestHandlerWrapper<,>).MakeGenericType(requestType, responseType);
         return (RequestHandlerBase)Activator.CreateInstance(wrapperType)!;
     }
 
@@ -113,7 +113,7 @@ public sealed partial class Encina(
     {
         public abstract Type HandlerServiceType { get; }
         public abstract object? ResolveHandler(IServiceProvider provider);
-        public abstract Task<object> Handle(Encina mediator, object request, object handler, IServiceProvider provider, CancellationToken cancellationToken);
+        public abstract Task<object> Handle(Encina Encina, object request, object handler, IServiceProvider provider, CancellationToken cancellationToken);
     }
 
     private sealed class RequestHandlerWrapper<TRequest, TResponse> : RequestHandlerBase
@@ -126,47 +126,47 @@ public sealed partial class Encina(
         public override object? ResolveHandler(IServiceProvider provider)
             => provider.GetService(HandlerType);
 
-        public override async Task<object> Handle(Encina mediator, object request, object handler, IServiceProvider provider, CancellationToken cancellationToken)
+        public override async Task<object> Handle(Encina Encina, object request, object handler, IServiceProvider provider, CancellationToken cancellationToken)
         {
             var typedRequest = (TRequest)request;
             var typedHandler = (IRequestHandler<TRequest, TResponse>)handler;
-            var context = RequestContext.Create();
+            IRequestContext context = RequestContext.Create();
             var pipelineBuilder = new PipelineBuilder<TRequest, TResponse>(typedRequest, typedHandler, context, cancellationToken);
-            var pipeline = pipelineBuilder.Build(provider);
-            var outcome = await pipeline().ConfigureAwait(false);
+            RequestHandlerCallback<TResponse> pipeline = pipelineBuilder.Build(provider);
+            Either<EncinaError, TResponse> outcome = await pipeline().ConfigureAwait(false);
             return outcome;
         }
     }
 
     // Exposed for tests that reflect on the private pipeline helpers to validate cancellation semantics.
-    private static async Task<Option<MediatorError>> ExecutePostProcessorAsync<TRequest, TResponse>(
+    private static async Task<Option<EncinaError>> ExecutePostProcessorAsync<TRequest, TResponse>(
         IRequestPostProcessor<TRequest, TResponse> postProcessor,
         TRequest request,
         IRequestContext context,
-        Either<MediatorError, TResponse> response,
+        Either<EncinaError, TResponse> response,
         CancellationToken cancellationToken)
     {
         try
         {
             await postProcessor.Process(request, context, response, cancellationToken).ConfigureAwait(false);
-            return Option<MediatorError>.None;
+            return Option<EncinaError>.None;
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            var message = $"Post-processor {postProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
+            string message = $"Post-processor {postProcessor.GetType().Name} cancelled the {typeof(TRequest).Name} request.";
             var metadata = new Dictionary<string, object?>
             {
                 ["postProcessor"] = postProcessor.GetType().FullName,
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "postprocessor"
             };
-            return Some(MediatorErrors.Create(MediatorErrorCodes.PostProcessorCancelled, message, ex, metadata));
+            return Some(EncinaErrors.Create(EncinaErrorCodes.PostProcessorCancelled, message, ex, metadata));
         }
         // Pure ROP: Any other exception indicates a bug in the postprocessor and will propagate (fail-fast)
     }
 
     // Exposed for tests that reflect on the private notification helper to validate handler invocation semantics.
-    private static Task<Either<MediatorError, Unit>> InvokeNotificationHandler<TNotification>(object handler, TNotification notification, CancellationToken cancellationToken)
+    private static Task<Either<EncinaError, Unit>> InvokeNotificationHandler<TNotification>(object handler, TNotification notification, CancellationToken cancellationToken)
         where TNotification : INotification
     {
         return NotificationDispatcher.InvokeNotificationHandler(handler, notification, cancellationToken);

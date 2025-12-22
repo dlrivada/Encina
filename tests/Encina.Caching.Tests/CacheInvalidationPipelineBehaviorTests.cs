@@ -96,7 +96,7 @@ public class CacheInvalidationPipelineBehaviorTests
             sut.Handle(
                 null!,
                 context,
-                () => ValueTask.FromResult(Right<MediatorError, string>("result")),
+                () => ValueTask.FromResult(Right<EncinaError, string>("result")),
                 CancellationToken.None).AsTask());
     }
 
@@ -113,7 +113,7 @@ public class CacheInvalidationPipelineBehaviorTests
         await sut.Handle(
             request,
             context,
-            () => ValueTask.FromResult(Right<MediatorError, string>("result")),
+            () => ValueTask.FromResult(Right<EncinaError, string>("result")),
             CancellationToken.None);
 
         // Assert
@@ -137,7 +137,7 @@ public class CacheInvalidationPipelineBehaviorTests
         await sut.Handle(
             request,
             context,
-            () => ValueTask.FromResult(Right<MediatorError, string>("result")),
+            () => ValueTask.FromResult(Right<EncinaError, string>("result")),
             CancellationToken.None);
 
         // Assert
@@ -151,13 +151,13 @@ public class CacheInvalidationPipelineBehaviorTests
         var sut = CreateBehavior();
         var request = new InvalidatingCommand(Guid.NewGuid());
         var context = CreateContext();
-        var error = MediatorError.New("Test error");
+        var error = EncinaError.New("Test error");
 
         // Act
         await sut.Handle(
             request,
             context,
-            () => ValueTask.FromResult(Left<MediatorError, string>(error)),
+            () => ValueTask.FromResult(Left<EncinaError, string>(error)),
             CancellationToken.None);
 
         // Assert
@@ -190,7 +190,7 @@ public class CacheInvalidationPipelineBehaviorTests
         await behavior.Handle(
             request,
             context,
-            () => ValueTask.FromResult(Right<MediatorError, string>("result")),
+            () => ValueTask.FromResult(Right<EncinaError, string>("result")),
             CancellationToken.None);
 
         // Assert
@@ -218,7 +218,7 @@ public class CacheInvalidationPipelineBehaviorTests
         var result = await sut.Handle(
             request,
             context,
-            () => ValueTask.FromResult(Right<MediatorError, string>("result")),
+            () => ValueTask.FromResult(Right<EncinaError, string>("result")),
             CancellationToken.None);
 
         // Assert
@@ -244,7 +244,7 @@ public class CacheInvalidationPipelineBehaviorTests
             sut.Handle(
                 request,
                 context,
-                () => ValueTask.FromResult(Right<MediatorError, string>("result")),
+                () => ValueTask.FromResult(Right<EncinaError, string>("result")),
                 CancellationToken.None).AsTask());
     }
 
@@ -270,7 +270,7 @@ public class CacheInvalidationPipelineBehaviorTests
         await sut.Handle(
             request,
             context,
-            () => ValueTask.FromResult(Right<MediatorError, string>("result")),
+            () => ValueTask.FromResult(Right<EncinaError, string>("result")),
             CancellationToken.None);
 
         // Assert

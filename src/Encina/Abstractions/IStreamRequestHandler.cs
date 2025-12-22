@@ -16,7 +16,7 @@ namespace Encina;
 /// enabling efficient processing of large datasets, real-time feeds, and batch operations.
 /// </para>
 /// <para>
-/// Each item is wrapped in <c>Either&lt;MediatorError, TItem&gt;</c> to maintain Railway
+/// Each item is wrapped in <c>Either&lt;EncinaError, TItem&gt;</c> to maintain Railway
 /// Oriented Programming semantics. Handlers can yield errors mid-stream without terminating
 /// the sequence, allowing partial results and graceful degradation.
 /// </para>
@@ -33,7 +33,7 @@ namespace Encina;
 /// <code>
 /// public sealed class StreamProductsHandler : IStreamRequestHandler&lt;StreamProductsQuery, Product&gt;
 /// {
-///     public async IAsyncEnumerable&lt;Either&lt;MediatorError, Product&gt;&gt; Handle(
+///     public async IAsyncEnumerable&lt;Either&lt;EncinaError, Product&gt;&gt; Handle(
 ///         StreamProductsQuery request,
 ///         [EnumeratorCancellation] CancellationToken cancellationToken)
 ///     {
@@ -48,7 +48,7 @@ namespace Encina;
 ///             {
 ///                 if (!product.IsValid)
 ///                 {
-///                     yield return Left(MediatorErrors.ValidationFailed($"Invalid product: {product.Id}"));
+///                     yield return Left(EncinaErrors.ValidationFailed($"Invalid product: {product.Id}"));
 ///                     continue;
 ///                 }
 ///
@@ -73,7 +73,7 @@ public interface IStreamRequestHandler<in TRequest, TItem>
     /// Must be decorated with <c>[EnumeratorCancellation]</c> attribute.
     /// </param>
     /// <returns>
-    /// Async enumerable of <c>Either&lt;MediatorError, TItem&gt;</c>, where each element
+    /// Async enumerable of <c>Either&lt;EncinaError, TItem&gt;</c>, where each element
     /// represents either an error (Left) or a successful item (Right).
     /// </returns>
     /// <remarks>
@@ -91,7 +91,7 @@ public interface IStreamRequestHandler<in TRequest, TItem>
     /// <c>[EnumeratorCancellation]</c> attribute to ensure proper cancellation when iteration stops early.
     /// </para>
     /// </remarks>
-    IAsyncEnumerable<Either<MediatorError, TItem>> Handle(
+    IAsyncEnumerable<Either<EncinaError, TItem>> Handle(
         TRequest request,
         CancellationToken cancellationToken);
 }

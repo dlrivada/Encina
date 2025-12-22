@@ -55,7 +55,7 @@ public enum NotificationDispatchStrategy
 
     /// <summary>
     /// Handlers execute concurrently. All handlers complete before returning.
-    /// Errors are aggregated into a single <see cref="MediatorError"/> with details of all failures.
+    /// Errors are aggregated into a single <see cref="EncinaError"/> with details of all failures.
     /// </summary>
     ParallelWhenAll = 2
 }

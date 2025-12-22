@@ -10,7 +10,7 @@ namespace Encina;
 /// <remarks>
 /// <para>
 /// Handlers should stay lightweight and delegate orchestration to specialized services. The
-/// mediator manages their lifetime according to the container configuration.
+/// Encina manages their lifetime according to the container configuration.
 /// </para>
 /// <para>
 /// Handlers return <see cref="Either{L,R}"/> to enable explicit error handling without exceptions.
@@ -21,14 +21,14 @@ namespace Encina;
 /// <code>
 /// public sealed class RefundPaymentHandler : IRequestHandler&lt;RefundPayment, Unit&gt;
 /// {
-///     public async Task&lt;Either&lt;MediatorError, Unit&gt;&gt; Handle(RefundPayment request, CancellationToken cancellationToken)
+///     public async Task&lt;Either&lt;EncinaError, Unit&gt;&gt; Handle(RefundPayment request, CancellationToken cancellationToken)
 ///     {
 ///         var payment = await _paymentGateway.FindAsync(request.PaymentId, cancellationToken);
 ///         if (payment is null)
-///             return Left(MediatorErrors.NotFound("Payment not found"));
+///             return Left(EncinaErrors.NotFound("Payment not found"));
 ///
 ///         if (!payment.CanRefund)
-///             return Left(MediatorErrors.ValidationFailed("Payment cannot be refunded"));
+///             return Left(EncinaErrors.ValidationFailed("Payment cannot be refunded"));
 ///
 ///         await _paymentGateway.RefundAsync(request.PaymentId, cancellationToken);
 ///         await _auditTrail.RecordAsync(request.PaymentId, cancellationToken);
@@ -47,12 +47,12 @@ public interface IRequestHandler<in TRequest, TResponse>
     /// <param name="request">Request to handle.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
-    /// Either a <see cref="MediatorError"/> (Left) representing a functional failure,
+    /// Either a <see cref="EncinaError"/> (Left) representing a functional failure,
     /// or the expected response (Right) on success.
     /// </returns>
     /// <remarks>
     /// Use <c>static LanguageExt.Prelude</c> to access <c>Left</c> and <c>Right</c> factory methods.
-    /// The mediator pipeline will short-circuit on the first Left value encountered.
+    /// The Encina pipeline will short-circuit on the first Left value encountered.
     /// </remarks>
-    Task<Either<MediatorError, TResponse>> Handle(TRequest request, CancellationToken cancellationToken);
+    Task<Either<EncinaError, TResponse>> Handle(TRequest request, CancellationToken cancellationToken);
 }

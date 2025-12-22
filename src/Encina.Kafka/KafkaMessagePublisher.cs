@@ -37,7 +37,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, KafkaDeliveryResult>> ProduceAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, KafkaDeliveryResult>> ProduceAsync<TMessage>(
         TMessage message,
         string? topic = null,
         string? key = null,
@@ -73,7 +73,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                 deliveryResult.Partition.Value,
                 deliveryResult.Offset.Value);
 
-            return Right<MediatorError, KafkaDeliveryResult>(
+            return Right<EncinaError, KafkaDeliveryResult>(
                 new KafkaDeliveryResult(
                     deliveryResult.Topic,
                     deliveryResult.Partition.Value,
@@ -84,8 +84,8 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
         {
             Log.FailedToProduceMessage(_logger, ex, typeof(TMessage).Name, effectiveTopic);
 
-            return Left<MediatorError, KafkaDeliveryResult>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, KafkaDeliveryResult>(
+                EncinaErrors.FromException(
                     "KAFKA_PRODUCE_FAILED",
                     ex,
                     $"Failed to produce message of type {typeof(TMessage).Name} to topic {effectiveTopic}."));
@@ -93,7 +93,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, IReadOnlyList<KafkaDeliveryResult>>> ProduceBatchAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, IReadOnlyList<KafkaDeliveryResult>>> ProduceBatchAsync<TMessage>(
         IEnumerable<(TMessage Message, string? Key)> messages,
         string? topic = null,
         CancellationToken cancellationToken = default)
@@ -112,7 +112,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
 
                 if (result.IsLeft)
                 {
-                    return Left<MediatorError, IReadOnlyList<KafkaDeliveryResult>>(
+                    return Left<EncinaError, IReadOnlyList<KafkaDeliveryResult>>(
                         result.Match(
                             Right: _ => throw new InvalidOperationException(),
                             Left: error => error));
@@ -121,14 +121,14 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                 result.IfRight(r => results.Add(r));
             }
 
-            return Right<MediatorError, IReadOnlyList<KafkaDeliveryResult>>(results);
+            return Right<EncinaError, IReadOnlyList<KafkaDeliveryResult>>(results);
         }
         catch (Exception ex)
         {
             Log.FailedToProduceBatch(_logger, ex, typeof(TMessage).Name);
 
-            return Left<MediatorError, IReadOnlyList<KafkaDeliveryResult>>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, IReadOnlyList<KafkaDeliveryResult>>(
+                EncinaErrors.FromException(
                     "KAFKA_BATCH_PRODUCE_FAILED",
                     ex,
                     $"Failed to produce batch of messages of type {typeof(TMessage).Name}."));
@@ -136,7 +136,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, KafkaDeliveryResult>> ProduceWithHeadersAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, KafkaDeliveryResult>> ProduceWithHeadersAsync<TMessage>(
         TMessage message,
         IDictionary<string, byte[]> headers,
         string? topic = null,
@@ -173,7 +173,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                 kafkaMessage,
                 cancellationToken).ConfigureAwait(false);
 
-            return Right<MediatorError, KafkaDeliveryResult>(
+            return Right<EncinaError, KafkaDeliveryResult>(
                 new KafkaDeliveryResult(
                     deliveryResult.Topic,
                     deliveryResult.Partition.Value,
@@ -184,8 +184,8 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
         {
             Log.FailedToProduceMessageWithHeaders(_logger, ex, typeof(TMessage).Name);
 
-            return Left<MediatorError, KafkaDeliveryResult>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, KafkaDeliveryResult>(
+                EncinaErrors.FromException(
                     "KAFKA_PRODUCE_HEADERS_FAILED",
                     ex,
                     $"Failed to produce message of type {typeof(TMessage).Name} with headers."));

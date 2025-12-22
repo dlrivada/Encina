@@ -15,7 +15,7 @@ Encina.ADO implements messaging patterns (Outbox, Inbox, Transactions) using raw
 - **✅ Outbox Pattern**: At-least-once delivery for reliable event publishing
 - **✅ Inbox Pattern**: Exactly-once semantics for idempotent processing
 - **✅ Transaction Management**: Automatic commit/rollback based on ROP results
-- **✅ Railway Oriented Programming**: Native `Either<MediatorError, T>` support
+- **✅ Railway Oriented Programming**: Native `Either<EncinaError, T>` support
 - **✅ SQL Server Optimized**: Parameterized queries, optimized indexes
 - **✅ .NET 10 Native**: Built for modern .NET with nullable reference types
 
@@ -92,7 +92,7 @@ public record CreateOrderCommand(decimal Total) : ICommand<Order>, IHasNotificat
 // Handler emits domain events
 public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 {
-    public async ValueTask<Either<MediatorError, Order>> Handle(
+    public async ValueTask<Either<EncinaError, Order>> Handle(
         CreateOrderCommand request,
         IRequestContext context,
         CancellationToken cancellationToken)
@@ -109,7 +109,7 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 // Events are:
 // 1. Stored in OutboxMessages table (same transaction as domain changes)
 // 2. Processed by background OutboxProcessor
-// 3. Published through mediator with retry logic
+// 3. Published through Encina with retry logic
 ```
 
 **Outbox Configuration**:
@@ -138,7 +138,7 @@ public async Task<IActionResult> ProcessPayment(
     // Set IdempotencyKey in request context
     var context = RequestContext.Create() with { IdempotencyKey = idempotencyKey };
 
-    var result = await _mediator.Send(command, context);
+    var result = await _Encina.Send(command, context);
 
     return result.Match(
         Right: receipt => Ok(receipt),
@@ -173,7 +173,7 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 {
     private readonly IDbConnection _connection;
 
-    public async ValueTask<Either<MediatorError, Order>> Handle(
+    public async ValueTask<Either<EncinaError, Order>> Handle(
         CreateOrderCommand request,
         IRequestContext context,
         CancellationToken cancellationToken)

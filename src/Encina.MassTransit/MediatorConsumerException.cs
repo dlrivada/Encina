@@ -1,22 +1,22 @@
 namespace Encina.MassTransit;
 
 /// <summary>
-/// Exception thrown when a MassTransit consumer encounters a mediator error.
+/// Exception thrown when a MassTransit consumer encounters a Encina error.
 /// </summary>
-public sealed class MediatorConsumerException : Exception
+public sealed class EncinaConsumerException : Exception
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="MediatorConsumerException"/> class.
+    /// Initializes a new instance of the <see cref="EncinaConsumerException"/> class.
     /// </summary>
-    /// <param name="error">The mediator error that caused the exception.</param>
-    public MediatorConsumerException(MediatorError error)
-        : base($"Mediator error: {error.Message}")
+    /// <param name="error">The Encina error that caused the exception.</param>
+    public EncinaConsumerException(EncinaError error)
+        : base($"Encina error: {error.Message}")
     {
-        MediatorError = error;
+        EncinaError = error;
     }
 
     /// <summary>
-    /// Gets the mediator error that caused this exception.
+    /// Gets the Encina error that caused this exception.
     /// </summary>
-    public MediatorError MediatorError { get; }
+    public EncinaError EncinaError { get; }
 }

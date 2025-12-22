@@ -38,7 +38,7 @@ public sealed class SignalRBroadcastHandler<TNotification> : INotificationHandle
     }
 
     /// <inheritdoc />
-    public async Task<Either<MediatorError, Unit>> Handle(TNotification notification, CancellationToken cancellationToken)
+    public async Task<Either<EncinaError, Unit>> Handle(TNotification notification, CancellationToken cancellationToken)
     {
         try
         {

@@ -80,7 +80,7 @@ public sealed class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
 {
     private readonly IOrderRepository _orders;
 
-    public async Task<Either<MediatorError, Unit>> Handle(
+    public async Task<Either<EncinaError, Unit>> Handle(
         CancelOrder request,
         CancellationToken ct)
     {
@@ -89,16 +89,16 @@ public sealed class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
         // Validate state retrieved from database
         if (!Guards.TryValidateNotNull(order, nameof(order), out var error,
             message: $"Order {request.OrderId} not found"))
-            return Left<MediatorError, Unit>(error);
+            return Left<EncinaError, Unit>(error);
 
         // Validate business rule
         if (!Guards.TryValidate(order.Status == OrderStatus.Pending, nameof(order), out error,
             message: "Only pending orders can be cancelled"))
-            return Left<MediatorError, Unit>(error);
+            return Left<EncinaError, Unit>(error);
 
         order.Cancel();
         await _orders.Save(order, ct);
-        return Right<MediatorError, Unit>(Unit.Default);
+        return Right<EncinaError, Unit>(Unit.Default);
     }
 }
 ```
@@ -108,23 +108,23 @@ public sealed class CancelOrderHandler : ICommandHandler<CancelOrder, Unit>
 ```csharp
 public class OrderDomainService
 {
-    public Either<MediatorError, Order> CreateOrder(
+    public Either<EncinaError, Order> CreateOrder(
         Customer customer,
         IEnumerable<OrderItem> items)
     {
         // Validate preconditions
         if (!Guards.TryValidateNotNull(customer, nameof(customer), out var error))
-            return Left<MediatorError, Order>(error);
+            return Left<EncinaError, Order>(error);
 
         if (!Guards.TryValidateNotEmpty(items, nameof(items), out error))
-            return Left<MediatorError, Order>(error);
+            return Left<EncinaError, Order>(error);
 
         if (!Guards.TryValidate(customer.IsActive, nameof(customer), out error,
             message: "Customer must be active to create orders"))
-            return Left<MediatorError, Order>(error);
+            return Left<EncinaError, Order>(error);
 
         var order = new Order(customer.Id, items.ToList());
-        return Right<MediatorError, Order>(order);
+        return Right<EncinaError, Order>(order);
     }
 }
 ```
@@ -135,60 +135,60 @@ public class OrderDomainService
 
 ```csharp
 // Validates that a value is not null
-Guards.TryValidateNotNull<T>(T? value, string paramName, out MediatorError error, string? message = null)
+Guards.TryValidateNotNull<T>(T? value, string paramName, out EncinaError error, string? message = null)
 ```
 
 ### String Validation
 
 ```csharp
 // Validates that a string is not null or empty
-Guards.TryValidateNotEmpty(string? value, string paramName, out MediatorError error, string? message = null)
+Guards.TryValidateNotEmpty(string? value, string paramName, out EncinaError error, string? message = null)
 
 // Validates that a string is not null, empty, or whitespace
-Guards.TryValidateNotWhiteSpace(string? value, string paramName, out MediatorError error, string? message = null)
+Guards.TryValidateNotWhiteSpace(string? value, string paramName, out EncinaError error, string? message = null)
 
 // Validates email format
-Guards.TryValidateEmail(string? value, string paramName, out MediatorError error, string? message = null)
+Guards.TryValidateEmail(string? value, string paramName, out EncinaError error, string? message = null)
 
 // Validates URL format (HTTP/HTTPS)
-Guards.TryValidateUrl(string? value, string paramName, out MediatorError error, string? message = null)
+Guards.TryValidateUrl(string? value, string paramName, out EncinaError error, string? message = null)
 
 // Validates against regex pattern
-Guards.TryValidatePattern(string? value, string paramName, string pattern, out MediatorError error, string? message = null)
+Guards.TryValidatePattern(string? value, string paramName, string pattern, out EncinaError error, string? message = null)
 ```
 
 ### Collection Validation
 
 ```csharp
 // Validates that a collection is not null or empty
-Guards.TryValidateNotEmpty<T>(IEnumerable<T>? value, string paramName, out MediatorError error, string? message = null)
+Guards.TryValidateNotEmpty<T>(IEnumerable<T>? value, string paramName, out EncinaError error, string? message = null)
 ```
 
 ### Numeric Validation
 
 ```csharp
 // Validates that a number is positive (> 0)
-Guards.TryValidatePositive<T>(T value, string paramName, out MediatorError error, string? message = null) where T : IComparable<T>
+Guards.TryValidatePositive<T>(T value, string paramName, out EncinaError error, string? message = null) where T : IComparable<T>
 
 // Validates that a number is negative (< 0)
-Guards.TryValidateNegative<T>(T value, string paramName, out MediatorError error, string? message = null) where T : IComparable<T>
+Guards.TryValidateNegative<T>(T value, string paramName, out EncinaError error, string? message = null) where T : IComparable<T>
 
 // Validates that a value is within an inclusive range
-Guards.TryValidateInRange<T>(T value, string paramName, T min, T max, out MediatorError error, string? message = null) where T : IComparable<T>
+Guards.TryValidateInRange<T>(T value, string paramName, T min, T max, out EncinaError error, string? message = null) where T : IComparable<T>
 ```
 
 ### GUID Validation
 
 ```csharp
 // Validates that a GUID is not empty
-Guards.TryValidateNotEmpty(Guid value, string paramName, out MediatorError error, string? message = null)
+Guards.TryValidateNotEmpty(Guid value, string paramName, out EncinaError error, string? message = null)
 ```
 
 ### Custom Conditions
 
 ```csharp
 // Validates a custom boolean condition
-Guards.TryValidate(bool condition, string paramName, out MediatorError error, string? message = null)
+Guards.TryValidate(bool condition, string paramName, out EncinaError error, string? message = null)
 ```
 
 ## Design Philosophy
@@ -198,16 +198,16 @@ Guards.TryValidate(bool condition, string paramName, out MediatorError error, st
 Encina uses the **Try-pattern** internally for all guard validations:
 
 ```csharp
-// Encina's internal pattern (MediatorBehaviorGuards)
-if (!MediatorBehaviorGuards.TryValidateRequest(behaviorType, request, out var failure))
+// Encina's internal pattern (EncinaBehaviorGuards)
+if (!EncinaBehaviorGuards.TryValidateRequest(behaviorType, request, out var failure))
 {
-    return Left<MediatorError, TResponse>(failure);
+    return Left<EncinaError, TResponse>(failure);
 }
 
 // Encina.GuardClauses follows the same pattern
 if (!Guards.TryValidateNotNull(order, nameof(order), out var error))
 {
-    return Left<MediatorError, Unit>(error);
+    return Left<EncinaError, Unit>(error);
 }
 ```
 
@@ -215,7 +215,7 @@ if (!Guards.TryValidateNotNull(order, nameof(order), out var error))
 
 1. **Try-pattern**: Methods return `bool` with `out` parameter for errors
 2. **Explicit**: Caller decides what to do with validation failures
-3. **ROP-friendly**: Errors are `MediatorError` instances ready for `Either`
+3. **ROP-friendly**: Errors are `EncinaError` instances ready for `Either`
 4. **Consistent**: Same pattern used throughout Encina
 
 ### Why Not Extension Methods?
@@ -232,7 +232,7 @@ return order
 
 **We chose static helpers instead** to match Encina's internal conventions:
 
-- Consistent with `MediatorBehaviorGuards`, `MediatorRequestGuards`
+- Consistent with `EncinaBehaviorGuards`, `EncinaRequestGuards`
 - More explicit and predictable
 - Familiar to developers already using Encina
 - No extension method pollution
@@ -263,7 +263,7 @@ public class CreateOrderValidator : AbstractValidator<CreateOrder>
 // 2. Handler receives VALIDATED input - no need for guards here!
 public class CreateOrderHandler : ICommandHandler<CreateOrder, OrderId>
 {
-    public async Task<Either<MediatorError, OrderId>> Handle(
+    public async Task<Either<EncinaError, OrderId>> Handle(
         CreateOrder request, // Already validated!
         CancellationToken ct)
     {
@@ -275,13 +275,13 @@ public class CreateOrderHandler : ICommandHandler<CreateOrder, OrderId>
 
         if (!Guards.TryValidateNotNull(customer, nameof(customer), out var error,
             message: $"Customer {request.CustomerId} not found"))
-            return Left<MediatorError, OrderId>(error);
+            return Left<EncinaError, OrderId>(error);
 
         // DO use Guards in domain models
         var order = new Order(customer.Id, request.Items); // Guards in constructor
         await _orders.Save(order, ct);
 
-        return Right<MediatorError, OrderId>(order.Id);
+        return Right<EncinaError, OrderId>(order.Id);
     }
 }
 
@@ -334,7 +334,7 @@ public sealed class ProcessPaymentHandler : ICommandHandler<ProcessPayment, Paym
     private readonly IOrderRepository _orders;
     private readonly IPaymentGateway _gateway;
 
-    public async Task<Either<MediatorError, PaymentId>> Handle(
+    public async Task<Either<EncinaError, PaymentId>> Handle(
         ProcessPayment request,
         CancellationToken ct)
     {
@@ -342,24 +342,24 @@ public sealed class ProcessPaymentHandler : ICommandHandler<ProcessPayment, Paym
         var order = await _orders.FindById(request.OrderId, ct);
         if (!Guards.TryValidateNotNull(order, nameof(order), out var error,
             message: $"Order {request.OrderId} not found"))
-            return Left<MediatorError, PaymentId>(error);
+            return Left<EncinaError, PaymentId>(error);
 
         // Validate order is ready for payment
         if (!Guards.TryValidate(order.Status == OrderStatus.Pending, nameof(order), out error,
             message: "Order must be in Pending status to process payment"))
-            return Left<MediatorError, PaymentId>(error);
+            return Left<EncinaError, PaymentId>(error);
 
         // Validate amount matches
         if (!Guards.TryValidate(order.TotalAmount == request.Amount, nameof(request.Amount), out error,
             message: $"Payment amount {request.Amount} doesn't match order total {order.TotalAmount}"))
-            return Left<MediatorError, PaymentId>(error);
+            return Left<EncinaError, PaymentId>(error);
 
         // Process payment
         var payment = await _gateway.ProcessPayment(order.TotalAmount, request.PaymentMethod, ct);
         order.MarkAsPaid(payment.Id);
         await _orders.Save(order, ct);
 
-        return Right<MediatorError, PaymentId>(payment.Id);
+        return Right<EncinaError, PaymentId>(payment.Id);
     }
 }
 ```
@@ -371,41 +371,41 @@ public sealed class VerifyEmailHandler : ICommandHandler<VerifyEmail, Unit>
 {
     private readonly IUserRepository _users;
 
-    public async Task<Either<MediatorError, Unit>> Handle(
+    public async Task<Either<EncinaError, Unit>> Handle(
         VerifyEmail request,
         CancellationToken ct)
     {
         // Validate token format
         if (!Guards.TryValidateNotEmpty(request.Token, nameof(request.Token), out var error))
-            return Left<MediatorError, Unit>(error);
+            return Left<EncinaError, Unit>(error);
 
         if (!Guards.TryValidatePattern(request.Token, nameof(request.Token),
             @"^[0-9A-Fa-f]{64}$", out error,
             message: "Invalid verification token format"))
-            return Left<MediatorError, Unit>(error);
+            return Left<EncinaError, Unit>(error);
 
         // Find user by token
         var user = await _users.FindByVerificationToken(request.Token, ct);
         if (!Guards.TryValidateNotNull(user, nameof(user), out error,
             message: "Invalid or expired verification token"))
-            return Left<MediatorError, Unit>(error);
+            return Left<EncinaError, Unit>(error);
 
         // Validate not already verified
         if (!Guards.TryValidate(!user.EmailVerified, nameof(user), out error,
             message: "Email already verified"))
-            return Left<MediatorError, Unit>(error);
+            return Left<EncinaError, Unit>(error);
 
         user.VerifyEmail();
         await _users.Save(user, ct);
 
-        return Right<MediatorError, Unit>(Unit.Default);
+        return Right<EncinaError, Unit>(Unit.Default);
     }
 }
 ```
 
 ## Error Handling
 
-All guards return `MediatorError` instances with:
+All guards return `EncinaError` instances with:
 
 - **Message**: Clear description of what failed
 - **Error Code**: `Guards.GuardValidationFailed` constant
@@ -415,8 +415,8 @@ All guards return `MediatorError` instances with:
 if (!Guards.TryValidatePositive(quantity, nameof(quantity), out var error))
 {
     // error.Message: "quantity must be positive (greater than zero)."
-    // Error integrates seamlessly with Either<MediatorError, T>
-    return Left<MediatorError, OrderId>(error);
+    // Error integrates seamlessly with Either<EncinaError, T>
+    return Left<EncinaError, OrderId>(error);
 }
 ```
 
@@ -462,7 +462,7 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 
 ## Related Packages
 
-- **Encina** - Core mediator library
+- **Encina** - Core Encina library
 - **Encina.FluentValidation** - Complex input validation
 - **Encina.DataAnnotations** - Simple input validation
 - **Encina.MiniValidator** - Lightweight input validation for Minimal APIs

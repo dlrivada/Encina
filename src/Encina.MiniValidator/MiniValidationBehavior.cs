@@ -15,7 +15,7 @@ namespace Encina.MiniValidator;
 /// designed specifically for Minimal APIs and lightweight scenarios.
 /// </para>
 /// <para>
-/// Validation failures are returned as <c>Left&lt;MediatorError&gt;</c> containing validation errors
+/// Validation failures are returned as <c>Left&lt;EncinaError&gt;</c> containing validation errors
 /// in a structured format. This allows downstream code to inspect and handle validation failures functionally.
 /// </para>
 /// <para>
@@ -46,10 +46,10 @@ namespace Encina.MiniValidator;
 /// // Handler receives only valid requests
 /// public class CreateUserHandler : ICommandHandler&lt;CreateUser, UserId&gt;
 /// {
-///     public Task&lt;Either&lt;MediatorError, UserId&gt;&gt; Handle(CreateUser request, CancellationToken ct)
+///     public Task&lt;Either&lt;EncinaError, UserId&gt;&gt; Handle(CreateUser request, CancellationToken ct)
 ///     {
 ///         // request is guaranteed to be valid here
-///         return Task.FromResult(Right&lt;MediatorError, UserId&gt;(UserId.New()));
+///         return Task.FromResult(Right&lt;EncinaError, UserId&gt;(UserId.New()));
 ///     }
 /// }
 /// </code>
@@ -58,7 +58,7 @@ public sealed class MiniValidationBehavior<TRequest, TResponse> : IPipelineBehav
     where TRequest : IRequest<TResponse>
 {
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,
@@ -70,8 +70,8 @@ public sealed class MiniValidationBehavior<TRequest, TResponse> : IPipelineBehav
 
         if (cancellationToken.IsCancellationRequested)
         {
-            return Left<MediatorError, TResponse>(
-                MediatorError.New("Operation was cancelled before validation."));
+            return Left<EncinaError, TResponse>(
+                EncinaError.New("Operation was cancelled before validation."));
         }
 
         // Validate using MiniValidation
@@ -86,8 +86,8 @@ public sealed class MiniValidationBehavior<TRequest, TResponse> : IPipelineBehav
 
             var errorMessage = $"Validation failed for {typeof(TRequest).Name} with {errorMessages.Count} error(s): {string.Join(", ", errorMessages)}";
 
-            return Left<MediatorError, TResponse>(
-                MediatorError.New(errorMessage));
+            return Left<EncinaError, TResponse>(
+                EncinaError.New(errorMessage));
         }
 
         // Validation passed, proceed to next step

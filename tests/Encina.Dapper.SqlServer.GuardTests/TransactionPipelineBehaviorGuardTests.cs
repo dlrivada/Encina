@@ -39,7 +39,7 @@ public sealed class TransactionPipelineBehaviorGuardTests
         var connection = Substitute.For<IDbConnection>();
         var behavior = new TransactionPipelineBehavior<TestRequest, string>(connection);
         var context = Substitute.For<IRequestContext>();
-        RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<MediatorError, string>>("result");
+        RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<EncinaError, string>>("result");
 
         // Act
         var act = async () => await behavior.Handle(null!, context, next, CancellationToken.None);
@@ -59,7 +59,7 @@ public sealed class TransactionPipelineBehaviorGuardTests
         var connection = Substitute.For<IDbConnection>();
         var behavior = new TransactionPipelineBehavior<TestRequest, string>(connection);
         var request = new TestRequest("test");
-        RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<MediatorError, string>>("result");
+        RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<EncinaError, string>>("result");
 
         // Act
         var act = async () => await behavior.Handle(request, null!, next, CancellationToken.None);

@@ -8,7 +8,7 @@ MiniValidation integration for Encina with Railway Oriented Programming (ROP) su
 ## Features
 
 - 🚦 **Automatic Request Validation** - Validates requests before handler execution
-- 🛤️ **ROP Integration** - Returns validation failures as `Left<MediatorError>` for functional error handling
+- 🛤️ **ROP Integration** - Returns validation failures as `Left<EncinaError>` for functional error handling
 - 🪶 **Ultra-Lightweight** - MiniValidation is only ~20KB (vs 500KB FluentValidation)
 - 🎯 **Zero Boilerplate** - No need to manually call validators in handlers
 - ⚡ **Minimal APIs Optimized** - Designed specifically for lightweight scenarios
@@ -74,7 +74,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 
     public CreateUserHandler(IUserRepository users) => _users = users;
 
-    public async Task<Either<MediatorError, UserId>> Handle(
+    public async Task<Either<EncinaError, UserId>> Handle(
         CreateUser request,
         CancellationToken ct)
     {
@@ -83,7 +83,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 
         var user = new User(request.Email, request.Name, request.Age);
         await _users.Save(user, ct);
-        return Right<MediatorError, UserId>(user.Id);
+        return Right<EncinaError, UserId>(user.Id);
     }
 }
 ```
@@ -93,9 +93,9 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 Perfect integration with Minimal APIs:
 
 ```csharp
-app.MapPost("/users", async (CreateUser request, IMediator mediator) =>
+app.MapPost("/users", async (CreateUser request, IEncina Encina) =>
 {
-    var result = await mediator.Send(request);
+    var result = await Encina.Send(request);
 
     return result.Match(
         Right: userId => Results.Created($"/users/{userId}", userId),
@@ -215,7 +215,7 @@ public record CreateProject : ICommand<ProjectId>
 When validation fails:
 
 ```csharp
-var result = await mediator.Send(new CreateUser
+var result = await Encina.Send(new CreateUser
 {
     Email = "invalid",
     Name = "",
@@ -238,9 +238,9 @@ result.Match(
 Extract validation errors for API responses:
 
 ```csharp
-app.MapPost("/users", async (CreateUser request, IMediator mediator) =>
+app.MapPost("/users", async (CreateUser request, IEncina Encina) =>
 {
-    var result = await mediator.Send(request);
+    var result = await Encina.Send(request);
 
     return result.Match(
         Right: userId => Results.Created($"/users/{userId}", userId),
@@ -278,7 +278,7 @@ The `MiniValidationBehavior<TRequest, TResponse>` intercepts all requests:
 
 1. **Validate**: Calls `MiniValidator.TryValidate` on the request
 2. **Collect Errors**: Aggregates all validation failures
-3. **Short-Circuit**: If validation fails, returns `Left<MediatorError>` with error message
+3. **Short-Circuit**: If validation fails, returns `Left<EncinaError>` with error message
 4. **Continue**: If validation passes, calls the next pipeline step (handler)
 
 ## Performance
@@ -300,9 +300,9 @@ builder.Services.AddMiniValidation();
 var app = builder.Build();
 
 // Create
-app.MapPost("/users", async (CreateUser cmd, IMediator mediator) =>
+app.MapPost("/users", async (CreateUser cmd, IEncina Encina) =>
 {
-    var result = await mediator.Send(cmd);
+    var result = await Encina.Send(cmd);
     return result.Match(
         Right: id => Results.Created($"/users/{id}", id),
         Left: err => Results.BadRequest(err.Message)
@@ -310,9 +310,9 @@ app.MapPost("/users", async (CreateUser cmd, IMediator mediator) =>
 });
 
 // Update
-app.MapPut("/users/{id}", async (int id, UpdateUser cmd, IMediator mediator) =>
+app.MapPut("/users/{id}", async (int id, UpdateUser cmd, IEncina Encina) =>
 {
-    var result = await mediator.Send(cmd with { Id = id });
+    var result = await Encina.Send(cmd with { Id = id });
     return result.Match(
         Right: _ => Results.NoContent(),
         Left: err => Results.BadRequest(err.Message)
@@ -429,7 +429,7 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 
 ## Related Packages
 
-- **Encina** - Core mediator library
+- **Encina** - Core Encina library
 - **Encina.FluentValidation** - FluentValidation integration (for complex validation)
 - **Encina.DataAnnotations** - Data Annotations integration (zero dependencies)
 - **Encina.AspNetCore** - ASP.NET Core integration (coming soon)

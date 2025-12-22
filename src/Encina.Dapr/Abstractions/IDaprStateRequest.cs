@@ -58,7 +58,7 @@ namespace Encina.Dapr;
 /// }
 ///
 /// // Use through Encina
-/// var result = await mediator.Send(new SaveUserPreferencesCommand(userId, prefs));
+/// var result = await Encina.Send(new SaveUserPreferencesCommand(userId, prefs));
 /// result.Match(
 ///     Right: _ => Console.WriteLine("Preferences saved"),
 ///     Left: error => Console.WriteLine($"Error: {error.Message}")

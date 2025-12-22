@@ -37,7 +37,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> SendToQueueAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, Unit>> SendToQueueAsync<TMessage>(
         TMessage message,
         string? queueName = null,
         CancellationToken cancellationToken = default)
@@ -64,14 +64,14 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
 
             Log.SuccessfullySentToQueue(_logger, typeof(TMessage).Name, effectiveQueueName);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToSendToQueue(_logger, ex, typeof(TMessage).Name, effectiveQueueName);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "AZURE_SB_SEND_FAILED",
                     ex,
                     $"Failed to send message of type {typeof(TMessage).Name} to queue {effectiveQueueName}."));
@@ -79,7 +79,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> PublishToTopicAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, Unit>> PublishToTopicAsync<TMessage>(
         TMessage message,
         string? topicName = null,
         CancellationToken cancellationToken = default)
@@ -106,14 +106,14 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
 
             Log.SuccessfullyPublishedToTopic(_logger, typeof(TMessage).Name, effectiveTopicName);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToPublishToTopic(_logger, ex, typeof(TMessage).Name, effectiveTopicName);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "AZURE_SB_PUBLISH_FAILED",
                     ex,
                     $"Failed to publish message of type {typeof(TMessage).Name} to topic {effectiveTopicName}."));
@@ -121,7 +121,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, long>> ScheduleAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, long>> ScheduleAsync<TMessage>(
         TMessage message,
         DateTimeOffset scheduledEnqueueTime,
         string? queueName = null,
@@ -152,14 +152,14 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
 
             Log.SuccessfullyScheduledMessage(_logger, typeof(TMessage).Name, sequenceNumber);
 
-            return Right<MediatorError, long>(sequenceNumber);
+            return Right<EncinaError, long>(sequenceNumber);
         }
         catch (Exception ex)
         {
             Log.FailedToScheduleMessage(_logger, ex, typeof(TMessage).Name);
 
-            return Left<MediatorError, long>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, long>(
+                EncinaErrors.FromException(
                     "AZURE_SB_SCHEDULE_FAILED",
                     ex,
                     $"Failed to schedule message of type {typeof(TMessage).Name} for {scheduledEnqueueTime}."));
@@ -167,7 +167,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> CancelScheduledAsync(
+    public async ValueTask<Either<EncinaError, Unit>> CancelScheduledAsync(
         long sequenceNumber,
         string? queueName = null,
         CancellationToken cancellationToken = default)
@@ -183,14 +183,14 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
 
             Log.SuccessfullyCancelledMessage(_logger, sequenceNumber);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToCancelMessage(_logger, ex, sequenceNumber);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "AZURE_SB_CANCEL_FAILED",
                     ex,
                     $"Failed to cancel scheduled message with sequence number {sequenceNumber}."));

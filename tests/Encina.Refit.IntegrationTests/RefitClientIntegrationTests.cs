@@ -27,12 +27,12 @@ public class RefitClientIntegrationTests
         });
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IEncina>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         var request = new GetTodoRequest(1);
 
         // Act
-        var result = await mediator.Send(request);
+        var result = await Encina.Send(request);
 
         // Assert
         result.IsRight.Should().BeTrue();
@@ -59,13 +59,13 @@ public class RefitClientIntegrationTests
         });
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IEncina>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         // Act
         var results = await Task.WhenAll(
-            mediator.Send(new GetTodoRequest(1)),
-            mediator.Send(new GetTodoRequest(2)),
-            mediator.Send(new GetTodoRequest(3))
+            Encina.Send(new GetTodoRequest(1)),
+            Encina.Send(new GetTodoRequest(2)),
+            Encina.Send(new GetTodoRequest(3))
         );
 
         // Assert
@@ -94,12 +94,12 @@ public class RefitClientIntegrationTests
         });
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IEncina>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         var request = new GetHeadersRequest();
 
         // Act
-        var result = await mediator.Send(request);
+        var result = await Encina.Send(request);
 
         // Assert
         result.IsRight.Should().BeTrue();
@@ -126,12 +126,12 @@ public class RefitClientIntegrationTests
         });
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IEncina>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         var request = new CreateTodoRequest("New Todo", false);
 
         // Act
-        var result = await mediator.Send(request);
+        var result = await Encina.Send(request);
 
         // Assert
         result.IsRight.Should().BeTrue();

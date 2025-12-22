@@ -13,7 +13,7 @@ namespace Encina.Dapr;
 /// <remarks>
 /// This handler:
 /// - Executes binding operations (create, get, delete, list) through Dapr Bindings API
-/// - Converts <see cref="DaprException"/> to <see cref="MediatorError"/> for Railway Oriented Programming
+/// - Converts <see cref="DaprException"/> to <see cref="EncinaError"/> for Railway Oriented Programming
 /// - Supports 100+ pre-built Dapr bindings (AWS, Azure, GCP, databases, message brokers, etc.)
 /// - Provides automatic retry and error handling via Dapr sidecar
 /// </remarks>
@@ -44,9 +44,9 @@ public sealed partial class DaprBindingHandler<TRequest, TResponse>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
     /// A task that represents the asynchronous operation.
-    /// The task result contains either the response or a mediator error.
+    /// The task result contains either the response or a Encina error.
     /// </returns>
-    public async Task<Either<MediatorError, TResponse>> Handle(
+    public async Task<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         CancellationToken cancellationToken)
     {
@@ -64,7 +64,7 @@ public sealed partial class DaprBindingHandler<TRequest, TResponse>
         {
             LogBindingInvocationFailed(request.BindingName, request.Operation, daprEx);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Dapr binding invocation failed for binding '{request.BindingName}', operation '{request.Operation}': {daprEx.Message}",
                 daprEx);
         }
@@ -72,7 +72,7 @@ public sealed partial class DaprBindingHandler<TRequest, TResponse>
         {
             LogBindingInvocationFailed(request.BindingName, request.Operation, ex);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Unexpected error during binding invocation for binding '{request.BindingName}', operation '{request.Operation}': {ex.Message}",
                 ex);
         }

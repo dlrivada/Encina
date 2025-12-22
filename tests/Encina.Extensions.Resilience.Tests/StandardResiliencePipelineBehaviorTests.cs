@@ -44,7 +44,7 @@ public class StandardResiliencePipelineBehaviorTests
         // Arrange
         var request = new TestRequest();
         var expectedResponse = new TestResponse { Value = "Success" };
-        RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<MediatorError, TestResponse>>(expectedResponse);
+        RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<EncinaError, TestResponse>>(expectedResponse);
 
         // Act
         var result = await _behavior.Handle(request, _context, nextStep, CancellationToken.None);
@@ -58,12 +58,12 @@ public class StandardResiliencePipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_WithMediatorError_ShouldReturnError()
+    public async Task Handle_WithEncinaError_ShouldReturnError()
     {
         // Arrange
         var request = new TestRequest();
-        var error = MediatorError.New("Test error");
-        RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<MediatorError, TestResponse>>(error);
+        var error = EncinaError.New("Test error");
+        RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<EncinaError, TestResponse>>(error);
 
         // Act
         var result = await _behavior.Handle(request, _context, nextStep, CancellationToken.None);
@@ -94,7 +94,7 @@ public class StandardResiliencePipelineBehaviorTests
             registry,
             _logger);
 
-        RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<MediatorError, TestResponse>>(new TestResponse());
+        RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<EncinaError, TestResponse>>(new TestResponse());
 
         // Act
         var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);
@@ -134,7 +134,7 @@ public class StandardResiliencePipelineBehaviorTests
             registry,
             _logger);
 
-        RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<MediatorError, TestResponse>>(new TestResponse());
+        RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<EncinaError, TestResponse>>(new TestResponse());
 
         // Act
         var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);
@@ -157,7 +157,7 @@ public class StandardResiliencePipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_WithUnexpectedException_ShouldReturnMediatorError()
+    public async Task Handle_WithUnexpectedException_ShouldReturnEncinaError()
     {
         // Arrange
         var request = new TestRequest();
@@ -174,7 +174,7 @@ public class StandardResiliencePipelineBehaviorTests
             registry,
             _logger);
 
-        RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<MediatorError, TestResponse>>(new TestResponse());
+        RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<EncinaError, TestResponse>>(new TestResponse());
 
         // Act
         var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);

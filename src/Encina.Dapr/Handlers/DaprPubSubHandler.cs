@@ -14,7 +14,7 @@ namespace Encina.Dapr;
 /// This handler:
 /// - Uses DaprClient to publish events to Dapr Pub/Sub components
 /// - Returns Unit for successful void operations (Railway Oriented Programming)
-/// - Handles DaprException and converts to MediatorError
+/// - Handles DaprException and converts to EncinaError
 /// - Supports any Dapr Pub/Sub component (Redis, RabbitMQ, Kafka, Azure Service Bus, etc.)
 /// </remarks>
 public sealed partial class DaprPubSubHandler<TRequest>
@@ -40,7 +40,7 @@ public sealed partial class DaprPubSubHandler<TRequest>
     /// <summary>
     /// Handles the Dapr Pub/Sub publish request.
     /// </summary>
-    public async Task<Either<MediatorError, Unit>> Handle(
+    public async Task<Either<EncinaError, Unit>> Handle(
         TRequest request,
         CancellationToken cancellationToken)
     {
@@ -72,7 +72,7 @@ public sealed partial class DaprPubSubHandler<TRequest>
                 request.TopicName,
                 daprEx.Message);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Dapr Pub/Sub publish failed for {request.PubSubName}/{request.TopicName}: {daprEx.Message}",
                 daprEx);
         }
@@ -84,7 +84,7 @@ public sealed partial class DaprPubSubHandler<TRequest>
                 request.PubSubName,
                 request.TopicName);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Pub/Sub publish to {request.PubSubName}/{request.TopicName} was cancelled",
                 tcEx);
         }
@@ -96,7 +96,7 @@ public sealed partial class DaprPubSubHandler<TRequest>
                 request.PubSubName,
                 request.TopicName);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Pub/Sub publish to {request.PubSubName}/{request.TopicName} timed out",
                 tcEx);
         }
@@ -108,7 +108,7 @@ public sealed partial class DaprPubSubHandler<TRequest>
                 request.TopicName,
                 ex.Message);
 
-            return MediatorError.New(ex);
+            return EncinaError.New(ex);
         }
     }
 

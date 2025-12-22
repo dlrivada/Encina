@@ -30,7 +30,7 @@ public sealed class StreamPipelineBehaviorContractTests
         StreamHandlerCallback<int> nextStep = () => handler.Handle(request, CancellationToken.None);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
+        var results = new List<Either<EncinaError, int>>();
         await foreach (var item in behavior.Handle(request, context, nextStep, CancellationToken.None))
         {
             results.Add(item);
@@ -56,7 +56,7 @@ public sealed class StreamPipelineBehaviorContractTests
         StreamHandlerCallback<int> nextStep = () => handler.Handle(request, CancellationToken.None);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
+        var results = new List<Either<EncinaError, int>>();
         await foreach (var item in behavior.Handle(request, context, nextStep, CancellationToken.None))
         {
             results.Add(item);
@@ -80,7 +80,7 @@ public sealed class StreamPipelineBehaviorContractTests
         StreamHandlerCallback<int> nextStep = () => handler.Handle(request, CancellationToken.None);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
+        var results = new List<Either<EncinaError, int>>();
         await foreach (var item in behavior.Handle(request, context, nextStep, CancellationToken.None))
         {
             results.Add(item);
@@ -104,7 +104,7 @@ public sealed class StreamPipelineBehaviorContractTests
         StreamHandlerCallback<int> nextStep = () => handler.Handle(request, CancellationToken.None);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
+        var results = new List<Either<EncinaError, int>>();
         await foreach (var item in behavior.Handle(request, context, nextStep, CancellationToken.None))
         {
             results.Add(item);
@@ -120,7 +120,7 @@ public sealed class StreamPipelineBehaviorContractTests
             Left: e => e,
             Right: _ => throw new InvalidOperationException("Expected Left"));
 
-        error.GetMediatorCode().Should().Be("TEST_ERROR");
+        error.GetEncinaCode().Should().Be("TEST_ERROR");
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class StreamPipelineBehaviorContractTests
         StreamHandlerCallback<int> nextStep = () => handler.Handle(request, cts.Token);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
+        var results = new List<Either<EncinaError, int>>();
         try
         {
             await foreach (var item in behavior.Handle(request, context, nextStep, cts.Token))
@@ -182,10 +182,10 @@ public sealed class StreamPipelineBehaviorContractTests
 
     #endregion
 
-    #region Integration with IMediator Tests
+    #region Integration with IEncina Tests
 
     [Fact]
-    public async Task IMediator_Stream_WithSingleBehavior_ShouldExecuteBehavior()
+    public async Task IEncina_Stream_WithSingleBehavior_ShouldExecuteBehavior()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -193,13 +193,13 @@ public sealed class StreamPipelineBehaviorContractTests
         services.AddTransient<IStreamRequestHandler<TestStreamRequest, int>, TestStreamHandler>();
         services.AddTransient<IStreamPipelineBehavior<TestStreamRequest, int>, MultiplyByTenBehavior>();
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var request = new TestStreamRequest(Count: 3);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(request))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(request))
         {
             results.Add(item);
         }
@@ -211,7 +211,7 @@ public sealed class StreamPipelineBehaviorContractTests
     }
 
     [Fact]
-    public async Task IMediator_Stream_WithMultipleBehaviors_ShouldExecuteInOrder()
+    public async Task IEncina_Stream_WithMultipleBehaviors_ShouldExecuteInOrder()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -223,13 +223,13 @@ public sealed class StreamPipelineBehaviorContractTests
         services.AddTransient<IStreamPipelineBehavior<TestStreamRequest, int>, EvenOnlyBehavior>();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var request = new TestStreamRequest(Count: 5);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(request))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(request))
         {
             results.Add(item);
         }
@@ -252,7 +252,7 @@ public sealed class StreamPipelineBehaviorContractTests
 
     private sealed class TestStreamHandler : IStreamRequestHandler<TestStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             TestStreamRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
@@ -260,27 +260,27 @@ public sealed class StreamPipelineBehaviorContractTests
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 await Task.Delay(1, cancellationToken);
-                yield return Right<MediatorError, int>(i);
+                yield return Right<EncinaError, int>(i);
             }
         }
     }
 
     private sealed class ErrorProducingHandler : IStreamRequestHandler<TestStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             TestStreamRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            yield return Right<MediatorError, int>(1);
-            yield return Left<MediatorError, int>(MediatorErrors.Create("TEST_ERROR", "Test error"));
-            yield return Right<MediatorError, int>(3);
+            yield return Right<EncinaError, int>(1);
+            yield return Left<EncinaError, int>(EncinaErrors.Create("TEST_ERROR", "Test error"));
+            yield return Right<EncinaError, int>(3);
             await Task.CompletedTask;
         }
     }
 
     private sealed class PassThroughStreamBehavior : IStreamPipelineBehavior<TestStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             TestStreamRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -295,7 +295,7 @@ public sealed class StreamPipelineBehaviorContractTests
 
     private sealed class MultiplyByTenBehavior : IStreamPipelineBehavior<TestStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             TestStreamRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -310,7 +310,7 @@ public sealed class StreamPipelineBehaviorContractTests
 
     private sealed class EvenOnlyBehavior : IStreamPipelineBehavior<TestStreamRequest, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             TestStreamRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -334,7 +334,7 @@ public sealed class StreamPipelineBehaviorContractTests
     {
         public string CapturedCorrelationId { get; private set; } = string.Empty;
 
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             TestStreamRequest request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,

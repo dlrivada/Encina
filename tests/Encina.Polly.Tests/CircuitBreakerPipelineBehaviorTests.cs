@@ -31,7 +31,7 @@ public class CircuitBreakerPipelineBehaviorTests
         var request = new TestRequestNoCircuitBreaker();
         var context = Substitute.For<IRequestContext>();
         var expectedResponse = "success";
-        RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<MediatorError, string>(expectedResponse));
+        RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<EncinaError, string>(expectedResponse));
 
         var behavior = new CircuitBreakerPipelineBehavior<TestRequestNoCircuitBreaker, string>(
             Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequestNoCircuitBreaker, string>>>());
@@ -54,7 +54,7 @@ public class CircuitBreakerPipelineBehaviorTests
         var request = new TestRequest();
         var context = Substitute.For<IRequestContext>();
         var expectedResponse = "success";
-        RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<MediatorError, string>(expectedResponse));
+        RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<EncinaError, string>(expectedResponse));
 
         // Act
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
@@ -77,7 +77,7 @@ public class CircuitBreakerPipelineBehaviorTests
         RequestHandlerCallback<string> next = () =>
         {
             callCount++;
-            return ValueTask.FromResult(Right<MediatorError, string>("success"));
+            return ValueTask.FromResult(Right<EncinaError, string>("success"));
         };
 
         // Act
@@ -99,7 +99,7 @@ public class CircuitBreakerPipelineBehaviorTests
             Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequestLowThreshold, string>>>());
 
         RequestHandlerCallback<string> next = () =>
-            ValueTask.FromResult(Left<MediatorError, string>(MediatorErrors.Create("test.error", "Failure")));
+            ValueTask.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Failure")));
 
         // Act - Cause failures to open circuit
         await behavior.Handle(request, context, next, CancellationToken.None);
@@ -130,7 +130,7 @@ public class CircuitBreakerPipelineBehaviorTests
             Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequestLowThreshold, string>>>());
 
         RequestHandlerCallback<string> next = () =>
-            ValueTask.FromResult(Left<MediatorError, string>(MediatorErrors.Create("test.error", "Failure")));
+            ValueTask.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Failure")));
 
         // Cause failures to open circuit
         for (int i = 0; i < 5; i++)
@@ -161,7 +161,7 @@ public class CircuitBreakerPipelineBehaviorTests
         // Arrange
         var request = new TestRequest();
         var context = Substitute.For<IRequestContext>();
-        RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<MediatorError, string>("success"));
+        RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<EncinaError, string>("success"));
 
         // Act - Multiple calls should use cached pipeline
         await _behavior.Handle(request, context, next, CancellationToken.None);
@@ -178,7 +178,7 @@ public class CircuitBreakerPipelineBehaviorTests
         // Arrange
         var request = new TestRequest();
         var context = Substitute.For<IRequestContext>();
-        RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<MediatorError, string>("success"));
+        RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<EncinaError, string>("success"));
 
         // Act - Call from multiple threads concurrently
         var tasks = Enumerable.Range(0, 10).Select(_ => Task.Run(async () =>
@@ -194,7 +194,7 @@ public class CircuitBreakerPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_ExceptionThrown_ShouldReturnMediatorError()
+    public async Task Handle_ExceptionThrown_ShouldReturnEncinaError()
     {
         // Arrange
         var request = new TestRequest();
@@ -221,7 +221,7 @@ public class CircuitBreakerPipelineBehaviorTests
         var behavior = new CircuitBreakerPipelineBehavior<TestRequestCustomConfig, string>(
             Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequestCustomConfig, string>>>());
 
-        RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<MediatorError, string>("success"));
+        RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<EncinaError, string>("success"));
 
         // Act
         var result = await behavior.Handle(request, context, next, CancellationToken.None);

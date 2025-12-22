@@ -14,8 +14,8 @@ public interface IRedisPubSubMessagePublisher
     /// <param name="message">The message to publish.</param>
     /// <param name="channel">The channel name. If null, uses the default channel.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the number of subscribers that received the message.</returns>
-    ValueTask<Either<MediatorError, long>> PublishAsync<TMessage>(
+    /// <returns>Either a EncinaError or the number of subscribers that received the message.</returns>
+    ValueTask<Either<EncinaError, long>> PublishAsync<TMessage>(
         TMessage message,
         string? channel = null,
         CancellationToken cancellationToken = default)

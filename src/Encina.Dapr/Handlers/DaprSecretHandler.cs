@@ -13,7 +13,7 @@ namespace Encina.Dapr;
 /// <remarks>
 /// This handler:
 /// - Retrieves secrets from Dapr Secret Management API
-/// - Converts <see cref="DaprException"/> to <see cref="MediatorError"/> for Railway Oriented Programming
+/// - Converts <see cref="DaprException"/> to <see cref="EncinaError"/> for Railway Oriented Programming
 /// - Supports multiple secret stores (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, etc.)
 /// - Provides automatic secret rotation and secure access via Dapr sidecar
 /// - IMPORTANT: Secrets are never logged for security reasons
@@ -45,9 +45,9 @@ public sealed partial class DaprSecretHandler<TRequest, TResponse>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
     /// A task that represents the asynchronous operation.
-    /// The task result contains either the secret response or a mediator error.
+    /// The task result contains either the secret response or a Encina error.
     /// </returns>
-    public async Task<Either<MediatorError, TResponse>> Handle(
+    public async Task<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         CancellationToken cancellationToken)
     {
@@ -66,7 +66,7 @@ public sealed partial class DaprSecretHandler<TRequest, TResponse>
         {
             LogSecretRetrievalFailed(request.SecretStoreName, daprEx);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Dapr secret retrieval failed for store '{request.SecretStoreName}': {daprEx.Message}",
                 daprEx);
         }
@@ -74,7 +74,7 @@ public sealed partial class DaprSecretHandler<TRequest, TResponse>
         {
             LogSecretRetrievalFailed(request.SecretStoreName, ex);
 
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Unexpected error during secret retrieval for store '{request.SecretStoreName}': {ex.Message}",
                 ex);
         }

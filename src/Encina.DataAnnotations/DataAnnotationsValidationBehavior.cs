@@ -16,7 +16,7 @@ namespace Encina.DataAnnotations;
 /// and short-circuits the pipeline with a validation error if validation fails.
 /// </para>
 /// <para>
-/// Validation failures are returned as <c>Left&lt;MediatorError&gt;</c> containing a <see cref="ValidationException"/>
+/// Validation failures are returned as <c>Left&lt;EncinaError&gt;</c> containing a <see cref="ValidationException"/>
 /// with all validation errors. This allows downstream code to inspect and handle validation failures functionally.
 /// </para>
 /// <para>
@@ -45,10 +45,10 @@ namespace Encina.DataAnnotations;
 /// // Handler receives only valid requests
 /// public class CreateUserHandler : ICommandHandler&lt;CreateUser, UserId&gt;
 /// {
-///     public Task&lt;Either&lt;MediatorError, UserId&gt;&gt; Handle(CreateUser request, CancellationToken ct)
+///     public Task&lt;Either&lt;EncinaError, UserId&gt;&gt; Handle(CreateUser request, CancellationToken ct)
 ///     {
 ///         // request is guaranteed to be valid here
-///         return Task.FromResult(Right&lt;MediatorError, UserId&gt;(UserId.New()));
+///         return Task.FromResult(Right&lt;EncinaError, UserId&gt;(UserId.New()));
 ///     }
 /// }
 /// </code>
@@ -57,7 +57,7 @@ public sealed class DataAnnotationsValidationBehavior<TRequest, TResponse> : IPi
     where TRequest : IRequest<TResponse>
 {
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,
@@ -69,14 +69,14 @@ public sealed class DataAnnotationsValidationBehavior<TRequest, TResponse> : IPi
 
         if (cancellationToken.IsCancellationRequested)
         {
-            return Left<MediatorError, TResponse>(
-                MediatorError.New("Operation was cancelled before validation."));
+            return Left<EncinaError, TResponse>(
+                EncinaError.New("Operation was cancelled before validation."));
         }
 
         // Validate using Data Annotations
         var validationContext = new ValidationContext(request, serviceProvider: null, items: null);
 
-        // Enrich validation context with mediator metadata
+        // Enrich validation context with Encina metadata
         validationContext.Items["CorrelationId"] = context.CorrelationId;
 
         if (context.UserId is not null)
@@ -109,8 +109,8 @@ public sealed class DataAnnotationsValidationBehavior<TRequest, TResponse> : IPi
             // Store validation results in Data property for inspection
             validationException.Data["ValidationResults"] = validationResults;
 
-            return Left<MediatorError, TResponse>(
-                MediatorError.New(
+            return Left<EncinaError, TResponse>(
+                EncinaError.New(
                     validationException,
                     $"Validation failed for {typeof(TRequest).Name} with {validationResults.Count} error(s)."));
         }

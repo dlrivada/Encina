@@ -7,38 +7,38 @@ using static LanguageExt.Prelude;
 namespace Encina.gRPC;
 
 /// <summary>
-/// gRPC-based implementation of the mediator service.
+/// gRPC-based implementation of the Encina service.
 /// </summary>
-public sealed class GrpcMediatorService : IGrpcMediatorService
+public sealed class GrpcEncinaService : IGrpcEncinaService
 {
-    private readonly IMediator _mediator;
-    private readonly ILogger<GrpcMediatorService> _logger;
+    private readonly IEncina _Encina;
+    private readonly ILogger<GrpcEncinaService> _logger;
     private readonly EncinaGrpcOptions _options;
     private readonly Dictionary<string, Type> _requestTypeCache = new();
     private readonly Dictionary<string, Type> _notificationTypeCache = new();
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="GrpcMediatorService"/> class.
+    /// Initializes a new instance of the <see cref="GrpcEncinaService"/> class.
     /// </summary>
-    /// <param name="mediator">The Encina instance.</param>
+    /// <param name="Encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
-    public GrpcMediatorService(
-        IMediator mediator,
-        ILogger<GrpcMediatorService> logger,
+    public GrpcEncinaService(
+        IEncina Encina,
+        ILogger<GrpcEncinaService> logger,
         IOptions<EncinaGrpcOptions> options)
     {
-        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(Encina);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
 
-        _mediator = mediator;
+        _Encina = Encina;
         _logger = logger;
         _options = options.Value;
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, byte[]>> SendAsync(
+    public async ValueTask<Either<EncinaError, byte[]>> SendAsync(
         string requestType,
         byte[] requestData,
         CancellationToken cancellationToken = default)
@@ -53,8 +53,8 @@ public sealed class GrpcMediatorService : IGrpcMediatorService
             var type = ResolveType(requestType, _requestTypeCache);
             if (type is null)
             {
-                return Left<MediatorError, byte[]>(
-                    MediatorErrors.Create(
+                return Left<EncinaError, byte[]>(
+                    EncinaErrors.Create(
                         "GRPC_TYPE_NOT_FOUND",
                         $"Request type '{requestType}' not found."));
             }
@@ -62,14 +62,14 @@ public sealed class GrpcMediatorService : IGrpcMediatorService
             var request = JsonSerializer.Deserialize(requestData, type);
             if (request is null)
             {
-                return Left<MediatorError, byte[]>(
-                    MediatorErrors.Create(
+                return Left<EncinaError, byte[]>(
+                    EncinaErrors.Create(
                         "GRPC_DESERIALIZE_FAILED",
                         "Failed to deserialize request."));
             }
 
             // Use reflection to call the generic Send method
-            var sendMethod = typeof(IMediator)
+            var sendMethod = typeof(IEncina)
                 .GetMethods()
                 .First(m => m.Name == "Send" && m.GetGenericArguments().Length == 2);
 
@@ -79,30 +79,30 @@ public sealed class GrpcMediatorService : IGrpcMediatorService
 
             if (responseType is null)
             {
-                return Left<MediatorError, byte[]>(
-                    MediatorErrors.Create(
+                return Left<EncinaError, byte[]>(
+                    EncinaErrors.Create(
                         "GRPC_RESPONSE_TYPE_NOT_FOUND",
                         $"Could not determine response type for request '{requestType}'."));
             }
 
             var genericMethod = sendMethod.MakeGenericMethod(type, responseType);
-            var task = (dynamic)genericMethod.Invoke(_mediator, [request, cancellationToken])!;
-            Either<MediatorError, object> result = await task;
+            var task = (dynamic)genericMethod.Invoke(_Encina, [request, cancellationToken])!;
+            Either<EncinaError, object> result = await task;
 
             return result.Match(
                 Right: response =>
                 {
                     var responseBytes = JsonSerializer.SerializeToUtf8Bytes(response, responseType);
-                    return Right<MediatorError, byte[]>(responseBytes);
+                    return Right<EncinaError, byte[]>(responseBytes);
                 },
-                Left: error => Left<MediatorError, byte[]>(error));
+                Left: error => Left<EncinaError, byte[]>(error));
         }
         catch (Exception ex)
         {
             Log.FailedToProcessRequest(_logger, ex, requestType);
 
-            return Left<MediatorError, byte[]>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, byte[]>(
+                EncinaErrors.FromException(
                     "GRPC_SEND_FAILED",
                     ex,
                     $"Failed to process request of type '{requestType}'."));
@@ -110,7 +110,7 @@ public sealed class GrpcMediatorService : IGrpcMediatorService
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> PublishAsync(
+    public async ValueTask<Either<EncinaError, Unit>> PublishAsync(
         string notificationType,
         byte[] notificationData,
         CancellationToken cancellationToken = default)
@@ -125,8 +125,8 @@ public sealed class GrpcMediatorService : IGrpcMediatorService
             var type = ResolveType(notificationType, _notificationTypeCache);
             if (type is null)
             {
-                return Left<MediatorError, Unit>(
-                    MediatorErrors.Create(
+                return Left<EncinaError, Unit>(
+                    EncinaErrors.Create(
                         "GRPC_TYPE_NOT_FOUND",
                         $"Notification type '{notificationType}' not found."));
             }
@@ -134,29 +134,29 @@ public sealed class GrpcMediatorService : IGrpcMediatorService
             var notification = JsonSerializer.Deserialize(notificationData, type);
             if (notification is null)
             {
-                return Left<MediatorError, Unit>(
-                    MediatorErrors.Create(
+                return Left<EncinaError, Unit>(
+                    EncinaErrors.Create(
                         "GRPC_DESERIALIZE_FAILED",
                         "Failed to deserialize notification."));
             }
 
             // Use reflection to call the generic Publish method
-            var publishMethod = typeof(IMediator)
+            var publishMethod = typeof(IEncina)
                 .GetMethods()
                 .First(m => m.Name == "Publish" && m.GetGenericArguments().Length == 1);
 
             var genericMethod = publishMethod.MakeGenericMethod(type);
-            var task = (ValueTask)genericMethod.Invoke(_mediator, [notification, cancellationToken])!;
+            var task = (ValueTask)genericMethod.Invoke(_Encina, [notification, cancellationToken])!;
             await task;
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToProcessNotification(_logger, ex, notificationType);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "GRPC_PUBLISH_FAILED",
                     ex,
                     $"Failed to process notification of type '{notificationType}'."));
@@ -164,7 +164,7 @@ public sealed class GrpcMediatorService : IGrpcMediatorService
     }
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<Either<MediatorError, byte[]>> StreamAsync(
+    public async IAsyncEnumerable<Either<EncinaError, byte[]>> StreamAsync(
         string requestType,
         byte[] requestData,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -172,8 +172,8 @@ public sealed class GrpcMediatorService : IGrpcMediatorService
         // Streaming is not yet implemented
         await Task.CompletedTask;
 
-        yield return Left<MediatorError, byte[]>(
-            MediatorErrors.Create(
+        yield return Left<EncinaError, byte[]>(
+            EncinaErrors.Create(
                 "GRPC_STREAMING_NOT_IMPLEMENTED",
                 "Streaming is not yet implemented."));
     }

@@ -73,10 +73,10 @@ builder.Services.AddOpenTelemetry()
 
 ### 3. Access the Dashboards
 
-- **Grafana**: http://localhost:3000 (default dashboard auto-loaded)
-- **Prometheus**: http://localhost:9090
-- **Jaeger UI**: http://localhost:16686
-- **Loki**: http://localhost:3100
+- **Grafana**: <http://localhost:3000> (default dashboard auto-loaded)
+- **Prometheus**: <http://localhost:9090>
+- **Jaeger UI**: <http://localhost:16686>
+- **Loki**: <http://localhost:3100>
 
 ## 📊 Available Dashboards
 
@@ -153,6 +153,7 @@ rate(Encina_requests_total{status="error"}[5m])
 ### Grafana
 
 **Files**:
+
 - `observability/grafana/provisioning/datasources/datasources.yaml`
 - `observability/grafana/provisioning/dashboards/dashboards.yaml`
 
@@ -211,8 +212,8 @@ curl http://localhost:8889/metrics
 
 ### Grafana Dashboard Empty
 
-1. Verify datasources are configured: http://localhost:3000/datasources
-2. Check that data is flowing to Prometheus: http://localhost:9090/graph
+1. Verify datasources are configured: <http://localhost:3000/datasources>
+2. Check that data is flowing to Prometheus: <http://localhost:9090/graph>
 3. Verify time range in Grafana (default: last 1 hour)
 
 ### Loki Not Receiving Logs

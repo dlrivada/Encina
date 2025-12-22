@@ -36,7 +36,7 @@ public class RestApiRequestHandlerContractTests
 
         // Assert
         handleMethod.Should().NotBeNull();
-        handleMethod!.ReturnType.Should().Be(typeof(Task<Either<MediatorError, string>>));
+        handleMethod!.ReturnType.Should().Be(typeof(Task<Either<EncinaError, string>>));
         handleMethod.ReturnType.GetGenericTypeDefinition().Should().Be(typeof(Task<>));
     }
 

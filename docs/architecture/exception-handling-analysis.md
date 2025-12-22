@@ -10,7 +10,7 @@ Durante el trabajo de mutation testing, identificamos que el 43% de las mutacion
 
 ```csharp
 // PipelineBuilder.cs líneas 182-214
-private static async ValueTask<Either<MediatorError, TResponse>> ExecuteBehaviorAsync(...)
+private static async ValueTask<Either<EncinaError, TResponse>> ExecuteBehaviorAsync(...)
 {
     try
     {
@@ -24,8 +24,8 @@ private static async ValueTask<Either<MediatorError, TResponse>> ExecuteBehavior
             ["request"] = typeof(TRequest).FullName,     // ← String mutation sobreviviente
             ["stage"] = "behavior"                        // ← String mutation sobreviviente
         };
-        var error = MediatorErrors.FromException(MediatorErrorCodes.BehaviorException, ex, ...);
-        return Left<MediatorError, TResponse>(error);
+        var error = EncinaErrors.FromException(EncinaErrorCodes.BehaviorException, ex, ...);
+        return Left<EncinaError, TResponse>(error);
     }
 }
 ```
@@ -45,8 +45,8 @@ catch (Exception ex)
         ["handler"] = handler!.GetType().FullName,
         ["stage"] = "pipeline"  // ← Genérico, sin detalle del componente específico
     };
-    var error = MediatorErrors.FromException(MediatorErrorCodes.PipelineException, ex, ...);
-    return Left<MediatorError, TResponse>(error);
+    var error = EncinaErrors.FromException(EncinaErrorCodes.PipelineException, ex, ...);
+    return Left<EncinaError, TResponse>(error);
 }
 ```
 
@@ -83,11 +83,11 @@ Si `ExecuteBehaviorAsync` lanza una excepción **síncronamente antes de devolve
 
 ```csharp
 // Behavior que lanza síncronamente
-public ValueTask<Either<MediatorError, TResponse>> Handle(...)
+public ValueTask<Either<EncinaError, TResponse>> Handle(...)
     => throw new InvalidOperationException("Bug");  // ← Escapa ANTES del await
 
 // vs. Behavior que lanza asíncronamente
-public async ValueTask<Either<MediatorError, TResponse>> Handle(...)
+public async ValueTask<Either<EncinaError, TResponse>> Handle(...)
 {
     await Task.Yield();
     throw new InvalidOperationException("Bug");  // ← Capturado en ExecuteBehaviorAsync
@@ -102,7 +102,7 @@ En la práctica, **casi todos** los behaviors/handlers/processors lanzan síncro
 
 **Ventajas:**
 
-- ✅ **Más robusto**: Garantiza que NINGUNA excepción escapa del mediator
+- ✅ **Más robusto**: Garantiza que NINGUNA excepción escapa del Encina
 - ✅ **Más simple**: Un solo punto de captura final
 - ✅ **Metrics/Observability centralizados**: Todas las excepciones reportadas consistentemente
 - ✅ **Menos código**: No duplicar try-catch en múltiples capas
@@ -118,7 +118,7 @@ En la práctica, **casi todos** los behaviors/handlers/processors lanzan síncro
 ```csharp
 // Usuario ve:
 {
-  "code": "mediator.pipeline.exception",
+  "code": "Encina.pipeline.exception",
   "message": "Unexpected error while processing CreateUserCommand",
   "metadata": {
     "stage": "pipeline",  // ← Genérico
@@ -146,8 +146,8 @@ public override async Task<object> Handle(...)
     catch (Exception ex)
     {
         // Convertir a Either antes de llegar a RequestDispatcher
-        var error = MediatorErrors.FromException(...);
-        return Left<MediatorError, TResponse>(error);
+        var error = EncinaErrors.FromException(...);
+        return Left<EncinaError, TResponse>(error);
     }
 }
 ```
@@ -169,7 +169,7 @@ public override async Task<object> Handle(...)
 ```csharp
 // Usuario ve:
 {
-  "code": "mediator.behavior.exception",  // ← Más específico
+  "code": "Encina.behavior.exception",  // ← Más específico
   "message": "Error running ValidationBehavior for CreateUserCommand",
   "metadata": {
     "stage": "behavior",  // ← Específico
@@ -190,7 +190,7 @@ public override async Task<object> Handle(...)
 // Solo capturar en startup (configuración)
 
 // PipelineBuilder.ExecuteBehaviorAsync - SIN try-catch
-private static async ValueTask<Either<MediatorError, TResponse>> ExecuteBehaviorAsync(...)
+private static async ValueTask<Either<EncinaError, TResponse>> ExecuteBehaviorAsync(...)
 {
     return await behavior.Handle(request, nextStep, cancellationToken).ConfigureAwait(false);
     // Si lanza → propagate y crash
@@ -229,7 +229,7 @@ Unhandled exception. System.InvalidOperationException: Validation failed
 
 ## Filosofía ROP: ¿Qué Son "Errores" vs "Bugs"?
 
-### Errores Funcionales (Expected) → `Left<MediatorError>`
+### Errores Funcionales (Expected) → `Left<EncinaError>`
 
 - Usuario no encontrado
 - Validación falló
@@ -249,12 +249,12 @@ Unhandled exception. System.InvalidOperationException: Validation failed
 **Caso 1: Handler bien escrito (ROP)**
 
 ```csharp
-public async Task<Either<MediatorError, User>> Handle(GetUserQuery request, CancellationToken ct)
+public async Task<Either<EncinaError, User>> Handle(GetUserQuery request, CancellationToken ct)
 {
     var userOption = await _repo.FindByIdAsync(request.Id);
     return userOption.Match(
-        Some: user => Right<MediatorError, User>(user),
-        None: () => Left<MediatorError, User>(Errors.UserNotFound)  // ← Funcional, NO exception
+        Some: user => Right<EncinaError, User>(user),
+        None: () => Left<EncinaError, User>(Errors.UserNotFound)  // ← Funcional, NO exception
     );
 }
 ```
@@ -264,12 +264,12 @@ public async Task<Either<MediatorError, User>> Handle(GetUserQuery request, Canc
 **Caso 2: Handler con bug (olvidó ROP)**
 
 ```csharp
-public async Task<Either<MediatorError, User>> Handle(GetUserQuery request, CancellationToken ct)
+public async Task<Either<EncinaError, User>> Handle(GetUserQuery request, CancellationToken ct)
 {
     var user = await _repo.FindByIdAsync(request.Id);
     if (user == null)
         throw new InvalidOperationException("User not found");  // ← BUG! Debió ser Left
-    return Right<MediatorError, User>(user);
+    return Right<EncinaError, User>(user);
 }
 ```
 
@@ -318,7 +318,7 @@ public async Task<Either<MediatorError, User>> Handle(GetUserQuery request, Canc
    - Testearlos requiere **simular bugs del usuario**, no comportamiento correcto
 
 3. **La metadata genérica es suficiente**:
-   - El stack trace del `Exception` original está en `MediatorError.Exception`
+   - El stack trace del `Exception` original está en `EncinaError.Exception`
    - Logs tienen el tipo completo de la excepción
    - El usuario puede debuggear con esa información
 
@@ -330,7 +330,7 @@ Si realmente quieres 80%+ score **SIN** cambiar arquitectura:
 
 1. **Acepta el 75.18%** como válido para código defensivo
 2. **Documenta en ADR** que las mutaciones sobrevivientes son por diseño
-3. **Ataca otras áreas**: Los 27 mutantes en NotificationDispatcher, 12 en MediatorBehaviorGuards
+3. **Ataca otras áreas**: Los 27 mutantes en NotificationDispatcher, 12 en EncinaBehaviorGuards
 4. **Configura Stryker** para excluir esos catch blocks como "código defensivo no testeable"
 
 ## Conclusión

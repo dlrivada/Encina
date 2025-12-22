@@ -22,14 +22,14 @@ public sealed class StreamPipelineBehaviorTests
 
     public sealed class StreamNumbersHandler : IStreamRequestHandler<StreamNumbersQuery, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             StreamNumbersQuery request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             for (var i = 1; i <= request.Count; i++)
             {
                 await Task.Delay(1, cancellationToken);
-                yield return Right<MediatorError, int>(i);
+                yield return Right<EncinaError, int>(i);
             }
         }
     }
@@ -38,7 +38,7 @@ public sealed class StreamPipelineBehaviorTests
     {
         public List<string> Logs { get; } = new();
 
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             StreamNumbersQuery request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -60,7 +60,7 @@ public sealed class StreamPipelineBehaviorTests
 
     private sealed class StreamTransformBehavior : IStreamPipelineBehavior<StreamNumbersQuery, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             StreamNumbersQuery request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -76,7 +76,7 @@ public sealed class StreamPipelineBehaviorTests
 
     private sealed class StreamFilterBehavior : IStreamPipelineBehavior<StreamNumbersQuery, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             StreamNumbersQuery request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -105,18 +105,18 @@ public sealed class StreamPipelineBehaviorTests
         // Arrange
         var loggingBehavior = new StreamLoggingBehavior();
         var services = new ServiceCollection();
-        services.AddEncina(); // Register mediator without scanning assemblies
+        services.AddEncina(); // Register Encina without scanning assemblies
         services.AddTransient<IStreamRequestHandler<StreamNumbersQuery, int>, StreamNumbersHandler>();
         services.AddTransient<IStreamPipelineBehavior<StreamNumbersQuery, int>>(_ => loggingBehavior);
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var query = new StreamNumbersQuery(3);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(query))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(query))
         {
             results.Add(item);
         }
@@ -135,18 +135,18 @@ public sealed class StreamPipelineBehaviorTests
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddEncina(); // Register mediator without scanning assemblies
+        services.AddEncina(); // Register Encina without scanning assemblies
         services.AddTransient<IStreamRequestHandler<StreamNumbersQuery, int>, StreamNumbersHandler>();
         services.AddTransient<IStreamPipelineBehavior<StreamNumbersQuery, int>, StreamTransformBehavior>();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var query = new StreamNumbersQuery(3);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(query))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(query))
         {
             results.Add(item);
         }
@@ -164,18 +164,18 @@ public sealed class StreamPipelineBehaviorTests
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddEncina(); // Register mediator without scanning assemblies
+        services.AddEncina(); // Register Encina without scanning assemblies
         services.AddTransient<IStreamRequestHandler<StreamNumbersQuery, int>, StreamNumbersHandler>();
         services.AddTransient<IStreamPipelineBehavior<StreamNumbersQuery, int>, StreamFilterBehavior>();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var query = new StreamNumbersQuery(10);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(query))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(query))
         {
             results.Add(item);
         }
@@ -194,7 +194,7 @@ public sealed class StreamPipelineBehaviorTests
         // Arrange
         var loggingBehavior = new StreamLoggingBehavior();
         var services = new ServiceCollection();
-        services.AddEncina(); // Register mediator without scanning assemblies
+        services.AddEncina(); // Register Encina without scanning assemblies
         services.AddTransient<IStreamRequestHandler<StreamNumbersQuery, int>, StreamNumbersHandler>();
 
         // Register behaviors in order: Logging, Transform, Filter
@@ -205,13 +205,13 @@ public sealed class StreamPipelineBehaviorTests
         services.AddTransient<IStreamPipelineBehavior<StreamNumbersQuery, int>, StreamFilterBehavior>();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var query = new StreamNumbersQuery(6);
 
         // Act
-        var results = new List<Either<MediatorError, int>>();
-        await foreach (var item in mediator.Stream(query))
+        var results = new List<Either<EncinaError, int>>();
+        await foreach (var item in Encina.Stream(query))
         {
             results.Add(item);
         }
@@ -238,18 +238,18 @@ public sealed class StreamPipelineBehaviorTests
         var contextCapture = new List<string>();
 
         var services = new ServiceCollection();
-        services.AddEncina(); // Register mediator without scanning assemblies
+        services.AddEncina(); // Register Encina without scanning assemblies
         services.AddTransient<IStreamRequestHandler<StreamNumbersQuery, int>, StreamNumbersHandler>();
         services.AddTransient<IStreamPipelineBehavior<StreamNumbersQuery, int>>(sp =>
             new ContextCapturingBehavior(contextCapture));
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         var query = new StreamNumbersQuery(2);
 
         // Act
-        await foreach (var _ in mediator.Stream(query))
+        await foreach (var _ in Encina.Stream(query))
         {
             // Just consume the stream
         }
@@ -264,7 +264,7 @@ public sealed class StreamPipelineBehaviorTests
 
         public ContextCapturingBehavior(List<string> capture) => _capture = capture;
 
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             StreamNumbersQuery request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,
@@ -364,7 +364,7 @@ public sealed class StreamPipelineBehaviorTests
     /// </summary>
     public sealed class PublicStreamTransformBehavior : IStreamPipelineBehavior<StreamNumbersQuery, int>
     {
-        public async IAsyncEnumerable<Either<MediatorError, int>> Handle(
+        public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             StreamNumbersQuery request,
             IRequestContext context,
             StreamHandlerCallback<int> nextStep,

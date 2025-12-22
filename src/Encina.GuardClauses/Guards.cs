@@ -50,24 +50,24 @@ namespace Encina.GuardClauses;
 /// }
 ///
 /// // ✅ DO - Guard state validation in handlers
-/// public async Task&lt;Either&lt;MediatorError, OrderId&gt;&gt; Handle(CancelOrder cmd, CancellationToken ct)
+/// public async Task&lt;Either&lt;EncinaError, OrderId&gt;&gt; Handle(CancelOrder cmd, CancellationToken ct)
 /// {
 ///     var order = await _orders.FindById(cmd.OrderId, ct);
 ///
 ///     if (!Guards.TryValidateNotNull(order, nameof(order), out var error))
-///         return Left&lt;MediatorError, OrderId&gt;(error);
+///         return Left&lt;EncinaError, OrderId&gt;(error);
 ///
 ///     order.Cancel();
 ///     await _orders.Save(order, ct);
-///     return Right&lt;MediatorError, OrderId&gt;(order.Id);
+///     return Right&lt;EncinaError, OrderId&gt;(order.Id);
 /// }
 ///
 /// // ❌ DON'T - Redundant input validation (use FluentValidation/DataAnnotations/MiniValidator instead)
-/// public Task&lt;Either&lt;MediatorError, UserId&gt;&gt; Handle(CreateUser cmd, CancellationToken ct)
+/// public Task&lt;Either&lt;EncinaError, UserId&gt;&gt; Handle(CreateUser cmd, CancellationToken ct)
 /// {
 ///     // WRONG: Input already validated by validation behaviors
 ///     if (!Guards.TryValidateNotEmpty(cmd.Email, nameof(cmd.Email), out var error))
-///         return Task.FromResult(Left&lt;MediatorError, UserId&gt;(error));
+///         return Task.FromResult(Left&lt;EncinaError, UserId&gt;(error));
 ///
 ///     // Handler logic...
 /// }
@@ -78,7 +78,7 @@ public static class Guards
     /// <summary>
     /// Error code for guard clause validation failures.
     /// </summary>
-    public const string GuardValidationFailed = "mediator.guard.validation_failed";
+    public const string GuardValidationFailed = "Encina.guard.validation_failed";
 
     /// <summary>
     /// Validates that a value is not null.
@@ -93,10 +93,10 @@ public static class Guards
     /// <code>
     /// var user = await _users.FindById(userId, ct);
     /// if (!Guards.TryValidateNotNull(user, nameof(user), out var error))
-    ///     return Left&lt;MediatorError, Unit&gt;(error);
+    ///     return Left&lt;EncinaError, Unit&gt;(error);
     /// </code>
     /// </example>
-    public static bool TryValidateNotNull<T>(T? value, string paramName, out MediatorError error, string? message = null)
+    public static bool TryValidateNotNull<T>(T? value, string paramName, out EncinaError error, string? message = null)
     {
         if (value is not null)
         {
@@ -112,7 +112,7 @@ public static class Guards
             ["stage"] = "guard_validation",
             ["guard"] = "NotNull"
         };
-        error = MediatorErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
+        error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
     }
 
@@ -127,10 +127,10 @@ public static class Guards
     /// <example>
     /// <code>
     /// if (!Guards.TryValidateNotEmpty(email, nameof(email), out var error))
-    ///     return Left&lt;MediatorError, UserId&gt;(error);
+    ///     return Left&lt;EncinaError, UserId&gt;(error);
     /// </code>
     /// </example>
-    public static bool TryValidateNotEmpty(string? value, string paramName, out MediatorError error, string? message = null)
+    public static bool TryValidateNotEmpty(string? value, string paramName, out EncinaError error, string? message = null)
     {
         if (!string.IsNullOrEmpty(value))
         {
@@ -146,7 +146,7 @@ public static class Guards
             ["stage"] = "guard_validation",
             ["guard"] = "NotEmpty"
         };
-        error = MediatorErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
+        error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
     }
 
@@ -158,7 +158,7 @@ public static class Guards
     /// <param name="error">The error if validation fails.</param>
     /// <param name="message">Optional custom error message.</param>
     /// <returns><c>true</c> if the string is not null, empty, or whitespace; otherwise, <c>false</c>.</returns>
-    public static bool TryValidateNotWhiteSpace(string? value, string paramName, out MediatorError error, string? message = null)
+    public static bool TryValidateNotWhiteSpace(string? value, string paramName, out EncinaError error, string? message = null)
     {
         if (!string.IsNullOrWhiteSpace(value))
         {
@@ -174,7 +174,7 @@ public static class Guards
             ["stage"] = "guard_validation",
             ["guard"] = "NotWhiteSpace"
         };
-        error = MediatorErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
+        error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
     }
 
@@ -190,10 +190,10 @@ public static class Guards
     /// <example>
     /// <code>
     /// if (!Guards.TryValidateNotEmpty(items, nameof(items), out var error))
-    ///     return Left&lt;MediatorError, Unit&gt;(error);
+    ///     return Left&lt;EncinaError, Unit&gt;(error);
     /// </code>
     /// </example>
-    public static bool TryValidateNotEmpty<T>(IEnumerable<T>? value, string paramName, out MediatorError error, string? message = null)
+    public static bool TryValidateNotEmpty<T>(IEnumerable<T>? value, string paramName, out EncinaError error, string? message = null)
     {
         if (value is not null && value.Any())
         {
@@ -209,7 +209,7 @@ public static class Guards
             ["stage"] = "guard_validation",
             ["guard"] = "NotEmpty"
         };
-        error = MediatorErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
+        error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
     }
 
@@ -225,10 +225,10 @@ public static class Guards
     /// <example>
     /// <code>
     /// if (!Guards.TryValidatePositive(quantity, nameof(quantity), out var error))
-    ///     return Left&lt;MediatorError, Unit&gt;(error);
+    ///     return Left&lt;EncinaError, Unit&gt;(error);
     /// </code>
     /// </example>
-    public static bool TryValidatePositive<T>(T value, string paramName, out MediatorError error, string? message = null)
+    public static bool TryValidatePositive<T>(T value, string paramName, out EncinaError error, string? message = null)
         where T : IComparable<T>
     {
         var zero = (T)Convert.ChangeType(0, typeof(T), CultureInfo.InvariantCulture);
@@ -247,7 +247,7 @@ public static class Guards
             ["stage"] = "guard_validation",
             ["guard"] = "Positive"
         };
-        error = MediatorErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
+        error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
     }
 
@@ -260,7 +260,7 @@ public static class Guards
     /// <param name="error">The error if validation fails.</param>
     /// <param name="message">Optional custom error message.</param>
     /// <returns><c>true</c> if the value is negative; otherwise, <c>false</c>.</returns>
-    public static bool TryValidateNegative<T>(T value, string paramName, out MediatorError error, string? message = null)
+    public static bool TryValidateNegative<T>(T value, string paramName, out EncinaError error, string? message = null)
         where T : IComparable<T>
     {
         var zero = (T)Convert.ChangeType(0, typeof(T), CultureInfo.InvariantCulture);
@@ -279,7 +279,7 @@ public static class Guards
             ["stage"] = "guard_validation",
             ["guard"] = "Negative"
         };
-        error = MediatorErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
+        error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
     }
 
@@ -297,10 +297,10 @@ public static class Guards
     /// <example>
     /// <code>
     /// if (!Guards.TryValidateInRange(age, nameof(age), 18, 120, out var error))
-    ///     return Left&lt;MediatorError, UserId&gt;(error);
+    ///     return Left&lt;EncinaError, UserId&gt;(error);
     /// </code>
     /// </example>
-    public static bool TryValidateInRange<T>(T value, string paramName, T min, T max, out MediatorError error, string? message = null)
+    public static bool TryValidateInRange<T>(T value, string paramName, T min, T max, out EncinaError error, string? message = null)
         where T : IComparable<T>
     {
         if (value.CompareTo(min) >= 0 && value.CompareTo(max) <= 0)
@@ -320,7 +320,7 @@ public static class Guards
             ["stage"] = "guard_validation",
             ["guard"] = "InRange"
         };
-        error = MediatorErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
+        error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
     }
 
@@ -335,10 +335,10 @@ public static class Guards
     /// <example>
     /// <code>
     /// if (!Guards.TryValidateEmail(email, nameof(email), out var error))
-    ///     return Left&lt;MediatorError, UserId&gt;(error);
+    ///     return Left&lt;EncinaError, UserId&gt;(error);
     /// </code>
     /// </example>
-    public static bool TryValidateEmail(string? value, string paramName, out MediatorError error, string? message = null)
+    public static bool TryValidateEmail(string? value, string paramName, out EncinaError error, string? message = null)
     {
         // Basic email validation using regex
         const string emailPattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
@@ -357,7 +357,7 @@ public static class Guards
             ["stage"] = "guard_validation",
             ["guard"] = "ValidEmail"
         };
-        error = MediatorErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
+        error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
     }
 
@@ -372,10 +372,10 @@ public static class Guards
     /// <example>
     /// <code>
     /// if (!Guards.TryValidateUrl(websiteUrl, nameof(websiteUrl), out var error))
-    ///     return Left&lt;MediatorError, CompanyId&gt;(error);
+    ///     return Left&lt;EncinaError, CompanyId&gt;(error);
     /// </code>
     /// </example>
-    public static bool TryValidateUrl(string? value, string paramName, out MediatorError error, string? message = null)
+    public static bool TryValidateUrl(string? value, string paramName, out EncinaError error, string? message = null)
     {
         if (!string.IsNullOrWhiteSpace(value) && Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
             (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
@@ -392,7 +392,7 @@ public static class Guards
             ["stage"] = "guard_validation",
             ["guard"] = "ValidUrl"
         };
-        error = MediatorErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
+        error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
     }
 
@@ -407,10 +407,10 @@ public static class Guards
     /// <example>
     /// <code>
     /// if (!Guards.TryValidateNotEmpty(userId, nameof(userId), out var error))
-    ///     return Left&lt;MediatorError, User&gt;(error);
+    ///     return Left&lt;EncinaError, User&gt;(error);
     /// </code>
     /// </example>
-    public static bool TryValidateNotEmpty(Guid value, string paramName, out MediatorError error, string? message = null)
+    public static bool TryValidateNotEmpty(Guid value, string paramName, out EncinaError error, string? message = null)
     {
         if (value != Guid.Empty)
         {
@@ -426,7 +426,7 @@ public static class Guards
             ["stage"] = "guard_validation",
             ["guard"] = "NotEmptyGuid"
         };
-        error = MediatorErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
+        error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
     }
 
@@ -442,10 +442,10 @@ public static class Guards
     /// <code>
     /// if (!Guards.TryValidate(order.Status == OrderStatus.Pending, nameof(order), out var error,
     ///     message: "Order must be in Pending status to be cancelled"))
-    ///     return Left&lt;MediatorError, Unit&gt;(error);
+    ///     return Left&lt;EncinaError, Unit&gt;(error);
     /// </code>
     /// </example>
-    public static bool TryValidate(bool condition, string paramName, out MediatorError error, string? message = null)
+    public static bool TryValidate(bool condition, string paramName, out EncinaError error, string? message = null)
     {
         if (condition)
         {
@@ -460,7 +460,7 @@ public static class Guards
             ["stage"] = "guard_validation",
             ["guard"] = "Custom"
         };
-        error = MediatorErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
+        error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
     }
 
@@ -477,10 +477,10 @@ public static class Guards
     /// <code>
     /// if (!Guards.TryValidatePattern(phoneNumber, nameof(phoneNumber), @"^\d{3}-\d{3}-\d{4}$", out var error,
     ///     message: "Phone number must be in format: 555-123-4567"))
-    ///     return Left&lt;MediatorError, ContactId&gt;(error);
+    ///     return Left&lt;EncinaError, ContactId&gt;(error);
     /// </code>
     /// </example>
-    public static bool TryValidatePattern(string? value, string paramName, string pattern, out MediatorError error, string? message = null)
+    public static bool TryValidatePattern(string? value, string paramName, string pattern, out EncinaError error, string? message = null)
     {
         if (!string.IsNullOrWhiteSpace(value) && Regex.IsMatch(value, pattern))
         {
@@ -497,7 +497,7 @@ public static class Guards
             ["stage"] = "guard_validation",
             ["guard"] = "Pattern"
         };
-        error = MediatorErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
+        error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
     }
 }

@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Durante el trabajo de mutation testing, identificamos que el 43% de las mutaciones sobrevivientes (52 de 120) estaban en código defensivo de `PipelineBuilder.cs` y `RequestDispatcher.cs` que capturaba excepciones de behaviors, handlers, y processors para convertirlas en `Either<MediatorError, T>`.
+Durante el trabajo de mutation testing, identificamos que el 43% de las mutaciones sobrevivientes (52 de 120) estaban en código defensivo de `PipelineBuilder.cs` y `RequestDispatcher.cs` que capturaba excepciones de behaviors, handlers, y processors para convertirlas en `Either<EncinaError, T>`.
 
 Este código defensivo representaba un trade-off entre:
 
@@ -32,7 +32,7 @@ catch (Exception ex)  // ← Código defensivo
         ["request"] = typeof(TRequest).FullName,
         ["stage"] = "behavior"
     };
-    return Left(MediatorErrors.FromException(...));
+    return Left(EncinaErrors.FromException(...));
 }
 ```
 
@@ -57,7 +57,7 @@ Esto significa:
 
 ```csharp
 // PipelineBuilder.ExecuteBehaviorAsync
-private static async ValueTask<Either<MediatorError, TResponse>> ExecuteBehaviorAsync(...)
+private static async ValueTask<Either<EncinaError, TResponse>> ExecuteBehaviorAsync(...)
 {
     try
     {
@@ -73,7 +73,7 @@ private static async ValueTask<Either<MediatorError, TResponse>> ExecuteBehavior
             ["request"] = typeof(TRequest).FullName,
             ["stage"] = "behavior"
         };
-        return Left(MediatorErrors.Create(MediatorErrorCodes.BehaviorCancelled, message, ex, metadata));
+        return Left(EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, message, ex, metadata));
     }
     // Pure ROP: Cualquier otra excepción indica un bug y propagará (fail-fast)
 }
@@ -103,7 +103,7 @@ private static async ValueTask<Either<MediatorError, TResponse>> ExecuteBehavior
 
 ❌ **Curva de aprendizaje más pronunciada**: Usuarios deben entender ROP completamente desde el inicio
 
-❌ **Debugging en producción**: Crashes en lugar de `Left<MediatorError>` con metadata
+❌ **Debugging en producción**: Crashes en lugar de `Left<EncinaError>` con metadata
 
 ### Mitigations
 
@@ -133,34 +133,34 @@ Estos tests verificaban comportamiento defensivo que ya no existe. En ROP puro, 
 ```csharp
 public class MyHandler : IRequestHandler<MyRequest, int>
 {
-    public Task<Either<MediatorError, int>> Handle(MyRequest request, CancellationToken ct)
+    public Task<Either<EncinaError, int>> Handle(MyRequest request, CancellationToken ct)
     {
         if (request.Value < 0)
             throw new InvalidOperationException("Negative value");  // ← Capturado, convertido a Left
-        return Task.FromResult(Right<MediatorError, int>(request.Value));
+        return Task.FromResult(Right<EncinaError, int>(request.Value));
     }
 }
 ```
 
-- **Resultado**: Exception capturada → `Left<MediatorError>`
-- **Usuario ve**: Error limpio con código `mediator.handler.exception`
+- **Resultado**: Exception capturada → `Left<EncinaError>`
+- **Usuario ve**: Error limpio con código `Encina.handler.exception`
 
 **Ahora (v2.0+ - Pure ROP)**:
 
 ```csharp
 public class MyHandler : IRequestHandler<MyRequest, int>
 {
-    public Task<Either<MediatorError, int>> Handle(MyRequest request, CancellationToken ct)
+    public Task<Either<EncinaError, int>> Handle(MyRequest request, CancellationToken ct)
     {
         if (request.Value < 0)
             throw new InvalidOperationException("Negative value");  // ← CRASH!
-        return Task.FromResult(Right<MediatorError, int>(request.Value));
+        return Task.FromResult(Right<EncinaError, int>(request.Value));
     }
 }
 ```
 
 - **Resultado**: **Process crash** con stack trace
-- **Corrección**: `return Task.FromResult(Left<MediatorError, int>(Errors.NegativeValue));`
+- **Corrección**: `return Task.FromResult(Left<EncinaError, int>(Errors.NegativeValue));`
 
 ### Migration Guide
 
@@ -168,21 +168,21 @@ Para usuarios migrando a v2.0+:
 
 ```csharp
 // ❌ ANTES (Defensivo - Ya no funciona)
-public async Task<Either<MediatorError, User>> Handle(GetUserQuery request, CancellationToken ct)
+public async Task<Either<EncinaError, User>> Handle(GetUserQuery request, CancellationToken ct)
 {
     var user = await _repo.FindByIdAsync(request.Id);
     if (user == null)
         throw new NotFoundException("User not found");  // ← Ahora crashea!
-    return Right<MediatorError, User>(user);
+    return Right<EncinaError, User>(user);
 }
 
 // ✅ AHORA (Pure ROP - Correcto)
-public async Task<Either<MediatorError, User>> Handle(GetUserQuery request, CancellationToken ct)
+public async Task<Either<EncinaError, User>> Handle(GetUserQuery request, CancellationToken ct)
 {
     var userOption = await _repo.FindByIdAsync(request.Id);
     return userOption.Match(
-        Some: user => Right<MediatorError, User>(user),
-        None: () => Left<MediatorError, User>(Errors.UserNotFound)  // ← Funcional
+        Some: user => Right<EncinaError, User>(user),
+        None: () => Left<EncinaError, User>(Errors.UserNotFound)  // ← Funcional
     );
 }
 ```

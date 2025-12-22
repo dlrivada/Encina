@@ -9,7 +9,7 @@ ASP.NET Core integration for Encina with Railway Oriented Programming support. T
 
 - ✅ **Request Context Enrichment** - Automatic extraction of CorrelationId, UserId, TenantId, and IdempotencyKey from HttpContext
 - ✅ **Authorization Pipeline Behavior** - Declarative authorization with `[Authorize]` attributes (roles and policies)
-- ✅ **RFC 7807 Problem Details** - Intelligent error mapping from `MediatorError` to standardized HTTP responses
+- ✅ **RFC 7807 Problem Details** - Intelligent error mapping from `EncinaError` to standardized HTTP responses
 - ✅ **Thread-Safe Context Access** - AsyncLocal-based `IRequestContextAccessor` for safe context propagation
 - ✅ **Distributed Tracing** - Automatic correlation ID propagation and Activity integration
 - ✅ **.NET 10 Compatible** - Built with latest ASP.NET Core APIs
@@ -66,9 +66,9 @@ app.Run();
 ### 3. Use in Minimal APIs
 
 ```csharp
-app.MapPost("/api/users", async (CreateUserCommand command, IMediator mediator, HttpContext httpContext) =>
+app.MapPost("/api/users", async (CreateUserCommand command, IEncina Encina, HttpContext httpContext) =>
 {
-    var result = await mediator.Send(command);
+    var result = await Encina.Send(command);
 
     return result.Match(
         Right: user => Results.Created($"/api/users/{user.Id}", user),
@@ -84,17 +84,17 @@ app.MapPost("/api/users", async (CreateUserCommand command, IMediator mediator, 
 [Route("api/[controller]")]
 public class UsersController : ControllerBase
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
 
-    public UsersController(IMediator mediator)
+    public UsersController(IEncina Encina)
     {
-        _mediator = mediator;
+        _Encina = Encina;
     }
 
     [HttpPost]
     public async Task<IActionResult> Create(CreateUserCommand command)
     {
-        var result = await _mediator.Send(command);
+        var result = await _Encina.Send(command);
 
         return result.Match(
             Right: user => Created($"/api/users/{user.Id}", user),
@@ -105,7 +105,7 @@ public class UsersController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> Get(int id)
     {
-        var result = await _mediator.Send(new GetUserQuery(id));
+        var result = await _Encina.Send(new GetUserQuery(id));
 
         return result.Match(
             Right: user => Ok(user),
@@ -146,7 +146,7 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
         _contextAccessor = contextAccessor;
     }
 
-    public async ValueTask<Either<MediatorError, Order>> Handle(
+    public async ValueTask<Either<EncinaError, Order>> Handle(
         CreateOrderCommand request,
         IRequestContext context,
         CancellationToken cancellationToken)
@@ -208,19 +208,19 @@ public record DeleteTenantCommand(int TenantId) : ICommand;
 
 ### 3. Problem Details Extensions
 
-Convert `MediatorError` to standardized RFC 7807 Problem Details responses:
+Convert `EncinaError` to standardized RFC 7807 Problem Details responses:
 
 **Intelligent Error Mapping:**
 
 | Error Code Pattern | HTTP Status | Title |
 |-------------------|-------------|-------|
 | `validation.*` | 400 | Bad Request |
-| `mediator.guard.validation_failed` | 400 | Bad Request |
+| `Encina.guard.validation_failed` | 400 | Bad Request |
 | `authorization.unauthenticated` | 401 | Unauthorized |
 | `authorization.*` | 403 | Forbidden |
 | `*.not_found` | 404 | Not Found |
 | `*.missing` | 404 | Not Found |
-| `mediator.request.handler_missing` | 404 | Not Found |
+| `Encina.request.handler_missing` | 404 | Not Found |
 | `*.conflict` | 409 | Conflict |
 | `*.already_exists` | 409 | Conflict |
 | `*.duplicate` | 409 | Conflict |
@@ -230,9 +230,9 @@ Convert `MediatorError` to standardized RFC 7807 Problem Details responses:
 
 ```csharp
 // In Minimal API
-app.MapPost("/api/orders", async (CreateOrderCommand cmd, IMediator mediator, HttpContext ctx) =>
+app.MapPost("/api/orders", async (CreateOrderCommand cmd, IEncina Encina, HttpContext ctx) =>
 {
-    var result = await mediator.Send(cmd);
+    var result = await Encina.Send(cmd);
 
     return result.Match(
         Right: order => Results.Created($"/api/orders/{order.Id}", order),
@@ -244,7 +244,7 @@ app.MapPost("/api/orders", async (CreateOrderCommand cmd, IMediator mediator, Ht
 [HttpPost]
 public async Task<IActionResult> Create(CreateOrderCommand cmd)
 {
-    var result = await _mediator.Send(cmd);
+    var result = await _Encina.Send(cmd);
 
     return result.Match(
         Right: order => Created($"/api/orders/{order.Id}", order),
@@ -376,9 +376,9 @@ services.AddEncinaAspNetCore(options =>
 Override the intelligent mapping for specific errors:
 
 ```csharp
-app.MapDelete("/api/users/{id}", async (int id, IMediator mediator, HttpContext ctx) =>
+app.MapDelete("/api/users/{id}", async (int id, IEncina Encina, HttpContext ctx) =>
 {
-    var result = await mediator.Send(new DeleteUserCommand(id));
+    var result = await Encina.Send(new DeleteUserCommand(id));
 
     return result.Match(
         Right: _ => Results.NoContent(),
@@ -395,14 +395,14 @@ public class GetOrdersQueryHandler : IQueryHandler<GetOrdersQuery, IEnumerable<O
 {
     private readonly IOrderRepository _repository;
 
-    public async ValueTask<Either<MediatorError, IEnumerable<Order>>> Handle(
+    public async ValueTask<Either<EncinaError, IEnumerable<Order>>> Handle(
         GetOrdersQuery request,
         IRequestContext context,
         CancellationToken cancellationToken)
     {
         // context.TenantId is automatically populated from HttpContext
         if (context.TenantId == null)
-            return MediatorErrors.Create("tenant.missing", "Tenant ID is required");
+            return EncinaErrors.Create("tenant.missing", "Tenant ID is required");
 
         var orders = await _repository.GetByTenantAsync(context.TenantId, cancellationToken);
         return orders;
@@ -421,7 +421,7 @@ public class ChargeCustomerHandler : ICommandHandler<ChargeCustomerCommand, Rece
     private readonly IPaymentService _paymentService;
     private readonly IReceiptRepository _receiptRepository;
 
-    public async ValueTask<Either<MediatorError, Receipt>> Handle(
+    public async ValueTask<Either<EncinaError, Receipt>> Handle(
         ChargeCustomerCommand request,
         IRequestContext context,
         CancellationToken cancellationToken)
@@ -456,20 +456,20 @@ Use consistent error code patterns:
 
 ```csharp
 // Validation errors
-MediatorErrors.Create("validation.email_invalid", "Email address is not valid");
-MediatorErrors.Create("validation.password_weak", "Password must be at least 8 characters");
+EncinaErrors.Create("validation.email_invalid", "Email address is not valid");
+EncinaErrors.Create("validation.password_weak", "Password must be at least 8 characters");
 
 // Not found errors
-MediatorErrors.Create("user.not_found", $"User with ID {id} was not found");
-MediatorErrors.Create("order.not_found", $"Order with ID {id} was not found");
+EncinaErrors.Create("user.not_found", $"User with ID {id} was not found");
+EncinaErrors.Create("order.not_found", $"Order with ID {id} was not found");
 
 // Conflict errors
-MediatorErrors.Create("user.already_exists", $"User with email {email} already exists");
-MediatorErrors.Create("order.already_shipped", "Cannot modify order that has been shipped");
+EncinaErrors.Create("user.already_exists", $"User with email {email} already exists");
+EncinaErrors.Create("order.already_shipped", "Cannot modify order that has been shipped");
 
 // Authorization errors (handled by library)
-MediatorErrors.Create("authorization.insufficient_roles", "User does not have required roles");
-MediatorErrors.Create("authorization.unauthenticated", "Authentication is required");
+EncinaErrors.Create("authorization.insufficient_roles", "User does not have required roles");
+EncinaErrors.Create("authorization.unauthenticated", "Authentication is required");
 ```
 
 ### 2. Rich Error Details
@@ -477,7 +477,7 @@ MediatorErrors.Create("authorization.unauthenticated", "Authentication is requir
 Add structured metadata for client consumption:
 
 ```csharp
-return MediatorErrors.Create(
+return EncinaErrors.Create(
     code: "validation.failed",
     message: "Request validation failed",
     metadata: new Dictionary<string, object?>

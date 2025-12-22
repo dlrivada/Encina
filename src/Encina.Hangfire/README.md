@@ -14,7 +14,7 @@ Encina.Hangfire provides seamless integration between Encina's CQRS patterns and
 - **✅ Recurring Jobs**: Set up CRON-based recurring request/notification execution
 - **✅ Automatic Retries**: Leverage Hangfire's built-in retry mechanism for failed jobs
 - **✅ Request Context Preservation**: Maintain CorrelationId, UserId, and TenantId across job boundaries
-- **✅ Railway Oriented Programming**: Full support for `Either<MediatorError, T>` results
+- **✅ Railway Oriented Programming**: Full support for `Either<EncinaError, T>` results
 - **✅ Dashboard Monitoring**: View job status, history, and failures in Hangfire Dashboard
 - **✅ Type-Safe API**: Strongly-typed extension methods for all job operations
 - **✅ .NET 10 Native**: Built for modern .NET with nullable reference types
@@ -212,29 +212,29 @@ public record ProcessPaymentCommand(Guid PaymentId, decimal Amount)
 
 public class ProcessPaymentHandler : ICommandHandler<ProcessPaymentCommand, Receipt>
 {
-    public async ValueTask<Either<MediatorError, Receipt>> Handle(
+    public async ValueTask<Either<EncinaError, Receipt>> Handle(
         ProcessPaymentCommand request,
         IRequestContext context,
         CancellationToken cancellationToken)
     {
         // Validate payment
         if (request.Amount <= 0)
-            return MediatorErrors.ValidationFailed("Amount must be positive");
+            return EncinaErrors.ValidationFailed("Amount must be positive");
 
         // Process payment logic
         var receipt = await _paymentService.ProcessAsync(request.PaymentId, request.Amount);
 
-        return receipt;  // Implicit conversion to Right<MediatorError, Receipt>
+        return receipt;  // Implicit conversion to Right<EncinaError, Receipt>
     }
 }
 
-// Enqueue - handler returns Either<MediatorError, Receipt>
+// Enqueue - handler returns Either<EncinaError, Receipt>
 var jobId = _backgroundJobs.EnqueueRequest<ProcessPaymentCommand, Receipt>(
     new ProcessPaymentCommand(paymentId, 100m));
 
 // In Hangfire Dashboard:
 // - Success: Receipt object serialized in job result
-// - Failure: MediatorError details logged, Hangfire retries job
+// - Failure: EncinaError details logged, Hangfire retries job
 ```
 
 ### Continuation Jobs
@@ -354,6 +354,7 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 ```
 
 Navigate to `/hangfire` to view:
+
 - **Jobs**: Enqueued, scheduled, processing, succeeded, failed
 - **Retries**: Failed jobs pending retry
 - **Recurring**: All recurring jobs and their schedules
@@ -381,7 +382,7 @@ All job adapters include structured logging:
 |----------|----------|------|------|
 | **Hangfire + Encina** | Background jobs with monitoring | Dashboard, persistence, retries, scheduling | Requires database storage |
 | **Quartz.NET + Encina** | Complex scheduling needs | Powerful CRON, clustering | More complex setup |
-| **Direct Mediator Call** | Synchronous processing | Simple, immediate feedback | Blocks HTTP request thread |
+| **Direct Encina Call** | Synchronous processing | Simple, immediate feedback | Blocks HTTP request thread |
 | **IHostedService + Channel** | In-process async work | No external dependencies | No persistence, loses jobs on restart |
 
 ## Best Practices
@@ -393,7 +394,7 @@ Make your handlers idempotent since Hangfire retries failed jobs:
 ```csharp
 public class ProcessPaymentHandler : ICommandHandler<ProcessPaymentCommand, Receipt>
 {
-    public async ValueTask<Either<MediatorError, Receipt>> Handle(...)
+    public async ValueTask<Either<EncinaError, Receipt>> Handle(...)
     {
         // Check if already processed
         var existing = await _repository.GetReceiptAsync(request.PaymentId);
@@ -451,7 +452,7 @@ Let exceptions bubble up for automatic Hangfire retry:
 ```csharp
 public class SendEmailHandler : ICommandHandler<SendEmailCommand, Unit>
 {
-    public async ValueTask<Either<MediatorError, Unit>> Handle(...)
+    public async ValueTask<Either<EncinaError, Unit>> Handle(...)
     {
         // Don't catch transient errors - let Hangfire retry
         await _emailService.SendAsync(request.To, request.Subject, request.Body);
@@ -468,6 +469,7 @@ public class SendEmailHandler : ICommandHandler<SendEmailCommand, Unit>
 **Issue**: Jobs remain in "Enqueued" state
 
 **Solution**:
+
 1. Ensure Hangfire Server is running: `builder.Services.AddHangfireServer()`
 2. Check database connection string
 3. Verify queue names match server configuration
@@ -478,15 +480,17 @@ public class SendEmailHandler : ICommandHandler<SendEmailCommand, Unit>
 **Issue**: `Could not load type 'MyRequest' from assembly`
 
 **Solution**:
+
 1. Ensure all assemblies containing requests/notifications are loaded
 2. Use `UseRecommendedSerializerSettings()` in Hangfire configuration
 3. Avoid generic types with complex type arguments
 
 ### Job Fails Immediately
 
-**Issue**: Job fails with `InvalidOperationException: No service for type 'IMediator'`
+**Issue**: Job fails with `InvalidOperationException: No service for type 'IEncina'`
 
 **Solution**:
+
 1. Ensure `AddEncinaHangfire()` is called after `AddEncina()`
 2. Register all handler assemblies: `options.RegisterServicesFromAssemblyContaining<Program>()`
 3. Verify DI container scope - adapters are transient
@@ -510,7 +514,7 @@ Already using MediatR? Encina.Hangfire works the same way:
 
 ```csharp
 // MediatR
-var jobId = BackgroundJob.Enqueue<IMediator>(m => m.Send(command, default));
+var jobId = BackgroundJob.Enqueue<IEncina>(m => m.Send(command, default));
 
 // Encina.Hangfire
 var jobId = _backgroundJobs.EnqueueRequest<CreateOrderCommand, Order>(command);

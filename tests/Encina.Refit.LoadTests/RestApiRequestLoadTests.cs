@@ -30,14 +30,14 @@ public class RestApiRequestLoadTests
         });
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IEncina>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         // Act
         var scenario = Scenario.Create("parallel_api_calls", async context =>
         {
             var todoId = Random.Shared.Next(1, 200);
             var request = new GetTodoRequest(todoId);
-            var result = await mediator.Send(request);
+            var result = await Encina.Send(request);
 
             return result.IsRight
                 ? Response.Ok()
@@ -75,14 +75,14 @@ public class RestApiRequestLoadTests
         });
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IEncina>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         // Act - Mix of valid and invalid IDs
         var scenario = Scenario.Create("mixed_load", async context =>
         {
             var todoId = Random.Shared.Next(1, 300); // Some will be 404
             var request = new GetTodoRequest(todoId);
-            var result = await mediator.Send(request);
+            var result = await Encina.Send(request);
 
             // Both success and failure are acceptable
             return Response.Ok();
@@ -119,14 +119,14 @@ public class RestApiRequestLoadTests
         .SetHandlerLifetime(TimeSpan.FromMinutes(5)); // Increase handler lifetime
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IEncina>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         // Act - High throughput scenario
         var scenario = Scenario.Create("high_throughput", async context =>
         {
             var todoId = Random.Shared.Next(1, 100);
             var request = new GetTodoRequest(todoId);
-            var result = await mediator.Send(request);
+            var result = await Encina.Send(request);
 
             return result.IsRight
                 ? Response.Ok()
@@ -164,7 +164,7 @@ public class RestApiRequestLoadTests
         });
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IEncina>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         var successCount = 0;
         var failureCount = 0;
@@ -175,7 +175,7 @@ public class RestApiRequestLoadTests
         {
             var todoId = Random.Shared.Next(1, 50);
             var request = new GetTodoRequest(todoId);
-            var result = await mediator.Send(request);
+            var result = await Encina.Send(request);
 
             lock (lockObj)
             {

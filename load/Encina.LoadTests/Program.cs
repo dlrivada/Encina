@@ -19,7 +19,7 @@ using var provider = services.BuildServiceProvider(new ServiceProviderOptions
     ValidateOnBuild = false
 });
 
-await WarmUpMediatorAsync(provider).ConfigureAwait(false);
+await WarmUpEncinaAsync(provider).ConfigureAwait(false);
 
 var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
 var metrics = new LoadMetrics();
@@ -45,7 +45,7 @@ metrics.PrintSummary(options.Duration, throughputSampler.ToSummary());
 static async Task ExecuteSendWorkerAsync(int workerId, IServiceScopeFactory scopeFactory, LoadMetrics metrics, CancellationToken cancellationToken)
 {
     using var scope = scopeFactory.CreateScope();
-    var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+    var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
 
     while (!cancellationToken.IsCancellationRequested)
     {
@@ -54,7 +54,7 @@ static async Task ExecuteSendWorkerAsync(int workerId, IServiceScopeFactory scop
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var result = await mediator.Send(request, cancellationToken).ConfigureAwait(false);
+            var result = await Encina.Send(request, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
 
             if (result.IsRight)
@@ -79,14 +79,14 @@ static async Task ExecuteSendWorkerAsync(int workerId, IServiceScopeFactory scop
     }
 }
 
-static async Task WarmUpMediatorAsync(IServiceProvider provider)
+static async Task WarmUpEncinaAsync(IServiceProvider provider)
 {
     try
     {
         using var scope = provider.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
 
-        var sendResult = await mediator.Send(new PingCommand(-1), CancellationToken.None).ConfigureAwait(false);
+        var sendResult = await Encina.Send(new PingCommand(-1), CancellationToken.None).ConfigureAwait(false);
         if (sendResult.IsLeft)
         {
             var message = sendResult.Match(Left: err => err.Message, Right: _ => string.Empty);
@@ -100,7 +100,7 @@ static async Task WarmUpMediatorAsync(IServiceProvider provider)
             }
         }
 
-        var publishResult = await mediator.Publish(new BroadcastNotification(-1), CancellationToken.None).ConfigureAwait(false);
+        var publishResult = await Encina.Publish(new BroadcastNotification(-1), CancellationToken.None).ConfigureAwait(false);
         if (publishResult.IsLeft)
         {
             var message = publishResult.Match(Left: err => err.Message, Right: _ => string.Empty);
@@ -123,7 +123,7 @@ static async Task WarmUpMediatorAsync(IServiceProvider provider)
 static async Task ExecutePublishWorkerAsync(int workerId, IServiceScopeFactory scopeFactory, LoadMetrics metrics, CancellationToken cancellationToken)
 {
     using var scope = scopeFactory.CreateScope();
-    var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+    var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
 
     while (!cancellationToken.IsCancellationRequested)
     {
@@ -132,7 +132,7 @@ static async Task ExecutePublishWorkerAsync(int workerId, IServiceScopeFactory s
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var result = await mediator.Publish(notification, cancellationToken).ConfigureAwait(false);
+            var result = await Encina.Publish(notification, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
 
             if (result.IsRight)
@@ -224,10 +224,10 @@ internal sealed record PingCommand(long Id) : IRequest<int>;
 
 internal sealed class PingCommandHandler : IRequestHandler<PingCommand, int>
 {
-    public Task<Either<MediatorError, int>> Handle(PingCommand request, CancellationToken cancellationToken)
+    public Task<Either<EncinaError, int>> Handle(PingCommand request, CancellationToken cancellationToken)
     {
         var computed = unchecked((int)(request.Id % 1_000));
-        return Task.FromResult(Right<MediatorError, int>(computed));
+        return Task.FromResult(Right<EncinaError, int>(computed));
     }
 }
 
@@ -235,9 +235,9 @@ internal sealed record BroadcastNotification(long Id) : INotification;
 
 internal sealed class BroadcastNotificationHandler : INotificationHandler<BroadcastNotification>
 {
-    public Task<Either<MediatorError, Unit>> Handle(BroadcastNotification notification, CancellationToken cancellationToken)
+    public Task<Either<EncinaError, Unit>> Handle(BroadcastNotification notification, CancellationToken cancellationToken)
     {
-        return Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+        return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
     }
 }
 

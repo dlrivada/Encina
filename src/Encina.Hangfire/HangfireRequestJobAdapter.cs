@@ -11,32 +11,32 @@ namespace Encina.Hangfire;
 public sealed class HangfireRequestJobAdapter<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger<HangfireRequestJobAdapter<TRequest, TResponse>> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HangfireRequestJobAdapter{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="mediator">The mediator instance.</param>
+    /// <param name="Encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     public HangfireRequestJobAdapter(
-        IMediator mediator,
+        IEncina Encina,
         ILogger<HangfireRequestJobAdapter<TRequest, TResponse>> logger)
     {
-        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(Encina);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _mediator = mediator;
+        _Encina = Encina;
         _logger = logger;
     }
 
     /// <summary>
-    /// Executes the request through the mediator as a Hangfire job.
+    /// Executes the request through the Encina as a Hangfire job.
     /// </summary>
     /// <param name="request">The request to execute.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task<Either<MediatorError, TResponse>> ExecuteAsync(
+    public async Task<Either<EncinaError, TResponse>> ExecuteAsync(
         TRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -46,7 +46,7 @@ public sealed class HangfireRequestJobAdapter<TRequest, TResponse>
         {
             Log.ExecutingRequestJob(_logger, typeof(TRequest).Name);
 
-            var result = await _mediator.Send(request, cancellationToken)
+            var result = await _Encina.Send(request, cancellationToken)
                 .ConfigureAwait(false);
 
             result.Match(

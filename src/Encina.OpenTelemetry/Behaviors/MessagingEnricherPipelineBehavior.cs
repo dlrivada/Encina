@@ -17,7 +17,7 @@ public sealed class MessagingEnricherPipelineBehavior<TRequest, TResponse> : IPi
     where TRequest : IRequest<TResponse>
 {
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,

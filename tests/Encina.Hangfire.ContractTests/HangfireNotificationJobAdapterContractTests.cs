@@ -12,22 +12,22 @@ namespace Encina.Hangfire.ContractTests;
 public sealed class HangfireNotificationJobAdapterContractTests
 {
     [Fact]
-    public async Task PublishAsync_WithValidNotification_ShouldInvokeMediatorPublish()
+    public async Task PublishAsync_WithValidNotification_ShouldInvokeEncinaPublish()
     {
         // Arrange
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
-        var adapter = new HangfireNotificationJobAdapter<TestNotification>(mediator, logger);
+        var adapter = new HangfireNotificationJobAdapter<TestNotification>(Encina, logger);
         var notification = new TestNotification("test message");
 
-        mediator.Publish(notification, Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, Unit>(unit));
+        Encina.Publish(notification, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(unit));
 
         // Act
         await adapter.PublishAsync(notification);
 
         // Assert
-        await mediator.Received(1).Publish(notification, Arg.Any<CancellationToken>());
+        await Encina.Received(1).Publish(notification, Arg.Any<CancellationToken>());
     }
 }
 

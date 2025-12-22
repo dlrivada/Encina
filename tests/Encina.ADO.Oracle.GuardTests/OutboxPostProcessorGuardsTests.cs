@@ -54,7 +54,7 @@ public class OutboxPostProcessorGuardsTests
 
         TestRequest request = null!;
         var context = Substitute.For<IRequestContext>();
-        var result = LanguageExt.Prelude.Right<MediatorError, string>("success");
+        var result = LanguageExt.Prelude.Right<EncinaError, string>("success");
 
         // Act & Assert
         var act = async () => await processor.Process(request, context, result, CancellationToken.None);
@@ -74,7 +74,7 @@ public class OutboxPostProcessorGuardsTests
 
         var request = new TestRequest();
         IRequestContext context = null!;
-        var result = LanguageExt.Prelude.Right<MediatorError, string>("success");
+        var result = LanguageExt.Prelude.Right<EncinaError, string>("success");
 
         // Act & Assert
         var act = async () => await processor.Process(request, context, result, CancellationToken.None);

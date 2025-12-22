@@ -11,7 +11,7 @@
 
 ## Context
 
-Encina aims to be a production-ready mediator library for .NET applications. Modern applications integrate with numerous external libraries and services:
+Encina aims to be a production-ready Encina library for .NET applications. Modern applications integrate with numerous external libraries and services:
 
 - **Logging:** Serilog, NLog, Microsoft.Extensions.Logging
 - **Observability:** OpenTelemetry, Application Insights, Prometheus
@@ -52,8 +52,8 @@ Users expect Encina to integrate seamlessly with these libraries **without forci
 - `IRequestPreProcessor<TRequest>` - Pre-execution hooks
 - `IRequestPostProcessor<TRequest, TResponse>` - Post-execution hooks
 - `IFunctionalFailureDetector` - Domain error extraction for telemetry
-- `MediatorDiagnostics` (ActivitySource) - OpenTelemetry integration point
-- `MediatorMetrics` (Meter) - Metrics collection
+- `EncinaDiagnostics` (ActivitySource) - OpenTelemetry integration point
+- `EncinaMetrics` (Meter) - Metrics collection
 - Dependency injection support via `IServiceCollection`
 
 ❌ **NOT Included:**
@@ -101,7 +101,7 @@ namespace Encina;
 /// </summary>
 /// <remarks>
 /// Enables behaviors to access correlation IDs, user context, idempotency keys,
-/// and custom metadata without modifying core mediator signatures.
+/// and custom metadata without modifying core Encina signatures.
 /// </remarks>
 public interface IHasMetadata
 {
@@ -157,7 +157,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>, IHasMetadata
 {
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -185,7 +185,7 @@ Add `IRequestContext` as explicit parameter to all pipeline methods:
 ```csharp
 public interface IPipelineBehavior<TRequest, TResponse>
 {
-    ValueTask<Either<MediatorError, TResponse>> Handle(
+    ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,  // NEW
         RequestHandlerCallback<TResponse> nextStep,
@@ -258,7 +258,7 @@ public sealed class CachingBehavior<TRequest, TResponse>
     private readonly IRequestHandlerMetadataProvider _metadataProvider;
     private readonly IDistributedCache _cache;
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
@@ -510,7 +510,7 @@ We'll know this decision is successful when:
 - [Extensibility Analysis](../extensibility-analysis.md) - Detailed analysis of integration patterns
 - [ADR-001: Railway Oriented Programming](001-railway-oriented-programming.md) - Error handling foundation
 - [ADR-006: Pure ROP Exception Handling](006-pure-rop-exception-handling.md) - Exception philosophy
-- [MediatR](https://github.com/jbogard/MediatR) - Inspiration for mediator pattern
+- [MediatR](https://github.com/jbogard/MediatR) - Inspiration for Encina pattern
 - [Polly](https://github.com/App-vNext/Polly) - Resilience library
 - [FluentValidation](https://github.com/FluentValidation/FluentValidation) - Validation library
 - [OpenTelemetry .NET](https://github.com/open-telemetry/opentelemetry-dotnet) - Observability standard
@@ -544,7 +544,7 @@ public sealed class CreateOrderValidator : AbstractValidator<CreateOrder>
 // Request (no changes needed)
 public record CreateOrder(string ProductId, int Quantity) : ICommand<OrderCreated>;
 
-// Behavior runs automatically, returns Left<MediatorError> on validation failure
+// Behavior runs automatically, returns Left<EncinaError> on validation failure
 ```
 
 ### Entity Framework Core Transactions
@@ -566,14 +566,14 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrder, OrderCreat
 {
     private readonly ApplicationDbContext _db;
 
-    public async ValueTask<Either<MediatorError, OrderCreated>> Handle(
+    public async ValueTask<Either<EncinaError, OrderCreated>> Handle(
         CreateOrder request,
         CancellationToken cancellationToken)
     {
         var order = new Order(request.ProductId, request.Quantity);
         await _db.Orders.AddAsync(order, cancellationToken);
         // SaveChanges + Commit handled by TransactionBehavior
-        return Right<MediatorError, OrderCreated>(new OrderCreated(order.Id));
+        return Right<EncinaError, OrderCreated>(new OrderCreated(order.Id));
     }
 }
 ```
@@ -612,7 +612,7 @@ public sealed class GetProductByIdHandler : IRequestHandler<GetProductById, Prod
 ```csharp
 public interface IPipelineBehavior<TRequest, TResponse>
 {
-    ValueTask<Either<MediatorError, TResponse>> Handle(
+    ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken);
@@ -624,7 +624,7 @@ public interface IPipelineBehavior<TRequest, TResponse>
 ```csharp
 public interface IPipelineBehavior<TRequest, TResponse>
 {
-    ValueTask<Either<MediatorError, TResponse>> Handle(
+    ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,  // NEW
         RequestHandlerCallback<TResponse> nextStep,
@@ -646,7 +646,7 @@ public interface IPipelineBehavior<TRequest, TResponse>
 ```csharp
 public interface IPipelineBehavior<TRequest, TResponse>
 {
-    ValueTask<Either<MediatorError, TResponse>> Handle(
+    ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         HandlerMetadata metadata,  // NEW

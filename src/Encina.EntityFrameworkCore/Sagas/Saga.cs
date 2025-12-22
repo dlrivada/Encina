@@ -39,16 +39,16 @@ namespace Encina.EntityFrameworkCore.Sagas;
 ///         AddStep(
 ///             execute: async (data, context, ct) =>
 ///             {
-///                 var result = await _mediator.Send(new ReserveInventoryCommand(data.OrderId), ct);
+///                 var result = await _Encina.Send(new ReserveInventoryCommand(data.OrderId), ct);
 ///                 return result.Match(
-///                     Right: reservation => { data.ReservationId = reservation.Id; return Right&lt;MediatorError, OrderProcessingSagaData&gt;(data); },
+///                     Right: reservation => { data.ReservationId = reservation.Id; return Right&lt;EncinaError, OrderProcessingSagaData&gt;(data); },
 ///                     Left: error => error
 ///                 );
 ///             },
 ///             compensate: async (data, context, ct) =>
 ///             {
 ///                 if (data.ReservationId.HasValue)
-///                     await _mediator.Send(new CancelReservationCommand(data.ReservationId.Value), ct);
+///                     await _Encina.Send(new CancelReservationCommand(data.ReservationId.Value), ct);
 ///             }
 ///         );
 ///
@@ -56,16 +56,16 @@ namespace Encina.EntityFrameworkCore.Sagas;
 ///         AddStep(
 ///             execute: async (data, context, ct) =>
 ///             {
-///                 var result = await _mediator.Send(new ChargeCustomerCommand(data.OrderId), ct);
+///                 var result = await _Encina.Send(new ChargeCustomerCommand(data.OrderId), ct);
 ///                 return result.Match(
-///                     Right: payment => { data.PaymentId = payment.Id; return Right&lt;MediatorError, OrderProcessingSagaData&gt;(data); },
+///                     Right: payment => { data.PaymentId = payment.Id; return Right&lt;EncinaError, OrderProcessingSagaData&gt;(data); },
 ///                     Left: error => error
 ///                 );
 ///             },
 ///             compensate: async (data, context, ct) =>
 ///             {
 ///                 if (data.PaymentId.HasValue)
-///                     await _mediator.Send(new RefundPaymentCommand(data.PaymentId.Value), ct);
+///                     await _Encina.Send(new RefundPaymentCommand(data.PaymentId.Value), ct);
 ///             }
 ///         );
 ///
@@ -73,16 +73,16 @@ namespace Encina.EntityFrameworkCore.Sagas;
 ///         AddStep(
 ///             execute: async (data, context, ct) =>
 ///             {
-///                 var result = await _mediator.Send(new ShipOrderCommand(data.OrderId), ct);
+///                 var result = await _Encina.Send(new ShipOrderCommand(data.OrderId), ct);
 ///                 return result.Match(
-///                     Right: shipment => { data.ShipmentId = shipment.Id; return Right&lt;MediatorError, OrderProcessingSagaData&gt;(data); },
+///                     Right: shipment => { data.ShipmentId = shipment.Id; return Right&lt;EncinaError, OrderProcessingSagaData&gt;(data); },
 ///                     Left: error => error
 ///                 );
 ///             },
 ///             compensate: async (data, context, ct) =>
 ///             {
 ///                 if (data.ShipmentId.HasValue)
-///                     await _mediator.Send(new CancelShipmentCommand(data.ShipmentId.Value), ct);
+///                     await _Encina.Send(new CancelShipmentCommand(data.ShipmentId.Value), ct);
 ///             }
 ///         );
 ///     }
@@ -109,7 +109,7 @@ public abstract class Saga<TSagaData>
     /// <param name="execute">The action to execute for this step.</param>
     /// <param name="compensate">The compensating action if the saga needs to be rolled back.</param>
     protected void AddStep(
-        Func<TSagaData, IRequestContext, CancellationToken, ValueTask<Either<MediatorError, TSagaData>>> execute,
+        Func<TSagaData, IRequestContext, CancellationToken, ValueTask<Either<EncinaError, TSagaData>>> execute,
         Func<TSagaData, IRequestContext, CancellationToken, Task>? compensate = null)
     {
         _steps.Add(new SagaStep<TSagaData>(execute, compensate));
@@ -126,7 +126,7 @@ public abstract class Saga<TSagaData>
     /// <c>Right</c> with final saga data if all steps succeed,
     /// <c>Left</c> with error if any step fails.
     /// </returns>
-    public async ValueTask<Either<MediatorError, TSagaData>> ExecuteAsync(
+    public async ValueTask<Either<EncinaError, TSagaData>> ExecuteAsync(
         TSagaData data,
         int currentStep,
         IRequestContext context,
@@ -203,11 +203,11 @@ public abstract class Saga<TSagaData>
 internal sealed class SagaStep<TSagaData>
     where TSagaData : class
 {
-    public Func<TSagaData, IRequestContext, CancellationToken, ValueTask<Either<MediatorError, TSagaData>>> Execute { get; }
+    public Func<TSagaData, IRequestContext, CancellationToken, ValueTask<Either<EncinaError, TSagaData>>> Execute { get; }
     public Func<TSagaData, IRequestContext, CancellationToken, Task>? Compensate { get; }
 
     public SagaStep(
-        Func<TSagaData, IRequestContext, CancellationToken, ValueTask<Either<MediatorError, TSagaData>>> execute,
+        Func<TSagaData, IRequestContext, CancellationToken, ValueTask<Either<EncinaError, TSagaData>>> execute,
         Func<TSagaData, IRequestContext, CancellationToken, Task>? compensate)
     {
         Execute = execute;

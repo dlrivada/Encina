@@ -15,7 +15,7 @@ Encina.Quartz provides seamless integration between Encina's CQRS patterns and Q
 - **✅ Misfire Handling**: Configurable behavior for missed job executions
 - **✅ Job Chaining**: Execute jobs sequentially with dependencies
 - **✅ Concurrent Execution Control**: Prevent or allow concurrent job runs
-- **✅ Railway Oriented Programming**: Full support for `Either<MediatorError, T>` results
+- **✅ Railway Oriented Programming**: Full support for `Either<EncinaError, T>` results
 - **✅ Job Monitoring**: Built-in listeners and health checks
 - **✅ .NET 10 Native**: Built for modern .NET with nullable reference types
 
@@ -188,6 +188,7 @@ builder.Services.AddEncinaQuartz(quartz =>
 ```
 
 **How clustering works:**
+
 - Jobs stored in shared database (SQL Server, PostgreSQL, etc.)
 - Multiple servers run Quartz scheduler
 - Only one server executes each job instance
@@ -209,6 +210,7 @@ services.AddEncinaQuartz(quartz =>
 ```
 
 **Misfire policies:**
+
 - `FireOnceNow`: Execute immediately, then continue normal schedule
 - `DoNothing`: Skip missed execution, wait for next scheduled time
 - `IgnoreMisfires`: Execute all missed runs
@@ -436,12 +438,14 @@ services.AddEncinaQuartz(quartz =>
 | **Best For** | Complex scheduling, enterprise | Simple background jobs, quick setup |
 
 **Use Quartz when:**
+
 - You need complex CRON schedules (e.g., "last Friday of each quarter")
 - Clustering across multiple servers is critical
 - You need fine-grained control over misfires
 - You already use Quartz.NET in your organization
 
 **Use Hangfire when:**
+
 - You want a simple dashboard UI
 - Scheduling needs are straightforward
 - Faster initial setup is preferred
@@ -470,6 +474,7 @@ Examples:
 ```
 
 **Special characters:**
+
 - `*` - All values
 - `?` - No specific value (for day-of-month or day-of-week)
 - `-` - Range (e.g., `MON-FRI`)
@@ -505,16 +510,18 @@ dotnet ef database update
 **Issue**: Jobs scheduled but never execute
 
 **Solution**:
+
 1. Verify `AddQuartzHostedService()` is called
 2. Check thread pool configuration: `MaxConcurrency > 0`
 3. Ensure database connection string is correct (for persistent stores)
-4. Verify CRON expression: Use https://www.freeformatter.com/cron-expression-generator-quartz.html
+4. Verify CRON expression: Use <https://www.freeformatter.com/cron-expression-generator-quartz.html>
 
 ### Serialization Errors
 
 **Issue**: `SerializationException` when using persistent store
 
 **Solution**:
+
 1. Use `UseJsonSerializer()` in persistent store configuration
 2. Ensure request/notification types are serializable
 3. Avoid complex nested generic types
@@ -524,6 +531,7 @@ dotnet ef database update
 **Issue**: Jobs execute on multiple servers simultaneously
 
 **Solution**:
+
 1. Verify all servers use same database
 2. Check `UseClustering()` is configured
 3. Ensure clocks are synchronized (NTP)
@@ -538,7 +546,7 @@ Make handlers idempotent since Quartz may retry failed jobs:
 ```csharp
 public class ProcessPaymentHandler : ICommandHandler<ProcessPaymentCommand, Receipt>
 {
-    public async ValueTask<Either<MediatorError, Receipt>> Handle(...)
+    public async ValueTask<Either<EncinaError, Receipt>> Handle(...)
     {
         // Check if already processed
         var existing = await _repository.GetReceiptAsync(request.PaymentId);

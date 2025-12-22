@@ -3,7 +3,7 @@
 ## Purpose
 
 - Provide traceability between product requirements and automated verification layers.
-- Highlight the suites and scenarios covering each mediator capability.
+- Highlight the suites and scenarios covering each Encina capability.
 
 ## Coverage Matrix
 
@@ -15,8 +15,8 @@
 | `REQ-REQ-CONCURRENCY` | Concurrent publish guarantees for requests and notifications | Property tests in `tests/Encina.PropertyTests/NotificationProperties.cs` |
 | `REQ-NOT-ORDER` | Notification ordering, cancellation, and error propagation | Property tests in `tests/Encina.PropertyTests/NotificationProperties.cs` |
 | `REQ-NOT-MULTI` | Multi-handler notification registration | Contract tests in `tests/Encina.ContractTests/ServiceRegistrationContracts.cs` |
-| `REQ-INF-METRICS` | Metrics emission and failure tagging | Unit tests in `tests/Encina.Tests/MediatorMetricsTests.cs` |
-| `REQ-ERR-ZEROEXC` | Zero Exceptions policy – mediator operations surface expected failures as functional results | Unit tests in `tests/Encina.Tests/EncinaTests.cs` and `tests/Encina.Tests/PipelineBehaviorsTests.cs` |
+| `REQ-INF-METRICS` | Metrics emission and failure tagging | Unit tests in `tests/Encina.Tests/EncinaMetricsTests.cs` |
+| `REQ-ERR-ZEROEXC` | Zero Exceptions policy – Encina operations surface expected failures as functional results | Unit tests in `tests/Encina.Tests/EncinaTests.cs` and `tests/Encina.Tests/PipelineBehaviorsTests.cs` |
 | `REQ-CONF-LIFETIME` | Handler lifetime configuration | Contract tests in `tests/Encina.ContractTests/ServiceRegistrationContracts.cs` |
 | `REQ-CONF-SCAN` | Assembly scanning fallbacks and caching | Unit tests in `tests/Encina.Tests/EncinaTests.cs` |
 | `REQ-CONF-EDGE` | Configuration extension edge cases | Contract tests in `tests/Encina.ContractTests/ServiceRegistrationContracts.cs` |

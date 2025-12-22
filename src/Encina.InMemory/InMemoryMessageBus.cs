@@ -78,7 +78,7 @@ public sealed class InMemoryMessageBus : IInMemoryMessageBus, IDisposable
     public int SubscriberCount => _subscribers.Values.Sum(list => list.Count);
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> PublishAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         CancellationToken cancellationToken = default)
         where TMessage : class
@@ -102,14 +102,14 @@ public sealed class InMemoryMessageBus : IInMemoryMessageBus, IDisposable
 
             Log.SuccessfullyPublishedMessage(_logger, typeof(TMessage).Name);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "INMEMORY_PUBLISH_FAILED",
                     ex,
                     $"Failed to publish message of type {typeof(TMessage).Name}."));
@@ -117,7 +117,7 @@ public sealed class InMemoryMessageBus : IInMemoryMessageBus, IDisposable
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> EnqueueAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, Unit>> EnqueueAsync<TMessage>(
         TMessage message,
         CancellationToken cancellationToken = default)
         where TMessage : class
@@ -133,14 +133,14 @@ public sealed class InMemoryMessageBus : IInMemoryMessageBus, IDisposable
 
             Log.SuccessfullyEnqueuedMessage(_logger, typeof(TMessage).Name);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToEnqueueMessage(_logger, ex, typeof(TMessage).Name);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "INMEMORY_ENQUEUE_FAILED",
                     ex,
                     $"Failed to enqueue message of type {typeof(TMessage).Name}."));

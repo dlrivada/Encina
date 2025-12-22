@@ -7,11 +7,11 @@ namespace Encina;
 /// <summary>
 /// Guard clauses for notification pipeline validation.
 /// </summary>
-internal static class MediatorNotificationGuards
+internal static class EncinaNotificationGuards
 {
-    public static bool TryValidateHandleMethod(MethodInfo method, Type handlerType, string notificationName, out MediatorError failure)
+    public static bool TryValidateHandleMethod(MethodInfo method, Type handlerType, string notificationName, out EncinaError failure)
     {
-        var parameters = method.GetParameters();
+        ParameterInfo[] parameters = method.GetParameters();
         if (parameters.Length != 2 || parameters[1].ParameterType != typeof(CancellationToken))
         {
             var exception = new TargetParameterCountException("The Handle method must accept the notification and a CancellationToken.");
@@ -22,15 +22,15 @@ internal static class MediatorNotificationGuards
                 ["handleMethod"] = method.Name,
                 ["parameterCount"] = parameters.Length
             };
-            failure = MediatorErrors.FromException(MediatorErrorCodes.NotificationInvokeException, exception, $"Error invoking {handlerType.Name}.Handle.", metadata);
+            failure = EncinaErrors.FromException(EncinaErrorCodes.NotificationInvokeException, exception, $"Error invoking {handlerType.Name}.Handle.", metadata);
             return false;
         }
 
-        // Validate return type is Task<Either<MediatorError, Unit>>
-        var expectedReturnType = typeof(Task<>).MakeGenericType(typeof(Either<MediatorError, Unit>));
+        // Validate return type is Task<Either<EncinaError, Unit>>
+        Type expectedReturnType = typeof(Task<>).MakeGenericType(typeof(Either<EncinaError, Unit>));
         if (method.ReturnType != expectedReturnType)
         {
-            var message = $"Handler {handlerType.Name} must return Task<Either<MediatorError, Unit>> but returned {method.ReturnType.Name}.";
+            string message = $"Handler {handlerType.Name} must return Task<Either<EncinaError, Unit>> but returned {method.ReturnType.Name}.";
             var metadata = new Dictionary<string, object?>
             {
                 ["handler"] = handlerType.FullName,
@@ -38,7 +38,7 @@ internal static class MediatorNotificationGuards
                 ["expectedReturnType"] = expectedReturnType.FullName,
                 ["actualReturnType"] = method.ReturnType.FullName
             };
-            failure = MediatorErrors.Create(MediatorErrorCodes.NotificationInvalidReturn, message, details: metadata);
+            failure = EncinaErrors.Create(EncinaErrorCodes.NotificationInvalidReturn, message, details: metadata);
             return false;
         }
 

@@ -38,7 +38,7 @@ namespace Encina.Dapr;
 /// }
 ///
 /// // Use through Encina
-/// var result = await mediator.Send(new GetOrderRequest("12345"));
+/// var result = await Encina.Send(new GetOrderRequest("12345"));
 /// result.Match(
 ///     Right: order => Console.WriteLine($"Order: {order.Id}"),
 ///     Left: error => Console.WriteLine($"Error: {error.Message}")

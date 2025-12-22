@@ -74,7 +74,7 @@ namespace Encina.Dapr;
 /// }
 ///
 /// // Use through Encina
-/// var result = await mediator.Send(new SendEmailCommand(
+/// var result = await Encina.Send(new SendEmailCommand(
 ///     "user@example.com",
 ///     "Welcome!",
 ///     "Thanks for signing up"));

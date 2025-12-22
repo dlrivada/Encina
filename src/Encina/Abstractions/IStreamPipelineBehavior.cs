@@ -30,7 +30,7 @@ namespace Encina;
 /// public sealed class StreamLoggingBehavior&lt;TRequest, TItem&gt; : IStreamPipelineBehavior&lt;TRequest, TItem&gt;
 ///     where TRequest : IStreamRequest&lt;TItem&gt;
 /// {
-///     public async IAsyncEnumerable&lt;Either&lt;MediatorError, TItem&gt;&gt; Handle(
+///     public async IAsyncEnumerable&lt;Either&lt;EncinaError, TItem&gt;&gt; Handle(
 ///         TRequest request,
 ///         IRequestContext context,
 ///         StreamHandlerCallback&lt;TItem&gt; nextStep,
@@ -96,7 +96,7 @@ public interface IStreamPipelineBehavior<TRequest, TItem>
     /// <c>[EnumeratorCancellation]</c> attribute to ensure proper cancellation when iteration stops early.
     /// </para>
     /// </remarks>
-    IAsyncEnumerable<Either<MediatorError, TItem>> Handle(
+    IAsyncEnumerable<Either<EncinaError, TItem>> Handle(
         TRequest request,
         IRequestContext context,
         StreamHandlerCallback<TItem> nextStep,

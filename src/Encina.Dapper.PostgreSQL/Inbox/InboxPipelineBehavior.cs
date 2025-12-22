@@ -71,7 +71,7 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
     }
 
     /// <inheritdoc/>
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,
@@ -87,7 +87,7 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
         {
             Log.MissingIdempotencyKey(_logger, typeof(TRequest).Name, context.CorrelationId.ToString());
 
-            return MediatorErrors.Create(
+            return EncinaErrors.Create(
                 "inbox.missing_message_id",
                 "Idempotent requests require a MessageId (IdempotencyKey)");
         }
@@ -119,7 +119,7 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
             {
                 Log.MaxRetriesExceeded(_logger, messageId, _options.MaxRetries, context.CorrelationId.ToString());
 
-                return MediatorErrors.Create(
+                return EncinaErrors.Create(
                     "inbox.max_retries_exceeded",
                     $"Message has failed {existingMessage.RetryCount} times and will not be retried");
             }
@@ -209,7 +209,7 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
         }
     }
 
-    private static string SerializeResponse(Either<MediatorError, TResponse> response)
+    private static string SerializeResponse(Either<EncinaError, TResponse> response)
     {
         var envelope = response.Match(
             Right: value => new ResponseEnvelope { IsSuccess = true, Value = value },
@@ -218,11 +218,11 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
         return JsonSerializer.Serialize(envelope, JsonOptions);
     }
 
-    private static Either<MediatorError, TResponse> DeserializeResponse(string json)
+    private static Either<EncinaError, TResponse> DeserializeResponse(string json)
     {
         var envelope = JsonSerializer.Deserialize<ResponseEnvelope>(json, JsonOptions);
         if (envelope == null)
-            return MediatorErrors.Create("inbox.deserialization_failed", "Failed to deserialize cached response");
+            return EncinaErrors.Create("inbox.deserialization_failed", "Failed to deserialize cached response");
 
         if (envelope.IsSuccess && envelope.Value != null)
         {
@@ -231,18 +231,18 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
                 JsonOptions);
 
             return value != null
-                ? Right<MediatorError, TResponse>(value)
-                : MediatorErrors.Create("inbox.deserialization_failed", "Failed to deserialize response value");
+                ? Right<EncinaError, TResponse>(value)
+                : EncinaErrors.Create("inbox.deserialization_failed", "Failed to deserialize response value");
         }
 
-        return envelope.Error ?? MediatorErrors.Create("inbox.unknown_error", "Unknown error in cached response");
+        return envelope.Error ?? EncinaErrors.Create("inbox.unknown_error", "Unknown error in cached response");
     }
 
     private sealed class ResponseEnvelope
     {
         public bool IsSuccess { get; set; }
         public object? Value { get; set; }
-        public MediatorError? Error { get; set; }
+        public EncinaError? Error { get; set; }
     }
 }
 

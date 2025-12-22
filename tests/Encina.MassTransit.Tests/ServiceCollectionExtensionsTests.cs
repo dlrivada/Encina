@@ -31,7 +31,7 @@ public class ServiceCollectionExtensionsTests
         // Act
         services.AddEncinaMassTransit(options =>
         {
-            options.ThrowOnMediatorError = false;
+            options.ThrowOnEncinaError = false;
             options.QueueNamePrefix = "custom-prefix";
             options.AutoRegisterRequestConsumers = false;
             options.AutoRegisterNotificationConsumers = false;
@@ -40,7 +40,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var options = provider.GetRequiredService<IOptions<EncinaMassTransitOptions>>();
-        options.Value.ThrowOnMediatorError.Should().BeFalse();
+        options.Value.ThrowOnEncinaError.Should().BeFalse();
         options.Value.QueueNamePrefix.Should().Be("custom-prefix");
         options.Value.AutoRegisterRequestConsumers.Should().BeFalse();
         options.Value.AutoRegisterNotificationConsumers.Should().BeFalse();
@@ -133,7 +133,7 @@ public class ServiceCollectionExtensionsTests
         var options = new EncinaMassTransitOptions();
 
         // Assert
-        options.ThrowOnMediatorError.Should().BeTrue();
+        options.ThrowOnEncinaError.Should().BeTrue();
         options.QueueNamePrefix.Should().Be("encina");
         options.AutoRegisterRequestConsumers.Should().BeTrue();
         options.AutoRegisterNotificationConsumers.Should().BeTrue();

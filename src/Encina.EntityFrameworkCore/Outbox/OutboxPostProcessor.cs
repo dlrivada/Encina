@@ -62,7 +62,7 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
     public async Task Process(
         TRequest request,
         IRequestContext context,
-        Either<MediatorError, TResponse> response,
+        Either<EncinaError, TResponse> response,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);

@@ -22,7 +22,7 @@ public static class ServiceCollectionExtensions
     /// </list>
     /// </para>
     /// <para>
-    /// After calling this method, inherit from <see cref="MediatorHub"/> to create your application hub.
+    /// After calling this method, inherit from <see cref="EncinaHub"/> to create your application hub.
     /// </para>
     /// </remarks>
     /// <example>

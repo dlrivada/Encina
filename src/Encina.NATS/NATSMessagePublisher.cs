@@ -43,7 +43,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, Unit>> PublishAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, Unit>> PublishAsync<TMessage>(
         TMessage message,
         string? subject = null,
         CancellationToken cancellationToken = default)
@@ -66,14 +66,14 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
 
             Log.SuccessfullyPublishedMessage(_logger, effectiveSubject);
 
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
             Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name, effectiveSubject);
 
-            return Left<MediatorError, Unit>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
                     "NATS_PUBLISH_FAILED",
                     ex,
                     $"Failed to publish message of type {typeof(TMessage).Name} to subject {effectiveSubject}."));
@@ -81,7 +81,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, TResponse>> RequestAsync<TRequest, TResponse>(
+    public async ValueTask<Either<EncinaError, TResponse>> RequestAsync<TRequest, TResponse>(
         TRequest request,
         string? subject = null,
         TimeSpan? timeout = null,
@@ -112,20 +112,20 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
 
             if (response is null)
             {
-                return Left<MediatorError, TResponse>(
-                    MediatorErrors.Create(
+                return Left<EncinaError, TResponse>(
+                    EncinaErrors.Create(
                         "NATS_DESERIALIZE_FAILED",
                         "Failed to deserialize response."));
             }
 
             Log.SuccessfullyReceivedResponse(_logger, typeof(TRequest).Name);
 
-            return Right<MediatorError, TResponse>(response);
+            return Right<EncinaError, TResponse>(response);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return Left<MediatorError, TResponse>(
-                MediatorErrors.Create(
+            return Left<EncinaError, TResponse>(
+                EncinaErrors.Create(
                     "NATS_REQUEST_TIMEOUT",
                     $"Request timed out after {effectiveTimeout.TotalSeconds} seconds."));
         }
@@ -133,8 +133,8 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
         {
             Log.FailedToSendRequest(_logger, ex, typeof(TRequest).Name);
 
-            return Left<MediatorError, TResponse>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, TResponse>(
+                EncinaErrors.FromException(
                     "NATS_REQUEST_FAILED",
                     ex,
                     $"Failed to send request of type {typeof(TRequest).Name}."));
@@ -142,7 +142,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, NATSPublishAck>> JetStreamPublishAsync<TMessage>(
+    public async ValueTask<Either<EncinaError, NATSPublishAck>> JetStreamPublishAsync<TMessage>(
         TMessage message,
         string? subject = null,
         CancellationToken cancellationToken = default)
@@ -152,8 +152,8 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
 
         if (_jetStream is null)
         {
-            return Left<MediatorError, NATSPublishAck>(
-                MediatorErrors.Create(
+            return Left<EncinaError, NATSPublishAck>(
+                EncinaErrors.Create(
                     "NATS_JETSTREAM_NOT_ENABLED",
                     "JetStream is not enabled. Set UseJetStream = true in options."));
         }
@@ -173,15 +173,15 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
 
             Log.SuccessfullyPublishedToJetStream(_logger, ack.Stream ?? string.Empty, ack.Seq);
 
-            return Right<MediatorError, NATSPublishAck>(
+            return Right<EncinaError, NATSPublishAck>(
                 new NATSPublishAck(ack.Stream ?? string.Empty, ack.Seq, ack.Duplicate));
         }
         catch (Exception ex)
         {
             Log.FailedToPublishToJetStream(_logger, ex, typeof(TMessage).Name);
 
-            return Left<MediatorError, NATSPublishAck>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, NATSPublishAck>(
+                EncinaErrors.FromException(
                     "NATS_JETSTREAM_PUBLISH_FAILED",
                     ex,
                     $"Failed to publish message of type {typeof(TMessage).Name} to JetStream."));

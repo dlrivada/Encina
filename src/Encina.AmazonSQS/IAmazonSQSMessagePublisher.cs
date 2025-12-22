@@ -14,8 +14,8 @@ public interface IAmazonSQSMessagePublisher
     /// <param name="message">The message to send.</param>
     /// <param name="queueUrl">The queue URL. If null, uses the default queue.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the message ID.</returns>
-    ValueTask<Either<MediatorError, string>> SendToQueueAsync<TMessage>(
+    /// <returns>Either a EncinaError or the message ID.</returns>
+    ValueTask<Either<EncinaError, string>> SendToQueueAsync<TMessage>(
         TMessage message,
         string? queueUrl = null,
         CancellationToken cancellationToken = default)
@@ -28,8 +28,8 @@ public interface IAmazonSQSMessagePublisher
     /// <param name="message">The message to publish.</param>
     /// <param name="topicArn">The topic ARN. If null, uses the default topic.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the message ID.</returns>
-    ValueTask<Either<MediatorError, string>> PublishToTopicAsync<TMessage>(
+    /// <returns>Either a EncinaError or the message ID.</returns>
+    ValueTask<Either<EncinaError, string>> PublishToTopicAsync<TMessage>(
         TMessage message,
         string? topicArn = null,
         CancellationToken cancellationToken = default)
@@ -42,8 +42,8 @@ public interface IAmazonSQSMessagePublisher
     /// <param name="messages">The messages to send.</param>
     /// <param name="queueUrl">The queue URL. If null, uses the default queue.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the list of message IDs.</returns>
-    ValueTask<Either<MediatorError, IReadOnlyList<string>>> SendBatchAsync<TMessage>(
+    /// <returns>Either a EncinaError or the list of message IDs.</returns>
+    ValueTask<Either<EncinaError, IReadOnlyList<string>>> SendBatchAsync<TMessage>(
         IEnumerable<TMessage> messages,
         string? queueUrl = null,
         CancellationToken cancellationToken = default)
@@ -58,8 +58,8 @@ public interface IAmazonSQSMessagePublisher
     /// <param name="deduplicationId">The deduplication ID. If null, content-based deduplication is used.</param>
     /// <param name="queueUrl">The queue URL. If null, uses the default queue.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Either a MediatorError or the message ID.</returns>
-    ValueTask<Either<MediatorError, string>> SendToFifoQueueAsync<TMessage>(
+    /// <returns>Either a EncinaError or the message ID.</returns>
+    ValueTask<Either<EncinaError, string>> SendToFifoQueueAsync<TMessage>(
         TMessage message,
         string messageGroupId,
         string? deduplicationId = null,

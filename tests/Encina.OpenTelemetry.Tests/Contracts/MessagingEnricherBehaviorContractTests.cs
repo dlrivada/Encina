@@ -52,7 +52,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         RequestHandlerCallback<string> nextStep = () =>
         {
             nextStepCalled++;
-            return new ValueTask<Either<MediatorError, string>>(Either<MediatorError, string>.Right("result"));
+            return new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("result"));
         };
 
         // Act
@@ -71,7 +71,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         var context = Substitute.For<IRequestContext>();
         context.Metadata.Returns(new Dictionary<string, object?>() as IReadOnlyDictionary<string, object?>);
 
-        RequestHandlerCallback<string> nextStep = () => new ValueTask<Either<MediatorError, string>>(Either<MediatorError, string>.Right("expected"));
+        RequestHandlerCallback<string> nextStep = () => new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("expected"));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -89,9 +89,9 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         var request = new TestRequest("test");
         var context = Substitute.For<IRequestContext>();
         context.Metadata.Returns(new Dictionary<string, object?>() as IReadOnlyDictionary<string, object?>);
-        var error = MediatorError.New("Test error message");
+        var error = EncinaError.New("Test error message");
 
-        RequestHandlerCallback<string> nextStep = () => new ValueTask<Either<MediatorError, string>>(Either<MediatorError, string>.Left(error));
+        RequestHandlerCallback<string> nextStep = () => new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Left(error));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -110,7 +110,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         var context = Substitute.For<IRequestContext>();
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Either<MediatorError, string>.Right("result"));
+            new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("result"));
 
         // Ensure no activity is running
         Activity.Current = null;
@@ -144,7 +144,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         RequestHandlerCallback<string> nextStep = () =>
         {
             nextStepCalled = true;
-            return new ValueTask<Either<MediatorError, string>>(Either<MediatorError, string>.Right("result"));
+            return new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("result"));
         };
 
         // Act
@@ -175,7 +175,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         context.Metadata.Returns(metadata as IReadOnlyDictionary<string, object?>);
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Either<MediatorError, string>.Right("result"));
+            new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("result"));
 
         // Act
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -204,7 +204,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         context.Metadata.Returns(metadata as IReadOnlyDictionary<string, object?>);
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Either<MediatorError, string>.Right("result"));
+            new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("result"));
 
         // Act
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -234,7 +234,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         context.Metadata.Returns(metadata as IReadOnlyDictionary<string, object?>);
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Either<MediatorError, string>.Right("result"));
+            new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("result"));
 
         // Act
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -269,7 +269,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         context.Metadata.Returns(metadata as IReadOnlyDictionary<string, object?>);
 
         RequestHandlerCallback<string> nextStep = () =>
-            new ValueTask<Either<MediatorError, string>>(Either<MediatorError, string>.Right("result"));
+            new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("result"));
 
         // Act
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -296,7 +296,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         RequestHandlerCallback<string> nextStep = () =>
         {
             nextStepCalled = true;
-            return new ValueTask<Either<MediatorError, string>>(Either<MediatorError, string>.Right("result"));
+            return new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("result"));
         };
 
         // Act

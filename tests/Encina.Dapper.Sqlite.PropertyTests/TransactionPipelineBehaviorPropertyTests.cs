@@ -41,7 +41,7 @@ public sealed class TransactionPipelineBehaviorPropertyTests : IClassFixture<Sql
         RequestHandlerCallback<string> next = async () =>
         {
             await InsertTestDataAsync(connection, messageId, testData);
-            return Right<MediatorError, string>("Success");
+            return Right<EncinaError, string>("Success");
         };
 
         // Act
@@ -75,7 +75,7 @@ public sealed class TransactionPipelineBehaviorPropertyTests : IClassFixture<Sql
         RequestHandlerCallback<string> next = async () =>
         {
             await InsertTestDataAsync(connection, messageId, "test-data");
-            return MediatorErrors.Create(errorCode, errorMessage);
+            return EncinaErrors.Create(errorCode, errorMessage);
         };
 
         // Act
@@ -155,8 +155,8 @@ public sealed class TransactionPipelineBehaviorPropertyTests : IClassFixture<Sql
             }
 
             return shouldSucceed
-                ? Right<MediatorError, string>("Success")
-                : MediatorErrors.Create("test.error", "Test error");
+                ? Right<EncinaError, string>("Success")
+                : EncinaErrors.Create("test.error", "Test error");
         };
 
         // Act
@@ -196,7 +196,7 @@ public sealed class TransactionPipelineBehaviorPropertyTests : IClassFixture<Sql
             RequestHandlerCallback<string> next = async () =>
             {
                 await InsertTestDataAsync(connection, messageId, $"data-{i}");
-                return Right<MediatorError, string>("Success");
+                return Right<EncinaError, string>("Success");
             };
 
             var result = await behavior.Handle(
@@ -235,7 +235,7 @@ public sealed class TransactionPipelineBehaviorPropertyTests : IClassFixture<Sql
         RequestHandlerCallback<string> next = async () =>
         {
             await InsertTestDataAsync(connection, messageId, "test-data");
-            return Right<MediatorError, string>("Success");
+            return Right<EncinaError, string>("Success");
         };
 
         // Act

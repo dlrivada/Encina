@@ -8,9 +8,9 @@ Gracias por contribuir. Este proyecto prioriza código limpio, rail funcional (s
 - Ejecuta `dotnet format Encina.slnx --verify-no-changes`.
 - Ejecuta `dotnet test Encina.slnx --configuration Release`.
 - Si cambias comportamiento público o métricas, añade/ajusta tests.
-- Mantén la política de Zero Exceptions: errores operativos deben viajar como `Either<MediatorError, TValue>`.
+- Mantén la política de Zero Exceptions: errores operativos deben viajar como `Either<EncinaError, TValue>`.
 - No silencies warnings sin justificación documentada; `TreatWarningsAsErrors` está activo.
-- Si añades behaviors/pipelines, asegúrate de devolver `ValueTask<Either<MediatorError,T>>` y evitar `throw` salvo cancelaciones.
+- Si añades behaviors/pipelines, asegúrate de devolver `ValueTask<Either<EncinaError,T>>` y evitar `throw` salvo cancelaciones.
 - Actualiza README/roadmap/badges cuando afecte a capacidades, cobertura o calidad.
 
 ## Checklist rápida
@@ -30,8 +30,8 @@ Gracias por contribuir. Este proyecto prioriza código limpio, rail funcional (s
 ## Estilo y API
 
 - Usa `ValueTask` en el camino crítico para minimizar asignaciones.
-- Prefiere `MediatorError`/`Either` en lugar de excepciones para flujos esperados.
-- Documenta códigos de error y mantén consistencia (`MediatorErrorCodes` cuando se añadan).
+- Prefiere `EncinaError`/`Either` en lugar de excepciones para flujos esperados.
+- Documenta códigos de error y mantén consistencia (`EncinaErrorCodes` cuando se añadan).
 - Considera namespaces de archivo y guard clauses reutilizables.
 
 ## Tests y ejemplos

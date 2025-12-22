@@ -37,9 +37,9 @@ public sealed class QuartzJobLoadTests
         var scenario = Scenario.Create("request_job", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
-            var job = new QuartzRequestJob<TestRequest, string>(mediator, logger);
+            var job = new QuartzRequestJob<TestRequest, string>(Encina, logger);
 
             var request = new TestRequest("load-test");
             var jobContext = CreateJobExecutionContext(request);
@@ -77,9 +77,9 @@ public sealed class QuartzJobLoadTests
         var scenario = Scenario.Create("notification_job", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var logger = Substitute.For<ILogger<QuartzNotificationJob<TestNotification>>>();
-            var job = new QuartzNotificationJob<TestNotification>(mediator, logger);
+            var job = new QuartzNotificationJob<TestNotification>(Encina, logger);
 
             var notification = new TestNotification("load-test");
             var jobContext = CreateJobExecutionContext(notification);
@@ -117,9 +117,9 @@ public sealed class QuartzJobLoadTests
         var scenario = Scenario.Create("endurance", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
-            var job = new QuartzRequestJob<TestRequest, string>(mediator, logger);
+            var job = new QuartzRequestJob<TestRequest, string>(Encina, logger);
 
             var request = new TestRequest("endurance-test");
             var jobContext = CreateJobExecutionContext(request);
@@ -183,20 +183,20 @@ public sealed record TestNotification(string Message) : INotification;
 
 public sealed class TestRequestHandler : IRequestHandler<TestRequest, string>
 {
-    public Task<Either<MediatorError, string>> Handle(
+    public Task<Either<EncinaError, string>> Handle(
         TestRequest request,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Right<MediatorError, string>($"Processed: {request.Data}"));
+        return Task.FromResult(Right<EncinaError, string>($"Processed: {request.Data}"));
     }
 }
 
 public sealed class TestNotificationHandler : INotificationHandler<TestNotification>
 {
-    public Task<Either<MediatorError, Unit>> Handle(
+    public Task<Either<EncinaError, Unit>> Handle(
         TestNotification notification,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Right<MediatorError, Unit>(unit));
+        return Task.FromResult(Right<EncinaError, Unit>(unit));
     }
 }

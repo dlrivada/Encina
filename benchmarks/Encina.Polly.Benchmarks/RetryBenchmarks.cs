@@ -10,8 +10,8 @@ namespace Encina.Polly.Benchmarks;
 [SimpleJob(warmupCount: 3, iterationCount: 5)]
 public class RetryBenchmarks
 {
-    private IMediator _mediatorWithRetry = null!;
-    private IMediator _mediatorWithoutRetry = null!;
+    private IEncina _EncinaWithRetry = null!;
+    private IEncina _EncinaWithoutRetry = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -23,28 +23,28 @@ public class RetryBenchmarks
         servicesWithRetry.AddLogging();
         servicesWithRetry.AddTransient<RetryRequestHandler>();
         servicesWithRetry.AddTransient<NoRetryRequestHandler>();
-        _mediatorWithRetry = servicesWithRetry.BuildServiceProvider().GetRequiredService<IMediator>();
+        _EncinaWithRetry = servicesWithRetry.BuildServiceProvider().GetRequiredService<IEncina>();
 
         // Without Retry
         var servicesWithoutRetry = new ServiceCollection();
         servicesWithoutRetry.AddEncina(config => { });
         servicesWithoutRetry.AddLogging();
         servicesWithoutRetry.AddTransient<NoRetryRequestHandler>();
-        _mediatorWithoutRetry = servicesWithoutRetry.BuildServiceProvider().GetRequiredService<IMediator>();
+        _EncinaWithoutRetry = servicesWithoutRetry.BuildServiceProvider().GetRequiredService<IEncina>();
     }
 
     [Benchmark(Baseline = true)]
     public async Task NoRetryAttribute_Baseline()
     {
         var request = new NoRetryRequest();
-        _ = await _mediatorWithoutRetry.Send(request);
+        _ = await _EncinaWithoutRetry.Send(request);
     }
 
     [Benchmark]
     public async Task WithRetryAttribute_NoActualRetries()
     {
         var request = new RetryRequest();
-        _ = await _mediatorWithRetry.Send(request);
+        _ = await _EncinaWithRetry.Send(request);
     }
 
     // Test types
@@ -55,17 +55,17 @@ public class RetryBenchmarks
 
     private sealed class RetryRequestHandler : IRequestHandler<RetryRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(RetryRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(RetryRequest request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, string>("Success"));
+            return Task.FromResult(Right<EncinaError, string>("Success"));
         }
     }
 
     private sealed class NoRetryRequestHandler : IRequestHandler<NoRetryRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(NoRetryRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(NoRetryRequest request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, string>("Success"));
+            return Task.FromResult(Right<EncinaError, string>("Success"));
         }
     }
 }

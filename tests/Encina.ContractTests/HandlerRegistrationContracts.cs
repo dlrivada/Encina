@@ -77,9 +77,9 @@ public sealed class HandlerRegistrationContracts
 
     private sealed class SampleCommandHandler : global::Encina.ICommandHandler<SampleCommand, string>
     {
-        public Task<Either<MediatorError, string>> Handle(SampleCommand request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(SampleCommand request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, string>(request.Payload));
+            return Task.FromResult(Right<EncinaError, string>(request.Payload));
         }
     }
 
@@ -87,17 +87,17 @@ public sealed class HandlerRegistrationContracts
 
     private sealed class SampleNotificationHandlerOne : global::Encina.INotificationHandler<SampleNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 
     private sealed class SampleNotificationHandlerTwo : global::Encina.INotificationHandler<SampleNotification>
     {
-        public Task<Either<MediatorError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, Unit>> Handle(SampleNotification notification, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
         }
     }
 }

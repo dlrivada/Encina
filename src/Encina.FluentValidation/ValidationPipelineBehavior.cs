@@ -13,10 +13,10 @@ namespace Encina.FluentValidation;
 /// <para>
 /// This behavior integrates FluentValidation with Encina's Railway Oriented Programming (ROP) model.
 /// It validates requests before handler execution and short-circuits the pipeline with a <see cref="ValidationException"/>
-/// wrapped in <see cref="MediatorError"/> if validation fails.
+/// wrapped in <see cref="EncinaError"/> if validation fails.
 /// </para>
 /// <para>
-/// Validation failures are returned as <c>Left&lt;MediatorError&gt;</c> containing a <see cref="ValidationException"/>
+/// Validation failures are returned as <c>Left&lt;EncinaError&gt;</c> containing a <see cref="ValidationException"/>
 /// with all validation errors. This allows downstream code to inspect and handle validation failures functionally.
 /// </para>
 /// </remarks>
@@ -41,10 +41,10 @@ namespace Encina.FluentValidation;
 /// // Handler receives only valid requests
 /// public class CreateUserHandler : ICommandHandler&lt;CreateUser, UserId&gt;
 /// {
-///     public Task&lt;Either&lt;MediatorError, UserId&gt;&gt; Handle(CreateUser request, CancellationToken ct)
+///     public Task&lt;Either&lt;EncinaError, UserId&gt;&gt; Handle(CreateUser request, CancellationToken ct)
 ///     {
 ///         // request is guaranteed to be valid here
-///         return Task.FromResult(Right&lt;MediatorError, UserId&gt;(UserId.New()));
+///         return Task.FromResult(Right&lt;EncinaError, UserId&gt;(UserId.New()));
 ///     }
 /// }
 /// </code>
@@ -64,7 +64,7 @@ public sealed class ValidationPipelineBehavior<TRequest, TResponse> : IPipelineB
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,
@@ -76,8 +76,8 @@ public sealed class ValidationPipelineBehavior<TRequest, TResponse> : IPipelineB
 
         if (cancellationToken.IsCancellationRequested)
         {
-            return Left<MediatorError, TResponse>(
-                MediatorError.New("Operation was cancelled before validation."));
+            return Left<EncinaError, TResponse>(
+                EncinaError.New("Operation was cancelled before validation."));
         }
 
         // Skip validation if no validators are registered
@@ -89,7 +89,7 @@ public sealed class ValidationPipelineBehavior<TRequest, TResponse> : IPipelineB
         // Create validation context with custom properties from IRequestContext
         var validationContext = new ValidationContext<TRequest>(request);
 
-        // Enrich validation context with mediator metadata
+        // Enrich validation context with Encina metadata
         validationContext.RootContextData["CorrelationId"] = context.CorrelationId;
 
         if (context.UserId is not null)
@@ -122,9 +122,9 @@ public sealed class ValidationPipelineBehavior<TRequest, TResponse> : IPipelineB
                 // Create ValidationException with all failures
                 var validationException = new ValidationException(failures);
 
-                // Return as MediatorError following ROP pattern
-                return Left<MediatorError, TResponse>(
-                    MediatorError.New(
+                // Return as EncinaError following ROP pattern
+                return Left<EncinaError, TResponse>(
+                    EncinaError.New(
                         validationException,
                         $"Validation failed for {typeof(TRequest).Name} with {failures.Count} error(s)."));
             }
@@ -134,8 +134,8 @@ public sealed class ValidationPipelineBehavior<TRequest, TResponse> : IPipelineB
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            return Left<MediatorError, TResponse>(
-                MediatorError.New(ex, $"Validation cancelled for {typeof(TRequest).Name}."));
+            return Left<EncinaError, TResponse>(
+                EncinaError.New(ex, $"Validation cancelled for {typeof(TRequest).Name}."));
         }
     }
 }

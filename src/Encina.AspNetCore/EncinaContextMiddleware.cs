@@ -27,8 +27,8 @@ namespace Encina.AspNetCore;
 /// // In Program.cs or Startup.cs
 /// app.UseEncinaContext();
 ///
-/// // Now all mediator requests will have enriched context
-/// var result = await mediator.Send(new CreateUserCommand(...));
+/// // Now all Encina requests will have enriched context
+/// var result = await Encina.Send(new CreateUserCommand(...));
 /// </code>
 /// </example>
 public sealed class EncinaContextMiddleware

@@ -10,7 +10,7 @@ namespace Encina.Quartz.IntegrationTests;
 
 /// <summary>
 /// Integration tests for Quartz job integration.
-/// Tests end-to-end scenarios with DI container and real mediator.
+/// Tests end-to-end scenarios with DI container and real Encina.
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class QuartzJobIntegrationTests
@@ -24,10 +24,10 @@ public sealed class QuartzJobIntegrationTests
         services.AddTransient<IRequestHandler<TestRequest, string>, TestRequestHandler>();
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
 
-        var job = new QuartzRequestJob<TestRequest, string>(mediator, logger);
+        var job = new QuartzRequestJob<TestRequest, string>(Encina, logger);
         var request = new TestRequest("integration-test");
         var context = CreateJobExecutionContext(request);
 
@@ -50,10 +50,10 @@ public sealed class QuartzJobIntegrationTests
             new TestNotificationHandler(() => handlerInvoked = true));
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var logger = Substitute.For<ILogger<QuartzNotificationJob<TestNotification>>>();
 
-        var job = new QuartzNotificationJob<TestNotification>(mediator, logger);
+        var job = new QuartzNotificationJob<TestNotification>(Encina, logger);
         var notification = new TestNotification("integration-test");
         var context = CreateJobExecutionContext(notification);
 
@@ -79,10 +79,10 @@ public sealed class QuartzJobIntegrationTests
             new TestNotificationHandler(() => handler2Invoked = true));
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
         var logger = Substitute.For<ILogger<QuartzNotificationJob<TestNotification>>>();
 
-        var job = new QuartzNotificationJob<TestNotification>(mediator, logger);
+        var job = new QuartzNotificationJob<TestNotification>(Encina, logger);
         var notification = new TestNotification("multi-handler-test");
         var context = CreateJobExecutionContext(notification);
 
@@ -134,11 +134,11 @@ public sealed record TestNotification(string Message) : INotification;
 
 public sealed class TestRequestHandler : IRequestHandler<TestRequest, string>
 {
-    public Task<Either<MediatorError, string>> Handle(
+    public Task<Either<EncinaError, string>> Handle(
         TestRequest request,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Right<MediatorError, string>($"Processed: {request.Data}"));
+        return Task.FromResult(Right<EncinaError, string>($"Processed: {request.Data}"));
     }
 }
 
@@ -151,11 +151,11 @@ public sealed class TestNotificationHandler : INotificationHandler<TestNotificat
         _onHandle = onHandle;
     }
 
-    public Task<Either<MediatorError, Unit>> Handle(
+    public Task<Either<EncinaError, Unit>> Handle(
         TestNotification notification,
         CancellationToken cancellationToken)
     {
         _onHandle();
-        return Task.FromResult(Right<MediatorError, Unit>(unit));
+        return Task.FromResult(Right<EncinaError, Unit>(unit));
     }
 }

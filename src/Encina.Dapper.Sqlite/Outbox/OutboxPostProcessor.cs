@@ -43,7 +43,7 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
     public async Task Process(
         TRequest request,
         IRequestContext context,
-        Either<MediatorError, TResponse> result,
+        Either<EncinaError, TResponse> result,
         CancellationToken cancellationToken)
     {
         // Only process if request has notifications

@@ -27,29 +27,29 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
     }
 
     /// <inheritdoc />
-    public async Task<Either<MediatorError, Unit>> DispatchAsync<TNotification>(
+    public async Task<Either<EncinaError, Unit>> DispatchAsync<TNotification>(
         IReadOnlyList<object> handlers,
         TNotification notification,
-        Func<object, TNotification, CancellationToken, Task<Either<MediatorError, Unit>>> invoker,
+        Func<object, TNotification, CancellationToken, Task<Either<EncinaError, Unit>>> invoker,
         CancellationToken cancellationToken)
         where TNotification : INotification
     {
         if (handlers.Count == 0)
         {
-            return Right<MediatorError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default);
         }
 
         // Single handler - no parallelism needed
         if (handlers.Count == 1)
         {
-            var handler = handlers[0];
+            object? handler = handlers[0];
             return handler is null
-                ? Right<MediatorError, Unit>(Unit.Default)
+                ? Right<EncinaError, Unit>(Unit.Default)
                 : await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
         }
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var linkedToken = cts.Token;
+        CancellationToken linkedToken = cts.Token;
 
         // Use SemaphoreSlim for throttling if max parallelism is set
         using var semaphore = new SemaphoreSlim(_maxDegreeOfParallelism, _maxDegreeOfParallelism);
@@ -58,14 +58,14 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
         var errorHolder = new ErrorHolder();
         var tasks = new List<Task>(handlers.Count);
 
-        foreach (var handler in handlers)
+        foreach (object? handler in handlers)
         {
             if (handler is null)
             {
                 continue;
             }
 
-            var capturedHandler = handler;
+            object capturedHandler = handler;
             tasks.Add(ExecuteWithThrottlingAsync(
                 capturedHandler,
                 notification,
@@ -86,14 +86,14 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
         }
 
         return errorHolder.Error is not null
-            ? Left<MediatorError, Unit>(errorHolder.Error)
-            : Right<MediatorError, Unit>(Unit.Default);
+            ? Left<EncinaError, Unit>(errorHolder.Error)
+            : Right<EncinaError, Unit>(Unit.Default);
     }
 
     private static async Task ExecuteWithThrottlingAsync<TNotification>(
         object handler,
         TNotification notification,
-        Func<object, TNotification, CancellationToken, Task<Either<MediatorError, Unit>>> invoker,
+        Func<object, TNotification, CancellationToken, Task<Either<EncinaError, Unit>>> invoker,
         SemaphoreSlim semaphore,
         CancellationTokenSource cts,
         ErrorHolder errorHolder,
@@ -117,7 +117,7 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
                 return;
             }
 
-            var result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
+            Either<EncinaError, Unit> result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
 
             if (result.IsLeft)
             {
@@ -128,7 +128,7 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
                     {
                         errorHolder.Error = result.Match(
                             Left: err => err,
-                            Right: _ => MediatorErrors.Unknown);
+                            Right: _ => EncinaErrors.Unknown);
 
                         // Cancel remaining handlers
                         try
@@ -154,6 +154,6 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
     /// </summary>
     private sealed class ErrorHolder
     {
-        public MediatorError? Error { get; set; }
+        public EncinaError? Error { get; set; }
     }
 }

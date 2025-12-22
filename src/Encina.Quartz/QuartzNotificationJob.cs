@@ -11,27 +11,27 @@ namespace Encina.Quartz;
 public sealed class QuartzNotificationJob<TNotification> : IJob
     where TNotification : INotification
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger<QuartzNotificationJob<TNotification>> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="QuartzNotificationJob{TNotification}"/> class.
     /// </summary>
-    /// <param name="mediator">The mediator instance.</param>
+    /// <param name="Encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     public QuartzNotificationJob(
-        IMediator mediator,
+        IEncina Encina,
         ILogger<QuartzNotificationJob<TNotification>> logger)
     {
-        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(Encina);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _mediator = mediator;
+        _Encina = Encina;
         _logger = logger;
     }
 
     /// <summary>
-    /// Executes the Quartz job by publishing the notification through the mediator.
+    /// Executes the Quartz job by publishing the notification through the Encina.
     /// </summary>
     /// <param name="context">The Quartz job execution context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
@@ -52,7 +52,7 @@ public sealed class QuartzNotificationJob<TNotification> : IJob
         {
             Log.PublishingNotificationJob(_logger, context.JobDetail.Key, typeof(TNotification).Name);
 
-            await _mediator.Publish(notification, context.CancellationToken)
+            await _Encina.Publish(notification, context.CancellationToken)
                 .ConfigureAwait(false);
 
             Log.NotificationJobCompleted(_logger, context.JobDetail.Key, typeof(TNotification).Name);

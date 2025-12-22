@@ -5,9 +5,9 @@ using static LanguageExt.Prelude;
 namespace Encina;
 
 /// <summary>
-/// Guard clauses for request and notification validation in the mediator.
+/// Guard clauses for request and notification validation in the Encina.
 /// </summary>
-internal static class MediatorRequestGuards
+internal static class EncinaRequestGuards
 {
     /// <summary>
     /// Validates that a request is not null and returns a functional error if it is.
@@ -16,7 +16,7 @@ internal static class MediatorRequestGuards
     /// <param name="request">The request instance to validate.</param>
     /// <param name="error">The error to return if validation fails.</param>
     /// <returns>True if the request is valid; otherwise, false.</returns>
-    public static bool TryValidateRequest<TResponse>(object? request, out Either<MediatorError, TResponse> error)
+    public static bool TryValidateRequest<TResponse>(object? request, out Either<EncinaError, TResponse> error)
     {
         if (request is not null)
         {
@@ -25,7 +25,7 @@ internal static class MediatorRequestGuards
         }
 
         const string message = "The request cannot be null.";
-        error = Left<MediatorError, TResponse>(MediatorErrors.Create(MediatorErrorCodes.RequestNull, message));
+        error = Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestNull, message));
         return false;
     }
 
@@ -35,7 +35,7 @@ internal static class MediatorRequestGuards
     /// <param name="notification">The notification instance to validate.</param>
     /// <param name="error">The error to return if validation fails.</param>
     /// <returns>True if the notification is valid; otherwise, false.</returns>
-    public static bool TryValidateNotification(object? notification, out Either<MediatorError, Unit> error)
+    public static bool TryValidateNotification(object? notification, out Either<EncinaError, Unit> error)
     {
         if (notification is not null)
         {
@@ -44,7 +44,7 @@ internal static class MediatorRequestGuards
         }
 
         const string message = "The notification cannot be null.";
-        error = Left<MediatorError, Unit>(MediatorErrors.Create(MediatorErrorCodes.NotificationNull, message));
+        error = Left<EncinaError, Unit>(EncinaErrors.Create(EncinaErrorCodes.NotificationNull, message));
         return false;
     }
 
@@ -61,7 +61,7 @@ internal static class MediatorRequestGuards
         object? handler,
         Type requestType,
         Type responseType,
-        out Either<MediatorError, TResponse> error)
+        out Either<EncinaError, TResponse> error)
     {
         if (handler is not null)
         {
@@ -69,14 +69,14 @@ internal static class MediatorRequestGuards
             return true;
         }
 
-        var message = $"No registered IRequestHandler was found for {requestType.Name} -> {responseType.Name}.";
+        string message = $"No registered IRequestHandler was found for {requestType.Name} -> {responseType.Name}.";
         var metadata = new Dictionary<string, object?>
         {
             ["requestType"] = requestType.FullName,
             ["responseType"] = responseType.FullName,
             ["stage"] = "handler_resolution"
         };
-        error = Left<MediatorError, TResponse>(MediatorErrors.Create(MediatorErrorCodes.RequestHandlerMissing, message, details: metadata));
+        error = Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestHandlerMissing, message, details: metadata));
         return false;
     }
 
@@ -93,7 +93,7 @@ internal static class MediatorRequestGuards
         object handler,
         Type expectedType,
         Type requestType,
-        out Either<MediatorError, TResponse> error)
+        out Either<EncinaError, TResponse> error)
     {
         if (expectedType.IsInstanceOfType(handler))
         {
@@ -101,7 +101,7 @@ internal static class MediatorRequestGuards
             return true;
         }
 
-        var message = $"Handler {handler.GetType().Name} does not implement {expectedType.Name} for {requestType.Name}.";
+        string message = $"Handler {handler.GetType().Name} does not implement {expectedType.Name} for {requestType.Name}.";
         var metadata = new Dictionary<string, object?>
         {
             ["handlerType"] = handler.GetType().FullName,
@@ -109,7 +109,7 @@ internal static class MediatorRequestGuards
             ["requestType"] = requestType.FullName,
             ["stage"] = "handler_validation"
         };
-        error = Left<MediatorError, TResponse>(MediatorErrors.Create(MediatorErrorCodes.RequestHandlerTypeMismatch, message, details: metadata));
+        error = Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestHandlerTypeMismatch, message, details: metadata));
         return false;
     }
 
@@ -120,7 +120,7 @@ internal static class MediatorRequestGuards
     /// <param name="request">The stream request instance to validate.</param>
     /// <param name="error">The error to return if validation fails.</param>
     /// <returns>True if the stream request is valid; otherwise, false.</returns>
-    public static bool TryValidateStreamRequest<TItem>(object? request, out Either<MediatorError, TItem> error)
+    public static bool TryValidateStreamRequest<TItem>(object? request, out Either<EncinaError, TItem> error)
     {
         if (request is not null)
         {
@@ -129,7 +129,7 @@ internal static class MediatorRequestGuards
         }
 
         const string message = "The stream request cannot be null.";
-        error = Left<MediatorError, TItem>(MediatorErrors.Create(MediatorErrorCodes.RequestNull, message));
+        error = Left<EncinaError, TItem>(EncinaErrors.Create(EncinaErrorCodes.RequestNull, message));
         return false;
     }
 }

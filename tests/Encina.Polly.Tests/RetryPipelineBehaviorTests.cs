@@ -27,7 +27,7 @@ public class RetryPipelineBehaviorTests
         var request = new TestRequestNoRetry();
         var context = Substitute.For<IRequestContext>();
         var expectedResponse = "success";
-        RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<MediatorError, string>(expectedResponse));
+        RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<EncinaError, string>(expectedResponse));
 
         var behavior = new RetryPipelineBehavior<TestRequestNoRetry, string>(
             Substitute.For<ILogger<RetryPipelineBehavior<TestRequestNoRetry, string>>>());
@@ -54,7 +54,7 @@ public class RetryPipelineBehaviorTests
         RequestHandlerCallback<string> next = () =>
         {
             callCount++;
-            return ValueTask.FromResult(Right<MediatorError, string>(expectedResponse));
+            return ValueTask.FromResult(Right<EncinaError, string>(expectedResponse));
         };
 
         // Act
@@ -80,8 +80,8 @@ public class RetryPipelineBehaviorTests
         {
             callCount++;
             return callCount == 1
-                ? ValueTask.FromResult(Left<MediatorError, string>(MediatorErrors.Create("test.error", "Transient failure")))
-                : ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ? ValueTask.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Transient failure")))
+                : ValueTask.FromResult(Right<EncinaError, string>("success"));
         };
 
         // Act
@@ -102,7 +102,7 @@ public class RetryPipelineBehaviorTests
         RequestHandlerCallback<string> next = () =>
         {
             callCount++;
-            return ValueTask.FromResult(Left<MediatorError, string>(MediatorErrors.Create("test.error", "Persistent failure")));
+            return ValueTask.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Persistent failure")));
         };
 
         // Act
@@ -125,7 +125,7 @@ public class RetryPipelineBehaviorTests
             callCount++;
             return callCount == 1
                 ? throw new TimeoutException("Transient timeout")
-                : ValueTask.FromResult(Right<MediatorError, string>("success"));
+                : ValueTask.FromResult(Right<EncinaError, string>("success"));
         };
 
         // Act
@@ -148,7 +148,7 @@ public class RetryPipelineBehaviorTests
             callCount++;
             return callCount == 1
                 ? throw new HttpRequestException("Network error")
-                : ValueTask.FromResult(Right<MediatorError, string>("success"));
+                : ValueTask.FromResult(Right<EncinaError, string>("success"));
         };
 
         // Act
@@ -171,7 +171,7 @@ public class RetryPipelineBehaviorTests
             callCount++;
             return callCount == 1
                 ? throw new IOException("IO error")
-                : ValueTask.FromResult(Right<MediatorError, string>("success"));
+                : ValueTask.FromResult(Right<EncinaError, string>("success"));
         };
 
         // Act
@@ -198,8 +198,8 @@ public class RetryPipelineBehaviorTests
         // Act
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
 
-        // Assert - Polly catches exception and returns MediatorError without retry
-        result.IsLeft.Should().BeTrue("non-transient exception should be caught and converted to MediatorError");
+        // Assert - Polly catches exception and returns EncinaError without retry
+        result.IsLeft.Should().BeTrue("non-transient exception should be caught and converted to EncinaError");
         callCount.Should().Be(1, "should not retry non-transient exceptions when RetryOnAllExceptions = false");
     }
 
@@ -218,7 +218,7 @@ public class RetryPipelineBehaviorTests
             callCount++;
             return callCount < 3
                 ? throw new InvalidOperationException("Any error")
-                : ValueTask.FromResult(Right<MediatorError, string>("success"));
+                : ValueTask.FromResult(Right<EncinaError, string>("success"));
         };
 
         // Act
@@ -245,8 +245,8 @@ public class RetryPipelineBehaviorTests
         {
             callCount++;
             return callCount < 3
-                ? ValueTask.FromResult(Left<MediatorError, string>(MediatorErrors.Create("test.error", "Fail")))
-                : ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ? ValueTask.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Fail")))
+                : ValueTask.FromResult(Right<EncinaError, string>("success"));
         };
 
         // Act
@@ -271,8 +271,8 @@ public class RetryPipelineBehaviorTests
         {
             callCount++;
             return callCount < 3
-                ? ValueTask.FromResult(Left<MediatorError, string>(MediatorErrors.Create("test.error", "Fail")))
-                : ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ? ValueTask.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Fail")))
+                : ValueTask.FromResult(Right<EncinaError, string>("success"));
         };
 
         // Act
@@ -297,8 +297,8 @@ public class RetryPipelineBehaviorTests
         {
             callCount++;
             return callCount < 3
-                ? ValueTask.FromResult(Left<MediatorError, string>(MediatorErrors.Create("test.error", "Fail")))
-                : ValueTask.FromResult(Right<MediatorError, string>("success"));
+                ? ValueTask.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Fail")))
+                : ValueTask.FromResult(Right<EncinaError, string>("success"));
         };
 
         // Act

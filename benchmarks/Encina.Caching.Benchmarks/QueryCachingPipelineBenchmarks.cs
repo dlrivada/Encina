@@ -60,7 +60,7 @@ public class QueryCachingPipelineBenchmarks : IDisposable
         _cachedKey = keyGenerator.GenerateKey<CachableQuery, QueryResult>(_query, _context);
 
         // Set up the handler
-        _handler = () => ValueTask.FromResult(Either<MediatorError, QueryResult>.Right(new QueryResult(_query.Id, "Result", 42)));
+        _handler = () => ValueTask.FromResult(Either<EncinaError, QueryResult>.Right(new QueryResult(_query.Id, "Result", 42)));
     }
 
     [GlobalCleanup]
@@ -81,7 +81,7 @@ public class QueryCachingPipelineBenchmarks : IDisposable
     }
 
     [Benchmark(Baseline = true)]
-    public async Task<Either<MediatorError, QueryResult>> Pipeline_CacheMiss()
+    public async Task<Either<EncinaError, QueryResult>> Pipeline_CacheMiss()
     {
         // Create unique query to ensure cache miss
         var query = new CachableQuery(Guid.NewGuid(), "New Query");
@@ -89,7 +89,7 @@ public class QueryCachingPipelineBenchmarks : IDisposable
     }
 
     [Benchmark]
-    public async Task<Either<MediatorError, QueryResult>> Pipeline_CacheHit()
+    public async Task<Either<EncinaError, QueryResult>> Pipeline_CacheHit()
     {
         // First call to populate cache
         await _behavior.Handle(_query, _context, _handler, CancellationToken.None);
@@ -104,7 +104,7 @@ public class QueryCachingPipelineBenchmarks : IDisposable
     [Arguments(100)]
     public async Task Pipeline_ConcurrentAccess(int concurrencyLevel)
     {
-        var tasks = new Task<Either<MediatorError, QueryResult>>[concurrencyLevel];
+        var tasks = new Task<Either<EncinaError, QueryResult>>[concurrencyLevel];
 
         // Half cache hits, half cache misses
         for (var i = 0; i < concurrencyLevel; i++)

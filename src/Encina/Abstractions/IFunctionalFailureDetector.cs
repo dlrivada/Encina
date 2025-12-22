@@ -1,7 +1,7 @@
 namespace Encina;
 
 /// <summary>
-/// Allows the application to identify functional failures in mediator responses.
+/// Allows the application to identify functional failures in Encina responses.
 /// </summary>
 /// <remarks>
 /// Encina relies on this abstraction to avoid binding to specific domain types.

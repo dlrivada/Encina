@@ -9,18 +9,18 @@ namespace Encina;
 public sealed partial class Encina
 {
     /// <inheritdoc />
-    public async IAsyncEnumerable<Either<MediatorError, TItem>> Stream<TItem>(
+    public async IAsyncEnumerable<Either<EncinaError, TItem>> Stream<TItem>(
         IStreamRequest<TItem> request,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        if (!MediatorRequestGuards.TryValidateStreamRequest<TItem>(request, out var error))
+        if (!EncinaRequestGuards.TryValidateStreamRequest<TItem>(request, out Either<EncinaError, TItem> error))
         {
             Log.NullStreamRequest(_logger);
             yield return error;
             yield break;
         }
 
-        await foreach (var item in StreamDispatcher.ExecuteAsync(this, request, cancellationToken).ConfigureAwait(false))
+        await foreach (Either<EncinaError, TItem> item in StreamDispatcher.ExecuteAsync(this, request, cancellationToken).ConfigureAwait(false))
         {
             yield return item;
         }

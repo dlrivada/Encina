@@ -35,7 +35,7 @@ public sealed class PipelineBehaviorContracts
             typeof(global::Encina.QueryMetricsPipelineBehavior<,>)
         };
 
-        var result = global::Encina.MediatorAssemblyScanner.GetRegistrations(TargetAssembly);
+        var result = global::Encina.EncinaAssemblyScanner.GetRegistrations(TargetAssembly);
         var discovered = result.PipelineRegistrations
             .Where(r => r.ImplementationType.Assembly == TargetAssembly)
             .Select(r => r.ImplementationType.IsGenericType ? r.ImplementationType.GetGenericTypeDefinition() : r.ImplementationType)
@@ -66,8 +66,8 @@ public sealed class PipelineBehaviorContracts
             var genericArgs = behavior.GetGenericArguments();
             genericArgs.Length.ShouldBe(2);
 
-            var expected = typeof(ValueTask<>).MakeGenericType(typeof(Either<,>).MakeGenericType(typeof(global::Encina.MediatorError), genericArgs[1]));
-            handle!.ReturnType.ShouldBe(expected, customMessage: "Behaviors must surface outcomes via ValueTask<Either<MediatorError,TResponse>> (rail funcional, sin throw operativo).");
+            var expected = typeof(ValueTask<>).MakeGenericType(typeof(Either<,>).MakeGenericType(typeof(global::Encina.EncinaError), genericArgs[1]));
+            handle!.ReturnType.ShouldBe(expected, customMessage: "Behaviors must surface outcomes via ValueTask<Either<EncinaError,TResponse>> (rail funcional, sin throw operativo).");
         }
     }
 

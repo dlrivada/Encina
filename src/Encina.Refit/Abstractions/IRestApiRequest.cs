@@ -38,7 +38,7 @@ namespace Encina.Refit;
 ///     .ConfigureHttpClient(c =&gt; c.BaseAddress = new Uri("https://api.github.com"));
 ///
 /// // Use through Encina
-/// var user = await mediator.Send(new GetGitHubUserRequest("octocat"));
+/// var user = await Encina.Send(new GetGitHubUserRequest("octocat"));
 /// </code>
 /// </example>
 public interface IRestApiRequest<TApiClient, TResponse> : IRequest<TResponse>

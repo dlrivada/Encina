@@ -25,6 +25,7 @@ SQL Server implementation of Encina messaging patterns using Dapper, including O
 | **Best For** | Read-heavy, SQL experts | Rapid development, ORM fans |
 
 **Choose Dapper when:**
+
 - You need maximum performance
 - You want full SQL control
 - You're comfortable writing SQL
@@ -32,6 +33,7 @@ SQL Server implementation of Encina messaging patterns using Dapper, including O
 - Read-heavy workloads
 
 **Choose EF Core when:**
+
 - You prefer code-first approach
 - You want automatic change tracking
 - You need complex relationship navigation
@@ -44,6 +46,7 @@ dotnet add package Encina.Dapper.Oracle
 ```
 
 > **Note**: This package is specifically for SQL Server. For other databases, see:
+>
 > - `Encina.Dapper.PostgreSQL` - PostgreSQL support
 > - `Encina.Dapper.MySQL` - MySQL/MariaDB support
 > - `Encina.Dapper.Sqlite` - SQLite support
@@ -133,7 +136,7 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 {
     private readonly IDbConnection _connection;
 
-    public async ValueTask<Either<MediatorError, Order>> Handle(
+    public async ValueTask<Either<EncinaError, Order>> Handle(
         CreateOrderCommand request,
         IRequestContext context,
         CancellationToken cancellationToken)
@@ -160,6 +163,7 @@ All patterns work identically to Encina.EntityFrameworkCore. See the [EntityFram
 ### Key Differences from EF Core
 
 1. **No SaveChangesAsync**: Dapper executes SQL immediately
+
    ```csharp
    // EF Core
    await _dbContext.SaveChangesAsync();
@@ -169,6 +173,7 @@ All patterns work identically to Encina.EntityFrameworkCore. See the [EntityFram
    ```
 
 2. **Manual Connection Management**: You control when connections open/close
+
    ```csharp
    // Open connection in DI registration
    builder.Services.AddScoped<IDbConnection>(sp =>
@@ -180,6 +185,7 @@ All patterns work identically to Encina.EntityFrameworkCore. See the [EntityFram
    ```
 
 3. **SQL Scripts Required**: No automatic migrations
+
    ```bash
    # You must run SQL scripts manually
    sqlcmd -i Scripts/000_CreateAllTables.sql
@@ -247,7 +253,7 @@ public class CustomTransactionBehavior<TRequest, TResponse>
 {
     private readonly IDbConnection _connection;
 
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(...)
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(...)
     {
         using var transaction = _connection.BeginTransaction(
             IsolationLevel.ReadCommitted); // Custom isolation level
@@ -298,6 +304,7 @@ await _connection.ExecuteAsync(@"
 ## Performance Tips
 
 1. **Keep Connections Open**: Open connection once per request
+
    ```csharp
    // Connection opened in DI registration
    builder.Services.AddScoped<IDbConnection>(sp =>
@@ -309,16 +316,19 @@ await _connection.ExecuteAsync(@"
    ```
 
 2. **Use Buffered Queries**: Default in Dapper (good for small result sets)
+
    ```csharp
    var messages = await _connection.QueryAsync<OutboxMessage>(sql); // Buffered
    ```
 
 3. **Use Unbuffered for Large Sets**: Stream results for memory efficiency
+
    ```csharp
    var messages = await _connection.QueryUnbufferedAsync<OutboxMessage>(sql);
    ```
 
 4. **Leverage Indexes**: The provided scripts include optimized indexes
+
    ```sql
    -- Already included in migration scripts
    CREATE INDEX IX_OutboxMessages_ProcessedAt_RetryCount
@@ -331,12 +341,13 @@ await _connection.ExecuteAsync(@"
 ### Example: Creating an Order
 
 **Entity Framework Core**:
+
 ```csharp
 public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 {
     private readonly AppDbContext _dbContext;
 
-    public async ValueTask<Either<MediatorError, Order>> Handle(...)
+    public async ValueTask<Either<EncinaError, Order>> Handle(...)
     {
         var order = new Order { ... };
         _dbContext.Orders.Add(order);
@@ -347,12 +358,13 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 ```
 
 **Dapper**:
+
 ```csharp
 public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 {
     private readonly IDbConnection _connection;
 
-    public async ValueTask<Either<MediatorError, Order>> Handle(...)
+    public async ValueTask<Either<EncinaError, Order>> Handle(...)
     {
         var order = new Order { ... };
         await _connection.ExecuteAsync(
@@ -420,6 +432,7 @@ The database schema is identical! No migration needed if you're already using En
 **Problem**: `InvalidOperationException: Connection must be open`
 
 **Solution**: Open connection in DI registration
+
 ```csharp
 builder.Services.AddScoped<IDbConnection>(sp =>
 {
@@ -434,6 +447,7 @@ builder.Services.AddScoped<IDbConnection>(sp =>
 **Problem**: `InvalidOperationException: Transaction has already been committed or rolled back`
 
 **Solution**: Ensure TransactionPipelineBehavior is registered correctly
+
 ```csharp
 config.UseTransactions = true; // Registers behavior automatically
 ```
@@ -443,6 +457,7 @@ config.UseTransactions = true; // Registers behavior automatically
 **Problem**: Outbox/Inbox messages not being processed
 
 **Solution**: Ensure background processors are enabled
+
 ```csharp
 config.OutboxOptions.EnableProcessor = true;
 config.SchedulingOptions.EnableProcessor = true;
@@ -460,7 +475,7 @@ config.SchedulingOptions.EnableProcessor = true;
 
 ## Related Packages
 
-- **Encina**: Core mediator implementation with Railway Oriented Programming
+- **Encina**: Core Encina implementation with Railway Oriented Programming
 - **Encina.Messaging**: Shared abstractions for messaging patterns
 - **Encina.EntityFrameworkCore**: EF Core provider for messaging patterns
 - **Encina.AspNetCore**: ASP.NET Core integration

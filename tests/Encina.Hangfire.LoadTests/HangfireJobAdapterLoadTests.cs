@@ -36,9 +36,9 @@ public sealed class HangfireJobAdapterLoadTests
         var scenario = Scenario.Create("request_job_adapter", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, string>>>();
-            var adapter = new HangfireRequestJobAdapter<TestRequest, string>(mediator, logger);
+            var adapter = new HangfireRequestJobAdapter<TestRequest, string>(Encina, logger);
 
             var request = new TestRequest("load-test");
             var result = await adapter.ExecuteAsync(request);
@@ -74,9 +74,9 @@ public sealed class HangfireJobAdapterLoadTests
         var scenario = Scenario.Create("notification_job_adapter", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
-            var adapter = new HangfireNotificationJobAdapter<TestNotification>(mediator, logger);
+            var adapter = new HangfireNotificationJobAdapter<TestNotification>(Encina, logger);
 
             var notification = new TestNotification("load-test");
             await adapter.PublishAsync(notification);
@@ -112,9 +112,9 @@ public sealed class HangfireJobAdapterLoadTests
         var scenario = Scenario.Create("endurance", async context =>
         {
             using var scope = provider.CreateScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
             var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, string>>>();
-            var adapter = new HangfireRequestJobAdapter<TestRequest, string>(mediator, logger);
+            var adapter = new HangfireRequestJobAdapter<TestRequest, string>(Encina, logger);
 
             var request = new TestRequest("endurance-test");
             var result = await adapter.ExecuteAsync(request);
@@ -143,20 +143,20 @@ public sealed record TestNotification(string Message) : INotification;
 
 public sealed class TestRequestHandler : IRequestHandler<TestRequest, string>
 {
-    public Task<Either<MediatorError, string>> Handle(
+    public Task<Either<EncinaError, string>> Handle(
         TestRequest request,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Right<MediatorError, string>($"Processed: {request.Data}"));
+        return Task.FromResult(Right<EncinaError, string>($"Processed: {request.Data}"));
     }
 }
 
 public sealed class TestNotificationHandler : INotificationHandler<TestNotification>
 {
-    public Task<Either<MediatorError, Unit>> Handle(
+    public Task<Either<EncinaError, Unit>> Handle(
         TestNotification notification,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Right<MediatorError, Unit>(unit));
+        return Task.FromResult(Right<EncinaError, Unit>(unit));
     }
 }

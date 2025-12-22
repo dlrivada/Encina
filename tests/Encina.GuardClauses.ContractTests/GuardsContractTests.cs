@@ -21,7 +21,7 @@ public sealed class GuardsContractTests
 
         // Assert - Contract: Non-null values MUST return true
         result.ShouldBeTrue();
-        error.ShouldBe(default(MediatorError));
+        error.ShouldBe(default(EncinaError));
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class GuardsContractTests
 
         // Assert - Contract: Null values MUST return false with error
         result.ShouldBeFalse();
-        error.ShouldNotBe(default(MediatorError));
+        error.ShouldNotBe(default(EncinaError));
         error.Message.ShouldContain("cannot be null");
     }
 

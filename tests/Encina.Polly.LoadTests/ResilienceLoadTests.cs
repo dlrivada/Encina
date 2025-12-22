@@ -22,12 +22,12 @@ public class ResilienceLoadTests
         services.AddTransient<RetryRequestHandler>();
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IMediator>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         var tasks = Enumerable.Range(0, 100).Select(async i =>
         {
             var request = new RetryRequest();
-            return await mediator.Send(request);
+            return await Encina.Send(request);
         });
 
         // Act
@@ -48,12 +48,12 @@ public class ResilienceLoadTests
         services.AddTransient<CircuitBreakerRequestHandler>();
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IMediator>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         var tasks = Enumerable.Range(0, 50).Select(async i =>
         {
             var request = new CircuitBreakerRequest();
-            return await mediator.Send(request);
+            return await Encina.Send(request);
         });
 
         // Act - No exceptions means thread-safe
@@ -69,9 +69,9 @@ public class ResilienceLoadTests
 
     private sealed class RetryRequestHandler : IRequestHandler<RetryRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(RetryRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(RetryRequest request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, string>("Success"));
+            return Task.FromResult(Right<EncinaError, string>("Success"));
         }
     }
 
@@ -80,9 +80,9 @@ public class ResilienceLoadTests
 
     private sealed class CircuitBreakerRequestHandler : IRequestHandler<CircuitBreakerRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(CircuitBreakerRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(CircuitBreakerRequest request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(Right<MediatorError, string>("Success"));
+            return Task.FromResult(Right<EncinaError, string>("Success"));
         }
     }
 }

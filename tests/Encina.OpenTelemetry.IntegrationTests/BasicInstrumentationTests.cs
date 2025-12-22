@@ -30,10 +30,10 @@ public sealed class BasicInstrumentationTests
                 .AddConsoleExporter());
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act - This should generate telemetry and export to console
-        var result = await mediator.Send(new TestRequest { Data = "test" }, CancellationToken.None);
+        var result = await Encina.Send(new TestRequest { Data = "test" }, CancellationToken.None);
 
         // Assert - Request succeeds, telemetry exported (no exception)
         Assert.True(result.IsRight);
@@ -56,10 +56,10 @@ public sealed class BasicInstrumentationTests
             .WithTracing(builder => builder.AddConsoleExporter());
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act
-        var result = await mediator.Send(new TestRequest { Data = "withEncina" }, CancellationToken.None);
+        var result = await Encina.Send(new TestRequest { Data = "withEncina" }, CancellationToken.None);
 
         // Assert
         Assert.True(result.IsRight);
@@ -80,12 +80,12 @@ public sealed class BasicInstrumentationTests
                 .AddConsoleExporter());
 
         var provider = services.BuildServiceProvider();
-        var mediator = provider.GetRequiredService<IMediator>();
+        var Encina = provider.GetRequiredService<IEncina>();
 
         // Act - Send multiple requests
         for (int i = 0; i < 5; i++)
         {
-            var result = await mediator.Send(new TestRequest { Data = $"request-{i}" }, CancellationToken.None);
+            var result = await Encina.Send(new TestRequest { Data = $"request-{i}" }, CancellationToken.None);
             Assert.True(result.IsRight);
         }
 
@@ -102,9 +102,9 @@ public sealed class BasicInstrumentationTests
 
     private sealed class TestRequestHandler : IRequestHandler<TestRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(TestRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(TestRequest request, CancellationToken cancellationToken)
         {
-            return Task.FromResult<Either<MediatorError, string>>($"success: {request.Data}");
+            return Task.FromResult<Either<EncinaError, string>>($"success: {request.Data}");
         }
     }
 

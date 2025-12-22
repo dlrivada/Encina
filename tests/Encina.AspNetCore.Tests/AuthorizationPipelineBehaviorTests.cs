@@ -22,7 +22,7 @@ public class AuthorizationPipelineBehaviorTests
         RequestHandlerCallback<Unit> nextStep = () =>
         {
             nextStepCalled = true;
-            return ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
         };
 
         // Act
@@ -43,7 +43,7 @@ public class AuthorizationPipelineBehaviorTests
         var context = RequestContext.CreateForTest();
 
         RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -72,7 +72,7 @@ public class AuthorizationPipelineBehaviorTests
         RequestHandlerCallback<Unit> nextStep = () =>
         {
             nextStepCalled = true;
-            return ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
         };
 
         // Act
@@ -96,7 +96,7 @@ public class AuthorizationPipelineBehaviorTests
         RequestHandlerCallback<Unit> nextStep = () =>
         {
             nextStepCalled = true;
-            return ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
         };
 
         // Act
@@ -117,7 +117,7 @@ public class AuthorizationPipelineBehaviorTests
         var context = RequestContext.CreateForTest();
 
         RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -147,7 +147,7 @@ public class AuthorizationPipelineBehaviorTests
         RequestHandlerCallback<Unit> nextStep = () =>
         {
             nextStepCalled = true;
-            return ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
         };
 
         // Act
@@ -172,7 +172,7 @@ public class AuthorizationPipelineBehaviorTests
         RequestHandlerCallback<Unit> nextStep = () =>
         {
             nextStepCalled = true;
-            return ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
         };
 
         // Act
@@ -194,7 +194,7 @@ public class AuthorizationPipelineBehaviorTests
         var context = RequestContext.CreateForTest();
 
         RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -225,7 +225,7 @@ public class AuthorizationPipelineBehaviorTests
         RequestHandlerCallback<Unit> nextStep = () =>
         {
             nextStepCalled = true;
-            return ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
         };
 
         // Act
@@ -247,7 +247,7 @@ public class AuthorizationPipelineBehaviorTests
         var context = RequestContext.CreateForTest();
 
         RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -269,7 +269,7 @@ public class AuthorizationPipelineBehaviorTests
         var context = RequestContext.CreateForTest();
 
         RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
 
         // Act
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
@@ -297,7 +297,7 @@ public class AuthorizationPipelineBehaviorTests
         RequestHandlerCallback<Unit> nextStep = () =>
         {
             nextStepCalled = true;
-            return ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
         };
 
         // Act
@@ -320,7 +320,7 @@ public class AuthorizationPipelineBehaviorTests
         RequestHandlerCallback<Unit> nextStep = () =>
         {
             nextStepCalled = true;
-            return ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
         };
 
         // Act
@@ -345,7 +345,7 @@ public class AuthorizationPipelineBehaviorTests
         var context = RequestContext.CreateForTest();
 
         RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<MediatorError, Unit>(Unit.Default));
+            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
 
         // Act
         await behavior.Handle(request, context, nextStep, CancellationToken.None);

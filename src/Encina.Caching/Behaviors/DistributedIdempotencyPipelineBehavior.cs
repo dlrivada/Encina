@@ -63,7 +63,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
     }
 
     /// <inheritdoc/>
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,
@@ -85,7 +85,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
         {
             LogMissingIdempotencyKey(_logger, typeof(TRequest).Name, context.CorrelationId);
 
-            return MediatorErrors.Create(
+            return EncinaErrors.Create(
                 "idempotency.missing_key",
                 "Distributed idempotent requests require an IdempotencyKey in the request context");
         }
@@ -113,7 +113,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
                 }
 
                 // Entry exists but no response yet - request is in progress
-                return MediatorErrors.Create(
+                return EncinaErrors.Create(
                     "idempotency.in_progress",
                     "Request is already being processed");
             }
@@ -147,7 +147,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
         try
         {
             var (hasError, errorValue) = result.Match(
-                Right: _ => (false, default(MediatorError)),
+                Right: _ => (false, default(EncinaError)),
                 Left: e => (true, e));
 
             var entry = new IdempotencyEntry<TResponse>
@@ -239,7 +239,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
 ///     [FromHeader(Name = "Idempotency-Key")] string idempotencyKey)
 /// {
 ///     // IdempotencyKey flows through via IRequestContext
-///     var result = await _mediator.Send(command);
+///     var result = await _Encina.Send(command);
 ///     return result.ToActionResult();
 /// }
 /// </code>
@@ -281,5 +281,5 @@ internal sealed class IdempotencyEntry<TResponse>
     /// <summary>
     /// Gets or sets the error (if failed).
     /// </summary>
-    public MediatorError Error { get; init; }
+    public EncinaError Error { get; init; }
 }

@@ -1,4 +1,4 @@
-# ADR-004: Decision to NOT Implement MediatorResult<T>
+# ADR-004: Decision to NOT Implement EncinaResult<T>
 
 **Status:** Rejected
 **Date:** 2025-12-12
@@ -7,14 +7,14 @@
 
 ## Context
 
-During the design phase, we considered creating a `MediatorResult<T>` wrapper type over `Either<MediatorError, T>` to provide a more discoverable and C#-friendly API.
+During the design phase, we considered creating a `EncinaResult<T>` wrapper type over `Either<EncinaError, T>` to provide a more discoverable and C#-friendly API.
 
 ### Proposed Design
 
 ```csharp
-public sealed class MediatorResult<T>
+public sealed class EncinaResult<T>
 {
-    private readonly Either<MediatorError, T> _inner;
+    private readonly Either<EncinaError, T> _inner;
 
     public bool IsSuccess { get; }
     public bool IsFailure => !IsSuccess;
@@ -23,23 +23,23 @@ public sealed class MediatorResult<T>
         Right: v => v,
         Left: _ => throw new InvalidOperationException("Result is not successful"));
 
-    public MediatorError GetError() => _inner.Match(
+    public EncinaError GetError() => _inner.Match(
         Right: _ => throw new InvalidOperationException("Result is successful"),
         Left: e => e);
 
-    public TResult Match<TResult>(Func<T, TResult> onSuccess, Func<MediatorError, TResult> onFailure)
+    public TResult Match<TResult>(Func<T, TResult> onSuccess, Func<EncinaError, TResult> onFailure)
         => _inner.Match(Right: onSuccess, Left: onFailure);
 
-    public MediatorResult<TNew> Map<TNew>(Func<T, TNew> mapper)
-        => new MediatorResult<TNew>(_inner.Map(mapper));
+    public EncinaResult<TNew> Map<TNew>(Func<T, TNew> mapper)
+        => new EncinaResult<TNew>(_inner.Map(mapper));
 
-    public MediatorResult<TNew> Bind<TNew>(Func<T, MediatorResult<TNew>> binder)
-        => new MediatorResult<TNew>(_inner.Bind(v => binder(v)._inner));
+    public EncinaResult<TNew> Bind<TNew>(Func<T, EncinaResult<TNew>> binder)
+        => new EncinaResult<TNew>(_inner.Bind(v => binder(v)._inner));
 
     // Implicit conversions
-    public static implicit operator MediatorResult<T>(T value) => ...
-    public static implicit operator MediatorResult<T>(MediatorError error) => ...
-    public static implicit operator Either<MediatorError, T>(MediatorResult<T> result) => result._inner;
+    public static implicit operator EncinaResult<T>(T value) => ...
+    public static implicit operator EncinaResult<T>(EncinaError error) => ...
+    public static implicit operator Either<EncinaError, T>(EncinaResult<T> result) => result._inner;
 }
 ```
 
@@ -47,23 +47,23 @@ public sealed class MediatorResult<T>
 
 ```csharp
 // Before (current)
-ValueTask<Either<MediatorError, TResponse>> Send<TResponse>(...);
+ValueTask<Either<EncinaError, TResponse>> Send<TResponse>(...);
 
 // After (proposed)
-ValueTask<MediatorResult<TResponse>> Send<TResponse>(...);
+ValueTask<EncinaResult<TResponse>> Send<TResponse>(...);
 ```
 
 ## Decision
 
-**We REJECT the implementation of `MediatorResult<T>`.**
+**We REJECT the implementation of `EncinaResult<T>`.**
 
-We will continue using `Either<MediatorError, T>` from LanguageExt directly.
+We will continue using `Either<EncinaError, T>` from LanguageExt directly.
 
 ## Rationale
 
 ### 1. Unnecessary Abstraction
 
-`Either<MediatorError, T>` from LanguageExt already provides everything we need:
+`Either<EncinaError, T>` from LanguageExt already provides everything we need:
 
 - **Pattern matching:** `Match(Right: ..., Left: ...)`
 - **Transformations:** `Map`, `Bind`, `MapLeft`, `BiMap`
@@ -71,12 +71,12 @@ We will continue using `Either<MediatorError, T>` from LanguageExt directly.
 - **Extraction:** `IfLeft`, `IfRight`, `LeftOrDefault`, `RightOrDefault`
 - **Conversions:** `ToOption`, `ToSeq`, `ToArray`
 
-Adding `MediatorResult<T>` would duplicate all this functionality without adding value.
+Adding `EncinaResult<T>` would duplicate all this functionality without adding value.
 
 ### 2. Added Complexity
 
 - **Wrapper Overhead:** Extra layer of indirection with no functional benefit
-- **Conversion Tax:** Constant conversions between `Either` and `MediatorResult`
+- **Conversion Tax:** Constant conversions between `Either` and `EncinaResult`
 - **API Surface:** Increases public API surface area for maintenance
 - **Testing:** More code to test with no additional coverage of real scenarios
 
@@ -86,7 +86,7 @@ LanguageExt's `Either` integrates seamlessly with the rest of the LanguageExt ec
 
 ```csharp
 // Works with other LanguageExt types
-Either<MediatorError, User> result = ...;
+Either<EncinaError, User> result = ...;
 Option<User> maybeUser = result.ToOption();
 Seq<User> users = result.ToSeq();
 
@@ -97,7 +97,7 @@ var final = from user in result
             select new UserView(user, profile, settings);
 ```
 
-A custom `MediatorResult<T>` would break this integration.
+A custom `EncinaResult<T>` would break this integration.
 
 ### 4. Learning Curve is Acceptable
 
@@ -113,7 +113,7 @@ While `Either` has a learning curve for developers unfamiliar with functional pr
 - **Zero-cost abstraction:** LanguageExt's `Either` is highly optimized
 - **Struct-based:** `Either` is a struct, avoiding heap allocations
 - **JIT-friendly:** Well-tested and JIT-optimized over years
-- **Wrapper cost:** `MediatorResult` would add allocation overhead
+- **Wrapper cost:** `EncinaResult` would add allocation overhead
 
 ## Alternatives Considered
 
@@ -122,10 +122,10 @@ While `Either` has a learning curve for developers unfamiliar with functional pr
 Instead of wrapping, provide extension methods:
 
 ```csharp
-public static class EitherMediatorExtensions
+public static class EitherEncinaExtensions
 {
-    public static T GetValueOrThrow<T>(this Either<MediatorError, T> either)
-        => either.Match(Right: v => v, Left: e => throw new MediatorException(e));
+    public static T GetValueOrThrow<T>(this Either<EncinaError, T> either)
+        => either.Match(Right: v => v, Left: e => throw new EncinaException(e));
 }
 ```
 
@@ -178,11 +178,11 @@ Create a Roslyn analyzer to suggest `Either` usage patterns.
 
 ## Examples
 
-### Instead of MediatorResult, use Either directly
+### Instead of EncinaResult, use Either directly
 
 ```csharp
 // ✅ Correct usage with Either
-var result = await mediator.Send(new GetUserQuery(userId));
+var result = await Encina.Send(new GetUserQuery(userId));
 
 result.Match(
     Right: user => Console.WriteLine($"Found: {user.Name}"),

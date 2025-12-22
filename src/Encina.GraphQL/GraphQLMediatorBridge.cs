@@ -9,34 +9,34 @@ namespace Encina.GraphQL;
 /// <summary>
 /// GraphQL-based bridge to Encina.
 /// </summary>
-public sealed class GraphQLMediatorBridge : IGraphQLMediatorBridge
+public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
 {
-    private readonly IMediator _mediator;
-    private readonly ILogger<GraphQLMediatorBridge> _logger;
+    private readonly IEncina _Encina;
+    private readonly ILogger<GraphQLEncinaBridge> _logger;
     private readonly EncinaGraphQLOptions _options;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="GraphQLMediatorBridge"/> class.
+    /// Initializes a new instance of the <see cref="GraphQLEncinaBridge"/> class.
     /// </summary>
-    /// <param name="mediator">The Encina instance.</param>
+    /// <param name="Encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
-    public GraphQLMediatorBridge(
-        IMediator mediator,
-        ILogger<GraphQLMediatorBridge> logger,
+    public GraphQLEncinaBridge(
+        IEncina Encina,
+        ILogger<GraphQLEncinaBridge> logger,
         IOptions<EncinaGraphQLOptions> options)
     {
-        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(Encina);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
 
-        _mediator = mediator;
+        _Encina = Encina;
         _logger = logger;
         _options = options.Value;
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, TResult>> QueryAsync<TQuery, TResult>(
+    public async ValueTask<Either<EncinaError, TResult>> QueryAsync<TQuery, TResult>(
         TQuery query,
         CancellationToken cancellationToken = default)
         where TQuery : class, IRequest<TResult>
@@ -50,7 +50,7 @@ public sealed class GraphQLMediatorBridge : IGraphQLMediatorBridge
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_options.ExecutionTimeout);
 
-            var result = await _mediator.Send<TResult>(query, cts.Token).ConfigureAwait(false);
+            var result = await _Encina.Send<TResult>(query, cts.Token).ConfigureAwait(false);
 
             result.IfRight(_ => Log.SuccessfullyExecutedQuery(_logger, typeof(TQuery).Name));
 
@@ -60,8 +60,8 @@ public sealed class GraphQLMediatorBridge : IGraphQLMediatorBridge
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return Left<MediatorError, TResult>(
-                MediatorErrors.Create(
+            return Left<EncinaError, TResult>(
+                EncinaErrors.Create(
                     "GRAPHQL_TIMEOUT",
                     $"Query timed out after {_options.ExecutionTimeout.TotalSeconds} seconds."));
         }
@@ -69,8 +69,8 @@ public sealed class GraphQLMediatorBridge : IGraphQLMediatorBridge
         {
             Log.FailedToExecuteQuery(_logger, ex, typeof(TQuery).Name);
 
-            return Left<MediatorError, TResult>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, TResult>(
+                EncinaErrors.FromException(
                     "GRAPHQL_QUERY_FAILED",
                     ex,
                     $"Failed to execute query of type {typeof(TQuery).Name}."));
@@ -78,7 +78,7 @@ public sealed class GraphQLMediatorBridge : IGraphQLMediatorBridge
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, TResult>> MutateAsync<TMutation, TResult>(
+    public async ValueTask<Either<EncinaError, TResult>> MutateAsync<TMutation, TResult>(
         TMutation mutation,
         CancellationToken cancellationToken = default)
         where TMutation : class, IRequest<TResult>
@@ -92,7 +92,7 @@ public sealed class GraphQLMediatorBridge : IGraphQLMediatorBridge
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_options.ExecutionTimeout);
 
-            var result = await _mediator.Send<TResult>(mutation, cts.Token).ConfigureAwait(false);
+            var result = await _Encina.Send<TResult>(mutation, cts.Token).ConfigureAwait(false);
 
             result.IfRight(_ => Log.SuccessfullyExecutedMutation(_logger, typeof(TMutation).Name));
 
@@ -102,8 +102,8 @@ public sealed class GraphQLMediatorBridge : IGraphQLMediatorBridge
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return Left<MediatorError, TResult>(
-                MediatorErrors.Create(
+            return Left<EncinaError, TResult>(
+                EncinaErrors.Create(
                     "GRAPHQL_TIMEOUT",
                     $"Mutation timed out after {_options.ExecutionTimeout.TotalSeconds} seconds."));
         }
@@ -111,8 +111,8 @@ public sealed class GraphQLMediatorBridge : IGraphQLMediatorBridge
         {
             Log.FailedToExecuteMutation(_logger, ex, typeof(TMutation).Name);
 
-            return Left<MediatorError, TResult>(
-                MediatorErrors.FromException(
+            return Left<EncinaError, TResult>(
+                EncinaErrors.FromException(
                     "GRAPHQL_MUTATION_FAILED",
                     ex,
                     $"Failed to execute mutation of type {typeof(TMutation).Name}."));
@@ -120,7 +120,7 @@ public sealed class GraphQLMediatorBridge : IGraphQLMediatorBridge
     }
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<Either<MediatorError, TResult>> SubscribeAsync<TSubscription, TResult>(
+    public async IAsyncEnumerable<Either<EncinaError, TResult>> SubscribeAsync<TSubscription, TResult>(
         TSubscription subscription,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
         where TSubscription : class
@@ -129,8 +129,8 @@ public sealed class GraphQLMediatorBridge : IGraphQLMediatorBridge
 
         if (!_options.EnableSubscriptions)
         {
-            yield return Left<MediatorError, TResult>(
-                MediatorErrors.Create(
+            yield return Left<EncinaError, TResult>(
+                EncinaErrors.Create(
                     "GRAPHQL_SUBSCRIPTIONS_DISABLED",
                     "GraphQL subscriptions are disabled."));
             yield break;
@@ -140,8 +140,8 @@ public sealed class GraphQLMediatorBridge : IGraphQLMediatorBridge
         // For now, return a not implemented error
         await Task.CompletedTask;
 
-        yield return Left<MediatorError, TResult>(
-            MediatorErrors.Create(
+        yield return Left<EncinaError, TResult>(
+            EncinaErrors.Create(
                 "GRAPHQL_SUBSCRIPTIONS_NOT_IMPLEMENTED",
                 "GraphQL subscriptions require integration with a pub/sub system. " +
                 "Consider using Encina.Redis.PubSub or Encina.InMemory for local subscriptions."));

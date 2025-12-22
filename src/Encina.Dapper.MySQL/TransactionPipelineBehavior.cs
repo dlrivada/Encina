@@ -26,7 +26,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> next,

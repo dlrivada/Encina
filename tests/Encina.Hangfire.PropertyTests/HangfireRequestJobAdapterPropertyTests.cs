@@ -15,7 +15,7 @@ public sealed class HangfireRequestJobAdapterPropertyTests
     [Fact]
     public async Task Property_SuccessfulExecution_AlwaysReturnsRight()
     {
-        // Property: When mediator returns Right, adapter ALWAYS returns Right
+        // Property: When Encina returns Right, adapter ALWAYS returns Right
 
         var testCases = new[]
         {
@@ -27,12 +27,12 @@ public sealed class HangfireRequestJobAdapterPropertyTests
         foreach (var (expectedResult, request) in testCases)
         {
             // Arrange
-            var mediator = Substitute.For<IMediator>();
+            var Encina = Substitute.For<IEncina>();
             var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, string>>>();
-            var adapter = new HangfireRequestJobAdapter<TestRequest, string>(mediator, logger);
+            var adapter = new HangfireRequestJobAdapter<TestRequest, string>(Encina, logger);
 
-            mediator.Send(request, Arg.Any<CancellationToken>())
-                .Returns(Right<MediatorError, string>(expectedResult));
+            Encina.Send(request, Arg.Any<CancellationToken>())
+                .Returns(Right<EncinaError, string>(expectedResult));
 
             // Act
             var result = await adapter.ExecuteAsync(request);
@@ -46,27 +46,27 @@ public sealed class HangfireRequestJobAdapterPropertyTests
     }
 
     [Fact]
-    public async Task Property_MediatorError_AlwaysReturnsLeft()
+    public async Task Property_EncinaError_AlwaysReturnsLeft()
     {
-        // Property: When mediator returns Left, adapter ALWAYS returns Left
+        // Property: When Encina returns Left, adapter ALWAYS returns Left
 
         var testCases = new[]
         {
-            MediatorErrors.Create("error1", "Error 1"),
-            MediatorErrors.Create("error2", "Error 2"),
-            MediatorErrors.Create("error3", "Error 3"),
+            EncinaErrors.Create("error1", "Error 1"),
+            EncinaErrors.Create("error2", "Error 2"),
+            EncinaErrors.Create("error3", "Error 3"),
         };
 
         foreach (var expectedError in testCases)
         {
             // Arrange
-            var mediator = Substitute.For<IMediator>();
+            var Encina = Substitute.For<IEncina>();
             var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, string>>>();
-            var adapter = new HangfireRequestJobAdapter<TestRequest, string>(mediator, logger);
+            var adapter = new HangfireRequestJobAdapter<TestRequest, string>(Encina, logger);
             var request = new TestRequest("test");
 
-            mediator.Send(request, Arg.Any<CancellationToken>())
-                .Returns(Left<MediatorError, string>(expectedError));
+            Encina.Send(request, Arg.Any<CancellationToken>())
+                .Returns(Left<EncinaError, string>(expectedError));
 
             // Act
             var result = await adapter.ExecuteAsync(request);
@@ -87,12 +87,12 @@ public sealed class HangfireRequestJobAdapterPropertyTests
         var request = new TestRequest("idempotent-test");
         var expectedResult = "consistent-result";
 
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, string>>>();
-        var adapter = new HangfireRequestJobAdapter<TestRequest, string>(mediator, logger);
+        var adapter = new HangfireRequestJobAdapter<TestRequest, string>(Encina, logger);
 
-        mediator.Send(request, Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, string>(expectedResult));
+        Encina.Send(request, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, string>(expectedResult));
 
         // Act - Multiple executions
         var result1 = await adapter.ExecuteAsync(request);
@@ -122,12 +122,12 @@ public sealed class HangfireRequestJobAdapterPropertyTests
     {
         // Property: Concurrent executions are thread-safe
 
-        var mediator = Substitute.For<IMediator>();
+        var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, string>>>();
-        var adapter = new HangfireRequestJobAdapter<TestRequest, string>(mediator, logger);
+        var adapter = new HangfireRequestJobAdapter<TestRequest, string>(Encina, logger);
 
-        mediator.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<MediatorError, string>("success"));
+        Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, string>("success"));
 
         // Act - Execute concurrently
         var tasks = Enumerable.Range(0, 20)
@@ -141,9 +141,9 @@ public sealed class HangfireRequestJobAdapterPropertyTests
     }
 
     [Fact]
-    public async Task Property_MediatorInvocation_AlwaysCalledExactlyOnce()
+    public async Task Property_EncinaInvocation_AlwaysCalledExactlyOnce()
     {
-        // Property: Mediator ALWAYS invoked exactly once per execution
+        // Property: Encina ALWAYS invoked exactly once per execution
 
         var testRequests = new[]
         {
@@ -154,18 +154,18 @@ public sealed class HangfireRequestJobAdapterPropertyTests
 
         foreach (var request in testRequests)
         {
-            var mediator = Substitute.For<IMediator>();
+            var Encina = Substitute.For<IEncina>();
             var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, string>>>();
-            var adapter = new HangfireRequestJobAdapter<TestRequest, string>(mediator, logger);
+            var adapter = new HangfireRequestJobAdapter<TestRequest, string>(Encina, logger);
 
-            mediator.Send(request, Arg.Any<CancellationToken>())
-                .Returns(Right<MediatorError, string>("result"));
+            Encina.Send(request, Arg.Any<CancellationToken>())
+                .Returns(Right<EncinaError, string>("result"));
 
             // Act
             await adapter.ExecuteAsync(request);
 
             // Assert
-            await mediator.Received(1).Send(request, Arg.Any<CancellationToken>());
+            await Encina.Received(1).Send(request, Arg.Any<CancellationToken>());
         }
     }
 }

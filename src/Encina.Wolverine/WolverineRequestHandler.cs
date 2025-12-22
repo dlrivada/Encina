@@ -12,22 +12,22 @@ namespace Encina.Wolverine;
 public abstract class WolverineRequestHandler<TRequest, TResponse>
     where TRequest : class, IRequest<TResponse>
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WolverineRequestHandler{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="mediator">The Encina instance.</param>
+    /// <param name="Encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     protected WolverineRequestHandler(
-        IMediator mediator,
+        IEncina Encina,
         ILogger logger)
     {
-        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(Encina);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _mediator = mediator;
+        _Encina = Encina;
         _logger = logger;
     }
 
@@ -43,7 +43,7 @@ public abstract class WolverineRequestHandler<TRequest, TResponse>
 
         Log.HandlingMessage(_logger, typeof(TRequest).Name);
 
-        var result = await _mediator.Send<TResponse>(
+        var result = await _Encina.Send<TResponse>(
             request,
             cancellationToken).ConfigureAwait(false);
 
@@ -56,7 +56,7 @@ public abstract class WolverineRequestHandler<TRequest, TResponse>
             Left: error =>
             {
                 Log.MessageHandlingFailed(_logger, typeof(TRequest).Name, error.Message);
-                throw new WolverineMediatorException(error);
+                throw new WolverineEncinaException(error);
             });
     }
 }
@@ -68,22 +68,22 @@ public abstract class WolverineRequestHandler<TRequest, TResponse>
 public abstract class WolverineNotificationHandler<TNotification>
     where TNotification : class, INotification
 {
-    private readonly IMediator _mediator;
+    private readonly IEncina _Encina;
     private readonly ILogger _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WolverineNotificationHandler{TNotification}"/> class.
     /// </summary>
-    /// <param name="mediator">The Encina instance.</param>
+    /// <param name="Encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     protected WolverineNotificationHandler(
-        IMediator mediator,
+        IEncina Encina,
         ILogger logger)
     {
-        ArgumentNullException.ThrowIfNull(mediator);
+        ArgumentNullException.ThrowIfNull(Encina);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _mediator = mediator;
+        _Encina = Encina;
         _logger = logger;
     }
 
@@ -98,7 +98,7 @@ public abstract class WolverineNotificationHandler<TNotification>
 
         Log.HandlingNotification(_logger, typeof(TNotification).Name);
 
-        await _mediator.Publish(
+        await _Encina.Publish(
             notification,
             cancellationToken).ConfigureAwait(false);
 

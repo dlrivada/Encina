@@ -35,7 +35,7 @@ public class TransactionPipelineBehaviorGuardsTests
 
         TestRequest request = null!;
         var context = Substitute.For<IRequestContext>();
-        RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<MediatorError, string>>("test");
+        RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<EncinaError, string>>("test");
 
         // Act & Assert
         var act = async () => await behavior.Handle(request, context, next, CancellationToken.None);
@@ -54,7 +54,7 @@ public class TransactionPipelineBehaviorGuardsTests
 
         var request = new TestRequest();
         IRequestContext context = null!;
-        RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<MediatorError, string>>("test");
+        RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<EncinaError, string>>("test");
 
         // Act & Assert
         var act = async () => await behavior.Handle(request, context, next, CancellationToken.None);

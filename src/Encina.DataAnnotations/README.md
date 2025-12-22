@@ -8,7 +8,7 @@ Data Annotations validation for Encina with Railway Oriented Programming (ROP) s
 ## Features
 
 - 🚦 **Automatic Request Validation** - Validates requests before handler execution
-- 🛤️ **ROP Integration** - Returns validation failures as `Left<MediatorError>` for functional error handling
+- 🛤️ **ROP Integration** - Returns validation failures as `Left<EncinaError>` for functional error handling
 - 📦 **Zero Dependencies** - Uses System.ComponentModel.DataAnnotations (built-in .NET)
 - 🎯 **Zero Boilerplate** - No need to manually call validators in handlers
 - 🔄 **Context Enrichment** - Passes correlation ID, user ID, and tenant ID to validators
@@ -71,7 +71,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 
     public CreateUserHandler(IUserRepository users) => _users = users;
 
-    public async Task<Either<MediatorError, UserId>> Handle(
+    public async Task<Either<EncinaError, UserId>> Handle(
         CreateUser request,
         CancellationToken ct)
     {
@@ -80,7 +80,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 
         var user = new User(request.Email, request.Name, request.Age);
         await _users.Save(user, ct);
-        return Right<MediatorError, UserId>(user.Id);
+        return Right<EncinaError, UserId>(user.Id);
     }
 }
 ```
@@ -88,7 +88,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 ### 4. Handle Validation Errors Functionally
 
 ```csharp
-var result = await mediator.Send(new CreateUser
+var result = await Encina.Send(new CreateUser
 {
     Email = "invalid-email",
     Name = "",
@@ -194,7 +194,7 @@ public class UniqueEmailAttribute : ValidationAttribute
         object? value,
         ValidationContext validationContext)
     {
-        // Access mediator context metadata
+        // Access Encina context metadata
         var correlationId = validationContext.Items["CorrelationId"] as string;
         var userId = validationContext.Items["UserId"] as string;
         var tenantId = validationContext.Items["TenantId"] as string;
@@ -230,7 +230,7 @@ services.AddEncinaFluentValidation(typeof(CreateUser).Assembly);
 When validation fails, the error structure looks like this:
 
 ```csharp
-MediatorError
+EncinaError
 {
     Message = "Validation failed for CreateUser with 3 error(s): Email is required, Name is required, Age must be between 18 and 120.",
     Exception = Some(ValidationException
@@ -256,7 +256,7 @@ The `DataAnnotationsValidationBehavior<TRequest, TResponse>` intercepts all requ
 1. **Validate**: Calls `Validator.TryValidateObject` with `validateAllProperties: true`
 2. **Enrich Context**: Passes correlation ID, user ID, tenant ID to validation context
 3. **Aggregate Failures**: Collects all validation errors
-4. **Short-Circuit**: If validation fails, returns `Left<MediatorError>` with `ValidationException`
+4. **Short-Circuit**: If validation fails, returns `Left<EncinaError>` with `ValidationException`
 5. **Continue**: If validation passes, calls the next pipeline step (handler)
 
 ## Performance
@@ -271,9 +271,9 @@ The `DataAnnotationsValidationBehavior<TRequest, TResponse>` intercepts all requ
 Example of extracting validation errors in minimal APIs:
 
 ```csharp
-app.MapPost("/users", async (CreateUser request, IMediator mediator) =>
+app.MapPost("/users", async (CreateUser request, IEncina Encina) =>
 {
-    var result = await mediator.Send(request);
+    var result = await Encina.Send(request);
 
     return result.Match(
         Right: userId => Results.Created($"/users/{userId}", userId),
@@ -403,7 +403,7 @@ public void CreateUser_Validation_Fails_WhenEmailIsInvalid()
 ```csharp
 public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 {
-    public async Task<Either<MediatorError, UserId>> Handle(
+    public async Task<Either<EncinaError, UserId>> Handle(
         CreateUser request,
         CancellationToken ct)
     {
@@ -413,7 +413,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
         if (!Validator.TryValidateObject(request, context, results, true))
         {
             var errors = string.Join(", ", results.Select(r => r.ErrorMessage));
-            return MediatorError.New($"Validation failed: {errors}");
+            return EncinaError.New($"Validation failed: {errors}");
         }
 
         var user = new User(request.Email, request.Name, request.Age);
@@ -428,7 +428,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 ```csharp
 public sealed class CreateUserHandler : ICommandHandler<CreateUser, UserId>
 {
-    public async Task<Either<MediatorError, UserId>> Handle(
+    public async Task<Either<EncinaError, UserId>> Handle(
         CreateUser request,
         CancellationToken ct)
     {
@@ -450,7 +450,7 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 
 ## Related Packages
 
-- **Encina** - Core mediator library
+- **Encina** - Core Encina library
 - **Encina.FluentValidation** - FluentValidation integration (for complex validation)
 - **Encina.MiniValidator** - Lightweight validation for Minimal APIs (coming soon)
 - **Encina.AspNetCore** - ASP.NET Core integration (coming soon)

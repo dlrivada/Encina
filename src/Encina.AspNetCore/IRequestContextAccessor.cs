@@ -6,7 +6,7 @@ namespace Encina.AspNetCore;
 /// <remarks>
 /// <para>
 /// This accessor allows middleware and other ASP.NET Core components to set the request context
-/// for the current HTTP request scope. The context is then available to all mediator handlers
+/// for the current HTTP request scope. The context is then available to all Encina handlers
 /// processing requests within that HTTP request.
 /// </para>
 /// <para>

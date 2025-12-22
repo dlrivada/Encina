@@ -22,12 +22,12 @@ public class EndToEndIntegrationTests
         services.AddTransient<TestRetryRequestHandler>();
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IMediator>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         var request = new TestRetryRequest(failCount: 1); // Fail once, then succeed
 
         // Act
-        var result = await mediator.Send(request);
+        var result = await Encina.Send(request);
 
         // Assert
         result.IsRight.Should().BeTrue();
@@ -48,12 +48,12 @@ public class EndToEndIntegrationTests
         services.AddTransient<TestRetryRequestHandler>();
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IMediator>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         var request = new TestRetryRequest(failCount: 10); // Fail more than max attempts
 
         // Act
-        var result = await mediator.Send(request);
+        var result = await Encina.Send(request);
 
         // Assert
         result.IsLeft.Should().BeTrue("should fail after exhausting retries");
@@ -70,19 +70,19 @@ public class EndToEndIntegrationTests
         services.AddTransient<TestCircuitBreakerRequestHandler>();
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IMediator>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         var request = new TestCircuitBreakerRequest(shouldFail: true);
 
         // Act - Cause multiple failures to open circuit
         for (int i = 0; i < 5; i++)
         {
-            await mediator.Send(request);
+            await Encina.Send(request);
         }
 
         await Task.Delay(100); // Give circuit breaker time to evaluate
 
-        var result = await mediator.Send(request);
+        var result = await Encina.Send(request);
 
         // Assert
         result.IsLeft.Should().BeTrue();
@@ -107,12 +107,12 @@ public class EndToEndIntegrationTests
         services.AddTransient<TestCombinedRequestHandler>();
 
         var serviceProvider = services.BuildServiceProvider();
-        var mediator = serviceProvider.GetRequiredService<IMediator>();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         var request = new TestCombinedRequest(FailCount: 1);
 
         // Act
-        var result = await mediator.Send(request);
+        var result = await Encina.Send(request);
 
         // Assert
         result.IsRight.Should().BeTrue("retry should succeed before circuit breaks");
@@ -126,18 +126,18 @@ public class EndToEndIntegrationTests
     {
         private static int _attemptCount;
 
-        public Task<Either<MediatorError, string>> Handle(TestRetryRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(TestRetryRequest request, CancellationToken cancellationToken)
         {
             _attemptCount++;
 
             if (_attemptCount <= request.FailCount)
             {
                 _attemptCount = 0; // Reset for next test
-                return Task.FromResult(Left<MediatorError, string>(MediatorErrors.Create("test.error", "Simulated failure")));
+                return Task.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Simulated failure")));
             }
 
             _attemptCount = 0;
-            return Task.FromResult(Right<MediatorError, string>("Success after retry"));
+            return Task.FromResult(Right<EncinaError, string>("Success after retry"));
         }
     }
 
@@ -146,14 +146,14 @@ public class EndToEndIntegrationTests
 
     private sealed class TestCircuitBreakerRequestHandler : IRequestHandler<TestCircuitBreakerRequest, string>
     {
-        public Task<Either<MediatorError, string>> Handle(TestCircuitBreakerRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(TestCircuitBreakerRequest request, CancellationToken cancellationToken)
         {
             if (request.ShouldFail)
             {
-                return Task.FromResult(Left<MediatorError, string>(MediatorErrors.Create("test.error", "Simulated failure")));
+                return Task.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Simulated failure")));
             }
 
-            return Task.FromResult(Right<MediatorError, string>("Success"));
+            return Task.FromResult(Right<EncinaError, string>("Success"));
         }
     }
 
@@ -165,17 +165,17 @@ public class EndToEndIntegrationTests
     {
         private static int _attemptCount;
 
-        public Task<Either<MediatorError, string>> Handle(TestCombinedRequest request, CancellationToken cancellationToken)
+        public Task<Either<EncinaError, string>> Handle(TestCombinedRequest request, CancellationToken cancellationToken)
         {
             _attemptCount++;
 
             if (_attemptCount <= request.FailCount)
             {
-                return Task.FromResult(Left<MediatorError, string>(MediatorErrors.Create("test.error", "Simulated failure")));
+                return Task.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Simulated failure")));
             }
 
             _attemptCount = 0;
-            return Task.FromResult(Right<MediatorError, string>("Success"));
+            return Task.FromResult(Right<EncinaError, string>("Success"));
         }
     }
 }

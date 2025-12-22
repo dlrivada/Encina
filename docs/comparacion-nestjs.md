@@ -48,7 +48,7 @@
 
 **Core & Validation**:
 
-- ✅ `Encina` - Core mediator con ROP
+- ✅ `Encina` - Core Encina con ROP
 - ✅ `Encina.FluentValidation` - Validación con FluentValidation
 - ✅ `Encina.DataAnnotations` - Validación con atributos .NET
 - ✅ `Encina.MiniValidator` - Validación ligera (~20KB)
@@ -159,7 +159,7 @@
 
 ### Encina (→ Encina 1.0)
 
-**Biblioteca .NET** especializada en patrones **CQRS/Mediator** con enfoque **funcional** (Railway Oriented Programming), diseñada para aplicaciones empresariales que requieren:
+**Biblioteca .NET** especializada en patrones **CQRS/Encina** con enfoque **funcional** (Railway Oriented Programming), diseñada para aplicaciones empresariales que requieren:
 
 - Alta observabilidad (OpenTelemetry native)
 - Manejo explícito de errores (Either monad, no exceptions)
@@ -177,7 +177,7 @@
 
 | Aspecto | Encina | NestJS |
 |---------|---------------|--------|
-| **Alcance** | Biblioteca CQRS/Mediator | Framework full-stack |
+| **Alcance** | Biblioteca CQRS/Encina | Framework full-stack |
 | **Lenguaje** | .NET (C#) | TypeScript/JavaScript |
 | **Filosofía** | Funcional (Either/Option monads) | OOP con decoradores |
 | **Transporte** | In-process + extensiones (10 DB providers) | HTTP, GraphQL, WS, gRPC nativo |
@@ -197,7 +197,7 @@
 
 ```csharp
 // Enfoque funcional con Either
-var result = await mediator.Send(new CreateOrderCommand { ... });
+var result = await Encina.Send(new CreateOrderCommand { ... });
 return result.Match(
     Right: order => Ok(order),
     Left: error => error.Code switch
@@ -270,7 +270,7 @@ graph TD
 
 ```csharp
 // Encina no tiene concepto de módulos
-services.AddMediator(cfg =>
+services.AddEncina(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
     cfg.AddBehavior<ValidationBehavior>();
@@ -288,10 +288,10 @@ services.AddMediator(cfg =>
 
 #### Oportunidad 💡
 
-**Propuesta: `MediatorModule` concept**
+**Propuesta: `EncinaModule` concept**
 
 ```csharp
-services.AddMediator()
+services.AddEncina()
     .AddModule<OrdersModule>(m => m
         .RegisterHandlersFrom<OrdersModule>()
         .WithBehaviors<OrderTransactionBehavior>()
@@ -344,7 +344,7 @@ public record GetPublicDataQuery : IQuery<PublicData>;
 // 2. Validation Behavior (equivalente a Pipes)
 public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> next,
@@ -353,14 +353,14 @@ public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TReques
         var validationResult = await _validator.ValidateAsync(request, ct);
         return validationResult.IsValid
             ? await next()
-            : Left<MediatorError, TResponse>(MediatorErrors.Validation(validationResult));
+            : Left<EncinaError, TResponse>(EncinaErrors.Validation(validationResult));
     }
 }
 
 // 3. Logging/Telemetry Behavior (equivalente a Interceptors)
 public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> next,
@@ -457,7 +457,7 @@ async create(@Body() dto: CreateCatDto) {
 
 ```csharp
 // DataAnnotations
-public class CreateOrderCommand : IRequest<Either<MediatorError, Order>>
+public class CreateOrderCommand : IRequest<Either<EncinaError, Order>>
 {
     [Required, MinLength(3)]
     public string CustomerName { get; init; }
@@ -467,7 +467,7 @@ public class CreateOrderCommand : IRequest<Either<MediatorError, Order>>
 }
 
 // Behavior manual
-services.AddMediator(cfg =>
+services.AddEncina(cfg =>
 {
     cfg.AddDataAnnotationsValidation();
     cfg.AddFluentValidation();
@@ -709,9 +709,9 @@ services.AddEncinaGraphQL(options =>
 // 2. Bridge para usar en resolvers
 public class CatsResolver
 {
-    private readonly IGraphQLMediatorBridge _bridge;
+    private readonly IGraphQLEncinaBridge _bridge;
 
-    public CatsResolver(IGraphQLMediatorBridge bridge) => _bridge = bridge;
+    public CatsResolver(IGraphQLEncinaBridge bridge) => _bridge = bridge;
 
     // Query → IRequest<TResult>
     [GraphQLQuery]
@@ -758,23 +758,23 @@ services.AddGraphQLServer()
 app.MapGraphQL(); // /graphql endpoint
 ```
 
-**IGraphQLMediatorBridge - Interface:**
+**IGraphQLEncinaBridge - Interface:**
 
 ```csharp
-public interface IGraphQLMediatorBridge
+public interface IGraphQLEncinaBridge
 {
     // Para queries (lectura)
-    ValueTask<Either<MediatorError, TResult>> QueryAsync<TQuery, TResult>(
+    ValueTask<Either<EncinaError, TResult>> QueryAsync<TQuery, TResult>(
         TQuery query, CancellationToken ct)
         where TQuery : class, IRequest<TResult>;
 
     // Para mutations (escritura)
-    ValueTask<Either<MediatorError, TResult>> MutateAsync<TMutation, TResult>(
+    ValueTask<Either<EncinaError, TResult>> MutateAsync<TMutation, TResult>(
         TMutation mutation, CancellationToken ct)
         where TMutation : class, IRequest<TResult>;
 
     // Para subscriptions (streaming)
-    IAsyncEnumerable<Either<MediatorError, TResult>> SubscribeAsync<TSubscription, TResult>(
+    IAsyncEnumerable<Either<EncinaError, TResult>> SubscribeAsync<TSubscription, TResult>(
         TSubscription subscription, CancellationToken ct)
         where TSubscription : class;
 }
@@ -792,7 +792,7 @@ public interface IGraphQLMediatorBridge
 | GraphQL IDE | ✅ Nitro | ✅ Playground/Sandbox |
 | Introspection | ✅ Configurable | ✅ Built-in |
 | Persisted Queries | ✅ Configurable | ⚠️ Apollo extension |
-| Error handling (ROP) | ✅ Either<MediatorError, T> | ❌ Exceptions |
+| Error handling (ROP) | ✅ Either<EncinaError, T> | ❌ Exceptions |
 | DataLoader | ✅ HotChocolate built-in | ✅ Built-in |
 | Federation | ✅ HotChocolate | ✅ Apollo Federation |
 
@@ -800,12 +800,12 @@ public interface IGraphQLMediatorBridge
 
 **Encina.GraphQL package implementado:**
 
-- ✅ `IGraphQLMediatorBridge` - Bridge tipado para queries/mutations/subscriptions
+- ✅ `IGraphQLEncinaBridge` - Bridge tipado para queries/mutations/subscriptions
 - ✅ Integración nativa con HotChocolate 15.1.11
 - ✅ Soporte completo para subscriptions (WebSocket)
 - ✅ GraphQL IDE (Nitro) incluido
 - ✅ Persisted queries opcionales
-- ✅ Railway Oriented Programming (`Either<MediatorError, T>`)
+- ✅ Railway Oriented Programming (`Either<EncinaError, T>`)
 - ✅ Configuración flexible (timeout, depth, introspection)
 
 **Filosofía:** Usar HotChocolate (el mejor GraphQL server para .NET) y bridgear a Encina handlers
@@ -864,7 +864,7 @@ Encina ahora tiene **paridad completa** con NestJS en transports de mensajería,
 services.AddEncinaRabbitMQ(options =>
 {
     options.HostName = "localhost";
-    options.Exchange = "mediator.events";
+    options.Exchange = "Encina.events";
     options.QueuePrefix = "myapp";
 });
 
@@ -872,7 +872,7 @@ services.AddEncinaRabbitMQ(options =>
 services.AddEncinaKafka(options =>
 {
     options.BootstrapServers = "localhost:9092";
-    options.GroupId = "mediator-consumers";
+    options.GroupId = "Encina-consumers";
 });
 
 // 3. NATS - Cloud-native messaging
@@ -886,7 +886,7 @@ services.AddEncinaNATS(options =>
 services.AddEncinaAzureServiceBus(options =>
 {
     options.ConnectionString = "Endpoint=sb://...";
-    options.TopicName = "mediator-events";
+    options.TopicName = "Encina-events";
 });
 
 // 5. Amazon SQS/SNS - AWS native
@@ -1034,11 +1034,11 @@ services.AddEncinaSignalR(options =>
 });
 services.AddSignalRBroadcasting(); // Habilita [BroadcastToSignalR]
 
-// 2. MediatorHub - Enviar commands/queries desde clientes WebSocket
-public class AppHub : MediatorHub
+// 2. EncinaHub - Enviar commands/queries desde clientes WebSocket
+public class AppHub : EncinaHub
 {
-    public AppHub(IMediator mediator, IOptions<SignalROptions> options, ILogger<AppHub> logger)
-        : base(mediator, options, logger) { }
+    public AppHub(IEncina Encina, IOptions<SignalROptions> options, ILogger<AppHub> logger)
+        : base(Encina, options, logger) { }
 
     // Heredado: SendCommand, SendQuery, PublishNotification
 
@@ -1077,20 +1077,20 @@ public record PriceChangedNotification(string ProductId, decimal NewPrice, decim
 
 | Característica | NestJS | Encina.SignalR |
 |----------------|--------|------------------------|
-| WebSocket handlers | ✅ @SubscribeMessage | ✅ MediatorHub base class |
+| WebSocket handlers | ✅ @SubscribeMessage | ✅ EncinaHub base class |
 | Rooms/Groups | ✅ socket.join() | ✅ TargetGroups attribute |
 | User targeting | ✅ socket.to(userId) | ✅ TargetUsers attribute |
 | Guards/Authorization | ✅ @UseGuards | ✅ AuthorizationPolicy option |
 | Notification broadcast | ❌ Manual | ✅ [BroadcastToSignalR] automático |
 | Conditional broadcast | ❌ Manual | ✅ ConditionalProperty |
 | Bidireccional | ✅ Nativo | ✅ Commands in, Notifications out |
-| Error handling (ROP) | ❌ Exceptions | ✅ Either<MediatorError, T> |
+| Error handling (ROP) | ❌ Exceptions | ✅ Either<EncinaError, T> |
 
 #### Estado ✅
 
 **Encina.SignalR package implementado:**
 
-- ✅ `MediatorHub` base class - Commands/Queries desde clientes WebSocket
+- ✅ `EncinaHub` base class - Commands/Queries desde clientes WebSocket
 - ✅ `[BroadcastToSignalR]` attribute - Notificaciones automáticas a clientes
 - ✅ `SignalRBroadcastHandler<T>` - Handler que intercepta notificaciones
 - ✅ Property placeholders `{PropertyName}` en TargetUsers/TargetGroups
@@ -1161,16 +1161,16 @@ export class HeroesGameSagas {
 
 ```csharp
 // Command
-public record CreateOrderCommand : IRequest<Either<MediatorError, Order>>
+public record CreateOrderCommand : IRequest<Either<EncinaError, Order>>
 {
     public string CustomerId { get; init; }
     public List<OrderItem> Items { get; init; }
 }
 
 // Command Handler
-public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Either<MediatorError, Order>>
+public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Either<EncinaError, Order>>
 {
-    public async Task<Either<MediatorError, Order>> Handle(
+    public async Task<Either<EncinaError, Order>> Handle(
         CreateOrderCommand request, 
         CancellationToken ct)
     {
@@ -1178,7 +1178,7 @@ public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Either<Med
         await _repository.SaveAsync(order, ct);
         
         // Publicar evento
-        await _mediator.Publish(new OrderCreatedNotification(order.Id), ct);
+        await _Encina.Publish(new OrderCreatedNotification(order.Id), ct);
         
         return order;
     }
@@ -1386,7 +1386,7 @@ services.AddEncinaGarnet(options =>
 
 // 3. Cacheable Query con attributes
 [Cache(DurationSeconds = 300, VaryByTenant = true, VaryByUser = false)]
-public record GetCustomerQuery(int Id) : IQuery<Either<MediatorError, Customer>>;
+public record GetCustomerQuery(int Id) : IQuery<Either<EncinaError, Customer>>;
 
 // Resultado: Cache automático con key "GetCustomerQuery:TenantId:{TenantId}:Id:{Id}"
 
@@ -1395,13 +1395,13 @@ public record GetCustomerQuery(int Id) : IQuery<Either<MediatorError, Customer>>
     KeyPattern = "GetCustomerQuery:*:Id:{Id}", 
     BroadcastInvalidation = true)]
 public record UpdateCustomerCommand(int Id, string Name) 
-    : ICommand<Either<MediatorError, Customer>>;
+    : ICommand<Either<EncinaError, Customer>>;
 
 // Resultado: Invalida cache localmente + broadcast a todas las instancias
 
 // 5. Idempotency distribuida
 public record ChargePaymentCommand(decimal Amount) 
-    : ICommand<Either<MediatorError, Receipt>>;
+    : ICommand<Either<EncinaError, Receipt>>;
 
 // Header: X-Idempotency-Key: "payment-123"
 // Resultado: Si ya se procesó, devuelve resultado cacheado (sin re-ejecutar)
@@ -1424,11 +1424,11 @@ public class OrderSagaHandler : ISagaHandler<OrderSaga>
 }
 
 // 7. Manual cache usage
-public class MyHandler : IRequestHandler<GetDataQuery, Either<MediatorError, Data>>
+public class MyHandler : IRequestHandler<GetDataQuery, Either<EncinaError, Data>>
 {
     private readonly ICacheProvider _cache;
     
-    public async Task<Either<MediatorError, Data>> Handle(
+    public async Task<Either<EncinaError, Data>> Handle(
         GetDataQuery request, 
         CancellationToken ct)
     {
@@ -1446,7 +1446,7 @@ public class MyHandler : IRequestHandler<GetDataQuery, Either<MediatorError, Dat
     SlidingExpiration = true,
     Priority = CachePriority.High,
     KeyTemplate = "customer:{TenantId}:{Id}")]
-public record GetCustomerQuery(int Id) : IQuery<Either<MediatorError, Customer>>;
+public record GetCustomerQuery(int Id) : IQuery<Either<EncinaError, Customer>>;
 ```
 
 **8 Cache Providers Disponibles (95% completos):**
@@ -1614,7 +1614,7 @@ services.AddEncinaOpenTelemetry(options =>
 |---------------|---------------|--------|
 | Logging | ✅ Scopes automáticos | ✅ Logger integrado |
 | Tracing (OpenTelemetry) | ✅ ActivitySource built-in | ⚠️ Via @opentelemetry/auto-instrumentations-node |
-| Metrics | ✅ IMediatorMetrics | ⚠️ Via prometheus client |
+| Metrics | ✅ IEncinaMetrics | ⚠️ Via prometheus client |
 | Distributed tracing | ✅ W3C Trace Context | ⚠️ Requiere configuración |
 | Request context | ✅ Immutable RequestContext | ✅ ExecutionContext |
 
@@ -1623,7 +1623,7 @@ services.AddEncinaOpenTelemetry(options =>
 **Encina SUPERA a NestJS en:**
 
 - **OpenTelemetry**: ActivitySource nativo con spans automáticos
-- **Métricas**: Interfaz IMediatorMetrics con histogramas/contadores
+- **Métricas**: Interfaz IEncinaMetrics con histogramas/contadores
 - **Contexto inmutable**: RequestContext propagado por pipeline
 - **Observabilidad funcional**: Errores como datos (Either) facilitan métricas
 
@@ -1633,7 +1633,7 @@ services.AddEncinaOpenTelemetry(options =>
 
 ```csharp
 // Prometheus exporter built-in
-services.AddMediator()
+services.AddEncina()
     .AddPrometheusMetrics(cfg =>
     {
         cfg.Port = 9090;
@@ -1720,7 +1720,7 @@ public record GetPublicDataQuery : IQuery<PublicData>;
 "authorization.policy_failed"     // Política no satisfecha
 "authorization.insufficient_roles" // Roles insuficientes
 
-// Detalles incluidos en MediatorError
+// Detalles incluidos en EncinaError
 {
     "requestType": "DeleteOrderCommand",
     "stage": "authorization",
@@ -1741,7 +1741,7 @@ public record GetPublicDataQuery : IQuery<PublicData>;
 | Múltiples requisitos | ✅ Múltiples atributos (AND) | ✅ Composición de guards |
 | Allow anonymous | ✅ `[AllowAnonymous]` | ✅ @Public |
 | Resource-based auth | ✅ Request pasado como resource | ⚠️ Manual |
-| Errores estructurados | ✅ MediatorError con detalles | ❌ Excepciones |
+| Errores estructurados | ✅ EncinaError con detalles | ❌ Excepciones |
 
 #### Estado Actual ✅
 
@@ -1906,7 +1906,7 @@ La brecha es real pero planificada. NestJS tiene ventaja en tooling out-of-the-b
 | | Override providers | ⚠️ Via DI | ✅ | 🟡 Media |
 | | E2E utilities | ✅ ASP.NET TestServer | ✅ | ✅ Equivalente |
 | **Observability** | OpenTelemetry | ✅ Native Package | ⚠️ Via libs | ✅ **SUPERIOR** |
-| | Métricas nativas | ✅ IMediatorMetrics | ⚠️ Prometheus client | ✅ **SUPERIOR** |
+| | Métricas nativas | ✅ IEncinaMetrics | ⚠️ Prometheus client | ✅ **SUPERIOR** |
 | | Distributed tracing | ✅ W3C Trace Context | ⚠️ Requiere config | ✅ **SUPERIOR** |
 | **Tooling** | CLI | 📋 Planificado | ✅ | 🟡 Planificado |
 | | OpenAPI gen | ⚠️ Manual | ✅ | 🟡 Media |
@@ -1934,11 +1934,11 @@ La brecha es real pero planificada. NestJS tiene ventaja en tooling out-of-the-b
 
 ```csharp
 // Encina: Errors as data, composable, type-safe
-public Task<Either<MediatorError, Order>> Handle(CreateOrderCommand request)
+public Task<Either<EncinaError, Order>> Handle(CreateOrderCommand request)
 {
     return _validator.Validate(request).Match(
         Valid: _ => CreateOrder(request),
-        Invalid: errors => Left<MediatorError, Order>(ValidationError(errors))
+        Invalid: errors => Left<EncinaError, Order>(ValidationError(errors))
     );
 }
 
@@ -1967,7 +1967,7 @@ async create(dto: CreateOrderDto): Promise<Order> {
 services.AddEncinaOpenTelemetry();
 
 // Resultado: Traces automáticos
-// Span: MediatorScope (CreateOrderCommand)
+// Span: EncinaScope (CreateOrderCommand)
 //   ├─ Span: ValidationBehavior
 //   ├─ Span: AuthorizationBehavior
 //   ├─ Span: TransactionBehavior
@@ -1978,7 +1978,7 @@ services.AddEncinaOpenTelemetry();
 
 - ✅ Native package (not via external libs)
 - ✅ W3C Trace Context propagation
-- ✅ IMediatorMetrics for custom metrics
+- ✅ IEncinaMetrics for custom metrics
 - ✅ Distributed tracing ready (Jaeger/Zipkin/Datadog)
 - ✅ Messaging enrichers built-in
 
@@ -2170,7 +2170,7 @@ Encina graph --format mermaid
 
 **Prioridad:** Media - Mejora DX pero no bloquea funcionalidad
 
-#### 2. **MediatorFixture Builder** 🟡 PARCIAL
+#### 2. **EncinaFixture Builder** 🟡 PARCIAL
 
 **Impacto:** Testing menos fluido para mocking de handlers
 **Estado:** Infraestructura completa, falta fluent API
@@ -2191,7 +2191,7 @@ var message = new OutboxMessageBuilder().Build();
 
 ```csharp
 // ❌ Fluent fixture builder (no implementado)
-var fixture = MediatorFixture.Create()
+var fixture = EncinaFixture.Create()
     .WithMockedHandler<CreateOrderCommand>(mockHandler);
 ```
 
@@ -2204,7 +2204,7 @@ var fixture = MediatorFixture.Create()
 
 ```csharp
 // ✅ Minimal APIs con OpenAPI
-app.MapPost("/orders", async (CreateOrderCommand cmd, IMediator m)
+app.MapPost("/orders", async (CreateOrderCommand cmd, IEncina m)
     => await m.Send(cmd))
     .WithOpenApi();
 ```
@@ -2227,7 +2227,7 @@ app.MapPost("/orders", async (CreateOrderCommand cmd, IMediator m)
 MyApp.Orders/          // Bounded context
 MyApp.Payments/        // Bounded context
 
-services.AddMediator(cfg =>
+services.AddEncina(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(OrdersModule).Assembly);
     cfg.RegisterServicesFromAssembly(typeof(PaymentsModule).Assembly);
@@ -2315,10 +2315,10 @@ var services = new ServiceCollection();
 services.AddEncina(cfg => { });
 services.AddSingleton(mockHandler);
 var provider = services.BuildServiceProvider();
-var mediator = provider.GetRequiredService<IMediator>();
+var Encina = provider.GetRequiredService<IEncina>();
 
 // Deseado (no implementado)
-var fixture = MediatorFixture.Create()
+var fixture = EncinaFixture.Create()
     .WithMockedHandler<CreateOrderCommand>(mockHandler)
     .Build();
 ```
@@ -2327,7 +2327,7 @@ var fixture = MediatorFixture.Create()
 
 ```csharp
 // Actual: Manual via Minimal APIs
-app.MapPost("/orders", async (CreateOrderCommand cmd, IMediator m)
+app.MapPost("/orders", async (CreateOrderCommand cmd, IEncina m)
     => await m.Send(cmd))
     .WithOpenApi();
 
@@ -2335,7 +2335,7 @@ app.MapPost("/orders", async (CreateOrderCommand cmd, IMediator m)
 [OpenApiOperation("create-order")]
 public record CreateOrderCommand : IRequest<Order>;
 
-services.AddMediatorOpenApi(); // Auto-generate from handlers
+services.AddEncinaOpenApi(); // Auto-generate from handlers
 ```
 
 ### ❌ **No Implementando**
@@ -2385,7 +2385,7 @@ services.AddMediatorOpenApi(); // Auto-generate from handlers
 |---------------|--------|-----------|
 | CLI Tooling | 📋 Planificado | ⭐⭐⭐ Media |
 | Templates (`dotnet new`) | 📋 Planificado | ⭐⭐⭐ Media |
-| MediatorFixture Builder | 📋 Planificado | ⭐⭐ Baja |
+| EncinaFixture Builder | 📋 Planificado | ⭐⭐ Baja |
 | OpenAPI Auto-Generation | 📋 Planificado | ⭐⭐ Baja |
 
 ### **Decisiones Arquitectónicas (NO IMPLEMENTAR)**
@@ -2428,7 +2428,7 @@ services.AddMediatorOpenApi(); // Auto-generate from handlers
 
 | Aspecto | Encina | NestJS |
 |---------|---------------|--------|
-| **Tipo** | Library CQRS/Mediator | Framework full-stack |
+| **Tipo** | Library CQRS/Encina | Framework full-stack |
 | **Lenguaje** | .NET (C#) | Node.js (TypeScript) |
 | **Filosofía** | Functional (ROP) | OOP + Decorators |
 | **Uso** | Parte de una app .NET | App completa |
@@ -2450,7 +2450,7 @@ services.AddMediatorOpenApi(); // Auto-generate from handlers
 |--------|--------|---------|
 | CLI Tooling | 📋 Planificado | 🟡 DX |
 | OpenAPI auto-gen | 📋 Planificado | 🟡 DX |
-| MediatorFixture | 📋 Planificado | 🟡 Testing |
+| EncinaFixture | 📋 Planificado | 🟡 Testing |
 
 ---
 

@@ -44,7 +44,7 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
     /// <summary>
     /// Executes the request through the standard resilience pipeline.
     /// </summary>
-    public async ValueTask<Either<MediatorError, TResponse>> Handle(
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,
         IRequestContext context,
         RequestHandlerCallback<TResponse> nextStep,
@@ -65,7 +65,7 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
                     // If the response is a failure (Left), throw to trigger resilience strategies
                     return response.Match(
                         Right: r => r,
-                        Left: error => throw new MediatorResilienceException(error)
+                        Left: error => throw new EncinaResilienceException(error)
                     );
                 },
                 cancellationToken).ConfigureAwait(false);
@@ -73,7 +73,7 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
             LogResilienceSucceeded(requestType, context.CorrelationId);
             return result;
         }
-        catch (MediatorResilienceException ex)
+        catch (EncinaResilienceException ex)
         {
             // This is an expected business error wrapped for resilience, return it as-is
             LogResilienceReturnedError(requestType, ex.Error.Message, context.CorrelationId);
@@ -82,21 +82,21 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
         catch (BrokenCircuitException ex)
         {
             LogCircuitBreakerOpen(requestType, ex.Message, context.CorrelationId);
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Circuit breaker is open for {requestType}. The service is temporarily unavailable.",
                 ex);
         }
         catch (TimeoutRejectedException ex)
         {
             LogTimeoutOccurred(requestType, context.CorrelationId);
-            return MediatorError.New(
+            return EncinaError.New(
                 $"Request {requestType} timed out after exceeding the configured timeout period.",
                 ex);
         }
         catch (Exception ex)
         {
             LogResilienceFailed(requestType, ex.Message, context.CorrelationId);
-            return MediatorError.New(ex);
+            return EncinaError.New(ex);
         }
     }
 
@@ -142,24 +142,24 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
 }
 
 /// <summary>
-/// Exception thrown internally to propagate MediatorError through resilience strategies.
+/// Exception thrown internally to propagate EncinaError through resilience strategies.
 /// </summary>
 /// <remarks>
 /// This allows the resilience pipeline to treat business errors (Left in Either)
 /// as exceptions that can be retried, circuit-broken, etc.
 /// </remarks>
-internal sealed class MediatorResilienceException : Exception
+internal sealed class EncinaResilienceException : Exception
 {
     /// <summary>
-    /// Gets the mediator error that caused this exception.
+    /// Gets the Encina error that caused this exception.
     /// </summary>
-    public MediatorError Error { get; }
+    public EncinaError Error { get; }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="MediatorResilienceException"/> class.
+    /// Initializes a new instance of the <see cref="EncinaResilienceException"/> class.
     /// </summary>
-    /// <param name="error">The mediator error.</param>
-    public MediatorResilienceException(MediatorError error)
+    /// <param name="error">The Encina error.</param>
+    public EncinaResilienceException(EncinaError error)
         : base(error.Message)
     {
         Error = error;

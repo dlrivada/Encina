@@ -2,7 +2,7 @@
 
 ## Goals
 
-- Establish Stryker.NET as the baseline mutation engine for the mediator library.
+- Establish Stryker.NET as the baseline mutation engine for the Encina library.
 - Track actionable metrics (high 85, low 70, break 60) aligned with roadmap thresholds.
 
 ## Prerequisites
@@ -34,7 +34,7 @@
 
 The dedicated mutation-hardening initiative is paused until new feature work settles. When ready to resume:
 
-1. Re-run `dotnet stryker --project src/Encina/Encina.csproj --test-projects tests/Encina.Tests/Encina.Tests.csproj` to focus on the mediator core mutants (previously IDs 280–366).
+1. Re-run `dotnet stryker --project src/Encina/Encina.csproj --test-projects tests/Encina.Tests/Encina.Tests.csproj` to focus on the Encina core mutants (previously IDs 280–366).
 2. Investigate any survivors and add unit or property tests around metrics pipeline integration and handler result validation.
 3. Update the mutation badge and dashboard via `scripts/update-mutation-summary.cs` once the new score is recorded.
 
