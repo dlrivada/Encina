@@ -2,17 +2,17 @@
 # This script adds ArgumentNullException and ArgumentException guards
 
 $providers = @(
-    "SimpleMediator.Dapper.MySQL",
-    "SimpleMediator.Dapper.Sqlite",
-    "SimpleMediator.Dapper.Oracle",
-    "SimpleMediator.ADO.SqlServer",
-    "SimpleMediator.ADO.PostgreSQL",
-    "SimpleMediator.ADO.MySQL",
-    "SimpleMediator.ADO.Sqlite",
-    "SimpleMediator.ADO.Oracle"
+    "Encina.Dapper.MySQL",
+    "Encina.Dapper.Sqlite",
+    "Encina.Dapper.Oracle",
+    "Encina.ADO.SqlServer",
+    "Encina.ADO.PostgreSQL",
+    "Encina.ADO.MySQL",
+    "Encina.ADO.Sqlite",
+    "Encina.ADO.Oracle"
 )
 
-$rootPath = "D:\Proyectos\SimpleMediator\src"
+$rootPath = "D:\Proyectos\Encina\src"
 
 function Add-GuardClauses {
     param (

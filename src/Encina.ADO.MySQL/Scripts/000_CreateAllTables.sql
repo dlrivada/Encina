@@ -1,5 +1,5 @@
 -- =============================================
--- SimpleMediator.Dapper - Complete Database Schema
+-- Encina.ADO - Complete Database Schema
 -- Run this script to create all messaging pattern tables
 -- =============================================
 
@@ -122,6 +122,6 @@ END
 GO
 
 PRINT '';
-PRINT 'SimpleMediator.Dapper schema installation complete!';
-PRINT 'You can now use all messaging patterns with Dapper.';
+PRINT 'Encina.ADO schema installation complete!';
+PRINT 'You can now use all messaging patterns with ADO.NET.';
 GO

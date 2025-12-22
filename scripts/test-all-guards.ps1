@@ -19,8 +19,8 @@ $totalFailed = 0
 $totalTests = 0
 
 foreach ($provider in $providers) {
-    Write-Host "Testing SimpleMediator.$provider..." -NoNewline
-    $testPath = "tests/SimpleMediator.$provider.GuardTests"
+    Write-Host "Testing Encina.$provider..." -NoNewline
+    $testPath = "tests/Encina.$provider.GuardTests"
     $result = dotnet test $testPath --verbosity quiet --nologo 2>&1 | Select-String -Pattern "(Correctas|Con error)" | Select-Object -Last 1
 
     if ($result -match "Superado:\s+(\d+)") {
