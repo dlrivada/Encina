@@ -6,7 +6,7 @@ using Microsoft.Data.Sqlite;
 using Xunit;
 using static LanguageExt.Prelude;
 
-namespace Encina.Dapper.Sqlite.Tests;
+namespace Encina.Dapper.Sqlite.IntegrationTests;
 
 /// <summary>
 /// Integration tests for <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/>.
