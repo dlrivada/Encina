@@ -1,6 +1,6 @@
+using Encina.Messaging.Inbox;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
-using Encina.Messaging.Inbox;
 
 namespace Encina.MongoDB.Inbox;
 

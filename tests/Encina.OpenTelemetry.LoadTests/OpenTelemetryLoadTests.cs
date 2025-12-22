@@ -60,7 +60,7 @@ public sealed class OpenTelemetryLoadTests
         _output.WriteLine($"Total requests: {scen.Ok.Request.Count + scen.Fail.Request.Count}");
         _output.WriteLine($"OK: {scen.Ok.Request.Count}, Fail: {scen.Fail.Request.Count}");
         _output.WriteLine($"RPS: {scen.Ok.Request.RPS}");
-        
+
         scen.Ok.Request.Count.Should().BeGreaterThan(900); // At least 90% success rate
         scen.Fail.Request.Count.Should().BeLessThan(100); // Less than 10% failures
     }
@@ -101,7 +101,7 @@ public sealed class OpenTelemetryLoadTests
         var scen = stats.ScenarioStats[0];
         _output.WriteLine($"Total notifications: {scen.Ok.Request.Count + scen.Fail.Request.Count}");
         _output.WriteLine($"OK: {scen.Ok.Request.Count}, Fail: {scen.Fail.Request.Count}");
-        
+
         scen.Ok.Request.Count.Should().BeGreaterThan(450); // At least 90% success rate
     }
 

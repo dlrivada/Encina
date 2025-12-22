@@ -1,6 +1,6 @@
 ﻿using System.Data;
-using MySqlConnector;
 using Encina.TestInfrastructure.Schemas;
+using MySqlConnector;
 using Testcontainers.MySql;
 
 namespace Encina.TestInfrastructure.Fixtures;

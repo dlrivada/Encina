@@ -3,10 +3,10 @@ using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using Encina.Dispatchers.Strategies;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Encina.Dispatchers.Strategies;
 using static LanguageExt.Prelude;
 
 namespace Encina;

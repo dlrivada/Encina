@@ -1,7 +1,7 @@
+using Encina.Messaging.Scheduling;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
-using Encina.Messaging.Scheduling;
 
 namespace Encina.MongoDB.Scheduling;
 

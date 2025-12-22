@@ -112,7 +112,7 @@ public sealed class InboxStoreDapper : IInboxStore
         CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(batchSize, 0);
-            
+
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 
         var sql = $@"

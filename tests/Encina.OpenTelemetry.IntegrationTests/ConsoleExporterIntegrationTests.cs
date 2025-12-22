@@ -1,10 +1,10 @@
-﻿using FluentAssertions;
+﻿using Encina.OpenTelemetry;
+using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using Encina.OpenTelemetry;
 using Xunit;
 
 namespace Encina.OpenTelemetry.Tests.Integration;

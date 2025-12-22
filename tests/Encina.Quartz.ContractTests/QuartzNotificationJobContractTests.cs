@@ -1,7 +1,7 @@
-﻿using LanguageExt;
+﻿using Encina.Quartz;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Quartz;
-using Encina.Quartz;
 using static LanguageExt.Prelude;
 
 namespace Encina.Quartz.ContractTests;

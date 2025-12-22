@@ -1,8 +1,8 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using Encina.Dapper.Sqlite.Inbox;
+using Encina.Messaging.Inbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
-using Encina.Messaging.Inbox;
 using Xunit;
 
 namespace Encina.Dapper.Sqlite.Tests.Inbox;

@@ -1,6 +1,6 @@
 using System.Data;
-using MySqlConnector;
 using Encina.Messaging.Outbox;
+using MySqlConnector;
 
 namespace Encina.ADO.MySQL.Outbox;
 

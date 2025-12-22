@@ -1,6 +1,6 @@
 using System.Data;
-using Npgsql;
 using Encina.Messaging.Outbox;
+using Npgsql;
 
 namespace Encina.ADO.PostgreSQL.Outbox;
 

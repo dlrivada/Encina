@@ -1,6 +1,6 @@
+using Encina.Messaging.Scheduling;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
-using Encina.Messaging.Scheduling;
 
 namespace Encina.MongoDB.Scheduling;
 

@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
+using Encina.Tests.Fixtures;
 using LanguageExt;
 using Shouldly;
-using Encina.Tests.Fixtures;
 using Xunit;
 using static LanguageExt.Prelude;
 

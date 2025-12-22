@@ -1,12 +1,12 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using Encina.Dispatchers.Strategies;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Encina.Dispatchers.Strategies;
 using static LanguageExt.Prelude;
 
 namespace Encina;

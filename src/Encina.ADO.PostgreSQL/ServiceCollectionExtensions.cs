@@ -1,12 +1,12 @@
 using System.Data;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Npgsql;
 using Encina.ADO.PostgreSQL.Inbox;
 using Encina.ADO.PostgreSQL.Outbox;
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
 
 namespace Encina.ADO.PostgreSQL;
 

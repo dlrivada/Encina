@@ -1,6 +1,6 @@
-﻿using LanguageExt;
+﻿using Encina.Hangfire;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
-using Encina.Hangfire;
 using static LanguageExt.Prelude;
 
 namespace Encina.Hangfire.ContractTests;

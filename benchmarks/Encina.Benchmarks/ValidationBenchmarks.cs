@@ -1,15 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 using BenchmarkDotNet.Attributes;
-using LanguageExt;
-using Microsoft.Extensions.DependencyInjection;
-using Encina.FluentValidation;
 using Encina.DataAnnotations;
-using Encina.MiniValidator;
+using Encina.FluentValidation;
 using Encina.GuardClauses;
-using static LanguageExt.Prelude;
-
+using Encina.MiniValidator;
 // FluentValidation extension methods (NotEmpty, EmailAddress, etc.)
 using global::FluentValidation;
+using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
+using static LanguageExt.Prelude;
 
 namespace Encina.Benchmarks;
 

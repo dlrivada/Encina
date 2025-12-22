@@ -1,8 +1,8 @@
 using System.Text.Json;
+using Encina.Messaging.Outbox;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Encina.Messaging.Outbox;
 
 namespace Encina.Dapper.SqlServer.Outbox;
 

@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using Encina.Messaging.Outbox;
+using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.Outbox;
 

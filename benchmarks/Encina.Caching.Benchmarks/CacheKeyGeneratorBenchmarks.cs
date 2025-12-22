@@ -1,7 +1,7 @@
 using BenchmarkDotNet.Attributes;
-using Microsoft.Extensions.Options;
 using Encina;
 using Encina.Caching;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Caching.Benchmarks;
 

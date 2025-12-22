@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using Encina.Messaging.Sagas;
+using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.Sagas;
 

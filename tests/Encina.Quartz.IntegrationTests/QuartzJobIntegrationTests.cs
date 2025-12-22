@@ -1,9 +1,9 @@
-﻿using LanguageExt;
+﻿using Encina.Quartz;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using Shouldly;
-using Encina.Quartz;
 using static LanguageExt.Prelude;
 
 namespace Encina.Quartz.IntegrationTests;

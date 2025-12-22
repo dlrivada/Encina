@@ -1,7 +1,7 @@
-﻿using LanguageExt;
+﻿using Encina.Hangfire;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Shouldly;
-using Encina.Hangfire;
 using static LanguageExt.Prelude;
 
 namespace Encina.Hangfire.PropertyTests;

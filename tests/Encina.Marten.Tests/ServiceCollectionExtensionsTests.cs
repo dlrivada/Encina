@@ -1,6 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Encina.Marten;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Encina.Marten;
 
 namespace Encina.Marten.Tests;
 

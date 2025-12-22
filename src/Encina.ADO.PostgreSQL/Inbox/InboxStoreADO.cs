@@ -1,6 +1,6 @@
 using System.Data;
-using Npgsql;
 using Encina.Messaging.Inbox;
+using Npgsql;
 
 namespace Encina.ADO.PostgreSQL.Inbox;
 

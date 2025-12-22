@@ -1,5 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
-using Encina.Hangfire;
+﻿using Encina.Hangfire;
+using Microsoft.Extensions.Logging;
 
 namespace Encina.Hangfire.Tests.Guards;
 

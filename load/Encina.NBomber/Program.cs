@@ -1,11 +1,11 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Encina;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using NBomber.Contracts;
 using NBomber.CSharp;
-using Encina;
 using static LanguageExt.Prelude;
 
 var options = NbomberOptions.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray());

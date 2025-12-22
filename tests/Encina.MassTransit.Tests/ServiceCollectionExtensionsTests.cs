@@ -1,6 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Encina.MassTransit;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Encina.MassTransit;
 
 namespace Encina.MassTransit.Tests;
 

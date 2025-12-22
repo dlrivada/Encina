@@ -1,6 +1,6 @@
 using BenchmarkDotNet.Attributes;
-using Microsoft.Extensions.Logging.Abstractions;
 using Encina.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Encina.Caching.Benchmarks;
 

@@ -1,9 +1,9 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Encina.Benchmarks.Infrastructure;
 using Encina.Messaging.Sagas;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using DapperSagas = Encina.Dapper.Sqlite.Sagas;
 using EFSagas = Encina.EntityFrameworkCore.Sagas;
 

@@ -1,5 +1,5 @@
-﻿using Microsoft.Extensions.Options;
-using Encina.Caching;
+﻿using Encina.Caching;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Caching.Tests;
 

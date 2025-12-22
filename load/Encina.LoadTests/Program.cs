@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Encina;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
-using Encina;
 using static LanguageExt.Prelude;
 
 var options = LoadHarnessOptions.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray());

@@ -1,10 +1,10 @@
 using System.Diagnostics;
-using LanguageExt;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.OpenTelemetry.Enrichers;
+using LanguageExt;
 
 namespace Encina.OpenTelemetry.Behaviors;
 
@@ -66,7 +66,7 @@ public sealed class MessagingEnricherPipelineBehavior<TRequest, TResponse> : IPi
 
         if (hasMessagingContext)
         {
-            activity.SetTag("simplemediator.messaging_enabled", true);
+            activity.SetTag("encina.messaging_enabled", true);
         }
     }
 

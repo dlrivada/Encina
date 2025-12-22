@@ -1,12 +1,12 @@
 using System.Data;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Oracle.ManagedDataAccess.Client;
 using Encina.ADO.Oracle.Inbox;
 using Encina.ADO.Oracle.Outbox;
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Oracle.ManagedDataAccess.Client;
 
 namespace Encina.ADO.Oracle;
 

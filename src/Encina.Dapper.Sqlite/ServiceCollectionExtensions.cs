@@ -1,7 +1,4 @@
 using System.Data;
-using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Encina.Dapper.Sqlite.Inbox;
 using Encina.Dapper.Sqlite.Outbox;
 using Encina.Dapper.Sqlite.Sagas;
@@ -11,6 +8,9 @@ using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Encina.Dapper.Sqlite;
 

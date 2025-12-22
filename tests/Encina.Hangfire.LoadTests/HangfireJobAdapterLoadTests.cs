@@ -1,8 +1,8 @@
-﻿using LanguageExt;
+﻿using Encina.Hangfire;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NBomber.CSharp;
-using Encina.Hangfire;
 using Xunit.Abstractions;
 using static LanguageExt.Prelude;
 

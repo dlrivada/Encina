@@ -1,6 +1,6 @@
-﻿using FluentAssertions;
+﻿using Encina.EntityFrameworkCore.Sagas;
+using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using Encina.EntityFrameworkCore.Sagas;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.Tests.Sagas;

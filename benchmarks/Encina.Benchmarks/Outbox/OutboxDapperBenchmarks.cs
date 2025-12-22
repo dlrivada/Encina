@@ -1,7 +1,7 @@
 using BenchmarkDotNet.Attributes;
-using Microsoft.Data.Sqlite;
 using Encina.Benchmarks.Infrastructure;
 using Encina.Dapper.Sqlite.Outbox;
+using Microsoft.Data.Sqlite;
 
 namespace Encina.Benchmarks.Outbox;
 

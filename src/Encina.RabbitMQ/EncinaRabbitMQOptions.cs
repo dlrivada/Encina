@@ -33,7 +33,7 @@ public sealed class EncinaRabbitMQOptions
     /// <summary>
     /// Gets or sets the default exchange name.
     /// </summary>
-    public string ExchangeName { get; set; } = "simplemediator";
+    public string ExchangeName { get; set; } = "encina";
 
     /// <summary>
     /// Gets or sets a value indicating whether to use publisher confirms.

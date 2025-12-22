@@ -1,6 +1,6 @@
 using System.Data;
-using Microsoft.Data.Sqlite;
 using Encina.Messaging.Outbox;
+using Microsoft.Data.Sqlite;
 
 namespace Encina.ADO.Sqlite.Outbox;
 

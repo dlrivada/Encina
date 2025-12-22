@@ -1,8 +1,8 @@
 ﻿using System.Security.Claims;
+using Encina.AspNetCore.Tests;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Encina.AspNetCore.Tests;
 using Shouldly;
 using static LanguageExt.Prelude;
 

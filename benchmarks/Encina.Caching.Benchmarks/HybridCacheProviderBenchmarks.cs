@@ -1,9 +1,9 @@
 using BenchmarkDotNet.Attributes;
+using Encina.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Encina.Caching.Hybrid;
 
 namespace Encina.Caching.Benchmarks;
 

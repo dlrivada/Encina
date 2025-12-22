@@ -1,12 +1,12 @@
 using System.Data;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using MySqlConnector;
 using Encina.ADO.MySQL.Inbox;
 using Encina.ADO.MySQL.Outbox;
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using MySqlConnector;
 
 namespace Encina.ADO.MySQL;
 

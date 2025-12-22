@@ -1,6 +1,6 @@
-﻿using FluentAssertions;
+﻿using Encina.EntityFrameworkCore.Inbox;
+using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using Encina.EntityFrameworkCore.Inbox;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.Tests.Inbox;

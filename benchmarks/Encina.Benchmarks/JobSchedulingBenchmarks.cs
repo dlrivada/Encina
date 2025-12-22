@@ -1,8 +1,8 @@
 using BenchmarkDotNet.Attributes;
+using Encina.Quartz;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Quartz;
-using Encina.Quartz;
 using static LanguageExt.Prelude;
 
 namespace Encina.Benchmarks;

@@ -13,12 +13,12 @@ public sealed class EncinaAzureServiceBusOptions
     /// <summary>
     /// Gets or sets the default queue name for commands.
     /// </summary>
-    public string DefaultQueueName { get; set; } = "simplemediator-commands";
+    public string DefaultQueueName { get; set; } = "encina-commands";
 
     /// <summary>
     /// Gets or sets the default topic name for events.
     /// </summary>
-    public string DefaultTopicName { get; set; } = "simplemediator-events";
+    public string DefaultTopicName { get; set; } = "encina-events";
 
     /// <summary>
     /// Gets or sets the subscription name for this instance.

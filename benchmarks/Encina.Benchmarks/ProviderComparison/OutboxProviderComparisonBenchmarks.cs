@@ -1,9 +1,9 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Encina.Benchmarks.Infrastructure;
 using Encina.Messaging.Outbox;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using ADOOutbox = Encina.ADO.Sqlite.Outbox;
 using DapperOutbox = Encina.Dapper.Sqlite.Outbox;
 using EFOutbox = Encina.EntityFrameworkCore.Outbox;

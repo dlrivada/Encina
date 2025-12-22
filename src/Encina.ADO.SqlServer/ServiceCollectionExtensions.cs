@@ -1,12 +1,12 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Encina.ADO.SqlServer.Inbox;
 using Encina.ADO.SqlServer.Outbox;
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Encina.ADO.SqlServer;
 

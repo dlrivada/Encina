@@ -1,6 +1,6 @@
-﻿using FluentAssertions;
+﻿using Encina.EntityFrameworkCore.Scheduling;
+using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using Encina.EntityFrameworkCore.Scheduling;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.Tests.Scheduling;

@@ -1,6 +1,6 @@
 using System.Data;
-using Oracle.ManagedDataAccess.Client;
 using Encina.Messaging.Outbox;
+using Oracle.ManagedDataAccess.Client;
 
 namespace Encina.ADO.Oracle.Outbox;
 

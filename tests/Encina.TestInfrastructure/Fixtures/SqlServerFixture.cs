@@ -1,6 +1,6 @@
 ﻿using System.Data;
-using Microsoft.Data.SqlClient;
 using Encina.TestInfrastructure.Schemas;
+using Microsoft.Data.SqlClient;
 using Testcontainers.MsSql;
 
 namespace Encina.TestInfrastructure.Fixtures;

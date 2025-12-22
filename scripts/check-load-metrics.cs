@@ -232,14 +232,14 @@ internal sealed record LoadMetricsCheckOptions(
     double MinPublishP50Ops,
     double MinPublishP95Ops)
 {
-    private const string MaxCpuEnvVariable = "SIMPLEMEDIATOR_LOAD_MAX_MEAN_CPU";
-    private const string MaxWorkingSetEnvVariable = "SIMPLEMEDIATOR_LOAD_MAX_PEAK_MB";
-    private const string MinSendMeanEnvVariable = "SIMPLEMEDIATOR_LOAD_MIN_SEND_MEAN_OPS";
-    private const string MinSendP50EnvVariable = "SIMPLEMEDIATOR_LOAD_MIN_SEND_P50_OPS";
-    private const string MinSendP95EnvVariable = "SIMPLEMEDIATOR_LOAD_MIN_SEND_P95_OPS";
-    private const string MinPublishMeanEnvVariable = "SIMPLEMEDIATOR_LOAD_MIN_PUBLISH_MEAN_OPS";
-    private const string MinPublishP50EnvVariable = "SIMPLEMEDIATOR_LOAD_MIN_PUBLISH_P50_OPS";
-    private const string MinPublishP95EnvVariable = "SIMPLEMEDIATOR_LOAD_MIN_PUBLISH_P95_OPS";
+    private const string MaxCpuEnvVariable = "ENCINA_LOAD_MAX_MEAN_CPU";
+    private const string MaxWorkingSetEnvVariable = "ENCINA_LOAD_MAX_PEAK_MB";
+    private const string MinSendMeanEnvVariable = "ENCINA_LOAD_MIN_SEND_MEAN_OPS";
+    private const string MinSendP50EnvVariable = "ENCINA_LOAD_MIN_SEND_P50_OPS";
+    private const string MinSendP95EnvVariable = "ENCINA_LOAD_MIN_SEND_P95_OPS";
+    private const string MinPublishMeanEnvVariable = "ENCINA_LOAD_MIN_PUBLISH_MEAN_OPS";
+    private const string MinPublishP50EnvVariable = "ENCINA_LOAD_MIN_PUBLISH_P50_OPS";
+    private const string MinPublishP95EnvVariable = "ENCINA_LOAD_MIN_PUBLISH_P95_OPS";
 
     public static LoadMetricsCheckOptions Parse(string[] args)
     {

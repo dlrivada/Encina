@@ -1,6 +1,6 @@
-﻿using FluentAssertions;
+﻿using Encina.EntityFrameworkCore.Outbox;
+using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using Encina.EntityFrameworkCore.Outbox;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.Tests.Outbox;

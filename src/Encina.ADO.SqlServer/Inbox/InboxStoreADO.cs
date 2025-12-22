@@ -1,6 +1,6 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
 using Encina.Messaging.Inbox;
+using Microsoft.Data.SqlClient;
 
 namespace Encina.ADO.SqlServer.Inbox;
 

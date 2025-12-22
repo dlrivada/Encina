@@ -1,8 +1,8 @@
 using BenchmarkDotNet.Attributes;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Encina.Benchmarks.Infrastructure;
 using Encina.EntityFrameworkCore.Inbox;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 
 namespace Encina.Benchmarks.Inbox;
 

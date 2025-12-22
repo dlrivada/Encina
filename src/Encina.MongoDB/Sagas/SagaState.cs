@@ -1,6 +1,6 @@
+using Encina.Messaging.Sagas;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
-using Encina.Messaging.Sagas;
 
 namespace Encina.MongoDB.Sagas;
 

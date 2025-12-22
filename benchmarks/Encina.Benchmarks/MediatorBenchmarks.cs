@@ -2,10 +2,10 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
+using Encina.Benchmarks.Inbox;
+using Encina.Benchmarks.Outbox;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
-using Encina.Benchmarks.Outbox;
-using Encina.Benchmarks.Inbox;
 using static LanguageExt.Prelude;
 
 namespace Encina.Benchmarks;

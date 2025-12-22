@@ -1,7 +1,7 @@
-﻿using LanguageExt;
+﻿using Encina.Tests.Fixtures;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
-using Encina.Tests.Fixtures;
 
 namespace Encina.Tests;
 

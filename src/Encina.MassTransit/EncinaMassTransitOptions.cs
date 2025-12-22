@@ -26,7 +26,7 @@ public sealed class EncinaMassTransitOptions
 
     /// <summary>
     /// Gets or sets the prefix for queue names generated from message types.
-    /// Default is "simplemediator".
+    /// Default is "encina".
     /// </summary>
-    public string QueueNamePrefix { get; set; } = "simplemediator";
+    public string QueueNamePrefix { get; set; } = "encina";
 }

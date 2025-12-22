@@ -13,17 +13,17 @@ public sealed class EncinaKafkaOptions
     /// <summary>
     /// Gets or sets the consumer group ID.
     /// </summary>
-    public string GroupId { get; set; } = "simplemediator-consumer";
+    public string GroupId { get; set; } = "encina-consumer";
 
     /// <summary>
     /// Gets or sets the default topic for commands.
     /// </summary>
-    public string DefaultCommandTopic { get; set; } = "simplemediator-commands";
+    public string DefaultCommandTopic { get; set; } = "encina-commands";
 
     /// <summary>
     /// Gets or sets the default topic for events.
     /// </summary>
-    public string DefaultEventTopic { get; set; } = "simplemediator-events";
+    public string DefaultEventTopic { get; set; } = "encina-events";
 
     /// <summary>
     /// Gets or sets the auto offset reset behavior.

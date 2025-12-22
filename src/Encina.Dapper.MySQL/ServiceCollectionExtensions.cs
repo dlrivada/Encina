@@ -1,7 +1,4 @@
 using System.Data;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using MySqlConnector;
 using Encina.Dapper.MySQL.Inbox;
 using Encina.Dapper.MySQL.Outbox;
 using Encina.Dapper.MySQL.Sagas;
@@ -11,6 +8,9 @@ using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using MySqlConnector;
 
 namespace Encina.Dapper.MySQL;
 

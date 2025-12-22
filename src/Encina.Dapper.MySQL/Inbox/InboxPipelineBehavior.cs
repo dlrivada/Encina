@@ -1,9 +1,9 @@
 using System.Data;
 using System.Text.Json;
 using Dapper;
+using Encina.Messaging.Inbox;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
-using Encina.Messaging.Inbox;
 using static LanguageExt.Prelude;
 
 namespace Encina.Dapper.MySQL.Inbox;

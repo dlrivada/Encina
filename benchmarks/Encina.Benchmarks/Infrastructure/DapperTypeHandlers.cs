@@ -1,5 +1,5 @@
-using Dapper;
 using System.Data;
+using Dapper;
 
 namespace Encina.Benchmarks.Infrastructure;
 

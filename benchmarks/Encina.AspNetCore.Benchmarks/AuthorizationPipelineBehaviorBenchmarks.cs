@@ -1,9 +1,9 @@
 using System.Security.Claims;
 using BenchmarkDotNet.Attributes;
+using Encina.AspNetCore.Tests;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Encina.AspNetCore.Tests;
 using static LanguageExt.Prelude;
 
 namespace Encina.AspNetCore.Benchmarks;

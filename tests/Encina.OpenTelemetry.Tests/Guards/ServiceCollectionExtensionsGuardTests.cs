@@ -1,7 +1,7 @@
-﻿using FluentAssertions;
+﻿using Encina.OpenTelemetry;
+using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry;
-using Encina.OpenTelemetry;
 using Xunit;
 
 namespace Encina.OpenTelemetry.Tests.Guards;

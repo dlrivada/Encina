@@ -1,6 +1,4 @@
 using System.Data;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Encina.Dapper.SqlServer.Inbox;
 using Encina.Dapper.SqlServer.Outbox;
 using Encina.Dapper.SqlServer.Sagas;
@@ -10,6 +8,8 @@ using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Encina.Dapper.SqlServer;
 

@@ -1,6 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Encina.Quartz;
+using Microsoft.Extensions.Logging;
 using Quartz;
-using Encina.Quartz;
 
 namespace Encina.Quartz.Tests.Guards;
 

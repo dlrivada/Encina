@@ -1,7 +1,7 @@
 using System.Text.Json;
+using Encina.Messaging.Outbox;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
-using Encina.Messaging.Outbox;
 
 namespace Encina.Dapper.Sqlite.Outbox;
 

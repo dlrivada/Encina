@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using Encina.Messaging.Inbox;
+using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.Inbox;
 

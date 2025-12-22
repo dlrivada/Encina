@@ -1,8 +1,8 @@
 ﻿using System.Data;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
-using Oracle.ManagedDataAccess.Client;
 using Encina.TestInfrastructure.Schemas;
+using Oracle.ManagedDataAccess.Client;
 
 namespace Encina.TestInfrastructure.Fixtures;
 

@@ -1,8 +1,8 @@
 using System.Text.Json;
+using Encina.Messaging.Inbox;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Encina.Messaging.Inbox;
 using static LanguageExt.Prelude;
 
 namespace Encina.EntityFrameworkCore.Inbox;

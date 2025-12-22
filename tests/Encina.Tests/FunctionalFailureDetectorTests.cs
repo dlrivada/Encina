@@ -1,6 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Encina.Tests.Fixtures;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
-using Encina.Tests.Fixtures;
 
 namespace Encina.Tests;
 

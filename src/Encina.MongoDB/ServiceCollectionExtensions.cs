@@ -1,6 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using MongoDB.Driver;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
@@ -9,6 +6,9 @@ using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Outbox;
 using Encina.MongoDB.Sagas;
 using Encina.MongoDB.Scheduling;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using MongoDB.Driver;
 
 namespace Encina.MongoDB;
 

@@ -1,7 +1,7 @@
 ﻿using Encina.Dapper.Sqlite.Outbox;
+using Encina.Messaging.Outbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
-using Encina.Messaging.Outbox;
 using Xunit;
 
 namespace Encina.Dapper.Sqlite.Tests.Outbox;

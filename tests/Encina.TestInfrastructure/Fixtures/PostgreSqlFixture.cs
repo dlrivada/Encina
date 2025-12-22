@@ -1,6 +1,6 @@
 ﻿using System.Data;
-using Npgsql;
 using Encina.TestInfrastructure.Schemas;
+using Npgsql;
 using Testcontainers.PostgreSql;
 
 namespace Encina.TestInfrastructure.Fixtures;

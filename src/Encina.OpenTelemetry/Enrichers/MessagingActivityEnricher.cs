@@ -23,7 +23,7 @@ public static class MessagingActivityEnricher
             return;
         }
 
-        activity.SetTag("messaging.system", "simplemediator.outbox");
+        activity.SetTag("messaging.system", "encina.outbox");
         activity.SetTag("messaging.operation.name", "publish");
         activity.SetTag("messaging.message.id", message.Id.ToString());
         activity.SetTag("messaging.message.type", message.NotificationType);
@@ -57,7 +57,7 @@ public static class MessagingActivityEnricher
             return;
         }
 
-        activity.SetTag("messaging.system", "simplemediator.inbox");
+        activity.SetTag("messaging.system", "encina.inbox");
         activity.SetTag("messaging.operation.name", "receive");
         activity.SetTag("messaging.message.id", message.MessageId);
         activity.SetTag("messaging.message.type", message.RequestType);
@@ -119,7 +119,7 @@ public static class MessagingActivityEnricher
             return;
         }
 
-        activity.SetTag("messaging.system", "simplemediator.scheduling");
+        activity.SetTag("messaging.system", "encina.scheduling");
         activity.SetTag("messaging.operation.name", "schedule");
         activity.SetTag("messaging.message.id", message.Id.ToString());
         activity.SetTag("messaging.message.type", message.RequestType);

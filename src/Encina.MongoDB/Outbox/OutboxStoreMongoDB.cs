@@ -1,7 +1,7 @@
+using Encina.Messaging.Outbox;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
-using Encina.Messaging.Outbox;
 
 namespace Encina.MongoDB.Outbox;
 

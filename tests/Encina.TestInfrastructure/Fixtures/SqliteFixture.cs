@@ -1,7 +1,7 @@
 ﻿using System.Data;
 using System.Diagnostics.CodeAnalysis;
-using Microsoft.Data.Sqlite;
 using Encina.TestInfrastructure.Schemas;
+using Microsoft.Data.Sqlite;
 
 namespace Encina.TestInfrastructure.Fixtures;
 

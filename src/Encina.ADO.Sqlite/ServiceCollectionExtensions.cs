@@ -1,12 +1,12 @@
 using System.Data;
-using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Encina.ADO.Sqlite.Inbox;
 using Encina.ADO.Sqlite.Outbox;
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Encina.ADO.Sqlite;
 

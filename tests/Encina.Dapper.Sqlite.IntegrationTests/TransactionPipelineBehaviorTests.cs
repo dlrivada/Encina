@@ -1,8 +1,8 @@
 ﻿using System.Data;
-using LanguageExt;
-using Microsoft.Data.Sqlite;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
+using LanguageExt;
+using Microsoft.Data.Sqlite;
 using Xunit;
 using static LanguageExt.Prelude;
 

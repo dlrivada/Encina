@@ -1,6 +1,6 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
 using Encina.Messaging.Outbox;
+using Microsoft.Data.SqlClient;
 
 namespace Encina.ADO.SqlServer.Outbox;
 

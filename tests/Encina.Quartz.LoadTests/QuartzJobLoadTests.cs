@@ -1,9 +1,9 @@
-﻿using LanguageExt;
+﻿using Encina.Quartz;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NBomber.CSharp;
 using Quartz;
-using Encina.Quartz;
 using Xunit.Abstractions;
 using static LanguageExt.Prelude;
 

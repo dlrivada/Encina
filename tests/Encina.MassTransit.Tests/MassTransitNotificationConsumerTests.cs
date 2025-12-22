@@ -1,8 +1,8 @@
-﻿using LanguageExt;
+﻿using Encina.MassTransit;
+using LanguageExt;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Encina.MassTransit;
 using static LanguageExt.Prelude;
 
 namespace Encina.MassTransit.Tests;

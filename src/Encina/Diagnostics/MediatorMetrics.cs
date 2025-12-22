@@ -36,18 +36,18 @@ public interface IMediatorMetrics
 /// <remarks>
 /// The following instruments are created:
 /// <list type="bullet">
-/// <item><description><c>simplemediator.request.success</c> (Counter)</description></item>
-/// <item><description><c>simplemediator.request.failure</c> (Counter)</description></item>
-/// <item><description><c>simplemediator.request.duration</c> (Histogram in milliseconds)</description></item>
+/// <item><description><c>Encina.request.success</c> (Counter)</description></item>
+/// <item><description><c>Encina.request.failure</c> (Counter)</description></item>
+/// <item><description><c>Encina.request.duration</c> (Histogram in milliseconds)</description></item>
 /// </list>
 /// </remarks>
 public sealed class MediatorMetrics : IMediatorMetrics
 {
     private static readonly Meter Meter = new("Encina", "1.0");
-    private readonly Counter<long> _successCounter = Meter.CreateCounter<long>("simplemediator.request.success");
-    private readonly Counter<long> _failureCounter = Meter.CreateCounter<long>("simplemediator.request.failure");
+    private readonly Counter<long> _successCounter = Meter.CreateCounter<long>("Encina.request.success");
+    private readonly Counter<long> _failureCounter = Meter.CreateCounter<long>("Encina.request.failure");
     private readonly Histogram<double> _durationHistogram = Meter.CreateHistogram<double>(
-        "simplemediator.request.duration",
+        "Encina.request.duration",
         unit: "ms");
 
     /// <inheritdoc />

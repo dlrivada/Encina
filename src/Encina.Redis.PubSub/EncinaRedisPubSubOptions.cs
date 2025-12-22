@@ -13,7 +13,7 @@ public sealed class EncinaRedisPubSubOptions
     /// <summary>
     /// Gets or sets the channel prefix for all messages.
     /// </summary>
-    public string ChannelPrefix { get; set; } = "simplemediator";
+    public string ChannelPrefix { get; set; } = "encina";
 
     /// <summary>
     /// Gets or sets the channel name for commands.

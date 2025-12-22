@@ -1,13 +1,13 @@
 ﻿using System.Diagnostics;
-using FluentAssertions;
-using LanguageExt;
-using NSubstitute;
 using Encina;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.OpenTelemetry.Behaviors;
+using FluentAssertions;
+using LanguageExt;
+using NSubstitute;
 using Xunit;
 
 namespace Encina.OpenTelemetry.Tests.Contracts;

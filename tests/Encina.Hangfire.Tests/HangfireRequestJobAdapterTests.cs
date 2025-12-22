@@ -1,7 +1,7 @@
-﻿using Hangfire;
+﻿using Encina.Hangfire;
+using Hangfire;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
-using Encina.Hangfire;
 using static LanguageExt.Prelude;
 
 namespace Encina.Hangfire.Tests;

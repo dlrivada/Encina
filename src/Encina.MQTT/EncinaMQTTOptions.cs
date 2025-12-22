@@ -18,12 +18,12 @@ public sealed class EncinaMQTTOptions
     /// <summary>
     /// Gets or sets the client ID.
     /// </summary>
-    public string ClientId { get; set; } = $"simplemediator-{Guid.NewGuid():N}";
+    public string ClientId { get; set; } = $"encina-{Guid.NewGuid():N}";
 
     /// <summary>
     /// Gets or sets the topic prefix for all messages.
     /// </summary>
-    public string TopicPrefix { get; set; } = "simplemediator";
+    public string TopicPrefix { get; set; } = "encina";
 
     /// <summary>
     /// Gets or sets the username for authentication.

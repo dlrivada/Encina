@@ -13,7 +13,7 @@ public sealed class EncinaNATSOptions
     /// <summary>
     /// Gets or sets the subject prefix for all messages.
     /// </summary>
-    public string SubjectPrefix { get; set; } = "simplemediator";
+    public string SubjectPrefix { get; set; } = "encina";
 
     /// <summary>
     /// Gets or sets a value indicating whether to use JetStream.
@@ -23,12 +23,12 @@ public sealed class EncinaNATSOptions
     /// <summary>
     /// Gets or sets the stream name for JetStream.
     /// </summary>
-    public string StreamName { get; set; } = "SIMPLEMEDIATOR";
+    public string StreamName { get; set; } = "ENCINA";
 
     /// <summary>
     /// Gets or sets the consumer name for JetStream.
     /// </summary>
-    public string ConsumerName { get; set; } = "simplemediator-consumer";
+    public string ConsumerName { get; set; } = "encina-consumer";
 
     /// <summary>
     /// Gets or sets a value indicating whether to use durable consumers.

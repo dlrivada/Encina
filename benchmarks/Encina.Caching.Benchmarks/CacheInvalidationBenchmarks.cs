@@ -1,10 +1,10 @@
 using BenchmarkDotNet.Attributes;
-using LanguageExt;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Encina;
 using Encina.Caching;
 using Encina.Caching.Memory;
+using LanguageExt;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using MsMemoryCache = Microsoft.Extensions.Caching.Memory.MemoryCache;
 using MsMemoryCacheOptions = Microsoft.Extensions.Caching.Memory.MemoryCacheOptions;
 

@@ -1,9 +1,9 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Encina.Benchmarks.Infrastructure;
 using Encina.Messaging.Scheduling;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using DapperScheduling = Encina.Dapper.Sqlite.Scheduling;
 using EFScheduling = Encina.EntityFrameworkCore.Scheduling;
 

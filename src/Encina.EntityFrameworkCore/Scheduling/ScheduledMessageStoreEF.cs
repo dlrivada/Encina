@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using Encina.Messaging.Scheduling;
+using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.Scheduling;
 

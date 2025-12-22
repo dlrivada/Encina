@@ -1,10 +1,10 @@
+using Encina.OpenTelemetry.Behaviors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using Encina.OpenTelemetry.Behaviors;
 
 namespace Encina.OpenTelemetry;
 

@@ -1,8 +1,8 @@
 using BenchmarkDotNet.Attributes;
+using Encina.OpenTelemetry;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Trace;
-using Encina.OpenTelemetry;
 
 namespace Encina.Benchmarks;
 
@@ -31,7 +31,7 @@ public class OpenTelemetryBenchmarks
         servicesWithOtel.AddEncina(config => { });
         servicesWithOtel.AddScoped<IRequestHandler<BenchmarkRequest, string>, BenchmarkRequestHandler>();
         servicesWithOtel.AddScoped<INotificationHandler<BenchmarkNotification>, BenchmarkNotificationHandler>();
-        
+
         servicesWithOtel.AddOpenTelemetry()
             .WithTracing(builder => builder
                 .AddEncinaInstrumentation()
@@ -56,7 +56,7 @@ public class OpenTelemetryBenchmarks
         using var scope = _providerWithoutOtel.CreateScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         var result = await mediator.Send(new BenchmarkRequest { Value = 42 }, CancellationToken.None);
-        
+
         return result.Match(
             Right: value => value,
             Left: error => throw new InvalidOperationException(error.Message)
@@ -72,7 +72,7 @@ public class OpenTelemetryBenchmarks
         using var scope = _providerWithOtel.CreateScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         var result = await mediator.Send(new BenchmarkRequest { Value = 42 }, CancellationToken.None);
-        
+
         return result.Match(
             Right: value => value,
             Left: error => throw new InvalidOperationException(error.Message)
@@ -88,7 +88,7 @@ public class OpenTelemetryBenchmarks
         using var scope = _providerWithoutOtel.CreateScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         var result = await mediator.Publish(new BenchmarkNotification { Message = "test" }, CancellationToken.None);
-        
+
         result.Match(
             Right: _ => { },
             Left: error => throw new InvalidOperationException(error.Message)
@@ -104,7 +104,7 @@ public class OpenTelemetryBenchmarks
         using var scope = _providerWithOtel.CreateScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         var result = await mediator.Publish(new BenchmarkNotification { Message = "test" }, CancellationToken.None);
-        
+
         result.Match(
             Right: _ => { },
             Left: error => throw new InvalidOperationException(error.Message)
