@@ -4,6 +4,8 @@
 [![.NET CI](https://github.com/dlrivada/Encina/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/dotnet-ci.yml)
 [![SonarCloud Analysis](https://github.com/dlrivada/Encina/actions/workflows/sonarcloud.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/sonarcloud.yml)
 [![CodeQL](https://github.com/dlrivada/Encina/actions/workflows/codeql.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/codeql.yml)
+[![SBOM](https://github.com/dlrivada/Encina/actions/workflows/sbom.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/sbom.yml)
+[![Benchmarks](https://github.com/dlrivada/Encina/actions/workflows/benchmarks.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/benchmarks.yml)
 
 <!-- Project Info -->
 ![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4.svg)
@@ -14,8 +16,10 @@
 
 <!-- Code Quality (SonarCloud) -->
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=bugs)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
