@@ -134,17 +134,23 @@ public static class SqliteSchema
     /// <summary>
     /// Clears all data from Encina tables without dropping schemas.
     /// Useful for cleaning between tests that share a database fixture.
+    /// Uses conditional deletion to handle cases where tables may not exist.
     /// </summary>
     public static async Task ClearAllDataAsync(SqliteConnection connection)
     {
-        const string sql = """
-            DELETE FROM ScheduledMessages;
-            DELETE FROM SagaStates;
-            DELETE FROM InboxMessages;
-            DELETE FROM OutboxMessages;
-            """;
-
-        using var command = new SqliteCommand(sql, connection);
-        await command.ExecuteNonQueryAsync();
+        // Delete from each table individually, ignoring errors for missing tables
+        var tables = new[] { "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages" };
+        foreach (var table in tables)
+        {
+            try
+            {
+                using var command = new SqliteCommand($"DELETE FROM {table};", connection);
+                await command.ExecuteNonQueryAsync();
+            }
+            catch (SqliteException ex) when (ex.SqliteErrorCode == 1) // SQLITE_ERROR: no such table
+            {
+                // Table doesn't exist - this is ok, just skip
+            }
+        }
     }
 }
