@@ -302,9 +302,13 @@ public sealed class ValidationPipelineBehaviorPropertyTests
                 Right: _ => false.ShouldBeTrue("Expected Left"),
                 Left: error =>
                 {
-                    error.Exception.ShouldBeOfType<ValidationException>();
-                    var validationException = (ValidationException)error.Exception!;
-                    validationException.Errors.Count().ShouldBeGreaterThan(0);
+                    error.Exception.IsSome.ShouldBeTrue();
+                    error.Exception.IfSome(ex =>
+                    {
+                        ex.ShouldBeOfType<ValidationException>();
+                        var validationException = (ValidationException)ex;
+                        validationException.Errors.Count().ShouldBeGreaterThan(0);
+                    });
                 });
         }
     }
@@ -417,9 +421,13 @@ public sealed class ValidationPipelineBehaviorPropertyTests
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: error =>
             {
-                error.Exception.ShouldBeOfType<ValidationException>();
-                var validationException = (ValidationException)error.Exception!;
-                validationException.Errors.Count().ShouldBeGreaterThan(0);
+                error.Exception.IsSome.ShouldBeTrue();
+                error.Exception.IfSome(ex =>
+                {
+                    ex.ShouldBeOfType<ValidationException>();
+                    var validationException = (ValidationException)ex;
+                    validationException.Errors.Count().ShouldBeGreaterThan(0);
+                });
             });
     }
 

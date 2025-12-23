@@ -407,24 +407,30 @@ public sealed class DataAnnotationsValidationBehaviorPropertyTests
             result.IsRight.ShouldBeTrue();
         }
     }
+}
 
-    // Helper types
-    private sealed record NoValidationCommand : ICommand<string>
+/// <summary>
+/// Helper command without validation attributes for testing bypass scenarios.
+/// </summary>
+public sealed record NoValidationCommand : ICommand<string>
+{
+    public string Value { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Helper command with custom validation for context-aware validation testing.
+/// Must be public because CustomValidationAttribute requires it.
+/// </summary>
+public sealed record ContextAwareCommand : ICommand<string>
+{
+    [CustomValidation(typeof(ContextAwareCommand), nameof(ValidateWithContext))]
+    public string Value { get; init; } = string.Empty;
+
+    public static Action<ValidationContext>? OnValidation { get; set; }
+
+    public static ValidationResult ValidateWithContext(object _, ValidationContext context)
     {
-        public string Value { get; init; } = string.Empty;
-    }
-
-    private sealed record ContextAwareCommand : ICommand<string>
-    {
-        [CustomValidation(typeof(ContextAwareCommand), nameof(ValidateWithContext))]
-        public string Value { get; init; } = string.Empty;
-
-        public static Action<ValidationContext>? OnValidation { get; set; }
-
-        public static ValidationResult ValidateWithContext(object _, ValidationContext context)
-        {
-            OnValidation?.Invoke(context);
-            return ValidationResult.Success!;
-        }
+        OnValidation?.Invoke(context);
+        return ValidationResult.Success!;
     }
 }
