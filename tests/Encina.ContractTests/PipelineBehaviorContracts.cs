@@ -50,6 +50,9 @@ public sealed class PipelineBehaviorContracts
             .GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract && t.IsGenericTypeDefinition)
             .Where(t => ImplementsGenericInterface(t, typeof(IPipelineBehavior<,>)))
+            // Exclude ValidationPipelineBehavior - it's opt-in via validation packages
+            // and intentionally works with both commands and queries (no specialized interface)
+            .Where(t => t.FullName != "Encina.Validation.ValidationPipelineBehavior`2")
             .ToArray();
     }
 
