@@ -46,12 +46,8 @@ jobs:
           # - ContractTests/PropertyTests: 57 tests failing, needs investigation
           dotnetTestArguments: Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests&FullyQualifiedName!~ContractTests&FullyQualifiedName!~PropertyTests" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
           # XPlat Code Coverage generates coverage.opencover.xml in a GUID subdirectory
-          # Configure paths so SonarCloud can find source files and coverage data
-          sonarBeginArguments: >
-            /d:sonar.sources="src"
-            /d:sonar.tests="tests,benchmarks,load"
-            /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml"
-            /d:sonar.coverage.exclusions="**/tests/**,**/benchmarks/**,**/load/**"
+          # Note: sonar.sources and sonar.tests are NOT supported by Scanner for .NET (auto-computed)
+          sonarBeginArguments: /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml" /d:sonar.coverage.exclusions="**/tests/**,**/benchmarks/**,**/load/**"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
