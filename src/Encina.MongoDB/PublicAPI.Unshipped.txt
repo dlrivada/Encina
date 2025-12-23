@@ -29,7 +29,11 @@ Encina.MongoDB.Inbox.InboxStoreMongoDB.InboxStoreMongoDB(MongoDB.Driver.IMongoCl
 Encina.MongoDB.Inbox.InboxStoreMongoDB.MarkAsFailedAsync(string! messageId, string! errorMessage, System.DateTime? nextRetryAt, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.MongoDB.Inbox.InboxStoreMongoDB.MarkAsProcessedAsync(string! messageId, string! response, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.MongoDB.Inbox.InboxStoreMongoDB.RemoveExpiredMessagesAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.MongoDB.Inbox.InboxStoreMongoDB.IncrementRetryCountAsync(string! messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.MongoDB.Inbox.InboxStoreMongoDB.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.MongoDB.Inbox.InboxMessageFactory
+Encina.MongoDB.Inbox.InboxMessageFactory.Create(string! messageId, string! requestType, System.DateTime receivedAtUtc, System.DateTime expiresAtUtc, Encina.Messaging.Inbox.InboxMetadata? metadata) -> Encina.Messaging.Inbox.IInboxMessage!
+Encina.MongoDB.Inbox.InboxMessageFactory.InboxMessageFactory() -> void
 Encina.MongoDB.MongoDbCollectionNames
 Encina.MongoDB.MongoDbCollectionNames.Inbox.get -> string!
 Encina.MongoDB.MongoDbCollectionNames.Inbox.set -> void
@@ -75,6 +79,9 @@ Encina.MongoDB.Outbox.OutboxStoreMongoDB.MarkAsFailedAsync(System.Guid messageId
 Encina.MongoDB.Outbox.OutboxStoreMongoDB.MarkAsProcessedAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.MongoDB.Outbox.OutboxStoreMongoDB.OutboxStoreMongoDB(MongoDB.Driver.IMongoClient! mongoClient, Microsoft.Extensions.Options.IOptions<Encina.MongoDB.EncinaMongoDbOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.MongoDB.Outbox.OutboxStoreMongoDB!>! logger) -> void
 Encina.MongoDB.Outbox.OutboxStoreMongoDB.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.MongoDB.Outbox.OutboxMessageFactory
+Encina.MongoDB.Outbox.OutboxMessageFactory.Create(System.Guid id, string! notificationType, string! content, System.DateTime createdAtUtc) -> Encina.Messaging.Outbox.IOutboxMessage!
+Encina.MongoDB.Outbox.OutboxMessageFactory.OutboxMessageFactory() -> void
 Encina.MongoDB.Sagas.SagaState
 Encina.MongoDB.Sagas.SagaState.CompletedAtUtc.get -> System.DateTime?
 Encina.MongoDB.Sagas.SagaState.CompletedAtUtc.set -> void
@@ -95,6 +102,9 @@ Encina.MongoDB.Sagas.SagaState.StartedAtUtc.get -> System.DateTime
 Encina.MongoDB.Sagas.SagaState.StartedAtUtc.set -> void
 Encina.MongoDB.Sagas.SagaState.Status.get -> string!
 Encina.MongoDB.Sagas.SagaState.Status.set -> void
+Encina.MongoDB.Sagas.SagaStateFactory
+Encina.MongoDB.Sagas.SagaStateFactory.Create(System.Guid sagaId, string! sagaType, string! data, string! status, int currentStep, System.DateTime startedAtUtc) -> Encina.Messaging.Sagas.ISagaState!
+Encina.MongoDB.Sagas.SagaStateFactory.SagaStateFactory() -> void
 Encina.MongoDB.Sagas.SagaStoreMongoDB
 Encina.MongoDB.Sagas.SagaStoreMongoDB.AddAsync(Encina.Messaging.Sagas.ISagaState! saga, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.MongoDB.Sagas.SagaStoreMongoDB.GetAsync(System.Guid sagaId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Sagas.ISagaState?>!
@@ -131,6 +141,9 @@ Encina.MongoDB.Scheduling.ScheduledMessage.RetryCount.set -> void
 Encina.MongoDB.Scheduling.ScheduledMessage.ScheduledAtUtc.get -> System.DateTime
 Encina.MongoDB.Scheduling.ScheduledMessage.ScheduledAtUtc.set -> void
 Encina.MongoDB.Scheduling.ScheduledMessage.ScheduledMessage() -> void
+Encina.MongoDB.Scheduling.ScheduledMessageFactory
+Encina.MongoDB.Scheduling.ScheduledMessageFactory.Create(System.Guid id, string! requestType, string! content, System.DateTime scheduledAtUtc, System.DateTime createdAtUtc, bool isRecurring, string? cronExpression) -> Encina.Messaging.Scheduling.IScheduledMessage!
+Encina.MongoDB.Scheduling.ScheduledMessageFactory.ScheduledMessageFactory() -> void
 Encina.MongoDB.Scheduling.ScheduledMessageStoreMongoDB
 Encina.MongoDB.Scheduling.ScheduledMessageStoreMongoDB.AddAsync(Encina.Messaging.Scheduling.IScheduledMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.MongoDB.Scheduling.ScheduledMessageStoreMongoDB.CancelAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -151,6 +164,10 @@ Encina.MongoDB.EncinaMongoDbOptions.CreateIndexes.set -> void
 Encina.MongoDB.EncinaMongoDbOptions.DatabaseName.get -> string!
 Encina.MongoDB.EncinaMongoDbOptions.DatabaseName.set -> void
 Encina.MongoDB.EncinaMongoDbOptions.EncinaMongoDbOptions() -> void
+Encina.MongoDB.EncinaMongoDbOptions.SagaOptions.get -> Encina.Messaging.Sagas.SagaOptions!
+Encina.MongoDB.EncinaMongoDbOptions.SagaOptions.set -> void
+Encina.MongoDB.EncinaMongoDbOptions.SchedulingOptions.get -> Encina.Messaging.Scheduling.SchedulingOptions!
+Encina.MongoDB.EncinaMongoDbOptions.SchedulingOptions.set -> void
 Encina.MongoDB.EncinaMongoDbOptions.UseInbox.get -> bool
 Encina.MongoDB.EncinaMongoDbOptions.UseInbox.set -> void
 Encina.MongoDB.EncinaMongoDbOptions.UseOutbox.get -> bool

@@ -15,11 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - EventStoreDB integration for event sourcing (2025-12-21)
 - Choreography-based saga abstractions (event-driven) (2025-12-21)
 - Microsoft.Extensions.Diagnostics.Testing 10.0.0 for FakeLogger in tests (2025-12-23)
+- `SagaOrchestrator` and `SchedulerOrchestrator` for centralized orchestration logic (2025-12-23)
+- Factory interfaces: `ISagaStateFactory`, `IScheduledMessageFactory` for provider-specific entity creation (2025-12-23)
+- `SagaOptions` added to `MessagingConfiguration` for saga pattern configuration (2025-12-23)
 
 ### Changed
 
 - All logging now uses high-performance `LoggerMessage` delegates instead of `ILogger.LogXxx()`
 - Removed all obsolete CA1848 suppressions after LoggerMessage migration completion (2025-12-23)
+- **BREAKING**: Centralized `InboxPipelineBehavior` to `Encina.Messaging.Inbox` namespace (2025-12-23)
+- **BREAKING**: Centralized `OutboxPostProcessor` and `IHasNotifications` to `Encina.Messaging.Outbox` namespace (2025-12-23)
+- Providers now register `SagaOrchestrator` and `SchedulerOrchestrator` when patterns are enabled (2025-12-23)
 
 ### Fixed
 

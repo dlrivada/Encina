@@ -1,5 +1,6 @@
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 
 namespace Encina.Messaging;
@@ -102,6 +103,11 @@ public sealed class MessagingConfiguration
     /// Gets the configuration options for the Inbox Pattern.
     /// </summary>
     public InboxOptions InboxOptions { get; } = new();
+
+    /// <summary>
+    /// Gets the configuration options for the Saga Pattern.
+    /// </summary>
+    public SagaOptions SagaOptions { get; } = new();
 
     /// <summary>
     /// Gets the configuration options for the Scheduling Pattern.

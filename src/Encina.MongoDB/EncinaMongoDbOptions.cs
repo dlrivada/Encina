@@ -1,3 +1,6 @@
+using Encina.Messaging.Sagas;
+using Encina.Messaging.Scheduling;
+
 namespace Encina.MongoDB;
 
 /// <summary>
@@ -45,6 +48,16 @@ public sealed class EncinaMongoDbOptions
     /// Gets or sets a value indicating whether to create indexes automatically.
     /// </summary>
     public bool CreateIndexes { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the saga options.
+    /// </summary>
+    public SagaOptions SagaOptions { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the scheduling options.
+    /// </summary>
+    public SchedulingOptions SchedulingOptions { get; set; } = new();
 }
 
 /// <summary>

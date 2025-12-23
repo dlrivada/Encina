@@ -93,7 +93,8 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(config.OutboxOptions);
             services.AddScoped<IOutboxStore, OutboxStoreEF>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(OutboxPostProcessor<,>));
+            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
+            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
             services.AddHostedService<OutboxProcessor>();
         }
 
@@ -101,19 +102,25 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(config.InboxOptions);
             services.AddScoped<IInboxStore, InboxStoreEF>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(InboxPipelineBehavior<,>));
+            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
+            services.AddScoped<InboxOrchestrator>();
+            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(Messaging.Inbox.InboxPipelineBehavior<,>));
         }
 
         if (config.UseSagas)
         {
+            services.AddSingleton(config.SagaOptions);
             services.AddScoped<ISagaStore, SagaStoreEF>();
+            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
+            services.AddScoped<SagaOrchestrator>();
         }
 
         if (config.UseScheduling)
         {
             services.AddSingleton(config.SchedulingOptions);
             services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreEF>();
-            // TODO: Add SchedulingProcessor as HostedService when implemented
+            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
+            services.AddScoped<SchedulerOrchestrator>();
         }
 
         return services;

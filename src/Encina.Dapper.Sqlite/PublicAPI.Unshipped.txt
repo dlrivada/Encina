@@ -1,5 +1,4 @@
 #nullable enable
-Encina.Dapper.Sqlite.Inbox.IIdempotentRequest
 Encina.Dapper.Sqlite.Inbox.InboxMessage
 Encina.Dapper.Sqlite.Inbox.InboxMessage.ErrorMessage.get -> string?
 Encina.Dapper.Sqlite.Inbox.InboxMessage.ErrorMessage.set -> void
@@ -24,20 +23,19 @@ Encina.Dapper.Sqlite.Inbox.InboxMessage.Response.get -> string?
 Encina.Dapper.Sqlite.Inbox.InboxMessage.Response.set -> void
 Encina.Dapper.Sqlite.Inbox.InboxMessage.RetryCount.get -> int
 Encina.Dapper.Sqlite.Inbox.InboxMessage.RetryCount.set -> void
-Encina.Dapper.Sqlite.Inbox.InboxPipelineBehavior<TRequest, TResponse>
-Encina.Dapper.Sqlite.Inbox.InboxPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
-Encina.Dapper.Sqlite.Inbox.InboxPipelineBehavior<TRequest, TResponse>.InboxPipelineBehavior(System.Data.IDbConnection! connection, Encina.Messaging.Inbox.InboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Dapper.Sqlite.Inbox.InboxPipelineBehavior<TRequest, TResponse>!>! logger, string! tableName = "InboxMessages") -> void
+Encina.Dapper.Sqlite.Inbox.InboxMessageFactory
+Encina.Dapper.Sqlite.Inbox.InboxMessageFactory.Create(string! messageId, string! requestType, System.DateTime receivedAtUtc, System.DateTime expiresAtUtc, Encina.Messaging.Inbox.InboxMetadata? metadata) -> Encina.Messaging.Inbox.IInboxMessage!
+Encina.Dapper.Sqlite.Inbox.InboxMessageFactory.InboxMessageFactory() -> void
 Encina.Dapper.Sqlite.Inbox.InboxStoreDapper
 Encina.Dapper.Sqlite.Inbox.InboxStoreDapper.AddAsync(Encina.Messaging.Inbox.IInboxMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Sqlite.Inbox.InboxStoreDapper.GetExpiredMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Inbox.IInboxMessage!>!>!
 Encina.Dapper.Sqlite.Inbox.InboxStoreDapper.GetMessageAsync(string! messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Inbox.IInboxMessage?>!
 Encina.Dapper.Sqlite.Inbox.InboxStoreDapper.InboxStoreDapper(System.Data.IDbConnection! connection, string! tableName = "InboxMessages") -> void
+Encina.Dapper.Sqlite.Inbox.InboxStoreDapper.IncrementRetryCountAsync(string! messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Sqlite.Inbox.InboxStoreDapper.MarkAsFailedAsync(string! messageId, string! errorMessage, System.DateTime? nextRetryAtUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Sqlite.Inbox.InboxStoreDapper.MarkAsProcessedAsync(string! messageId, string? response, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Sqlite.Inbox.InboxStoreDapper.RemoveExpiredMessagesAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Sqlite.Inbox.InboxStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-Encina.Dapper.Sqlite.Outbox.IHasNotifications
-Encina.Dapper.Sqlite.Outbox.IHasNotifications.GetNotifications() -> System.Collections.Generic.IEnumerable<Encina.INotification!>!
 Encina.Dapper.Sqlite.Outbox.OutboxMessage
 Encina.Dapper.Sqlite.Outbox.OutboxMessage.Content.get -> string!
 Encina.Dapper.Sqlite.Outbox.OutboxMessage.Content.set -> void
@@ -58,9 +56,9 @@ Encina.Dapper.Sqlite.Outbox.OutboxMessage.ProcessedAtUtc.get -> System.DateTime?
 Encina.Dapper.Sqlite.Outbox.OutboxMessage.ProcessedAtUtc.set -> void
 Encina.Dapper.Sqlite.Outbox.OutboxMessage.RetryCount.get -> int
 Encina.Dapper.Sqlite.Outbox.OutboxMessage.RetryCount.set -> void
-Encina.Dapper.Sqlite.Outbox.OutboxPostProcessor<TRequest, TResponse>
-Encina.Dapper.Sqlite.Outbox.OutboxPostProcessor<TRequest, TResponse>.OutboxPostProcessor(Encina.Messaging.Outbox.IOutboxStore! outboxStore, Microsoft.Extensions.Logging.ILogger<Encina.Dapper.Sqlite.Outbox.OutboxPostProcessor<TRequest, TResponse>!>! logger) -> void
-Encina.Dapper.Sqlite.Outbox.OutboxPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, LanguageExt.Either<Encina.EncinaError, TResponse> result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Dapper.Sqlite.Outbox.OutboxMessageFactory
+Encina.Dapper.Sqlite.Outbox.OutboxMessageFactory.Create(System.Guid id, string! notificationType, string! content, System.DateTime createdAtUtc) -> Encina.Messaging.Outbox.IOutboxMessage!
+Encina.Dapper.Sqlite.Outbox.OutboxMessageFactory.OutboxMessageFactory() -> void
 Encina.Dapper.Sqlite.Outbox.OutboxProcessor
 Encina.Dapper.Sqlite.Outbox.OutboxProcessor.OutboxProcessor(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Dapper.Sqlite.Outbox.OutboxProcessor!>! logger, Encina.Messaging.Outbox.OutboxOptions! options) -> void
 Encina.Dapper.Sqlite.Outbox.OutboxStoreDapper
@@ -90,6 +88,9 @@ Encina.Dapper.Sqlite.Sagas.SagaState.StartedAtUtc.get -> System.DateTime
 Encina.Dapper.Sqlite.Sagas.SagaState.StartedAtUtc.set -> void
 Encina.Dapper.Sqlite.Sagas.SagaState.Status.get -> string!
 Encina.Dapper.Sqlite.Sagas.SagaState.Status.set -> void
+Encina.Dapper.Sqlite.Sagas.SagaStateFactory
+Encina.Dapper.Sqlite.Sagas.SagaStateFactory.Create(System.Guid sagaId, string! sagaType, string! data, string! status, int currentStep, System.DateTime startedAtUtc) -> Encina.Messaging.Sagas.ISagaState!
+Encina.Dapper.Sqlite.Sagas.SagaStateFactory.SagaStateFactory() -> void
 Encina.Dapper.Sqlite.Sagas.SagaStoreDapper
 Encina.Dapper.Sqlite.Sagas.SagaStoreDapper.AddAsync(Encina.Messaging.Sagas.ISagaState! sagaState, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Sqlite.Sagas.SagaStoreDapper.GetAsync(System.Guid sagaId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Sagas.ISagaState?>!
@@ -126,6 +127,9 @@ Encina.Dapper.Sqlite.Scheduling.ScheduledMessage.RetryCount.set -> void
 Encina.Dapper.Sqlite.Scheduling.ScheduledMessage.ScheduledAtUtc.get -> System.DateTime
 Encina.Dapper.Sqlite.Scheduling.ScheduledMessage.ScheduledAtUtc.set -> void
 Encina.Dapper.Sqlite.Scheduling.ScheduledMessage.ScheduledMessage() -> void
+Encina.Dapper.Sqlite.Scheduling.ScheduledMessageFactory
+Encina.Dapper.Sqlite.Scheduling.ScheduledMessageFactory.Create(System.Guid id, string! requestType, string! content, System.DateTime scheduledAtUtc, System.DateTime createdAtUtc, bool isRecurring, string? cronExpression) -> Encina.Messaging.Scheduling.IScheduledMessage!
+Encina.Dapper.Sqlite.Scheduling.ScheduledMessageFactory.ScheduledMessageFactory() -> void
 Encina.Dapper.Sqlite.Scheduling.ScheduledMessageStoreDapper
 Encina.Dapper.Sqlite.Scheduling.ScheduledMessageStoreDapper.AddAsync(Encina.Messaging.Scheduling.IScheduledMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Sqlite.Scheduling.ScheduledMessageStoreDapper.CancelAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!

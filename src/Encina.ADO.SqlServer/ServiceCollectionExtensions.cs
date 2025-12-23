@@ -85,7 +85,8 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(config.OutboxOptions);
             services.TryAddScoped<IOutboxStore, OutboxStoreADO>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(OutboxPostProcessor<,>));
+            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
+            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
             services.AddHostedService<OutboxProcessor>();
         }
 
@@ -94,7 +95,9 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(config.InboxOptions);
             services.TryAddScoped<IInboxStore, InboxStoreADO>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(InboxPipelineBehavior<,>));
+            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
+            services.AddScoped<InboxOrchestrator>();
+            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(Messaging.Inbox.InboxPipelineBehavior<,>));
         }
 
         // Transaction Pattern

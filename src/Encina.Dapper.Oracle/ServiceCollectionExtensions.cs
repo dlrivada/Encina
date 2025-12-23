@@ -44,7 +44,8 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(config.OutboxOptions);
             services.AddScoped<IOutboxStore, OutboxStoreDapper>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(OutboxPostProcessor<,>));
+            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
+            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
             services.AddHostedService<OutboxProcessor>();
         }
 
@@ -52,18 +53,25 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(config.InboxOptions);
             services.AddScoped<IInboxStore, InboxStoreDapper>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(InboxPipelineBehavior<,>));
+            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
+            services.AddScoped<InboxOrchestrator>();
+            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(Messaging.Inbox.InboxPipelineBehavior<,>));
         }
 
         if (config.UseSagas)
         {
+            services.AddSingleton(config.SagaOptions);
             services.AddScoped<ISagaStore, SagaStoreDapper>();
+            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
+            services.AddScoped<SagaOrchestrator>();
         }
 
         if (config.UseScheduling)
         {
             services.AddSingleton(config.SchedulingOptions);
             services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreDapper>();
+            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
+            services.AddScoped<SchedulerOrchestrator>();
         }
 
         return services;

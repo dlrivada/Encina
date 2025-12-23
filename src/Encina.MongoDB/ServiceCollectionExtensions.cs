@@ -56,21 +56,31 @@ public static class ServiceCollectionExtensions
         if (options.UseOutbox)
         {
             services.AddScoped<IOutboxStore, OutboxStoreMongoDB>();
+            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
+            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
         }
 
         if (options.UseInbox)
         {
             services.AddScoped<IInboxStore, InboxStoreMongoDB>();
+            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
+            services.AddScoped<InboxOrchestrator>();
         }
 
         if (options.UseSagas)
         {
+            services.AddSingleton(options.SagaOptions);
             services.AddScoped<ISagaStore, SagaStoreMongoDB>();
+            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
+            services.AddScoped<SagaOrchestrator>();
         }
 
         if (options.UseScheduling)
         {
+            services.AddSingleton(options.SchedulingOptions);
             services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreMongoDB>();
+            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
+            services.AddScoped<SchedulerOrchestrator>();
         }
 
         // Create indexes if configured
@@ -108,21 +118,31 @@ public static class ServiceCollectionExtensions
         if (options.UseOutbox)
         {
             services.AddScoped<IOutboxStore, OutboxStoreMongoDB>();
+            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
+            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
         }
 
         if (options.UseInbox)
         {
             services.AddScoped<IInboxStore, InboxStoreMongoDB>();
+            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
+            services.AddScoped<InboxOrchestrator>();
         }
 
         if (options.UseSagas)
         {
+            services.AddSingleton(options.SagaOptions);
             services.AddScoped<ISagaStore, SagaStoreMongoDB>();
+            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
+            services.AddScoped<SagaOrchestrator>();
         }
 
         if (options.UseScheduling)
         {
+            services.AddSingleton(options.SchedulingOptions);
             services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreMongoDB>();
+            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
+            services.AddScoped<SchedulerOrchestrator>();
         }
 
         // Create indexes if configured

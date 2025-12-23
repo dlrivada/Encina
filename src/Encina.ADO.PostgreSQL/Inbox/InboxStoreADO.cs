@@ -243,6 +243,26 @@ public sealed class InboxStoreADO : IInboxStore
     }
 
     /// <inheritdoc />
+    public async Task IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+
+        var sql = $@"
+            UPDATE {_tableName}
+            SET ""RetryCount"" = ""RetryCount"" + 1
+            WHERE ""MessageId"" = @MessageId";
+
+        using var command = _connection.CreateCommand();
+        command.CommandText = sql;
+        AddParameter(command, "@MessageId", messageId);
+
+        if (_connection.State != ConnectionState.Open)
+            await OpenConnectionAsync(cancellationToken);
+
+        await ExecuteNonQueryAsync(command, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // ADO.NET executes SQL immediately, no need for SaveChanges

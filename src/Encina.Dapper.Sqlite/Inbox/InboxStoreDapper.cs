@@ -146,6 +146,19 @@ public sealed class InboxStoreDapper : IInboxStore
     }
 
     /// <inheritdoc />
+    public async Task IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+
+        var sql = $@"
+            UPDATE {_tableName}
+            SET RetryCount = RetryCount + 1
+            WHERE MessageId = @MessageId";
+
+        await _connection.ExecuteAsync(sql, new { MessageId = messageId });
+    }
+
+    /// <inheritdoc />
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // Dapper executes SQL immediately, no need for SaveChanges

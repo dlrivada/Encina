@@ -72,3 +72,47 @@ const Encina.Messaging.Choreography.ChoreographyErrorCodes.ReactionFailed = "cho
 const Encina.Messaging.Choreography.ChoreographyErrorCodes.SagaAlreadyExists = "choreography.saga.already_exists" -> string!
 const Encina.Messaging.Choreography.ChoreographyErrorCodes.SagaNotFound = "choreography.saga.not_found" -> string!
 const Encina.Messaging.Choreography.ChoreographyErrorCodes.SagaTimeout = "choreography.saga.timeout" -> string!
+Encina.Messaging.Inbox.IIdempotentRequest
+Encina.Messaging.Inbox.IInboxMessageFactory
+Encina.Messaging.Inbox.IInboxMessageFactory.Create(string! messageId, string! requestType, System.DateTime receivedAtUtc, System.DateTime expiresAtUtc, Encina.Messaging.Inbox.InboxMetadata? metadata) -> Encina.Messaging.Inbox.IInboxMessage!
+Encina.Messaging.Inbox.InboxErrorCodes
+Encina.Messaging.Inbox.InboxMetadata
+Encina.Messaging.Inbox.InboxMetadata.CorrelationId.get -> string?
+Encina.Messaging.Inbox.InboxMetadata.CorrelationId.set -> void
+Encina.Messaging.Inbox.InboxMetadata.InboxMetadata() -> void
+Encina.Messaging.Inbox.InboxMetadata.TenantId.get -> string?
+Encina.Messaging.Inbox.InboxMetadata.TenantId.set -> void
+Encina.Messaging.Inbox.InboxMetadata.Timestamp.get -> System.DateTimeOffset
+Encina.Messaging.Inbox.InboxMetadata.Timestamp.set -> void
+Encina.Messaging.Inbox.InboxMetadata.UserId.get -> string?
+Encina.Messaging.Inbox.InboxMetadata.UserId.set -> void
+Encina.Messaging.Inbox.InboxOrchestrator
+Encina.Messaging.Inbox.InboxOrchestrator.InboxOrchestrator(Encina.Messaging.Inbox.IInboxStore! store, Encina.Messaging.Inbox.InboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Inbox.InboxOrchestrator!>! logger, Encina.Messaging.Inbox.IInboxMessageFactory! messageFactory) -> void
+Encina.Messaging.Inbox.InboxOrchestrator.ProcessAsync<TResponse>(string! messageId, string! requestType, string! correlationId, Encina.Messaging.Inbox.InboxMetadata? metadata, System.Func<System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>!>! processCallback, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Messaging.Inbox.InboxOrchestrator.ValidateMessageId(string? messageId, string! requestType, string! correlationId) -> LanguageExt.Option<Encina.EncinaError>
+Encina.Messaging.Inbox.InboxPipelineBehavior<TRequest, TResponse>
+Encina.Messaging.Inbox.InboxPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Messaging.Inbox.InboxPipelineBehavior<TRequest, TResponse>.InboxPipelineBehavior(Encina.Messaging.Inbox.InboxOrchestrator! orchestrator, Encina.Messaging.Inbox.InboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Inbox.InboxPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Messaging.Inbox.IInboxStore.IncrementRetryCountAsync(string! messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+const Encina.Messaging.Inbox.InboxErrorCodes.CachedError = "inbox.cached_error" -> string!
+const Encina.Messaging.Inbox.InboxErrorCodes.DeserializationFailed = "inbox.deserialization_failed" -> string!
+const Encina.Messaging.Inbox.InboxErrorCodes.MaxRetriesExceeded = "inbox.max_retries_exceeded" -> string!
+const Encina.Messaging.Inbox.InboxErrorCodes.MissingMessageId = "inbox.missing_message_id" -> string!
+Encina.Messaging.Outbox.IHasNotifications
+Encina.Messaging.Outbox.IHasNotifications.GetNotifications() -> System.Collections.Generic.IEnumerable<Encina.INotification!>!
+Encina.Messaging.Outbox.IOutboxMessageFactory
+Encina.Messaging.Outbox.IOutboxMessageFactory.Create(System.Guid id, string! notificationType, string! content, System.DateTime createdAtUtc) -> Encina.Messaging.Outbox.IOutboxMessage!
+Encina.Messaging.Outbox.OutboxErrorCodes
+Encina.Messaging.Outbox.OutboxOrchestrator
+Encina.Messaging.Outbox.OutboxOrchestrator.OutboxOrchestrator(Encina.Messaging.Outbox.IOutboxStore! store, Encina.Messaging.Outbox.OutboxOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Outbox.OutboxOrchestrator!>! logger, Encina.Messaging.Outbox.IOutboxMessageFactory! messageFactory) -> void
+Encina.Messaging.Outbox.OutboxOrchestrator.AddAsync<TNotification>(TNotification notification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Outbox.OutboxOrchestrator.ProcessPendingMessagesAsync(System.Func<Encina.Messaging.Outbox.IOutboxMessage!, System.Type!, object!, System.Threading.Tasks.Task!>! publishCallback, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
+Encina.Messaging.Outbox.OutboxOrchestrator.GetPendingCountAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
+Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>
+Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>.OutboxPostProcessor(Encina.Messaging.Outbox.IOutboxStore! outboxStore, Encina.Messaging.Outbox.IOutboxMessageFactory! messageFactory, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>!>! logger) -> void
+Encina.Messaging.Outbox.OutboxPostProcessor<TRequest, TResponse>.Process(TRequest request, Encina.IRequestContext! context, LanguageExt.Either<Encina.EncinaError, TResponse> result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+const Encina.Messaging.Outbox.OutboxErrorCodes.DeserializationFailed = "outbox.deserialization_failed" -> string!
+const Encina.Messaging.Outbox.OutboxErrorCodes.MaxRetriesExceeded = "outbox.max_retries_exceeded" -> string!
+const Encina.Messaging.Outbox.OutboxErrorCodes.PublishFailed = "outbox.publish_failed" -> string!
+const Encina.Messaging.Outbox.OutboxErrorCodes.UnknownNotificationType = "outbox.unknown_notification_type" -> string!
+Encina.Messaging.MessagingConfiguration.SagaOptions.get -> Encina.Messaging.Sagas.SagaOptions!

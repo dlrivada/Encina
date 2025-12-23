@@ -1,4 +1,5 @@
-﻿using LanguageExt;
+﻿using Encina;
+using LanguageExt;
 using Shouldly;
 using static LanguageExt.Prelude;
 
@@ -19,7 +20,7 @@ public sealed class GuardsTests
 
         // Assert
         result.ShouldBeTrue();
-        error.ShouldBe(default(MediatorError));
+        error.ShouldBe(default(EncinaError));
     }
 
     [Fact]
@@ -33,7 +34,7 @@ public sealed class GuardsTests
 
         // Assert
         result.ShouldBeFalse();
-        error.ShouldNotBe(default(MediatorError));
+        error.ShouldNotBe(default(EncinaError));
         error.Message.ShouldContain("value");
         error.Message.ShouldContain("cannot be null");
     }
@@ -82,7 +83,7 @@ public sealed class GuardsTests
 
         // Assert
         result.ShouldBeTrue();
-        error.ShouldBe(default(MediatorError));
+        error.ShouldBe(default(EncinaError));
     }
 
     [Fact]
@@ -781,12 +782,12 @@ public sealed class GuardsTests
 
     private sealed class TestHandler
     {
-        public static Either<MediatorError, Guid> Handle(Order? order)
+        public static Either<EncinaError, Guid> Handle(Order? order)
         {
             if (!Guards.TryValidateNotNull(order, nameof(order), out var error))
-                return Left<MediatorError, Guid>(error);
+                return Left<EncinaError, Guid>(error);
 
-            return Right<MediatorError, Guid>(order!.Id);
+            return Right<EncinaError, Guid>(order!.Id);
         }
     }
 

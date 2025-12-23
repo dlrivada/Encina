@@ -162,6 +162,17 @@ public sealed class InboxStoreMongoDB : IInboxStore
     }
 
     /// <inheritdoc />
+    public async Task IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(messageId);
+
+        var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
+        var update = Builders<InboxMessage>.Update.Inc(m => m.RetryCount, 1);
+
+        await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // MongoDB operations are immediately persisted, no SaveChanges needed

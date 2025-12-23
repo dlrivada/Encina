@@ -119,6 +119,20 @@ public sealed class InboxStoreEF : IInboxStore
     }
 
     /// <inheritdoc/>
+    public async Task IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageId);
+
+        var message = await _dbContext.Set<InboxMessage>()
+            .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+
+        if (message != null)
+        {
+            message.RetryCount++;
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         await _dbContext.SaveChangesAsync(cancellationToken);
