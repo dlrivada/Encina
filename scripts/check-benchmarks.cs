@@ -68,6 +68,8 @@ if (csvFile is null)
     Environment.Exit(1);
 }
 
+Console.WriteLine($"Using CSV file: {csvFile}");
+
 var lines = File.ReadAllLines(csvFile);
 if (lines.Length < 2)
 {

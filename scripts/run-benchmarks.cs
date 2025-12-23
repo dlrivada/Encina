@@ -90,24 +90,29 @@ static void CopyExportedReports(string outputDirectory)
 {
     // BenchmarkDotNet with --artifacts places results in {artifacts}/results/
     // Also check the legacy BenchmarkDotNet.Artifacts path for backwards compatibility
+    var workingDir = Directory.GetCurrentDirectory();
     var searchRoots = new[]
     {
         Path.Combine(outputDirectory, "results"),
         Path.Combine(outputDirectory, "BenchmarkDotNet.Artifacts", "results"),
-        Path.Combine(Directory.GetCurrentDirectory(), "BenchmarkDotNet.Artifacts", "results"),
-        Path.Combine("artifacts", "performance", "results")
+        Path.Combine(workingDir, "BenchmarkDotNet.Artifacts", "results"),
+        Path.Combine(workingDir, "artifacts", "performance", "results")
     };
+
+    Console.WriteLine($"Searching for benchmark results in working directory: {workingDir}");
 
     foreach (var root in searchRoots)
     {
+        Console.WriteLine($"  Checking: {root} - Exists: {Directory.Exists(root)}");
         if (!Directory.Exists(root))
         {
             continue;
         }
 
-        var files = Directory.EnumerateFiles(root).ToArray();
+        var files = Directory.EnumerateFiles(root, "*.csv").ToArray();
         if (files.Length == 0)
         {
+            Console.WriteLine($"    No CSV files found in {root}");
             continue;
         }
 
