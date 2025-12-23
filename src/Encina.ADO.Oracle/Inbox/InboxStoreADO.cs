@@ -2,6 +2,8 @@ using System.Data;
 using Encina.Messaging.Inbox;
 using Oracle.ManagedDataAccess.Client;
 
+using Encina.Messaging;
+
 namespace Encina.ADO.Oracle.Inbox;
 
 /// <summary>
@@ -21,10 +23,8 @@ public sealed class InboxStoreADO : IInboxStore
     public InboxStoreADO(IDbConnection connection, string tableName = "InboxMessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-
-        _connection = connection;
-        _tableName = tableName;
+                _connection = connection;
+        _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 
     /// <inheritdoc />

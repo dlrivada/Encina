@@ -2,6 +2,8 @@ using System.Data;
 using Encina.Messaging.Inbox;
 using Npgsql;
 
+using Encina.Messaging;
+
 namespace Encina.ADO.PostgreSQL.Inbox;
 
 /// <summary>
@@ -23,7 +25,7 @@ public sealed class InboxStoreADO : IInboxStore
         ArgumentNullException.ThrowIfNull(connection);
 
         _connection = connection;
-        _tableName = tableName;
+        _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 
     /// <inheritdoc />

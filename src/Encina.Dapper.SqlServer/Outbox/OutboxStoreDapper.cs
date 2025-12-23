@@ -1,5 +1,6 @@
 using System.Data;
 using Dapper;
+using Encina.Messaging;
 using Encina.Messaging.Outbox;
 
 namespace Encina.Dapper.SqlServer.Outbox;
@@ -21,10 +22,9 @@ public sealed class OutboxStoreDapper : IOutboxStore
     public OutboxStoreDapper(IDbConnection connection, string tableName = "OutboxMessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 
         _connection = connection;
-        _tableName = tableName;
+        _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 
     /// <inheritdoc />

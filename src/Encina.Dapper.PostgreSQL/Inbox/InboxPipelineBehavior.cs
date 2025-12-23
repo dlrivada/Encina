@@ -6,6 +6,8 @@ using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
 
+using Encina.Messaging;
+
 namespace Encina.Dapper.PostgreSQL.Inbox;
 
 /// <summary>
@@ -62,12 +64,10 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-
-        _connection = connection;
+                _connection = connection;
         _options = options;
         _logger = logger;
-        _tableName = tableName;
+        _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 
     /// <inheritdoc/>

@@ -2,6 +2,8 @@ using System.Data;
 using Encina.Messaging.Outbox;
 using Microsoft.Data.SqlClient;
 
+using Encina.Messaging;
+
 namespace Encina.ADO.SqlServer.Outbox;
 
 /// <summary>
@@ -21,10 +23,8 @@ public sealed class OutboxStoreADO : IOutboxStore
     public OutboxStoreADO(IDbConnection connection, string tableName = "OutboxMessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-
-        _connection = connection;
-        _tableName = tableName;
+                _connection = connection;
+        _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 
     /// <inheritdoc />

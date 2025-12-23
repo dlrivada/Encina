@@ -6,6 +6,8 @@ using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
 
+using Encina.Messaging;
+
 namespace Encina.Dapper.MySQL.Inbox;
 
 /// <summary>
@@ -65,7 +67,7 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
         _connection = connection;
         _options = options;
         _logger = logger;
-        _tableName = tableName;
+        _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 
     /// <inheritdoc/>

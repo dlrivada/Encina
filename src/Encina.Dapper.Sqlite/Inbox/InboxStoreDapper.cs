@@ -2,6 +2,8 @@ using System.Data;
 using Dapper;
 using Encina.Messaging.Inbox;
 
+using Encina.Messaging;
+
 namespace Encina.Dapper.Sqlite.Inbox;
 
 /// <summary>
@@ -23,10 +25,8 @@ public sealed class InboxStoreDapper : IInboxStore
     public InboxStoreDapper(IDbConnection connection, string tableName = "InboxMessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-
-        _connection = connection;
-        _tableName = tableName;
+                _connection = connection;
+        _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 
     /// <inheritdoc />

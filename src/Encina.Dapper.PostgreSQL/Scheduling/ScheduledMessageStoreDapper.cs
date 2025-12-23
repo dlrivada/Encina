@@ -2,6 +2,8 @@ using System.Data;
 using Dapper;
 using Encina.Messaging.Scheduling;
 
+using Encina.Messaging;
+
 namespace Encina.Dapper.PostgreSQL.Scheduling;
 
 /// <summary>
@@ -23,10 +25,8 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
     public ScheduledMessageStoreDapper(IDbConnection connection, string tableName = "ScheduledMessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-
-        _connection = connection;
-        _tableName = tableName;
+                _connection = connection;
+        _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 
     /// <inheritdoc />

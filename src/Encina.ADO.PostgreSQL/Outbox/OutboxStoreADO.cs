@@ -2,6 +2,8 @@ using System.Data;
 using Encina.Messaging.Outbox;
 using Npgsql;
 
+using Encina.Messaging;
+
 namespace Encina.ADO.PostgreSQL.Outbox;
 
 /// <summary>
@@ -23,7 +25,7 @@ public sealed class OutboxStoreADO : IOutboxStore
         ArgumentNullException.ThrowIfNull(connection);
 
         _connection = connection;
-        _tableName = tableName;
+        _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 
     /// <inheritdoc />
