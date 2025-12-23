@@ -1,0 +1,64 @@
+name: Load Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Saturdays at 2:00 AM UTC
+    - cron: "0 2 * * 6"
+
+permissions:
+  contents: read
+
+jobs:
+  run-load-tests:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Encina.slnx
+
+      - name: Build
+        run: dotnet build Encina.slnx --configuration Release --no-restore
+
+      - name: Run load harness (metrics)
+        run: dotnet run --file scripts/collect-load-metrics.cs -- --duration 00:00:30 --send-workers 8 --publish-workers 4
+
+      - name: Check load harness metrics
+        run: dotnet run --file scripts/check-load-metrics.cs -- --config ci/load-thresholds.json
+
+      - name: Run NBomber harness
+        run: dotnet run --file scripts/run-load-harness.cs -- --nbomber send-burst --duration 00:00:30
+
+      - name: Summarize NBomber run
+        run: dotnet run --file scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json
+
+      - name: Aggregate performance history
+        run: dotnet run --file scripts/aggregate-performance-history.cs
+
+      - name: Publish performance history summary
+        run: |
+          if [ -f docs/data/load-history.md ]; then
+            {
+              echo '### Load History';
+              cat docs/data/load-history.md;
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload load metrics artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-metrics
+          path: artifacts/load-metrics

@@ -1,0 +1,75 @@
+name: Mutation Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Fridays at 3:00 AM UTC
+    - cron: "0 3 * * 5"
+
+permissions:
+  contents: read
+
+jobs:
+  run-mutation-tests:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Encina.slnx
+
+      - name: Build
+        run: dotnet build Encina.slnx --configuration Release --no-restore
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      - name: Run mutation tests
+        run: dotnet run --file scripts/run-stryker.cs
+
+      - name: Summarize mutation results
+        run: |
+          output=$(dotnet run --file scripts/update-mutation-summary.cs)
+          echo "$output"
+          {
+            echo '### Mutation Summary';
+            echo '```';
+            echo "$output";
+            echo '```';
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Locate mutation report
+        id: stryker-report
+        run: |
+          latest=$(ls -d StrykerOutput/* | sort | tail -n 1)
+          echo "reports-dir=$latest/reports" >> "$GITHUB_OUTPUT"
+          echo "summary-file=$latest/reports/mutation-report.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Publish Stryker text summary
+        if: steps.stryker-report.outputs.summary-file != ''
+        run: |
+          {
+            echo '### Mutation Report (Stryker Text)';
+            echo '```';
+            cat "${{ steps.stryker-report.outputs.summary-file }}";
+            echo '```';
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload mutation report artifact
+        if: steps.stryker-report.outputs.reports-dir != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: ${{ steps.stryker-report.outputs.reports-dir }}
