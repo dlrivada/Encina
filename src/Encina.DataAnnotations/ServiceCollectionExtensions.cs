@@ -1,3 +1,4 @@
+using Encina.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -15,8 +16,12 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining.</returns>
     /// <remarks>
     /// <para>
-    /// This method registers <see cref="DataAnnotationsValidationBehavior{TRequest, TResponse}"/> as an open generic pipeline behavior
-    /// that automatically validates all requests decorated with Data Annotations attributes before handler execution.
+    /// This method performs the following operations:
+    /// <list type="number">
+    /// <item>Registers <see cref="DataAnnotationsValidationProvider"/> as the <see cref="IValidationProvider"/></item>
+    /// <item>Registers <see cref="ValidationOrchestrator"/> for coordinating validation</item>
+    /// <item>Registers <see cref="ValidationPipelineBehavior{TRequest, TResponse}"/> as an open generic pipeline behavior</item>
+    /// </list>
     /// </para>
     /// <para>
     /// <b>Zero External Dependencies</b>: Uses built-in System.ComponentModel.DataAnnotations, no additional packages required.
@@ -40,7 +45,7 @@ public static class ServiceCollectionExtensions
     /// // Register Data Annotations validation
     /// services.AddEncina(cfg =>
     /// {
-    ///     // DataAnnotationsValidationBehavior is automatically registered
+    ///     // Configuration if needed
     /// }, typeof(CreateUser).Assembly);
     ///
     /// services.AddDataAnnotationsValidation();
@@ -63,8 +68,10 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // Register the validation pipeline behavior as an open generic
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(DataAnnotationsValidationBehavior<,>));
+        // Register the validation infrastructure
+        services.TryAddSingleton<IValidationProvider, DataAnnotationsValidationProvider>();
+        services.TryAddSingleton<ValidationOrchestrator>();
+        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBehavior<,>));
 
         return services;
     }

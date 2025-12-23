@@ -168,3 +168,25 @@ Encina.NotificationDispatchStrategy.Parallel = 1 -> Encina.NotificationDispatchS
 Encina.NotificationDispatchStrategy.ParallelWhenAll = 2 -> Encina.NotificationDispatchStrategy
 Encina.EncinaConfiguration.NotificationDispatch.get -> Encina.NotificationDispatchOptions!
 Encina.EncinaConfiguration.UseParallelNotificationDispatch(Encina.NotificationDispatchStrategy strategy = Encina.NotificationDispatchStrategy.Parallel, int maxDegreeOfParallelism = -1) -> Encina.EncinaConfiguration!
+Encina.Validation.IValidationProvider
+Encina.Validation.IValidationProvider.ValidateAsync<TRequest>(TRequest request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Encina.Validation.ValidationResult!>
+Encina.Validation.ValidationError
+Encina.Validation.ValidationError.ErrorMessage.get -> string!
+Encina.Validation.ValidationError.ErrorMessage.init -> void
+Encina.Validation.ValidationError.PropertyName.get -> string?
+Encina.Validation.ValidationError.PropertyName.init -> void
+Encina.Validation.ValidationError.ValidationError(string? PropertyName, string! ErrorMessage) -> void
+Encina.Validation.ValidationOrchestrator
+Encina.Validation.ValidationOrchestrator.ValidationOrchestrator(Encina.Validation.IValidationProvider! validationProvider) -> void
+Encina.Validation.ValidationOrchestrator.ValidateAsync<TRequest, TResponse>(TRequest request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Validation.ValidationPipelineBehavior<TRequest, TResponse>
+Encina.Validation.ValidationPipelineBehavior<TRequest, TResponse>.ValidationPipelineBehavior(Encina.Validation.ValidationOrchestrator! orchestrator) -> void
+Encina.Validation.ValidationPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Validation.ValidationResult
+Encina.Validation.ValidationResult.Errors.get -> System.Collections.Immutable.ImmutableArray<Encina.Validation.ValidationError!>
+Encina.Validation.ValidationResult.IsInvalid.get -> bool
+Encina.Validation.ValidationResult.IsValid.get -> bool
+Encina.Validation.ValidationResult.ToErrorMessage(string! requestTypeName) -> string!
+static Encina.Validation.ValidationResult.Failure(string! propertyName, string! errorMessage) -> Encina.Validation.ValidationResult!
+static Encina.Validation.ValidationResult.Failure(System.Collections.Generic.IEnumerable<Encina.Validation.ValidationError!>! errors) -> Encina.Validation.ValidationResult!
+static Encina.Validation.ValidationResult.Success.get -> Encina.Validation.ValidationResult!

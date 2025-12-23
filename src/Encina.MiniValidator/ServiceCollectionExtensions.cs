@@ -1,3 +1,4 @@
+using Encina.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -15,8 +16,12 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining.</returns>
     /// <remarks>
     /// <para>
-    /// This method registers <see cref="MiniValidationBehavior{TRequest, TResponse}"/> as an open generic pipeline behavior
-    /// that automatically validates all requests using MiniValidation before handler execution.
+    /// This method performs the following operations:
+    /// <list type="number">
+    /// <item>Registers <see cref="MiniValidationProvider"/> as the <see cref="IValidationProvider"/></item>
+    /// <item>Registers <see cref="ValidationOrchestrator"/> for coordinating validation</item>
+    /// <item>Registers <see cref="ValidationPipelineBehavior{TRequest, TResponse}"/> as an open generic pipeline behavior</item>
+    /// </list>
     /// </para>
     /// <para>
     /// <b>MiniValidation</b> is a minimalist validation library that uses Data Annotations under the hood,
@@ -56,8 +61,10 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // Register the validation pipeline behavior as an open generic
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(MiniValidationBehavior<,>));
+        // Register the validation infrastructure
+        services.TryAddSingleton<IValidationProvider, MiniValidationProvider>();
+        services.TryAddSingleton<ValidationOrchestrator>();
+        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBehavior<,>));
 
         return services;
     }

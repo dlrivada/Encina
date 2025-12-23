@@ -2,6 +2,7 @@ using System.Reflection;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using EncinaValidation = global::Encina.Validation;
 
 namespace Encina.FluentValidation;
 
@@ -18,9 +19,11 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining.</returns>
     /// <remarks>
     /// <para>
-    /// This method performs two operations:
+    /// This method performs the following operations:
     /// <list type="number">
-    /// <item>Registers <see cref="ValidationPipelineBehavior{TRequest, TResponse}"/> as an open generic pipeline behavior</item>
+    /// <item>Registers <see cref="FluentValidationProvider"/> as the <see cref="EncinaValidation.IValidationProvider"/></item>
+    /// <item>Registers <see cref="EncinaValidation.ValidationOrchestrator"/> for coordinating validation</item>
+    /// <item>Registers <see cref="EncinaValidation.ValidationPipelineBehavior{TRequest, TResponse}"/> as an open generic pipeline behavior</item>
     /// <item>Scans the provided assemblies and registers all <see cref="IValidator{T}"/> implementations with <see cref="ServiceLifetime.Singleton"/> lifetime</item>
     /// </list>
     /// </para>
@@ -55,8 +58,10 @@ public static class ServiceCollectionExtensions
             throw new ArgumentNullException(nameof(assemblies), "At least one assembly must be provided to scan for validators.");
         }
 
-        // Register the validation pipeline behavior as an open generic
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBehavior<,>));
+        // Register the validation infrastructure
+        services.TryAddScoped<EncinaValidation.IValidationProvider, FluentValidationProvider>();
+        services.TryAddScoped<EncinaValidation.ValidationOrchestrator>();
+        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(EncinaValidation.ValidationPipelineBehavior<,>));
 
         // Scan and register all validators from the provided assemblies
         RegisterValidators(services, assemblies);
@@ -95,8 +100,10 @@ public static class ServiceCollectionExtensions
             throw new ArgumentNullException(nameof(assemblies), "At least one assembly must be provided to scan for validators.");
         }
 
-        // Register the validation pipeline behavior as an open generic
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBehavior<,>));
+        // Register the validation infrastructure
+        services.TryAddScoped<EncinaValidation.IValidationProvider, FluentValidationProvider>();
+        services.TryAddScoped<EncinaValidation.ValidationOrchestrator>();
+        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(EncinaValidation.ValidationPipelineBehavior<,>));
 
         // Scan and register all validators with the specified lifetime
         RegisterValidators(services, assemblies, lifetime);

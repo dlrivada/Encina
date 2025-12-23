@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SagaOrchestrator` and `SchedulerOrchestrator` for centralized orchestration logic (2025-12-23)
 - Factory interfaces: `ISagaStateFactory`, `IScheduledMessageFactory` for provider-specific entity creation (2025-12-23)
 - `SagaOptions` added to `MessagingConfiguration` for saga pattern configuration (2025-12-23)
+- `IValidationProvider`, `ValidationResult`, `ValidationError` abstractions in `Encina.Validation` namespace (2025-12-23)
+- `ValidationOrchestrator` for centralized validation orchestration (2025-12-23)
+- `FluentValidationProvider`, `DataAnnotationsValidationProvider`, `MiniValidationProvider` implementations (2025-12-23)
 
 ### Changed
 
@@ -26,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: Centralized `InboxPipelineBehavior` to `Encina.Messaging.Inbox` namespace (2025-12-23)
 - **BREAKING**: Centralized `OutboxPostProcessor` and `IHasNotifications` to `Encina.Messaging.Outbox` namespace (2025-12-23)
 - Providers now register `SagaOrchestrator` and `SchedulerOrchestrator` when patterns are enabled (2025-12-23)
+- **BREAKING**: Centralized `ValidationPipelineBehavior` to `Encina.Validation` namespace (2025-12-23)
+- Validation packages now use `ValidationOrchestrator` pattern (Orchestrator → Provider architecture) (2025-12-23)
 
 ### Fixed
 
