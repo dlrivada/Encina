@@ -53,21 +53,34 @@ jobs:
       - name: Locate mutation report
         id: stryker-report
         run: |
-          latest=$(ls -d artifacts/mutation/* 2>/dev/null | sort | tail -n 1)
-          if [ -n "$latest" ]; then
-            echo "reports-dir=$latest/reports" >> "$GITHUB_OUTPUT"
-            echo "summary-file=$latest/reports/mutation-report.txt" >> "$GITHUB_OUTPUT"
+          # Stryker creates reports directly in artifacts/mutation/reports/
+          # or in artifacts/mutation/{timestamp}/reports/
+          if [ -f "artifacts/mutation/reports/mutation-report.json" ]; then
+            echo "reports-dir=artifacts/mutation/reports" >> "$GITHUB_OUTPUT"
+            echo "summary-file=artifacts/mutation/reports/mutation-report.txt" >> "$GITHUB_OUTPUT"
+          else
+            # Look for timestamped subdirectory
+            latest=$(ls -d artifacts/mutation/*/ 2>/dev/null | grep -v reports | sort | tail -n 1)
+            if [ -n "$latest" ] && [ -f "${latest}reports/mutation-report.json" ]; then
+              echo "reports-dir=${latest}reports" >> "$GITHUB_OUTPUT"
+              echo "summary-file=${latest}reports/mutation-report.txt" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - name: Publish Stryker text summary
         if: steps.stryker-report.outputs.summary-file != ''
         run: |
-          {
-            echo '### Mutation Report (Stryker Text)';
-            echo '```';
-            cat "${{ steps.stryker-report.outputs.summary-file }}";
-            echo '```';
-          } >> "$GITHUB_STEP_SUMMARY"
+          summary_file="${{ steps.stryker-report.outputs.summary-file }}"
+          if [ -f "$summary_file" ]; then
+            {
+              echo '### Mutation Report (Stryker Text)';
+              echo '```';
+              cat "$summary_file";
+              echo '```';
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Warning: Summary file not found at $summary_file"
+          fi
 
       - name: Upload mutation report artifact
         if: steps.stryker-report.outputs.reports-dir != ''
