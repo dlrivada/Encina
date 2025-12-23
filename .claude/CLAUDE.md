@@ -128,6 +128,36 @@ services.AddEncinaDapper(config => {
 - User chooses their preferred library
 - Similar pattern for scheduling: Encina.Scheduling vs Hangfire/Quartz adapters
 
+#### Validation Architecture (Orchestrator Pattern)
+
+```
+Encina (core)
+├── Encina.Validation.IValidationProvider (interface)
+├── Encina.Validation.ValidationOrchestrator (domain logic)
+├── Encina.Validation.ValidationPipelineBehavior<,> (centralized behavior)
+├── Encina.Validation.ValidationResult (immutable result)
+└── Encina.Validation.ValidationError (record)
+
+Encina.FluentValidation / DataAnnotations / MiniValidator
+├── *ValidationProvider (implements IValidationProvider)
+└── ServiceCollectionExtensions (registers orchestrator + provider)
+```
+
+Example:
+```csharp
+// All validation packages use the same pattern:
+services.AddEncinaFluentValidation(typeof(MyValidator).Assembly);
+// or
+services.AddDataAnnotationsValidation();
+// or
+services.AddMiniValidation();
+
+// Each registers:
+// - IValidationProvider → Provider-specific implementation
+// - ValidationOrchestrator → Centralized orchestration
+// - ValidationPipelineBehavior<,> → Generic behavior
+```
+
 ### Testing Standards
 
 Maintain high-quality test coverage that balances thoroughness with development velocity.
@@ -438,16 +468,17 @@ var message = new OutboxMessageBuilder()
 - User-facing messages: Spanish when responding to user
 - **Translation Rule**: If you encounter any Spanish comments in code while editing, translate them to English
 
-## Current Project Status (Updated: 2025-12-21)
+## Current Project Status (Updated: 2025-12-23)
 
 ### ✅ Completed (90% to 1.0)
 
 **Core & Validation**:
 
 - ✅ Encina core (Railway Oriented Programming, 194 tests)
-- ✅ FluentValidation satellite (18 tests)
-- ✅ DataAnnotations satellite (10 tests)
-- ✅ MiniValidator satellite (10 tests)
+- ✅ Encina.Validation namespace with Orchestrator pattern (IValidationProvider, ValidationOrchestrator)
+- ✅ FluentValidation satellite (28 tests) - uses FluentValidationProvider
+- ✅ DataAnnotations satellite (20 tests) - uses DataAnnotationsValidationProvider
+- ✅ MiniValidator satellite (20 tests) - uses MiniValidationProvider
 - ✅ GuardClauses satellite (262 tests)
 
 **Web & Messaging**:
@@ -475,10 +506,8 @@ var message = new OutboxMessageBuilder()
 - **Tests**: 367 tests passing (49 core + 109 memory + 56 hybrid + 43 guard + 78 contract + 32 property)
 - **Benchmarks**: Encina.Caching.Benchmarks with provider comparisons
 
-**Messaging Transports** (12 packages completed - NEW 2025-12-21):
+**Messaging Transports** (10 packages completed):
 
-- ✅ Encina.Wolverine - WolverineFx 5.7.1 integration
-- ✅ Encina.NServiceBus - NServiceBus 9.2.8 integration
 - ✅ Encina.RabbitMQ - RabbitMQ.Client 7.2.0 integration
 - ✅ Encina.AzureServiceBus - Azure Service Bus 7.20.1 integration
 - ✅ Encina.AmazonSQS - AWS SQS/SNS 4.0.2.3 integration
@@ -501,17 +530,15 @@ var message = new OutboxMessageBuilder()
 - ✅ Encina.EventStoreDB - EventStoreDB integration with aggregate repository
 - ✅ Encina.Marten - Marten/PostgreSQL event store with projections support
 
-**Resilience** (4 packages):
+**Resilience** (3 packages):
 
 - ✅ Encina.Extensions.Resilience - Core resilience abstractions
 - ✅ Encina.Polly - Retry, circuit breaker, timeout policies
 - ✅ Encina.Refit - HTTP client integration with resilience
-- ✅ Encina.Dapr - Dapr sidecar integration
 
-**Real-time & Integration** (3 packages):
+**Real-time & Integration** (2 packages):
 
 - ✅ Encina.SignalR - Real-time notification broadcasting
-- ✅ Encina.MassTransit - MassTransit message bus integration
 - ✅ Encina.MongoDB - MongoDB persistence provider
 
 **Observability**:
