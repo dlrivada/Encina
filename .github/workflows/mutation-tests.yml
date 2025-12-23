@@ -53,9 +53,11 @@ jobs:
       - name: Locate mutation report
         id: stryker-report
         run: |
-          latest=$(ls -d StrykerOutput/* | sort | tail -n 1)
-          echo "reports-dir=$latest/reports" >> "$GITHUB_OUTPUT"
-          echo "summary-file=$latest/reports/mutation-report.txt" >> "$GITHUB_OUTPUT"
+          latest=$(ls -d artifacts/mutation/* 2>/dev/null | sort | tail -n 1)
+          if [ -n "$latest" ]; then
+            echo "reports-dir=$latest/reports" >> "$GITHUB_OUTPUT"
+            echo "summary-file=$latest/reports/mutation-report.txt" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Publish Stryker text summary
         if: steps.stryker-report.outputs.summary-file != ''

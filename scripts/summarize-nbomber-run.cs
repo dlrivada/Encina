@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 var options = SummaryOptions.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray());
 var rootDirectory = options.RootDirectory;
@@ -35,10 +36,7 @@ ScenarioSummary? summary;
 try
 {
     var json = File.ReadAllText(summaryPath);
-    summary = JsonSerializer.Deserialize<ScenarioSummary>(json, new JsonSerializerOptions
-    {
-        PropertyNameCaseInsensitive = true
-    });
+    summary = JsonSerializer.Deserialize(json, NbomberJsonContext.Default.ScenarioSummary);
 }
 catch (Exception ex)
 {
@@ -185,10 +183,7 @@ static List<string> EvaluateThresholds(ScenarioSummary summary, SummaryOptions o
     try
     {
         var json = File.ReadAllText(configPath);
-        thresholds = JsonSerializer.Deserialize<NbomberThresholds>(json, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        thresholds = JsonSerializer.Deserialize(json, NbomberJsonContext.Default.NbomberThresholds);
     }
     catch (Exception ex)
     {
@@ -305,3 +300,8 @@ internal sealed class NbomberThresholds
 
     public double? MaxLatencyMs { get; set; }
 }
+
+[JsonSerializable(typeof(ScenarioSummary))]
+[JsonSerializable(typeof(NbomberThresholds))]
+[JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
+internal sealed partial class NbomberJsonContext : JsonSerializerContext;

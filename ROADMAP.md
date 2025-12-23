@@ -69,10 +69,10 @@ The roadmap is organized in **6 sequential phases**, each building upon the prev
 
 ### Current Blockers
 
-| Issue | Description | Priority | Complexity |
-|-------|-------------|----------|------------|
+| Issue | Description | Priority | Complexity | Status |
+|-------|-------------|----------|------------|--------|
 | ~~**CI Benchmark Failure**~~ | ~~`InboxEfCoreBenchmarks.IterationSetup()` has wrong return type~~ | ~~⭐⭐⭐⭐⭐~~ | ~~Low~~ | ✅ **Fixed** |
-| **SonarCloud Exclusions** | ContractTests/PropertyTests excluded due to 57 failures | ⭐⭐⭐⭐⭐ | Medium |
+| **SonarCloud Exclusions** | ContractTests/PropertyTests excluded due to 57 failures | ⭐⭐⭐⭐⭐ | Medium | ⏳ Pending |
 
 ### Blocked Upstream (Cannot Fix)
 

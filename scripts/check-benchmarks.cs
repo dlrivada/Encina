@@ -35,50 +35,86 @@ if (directory is null || !Directory.Exists(directory))
 
 directory = Path.GetFullPath(directory);
 
-var csvFile = Directory.EnumerateFiles(directory, "*.csv", SearchOption.TopDirectoryOnly).FirstOrDefault();
-if (csvFile is null)
+// Find all CSV files in the benchmark directory
+var csvFiles = Directory.EnumerateFiles(directory, "*.csv", SearchOption.TopDirectoryOnly).ToList();
+
+// Also check subdirectories where BenchmarkDotNet might place results
+var searchRoots = new[]
 {
-    // BenchmarkDotNet with --artifacts places results in {artifacts}/results/
-    // Also check the legacy BenchmarkDotNet.Artifacts path for backwards compatibility
-    var searchRoots = new[]
-    {
-        Path.Combine(directory, "results"),
-        Path.Combine(directory, "BenchmarkDotNet.Artifacts", "results"),
-        Path.Combine("artifacts", "performance", "results")
-    };
+    Path.Combine(directory, "results"),
+    Path.Combine(directory, "BenchmarkDotNet.Artifacts", "results"),
+    Path.Combine("artifacts", "performance", "results")
+};
 
-    foreach (var root in searchRoots)
+foreach (var root in searchRoots)
+{
+    if (Directory.Exists(root))
     {
-        if (Directory.Exists(root))
-        {
-            csvFile = Directory.EnumerateFiles(root, "*.csv", SearchOption.TopDirectoryOnly).FirstOrDefault();
-            if (csvFile is not null)
-            {
-                break;
-            }
-        }
+        csvFiles.AddRange(Directory.EnumerateFiles(root, "*.csv", SearchOption.TopDirectoryOnly));
     }
-
-    csvFile ??= Directory.EnumerateFiles(directory, "*.csv", SearchOption.AllDirectories).FirstOrDefault();
 }
 
-if (csvFile is null)
+// Fallback to recursive search if no files found
+if (csvFiles.Count == 0)
+{
+    csvFiles.AddRange(Directory.EnumerateFiles(directory, "*.csv", SearchOption.AllDirectories));
+}
+
+if (csvFiles.Count == 0)
 {
     Console.Error.WriteLine($"No CSV report found in {directory}.");
     Environment.Exit(1);
 }
 
-Console.WriteLine($"Using CSV file: {csvFile}");
+Console.WriteLine($"Found {csvFiles.Count} CSV file(s) to analyze");
 
-var lines = File.ReadAllLines(csvFile);
-if (lines.Length < 2)
+// Collect all benchmark data from all CSV files
+var allBenchmarkData = new List<(string Method, string[] Columns)>();
+
+foreach (var csvFile in csvFiles.Distinct())
 {
-    Console.Error.WriteLine($"CSV report '{csvFile}' does not contain any benchmark rows.");
+    Console.WriteLine($"  Reading: {Path.GetFileName(csvFile)}");
+    var csvLines = File.ReadAllLines(csvFile);
+    if (csvLines.Length < 2)
+    {
+        continue;
+    }
+
+    var csvDelimiter = DetectDelimiter(csvLines[0]);
+    var csvHeaders = SplitColumns(csvLines[0], csvDelimiter);
+    var csvMethodIndex = Array.IndexOf(csvHeaders, "Method");
+
+    if (csvMethodIndex < 0)
+    {
+        continue;
+    }
+
+    foreach (var csvLine in csvLines.Skip(1))
+    {
+        if (string.IsNullOrWhiteSpace(csvLine))
+        {
+            continue;
+        }
+
+        var columns = SplitColumns(csvLine, csvDelimiter);
+        if (columns.Length > csvMethodIndex)
+        {
+            allBenchmarkData.Add((columns[csvMethodIndex], columns));
+        }
+    }
+}
+
+if (allBenchmarkData.Count == 0)
+{
+    Console.Error.WriteLine("No benchmark data found in any CSV file.");
     Environment.Exit(1);
 }
 
-var delimiter = DetectDelimiter(lines[0]);
-var headers = SplitColumns(lines[0], delimiter);
+// For threshold checking, we need to find headers from the first valid CSV
+var firstCsvWithData = csvFiles.First(f => File.ReadAllLines(f).Length >= 2);
+var firstLines = File.ReadAllLines(firstCsvWithData);
+var firstDelimiter = DetectDelimiter(firstLines[0]);
+var headers = SplitColumns(firstLines[0], firstDelimiter);
 int methodIndex = Array.IndexOf(headers, "Method");
 int meanIndex = Array.IndexOf(headers, "Mean");
 int allocatedIndex = Array.IndexOf(headers, "Allocated");
@@ -99,20 +135,13 @@ var thresholds = LoadThresholds()
 var results = new List<BenchmarkResult>();
 var violations = new List<string>();
 
-foreach (var line in lines.Skip(1))
+foreach (var (method, columns) in allBenchmarkData)
 {
-    if (string.IsNullOrWhiteSpace(line))
-    {
-        continue;
-    }
-
-    var columns = SplitColumns(line, delimiter);
     if (columns.Length <= Math.Max(methodIndex, Math.Max(meanIndex, allocatedIndex)))
     {
         continue;
     }
 
-    var method = columns[methodIndex];
     if (!thresholds.TryGetValue(method, out var limit))
     {
         continue;
