@@ -71,7 +71,7 @@ The roadmap is organized in **6 sequential phases**, each building upon the prev
 
 | Issue | Description | Priority | Complexity |
 |-------|-------------|----------|------------|
-| **CI Benchmark Failure** | `InboxEfCoreBenchmarks.IterationSetup()` has wrong return type | ⭐⭐⭐⭐⭐ | Low |
+| ~~**CI Benchmark Failure**~~ | ~~`InboxEfCoreBenchmarks.IterationSetup()` has wrong return type~~ | ~~⭐⭐⭐⭐⭐~~ | ~~Low~~ | ✅ **Fixed** |
 | **SonarCloud Exclusions** | ContractTests/PropertyTests excluded due to 57 failures | ⭐⭐⭐⭐⭐ | Medium |
 
 ### Blocked Upstream (Cannot Fix)
@@ -87,7 +87,7 @@ The roadmap is organized in **6 sequential phases**, each building upon the prev
 
 | Task | Priority | Complexity | Notes |
 |------|----------|------------|-------|
-| Fix `InboxEfCoreBenchmarks.IterationSetup()` return type | ⭐⭐⭐⭐⭐ | Low | Benchmark async setup issue |
+| ~~Fix `InboxEfCoreBenchmarks.IterationSetup()` return type~~ | ~~⭐⭐⭐⭐⭐~~ | ~~Low~~ | ✅ Fixed - async → sync |
 | Re-enable ContractTests in SonarCloud workflow | ⭐⭐⭐⭐⭐ | Medium | Fix 57 failing tests first |
 | Re-enable PropertyTests in SonarCloud workflow | ⭐⭐⭐⭐⭐ | Medium | Fix failing tests first |
 | Verify all workflows run green | ⭐⭐⭐⭐⭐ | Low | CI, CodeQL, SBOM, docs |
