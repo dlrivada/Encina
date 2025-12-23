@@ -47,8 +47,10 @@ jobs:
           dotnetTestArguments: Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests&FullyQualifiedName!~ContractTests&FullyQualifiedName!~PropertyTests" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
           # XPlat Code Coverage generates coverage.opencover.xml in a GUID subdirectory
           # Note: sonar.sources and sonar.tests are NOT supported by Scanner for .NET (auto-computed)
-          # Additional settings in sonar-project.properties (cpd.exclusions for intentional duplication)
-          sonarBeginArguments: /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml"
+          # CPD exclusions for intentional SQL dialect duplication (Issue #12)
+          sonarBeginArguments: >-
+            /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml"
+            /d:sonar.cpd.exclusions="src/Encina.Dapper.*/Outbox/*.cs,src/Encina.Dapper.*/Inbox/*.cs,src/Encina.Dapper.*/Sagas/*.cs,src/Encina.Dapper.*/Scheduling/*.cs,src/Encina.ADO.*/Outbox/*.cs,src/Encina.ADO.*/Inbox/*.cs"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
