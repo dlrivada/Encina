@@ -19,4 +19,14 @@
   <PropertyGroup Condition="$([System.String]::Copy('$(_ProjectDirectoryNormalized)').Contains('/tests/'))">
     <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
   </PropertyGroup>
+
+  <!-- Explicitly mark src projects as MAIN for SonarCloud coverage analysis -->
+  <PropertyGroup Condition="$([System.String]::Copy('$(_ProjectDirectoryNormalized)').Contains('/src/'))">
+    <SonarQubeTestProject>false</SonarQubeTestProject>
+  </PropertyGroup>
+
+  <!-- Explicitly mark tests/benchmarks/load projects as TEST for SonarCloud -->
+  <PropertyGroup Condition="$([System.String]::Copy('$(_ProjectDirectoryNormalized)').Contains('/tests/')) Or $([System.String]::Copy('$(_ProjectDirectoryNormalized)').Contains('/benchmarks/')) Or $([System.String]::Copy('$(_ProjectDirectoryNormalized)').Contains('/load/'))">
+    <SonarQubeTestProject>true</SonarQubeTestProject>
+  </PropertyGroup>
 </Project>
