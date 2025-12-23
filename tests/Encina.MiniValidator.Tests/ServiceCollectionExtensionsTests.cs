@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using Encina.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -24,7 +25,7 @@ public sealed class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
         var behavior = provider.GetService<IPipelineBehavior<TestCommand, string>>();
         behavior.ShouldNotBeNull();
-        behavior.ShouldBeOfType<MiniValidationBehavior<TestCommand, string>>();
+        behavior.ShouldBeOfType<ValidationPipelineBehavior<TestCommand, string>>();
     }
 
     [Fact]

@@ -1,4 +1,5 @@
-﻿using FluentValidation;
+﻿using Encina.Validation;
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -39,7 +40,7 @@ public sealed class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
         var behavior = provider.GetService<IPipelineBehavior<TestCommand, string>>();
         behavior.ShouldNotBeNull();
-        behavior.ShouldBeOfType<ValidationPipelineBehavior<TestCommand, string>>();
+        behavior.ShouldBeOfType<global::Encina.Validation.ValidationPipelineBehavior<TestCommand, string>>();
     }
 
     [Fact]
@@ -149,7 +150,7 @@ public sealed class ServiceCollectionExtensionsTests
         // Arrange
         var services = new ServiceCollection();
         var assembly1 = typeof(ServiceCollectionExtensionsTests).Assembly;
-        var assembly2 = typeof(ValidationPipelineBehavior<,>).Assembly; // Encina.FluentValidation assembly (no validators here)
+        var assembly2 = typeof(FluentValidationProvider).Assembly; // Encina.FluentValidation assembly (no validators here)
 
         // Act
         services.AddEncinaFluentValidation(assembly1, assembly2);
@@ -193,6 +194,6 @@ public sealed class ServiceCollectionExtensionsTests
 
         // Assert
         behavior.ShouldNotBeNull();
-        behavior.ShouldBeOfType<ValidationPipelineBehavior<TestCommand, string>>();
+        behavior.ShouldBeOfType<global::Encina.Validation.ValidationPipelineBehavior<TestCommand, string>>();
     }
 }
