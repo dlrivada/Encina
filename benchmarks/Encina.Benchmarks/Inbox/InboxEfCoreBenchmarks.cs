@@ -47,10 +47,11 @@ public class InboxEfCoreBenchmarks
     }
 
     [IterationSetup]
-    public async Task IterationSetup()
+    public void IterationSetup()
     {
         // Clean table before each iteration
-        await _context.Database.ExecuteSqlRawAsync("DELETE FROM InboxMessages");
+        // Note: IterationSetup must be synchronous in BenchmarkDotNet
+        _context.Database.ExecuteSqlRaw("DELETE FROM InboxMessages");
     }
 
     [Benchmark(Baseline = true, Description = "AddAsync single message")]

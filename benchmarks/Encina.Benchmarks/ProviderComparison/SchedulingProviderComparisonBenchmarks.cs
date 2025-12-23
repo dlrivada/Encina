@@ -87,12 +87,15 @@ public class SchedulingProviderComparisonBenchmarks
     /// <summary>
     /// Cleans the table before each iteration to ensure consistent results.
     /// </summary>
+    /// <remarks>
+    /// Note: IterationSetup must be synchronous in BenchmarkDotNet.
+    /// </remarks>
     [IterationSetup]
-    public async Task IterationSetup()
+    public void IterationSetup()
     {
         if (Provider == "EFCore")
         {
-            await _context!.Database.ExecuteSqlRawAsync("DELETE FROM ScheduledMessages");
+            _context!.Database.ExecuteSqlRaw("DELETE FROM ScheduledMessages");
         }
         else
         {
