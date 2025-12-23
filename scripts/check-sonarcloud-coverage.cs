@@ -75,19 +75,20 @@ try
 
     // Check if coverage is adequate
     var coverageMeasure = result.Component.Measures.FirstOrDefault(m => m.Metric == "coverage");
-    if (coverageMeasure is not null && double.TryParse(coverageMeasure.Value, out var coverageValue))
+    if (coverageMeasure is not null && double.TryParse(coverageMeasure.Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var coverageValue))
     {
+        Console.WriteLine();
         if (coverageValue >= 80)
         {
-            Console.WriteLine($"Coverage {coverageValue}% meets quality gate threshold (80%)");
+            Console.WriteLine($"Coverage {coverageValue:F1}% meets quality gate threshold (80%)");
         }
         else if (coverageValue >= 50)
         {
-            Console.WriteLine($"Coverage {coverageValue}% is acceptable but below target (80%)");
+            Console.WriteLine($"Coverage {coverageValue:F1}% is acceptable but below target (80%)");
         }
         else if (coverageValue > 0)
         {
-            Console.WriteLine($"Coverage {coverageValue}% needs improvement - target is 80%");
+            Console.WriteLine($"Coverage {coverageValue:F1}% needs improvement - target is 80%");
         }
     }
 
