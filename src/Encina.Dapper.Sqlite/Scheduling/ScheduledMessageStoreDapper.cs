@@ -1,8 +1,7 @@
 using System.Data;
 using Dapper;
-using Encina.Messaging.Scheduling;
-
 using Encina.Messaging;
+using Encina.Messaging.Scheduling;
 
 namespace Encina.Dapper.Sqlite.Scheduling;
 
@@ -25,7 +24,7 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
     public ScheduledMessageStoreDapper(IDbConnection connection, string tableName = "ScheduledMessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
-                _connection = connection;
+        _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 

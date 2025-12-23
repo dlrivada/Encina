@@ -1,12 +1,11 @@
 using System.Data;
 using System.Text.Json;
 using Dapper;
+using Encina.Messaging;
 using Encina.Messaging.Inbox;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
-
-using Encina.Messaging;
 
 namespace Encina.Dapper.PostgreSQL.Inbox;
 
@@ -64,7 +63,7 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
-                _connection = connection;
+        _connection = connection;
         _options = options;
         _logger = logger;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);

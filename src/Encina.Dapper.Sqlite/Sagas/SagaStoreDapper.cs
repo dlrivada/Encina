@@ -1,8 +1,7 @@
 using System.Data;
 using Dapper;
-using Encina.Messaging.Sagas;
-
 using Encina.Messaging;
+using Encina.Messaging.Sagas;
 
 namespace Encina.Dapper.Sqlite.Sagas;
 
@@ -25,7 +24,7 @@ public sealed class SagaStoreDapper : ISagaStore
     public SagaStoreDapper(IDbConnection connection, string tableName = "SagaStates")
     {
         ArgumentNullException.ThrowIfNull(connection);
-                _connection = connection;
+        _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 

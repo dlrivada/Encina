@@ -1,8 +1,7 @@
 using System.Data;
 using Dapper;
-using Encina.Messaging.Inbox;
-
 using Encina.Messaging;
+using Encina.Messaging.Inbox;
 
 namespace Encina.Dapper.SqlServer.Inbox;
 
@@ -23,7 +22,7 @@ public sealed class InboxStoreDapper : IInboxStore
     public InboxStoreDapper(IDbConnection connection, string tableName = "InboxMessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
-                _connection = connection;
+        _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 

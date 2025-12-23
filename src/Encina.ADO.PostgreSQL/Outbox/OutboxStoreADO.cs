@@ -1,8 +1,7 @@
 using System.Data;
+using Encina.Messaging;
 using Encina.Messaging.Outbox;
 using Npgsql;
-
-using Encina.Messaging;
 
 namespace Encina.ADO.PostgreSQL.Outbox;
 

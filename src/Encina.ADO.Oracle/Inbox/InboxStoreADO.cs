@@ -1,8 +1,7 @@
 using System.Data;
+using Encina.Messaging;
 using Encina.Messaging.Inbox;
 using Oracle.ManagedDataAccess.Client;
-
-using Encina.Messaging;
 
 namespace Encina.ADO.Oracle.Inbox;
 
@@ -23,7 +22,7 @@ public sealed class InboxStoreADO : IInboxStore
     public InboxStoreADO(IDbConnection connection, string tableName = "InboxMessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
-                _connection = connection;
+        _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
     }
 

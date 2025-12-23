@@ -1,12 +1,11 @@
 using System.Data;
 using System.Text.Json;
 using Dapper;
+using Encina.Messaging;
 using Encina.Messaging.Inbox;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
-
-using Encina.Messaging;
 
 namespace Encina.Dapper.Oracle.Inbox;
 
