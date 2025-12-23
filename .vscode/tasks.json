@@ -3,6 +3,7 @@
   "tasks": [
     {
       "label": "build (safe)",
+      "detail": "Build full solution with -maxcpucount:1 to prevent crashes",
       "command": "dotnet",
       "type": "process",
       "args": [
@@ -22,7 +23,8 @@
       }
     },
     {
-      "label": "build core",
+      "label": "build: core",
+      "detail": "Core + GuardClauses (7 projects)",
       "command": "dotnet",
       "type": "process",
       "args": [
@@ -35,33 +37,8 @@
       "group": "build"
     },
     {
-      "label": "build caching",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "build",
-        "${workspaceFolder}/Encina.Caching.slnf",
-        "/property:GenerateFullPaths=true",
-        "/consoleloggerparameters:NoSummary"
-      ],
-      "problemMatcher": "$msCompile",
-      "group": "build"
-    },
-    {
-      "label": "build database",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "build",
-        "${workspaceFolder}/Encina.Database.slnf",
-        "/property:GenerateFullPaths=true",
-        "/consoleloggerparameters:NoSummary"
-      ],
-      "problemMatcher": "$msCompile",
-      "group": "build"
-    },
-    {
-      "label": "build validation",
+      "label": "build: validation",
+      "detail": "FluentValidation, DataAnnotations, MiniValidator",
       "command": "dotnet",
       "type": "process",
       "args": [
@@ -74,7 +51,120 @@
       "group": "build"
     },
     {
+      "label": "build: caching",
+      "detail": "Memory, Redis, Hybrid, Garnet, Valkey, KeyDB, Dragonfly",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/Encina.Caching.slnf",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "build: database",
+      "detail": "EF Core, Dapper.*, ADO.*, MongoDB",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/Encina.Database.slnf",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "build: messaging",
+      "detail": "RabbitMQ, Azure, AWS, Kafka, NATS, MQTT, Redis PubSub",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/Encina.Messaging.slnf",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "build: resilience",
+      "detail": "Polly, Refit, Extensions.Resilience, Dapr",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/Encina.Resilience.slnf",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "build: web",
+      "detail": "AspNetCore, SignalR, gRPC, GraphQL",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/Encina.Web.slnf",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "build: scheduling",
+      "detail": "Hangfire, Quartz",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/Encina.Scheduling.slnf",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "build: event-sourcing",
+      "detail": "EventStoreDB, Marten",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/Encina.EventSourcing.slnf",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "build: observability",
+      "detail": "OpenTelemetry",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/Encina.Observability.slnf",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
       "label": "test (safe)",
+      "detail": "Run all tests (excludes Load and Integration)",
       "command": "dotnet",
       "type": "process",
       "args": [
@@ -93,7 +183,8 @@
       "dependsOn": "build (safe)"
     },
     {
-      "label": "test core",
+      "label": "test: core",
+      "detail": "Run core tests only",
       "command": "dotnet",
       "type": "process",
       "args": [
@@ -103,7 +194,159 @@
       ],
       "problemMatcher": "$msCompile",
       "group": "test",
-      "dependsOn": "build core"
+      "dependsOn": "build: core"
+    },
+    {
+      "label": "test: validation",
+      "detail": "Run validation tests only",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/Encina.Validation.slnf",
+        "--no-build"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "test",
+      "dependsOn": "build: validation"
+    },
+    {
+      "label": "test: caching",
+      "detail": "Run caching tests only",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/Encina.Caching.slnf",
+        "--no-build"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "test",
+      "dependsOn": "build: caching"
+    },
+    {
+      "label": "test: database",
+      "detail": "Run database provider tests only",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/Encina.Database.slnf",
+        "--no-build"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "test",
+      "dependsOn": "build: database"
+    },
+    {
+      "label": "test: resilience",
+      "detail": "Run resilience tests only",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/Encina.Resilience.slnf",
+        "--no-build",
+        "--filter",
+        "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "test",
+      "dependsOn": "build: resilience"
+    },
+    {
+      "label": "test: web",
+      "detail": "Run web tests only",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/Encina.Web.slnf",
+        "--no-build",
+        "--filter",
+        "FullyQualifiedName!~LoadTests"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "test",
+      "dependsOn": "build: web"
+    },
+    {
+      "label": "test: scheduling",
+      "detail": "Run scheduling tests only",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/Encina.Scheduling.slnf",
+        "--no-build"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "test",
+      "dependsOn": "build: scheduling"
+    },
+    {
+      "label": "test: event-sourcing",
+      "detail": "Run event sourcing tests only",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/Encina.EventSourcing.slnf",
+        "--no-build"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "test",
+      "dependsOn": "build: event-sourcing"
+    },
+    {
+      "label": "test: observability",
+      "detail": "Run observability tests only",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/Encina.Observability.slnf",
+        "--no-build",
+        "--filter",
+        "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "test",
+      "dependsOn": "build: observability"
+    },
+    {
+      "label": "restore",
+      "detail": "Restore all NuGet packages",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "restore",
+        "${workspaceFolder}/Encina.slnx"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "clean",
+      "detail": "Clean all build outputs",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "clean",
+        "${workspaceFolder}/Encina.slnx",
+        "-maxcpucount:1"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "format",
+      "detail": "Format code with dotnet format",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "format",
+        "${workspaceFolder}/Encina.slnx"
+      ],
+      "problemMatcher": "$msCompile"
     }
   ]
 }
