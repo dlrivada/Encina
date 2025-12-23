@@ -47,6 +47,13 @@ internal static class EncinaAssemblyScanner
                 }
                 else if (genericDefinition == typeof(IPipelineBehavior<,>))
                 {
+                    // Skip ValidationPipelineBehavior - it requires ValidationOrchestrator
+                    // which is only registered by validation packages (FluentValidation, DataAnnotations, etc.)
+                    if (type.FullName == "Encina.Validation.ValidationPipelineBehavior`2")
+                    {
+                        continue;
+                    }
+
                     var serviceType = implementedInterface.ContainsGenericParameters
                         ? typeof(IPipelineBehavior<,>)
                         : implementedInterface;
