@@ -58,10 +58,11 @@ jobs:
           COVERAGE_THRESHOLD: ${{ env.COVERAGE_THRESHOLD != '' && env.COVERAGE_THRESHOLD || '90.0' }}
         run: |
           $threshold = [double]$env:COVERAGE_THRESHOLD
-          $summaryFile = Get-ChildItem -Path "artifacts/coverage" -Filter "summary*.json" -File | Select-Object -First 1
+          $summaryFile = Get-ChildItem -Path "artifacts/coverage" -Filter "Summary.json" -File | Select-Object -First 1
           if (-not $summaryFile) { Write-Error "Coverage summary JSON not found"; exit 1 }
           $summary = Get-Content $summaryFile.FullName | ConvertFrom-Json
-          $line = [double]$summary.coverage.line
+          # ReportGenerator JsonSummary format uses summary.linecoverage (not coverage.line)
+          $line = [double]$summary.summary.linecoverage
           if ($line -lt $threshold) { Write-Error "Line coverage $line% is below threshold $threshold%"; exit 1 }
           Write-Host "Line coverage $line% meets threshold $threshold%."
 

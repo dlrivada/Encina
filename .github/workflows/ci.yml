@@ -48,7 +48,7 @@ jobs:
         run: dotnet test Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --verbosity normal --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests"
 
       - name: Generate coverage report
-        run: dotnet tool run reportgenerator -reports:"artifacts/test-results/**/coverage.cobertura.xml" -targetdir:"artifacts/coverage" -reporttypes:"Html;HtmlSummary;TextSummary"
+        run: dotnet tool run reportgenerator -reports:"artifacts/test-results/**/coverage.cobertura.xml" -targetdir:"artifacts/coverage" -reporttypes:"Html;HtmlSummary;TextSummary;JsonSummary"
 
       - name: Publish coverage summary
         run: |

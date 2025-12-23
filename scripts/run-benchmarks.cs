@@ -88,10 +88,14 @@ static string Quote(string value)
 
 static void CopyExportedReports(string outputDirectory)
 {
+    // BenchmarkDotNet with --artifacts places results in {artifacts}/results/
+    // Also check the legacy BenchmarkDotNet.Artifacts path for backwards compatibility
     var searchRoots = new[]
     {
+        Path.Combine(outputDirectory, "results"),
         Path.Combine(outputDirectory, "BenchmarkDotNet.Artifacts", "results"),
-        Path.Combine(Directory.GetCurrentDirectory(), "BenchmarkDotNet.Artifacts", "results")
+        Path.Combine(Directory.GetCurrentDirectory(), "BenchmarkDotNet.Artifacts", "results"),
+        Path.Combine("artifacts", "performance", "results")
     };
 
     foreach (var root in searchRoots)
@@ -101,13 +105,19 @@ static void CopyExportedReports(string outputDirectory)
             continue;
         }
 
-        foreach (var file in Directory.EnumerateFiles(root))
+        var files = Directory.EnumerateFiles(root).ToArray();
+        if (files.Length == 0)
+        {
+            continue;
+        }
+
+        foreach (var file in files)
         {
             var destination = Path.Combine(outputDirectory, Path.GetFileName(file));
             File.Copy(file, destination, overwrite: true);
         }
 
-        // Once we have copied from the first existing results directory we can stop.
+        Console.WriteLine($"Copied {files.Length} benchmark result files from {root}");
         return;
     }
 

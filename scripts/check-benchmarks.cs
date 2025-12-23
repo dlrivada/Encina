@@ -38,12 +38,25 @@ directory = Path.GetFullPath(directory);
 var csvFile = Directory.EnumerateFiles(directory, "*.csv", SearchOption.TopDirectoryOnly).FirstOrDefault();
 if (csvFile is null)
 {
-    // BenchmarkDotNet defaults to placing exporter output under BenchmarkDotNet.Artifacts/results.
-    // Search that location first before falling back to a recursive search to avoid false negatives.
-    var defaultResultsDirectory = Path.Combine(directory, "BenchmarkDotNet.Artifacts", "results");
-    if (Directory.Exists(defaultResultsDirectory))
+    // BenchmarkDotNet with --artifacts places results in {artifacts}/results/
+    // Also check the legacy BenchmarkDotNet.Artifacts path for backwards compatibility
+    var searchRoots = new[]
     {
-        csvFile = Directory.EnumerateFiles(defaultResultsDirectory, "*.csv", SearchOption.TopDirectoryOnly).FirstOrDefault();
+        Path.Combine(directory, "results"),
+        Path.Combine(directory, "BenchmarkDotNet.Artifacts", "results"),
+        Path.Combine("artifacts", "performance", "results")
+    };
+
+    foreach (var root in searchRoots)
+    {
+        if (Directory.Exists(root))
+        {
+            csvFile = Directory.EnumerateFiles(root, "*.csv", SearchOption.TopDirectoryOnly).FirstOrDefault();
+            if (csvFile is not null)
+            {
+                break;
+            }
+        }
     }
 
     csvFile ??= Directory.EnumerateFiles(directory, "*.csv", SearchOption.AllDirectories).FirstOrDefault();
