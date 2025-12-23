@@ -69,7 +69,8 @@ if (csvFiles.Count == 0)
 Console.WriteLine($"Found {csvFiles.Count} CSV file(s) to analyze");
 
 // Collect all benchmark data from all CSV files
-var allBenchmarkData = new List<(string Method, string[] Columns)>();
+// Each entry contains: Method name, Mean value (µs), Allocated value (KB)
+var allBenchmarkData = new List<(string Method, double MeanMicroseconds, double AllocatedKb)>();
 
 foreach (var csvFile in csvFiles.Distinct())
 {
@@ -83,11 +84,16 @@ foreach (var csvFile in csvFiles.Distinct())
     var csvDelimiter = DetectDelimiter(csvLines[0]);
     var csvHeaders = SplitColumns(csvLines[0], csvDelimiter);
     var csvMethodIndex = Array.IndexOf(csvHeaders, "Method");
+    var csvMeanIndex = Array.IndexOf(csvHeaders, "Mean");
+    var csvAllocatedIndex = Array.IndexOf(csvHeaders, "Allocated");
 
-    if (csvMethodIndex < 0)
+    if (csvMethodIndex < 0 || csvMeanIndex < 0 || csvAllocatedIndex < 0)
     {
+        Console.WriteLine($"    Skipping: missing required columns (Method, Mean, Allocated)");
         continue;
     }
+
+    var maxRequiredIndex = Math.Max(csvMethodIndex, Math.Max(csvMeanIndex, csvAllocatedIndex));
 
     foreach (var csvLine in csvLines.Skip(1))
     {
@@ -97,9 +103,21 @@ foreach (var csvFile in csvFiles.Distinct())
         }
 
         var columns = SplitColumns(csvLine, csvDelimiter);
-        if (columns.Length > csvMethodIndex)
+        if (columns.Length <= maxRequiredIndex)
         {
-            allBenchmarkData.Add((columns[csvMethodIndex], columns));
+            continue;
+        }
+
+        try
+        {
+            var method = columns[csvMethodIndex];
+            var meanMicroseconds = ParseDuration(columns[csvMeanIndex]);
+            var allocatedKb = ParseSize(columns[csvAllocatedIndex]);
+            allBenchmarkData.Add((method, meanMicroseconds, allocatedKb));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"    Warning: failed to parse row: {ex.Message}");
         }
     }
 }
@@ -107,21 +125,6 @@ foreach (var csvFile in csvFiles.Distinct())
 if (allBenchmarkData.Count == 0)
 {
     Console.Error.WriteLine("No benchmark data found in any CSV file.");
-    Environment.Exit(1);
-}
-
-// For threshold checking, we need to find headers from the first valid CSV
-var firstCsvWithData = csvFiles.First(f => File.ReadAllLines(f).Length >= 2);
-var firstLines = File.ReadAllLines(firstCsvWithData);
-var firstDelimiter = DetectDelimiter(firstLines[0]);
-var headers = SplitColumns(firstLines[0], firstDelimiter);
-int methodIndex = Array.IndexOf(headers, "Method");
-int meanIndex = Array.IndexOf(headers, "Mean");
-int allocatedIndex = Array.IndexOf(headers, "Allocated");
-
-if (methodIndex < 0 || meanIndex < 0 || allocatedIndex < 0)
-{
-    Console.Error.WriteLine("CSV report is missing required columns (Method, Mean, Allocated).");
     Environment.Exit(1);
 }
 
@@ -135,20 +138,12 @@ var thresholds = LoadThresholds()
 var results = new List<BenchmarkResult>();
 var violations = new List<string>();
 
-foreach (var (method, columns) in allBenchmarkData)
+foreach (var (method, meanMicroseconds, allocatedKb) in allBenchmarkData)
 {
-    if (columns.Length <= Math.Max(methodIndex, Math.Max(meanIndex, allocatedIndex)))
-    {
-        continue;
-    }
-
     if (!thresholds.TryGetValue(method, out var limit))
     {
         continue;
     }
-
-    var meanMicroseconds = ParseDuration(columns[meanIndex]);
-    var allocatedKb = ParseSize(columns[allocatedIndex]);
 
     var result = new BenchmarkResult(method, meanMicroseconds, allocatedKb, limit.maxMeanMicroseconds, limit.maxAllocatedKb);
     results.Add(result);

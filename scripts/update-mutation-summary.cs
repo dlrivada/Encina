@@ -55,10 +55,26 @@ static (string ReportPath, JsonDocument ReportJson)? ResolveLatestReport()
                 return null;
             }
 
+            // Stryker places reports directly in the run folder, not in a subdirectory
             var jsonPath = Path.Combine(latestRun, "reports", "mutation-report.json");
+
+            // If not found, also check if Stryker placed it directly in the run folder
             if (!File.Exists(jsonPath))
             {
-                Console.Error.WriteLine($"JSON report not found at {jsonPath}.");
+                jsonPath = Path.Combine(latestRun, "mutation-report.json");
+            }
+
+            if (!File.Exists(jsonPath))
+            {
+                // List what we found to help debug
+                Console.Error.WriteLine($"JSON report not found. Searched in:");
+                Console.Error.WriteLine($"  - {Path.Combine(latestRun, "reports", "mutation-report.json")}");
+                Console.Error.WriteLine($"  - {Path.Combine(latestRun, "mutation-report.json")}");
+                Console.Error.WriteLine($"Directory contents of {latestRun}:");
+                foreach (var item in Directory.EnumerateFileSystemEntries(latestRun))
+                {
+                    Console.Error.WriteLine($"  - {Path.GetFileName(item)}");
+                }
                 return null;
             }
 
