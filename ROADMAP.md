@@ -73,7 +73,15 @@ The roadmap is organized in **6 sequential phases**, each building upon the prev
 |-------|-------------|----------|------------|
 | **CI Benchmark Failure** | `InboxEfCoreBenchmarks.IterationSetup()` has wrong return type | ⭐⭐⭐⭐⭐ | Low |
 | **SonarCloud Exclusions** | ContractTests/PropertyTests excluded due to 57 failures | ⭐⭐⭐⭐⭐ | Medium |
-| **[#5] Stream Load Tests** | CLR crash on .NET 10 - needs investigation | ⭐⭐⭐ | High |
+
+### Blocked Upstream (Cannot Fix)
+
+| Issue | Description | Upstream Bug | Status |
+|-------|-------------|--------------|--------|
+| **[#5] Stream Load Tests** | CLR crash on .NET 10 | [dotnet/runtime#121736](https://github.com/dotnet/runtime/issues/121736) | Fixed in .NET 11, awaiting .NET 10.x backport |
+
+> **Workaround**: Set `DOTNET_JitObjectStackAllocationConditionalEscape=0` to disable the faulty JIT optimization.
+> Tests already skipped in CI with `[Trait("Category", "Load")]`.
 
 ### Tasks
 
@@ -499,10 +507,10 @@ Track all bugs, features, and technical debt via GitHub Issues:
 
 ### Open Issues
 
-| # | Title | Type | Phase |
-|---|-------|------|-------|
-| 5 | Stream load tests cause CLR crash on .NET 10 | technical-debt | 1 |
-| 4 | Documentation: MediatR migration guide | documentation | 5 |
+| # | Title | Type | Phase | Status |
+|---|-------|------|-------|--------|
+| 5 | Stream load tests cause CLR crash on .NET 10 | technical-debt | 1 | ⏸️ Blocked upstream ([dotnet/runtime#121736](https://github.com/dotnet/runtime/issues/121736)) |
+| 4 | Documentation: MediatR migration guide | documentation | 5 | 📝 Pending |
 
 ---
 
