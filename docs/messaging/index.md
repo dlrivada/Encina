@@ -1,8 +1,22 @@
-# Messaging Patterns
+# Messaging in Encina
 
-Encina provides comprehensive support for messaging patterns in distributed systems.
+Encina provides comprehensive support for messaging patterns and transports in distributed systems.
 
-## Available Patterns
+## Messaging Transports
+
+Encina supports **10 messaging transports**, each exposing its native API:
+
+| Category | Transports | Use Case |
+|----------|-----------|----------|
+| **Message Broker** | RabbitMQ, AzureServiceBus, AmazonSQS | Task distribution |
+| **Event Streaming** | Kafka, NATS JetStream | Event sourcing, replay |
+| **Pub/Sub** | Redis.PubSub, NATS Core, MQTT | Real-time, IoT |
+| **In-Memory** | Encina.InMemory | Testing |
+| **API Bridge** | gRPC, GraphQL | Request/response |
+
+See [Messaging Transports](transports.md) for the decision flowchart and detailed comparison.
+
+## Messaging Patterns
 
 | Pattern | Purpose | Package |
 |---------|---------|---------|
@@ -44,6 +58,7 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>();
 
 ## Next Steps
 
+- [Messaging Transports](transports.md) - Choose the right transport for your use case
 - [Saga Patterns](sagas.md) - Learn about Orchestration vs Choreography
 - [Outbox Pattern](outbox.md) - Reliable event publishing *(coming soon)*
 - [Inbox Pattern](inbox.md) - Idempotent message processing *(coming soon)*
