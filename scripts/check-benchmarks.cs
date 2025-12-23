@@ -128,12 +128,21 @@ if (allBenchmarkData.Count == 0)
     Environment.Exit(1);
 }
 
+Console.WriteLine($"Total benchmark entries parsed: {allBenchmarkData.Count}");
+Console.WriteLine("Unique methods found:");
+foreach (var method in allBenchmarkData.Select(x => x.Method).Distinct().Take(30))
+{
+    Console.WriteLine($"  - {method}");
+}
+
 var thresholds = LoadThresholds()
     ?? new Dictionary<string, (double maxMeanMicroseconds, double maxAllocatedKb)>(StringComparer.Ordinal)
     {
         ["Send_Command_WithInstrumentation"] = (maxMeanMicroseconds: 1.56, maxAllocatedKb: 5.63),
         ["Publish_Notification_WithMultipleHandlers"] = (maxMeanMicroseconds: 1.14, maxAllocatedKb: 2.98)
     };
+
+Console.WriteLine($"Looking for methods: {string.Join(", ", thresholds.Keys)}");
 
 var results = new List<BenchmarkResult>();
 var violations = new List<string>();
