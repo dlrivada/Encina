@@ -525,10 +525,10 @@ var message = new OutboxMessageBuilder()
 - ✅ Hangfire adapter (15 tests)
 - ✅ Quartz adapter (18 tests)
 
-**Event Sourcing** (2 packages):
+**Event Sourcing** (1 package):
 
-- ✅ Encina.EventStoreDB - EventStoreDB integration with aggregate repository
 - ✅ Encina.Marten - Marten/PostgreSQL event store with projections support
+- **Note**: Encina.EventStoreDB deprecated (Marten provides better .NET integration)
 
 **Resilience** (3 packages):
 
@@ -627,8 +627,8 @@ dotnet build Encina.Web.slnf
 **EDA Enhancements** (Pre-1.0):
 
 - ⭐⭐⭐⭐ Projections/Read Models - Abstractions for CQRS read side
-- ⭐⭐⭐⭐ Event Versioning - Upcasting, schema evolution for EventStoreDB/Marten
-- ⭐⭐⭐ Snapshotting - For large aggregates in EventStoreDB/Marten
+- ⭐⭐⭐⭐ Event Versioning - Upcasting, schema evolution for Marten
+- ⭐⭐⭐ Snapshotting - For large aggregates in Marten
 - ⭐⭐⭐ Dead Letter Queue - Enhanced DLQ handling across messaging providers
 
 **Microservices Enhancements** (Pre-1.0):
