@@ -33,30 +33,20 @@ Encina provides **two mutually exclusive strategies**:
 
 Use this flowchart to choose the right strategy:
 
-```
-                    ┌─────────────────────────────────────┐
-                    │  Do you need a clear, linear flow   │
-                    │  with well-defined steps?           │
-                    └──────────────┬──────────────────────┘
-                                   │
-                    ┌──────────────┴──────────────┐
-                    │                             │
-                   YES                            NO
-                    │                             │
-                    ▼                             ▼
-    ┌───────────────────────────┐   ┌───────────────────────────┐
-    │ Is monitoring/visibility  │   │ Do services need to       │
-    │ of saga state important?  │   │ evolve independently?     │
-    └─────────────┬─────────────┘   └─────────────┬─────────────┘
-                  │                               │
-       ┌──────────┴──────────┐         ┌──────────┴──────────┐
-       │                     │         │                     │
-      YES                    NO       YES                    NO
-       │                     │         │                     │
-       ▼                     │         ▼                     │
-┌─────────────┐              │   ┌─────────────┐             │
-│ORCHESTRATION│◄─────────────┘   │CHOREOGRAPHY │◄────────────┘
-└─────────────┘                  └─────────────┘
+```mermaid
+flowchart TD
+    A{Do you need a clear, linear flow<br/>with well-defined steps?}
+    A -->|YES| B{Is monitoring/visibility<br/>of saga state important?}
+    A -->|NO| C{Do services need to<br/>evolve independently?}
+
+    B -->|YES| D[🎯 ORCHESTRATION]
+    B -->|NO| D
+
+    C -->|YES| E[🎭 CHOREOGRAPHY]
+    C -->|NO| E
+
+    style D fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style E fill:#2196F3,stroke:#1565C0,color:#fff
 ```
 
 ### Quick Decision Guide
@@ -83,24 +73,40 @@ Use this flowchart to choose the right strategy:
 
 A **central coordinator** (the orchestrator) controls the saga flow, telling each participant what to do and when.
 
+```mermaid
+flowchart LR
+    subgraph Orchestrator["🎯 SAGA ORCHESTRATOR"]
+        direction TB
+        S1[Step 1: Reserve Inventory]
+        S2[Step 2: Process Payment]
+        S3[Step 3: Ship Order]
+        S4[Step 4: Send Confirmation]
+
+        S1 --> S2 --> S3 --> S4
+    end
+
+    Orchestrator --> Inv[(Inventory)]
+    Orchestrator --> Pay[(Payment)]
+    Orchestrator --> Ship[(Shipping)]
+    Orchestrator --> Email[(Email)]
+
+    style Orchestrator fill:#E8F5E9,stroke:#4CAF50
 ```
-┌────────────────────────────────────────────────────────────────┐
-│                      SAGA ORCHESTRATOR                         │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Step 1: Reserve Inventory  ─────────────────────────────►│  │
-│  │ Step 2: Process Payment    ─────────────────────────────►│  │
-│  │ Step 3: Ship Order         ─────────────────────────────►│  │
-│  │ Step 4: Send Confirmation  ─────────────────────────────►│  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                                                │
-│  On Failure at Step N:                                         │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Compensate N-1 ◄────────────────────────────────────────│  │
-│  │ Compensate N-2 ◄────────────────────────────────────────│  │
-│  │ ...                                                      │  │
-│  │ Compensate 1   ◄────────────────────────────────────────│  │
-│  └──────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────┘
+
+**On Failure - Compensation in Reverse:**
+
+```mermaid
+flowchart RL
+    subgraph Compensation["⚠️ COMPENSATION FLOW"]
+        direction TB
+        C3[Undo Shipment]
+        C2[Refund Payment]
+        C1[Release Inventory]
+
+        C3 --> C2 --> C1
+    end
+
+    style Compensation fill:#FFEBEE,stroke:#F44336
 ```
 
 ### Configuration
@@ -230,16 +236,20 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 
 ### Saga States
 
-```
-Running ──────► Completed
-   │
-   │ (failure)
-   ▼
-Compensating ──► Compensated
-   │
-   │ (compensation fails)
-   ▼
-Failed (manual intervention required)
+```mermaid
+stateDiagram-v2
+    [*] --> Running
+    Running --> Completed : success
+    Running --> Compensating : failure
+
+    Compensating --> Compensated : compensation success
+    Compensating --> Failed : compensation fails
+
+    Completed --> [*]
+    Compensated --> [*]
+    Failed --> [*]
+
+    note right of Failed : Manual intervention required
 ```
 
 ---
@@ -250,37 +260,46 @@ Failed (manual intervention required)
 
 **No central coordinator**. Each service listens to events and decides what to do next. Services publish events, other services react.
 
-```
-┌─────────────┐    OrderCreated     ┌─────────────┐
-│   Orders    │ ──────────────────► │  Inventory  │
-└─────────────┘                     └──────┬──────┘
-                                           │
-                              InventoryReserved
-                                           │
-                                           ▼
-                                    ┌─────────────┐
-                                    │   Payment   │
-                                    └──────┬──────┘
-                                           │
-                               PaymentProcessed
-                                           │
-                                           ▼
-                                    ┌─────────────┐
-                                    │  Shipping   │
-                                    └──────┬──────┘
-                                           │
-                                  OrderShipped
-                                           │
-                                           ▼
-                                    ┌─────────────┐
-                                    │   Orders    │
-                                    │ (Complete)  │
-                                    └─────────────┘
+```mermaid
+flowchart TB
+    subgraph Orders["📦 Orders Service"]
+        O1[Create Order]
+        O2[Order Complete]
+    end
+
+    subgraph Inventory["📋 Inventory Service"]
+        I1[Reserve Stock]
+    end
+
+    subgraph Payment["💳 Payment Service"]
+        P1[Process Payment]
+    end
+
+    subgraph Shipping["🚚 Shipping Service"]
+        S1[Ship Order]
+    end
+
+    O1 -->|OrderCreated| I1
+    I1 -->|InventoryReserved| P1
+    P1 -->|PaymentProcessed| S1
+    S1 -->|OrderShipped| O2
+
+    style Orders fill:#E3F2FD,stroke:#1976D2
+    style Inventory fill:#F3E5F5,stroke:#7B1FA2
+    style Payment fill:#E8F5E9,stroke:#388E3C
+    style Shipping fill:#FFF3E0,stroke:#F57C00
 ```
 
-**Failure Flow:**
-```
-PaymentFailed ──► InventoryReleased ──► OrderCancelled
+**Failure Flow - Compensation Events:**
+
+```mermaid
+flowchart LR
+    PF[PaymentFailed] -->|triggers| IR[InventoryReleased]
+    IR -->|triggers| OC[OrderCancelled]
+
+    style PF fill:#FFCDD2,stroke:#D32F2F
+    style IR fill:#FFECB3,stroke:#FFA000
+    style OC fill:#FFCDD2,stroke:#D32F2F
 ```
 
 ### Configuration
