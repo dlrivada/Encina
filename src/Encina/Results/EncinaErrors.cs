@@ -47,7 +47,7 @@ internal sealed class EncinaException(string code, string message, Exception? in
 
         if (details is IReadOnlyDictionary<string, object?> dict)
         {
-            return dict ?? ImmutableDictionary<string, object?>.Empty;
+            return dict;
         }
 
         return ImmutableDictionary<string, object?>.Empty.Add("detail", details);

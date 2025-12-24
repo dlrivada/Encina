@@ -48,7 +48,7 @@ public readonly record struct EncinaError
             return new EncinaError(message, Option<Exception>.None, Option<Exception>.None);
         }
 
-        var actualException = exception ?? throw new ArgumentNullException(nameof(exception));
+        var actualException = exception;
         return new EncinaError(message, Optional(actualException), Optional(actualException));
     }
 
