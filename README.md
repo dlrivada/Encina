@@ -1,4 +1,4 @@
-# 🌳 Encina | Resiliencia y Confianza
+# Encina
 
 <!-- CI/CD Status -->
 [![.NET CI](https://github.com/dlrivada/Encina/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/dotnet-ci.yml)
@@ -25,569 +25,414 @@
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 ![Mutation Score](https://img.shields.io/badge/mutation-79.75%25-4C934C.svg)
 
-Encina is a lightweight Encina abstraction for .NET applications that lean on functional programming principles. It keeps request and response contracts explicit, integrates naturally with [LanguageExt](https://github.com/louthy/language-ext), and embraces pipeline behaviors so cross-cutting concerns stay composable.
+**Encina** is a functional mediation library for .NET that embraces **Railway Oriented Programming** as its core philosophy. Built on [LanguageExt](https://github.com/louthy/language-ext), it provides explicit error handling through `Either<EncinaError, T>` while keeping cross-cutting concerns composable via pipeline behaviors.
 
-> ℹ️ Repository layout
->
-> - `src/Encina` – library source code and packaging assets.
-> - `tests/*` – unit, property, and contract test suites.
-> - `benchmarks/*` – BenchmarkDotNet harness.
-> - `docs/` – architecture notes, RFCs, and policies.
+## Key Features
 
-## Documentation
+- **Railway Oriented Programming**: All operations return `Either<EncinaError, T>` - no exceptions for business logic
+- **CQRS Support**: Explicit `ICommand<T>` and `IQuery<T>` contracts with dedicated handlers
+- **Pipeline Behaviors**: Composable middleware for validation, caching, transactions, and more
+- **Streaming**: `IAsyncEnumerable` support via `IStreamRequest<TItem>`
+- **Observability**: Built-in OpenTelemetry integration with ActivitySource and Metrics
+- **Pay-for-What-You-Use**: All features are opt-in via satellite packages
 
-- 📘 [API Reference](https://dlrivada.github.io/Encina/api/Encina.html) - Complete API documentation (auto-generated with DocFX)
-- 🚀 [Getting Started Guide](docs/docs/getting-started.md) - Quick start guide
-- 📖 [Introduction](docs/docs/introduction.md) - Core concepts and architecture
-- 🏛️ [Architecture Patterns](docs/architecture/patterns-guide.md) - Design patterns and best practices
-- 📋 [Architecture Decision Records](docs/architecture/adr/) - Key architectural decisions
+## Architecture
 
-## Table of Contents
+```mermaid
+flowchart TB
+    subgraph Client
+        A[Application Code]
+    end
 
-- [Why Encina](#why-encina)
-- [Capabilities](#capabilities)
-- [Quick Start](#quick-start)
-- [Request Lifecycle](#request-lifecycle)
-- [Handlers and Contracts](#handlers-and-contracts)
-- [Pipeline Behaviors](#pipeline-behaviors)
-- [Functional Failure Detection](#functional-failure-detection)
-- [Diagnostics and Metrics](#diagnostics-and-metrics)
-- [Error Metadata](#error-metadata)
-- [Configuration Reference](#configuration-reference)
-- [Testing](#testing)
-- [Quality Checklist](#quality-checklist)
-- [Quality & Security Roadmap](#quality--security-roadmap)
-- [FAQ](#faq)
-- [Future Work](#future-work)
-- [License](#license)
+    subgraph Encina["Encina Core"]
+        B[IEncina]
+        C[Pipeline Behaviors]
+        D[Request Handler]
+    end
 
-## Why Encina
+    subgraph Satellites["Satellite Packages"]
+        E[Validation]
+        F[Caching]
+        G[Transactions]
+        H[Observability]
+    end
 
-- Built for functional error handling with `Either` and `Option` from LanguageExt, backed by the Encina's `EncinaError` wrapper for rich metadata.
-- Lightweight dependency footprint: `LanguageExt.Core` and `Microsoft.Extensions.*` abstractions.
-- Pipelines, pre-processors, and post-processors make cross-cutting concerns pluggable.
-- Provides telemetry hooks (logging, metrics, activity tracing) without coupling to specific vendors.
-- Ships with guardrails such as functional failure detection to keep domain invariants explicit.
-- On track for a Zero Exceptions policy so operational failures travel through Railway Oriented Programming (ROP) patterns instead of bubbling up as exceptions.
-
-## Capabilities
-
-Encina takes cues from MediatR, Kommand, and Wolverine, but positions itself as a functional, observable application pipeline for CQRS-style work.
-
-- **Messaging model:** Commands, queries, and notifications with explicit contracts; `Send`/`Publish` return `ValueTask<Either<EncinaError, TValue>>` to keep async overhead low and failures explicit.
-- **Pipeline composition:** Ordered behaviors plus request pre/post processors to layer validation, retries, timeouts, audits, and tracing without touching handlers; works with open or closed generics.
-- **Discovery & DI integration:** Assembly scanning for handlers, notifications, behaviors, and processors; configurable handler lifetimes; legacy aliases (`AddApplicationMessaging`) for drop-in adoption; caches avoid repeated reflection.
-- **Observability first:** Built-in logging scopes and `ActivitySource` spans, metrics via `IEncinaMetrics` counters/histograms, and OTEL-ready defaults for traces and metrics.
-- **Functional failure handling:** `IFunctionalFailureDetector` lets you translate domain envelopes into `EncinaError` with consistent codes/messages; ships with a null detector for opt-in mapping.
-- **Notification fan-out:** Publishes to zero or many handlers with per-handler error logging, cancellation awareness, and functional results instead of exceptions.
-- **Quality & reliability toolchain:** Benchmarks, load harnesses, mutation testing, and coverage guardrails are baked into the repo to keep regressions visible.
-
-## Satellite Packages (44 packages)
-
-Encina adopts a modular architecture where specialized functionality is distributed across focused satellite packages. This approach keeps the core library lightweight while providing rich integration options for common scenarios.
-
-| Category | Packages | Status |
-| --- | --- | --- |
-| **Core & Validation** | Encina, FluentValidation, DataAnnotations, MiniValidator, GuardClauses | ✅ Production |
-| **Web Integration** | AspNetCore, SignalR | ✅ Production |
-| **Database Providers** | EntityFrameworkCore, MongoDB, Dapper.{5 DBs}, ADO.{5 DBs} | ✅ Production |
-| **Messaging Transports** | Wolverine, NServiceBus, RabbitMQ, AzureServiceBus, AmazonSQS, Kafka, Redis.PubSub, InMemory, NATS, MQTT, gRPC, GraphQL | ✅ Production |
-| **Caching** | Caching, Caching.Memory, Caching.Hybrid, Caching.Redis, Caching.Valkey, Caching.KeyDB, Caching.Dragonfly, Caching.Garnet | ✅ Production |
-| **Job Scheduling** | Hangfire, Quartz | ✅ Production |
-| **Resilience** | Extensions.Resilience, Refit, Dapr | ✅ Production |
-| **Event Sourcing** | Marten, EventStoreDB | ✅ Production |
-
-**Tests**: 3,000+ tests passing across all packages.
-
-**Solution Filters (.slnf)**: For focused development, use solution filter files:
-
-```bash
-# Build/test specific areas
-dotnet build Encina.Caching.slnf       # Caching packages only
-dotnet test Encina.Database.slnf       # Database providers only
-dotnet build Encina.Validation.slnf    # Validation packages only
+    A -->|Send/Publish| B
+    B --> C
+    C --> E & F & G & H
+    C --> D
+    D -->|Either of Error,T| B
+    B -->|Either of Error,T| A
 ```
-
-See [CHANGELOG.md](CHANGELOG.md) for version history and [docs/history/](docs/history/) for detailed implementation records.
-
-### Feature matrix
-
-| Área | Qué incluye | Dónde empezar |
-| --- | --- | --- |
-| Contratos CQRS | `ICommand`/`IQuery`/`INotification`, handlers y callbacks explícitos; resultados funcionales (`Either`, `Unit`). | [Handlers and Contracts](#handlers-and-contracts) |
-| Pipeline y cross-cutting | Behaviors ordenados, pre/post processors, soporta genéricos abiertos/cerrados y timeouts/reintentos vía behaviors personalizados. | [Pipeline Behaviors](#pipeline-behaviors) |
-| Observabilidad | `EncinaDiagnostics` (logging + ActivitySource), `IEncinaMetrics` (counters/histogram), behaviors de métricas y trazas listos para OTEL. | [Diagnostics and Metrics](#diagnostics-and-metrics) |
-| Gestión de errores | `EncinaError`, iniciativa Zero Exceptions, `IFunctionalFailureDetector` para mapear envelopes de dominio a códigos consistentes. | [Zero Exceptions Initiative](#zero-exceptions-initiative) y [Functional Failure Detection](#functional-failure-detection) |
-| Descubrimiento y DI | Escaneo de ensamblados, registro de handlers/behaviors/processors, control de lifetimes, alias `AddApplicationMessaging`. | [Configuration Reference](#configuration-reference) |
-| Notificaciones | Fan-out con múltiples handlers, registro de fallos por handler, cancelación y resultados funcionales en lugar de excepciones. | [Handlers and Contracts](#handlers-and-contracts) |
-| Calidad continua | Benchmarks, NBomber, Stryker, cobertura, umbrales en CI con scripts de apoyo y badges. | [Quality Checklist](#quality-checklist) |
-
-### Dónde leer código rápidamente
-
-- Mediador y contratos: [`Encina.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/Encina.cs), [`IEncina.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IEncina.cs), [`IRequest.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IRequest.cs), [`INotification.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/INotification.cs).
-- Registro y escaneo: [`ServiceCollectionExtensions.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/ServiceCollectionExtensions.cs), [`EncinaAssemblyScanner.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/EncinaAssemblyScanner.cs).
-- Pipelines y callbacks: [`IPipelineBehavior.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IPipelineBehavior.cs), [`IRequestPreProcessor.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IRequestPreProcessor.cs), [`IRequestPostProcessor.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IRequestPostProcessor.cs), behaviors en [`Behaviors/`](https://github.com/dlrivada/Encina/tree/main/src/Encina/Behaviors).
-- Observabilidad y métricas: [`EncinaDiagnostics.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/EncinaDiagnostics.cs), [`EncinaMetrics.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/EncinaMetrics.cs).
-- Errores y ROP: [`EncinaError.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/EncinaError.cs), [`EncinaResult.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/EncinaResult.cs), [`IFunctionalFailureDetector.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/IFunctionalFailureDetector.cs), [`NullFunctionalFailureDetector.cs`](https://github.com/dlrivada/Encina/blob/main/src/Encina/NullFunctionalFailureDetector.cs).
-
-### Snippets rápidos
-
-#### Enviar comando (ROP sobre Either)
-
-```csharp
-var result = await Encina.Send(new RegisterUser("user@example.com", "Pass@123"), ct);
-
-result.Match(
-    Left: err => logger.LogWarning("Registration failed {Code}", err.GetEncinaCode()),
-    Right: _ => logger.LogInformation("User registered"));
-```
-
-#### Publicar notificación fan-out
-
-```csharp
-await Encina.Publish(new SendWelcomeEmail("user@example.com"), ct);
-// Handlers run independently; failures surface as EncinaError instead of exceptions.
-```
-
-#### Behavior personalizado (timeout)
-
-```csharp
-public sealed class TimeoutBehavior<TReq, TRes> : IPipelineBehavior<TReq, TRes>
-    where TReq : IRequest<TRes>
-{
-    public async ValueTask<Either<EncinaError, TRes>> Handle(
-        TReq request,
-        RequestHandlerCallback<TRes> next,
-        CancellationToken ct)
-    {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(5));
-        try { return await next().WaitAsync(cts.Token).ConfigureAwait(false); }
-        catch (OperationCanceledException ex) when (cts.IsCancellationRequested)
-        { return EncinaErrors.FromException("Encina.timeout", ex, "Timed out"); }
-    }
-}
-```
-
-#### Detección de fallos funcionales
-
-```csharp
-public sealed class AppFailureDetector : IFunctionalFailureDetector
-{
-    public bool TryExtractFailure(object? response, out string reason, out object? error)
-    {
-        if (response is OperationResult r && !r.IsSuccess)
-        { reason = r.Code ?? "operation.failed"; error = r; return true; }
-        reason = string.Empty; error = null; return false;
-    }
-
-    public string? TryGetErrorCode(object? error) => (error as OperationResult)?.Code;
-    public string? TryGetErrorMessage(object? error) => (error as OperationResult)?.Message;
-}
-```
-
-#### Registro en DI con behaviors
-
-```csharp
-services.AddEncina(cfg =>
-{
-    cfg.RegisterServicesFromAssemblyContaining<ApplicationAssemblyMarker>()
-       .AddPipelineBehavior(typeof(TimeoutBehavior<,>))
-       .AddPipelineBehavior(typeof(CommandMetricsPipelineBehavior<,>))
-       .AddPipelineBehavior(typeof(QueryActivityPipelineBehavior<,>));
-});
-
-services.AddSingleton<IFunctionalFailureDetector, AppFailureDetector>();
-```
-
-## Zero Exceptions Initiative
-
-Encina is evolving toward a Zero Exceptions policy, where Encina operations stop throwing in expected operational scenarios. Handlers, behaviors, and the Encina itself report failures through functional results (`Either<EncinaError, TValue>`, `Option<T>`, etc.), keeping execution on the ROP rails. During the transition we track remaining throw sites and wrap them in functional results, reserving exceptions for truly exceptional failures. `EncinaErrors` exposes factory helpers to encapsulate exceptions inside `EncinaError` instances.
 
 ## Quick Start
 
-### 1. Reference the Package
-
-Add the GitHub Packages feed once per environment:
+### 1. Install the Package
 
 ```bash
-dotnet nuget add source "https://nuget.pkg.github.com/dlrivada/index.json" \
-    --name dlrivada-github \
-    --username <your-gh-username> \
-    --password <PAT-with-write-packages>
+dotnet add package Encina
 ```
 
-Then reference the package from your project:
-
-```bash
-dotnet add <YourProject>.csproj package Encina --version 0.1.0
-```
-
-### 2. Configure Dependency Injection
+### 2. Configure Services
 
 ```csharp
-using LanguageExt;
-using Microsoft.Extensions.DependencyInjection;
 using Encina;
 
-var services = new ServiceCollection();
+var builder = WebApplication.CreateBuilder(args);
 
-services.AddEncina(cfg =>
-{
-    cfg.RegisterServicesFromAssemblyContaining<ApplicationAssemblyMarker>()
-       .AddPipelineBehavior(typeof(CommandActivityPipelineBehavior<,>))
-       .AddPipelineBehavior(typeof(QueryActivityPipelineBehavior<,>))
-       .AddPipelineBehavior(typeof(CommandMetricsPipelineBehavior<,>))
-       .AddPipelineBehavior(typeof(QueryMetricsPipelineBehavior<,>));
-});
-
-services.AddSingleton<IFunctionalFailureDetector, AppFunctionalFailureDetector>();
-
-await using var provider = services.BuildServiceProvider();
-var Encina = provider.GetRequiredService<IEncina>();
+builder.Services.AddEncina(typeof(Program).Assembly);
 ```
 
-### 3. Send a Command
+### 3. Define a Command
 
 ```csharp
-using LanguageExt;
-using static LanguageExt.Prelude;
+public sealed record CreateOrder(Guid CustomerId, List<OrderItem> Items) : ICommand<OrderId>;
 
-public sealed record RegisterUser(string Email, string Password) : ICommand<Unit>;
-
-public sealed class RegisterUserHandler : ICommandHandler<RegisterUser, Unit>
+public sealed class CreateOrderHandler : ICommandHandler<CreateOrder, OrderId>
 {
-    public async Task<Unit> Handle(RegisterUser command, CancellationToken ct)
+    public async Task<OrderId> Handle(CreateOrder command, CancellationToken ct)
     {
-        var hashed = await Hashing.HashPassword(command.Password, ct).ConfigureAwait(false);
-        await Users.StoreAsync(command.Email, hashed, ct).ConfigureAwait(false);
-        return Unit.Default;
+        var order = Order.Create(command.CustomerId, command.Items);
+        await _repository.SaveAsync(order, ct);
+        return order.Id;
     }
 }
-
-var result = await Encina.Send(new RegisterUser("user@example.com", "Pass@123"), cancellationToken);
-
-result.Match(
-    Left: error => Console.WriteLine($"Registration failed: {error.GetEncinaCode()}"),
-    Right: _ => Console.WriteLine("User registered"));
 ```
 
-### 4. Query Data
+### 4. Send the Command
 
 ```csharp
-public sealed record GetUserProfile(string Email) : IQuery<UserProfile>;
+var result = await encina.Send(new CreateOrder(customerId, items), ct);
 
-public sealed class GetUserProfileHandler : IQueryHandler<GetUserProfile, UserProfile>
-{
-    public Task<UserProfile> Handle(GetUserProfile query, CancellationToken ct)
-        => Users.FindAsync(query.Email, ct);
-}
-
-var profileResult = await Encina.Send(new GetUserProfile("user@example.com"), cancellationToken);
-
-profileResult.Match(
-    Left: error => Console.WriteLine($"Lookup failed: {error.Message}"),
-    Right: profile => Console.WriteLine(profile.DisplayName));
+result.Match(
+    Left: error => logger.LogError("Order failed: {Code}", error.Code),
+    Right: orderId => logger.LogInformation("Order created: {Id}", orderId));
 ```
 
 ## Request Lifecycle
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant Caller
-    participant Encina
-    participant Pipeline as Pipeline Behaviors
+    participant App as Application
+    participant Enc as IEncina
+    participant Pipe as Pipeline
     participant Handler
-    participant FailureDetector as Failure Detector
 
-    Caller->>Encina: Send(request)
-    Encina->>Pipeline: Execute(request)
-    Pipeline->>Handler: Handle(request, ct)
-    Handler-->>Pipeline: TValue
-    Pipeline->>FailureDetector: Inspect(result)
-    FailureDetector-->>Pipeline: Either<EncinaError, TValue>
-    Pipeline-->>Encina: Either<EncinaError, TValue>
-    Encina-->>Caller: Either<EncinaError, TValue>
+    App->>Enc: Send(command)
+    Enc->>Pipe: Execute behaviors
+
+    loop Each Behavior
+        Pipe->>Pipe: Validation, Caching, etc.
+    end
+
+    Pipe->>Handler: Handle(command, ct)
+    Handler-->>Pipe: TResponse
+    Pipe-->>Enc: Either[EncinaError, T]
+    Enc-->>App: Either[EncinaError, T]
 ```
 
-## Handlers and Contracts
+## Packages (39 Active)
 
-Encina relies on explicit interfaces and result types so each operation documents its intent.
+| Category | Packages | Description |
+|----------|----------|-------------|
+| **Core** | `Encina` | Core mediation, CQRS, pipeline behaviors |
+| **Validation** | `FluentValidation`, `DataAnnotations`, `MiniValidator`, `GuardClauses` | Request validation with ROP integration |
+| **Web** | `AspNetCore`, `SignalR` | Middleware, authorization, real-time notifications |
+| **Database** | `EntityFrameworkCore`, `MongoDB`, `Dapper.{5}`, `ADO.{5}` | Persistence with messaging patterns |
+| **Messaging** | `Messaging`, `RabbitMQ`, `Kafka`, `AzureServiceBus`, `AmazonSQS`, `NATS`, `MQTT`, `Redis.PubSub`, `InMemory`, `gRPC`, `GraphQL` | Message transports |
+| **Caching** | `Caching`, `Caching.Memory`, `Caching.Hybrid`, `Caching.Redis`, `Caching.Valkey`, `Caching.KeyDB`, `Caching.Dragonfly`, `Caching.Garnet` | Multi-tier caching |
+| **Scheduling** | `Hangfire`, `Quartz` | Job scheduling adapters |
+| **Resilience** | `Extensions.Resilience`, `Polly`, `Refit` | Retry, circuit breaker, HTTP clients |
+| **Event Sourcing** | `Marten` | Event store with projections |
+| **Observability** | `OpenTelemetry` | Distributed tracing and metrics |
 
-| Contract | Purpose | Default Expectations |
-| --- | --- | --- |
-| `ICommand<TResult>` | Mutation or side effect returning `TResult`. | Handler returns `TResult`; Encina lifts to `Either<EncinaError, TResult>`. |
-| `IQuery<TResult>` | Read operation returning `TResult`. | Handler returns `TResult`; Encina lifts to `Either<EncinaError, TResult>`. |
-| `INotification` | Fire-and-forget signals. | Zero or more notification handlers. |
+> **Note**: 3,800+ tests across all packages
 
-```csharp
-public sealed record SendWelcomeEmail(string Email) : INotification;
+## Validation
 
-public sealed class SendWelcomeEmailHandler : INotificationHandler<SendWelcomeEmail>
-{
-    public Task Handle(SendWelcomeEmail notification, CancellationToken ct)
-        => EmailGateway.SendAsync(notification.Email, ct);
-}
+Encina provides three validation approaches, all using the centralized Orchestrator pattern:
 
-var publishResult = await Encina.Publish(new SendWelcomeEmail("user@example.com"), cancellationToken);
+```mermaid
+flowchart LR
+    subgraph Request Pipeline
+        A[Request] --> B[ValidationPipelineBehavior]
+    end
 
-publishResult.Match(
-    Left: error => Console.WriteLine($"Notification failed: {error.Message}"),
-    Right: _ => Console.WriteLine("Welcome email dispatched"));
+    subgraph Validation
+        B --> C[ValidationOrchestrator]
+        C --> D[IValidationProvider]
+    end
+
+    subgraph Providers
+        D --> E[FluentValidation]
+        D --> F[DataAnnotations]
+        D --> G[MiniValidator]
+    end
+
+    E & F & G --> H{Valid?}
+    H -->|Yes| I[Handler]
+    H -->|No| J[EncinaError]
 ```
 
-## Pipeline Behaviors
-
-Pipeline behaviors wrap handler execution so concerns such as logging, validation, and retries stay isolated. Behaviors are executed in the order they are registered.
+### FluentValidation
 
 ```csharp
-services.AddEncina(cfg =>
+// Registration
+builder.Services.AddEncinaFluentValidation(typeof(Program).Assembly);
+
+// Validator
+public class CreateOrderValidator : AbstractValidator<CreateOrder>
 {
-    cfg.AddPipelineBehavior(typeof(ActivityPipelineBehavior<,>))
-       .AddPipelineBehavior(typeof(ValidationPipelineBehavior<,>))
-       .AddRequestPreProcessor(typeof(NormalizeWhitespacePreProcessor<>))
-       .AddRequestPostProcessor(typeof(AuditTrailPostProcessor<,>));
-}, typeof(ApplicationAssemblyMarker).Assembly);
-```
-
-### Built-in Behaviors
-
-| Behavior | Responsibility |
-| --- | --- |
-| `CommandActivityPipelineBehavior<,>` | Creates OpenTelemetry `Activity` scopes for commands and annotates functional failures. |
-| `QueryActivityPipelineBehavior<,>` | Emits tracing spans for queries and records failure metadata. |
-| `CommandMetricsPipelineBehavior<,>` | Updates Encina counters/histograms after each command. |
-| `QueryMetricsPipelineBehavior<,>` | Tracks success/failure metrics for queries, including functional errors. |
-
-### Custom Behavior Example
-
-```csharp
-using LanguageExt;
-
-public sealed class TimeoutPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : IRequest<TResponse>
-{
-    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(5);
-
-    public async ValueTask<Either<EncinaError, TResponse>> Handle(
-        TRequest request,
-        RequestHandlerCallback<TResponse> nextStep,
-        CancellationToken cancellationToken)
+    public CreateOrderValidator()
     {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(DefaultTimeout);
+        RuleFor(x => x.CustomerId).NotEmpty();
+        RuleFor(x => x.Items).NotEmpty();
+    }
+}
+```
 
-        try
+### DataAnnotations
+
+```csharp
+// Registration
+builder.Services.AddDataAnnotationsValidation();
+
+// Request with attributes
+public sealed record CreateOrder(
+    [Required] Guid CustomerId,
+    [Required, MinLength(1)] List<OrderItem> Items) : ICommand<OrderId>;
+```
+
+### MiniValidator
+
+```csharp
+// Registration
+builder.Services.AddMiniValidation();
+
+// Uses DataAnnotations attributes - ultra-lightweight (~20KB)
+```
+
+## Messaging Patterns
+
+Encina provides enterprise messaging patterns for distributed systems:
+
+```mermaid
+flowchart TB
+    subgraph Outbox Pattern
+        A1[Command Handler] --> B1[Save Entity]
+        B1 --> C1[Save OutboxMessage]
+        C1 --> D1[Commit Transaction]
+        D1 --> E1[Background Processor]
+        E1 --> F1[Publish to Transport]
+    end
+
+    subgraph Inbox Pattern
+        A2[Message Received] --> B2[Check InboxMessage]
+        B2 -->|New| C2[Process Message]
+        B2 -->|Duplicate| D2[Return Cached Response]
+        C2 --> E2[Save to Inbox]
+    end
+```
+
+### Entity Framework Core
+
+```csharp
+builder.Services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseTransactions = true;  // Automatic transaction management
+    config.UseOutbox = true;        // Reliable event publishing
+    config.UseInbox = true;         // Idempotent message processing
+    config.UseSagas = true;         // Distributed transactions
+    config.UseScheduling = true;    // Delayed/recurring execution
+});
+```
+
+### Dapper / ADO.NET / PostgreSQL / MySQL / SQLite / Oracle
+
+```csharp
+// SQL Server with Dapper
+builder.Services.AddEncinaDapper(config =>
+{
+    config.UseOutbox = true;
+    config.UseInbox = true;
+}, connectionString);
+```
+
+## Caching
+
+```csharp
+// Configure caching
+builder.Services.AddEncinaCaching(options =>
+{
+    options.EnableQueryCaching = true;
+    options.DefaultDuration = TimeSpan.FromMinutes(10);
+});
+
+// Add a cache provider
+builder.Services.AddEncinaRedisCache("localhost:6379");
+// Or: AddEncinaMemoryCache(), AddEncinaHybridCache(), etc.
+
+// Mark queries as cacheable
+[Cache(Duration = 300)]
+public sealed record GetProductById(Guid Id) : IQuery<Product>;
+```
+
+## Resilience
+
+```csharp
+builder.Services.AddEncinaStandardResilience(options =>
+{
+    options.Retry.MaxRetryAttempts = 3;
+    options.CircuitBreaker.FailureRatio = 0.5;
+    options.Timeout.Timeout = TimeSpan.FromSeconds(30);
+});
+```
+
+## Streaming
+
+```csharp
+// Define a stream request
+public sealed record StreamProducts(string Category) : IStreamRequest<Product>;
+
+public sealed class StreamProductsHandler : IStreamRequestHandler<StreamProducts, Product>
+{
+    public async IAsyncEnumerable<Product> Handle(
+        StreamProducts request,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        await foreach (var product in _repository.StreamByCategory(request.Category, ct))
         {
-            return await nextStep().WaitAsync(cts.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException ex) when (cts.IsCancellationRequested)
-        {
-            return EncinaErrors.FromException("Encina.timeout", ex, $"Timeout while running {typeof(TRequest).Name}.");
+            yield return product;
         }
     }
 }
 
-cfg.AddPipelineBehavior(typeof(TimeoutPipelineBehavior<,>));
-```
-
-## Functional Failure Detection
-
-Functional failure detection inspects handler results to translate domain-specific error envelopes into consistent Encina failures.
-
-```csharp
-public sealed class AppFunctionalFailureDetector : IFunctionalFailureDetector
+// Consume the stream
+await foreach (var result in encina.Stream(new StreamProducts("Electronics"), ct))
 {
-    public bool TryExtractFailure(object? response, out string reason, out object? error)
-    {
-        if (response is OperationResult result && !result.IsSuccess)
-        {
-            reason = result.Code ?? "operation.failed";
-            error = result;
-            return true;
-        }
-
-        reason = string.Empty;
-        error = null;
-        return false;
-    }
-
-    public string? TryGetErrorCode(object? error)
-        => (error as OperationResult)?.Code;
-
-    public string? TryGetErrorMessage(object? error)
-        => (error as OperationResult)?.Message;
+    result.Match(
+        Left: error => logger.LogError("Stream error: {Error}", error.Message),
+        Right: product => Console.WriteLine(product.Name));
 }
-
-services.AddSingleton<IFunctionalFailureDetector, AppFunctionalFailureDetector>();
 ```
 
-## Diagnostics and Metrics
-
-- `EncinaDiagnostics` wires logging scopes and structured information for each request.
-- `EncinaMetrics` exposes counters and histograms via `System.Diagnostics.Metrics`.
-- `ActivityPipelineBehavior` integrates with `System.Diagnostics.ActivitySource` so OpenTelemetry exporters can pick up traces.
+## Real-time Notifications (SignalR)
 
 ```csharp
-services.AddOpenTelemetry()
+builder.Services.AddEncinaSignalR();
+
+// Declarative broadcasting
+[BroadcastToSignalR("OrderUpdated")]
+public sealed record OrderStatusChanged(Guid OrderId, string Status) : INotification;
+```
+
+## OpenTelemetry Integration
+
+```csharp
+builder.Services.AddOpenTelemetry()
     .WithTracing(b => b.AddSource("Encina"))
     .WithMetrics(b => b.AddMeter("Encina"));
 ```
 
-## Error Metadata
-
-`EncinaError` retains an internal `MetadataException` whose immutable metadata can be retrieved via `GetEncinaMetadata()`. Keys are consistent across the pipeline to aid diagnostics:
-
-- `handler`: fully qualified handler type when available.
-- `request` / `notification`: type involved in the failure.
-- `expectedNotification`: type expected when `Handle` is missing.
-- `stage`: pipeline stage (`handler`, `behavior`, `preprocessor`, `postprocessor`, `invoke`, `execute`).
-- `behavior` / `preProcessor` / `postProcessor`: fully qualified type names for cross-cutting components.
-- `returnType`: handler return type when the `Handle` signature is invalid.
-
-Usage example:
+## Pipeline Behavior Example
 
 ```csharp
-var outcome = await Encina.Send(new DoSomething(), ct);
-
-outcome.Match(
-    Left: err =>
-    {
-        var metadata = err.GetEncinaMetadata();
-        var code = err.GetEncinaCode();
-        logger.LogWarning("Failure {Code} at {Stage} by {Handler}",
-            code,
-            metadata.TryGetValue("stage", out var stage) ? stage : "unknown",
-            metadata.TryGetValue("handler", out var handler) ? handler : "unknown");
-    },
-    Right: _ => { /* success */ });
-```
-
-## Configuration Reference
-
-```csharp
-services.AddEncina(cfg =>
+public sealed class LoggingBehavior<TRequest, TResponse>
+    : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : IRequest<TResponse>
 {
-    cfg.RegisterServicesFromAssemblyContaining<ApplicationAssemblyMarker>()
-       .AddPipelineBehavior(typeof(CommandActivityPipelineBehavior<,>))
-       .AddPipelineBehavior(typeof(QueryActivityPipelineBehavior<,>))
-       .AddRequestPreProcessor(typeof(ValidationPreProcessor<>))
-       .AddRequestPostProcessor(typeof(AuditTrailPostProcessor<,>))
-       .WithHandlerLifetime(ServiceLifetime.Scoped);
-});
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(
+        TRequest request,
+        RequestHandlerDelegate<TResponse> next,
+        CancellationToken ct)
+    {
+        _logger.LogInformation("Handling {Request}", typeof(TRequest).Name);
+
+        var result = await next();
+
+        result.Match(
+            Left: error => _logger.LogWarning("Failed: {Error}", error.Code),
+            Right: _ => _logger.LogInformation("Completed successfully"));
+
+        return result;
+    }
+}
 ```
 
-| API | Description |
-| --- | --- |
-| `RegisterServicesFromAssembly(assembly)` | Adds one assembly to scan for handlers, notifications, and processors. |
-| `RegisterServicesFromAssemblies(params Assembly[])` | Adds several assemblies at once, ignoring `null` entries. |
-| `RegisterServicesFromAssemblyContaining<T>()` | Convenience helper that adds the assembly where `T` is defined. |
-| `AddPipelineBehavior(Type)` | Registers a scoped pipeline behavior (open or closed generic). |
-| `AddRequestPreProcessor(Type)` | Registers a scoped pre-processor executed before the handler. |
-| `AddRequestPostProcessor(Type)` | Registers a scoped post-processor executed after the handler. |
-| `WithHandlerLifetime(ServiceLifetime)` | Overrides the lifetime used for handlers discovered during scanning. |
+## Project Structure
+
+```
+src/
+├── Encina/                    # Core library
+├── Encina.Messaging/          # Messaging abstractions
+├── Encina.AspNetCore/         # Web integration
+├── Encina.EntityFrameworkCore/# EF Core provider
+├── Encina.Dapper.*/           # Dapper providers (5 databases)
+├── Encina.ADO.*/              # ADO.NET providers (5 databases)
+├── Encina.Caching.*/          # Caching providers (8 packages)
+├── Encina.FluentValidation/   # FluentValidation integration
+└── ...                        # 39 packages total
+
+tests/
+├── Encina.Tests/              # Unit tests
+├── Encina.ContractTests/      # API contract tests
+├── Encina.PropertyTests/      # Property-based tests
+└── ...                        # 3,800+ tests
+
+benchmarks/
+└── Encina.Benchmarks/         # BenchmarkDotNet harness
+```
+
+## Solution Filters
+
+For focused development, use solution filters:
+
+```bash
+dotnet build Encina.Core.slnf       # Core packages only
+dotnet build Encina.Caching.slnf    # Caching packages only
+dotnet build Encina.Database.slnf   # Database providers only
+dotnet build Encina.Validation.slnf # Validation packages only
+```
 
 ## Testing
 
 ```bash
+# Run all tests
 dotnet test Encina.slnx --configuration Release
-```
 
-To generate coverage (powered by `coverlet.collector`) and produce HTML/Text summaries locally:
+# Run with coverage
+dotnet test --collect:"XPlat Code Coverage"
 
-```bash
-dotnet test Encina.slnx --configuration Release --collect:"XPlat Code Coverage" --results-directory artifacts/test-results
-dotnet tool restore
-dotnet tool run reportgenerator -reports:"artifacts/test-results/**/coverage.cobertura.xml" -targetdir:"artifacts/coverage" -reporttypes:"Html;HtmlSummary;TextSummary"
-```
-
-The HTML dashboard (`artifacts/coverage/index.html`) and condensed summary (`artifacts/coverage/Summary.txt`) highlight hot spots—`Encina.Encina` now sits just above 90% line coverage after the latest hardening pass, so incremental gains hinge on rare cancellation/error permutations. The CI workflow runs the same commands and publishes the output as a downloadable artifact.
-
-Mutation testing is exercised via Stryker.NET. Run the full sweep using the single-file helper (the same command the CI workflow executes):
-
-```bash
+# Run mutation testing
 dotnet run --file scripts/run-stryker.cs
 ```
 
-Reports land in `artifacts/mutation/<timestamp>/reports/` with HTML/JSON payloads. After a run, refresh the mutation badge and emit a concise summary by executing:
+## Documentation
 
-```bash
-dotnet run --file scripts/update-mutation-summary.cs
-```
+- [ROADMAP.md](ROADMAP.md) - Development phases and planned features
+- [CHANGELOG.md](CHANGELOG.md) - Version history
+- [docs/history/](docs/history/) - Detailed implementation records
+- [docs/messaging/](docs/messaging/) - Saga patterns and transport guides
 
-The helper mirrors Stryker's scoring (compile errors are excluded from the denominator) and colors the badge according to configured thresholds. It edits `README.md` in place when the standard badge pattern is present and will simply print a suggested badge if the section has been customized.
+## Roadmap
 
-Use `scripts/analyze-mutation-report.cs <filter>` to inspect survivors by file fragment when triaging regressions.
+Encina is currently at **90% to 1.0**. See [ROADMAP.md](ROADMAP.md) for:
 
-The suite exercises:
+- **Phase 1**: Stability - All tests passing
+- **Phase 2**: Functionality - New features (Testing helpers, Saga timeouts)
+- **Phase 3**: Testing & Quality - Coverage targets (85%+)
+- **Phase 4**: Code Quality - SonarCloud compliance
+- **Phase 5**: Documentation - User guides and examples
+- **Phase 6**: Release - NuGet publishing, branding
 
-- Encina orchestration across happy-path and exceptional flows.
-- Command/query telemetry behaviors (activities, metrics, cancellation, functional failures).
-- Service registration helpers and configuration guards.
-- Default implementations such as `EncinaMetrics` and the null functional failure detector.
+## Contributing
 
-### Load Harnesses
-
-Two load harnesses validate sustained throughput and resource envelopes:
-
-```bash
-dotnet run --file scripts/run-load-harness.cs -- --duration 00:01:00 --send-workers 8 --publish-workers 4
-dotnet run --file scripts/run-load-harness.cs -- --nbomber send-burst --duration 00:00:30
-```
-
-- The console harness targets `load/Encina.LoadTests` and pairs with `scripts/collect-load-metrics.cs` to capture CPU/memory samples (`harness-<timestamp>.log`, `metrics-<timestamp>.csv`).
-- NBomber scenarios live in `load/Encina.NBomber` with JSON profiles under `load/profiles/`. The summarizer `scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json` prints throughput/latency stats and fails when send-burst throughput dips below 6.75M ops/sec or latency rises above 0.85 ms.
-- CI enforces guardrails via `scripts/check-load-metrics.cs -- --config ci/load-thresholds.json` for the console harness and the summarizer for NBomber; both pipelines publish artifacts in `artifacts/load-metrics/` and feed `scripts/aggregate-performance-history.cs` to refresh `docs/data/load-history.md`.
-
-## Quality Checklist
-
-- Coverage ≥90% line: `dotnet test Encina.slnx --configuration Release` followed by `reportgenerator` (see `docs/en/guides/TESTING.md`).
-- Mutation score ≥93.74%: `dotnet run --file scripts/run-stryker.cs` then `dotnet run --file scripts/update-mutation-summary.cs` to refresh badges.
-- Benchmarks within guardrails: `dotnet run --file scripts/run-benchmarks.cs` and `dotnet run --file scripts/check-benchmarks.cs`.
-- Thresholds live in `ci/benchmark-thresholds.json`; update them only after capturing a new baseline on CI.
-- Load guardrails: console (`dotnet run --file scripts/check-load-metrics.cs -- --config ci/load-thresholds.json`), NBomber (`dotnet run --file scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json`).
-- Requirements documentation current: update `docs/en/guides/REQUIREMENTS.md` and `docs/en/guides/REQUIREMENTS_MAPPING.md` when adding scenarios or gates.
-
-## Quality & Security Roadmap
-
-The living roadmap in `QUALITY_SECURITY_ROADMAP.md` complements this README with quantified objectives, badge inventory, and an incremental plan covering immediate, short, medium, and long-term quality efforts. Highlights:
-
-- **Objectives:** analyzer clean builds, ≥95 % branch coverage on critical packages, guarded benchmarks, and SBOM currency for each release.
-- **Automation:** dedicated workflows (`dotnet-ci.yml`, `codeql.yml`, `sbom.yml`, `benchmarks.yml`) keep formatting, analysis, dependency hygiene, and performance on autopilot.
-- **Governance:** Dependabot, Conventional Commits, and release documentation combine to enforce predictable delivery.
-- **Follow-up:** the roadmap checklist tracks pending tasks such as expanding regression tests, instrumenting metrics, and pursuing SLSA provenance.
-
-## FAQ
-
-- **Does Encina replace MediatR?** It takes inspiration from MediatR but focuses on functional result types and richer telemetry hooks.
-- **Can I use it without LanguageExt?** Handlers rely on `Either` and `Unit` from LanguageExt; alternative abstractions would require custom adapters.
-- **How do I handle retries?** Wrap logic inside a custom pipeline behavior or delegate to Polly policies executed inside the handler.
-- **Is streaming supported?** Streaming notifications are supported via processors that work with `IAsyncEnumerable` payloads.
-- **How do I log error metadata?** Use `GetEncinaCode()` for the canonical code and `GetEncinaMetadata()` for context (handler, stage, request/notification). Example:
-
-    ```csharp
-    var outcome = await Encina.Publish(notification, ct);
-    outcome.Match(
-            Left: err =>
-            {
-                    var meta = err.GetEncinaMetadata();
-                    logger.LogError("{Code} at {Stage} by {Handler}",
-                            err.GetEncinaCode(),
-                            meta.TryGetValue("stage", out var stage) ? stage : "n/a",
-                            meta.TryGetValue("handler", out var handler) ? handler : "n/a");
-            },
-            Right: _ => { });
-    ```
-
-## Future Work
-
-See [ROADMAP.md](ROADMAP.md) for the complete roadmap. Key pending items:
-
-- Developer Tooling (CLI, Testing helpers, OpenAPI generation)
-- Renaming to "Encina" before 1.0
-- SLSA Level 2 compliance and supply chain security
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-This repository is distributed under a private license. See `LICENSE` for details.
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+**Maintained by**: [@dlrivada](https://github.com/dlrivada)
