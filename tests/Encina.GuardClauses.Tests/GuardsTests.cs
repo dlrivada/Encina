@@ -716,11 +716,11 @@ public sealed class GuardsTests
 
         // Act - Null order
         var result1 = TestHandler.Handle(nullOrder);
-        result1.IsLeft.ShouldBeTrue();
+        result1.ShouldBeError();
 
         // Act - Valid order
         var result2 = TestHandler.Handle(validOrder);
-        result2.IsRight.ShouldBeTrue();
+        result2.ShouldBeSuccess();
     }
 
     [Fact]

@@ -35,11 +35,8 @@ public sealed class BasicInstrumentationTests
         var result = await Encina.Send(new TestRequest { Data = "test" }, CancellationToken.None);
 
         // Assert - Request succeeds, telemetry exported (no exception)
-        Assert.True(result.IsRight);
-        result.Match(
-            Right: value => Assert.Equal("success: test", value),
-            Left: error => Assert.Fail($"Expected success but got error: {error}")
-        );
+        var value = result.ShouldBeSuccess();
+        Assert.Equal("success: test", value);
     }
 
     [Fact]
@@ -61,7 +58,7 @@ public sealed class BasicInstrumentationTests
         var result = await Encina.Send(new TestRequest { Data = "withEncina" }, CancellationToken.None);
 
         // Assert
-        Assert.True(result.IsRight);
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -85,7 +82,7 @@ public sealed class BasicInstrumentationTests
         for (var i = 0; i < 5; i++)
         {
             var result = await Encina.Send(new TestRequest { Data = $"request-{i}" }, CancellationToken.None);
-            Assert.True(result.IsRight);
+            result.ShouldBeSuccess();
         }
 
         // Assert - All requests succeeded and telemetry was exported

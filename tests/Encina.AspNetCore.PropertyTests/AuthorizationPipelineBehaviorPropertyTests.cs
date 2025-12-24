@@ -58,7 +58,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
 
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
-            result.IsLeft.ShouldBeTrue();
+            result.ShouldBeError();
             result.Match(
                 Left: error => error.GetCode().Match(
                     Some: code => code.ShouldBe("authorization.no_http_context"),
@@ -86,7 +86,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
 
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
-            result.IsLeft.ShouldBeTrue();
+            result.ShouldBeError();
             result.Match(
                 Left: error => error.GetCode().Match(
                     Some: code => code.ShouldBe("authorization.unauthenticated"),
@@ -139,7 +139,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
 
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
-            result.IsLeft.ShouldBeTrue();
+            result.ShouldBeError();
             result.Match(
                 Left: error => error.GetCode().Match(
                     Some: code => code.ShouldBe("authorization.insufficient_roles"),
@@ -193,7 +193,7 @@ public sealed class AuthorizationPipelineBehaviorPropertyTests
 
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
-            result.IsLeft.ShouldBeTrue();
+            result.ShouldBeError();
             result.Match(
                 Left: error => error.GetCode().Match(
                     Some: code => code.ShouldBe("authorization.policy_failed"),

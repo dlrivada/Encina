@@ -201,8 +201,7 @@ public sealed class StreamRequestPropertyTests
         }
 
         // Assert
-        results[errorPosition - 1].IsLeft.Should().BeTrue(
-            $"item at position {errorPosition} should be error");
+        results[errorPosition - 1].ShouldBeError($"item at position {errorPosition} should be error");
     }
 
     #endregion
@@ -431,7 +430,7 @@ public sealed class StreamRequestPropertyTests
 
         // Assert
         results.Should().HaveCount(1, "missing handler should yield single error");
-        results[0].IsLeft.Should().BeTrue("result should be error");
+        results[0].ShouldBeError("result should be error");
 
         var error = results[0].Match(
             Left: e => e,

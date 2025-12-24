@@ -101,7 +101,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
 
         // Assert
         nextCalled.ShouldBeTrue();
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         var result = await behavior.Handle(request, context, nextStep, cts.Token);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: error => error.Message.ShouldContain("cancelled"));
@@ -185,7 +185,7 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -204,6 +204,6 @@ public sealed class ValidationPipelineBehaviorGuardsTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 }

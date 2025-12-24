@@ -52,7 +52,7 @@ public sealed class ValidationPipelineBehaviorIntegrationTests
         var result = await Encina.Send(command);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class ValidationPipelineBehaviorIntegrationTests
         var result = await Encina.Send(command);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: error =>
@@ -106,7 +106,7 @@ public sealed class ValidationPipelineBehaviorIntegrationTests
         var result = await Encina.Send(command);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public sealed class ValidationPipelineBehaviorIntegrationTests
         var result = await Encina.Send(command);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class ValidationPipelineBehaviorIntegrationTests
         var result = await Encina.Send(command, cancellationToken: cts.Token);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -187,14 +187,14 @@ public sealed class ValidationPipelineBehaviorIntegrationTests
         {
             var Encina1 = scope1.ServiceProvider.GetRequiredService<IEncina>();
             var result1 = await Encina1.Send(new TestCommand("user1", "user1@example.com"));
-            result1.IsRight.ShouldBeTrue();
+            result1.ShouldBeSuccess();
         }
 
         using (var scope2 = provider.CreateScope())
         {
             var Encina2 = scope2.ServiceProvider.GetRequiredService<IEncina>();
             var result2 = await Encina2.Send(new TestCommand("", ""));
-            result2.IsLeft.ShouldBeTrue();
+            result2.ShouldBeError();
         }
     }
 }

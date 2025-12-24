@@ -44,7 +44,7 @@ public sealed class AuthorizationPipelineBehaviorContractTests
 
         // Assert
         callbackExecuted.ShouldBeTrue();
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -147,16 +147,11 @@ public sealed class AuthorizationPipelineBehaviorContractTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Left: error =>
-            {
-                error.Message.ShouldContain("requires authentication");
-                error.GetCode().Match(
-                    Some: code => code.ShouldBe("authorization.unauthenticated"),
-                    None: () => Assert.Fail("Expected error code"));
-            },
-            Right: _ => Assert.Fail("Expected Left"));
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain("requires authentication");
+        error.GetCode().Match(
+            Some: code => code.ShouldBe("authorization.unauthenticated"),
+            None: () => Assert.Fail("Expected error code"));
     }
 
     [Fact]
@@ -197,16 +192,11 @@ public sealed class AuthorizationPipelineBehaviorContractTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Left: error =>
-            {
-                error.Message.ShouldContain("Authorization requires HTTP context");
-                error.GetCode().Match(
-                    Some: code => code.ShouldBe("authorization.no_http_context"),
-                    None: () => Assert.Fail("Expected error code"));
-            },
-            Right: _ => Assert.Fail("Expected Left"));
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain("Authorization requires HTTP context");
+        error.GetCode().Match(
+            Some: code => code.ShouldBe("authorization.no_http_context"),
+            None: () => Assert.Fail("Expected error code"));
     }
 
     [Fact]

@@ -90,7 +90,7 @@ public sealed class MiniValidationBehaviorContractTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert - Contract: Validation failures MUST return Left
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public sealed class MiniValidationBehaviorContractTests
 
         // Assert - Contract: ALL validation failures MUST be aggregated
         // Note: MiniValidation returns errors as string message, not as ValidationException with Data
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: error =>
@@ -142,7 +142,7 @@ public sealed class MiniValidationBehaviorContractTests
 
         // Assert - Contract: No validation attributes MUST skip validation entirely
         nextStepInvoked.ShouldBeTrue();
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact(Skip = "MiniValidation uses MiniValidator.TryValidate which does not pass ValidationContext")]
@@ -296,7 +296,7 @@ public sealed class MiniValidationBehaviorContractTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert - Contract: Valid requests MUST return Right
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     // Helper types

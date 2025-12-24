@@ -32,7 +32,7 @@ public sealed class StreamRequestHandlerContractTests
 
         // Assert
         results.Should().HaveCount(5, "handler should yield all requested items");
-        results.Should().OnlyContain(r => r.IsRight, "all items should be successful");
+        results.AllShouldBeSuccess("all items should be successful");
 
         var values = results.Select(r => r.Match(Left: _ => -1, Right: v => v)).ToList();
         values.Should().Equal(new[] { 1, 2, 3, 4, 5 }, "items should be yielded in sequential order");
@@ -105,8 +105,8 @@ public sealed class StreamRequestHandlerContractTests
 
         // Assert
         results.Should().HaveCount(10);
-        results.Should().Contain(r => r.IsLeft, "some items should be errors");
-        results.Should().Contain(r => r.IsRight, "some items should be successful");
+        results.ShouldContainError("some items should be errors");
+        results.ShouldContainSuccess("some items should be successful");
 
         var errorCount = results.Count(r => r.IsLeft);
         errorCount.Should().Be(3, "errors should occur at positions 3, 6, 9");
@@ -167,7 +167,7 @@ public sealed class StreamRequestHandlerContractTests
 
         // Assert
         results.Should().HaveCount(3, "Encina should delegate to registered handler");
-        results.Should().OnlyContain(r => r.IsRight);
+        results.AllShouldBeSuccess();
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public sealed class StreamRequestHandlerContractTests
 
         // Assert
         results.Should().HaveCount(1, "should yield single error for missing handler");
-        results[0].IsLeft.Should().BeTrue("result should be an error");
+        results[0].ShouldBeError("result should be an error");
 
         var error = results[0].Match(
             Left: e => e,

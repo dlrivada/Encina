@@ -38,7 +38,7 @@ public class ConsoleExporterIntegrationTests
         var result = await Encina.Send(request, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         _ = result.Match(
             Right: response =>
             {
@@ -78,7 +78,7 @@ public class ConsoleExporterIntegrationTests
         var result = await Encina.Publish(notification, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     // Test request and handler

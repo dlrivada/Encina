@@ -33,7 +33,7 @@ public class RestApiRequestHandlerIntegrationTests
         var result = await handler.Handle(request, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         result.IfRight(post =>
         {
             post.Id.Should().Be(1);
@@ -63,7 +63,7 @@ public class RestApiRequestHandlerIntegrationTests
         var result = await handler.Handle(request, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("404");
@@ -91,7 +91,7 @@ public class RestApiRequestHandlerIntegrationTests
         var result = await handler.Handle(request, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("500");
@@ -119,7 +119,7 @@ public class RestApiRequestHandlerIntegrationTests
         var result = await handler.Handle(request, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("request failed");
@@ -147,7 +147,7 @@ public class RestApiRequestHandlerIntegrationTests
         var result = await handler.Handle(request, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("timed out");

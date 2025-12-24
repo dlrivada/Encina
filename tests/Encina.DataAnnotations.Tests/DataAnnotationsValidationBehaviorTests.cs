@@ -42,10 +42,8 @@ public sealed class DataAnnotationsValidationBehaviorTests
 
         // Assert
         nextCalled.ShouldBeTrue();
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: value => value.ShouldBe(expectedResponse),
-            Left: _ => throw new InvalidOperationException("Expected Right but got Left"));
+        var value = result.ShouldBeSuccess();
+        value.ShouldBe(expectedResponse);
     }
 
     [Fact]
@@ -68,22 +66,17 @@ public sealed class DataAnnotationsValidationBehaviorTests
 
         // Assert
         nextCalled.ShouldBeFalse();
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Message.ShouldContain("Validation failed");
-                error.Message.ShouldContain("TestCommand");
-                error.Exception.IsSome.ShouldBeTrue();
-                error.Exception.IfSome(ex =>
-                {
-                    ex.ShouldBeOfType<ValidationException>();
-                    ex.Data["ValidationResults"].ShouldNotBeNull();
-                    var validationResults = (List<ValidationResult>)ex.Data["ValidationResults"]!;
-                    validationResults.Count.ShouldBeGreaterThanOrEqualTo(3); // Name, Email, Age errors
-                });
-            });
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain("Validation failed");
+        error.Message.ShouldContain("TestCommand");
+        error.Exception.IsSome.ShouldBeTrue();
+        error.Exception.IfSome(ex =>
+        {
+            ex.ShouldBeOfType<ValidationException>();
+            ex.Data["ValidationResults"].ShouldNotBeNull();
+            var validationResults = (List<ValidationResult>)ex.Data["ValidationResults"]!;
+            validationResults.Count.ShouldBeGreaterThanOrEqualTo(3); // Name, Email, Age errors
+        });
     }
 
     [Fact]
@@ -101,19 +94,14 @@ public sealed class DataAnnotationsValidationBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Exception.IsSome.ShouldBeTrue();
-                error.Exception.IfSome(ex =>
-                {
-                    var validationResults = (List<ValidationResult>)ex.Data["ValidationResults"]!;
-                    validationResults.Count.ShouldBe(1);
-                    validationResults[0].ErrorMessage.ShouldBe("Name is required");
-                });
-            });
+        var error = result.ShouldBeError();
+        error.Exception.IsSome.ShouldBeTrue();
+        error.Exception.IfSome(ex =>
+        {
+            var validationResults = (List<ValidationResult>)ex.Data["ValidationResults"]!;
+            validationResults.Count.ShouldBe(1);
+            validationResults[0].ErrorMessage.ShouldBe("Name is required");
+        });
     }
 
     [Fact]
@@ -131,17 +119,12 @@ public sealed class DataAnnotationsValidationBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Exception.IfSome(ex =>
-                {
-                    var validationResults = (List<ValidationResult>)ex.Data["ValidationResults"]!;
-                    validationResults.ShouldContain(vr => vr.ErrorMessage == "Name must be at least 3 characters");
-                });
-            });
+        var error = result.ShouldBeError();
+        error.Exception.IfSome(ex =>
+        {
+            var validationResults = (List<ValidationResult>)ex.Data["ValidationResults"]!;
+            validationResults.ShouldContain(vr => vr.ErrorMessage == "Name must be at least 3 characters");
+        });
     }
 
     [Fact]
@@ -162,7 +145,7 @@ public sealed class DataAnnotationsValidationBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         // Context enrichment is internal to the behavior, but we verify it doesn't break validation
     }
 
@@ -181,17 +164,12 @@ public sealed class DataAnnotationsValidationBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Exception.IfSome(ex =>
-                {
-                    var validationResults = (List<ValidationResult>)ex.Data["ValidationResults"]!;
-                    validationResults.ShouldContain(vr => vr.ErrorMessage == "Value must start with 'test-'");
-                });
-            });
+        var error = result.ShouldBeError();
+        error.Exception.IfSome(ex =>
+        {
+            var validationResults = (List<ValidationResult>)ex.Data["ValidationResults"]!;
+            validationResults.ShouldContain(vr => vr.ErrorMessage == "Value must start with 'test-'");
+        });
     }
 
     // Custom validation attribute for testing

@@ -32,10 +32,8 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
         var result = await adapter.ExecuteAsync(request);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Left: _ => throw new InvalidOperationException("Expected Right"),
-            Right: value => value.ShouldBe("Processed: integration-test"));
+        var value = result.ShouldBeSuccess();
+        value.ShouldBe("Processed: integration-test");
     }
 
     [Fact]
@@ -57,10 +55,8 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
         var result = await adapter.ExecuteAsync(request);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Left: error => error.Message.ShouldBe("Handler error"),
-            Right: _ => throw new InvalidOperationException("Expected Left"));
+        var error = result.ShouldBeError();
+        error.Message.ShouldBe("Handler error");
     }
 
     [Fact]
@@ -83,7 +79,7 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
         var result = await adapter.ExecuteAsync(new TestRequest("cancel-test"), cts.Token);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 }
 

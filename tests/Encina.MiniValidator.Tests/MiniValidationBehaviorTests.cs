@@ -42,10 +42,8 @@ public sealed class MiniValidationBehaviorTests
 
         // Assert
         nextCalled.ShouldBeTrue();
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: value => value.ShouldBe(expectedResponse),
-            Left: _ => throw new InvalidOperationException("Expected Right but got Left"));
+        var value = result.ShouldBeSuccess();
+        value.ShouldBe(expectedResponse);
     }
 
     [Fact]
@@ -68,15 +66,10 @@ public sealed class MiniValidationBehaviorTests
 
         // Assert
         nextCalled.ShouldBeFalse();
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Message.ShouldContain("Validation failed");
-                error.Message.ShouldContain("TestCommand");
-                error.Message.ShouldContain("error(s)");
-            });
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain("Validation failed");
+        error.Message.ShouldContain("TestCommand");
+        error.Message.ShouldContain("error(s)");
     }
 
     [Fact]
@@ -94,14 +87,9 @@ public sealed class MiniValidationBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Message.ShouldContain("Name");
-                error.Message.ShouldContain("required");
-            });
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain("Name");
+        error.Message.ShouldContain("required");
     }
 
     [Fact]
@@ -119,14 +107,9 @@ public sealed class MiniValidationBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Message.ShouldContain("Name");
-                error.Message.ShouldContain("at least 3 characters");
-            });
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain("Name");
+        error.Message.ShouldContain("at least 3 characters");
     }
 
     [Fact]
@@ -144,13 +127,8 @@ public sealed class MiniValidationBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Message.ShouldContain("Email");
-            });
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain("Email");
     }
 
     [Fact]
@@ -168,12 +146,7 @@ public sealed class MiniValidationBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Message.ShouldContain("Age");
-            });
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain("Age");
     }
 }

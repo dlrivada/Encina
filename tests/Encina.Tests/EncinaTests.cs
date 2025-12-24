@@ -1898,7 +1898,7 @@ public sealed class EncinaTests
             Left: err => $"Expected success but got a failure: {err.GetEncinaCode()} - {err.Message}",
             Right: _ => string.Empty);
 
-        result.IsRight.ShouldBeTrue(failureMessage);
+        result.ShouldBeSuccess(failureMessage);
 
         return result.Match(
             Left: _ => throw new InvalidOperationException("ExpectSuccess received an Either in a failure state."),
@@ -1907,10 +1907,7 @@ public sealed class EncinaTests
 
     private static EncinaError ExpectFailure<T>(Either<EncinaError, T> result, string expectedCode)
     {
-        result.IsLeft.ShouldBeTrue();
-        var error = result.Match(
-            Left: err => err,
-            Right: _ => EncinaErrors.Unknown);
+        var error = result.ShouldBeError();
         error.GetEncinaCode().ShouldBe(expectedCode);
         return error;
     }

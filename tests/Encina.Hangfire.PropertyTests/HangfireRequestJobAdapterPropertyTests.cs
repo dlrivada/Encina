@@ -37,7 +37,7 @@ public sealed class HangfireRequestJobAdapterPropertyTests
             var result = await adapter.ExecuteAsync(request);
 
             // Assert
-            result.IsRight.ShouldBeTrue();
+            result.ShouldBeSuccess();
             result.Match(
                 Left: _ => throw new InvalidOperationException("Expected Right"),
                 Right: actual => actual.ShouldBe(expectedResult));
@@ -71,7 +71,7 @@ public sealed class HangfireRequestJobAdapterPropertyTests
             var result = await adapter.ExecuteAsync(request);
 
             // Assert
-            result.IsLeft.ShouldBeTrue();
+            result.ShouldBeError();
             result.Match(
                 Left: actual => actual.ShouldBe(expectedError),
                 Right: _ => throw new InvalidOperationException("Expected Left"));
@@ -136,7 +136,7 @@ public sealed class HangfireRequestJobAdapterPropertyTests
         await Task.WhenAll(tasks);
 
         // Assert - All calls succeed
-        tasks.All(t => t.Result.IsRight).ShouldBeTrue();
+        tasks.Select(t => t.Result).AllShouldBeSuccess();
     }
 
     [Fact]

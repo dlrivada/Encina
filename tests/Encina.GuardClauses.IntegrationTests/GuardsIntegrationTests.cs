@@ -51,7 +51,7 @@ public sealed class GuardsIntegrationTests
         var result = await Encina.Send(command);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -70,14 +70,8 @@ public sealed class GuardsIntegrationTests
         var result = await Encina.Send(command);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        _ = result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error =>
-            {
-                error.Message.ShouldContain("cannot be null or empty");
-                return true;
-            });
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain("cannot be null or empty");
     }
 
     [Fact]
@@ -96,13 +90,7 @@ public sealed class GuardsIntegrationTests
         var result = await Encina.Send(command);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        _ = result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error =>
-            {
-                error.Message.ShouldContain("must be between 18 and 120");
-                return true;
-            });
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain("must be between 18 and 120");
     }
 }

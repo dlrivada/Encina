@@ -48,10 +48,8 @@ public sealed class ValidationPipelineBehaviorTests
 
         // Assert
         nextCalled.ShouldBeTrue();
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: value => value.ShouldBe(expectedResponse),
-            Left: _ => throw new InvalidOperationException("Expected Right but got Left"));
+        var value = result.ShouldBeSuccess();
+        value.ShouldBe(expectedResponse);
     }
 
     [Fact]
@@ -75,21 +73,16 @@ public sealed class ValidationPipelineBehaviorTests
 
         // Assert
         nextCalled.ShouldBeFalse();
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Message.ShouldContain("Validation failed");
-                error.Message.ShouldContain("TestCommand");
-                error.Exception.IsSome.ShouldBeTrue();
-                error.Exception.IfSome(ex =>
-                {
-                    ex.ShouldBeOfType<ValidationException>();
-                    var validationEx = (ValidationException)ex;
-                    validationEx.Errors.Count().ShouldBeGreaterThanOrEqualTo(2); // Name and Email errors
-                });
-            });
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain("Validation failed");
+        error.Message.ShouldContain("TestCommand");
+        error.Exception.IsSome.ShouldBeTrue();
+        error.Exception.IfSome(ex =>
+        {
+            ex.ShouldBeOfType<ValidationException>();
+            var validationEx = (ValidationException)ex;
+            validationEx.Errors.Count().ShouldBeGreaterThanOrEqualTo(2); // Name and Email errors
+        });
     }
 
     [Fact]
@@ -112,18 +105,13 @@ public sealed class ValidationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Exception.IsSome.ShouldBeTrue();
-                error.Exception.IfSome(ex =>
-                {
-                    var validationEx = (ValidationException)ex;
-                    validationEx.Errors.Count().ShouldBeGreaterThanOrEqualTo(3); // Name, Email, and AlwaysFails
-                });
-            });
+        var error = result.ShouldBeError();
+        error.Exception.IsSome.ShouldBeTrue();
+        error.Exception.IfSome(ex =>
+        {
+            var validationEx = (ValidationException)ex;
+            validationEx.Errors.Count().ShouldBeGreaterThanOrEqualTo(3); // Name, Email, and AlwaysFails
+        });
     }
 
     [Fact]
@@ -147,7 +135,7 @@ public sealed class ValidationPipelineBehaviorTests
 
         // Assert
         nextCalled.ShouldBeTrue();
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -169,13 +157,8 @@ public sealed class ValidationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, cts.Token);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Message.ShouldContain("cancelled");
-            });
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain("cancelled");
     }
 
     [Fact]
@@ -219,19 +202,14 @@ public sealed class ValidationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
-            Left: error =>
-            {
-                error.Exception.IsSome.ShouldBeTrue();
-                error.Exception.IfSome(ex =>
-                {
-                    var validationEx = (ValidationException)ex;
-                    validationEx.Errors.Count().ShouldBe(1);
-                    validationEx.Errors.First().ErrorMessage.ShouldBe("Name is required");
-                });
-            });
+        var error = result.ShouldBeError();
+        error.Exception.IsSome.ShouldBeTrue();
+        error.Exception.IfSome(ex =>
+        {
+            var validationEx = (ValidationException)ex;
+            validationEx.Errors.Count().ShouldBe(1);
+            validationEx.Errors.First().ErrorMessage.ShouldBe("Name is required");
+        });
     }
 
     private sealed class SlowValidator : AbstractValidator<TestCommand>

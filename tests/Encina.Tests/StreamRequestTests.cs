@@ -76,7 +76,7 @@ public sealed class StreamRequestTests
 
         // Assert
         results.Should().HaveCount(5);
-        results.Should().AllSatisfy(r => r.IsRight.Should().BeTrue());
+        results.Should().AllSatisfy(r => r.ShouldBeSuccess());
 
         var values = results.Select(r => r.Match(Left: _ => 0, Right: v => v)).ToList();
         values.Should().Equal(1, 2, 3, 4, 5);
@@ -102,7 +102,7 @@ public sealed class StreamRequestTests
 
         // Assert
         results.Should().HaveCount(1);
-        results[0].IsLeft.Should().BeTrue();
+        results[0].ShouldBeError();
         _ = results[0].Match(
             Left: error =>
             {
@@ -197,7 +197,7 @@ public sealed class StreamRequestTests
 
         // Assert
         results.Should().HaveCount(1);
-        results[0].IsLeft.Should().BeTrue();
+        results[0].ShouldBeError();
         _ = results[0].Match(
             Left: error =>
             {
@@ -234,6 +234,6 @@ public sealed class StreamRequestTests
 
         // Assert
         results.Should().HaveCount(3);
-        results.Should().AllSatisfy(r => r.IsRight.Should().BeTrue());
+        results.Should().AllSatisfy(r => r.ShouldBeSuccess());
     }
 }

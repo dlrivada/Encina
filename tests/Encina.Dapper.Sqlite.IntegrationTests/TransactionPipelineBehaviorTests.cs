@@ -54,7 +54,7 @@ public sealed class TransactionPipelineBehaviorTests : IClassFixture<SqliteFixtu
 
         // Assert
         Assert.True(wasHandlerCalled);
-        Assert.True(result.IsRight);
+        result.ShouldBeSuccess();
 
         // Verify data was committed
         await using var verifyCommand = ((SqliteConnection)connection).CreateCommand();
@@ -95,7 +95,7 @@ public sealed class TransactionPipelineBehaviorTests : IClassFixture<SqliteFixtu
 
         // Assert
         Assert.True(wasHandlerCalled);
-        Assert.True(result.IsLeft);
+        result.ShouldBeError();
 
         // Verify data was rolled back
         await using var verifyCommand = ((SqliteConnection)connection).CreateCommand();
@@ -161,7 +161,7 @@ public sealed class TransactionPipelineBehaviorTests : IClassFixture<SqliteFixtu
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        Assert.True(result.IsRight);
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -200,7 +200,7 @@ public sealed class TransactionPipelineBehaviorTests : IClassFixture<SqliteFixtu
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        Assert.True(result.IsRight);
+        result.ShouldBeSuccess();
 
         // Verify both insertions committed
         await using var verifyCmd1 = ((SqliteConnection)connection).CreateCommand();
@@ -251,7 +251,7 @@ public sealed class TransactionPipelineBehaviorTests : IClassFixture<SqliteFixtu
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        Assert.True(result.IsLeft);
+        result.ShouldBeError();
 
         // Verify both insertions rolled back
         await using var verifyCmd1 = ((SqliteConnection)connection).CreateCommand();

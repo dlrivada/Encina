@@ -55,7 +55,7 @@ public sealed class DataAnnotationsValidationBehaviorPropertyTests
 
             // Assert - Property: Valid requests ALWAYS invoke next step
             nextStepInvoked.ShouldBeTrue();
-            result.IsRight.ShouldBeTrue();
+            result.ShouldBeSuccess();
         }
     }
 
@@ -89,7 +89,7 @@ public sealed class DataAnnotationsValidationBehaviorPropertyTests
 
             // Assert - Property: Invalid requests NEVER invoke next step
             nextStepInvoked.ShouldBeFalse();
-            result.IsLeft.ShouldBeTrue();
+            result.ShouldBeError();
         }
     }
 
@@ -122,7 +122,7 @@ public sealed class DataAnnotationsValidationBehaviorPropertyTests
 
             // Assert - Property: No validation attributes ALWAYS bypasses validation
             nextStepInvoked.ShouldBeTrue();
-            result.IsRight.ShouldBeTrue();
+            result.ShouldBeSuccess();
         }
     }
 
@@ -282,7 +282,7 @@ public sealed class DataAnnotationsValidationBehaviorPropertyTests
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
             // Assert - Property: Multiple errors ALWAYS aggregated
-            result.IsLeft.ShouldBeTrue();
+            result.ShouldBeError();
             _ = result.Match(
                 Right: _ => throw new InvalidOperationException("Expected Left"),
                 Left: error =>
@@ -324,7 +324,7 @@ public sealed class DataAnnotationsValidationBehaviorPropertyTests
             var result = await behavior.Handle(request, context, nextStep, cts.Token);
 
             // Assert - Property: Cancelled requests ALWAYS return Left
-            result.IsLeft.ShouldBeTrue();
+            result.ShouldBeError();
         }
     }
 
@@ -347,7 +347,7 @@ public sealed class DataAnnotationsValidationBehaviorPropertyTests
         await Task.WhenAll(tasks);
 
         // Assert - Property: All concurrent calls succeed
-        tasks.All(t => t.Result.IsRight).ShouldBeTrue();
+        tasks.Select(t => t.Result).AllShouldBeSuccess();
     }
 
     [Fact]
@@ -404,7 +404,7 @@ public sealed class DataAnnotationsValidationBehaviorPropertyTests
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
             // Assert - Property: Empty validation ALWAYS succeeds
-            result.IsRight.ShouldBeTrue();
+            result.ShouldBeSuccess();
         }
     }
 }

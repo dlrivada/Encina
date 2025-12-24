@@ -90,7 +90,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert - Contract: Validation failures MUST return Left
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert - Contract: ALL validation failures MUST be aggregated
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: error =>
@@ -144,7 +144,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
 
         // Assert - Contract: No validation attributes MUST skip validation entirely
         nextStepInvoked.ShouldBeTrue();
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -303,7 +303,7 @@ public sealed class DataAnnotationsValidationBehaviorContractTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert - Contract: Valid requests MUST return Right
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     // Helper types

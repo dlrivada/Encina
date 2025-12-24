@@ -78,7 +78,7 @@ public sealed class DataAnnotationsValidationBehaviorGuardsTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class DataAnnotationsValidationBehaviorGuardsTests
         var result = await behavior.Handle(request, context, nextStep, cts.Token);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public sealed class DataAnnotationsValidationBehaviorGuardsTests
 
         // Assert
         nextStepCalled.ShouldBeFalse();
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public sealed class DataAnnotationsValidationBehaviorGuardsTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public sealed class DataAnnotationsValidationBehaviorGuardsTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: error =>

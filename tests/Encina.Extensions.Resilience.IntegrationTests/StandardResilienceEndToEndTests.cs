@@ -37,7 +37,7 @@ public class StandardResilienceEndToEndTests
         var result = await Encina.Send(new TestRequest { Value = "test" });
 
         // Assert - Should succeed (rate limiter allows at least one request)
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class StandardResilienceEndToEndTests
         var result = await Encina.Send(new RetryTestRequest());
 
         // Assert - Should eventually succeed after retries
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         var handler = provider.GetRequiredService<FailingThenSucceedingHandler>();
         handler.AttemptCount.Should().BeGreaterThan(1);
     }
@@ -123,11 +123,7 @@ public class StandardResilienceEndToEndTests
         var result = await Encina.Send(new LongRunningRequest());
 
         // Assert - Should timeout
-        result.IsLeft.Should().BeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Should not succeed"),
-            Left: error => error.Message.Should().Contain("timed out")
-        );
+        result.ShouldBeError(error => error.Message.Should().Contain("timed out"));
     }
 
     [Fact]
@@ -152,7 +148,7 @@ public class StandardResilienceEndToEndTests
         var result = await Encina.Send(new TestRequest { Value = "success" });
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         result.Match(
             Right: response => response.Message.Should().Be("Processed: success"),
             Left: _ => throw new InvalidOperationException("Should not fail")
@@ -181,7 +177,7 @@ public class StandardResilienceEndToEndTests
         var result = await Encina.Send(new TestRequest { Value = "test" });
 
         // Assert - Should use custom configuration
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     // Test request/response types

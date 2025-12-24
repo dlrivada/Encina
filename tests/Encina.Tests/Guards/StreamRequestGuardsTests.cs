@@ -36,7 +36,7 @@ public sealed class StreamRequestGuardsTests
 
         // Assert
         result.Should().BeFalse();
-        error.IsLeft.Should().BeTrue();
+        error.ShouldBeError();
 
         var EncinaError = error.Match(
             Left: e => e,
@@ -78,7 +78,7 @@ public sealed class StreamRequestGuardsTests
         result1.Should().BeTrue();
         result2.Should().BeFalse();
 
-        error2.IsLeft.Should().BeTrue();
+        error2.ShouldBeError();
     }
 
     [Fact]

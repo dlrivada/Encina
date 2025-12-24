@@ -75,7 +75,7 @@ public sealed class TransactionPipelineBehaviorPropertyTests : IClassFixture<Sql
             CancellationToken.None);
 
         // Assert - Data should be committed
-        Assert.True(result.IsRight);
+        result.ShouldBeSuccess();
         var exists = await DataExistsAsync(connection, messageId);
         Assert.True(exists);
     }
@@ -109,7 +109,7 @@ public sealed class TransactionPipelineBehaviorPropertyTests : IClassFixture<Sql
             CancellationToken.None);
 
         // Assert - Data should be rolled back
-        Assert.True(result.IsLeft);
+        result.ShouldBeError();
         var exists = await DataExistsAsync(connection, messageId);
         Assert.False(exists);
     }
@@ -228,7 +228,7 @@ public sealed class TransactionPipelineBehaviorPropertyTests : IClassFixture<Sql
                 next,
                 CancellationToken.None);
 
-            Assert.True(result.IsRight);
+            result.ShouldBeSuccess();
         }
 
         // Assert - Each invocation created independent transaction
@@ -273,7 +273,7 @@ public sealed class TransactionPipelineBehaviorPropertyTests : IClassFixture<Sql
             CancellationToken.None);
 
         // Assert - Should work regardless of initial state
-        Assert.True(result.IsRight);
+        result.ShouldBeSuccess();
         var exists = await DataExistsAsync(connection, messageId);
         Assert.True(exists);
     }

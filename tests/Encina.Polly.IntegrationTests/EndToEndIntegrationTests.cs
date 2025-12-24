@@ -30,11 +30,7 @@ public class EndToEndIntegrationTests
         var result = await Encina.Send(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        _ = result.Match(
-            Right: value => value.Should().Be("Success after retry"),
-            Left: _ => throw new InvalidOperationException("Should succeed after retry")
-        );
+        result.ShouldBeSuccess().Should().Be("Success after retry");
     }
 
     [Fact]
@@ -56,7 +52,7 @@ public class EndToEndIntegrationTests
         var result = await Encina.Send(request);
 
         // Assert
-        result.IsLeft.Should().BeTrue("should fail after exhausting retries");
+        result.ShouldBeError("should fail after exhausting retries");
     }
 
     [Fact]
@@ -85,15 +81,8 @@ public class EndToEndIntegrationTests
         var result = await Encina.Send(request);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        _ = result.Match(
-            Right: _ => throw new InvalidOperationException("Should fail"),
-            Left: error =>
-            {
-                error.Message.Should().Contain("Circuit breaker is open", "circuit should be open after repeated failures");
-                return error;
-            }
-        );
+        result.ShouldBeError(error =>
+            error.Message.Should().Contain("Circuit breaker is open", "circuit should be open after repeated failures"));
     }
 
     [Fact]
@@ -115,7 +104,7 @@ public class EndToEndIntegrationTests
         var result = await Encina.Send(request);
 
         // Assert
-        result.IsRight.Should().BeTrue("retry should succeed before circuit breaks");
+        result.ShouldBeSuccess("retry should succeed before circuit breaks");
     }
 
     // Test request types and handlers

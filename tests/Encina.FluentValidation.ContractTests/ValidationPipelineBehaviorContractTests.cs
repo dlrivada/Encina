@@ -117,7 +117,7 @@ public sealed class ValidationPipelineBehaviorContractTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert - Contract: Validation failures MUST return Left
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class ValidationPipelineBehaviorContractTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert - Contract: ALL validation failures MUST be aggregated
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: error =>
@@ -174,7 +174,7 @@ public sealed class ValidationPipelineBehaviorContractTests
 
         // Assert - Contract: No validators MUST skip validation entirely
         nextStepInvoked.ShouldBeTrue();
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]

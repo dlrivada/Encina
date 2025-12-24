@@ -34,7 +34,7 @@ public class ResilienceLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        results.Should().AllSatisfy(result => result.IsRight.Should().BeTrue());
+        results.Should().AllSatisfy(result => result.ShouldBeSuccess());
     }
 
     [Fact]

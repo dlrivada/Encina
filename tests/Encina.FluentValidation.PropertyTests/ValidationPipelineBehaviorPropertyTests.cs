@@ -55,7 +55,7 @@ public sealed class ValidationPipelineBehaviorPropertyTests
 
             // Assert - Property: Valid requests ALWAYS invoke next step
             nextStepInvoked.ShouldBeTrue();
-            result.IsRight.ShouldBeTrue();
+            result.ShouldBeSuccess();
         }
     }
 
@@ -90,7 +90,7 @@ public sealed class ValidationPipelineBehaviorPropertyTests
 
             // Assert - Property: Invalid requests NEVER invoke next step
             nextStepInvoked.ShouldBeFalse();
-            result.IsLeft.ShouldBeTrue();
+            result.ShouldBeError();
         }
     }
 
@@ -124,7 +124,7 @@ public sealed class ValidationPipelineBehaviorPropertyTests
 
             // Assert - Property: No validators ALWAYS bypasses validation
             nextStepInvoked.ShouldBeTrue();
-            result.IsRight.ShouldBeTrue();
+            result.ShouldBeSuccess();
         }
     }
 
@@ -297,7 +297,7 @@ public sealed class ValidationPipelineBehaviorPropertyTests
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
             // Assert - Property: Multiple validators ALWAYS aggregate errors
-            result.IsLeft.ShouldBeTrue();
+            result.ShouldBeError();
             result.Match(
                 Right: _ => false.ShouldBeTrue("Expected Left"),
                 Left: error =>
@@ -339,7 +339,7 @@ public sealed class ValidationPipelineBehaviorPropertyTests
             var result = await behavior.Handle(request, context, nextStep, cts.Token);
 
             // Assert - Property: Cancelled requests ALWAYS return Left
-            result.IsLeft.ShouldBeTrue();
+            result.ShouldBeError();
         }
     }
 
@@ -398,7 +398,7 @@ public sealed class ValidationPipelineBehaviorPropertyTests
         await Task.WhenAll(tasks);
 
         // Assert - Property: All concurrent calls succeed
-        tasks.All(t => t.Result.IsRight).ShouldBeTrue();
+        tasks.Select(t => t.Result).AllShouldBeSuccess();
     }
 
     [Fact]
@@ -456,7 +456,7 @@ public sealed class ValidationPipelineBehaviorPropertyTests
             var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
             // Assert - Property: Empty validators ALWAYS succeed
-            result.IsRight.ShouldBeTrue();
+            result.ShouldBeSuccess();
         }
     }
 }

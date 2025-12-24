@@ -36,7 +36,7 @@ public sealed class StreamPipelineBehaviorContractTests
 
         // Assert
         results.Should().HaveCount(5, "behavior should yield all items from nextStep");
-        results.Should().OnlyContain(r => r.IsRight);
+        results.AllShouldBeSuccess();
 
         var values = results.Select(r => r.Match(Left: _ => 0, Right: v => v)).ToList();
         values.Should().Equal(new[] { 1, 2, 3, 4, 5 }, "items should preserve order");
@@ -110,9 +110,9 @@ public sealed class StreamPipelineBehaviorContractTests
 
         // Assert
         results.Should().HaveCount(3);
-        results[0].IsRight.Should().BeTrue();
-        results[1].IsLeft.Should().BeTrue("behavior should preserve error from nextStep");
-        results[2].IsRight.Should().BeTrue();
+        results[0].ShouldBeSuccess();
+        results[1].ShouldBeError("behavior should preserve error from nextStep");
+        results[2].ShouldBeSuccess();
 
         var error = results[1].Match(
             Left: e => e,

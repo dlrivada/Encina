@@ -35,7 +35,7 @@ public class RefitClientIntegrationTests
         var result = await Encina.Send(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         result.IfRight(todo =>
         {
             todo.Id.Should().Be(1);
@@ -102,7 +102,7 @@ public class RefitClientIntegrationTests
         var result = await Encina.Send(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         result.IfRight(response =>
         {
             response.Headers.Should().ContainKey("X-Custom-Header");
@@ -134,7 +134,7 @@ public class RefitClientIntegrationTests
         var result = await Encina.Send(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         result.IfRight(todo =>
         {
             todo.Title.Should().Be("New Todo");

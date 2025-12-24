@@ -24,7 +24,7 @@ public sealed class ParallelNotificationDispatchTests
         var result = await Encina.Publish(notification, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         _executionOrder.Count.ShouldBe(3); // All 3 handlers should have run
         _executionOrder.ShouldContain("Handler1");
         _executionOrder.ShouldContain("Handler2");
@@ -42,7 +42,7 @@ public sealed class ParallelNotificationDispatchTests
         var result = await Encina.Publish(notification, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         _executionOrder.Count.ShouldBe(3);
         _executionOrder.ShouldContain("Handler1");
         _executionOrder.ShouldContain("Handler2");
@@ -60,7 +60,7 @@ public sealed class ParallelNotificationDispatchTests
         var result = await Encina.Publish(notification, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         _executionOrder.Count.ShouldBe(3);
         // Sequential order should be preserved (Handler1, Handler2, Handler3)
         _executionOrder[0].ShouldBe("Handler1");
@@ -97,7 +97,7 @@ public sealed class ParallelNotificationDispatchTests
         var result = await Encina.Publish(notification, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         result.Match(
             Left: err => err.GetEncinaCode().ShouldBe(EncinaErrorCodes.NotificationInvokeException),
             Right: _ => throw new InvalidOperationException("Expected failure"));
@@ -128,7 +128,7 @@ public sealed class ParallelNotificationDispatchTests
         var result = await Encina.Publish(notification, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         result.Match(
             Left: err =>
             {
@@ -160,7 +160,7 @@ public sealed class ParallelNotificationDispatchTests
         var result = await Encina.Publish(new SlowNotification(), cts.Token);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         result.Match(
             Left: err => err.GetEncinaCode().ShouldContain("cancelled", Case.Insensitive),
             Right: _ => throw new InvalidOperationException("Expected cancellation"));
@@ -185,7 +185,7 @@ public sealed class ParallelNotificationDispatchTests
         var result = await Encina.Publish(new EmptyNotification(), CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public sealed class ParallelNotificationDispatchTests
         var result = await Encina.Publish(new SingleNotification(), CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         executed.ShouldBeTrue();
     }
 
@@ -247,7 +247,7 @@ public sealed class ParallelNotificationDispatchTests
         var result = await Encina.Publish(new ConcurrencyNotification(), CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         maxConcurrent.ShouldBeLessThanOrEqualTo(2);
     }
 
@@ -275,7 +275,7 @@ public sealed class ParallelNotificationDispatchTests
         var result = await Encina.Publish(new TestNotification("test"), CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     private IEncina CreateEncina(NotificationDispatchStrategy strategy)

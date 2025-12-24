@@ -147,7 +147,7 @@ public sealed class StreamRequestIntegrationTests
 
         // Assert
         results.Should().HaveCount(10);
-        results[4].IsLeft.Should().BeTrue("error should be at position 5");
+        results[4].ShouldBeError("error should be at position 5");
 
         var errorCode = results[4].Match(
             Left: error => error.GetEncinaCode(),
@@ -177,8 +177,7 @@ public sealed class StreamRequestIntegrationTests
         }
 
         // Assert - All results should be Right (errors recovered)
-        results.Should().OnlyContain(r => r.IsRight,
-            "error recovery behavior should convert all errors to success");
+        results.AllShouldBeSuccess("error recovery behavior should convert all errors to success");
     }
 
     #endregion

@@ -24,7 +24,7 @@ public class OpenTelemetryIntegrationTests
         var Encina = sp.GetRequiredService<IEncina>();
 
         var result = await Encina.Send(new PingQuery(), default);
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     public record PingQuery : IQuery<string>;
