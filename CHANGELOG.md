@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Regex timeout protection against ReDoS attacks (S6444) in caching and SignalR components
 - SQL injection prevention via `SqlIdentifierValidator` for dynamic table names
+- ROP assertion extensions in `Encina.TestInfrastructure.Extensions`:
+  - `ShouldBeSuccess()` / `ShouldBeRight()` - Assert Either is Right
+  - `ShouldBeError()` / `ShouldBeLeft()` - Assert Either is Left
+  - `ShouldBeBottom()` / `ShouldNotBeBottom()` - Assert Either default state
+  - `AllShouldBeSuccess()` / `AllShouldBeError()` - Collection assertions
+  - `ShouldContainSuccess()` / `ShouldContainError()` - Collection contains assertions
+  - `ShouldBeErrorWithCode()`, `ShouldBeValidationError()`, `ShouldBeAuthorizationError()` - EncinaError assertions
+  - Async variants: `ShouldBeSuccessAsync()`, `ShouldBeErrorAsync()`, `ShouldBeErrorWithCodeAsync()`
 
 ### Changed
 
