@@ -41,10 +41,10 @@ jobs:
           sonarProjectName: Encina
           sonarOrganization: dlrivada
           dotnetBuildArguments: Encina.slnx --configuration Release
-          # Exclude problematic tests from CI (Issue #7):
-          # - LoadTests/IntegrationTests: Require special infrastructure
-          # - ContractTests/PropertyTests: 57 tests failing, needs investigation
-          dotnetTestArguments: Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests&FullyQualifiedName!~ContractTests&FullyQualifiedName!~PropertyTests" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+          # Exclude tests that require special infrastructure:
+          # - LoadTests: Stress testing, not suitable for CI
+          # - IntegrationTests: Require Docker/Testcontainers
+          dotnetTestArguments: Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
           # XPlat Code Coverage generates coverage.opencover.xml in a GUID subdirectory
           # Note: sonar.sources and sonar.tests are NOT supported by Scanner for .NET (auto-computed)
           # CPD exclusions for intentional duplication (Issue #12):
