@@ -100,7 +100,7 @@ public class StandardResilienceEndToEndTests
         }
 
         // Assert - All should fail
-        results.Should().OnlyContain(r => r.IsLeft);
+        results.AllShouldBeError();
     }
 
     [Fact]

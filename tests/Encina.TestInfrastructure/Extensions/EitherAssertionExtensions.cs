@@ -113,6 +113,22 @@ public static class EitherAssertionExtensions
 
     #endregion
 
+    #region Bottom State Assertions
+
+    /// <summary>
+    /// Asserts that the Either is in its default/bottom state (neither Left nor Right).
+    /// This is useful when testing guard methods that output a default Either on success.
+    /// </summary>
+    public static void ShouldBeBottom<TLeft, TRight>(
+        this Either<TLeft, TRight> result,
+        string? message = null)
+    {
+        Assert.False(result.IsLeft, message ?? "Expected bottom state but got Left");
+        Assert.False(result.IsRight, message ?? "Expected bottom state but got Right");
+    }
+
+    #endregion
+
     #region EncinaError Specific Assertions
 
     /// <summary>

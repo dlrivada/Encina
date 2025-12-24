@@ -21,8 +21,7 @@ public sealed class StreamRequestGuardsTests
 
         // Assert
         result.Should().BeTrue();
-        error.IsLeft.Should().BeFalse();
-        error.IsRight.Should().BeFalse(); // Default Either is neither Left nor Right
+        error.ShouldBeBottom(); // Default Either is neither Left nor Right
     }
 
     [Fact]
@@ -59,8 +58,7 @@ public sealed class StreamRequestGuardsTests
         // Assert - request is valid even though TItem type doesn't match
         // (type checking is done elsewhere in the pipeline)
         result.Should().BeTrue();
-        error.IsLeft.Should().BeFalse();
-        error.IsRight.Should().BeFalse(); // Default Either is neither Left nor Right
+        error.ShouldBeBottom(); // Default Either is neither Left nor Right
     }
 
     [Fact]
@@ -112,8 +110,7 @@ public sealed class StreamRequestGuardsTests
 
         // Assert
         result.Should().BeTrue();
-        error.IsLeft.Should().BeFalse();
-        error.IsRight.Should().BeFalse(); // Default Either is neither Left nor Right
+        error.ShouldBeBottom(); // Default Either is neither Left nor Right
     }
 
     #endregion

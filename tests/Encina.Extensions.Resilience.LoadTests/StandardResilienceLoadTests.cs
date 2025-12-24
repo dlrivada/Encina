@@ -85,7 +85,7 @@ public class StandardResilienceLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert - All should fail (either from handler or circuit breaker)
-        results.Should().OnlyContain(r => r.IsLeft);
+        results.AllShouldBeError();
     }
 
     [Fact]

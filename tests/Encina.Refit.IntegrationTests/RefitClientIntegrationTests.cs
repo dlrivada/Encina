@@ -70,7 +70,7 @@ public class RefitClientIntegrationTests
 
         // Assert
         results.Should().HaveCount(3);
-        results.Should().OnlyContain(r => r.IsRight);
+        results.AllShouldBeSuccess();
 
         results[0].IfRight(todo => todo.Id.Should().Be(1));
         results[1].IfRight(todo => todo.Id.Should().Be(2));

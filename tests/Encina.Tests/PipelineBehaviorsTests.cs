@@ -631,7 +631,7 @@ public sealed class PipelineBehaviorsTests
 
     private static T ExpectSuccess<T>(Either<EncinaError, T> outcome)
     {
-        outcome.IsRight.ShouldBeTrue("Expected the pipeline to succeed.");
+        outcome.ShouldBeSuccess("Expected the pipeline to succeed.");
         return outcome.Match(
             Left: static _ => throw new InvalidOperationException("Unexpected failure outcome."),
             Right: static value => value);
@@ -639,7 +639,7 @@ public sealed class PipelineBehaviorsTests
 
     private static EncinaError ExpectFailure<T>(Either<EncinaError, T> outcome, string expectedCode)
     {
-        outcome.IsLeft.ShouldBeTrue($"Expected a failure with code {expectedCode}.");
+        outcome.ShouldBeError($"Expected a failure with code {expectedCode}.");
         var error = outcome.Match(
             Left: static err => err,
             Right: _ => throw new InvalidOperationException("Unexpected successful outcome."));

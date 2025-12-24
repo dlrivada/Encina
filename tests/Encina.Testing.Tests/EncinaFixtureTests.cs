@@ -22,7 +22,7 @@ public sealed class EncinaFixtureTests : IDisposable
         var result = await encina.Send(new TestRequest("hello"));
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         result.IfRight(value => value.Should().Be("HELLO"));
     }
 
@@ -44,7 +44,7 @@ public sealed class EncinaFixtureTests : IDisposable
         var result = await encina.Send(new ServiceDependentRequest("test"));
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         result.IfRight(value => value.Should().Be("Service: test"));
     }
 
