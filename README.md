@@ -25,7 +25,9 @@
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 ![Mutation Score](https://img.shields.io/badge/mutation-79.75%25-4C934C.svg)
 
-**Encina** is a functional mediation library for .NET that embraces **Railway Oriented Programming** as its core philosophy. Built on [LanguageExt](https://github.com/louthy/language-ext), it provides explicit error handling through `Either<EncinaError, T>` while keeping cross-cutting concerns composable via pipeline behaviors.
+**Build resilient .NET applications with Railway Oriented Programming.**
+
+Encina is a comprehensive toolkit for building robust .NET applications. Built on [LanguageExt](https://github.com/louthy/language-ext), it provides explicit error handling through `Either<EncinaError, T>`, CQRS patterns, messaging infrastructure, and composable pipeline behaviors.
 
 ## Key Features
 
@@ -135,7 +137,7 @@ sequenceDiagram
 
 | Category | Packages | Description |
 |----------|----------|-------------|
-| **Core** | `Encina` | Core mediation, CQRS, pipeline behaviors |
+| **Core** | `Encina` | ROP, CQRS, pipeline behaviors |
 | **Validation** | `FluentValidation`, `DataAnnotations`, `MiniValidator`, `GuardClauses` | Request validation with ROP integration |
 | **Web** | `AspNetCore`, `SignalR` | Middleware, authorization, real-time notifications |
 | **Database** | `EntityFrameworkCore`, `MongoDB`, `Dapper.{5}`, `ADO.{5}` | Persistence with messaging patterns |

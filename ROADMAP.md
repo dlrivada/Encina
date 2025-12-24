@@ -8,7 +8,9 @@
 
 ## Vision
 
-**Encina** is a functional mediation library for .NET that enables building modern applications with **Railway Oriented Programming** as the core philosophy.
+**Build resilient .NET applications with Railway Oriented Programming.**
+
+Encina is a comprehensive toolkit for building robust .NET applications with explicit error handling, CQRS patterns, messaging infrastructure, and composable pipeline behaviors.
 
 ### Design Principles
 

@@ -273,7 +273,7 @@ Major milestone: **Validation satellite packages**.
 
 ## [0.1.0] - 2025-12-06
 
-Initial release: **Core mediation library**.
+Initial release: **Core library with Railway Oriented Programming**.
 
 ### Added
 
