@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -212,9 +213,11 @@ public sealed class InboxOrchestrator
                 "Failed to deserialize cached response");
         }
 
-        if (envelope.IsSuccess && envelope.Value != null)
+        var value = envelope.Value;
+
+        if (envelope.IsSuccess && !EqualityComparer<TResponse>.Default.Equals(value, default!))
         {
-            return Right<EncinaError, TResponse>(envelope.Value);
+            return Right<EncinaError, TResponse>(value!);
         }
 
         return EncinaErrors.Create(
