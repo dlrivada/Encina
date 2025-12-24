@@ -53,9 +53,18 @@ jobs:
           # - Entities, Factories, Behaviors: Provider-specific implementations with similar patterns
           # - Log.cs: High-perf logging (will be consolidated in future refactoring)
           # - ServiceCollectionExtensions: DI registration with provider-specific types
+          # Security Hotspot S2077 (SQL Injection) suppression for store files:
+          # All store files use SqlIdentifierValidator.ValidateTableName() which validates table names
+          # against a safe regex pattern, preventing SQL injection. Only parameterized queries are used
+          # for data values. See: src/Encina.Messaging/SqlIdentifierValidator.cs
           sonarBeginArguments: >-
             /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml"
             /d:sonar.cpd.exclusions="src/Encina.Dapper.*/**/*.cs,src/Encina.Dapper.*/Scripts/*.sql,src/Encina.ADO.*/**/*.cs,src/Encina.ADO.*/Scripts/*.sql"
+            /d:sonar.issue.ignore.multicriteria=e1,e2
+            /d:sonar.issue.ignore.multicriteria.e1.ruleKey=csharpsquid:S2077
+            /d:sonar.issue.ignore.multicriteria.e1.resourceKey=src/Encina.Dapper.*/**/*Store*.cs
+            /d:sonar.issue.ignore.multicriteria.e2.ruleKey=csharpsquid:S2077
+            /d:sonar.issue.ignore.multicriteria.e2.resourceKey=src/Encina.ADO.*/**/*Store*.cs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
