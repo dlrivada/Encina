@@ -204,6 +204,6 @@ public sealed class DataAnnotationsValidationBehaviorGuardsTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert - Whitespace passes Required validation, operation completes without throwing
-        Assert.True(result.IsRight || result.IsLeft, "Handle completed and returned a valid result");
+        result.ShouldNotBeBottom("Handle completed and returned a valid result");
     }
 }
