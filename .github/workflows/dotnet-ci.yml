@@ -77,7 +77,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: artifacts/coverage
@@ -93,7 +93,7 @@ jobs:
 
       - name: Upload benchmark artifacts (optional)
         if: ${{ github.event.inputs.runBenchmarks == 'true' && steps.run-benchmarks.outputs.benchmark-dir != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: benchmark-report
           path: ${{ steps.run-benchmarks.outputs.benchmark-dir }}
