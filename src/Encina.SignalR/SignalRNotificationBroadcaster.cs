@@ -42,7 +42,7 @@ public sealed class SignalRNotificationBroadcaster : ISignalRNotificationBroadca
 
     private static readonly ConcurrentDictionary<Type, BroadcastToSignalRAttribute?> AttributeCache = new();
     private static readonly ConcurrentDictionary<Type, PropertyInfo?> ConditionalPropertyCache = new();
-    private static readonly Regex PlaceholderRegex = new(@"\{(\w+)\}", RegexOptions.Compiled);
+    private static readonly Regex PlaceholderRegex = new(@"\{(\w+)\}", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SignalRNotificationBroadcaster"/> class.

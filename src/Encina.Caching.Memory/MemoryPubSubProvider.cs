@@ -218,7 +218,7 @@ public sealed partial class MemoryPubSubProvider : IPubSubProvider
             .Replace("\\*", ".*")
             .Replace("\\?", ".") + "$";
 
-        return Regex.IsMatch(channel, regexPattern, RegexOptions.IgnoreCase);
+        return Regex.IsMatch(channel, regexPattern, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
     }
 
     [LoggerMessage(

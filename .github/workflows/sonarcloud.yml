@@ -57,14 +57,19 @@ jobs:
           # All store files use SqlIdentifierValidator.ValidateTableName() which validates table names
           # against a safe regex pattern, preventing SQL injection. Only parameterized queries are used
           # for data values. See: src/Encina.Messaging/SqlIdentifierValidator.cs
+          # S1523 (RCE) suppression for SQL scripts:
+          # These are static DDL scripts executed manually by DBAs. No dynamic code injection.
+          # EXECUTE IMMEDIATE in Oracle scripts uses only literal strings.
           sonarBeginArguments: >-
             /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml"
             /d:sonar.cpd.exclusions="src/Encina.Dapper.*/**/*.cs,src/Encina.Dapper.*/Scripts/*.sql,src/Encina.ADO.*/**/*.cs,src/Encina.ADO.*/Scripts/*.sql"
-            /d:sonar.issue.ignore.multicriteria=e1,e2
+            /d:sonar.issue.ignore.multicriteria=e1,e2,e3
             /d:sonar.issue.ignore.multicriteria.e1.ruleKey=csharpsquid:S2077
             /d:sonar.issue.ignore.multicriteria.e1.resourceKey=src/Encina.Dapper.*/**/*Store*.cs
             /d:sonar.issue.ignore.multicriteria.e2.ruleKey=csharpsquid:S2077
             /d:sonar.issue.ignore.multicriteria.e2.resourceKey=src/Encina.ADO.*/**/*Store*.cs
+            /d:sonar.issue.ignore.multicriteria.e3.ruleKey=plsql:S1523
+            /d:sonar.issue.ignore.multicriteria.e3.resourceKey=src/**/Scripts/*.sql
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

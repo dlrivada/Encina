@@ -363,7 +363,7 @@ public sealed partial class HybridCacheProvider : ICacheProvider
             .Replace("\\[", "[")
             .Replace("\\]", "]") + "$";
 
-        return new Regex(regexPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        return new Regex(regexPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
     }
 
     [LoggerMessage(

@@ -482,7 +482,7 @@ public static partial class Guards
     /// </example>
     public static bool TryValidatePattern(string? value, string paramName, string pattern, out EncinaError error, string? message = null)
     {
-        if (!string.IsNullOrWhiteSpace(value) && Regex.IsMatch(value, pattern))
+        if (!string.IsNullOrWhiteSpace(value) && Regex.IsMatch(value, pattern, RegexOptions.None, TimeSpan.FromSeconds(1)))
         {
             error = default;
             return true;
