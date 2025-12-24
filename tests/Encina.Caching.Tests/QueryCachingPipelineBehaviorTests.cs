@@ -148,8 +148,7 @@ public class QueryCachingPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.Match(Right: v => v, Left: _ => "").Should().Be(expectedResult);
+        result.ShouldBeSuccess().Should().Be(expectedResult);
 
         // Verify cache was not accessed
         await _cacheProvider.DidNotReceive().GetAsync<CacheEntry<string>>(Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -184,8 +183,7 @@ public class QueryCachingPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.Match(Right: v => v, Left: _ => "").Should().Be(cachedValue);
+        result.ShouldBeSuccess().Should().Be(cachedValue);
         nextStepCalled.Should().BeFalse();
     }
 
@@ -212,8 +210,7 @@ public class QueryCachingPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.Match(Right: v => v, Left: _ => "").Should().Be(freshResult);
+        result.ShouldBeSuccess().Should().Be(freshResult);
 
         await _cacheProvider.Received(1).SetAsync(
             cacheKey,
@@ -245,7 +242,7 @@ public class QueryCachingPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
 
         await _cacheProvider.DidNotReceive().SetAsync(
             Arg.Any<string>(),
@@ -277,8 +274,7 @@ public class QueryCachingPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.Match(Right: v => v, Left: _ => "").Should().Be(freshResult);
+        result.ShouldBeSuccess().Should().Be(freshResult);
     }
 
     [Fact]
@@ -331,8 +327,7 @@ public class QueryCachingPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.Match(Right: v => v, Left: _ => "").Should().Be(expectedResult);
+        result.ShouldBeSuccess().Should().Be(expectedResult);
 
         // Verify cache was not accessed (no [Cache] attribute)
         await cacheProvider.DidNotReceive().GetAsync<CacheEntry<string>>(Arg.Any<string>(), Arg.Any<CancellationToken>());

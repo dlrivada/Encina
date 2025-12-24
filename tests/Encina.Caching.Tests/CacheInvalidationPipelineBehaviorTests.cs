@@ -220,7 +220,7 @@ public class CacheInvalidationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]

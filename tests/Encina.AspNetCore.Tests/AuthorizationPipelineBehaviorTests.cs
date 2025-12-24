@@ -29,7 +29,7 @@ public class AuthorizationPipelineBehaviorTests
 
         // Assert
         nextStepCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("requires authentication");
@@ -79,7 +79,7 @@ public class AuthorizationPipelineBehaviorTests
 
         // Assert
         nextStepCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class AuthorizationPipelineBehaviorTests
 
         // Assert
         nextStepCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("does not have any of the required roles");
@@ -154,7 +154,7 @@ public class AuthorizationPipelineBehaviorTests
 
         // Assert
         nextStepCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public class AuthorizationPipelineBehaviorTests
 
         // Assert
         nextStepCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("does not satisfy policy");
@@ -232,7 +232,7 @@ public class AuthorizationPipelineBehaviorTests
 
         // Assert
         nextStepCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -252,7 +252,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("does not satisfy policy");
@@ -274,7 +274,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("Authorization requires HTTP context");
@@ -304,7 +304,7 @@ public class AuthorizationPipelineBehaviorTests
 
         // Assert
         nextStepCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -327,7 +327,7 @@ public class AuthorizationPipelineBehaviorTests
 
         // Assert
         nextStepCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
