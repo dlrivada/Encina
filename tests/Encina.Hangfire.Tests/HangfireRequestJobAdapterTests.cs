@@ -30,12 +30,7 @@ public class HangfireRequestJobAdapterTests
         var result = await _adapter.ExecuteAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        var actualResponse = result.Match(
-            Right: response => response,
-            Left: _ => throw new InvalidOperationException("Should not be Left")
-        );
-        actualResponse.Should().Be(expectedResponse);
+        result.ShouldBeSuccess().Should().Be(expectedResponse);
 
         await _Encina.Received(1).Send(
             Arg.Is<TestRequest>(r => r.Data == "test-data"),
@@ -55,12 +50,7 @@ public class HangfireRequestJobAdapterTests
         var result = await _adapter.ExecuteAsync(request);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        var actualError = result.Match(
-            Right: _ => throw new InvalidOperationException("Should not be Right"),
-            Left: err => err
-        );
-        actualError.Message.Should().Be("Test error message");
+        result.ShouldBeError(e => e.Message.Should().Be("Test error message"));
     }
 
     [Fact(Skip = "Issue #6: LoggerMessage delegates incompatible with NSubstitute.Received()")]

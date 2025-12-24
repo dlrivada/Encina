@@ -50,7 +50,7 @@ public class StandardResiliencePipelineBehaviorTests
         var result = await _behavior.Handle(request, _context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         _ = result.Match(
             Right: response => response.Should().Be(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
@@ -69,7 +69,7 @@ public class StandardResiliencePipelineBehaviorTests
         var result = await _behavior.Handle(request, _context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should not be Right"),
             Left: e => e.Message.Should().Be("Test error")
@@ -100,7 +100,7 @@ public class StandardResiliencePipelineBehaviorTests
         var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should not be Right"),
             Left: e =>
@@ -140,7 +140,7 @@ public class StandardResiliencePipelineBehaviorTests
         var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should not be Right"),
             Left: e =>
@@ -180,7 +180,7 @@ public class StandardResiliencePipelineBehaviorTests
         var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should not be Right"),
             Left: e =>
@@ -213,7 +213,7 @@ public class StandardResiliencePipelineBehaviorTests
         var result = await _behavior.Handle(request, _context, nextStep, cts.Token);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should not be Right"),
             Left: e =>

@@ -76,8 +76,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue("behavior should return successful result from nextStep");
-        result.IfRight(r => r.Should().Be("expected"));
+        result.ShouldBeSuccess().Should().Be("expected");
     }
 
     [Fact]
@@ -96,8 +95,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue("behavior should preserve error results");
-        result.IfLeft(e => e.Message.Should().Be("Test error message"));
+        result.ShouldBeError(e => e.Message.Should().Be("Test error message"));
     }
 
     [Fact]

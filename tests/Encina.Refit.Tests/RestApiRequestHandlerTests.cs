@@ -35,7 +35,7 @@ public class RestApiRequestHandlerTests
         var result = await _handler.Handle(request, cancellationToken);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         result.IfRight(response => response.Should().Be(expectedResponse));
     }
 
@@ -50,7 +50,7 @@ public class RestApiRequestHandlerTests
         var result = await _handler.Handle(request, cancellationToken);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("API call failed with status");
@@ -69,7 +69,7 @@ public class RestApiRequestHandlerTests
         var result = await _handler.Handle(request, cancellationToken);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("Error content");
@@ -87,7 +87,7 @@ public class RestApiRequestHandlerTests
         var result = await _handler.Handle(request, cancellationToken);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("HTTP request failed");
@@ -107,7 +107,7 @@ public class RestApiRequestHandlerTests
         var result = await _handler.Handle(request, cts.Token);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("API request was cancelled");
@@ -125,7 +125,7 @@ public class RestApiRequestHandlerTests
         var result = await _handler.Handle(request, cancellationToken);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.Message.Should().Contain("API request timed out");
@@ -143,7 +143,7 @@ public class RestApiRequestHandlerTests
         var result = await _handler.Handle(request, cancellationToken);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         result.IfLeft(error =>
         {
             ((object?)error.Exception).Should().NotBeNull();

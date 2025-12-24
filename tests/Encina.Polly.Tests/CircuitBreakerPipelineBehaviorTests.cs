@@ -40,7 +40,7 @@ public class CircuitBreakerPipelineBehaviorTests
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         _ = result.Match(
             Right: value => value.Should().Be(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
@@ -60,7 +60,7 @@ public class CircuitBreakerPipelineBehaviorTests
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         _ = result.Match(
             Right: value => value.Should().Be(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
@@ -113,7 +113,7 @@ public class CircuitBreakerPipelineBehaviorTests
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should be Left"),
             Left: error => error.Message.Should().Contain("Circuit breaker is open")
@@ -144,7 +144,7 @@ public class CircuitBreakerPipelineBehaviorTests
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should be Left"),
             Left: error =>
@@ -169,7 +169,7 @@ public class CircuitBreakerPipelineBehaviorTests
 
         // Assert - Verify cache is being used (we can't directly test static field, but this ensures no crash)
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public class CircuitBreakerPipelineBehaviorTests
 
         // Assert - No exceptions means thread-safe double-check locking worked
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public class CircuitBreakerPipelineBehaviorTests
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should be Left"),
             Left: error => error.Message.Should().Contain("Test exception")
@@ -227,7 +227,7 @@ public class CircuitBreakerPipelineBehaviorTests
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         // The fact that it doesn't throw means the custom configuration was applied correctly
     }
 

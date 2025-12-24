@@ -36,7 +36,7 @@ public class RetryPipelineBehaviorTests
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         _ = result.Match(
             Right: value => value.Should().Be(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
@@ -61,7 +61,7 @@ public class RetryPipelineBehaviorTests
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         _ = result.Match(
             Right: value => value.Should().Be(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
@@ -88,7 +88,7 @@ public class RetryPipelineBehaviorTests
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         callCount.Should().Be(2, "should retry once and succeed on second attempt");
     }
 
@@ -109,7 +109,7 @@ public class RetryPipelineBehaviorTests
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         callCount.Should().Be(3, "should try initial + 2 retries (MaxAttempts = 3)");
     }
 
@@ -132,7 +132,7 @@ public class RetryPipelineBehaviorTests
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         callCount.Should().Be(2, "should retry after TimeoutException");
     }
 
@@ -155,7 +155,7 @@ public class RetryPipelineBehaviorTests
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         callCount.Should().Be(2, "should retry after HttpRequestException");
     }
 
@@ -178,7 +178,7 @@ public class RetryPipelineBehaviorTests
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         callCount.Should().Be(2, "should retry after IOException");
     }
 
@@ -199,7 +199,7 @@ public class RetryPipelineBehaviorTests
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert - Polly catches exception and returns EncinaError without retry
-        result.IsLeft.Should().BeTrue("non-transient exception should be caught and converted to EncinaError");
+        result.ShouldBeError(); // non-transient exception should be caught and converted to EncinaError
         callCount.Should().Be(1, "should not retry non-transient exceptions when RetryOnAllExceptions = false");
     }
 
@@ -225,7 +225,7 @@ public class RetryPipelineBehaviorTests
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         callCount.Should().Be(3, "should retry all exceptions when RetryOnAllExceptions = true");
     }
 
@@ -253,7 +253,7 @@ public class RetryPipelineBehaviorTests
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         callCount.Should().Be(3, "should attempt 3 times with exponential backoff");
     }
 
@@ -279,7 +279,7 @@ public class RetryPipelineBehaviorTests
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         callCount.Should().Be(3, "should attempt 3 times with constant backoff");
     }
 
@@ -305,7 +305,7 @@ public class RetryPipelineBehaviorTests
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.ShouldBeSuccess();
         callCount.Should().Be(3, "should attempt 3 times with linear backoff");
     }
 
@@ -321,7 +321,7 @@ public class RetryPipelineBehaviorTests
         var result = await _behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should be Left"),
             Left: error => error.Message.Should().Contain("Persistent timeout")
