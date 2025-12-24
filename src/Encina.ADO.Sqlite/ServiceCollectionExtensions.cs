@@ -2,8 +2,6 @@ using System.Data;
 using Encina.ADO.Sqlite.Inbox;
 using Encina.ADO.Sqlite.Outbox;
 using Encina.Messaging;
-using Encina.Messaging.Inbox;
-using Encina.Messaging.Outbox;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -25,12 +23,18 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<MessagingConfiguration> configure)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+
         var config = new MessagingConfiguration();
         configure(config);
 
-        RegisterMessagingServices(services, config);
-
-        return services;
+        return services.AddMessagingServicesCore<
+            OutboxStoreADO,
+            OutboxMessageFactory,
+            InboxStoreADO,
+            InboxMessageFactory,
+            OutboxProcessor>(config);
     }
 
     /// <summary>
@@ -45,6 +49,10 @@ public static class ServiceCollectionExtensions
         string connectionString,
         Action<MessagingConfiguration> configure)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(connectionString);
+        ArgumentNullException.ThrowIfNull(configure);
+
         services.TryAddScoped<IDbConnection>(_ => new SqliteConnection(connectionString));
 
         return services.AddEncinaADO(configure);
@@ -62,37 +70,12 @@ public static class ServiceCollectionExtensions
         Func<IServiceProvider, IDbConnection> connectionFactory,
         Action<MessagingConfiguration> configure)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(connectionFactory);
+        ArgumentNullException.ThrowIfNull(configure);
+
         services.TryAddScoped(connectionFactory);
 
         return services.AddEncinaADO(configure);
-    }
-
-    private static void RegisterMessagingServices(IServiceCollection services, MessagingConfiguration config)
-    {
-        // Outbox Pattern
-        if (config.UseOutbox)
-        {
-            services.AddSingleton(config.OutboxOptions);
-            services.TryAddScoped<IOutboxStore, OutboxStoreADO>();
-            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
-            services.AddHostedService<OutboxProcessor>();
-        }
-
-        // Inbox Pattern
-        if (config.UseInbox)
-        {
-            services.AddSingleton(config.InboxOptions);
-            services.TryAddScoped<IInboxStore, InboxStoreADO>();
-            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
-            services.AddScoped<InboxOrchestrator>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(Messaging.Inbox.InboxPipelineBehavior<,>));
-        }
-
-        // Transaction Pattern
-        if (config.UseTransactions)
-        {
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
-        }
     }
 }

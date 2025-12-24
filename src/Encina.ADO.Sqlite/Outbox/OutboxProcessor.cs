@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Encina.Messaging;
 using Encina.Messaging.Outbox;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -45,11 +46,11 @@ public sealed class OutboxProcessor : BackgroundService
     {
         if (!_options.EnableProcessor)
         {
-            Log.OutboxProcessorDisabled(_logger);
+            MessagingLog.OutboxProcessorDisabled(_logger);
             return;
         }
 
-        Log.OutboxProcessorStarted(
+        MessagingLog.OutboxProcessorStarted(
             _logger,
             _options.ProcessingInterval,
             _options.BatchSize);
@@ -62,7 +63,7 @@ public sealed class OutboxProcessor : BackgroundService
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                Log.ErrorProcessingOutboxMessages(_logger, ex);
+                MessagingLog.ErrorProcessingOutboxMessages(_logger, ex);
             }
 
             await Task.Delay(_options.ProcessingInterval, stoppingToken).ConfigureAwait(false);
@@ -84,7 +85,7 @@ public sealed class OutboxProcessor : BackgroundService
         if (messagesList.Count == 0)
             return;
 
-        Log.ProcessingPendingOutboxMessages(_logger, messagesList.Count);
+        MessagingLog.ProcessingPendingOutboxMessages(_logger, messagesList.Count);
 
         var successCount = 0;
         var failureCount = 0;
@@ -136,7 +137,7 @@ public sealed class OutboxProcessor : BackgroundService
                 await store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
                 successCount++;
 
-                Log.ProcessedOutboxMessage(
+                MessagingLog.ProcessedOutboxMessage(
                     _logger,
                     message.Id,
                     message.NotificationType);
@@ -154,7 +155,7 @@ public sealed class OutboxProcessor : BackgroundService
                     cancellationToken).ConfigureAwait(false);
                 failureCount++;
 
-                Log.FailedToProcessOutboxMessage(
+                MessagingLog.FailedToProcessOutboxMessage(
                     _logger,
                     ex,
                     message.Id,
@@ -168,11 +169,7 @@ public sealed class OutboxProcessor : BackgroundService
 
         if (successCount > 0 || failureCount > 0)
         {
-            Log.OutboxMessagesProcessed(
-                _logger,
-                successCount + failureCount,
-                successCount,
-                failureCount);
+            MessagingLog.ProcessedOutboxMessages(_logger, successCount + failureCount, successCount, failureCount);
         }
     }
 

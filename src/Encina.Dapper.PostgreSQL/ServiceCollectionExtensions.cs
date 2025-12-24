@@ -4,10 +4,6 @@ using Encina.Dapper.PostgreSQL.Outbox;
 using Encina.Dapper.PostgreSQL.Sagas;
 using Encina.Dapper.PostgreSQL.Scheduling;
 using Encina.Messaging;
-using Encina.Messaging.Inbox;
-using Encina.Messaging.Outbox;
-using Encina.Messaging.Sagas;
-using Encina.Messaging.Scheduling;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -36,49 +32,16 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
-        // IDbConnection should be registered by the application
-        // (e.g., scoped SqlConnection with connection string from configuration)
-
-        if (config.UseTransactions)
-        {
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
-        }
-
-        if (config.UseOutbox)
-        {
-            services.AddSingleton(config.OutboxOptions);
-            services.AddScoped<IOutboxStore, OutboxStoreDapper>();
-            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
-            services.AddHostedService<OutboxProcessor>();
-        }
-
-        if (config.UseInbox)
-        {
-            services.AddSingleton(config.InboxOptions);
-            services.AddScoped<IInboxStore, InboxStoreDapper>();
-            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
-            services.AddScoped<InboxOrchestrator>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(Messaging.Inbox.InboxPipelineBehavior<,>));
-        }
-
-        if (config.UseSagas)
-        {
-            services.AddSingleton(config.SagaOptions);
-            services.AddScoped<ISagaStore, SagaStoreDapper>();
-            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
-            services.AddScoped<SagaOrchestrator>();
-        }
-
-        if (config.UseScheduling)
-        {
-            services.AddSingleton(config.SchedulingOptions);
-            services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreDapper>();
-            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
-            services.AddScoped<SchedulerOrchestrator>();
-        }
-
-        return services;
+        return services.AddMessagingServices<
+            OutboxStoreDapper,
+            OutboxMessageFactory,
+            InboxStoreDapper,
+            InboxMessageFactory,
+            SagaStoreDapper,
+            SagaStateFactory,
+            ScheduledMessageStoreDapper,
+            ScheduledMessageFactory,
+            OutboxProcessor>(config);
     }
 
     /// <summary>
@@ -98,10 +61,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(connectionFactory);
         ArgumentNullException.ThrowIfNull(configure);
 
-        // Register connection factory
         services.AddScoped(connectionFactory);
-
-        // Add messaging patterns
         return services.AddEncinaDapper(configure);
     }
 
@@ -125,7 +85,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configure);
 
         return services.AddEncinaDapper(
-            sp => new NpgsqlConnection(connectionString),
+            _ => new NpgsqlConnection(connectionString),
             configure);
     }
 }

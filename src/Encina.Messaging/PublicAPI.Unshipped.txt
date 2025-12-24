@@ -116,3 +116,28 @@ const Encina.Messaging.Outbox.OutboxErrorCodes.MaxRetriesExceeded = "outbox.max_
 const Encina.Messaging.Outbox.OutboxErrorCodes.PublishFailed = "outbox.publish_failed" -> string!
 const Encina.Messaging.Outbox.OutboxErrorCodes.UnknownNotificationType = "outbox.unknown_notification_type" -> string!
 Encina.Messaging.MessagingConfiguration.SagaOptions.get -> Encina.Messaging.Sagas.SagaOptions!
+Encina.Messaging.MessagingLog
+static Encina.Messaging.MessagingLog.MissingIdempotencyKey(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
+static Encina.Messaging.MessagingLog.ProcessingIdempotentRequest(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string! messageId, string? correlationId) -> void
+static Encina.Messaging.MessagingLog.ReturningCachedResponse(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, string? correlationId) -> void
+static Encina.Messaging.MessagingLog.MaxRetriesExceeded(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, int maxRetries, string? correlationId) -> void
+static Encina.Messaging.MessagingLog.ProcessedAndCachedMessage(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, string? correlationId) -> void
+static Encina.Messaging.MessagingLog.ErrorProcessingMessage(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception, string! messageId, string? correlationId) -> void
+static Encina.Messaging.MessagingLog.StoringNotificationsInOutbox(Microsoft.Extensions.Logging.ILogger! logger, int count, string! requestType, string? correlationId) -> void
+static Encina.Messaging.MessagingLog.StoredNotificationsInOutbox(Microsoft.Extensions.Logging.ILogger! logger, int count, string? correlationId) -> void
+static Encina.Messaging.MessagingLog.SkippingOutboxStorageDueToError(Microsoft.Extensions.Logging.ILogger! logger, int count, string! errorMessage, string? correlationId) -> void
+static Encina.Messaging.MessagingLog.OutboxProcessorDisabled(Microsoft.Extensions.Logging.ILogger! logger) -> void
+static Encina.Messaging.MessagingLog.OutboxProcessorStarted(Microsoft.Extensions.Logging.ILogger! logger, System.TimeSpan interval, int batchSize) -> void
+static Encina.Messaging.MessagingLog.ErrorProcessingOutboxMessages(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void
+static Encina.Messaging.MessagingLog.ProcessingPendingOutboxMessages(Microsoft.Extensions.Logging.ILogger! logger, int count) -> void
+static Encina.Messaging.MessagingLog.ProcessedOutboxMessage(Microsoft.Extensions.Logging.ILogger! logger, System.Guid messageId, string! notificationType) -> void
+static Encina.Messaging.MessagingLog.FailedToProcessOutboxMessage(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception, System.Guid messageId, int retryCount, int maxRetries, System.DateTime? nextRetry) -> void
+static Encina.Messaging.MessagingLog.ProcessedOutboxMessages(Microsoft.Extensions.Logging.ILogger! logger, int totalCount, int successCount, int failureCount) -> void
+static Encina.Messaging.MessagingLog.TransactionStarted(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
+static Encina.Messaging.MessagingLog.TransactionCommitted(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
+static Encina.Messaging.MessagingLog.TransactionRolledBack(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
+Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>
+Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPipelineBehavior(System.Data.IDbConnection! connection) -> void
+Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+static Encina.Messaging.MessagingServiceCollectionExtensions.AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Messaging.MessagingConfiguration! config) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Messaging.MessagingServiceCollectionExtensions.AddMessagingServicesCore<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Messaging.MessagingConfiguration! config) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

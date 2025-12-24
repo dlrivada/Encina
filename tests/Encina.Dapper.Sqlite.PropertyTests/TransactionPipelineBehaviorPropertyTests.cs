@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using Encina.Messaging;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
 using LanguageExt;

@@ -2,8 +2,6 @@ using System.Data;
 using Encina.ADO.MySQL.Inbox;
 using Encina.ADO.MySQL.Outbox;
 using Encina.Messaging;
-using Encina.Messaging.Inbox;
-using Encina.Messaging.Outbox;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MySqlConnector;
@@ -25,19 +23,25 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<MessagingConfiguration> configure)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+
         var config = new MessagingConfiguration();
         configure(config);
 
-        RegisterMessagingServices(services, config);
-
-        return services;
+        return services.AddMessagingServicesCore<
+            OutboxStoreADO,
+            OutboxMessageFactory,
+            InboxStoreADO,
+            InboxMessageFactory,
+            OutboxProcessor>(config);
     }
 
     /// <summary>
     /// Adds Encina with ADO.NET messaging patterns support using a connection string.
     /// </summary>
     /// <param name="services">The service collection.</param>
-    /// <param name="connectionString">The SQL Server connection string.</param>
+    /// <param name="connectionString">The MySQL/MariaDB connection string.</param>
     /// <param name="configure">Configuration action for messaging patterns.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddEncinaADO(
@@ -45,6 +49,10 @@ public static class ServiceCollectionExtensions
         string connectionString,
         Action<MessagingConfiguration> configure)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(connectionString);
+        ArgumentNullException.ThrowIfNull(configure);
+
         services.TryAddScoped<IDbConnection>(_ => new MySqlConnection(connectionString));
 
         return services.AddEncinaADO(configure);
@@ -62,37 +70,12 @@ public static class ServiceCollectionExtensions
         Func<IServiceProvider, IDbConnection> connectionFactory,
         Action<MessagingConfiguration> configure)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(connectionFactory);
+        ArgumentNullException.ThrowIfNull(configure);
+
         services.TryAddScoped(connectionFactory);
 
         return services.AddEncinaADO(configure);
-    }
-
-    private static void RegisterMessagingServices(IServiceCollection services, MessagingConfiguration config)
-    {
-        // Outbox Pattern
-        if (config.UseOutbox)
-        {
-            services.AddSingleton(config.OutboxOptions);
-            services.TryAddScoped<IOutboxStore, OutboxStoreADO>();
-            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
-            services.AddHostedService<OutboxProcessor>();
-        }
-
-        // Inbox Pattern
-        if (config.UseInbox)
-        {
-            services.AddSingleton(config.InboxOptions);
-            services.TryAddScoped<IInboxStore, InboxStoreADO>();
-            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
-            services.AddScoped<InboxOrchestrator>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(Messaging.Inbox.InboxPipelineBehavior<,>));
-        }
-
-        // Transaction Pattern
-        if (config.UseTransactions)
-        {
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
-        }
     }
 }

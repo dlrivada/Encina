@@ -4,10 +4,6 @@ using Encina.Dapper.Oracle.Outbox;
 using Encina.Dapper.Oracle.Sagas;
 using Encina.Dapper.Oracle.Scheduling;
 using Encina.Messaging;
-using Encina.Messaging.Inbox;
-using Encina.Messaging.Outbox;
-using Encina.Messaging.Sagas;
-using Encina.Messaging.Scheduling;
 using Microsoft.Extensions.DependencyInjection;
 using Oracle.ManagedDataAccess.Client;
 
@@ -29,52 +25,22 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<MessagingConfiguration> configure)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+
         var config = new MessagingConfiguration();
         configure(config);
 
-        // IDbConnection should be registered by the application
-        // (e.g., scoped SqlConnection with connection string from configuration)
-
-        if (config.UseTransactions)
-        {
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
-        }
-
-        if (config.UseOutbox)
-        {
-            services.AddSingleton(config.OutboxOptions);
-            services.AddScoped<IOutboxStore, OutboxStoreDapper>();
-            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
-            services.AddHostedService<OutboxProcessor>();
-        }
-
-        if (config.UseInbox)
-        {
-            services.AddSingleton(config.InboxOptions);
-            services.AddScoped<IInboxStore, InboxStoreDapper>();
-            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
-            services.AddScoped<InboxOrchestrator>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(Messaging.Inbox.InboxPipelineBehavior<,>));
-        }
-
-        if (config.UseSagas)
-        {
-            services.AddSingleton(config.SagaOptions);
-            services.AddScoped<ISagaStore, SagaStoreDapper>();
-            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
-            services.AddScoped<SagaOrchestrator>();
-        }
-
-        if (config.UseScheduling)
-        {
-            services.AddSingleton(config.SchedulingOptions);
-            services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreDapper>();
-            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
-            services.AddScoped<SchedulerOrchestrator>();
-        }
-
-        return services;
+        return services.AddMessagingServices<
+            OutboxStoreDapper,
+            OutboxMessageFactory,
+            InboxStoreDapper,
+            InboxMessageFactory,
+            SagaStoreDapper,
+            SagaStateFactory,
+            ScheduledMessageStoreDapper,
+            ScheduledMessageFactory,
+            OutboxProcessor>(config);
     }
 
     /// <summary>
@@ -89,10 +55,11 @@ public static class ServiceCollectionExtensions
         Func<IServiceProvider, IDbConnection> connectionFactory,
         Action<MessagingConfiguration> configure)
     {
-        // Register connection factory
-        services.AddScoped(connectionFactory);
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(connectionFactory);
+        ArgumentNullException.ThrowIfNull(configure);
 
-        // Add messaging patterns
+        services.AddScoped(connectionFactory);
         return services.AddEncinaDapper(configure);
     }
 
@@ -109,8 +76,12 @@ public static class ServiceCollectionExtensions
         string connectionString,
         Action<MessagingConfiguration> configure)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(connectionString);
+        ArgumentNullException.ThrowIfNull(configure);
+
         return services.AddEncinaDapper(
-            sp => new OracleConnection(connectionString),
+            _ => new OracleConnection(connectionString),
             configure);
     }
 }

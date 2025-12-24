@@ -2,8 +2,6 @@ using System.Data;
 using Encina.ADO.Oracle.Inbox;
 using Encina.ADO.Oracle.Outbox;
 using Encina.Messaging;
-using Encina.Messaging.Inbox;
-using Encina.Messaging.Outbox;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Oracle.ManagedDataAccess.Client;
@@ -31,9 +29,12 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
-        RegisterMessagingServices(services, config);
-
-        return services;
+        return services.AddMessagingServicesCore<
+            OutboxStoreADO,
+            OutboxMessageFactory,
+            InboxStoreADO,
+            InboxMessageFactory,
+            OutboxProcessor>(config);
     }
 
     /// <summary>
@@ -76,34 +77,5 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped(connectionFactory);
 
         return services.AddEncinaADO(configure);
-    }
-
-    private static void RegisterMessagingServices(IServiceCollection services, MessagingConfiguration config)
-    {
-        // Outbox Pattern
-        if (config.UseOutbox)
-        {
-            services.AddSingleton(config.OutboxOptions);
-            services.TryAddScoped<IOutboxStore, OutboxStoreADO>();
-            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
-            services.AddHostedService<OutboxProcessor>();
-        }
-
-        // Inbox Pattern
-        if (config.UseInbox)
-        {
-            services.AddSingleton(config.InboxOptions);
-            services.TryAddScoped<IInboxStore, InboxStoreADO>();
-            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
-            services.AddScoped<InboxOrchestrator>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(Messaging.Inbox.InboxPipelineBehavior<,>));
-        }
-
-        // Transaction Pattern
-        if (config.UseTransactions)
-        {
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
-        }
     }
 }

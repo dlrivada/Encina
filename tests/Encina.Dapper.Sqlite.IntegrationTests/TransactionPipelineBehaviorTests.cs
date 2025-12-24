@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using Encina.Messaging;
 using Encina.TestInfrastructure.Fixtures;
 using Microsoft.Data.Sqlite;
 using static LanguageExt.Prelude;

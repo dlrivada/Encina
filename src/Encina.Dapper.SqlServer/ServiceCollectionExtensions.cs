@@ -4,21 +4,17 @@ using Encina.Dapper.SqlServer.Outbox;
 using Encina.Dapper.SqlServer.Sagas;
 using Encina.Dapper.SqlServer.Scheduling;
 using Encina.Messaging;
-using Encina.Messaging.Inbox;
-using Encina.Messaging.Outbox;
-using Encina.Messaging.Sagas;
-using Encina.Messaging.Scheduling;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.Dapper.SqlServer;
 
 /// <summary>
-/// Extension methods for configuring Encina with Dapper.
+/// Extension methods for configuring Encina with Dapper for SQL Server.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds Encina messaging patterns with Dapper persistence.
+    /// Adds Encina messaging patterns with Dapper persistence for SQL Server.
     /// All patterns are opt-in via configuration.
     /// </summary>
     /// <param name="services">The service collection.</param>
@@ -28,52 +24,22 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<MessagingConfiguration> configure)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+
         var config = new MessagingConfiguration();
         configure(config);
 
-        // IDbConnection should be registered by the application
-        // (e.g., scoped SqlConnection with connection string from configuration)
-
-        if (config.UseTransactions)
-        {
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
-        }
-
-        if (config.UseOutbox)
-        {
-            services.AddSingleton(config.OutboxOptions);
-            services.AddScoped<IOutboxStore, OutboxStoreDapper>();
-            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
-            services.AddHostedService<OutboxProcessor>();
-        }
-
-        if (config.UseInbox)
-        {
-            services.AddSingleton(config.InboxOptions);
-            services.AddScoped<IInboxStore, InboxStoreDapper>();
-            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
-            services.AddScoped<InboxOrchestrator>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(Messaging.Inbox.InboxPipelineBehavior<,>));
-        }
-
-        if (config.UseSagas)
-        {
-            services.AddSingleton(config.SagaOptions);
-            services.AddScoped<ISagaStore, SagaStoreDapper>();
-            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
-            services.AddScoped<SagaOrchestrator>();
-        }
-
-        if (config.UseScheduling)
-        {
-            services.AddSingleton(config.SchedulingOptions);
-            services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreDapper>();
-            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
-            services.AddScoped<SchedulerOrchestrator>();
-        }
-
-        return services;
+        return services.AddMessagingServices<
+            OutboxStoreDapper,
+            OutboxMessageFactory,
+            InboxStoreDapper,
+            InboxMessageFactory,
+            SagaStoreDapper,
+            SagaStateFactory,
+            ScheduledMessageStoreDapper,
+            ScheduledMessageFactory,
+            OutboxProcessor>(config);
     }
 
     /// <summary>
@@ -88,10 +54,9 @@ public static class ServiceCollectionExtensions
         Func<IServiceProvider, IDbConnection> connectionFactory,
         Action<MessagingConfiguration> configure)
     {
-        // Register connection factory
-        services.AddScoped(connectionFactory);
+        ArgumentNullException.ThrowIfNull(connectionFactory);
 
-        // Add messaging patterns
+        services.AddScoped(connectionFactory);
         return services.AddEncinaDapper(configure);
     }
 
@@ -108,8 +73,10 @@ public static class ServiceCollectionExtensions
         string connectionString,
         Action<MessagingConfiguration> configure)
     {
+        ArgumentNullException.ThrowIfNull(connectionString);
+
         return services.AddEncinaDapper(
-            sp => new Microsoft.Data.SqlClient.SqlConnection(connectionString),
+            _ => new Microsoft.Data.SqlClient.SqlConnection(connectionString),
             configure);
     }
 }
