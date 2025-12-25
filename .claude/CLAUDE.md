@@ -435,6 +435,64 @@ var message = new OutboxMessageBuilder()
   - CA2263 (Generic overload): Suppress when dynamic serialization is needed
   - CA1716 (Keyword conflicts): Fix by renaming (e.g., `Error` → `ErrorMessage`)
 
+### .NET 10 / C# 14 Reference (Released November 2025)
+
+> **Important**: .NET 10 is an LTS release supported through November 2028. This section documents key changes and new features since Claude's knowledge cutoff (January 2025).
+
+#### C# 14 New Features
+
+1. **Extension Members** (headline feature):
+   - Extension properties, extension operators, and static extension members
+   - Defined using `extension` block syntax
+   - Can add instance methods, properties, indexers, operators to any type
+
+2. **Field Keyword**:
+   - Access auto-implemented property backing field directly: `field`
+   - Use in custom get/set accessors without declaring backing field
+
+3. **User-Defined Compound Assignment Operators**:
+   - Can now override `+=`, `-=`, etc. explicitly for performance
+
+4. **Other C# 14 Features**:
+   - Null-conditional assignment
+   - Partial constructors and events
+   - File-based apps: run `*.cs` files directly with `dotnet run` (no .csproj needed)
+
+#### .NET 10 Breaking Changes
+
+| Change | Impact |
+|--------|--------|
+| `dotnet new sln` defaults to SLNX format | New solution format |
+| `dotnet restore` audits transitive packages | Security audits enabled |
+| OpenAPI 3.1 with breaking schema changes | `Nullable` removed from `OpenApiSchema`, use `JsonSchemaType.Null` |
+| `WebHostBuilder`, `IWebHost` obsolete | Use minimal hosting APIs |
+| `WithOpenApi` deprecated | Use new OpenAPI generator |
+| Default images use Ubuntu | Container base image change |
+
+#### PublicAPI Analyzers (RS0016/RS0017)
+
+The `Microsoft.CodeAnalysis.PublicApiAnalyzers` package tracks public API changes via:
+- `PublicAPI.Shipped.txt` - APIs in released versions
+- `PublicAPI.Unshipped.txt` - APIs in current development
+
+**Key rules**:
+- RS0016: Symbol not in declared API (add to Unshipped.txt)
+- RS0017: Symbol in declared API but not public/found (remove from txt)
+- RS0036/RS0037: Nullable annotation mismatches
+
+**Fixing RS0016/RS0017**:
+1. Use Visual Studio code fix to add/remove entries
+2. Manually edit `PublicAPI.Unshipped.txt`
+3. Format: `Namespace.Type.Member(params) -> ReturnType`
+4. Nullable annotations: `string!` (non-null), `string?` (nullable)
+
+#### Official Documentation Links
+
+- [What's new in .NET 10](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/overview)
+- [What's new in C# 14](https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/csharp-14)
+- [Breaking changes in .NET 10](https://learn.microsoft.com/en-us/dotnet/core/compatibility/10.0)
+- [ASP.NET Core 10](https://learn.microsoft.com/en-us/aspnet/core/release-notes/aspnetcore-10.0)
+
 ### Documentation
 
 - **XML Comments**: Required on all public APIs
@@ -451,6 +509,53 @@ var message = new OutboxMessageBuilder()
   - ❌ Never add `🤖 Generated with Claude Code`
   - ❌ Never add any reference to AI assistance in commit messages
 - **Author**: All commits should appear as authored solely by the repository owner
+
+### Build Environment Known Issues
+
+#### MSBuild Parallel Build CLR Error (0x80131506)
+
+When running `dotnet test` or `dotnet build` on the full solution (`Encina.slnx`), you may encounter:
+
+```
+Fatal error. Internal CLR error. (0x80131506)
+```
+
+**Cause**: This is a known .NET/MSBuild issue when building many projects in parallel, especially with complex dependency graphs.
+
+**Solutions**:
+
+1. **Use Solution Filters (.slnf)**: The project has pre-configured solution filters in the root directory:
+   - `Encina.Core.slnf` - Core library and tests
+   - `Encina.Messaging.slnf` - Messaging patterns
+   - `Encina.Database.slnf` - Database providers
+   - `Encina.Validation.slnf` - Validation packages
+   - `Encina.Web.slnf` - ASP.NET Core integration
+   - `Encina.Caching.slnf` - Caching packages
+   - `Encina.Scheduling.slnf` - Scheduling packages
+   - `Encina.Resilience.slnf` - Resilience patterns
+   - `Encina.EventSourcing.slnf` - Event sourcing
+   - `Encina.Observability.slnf` - Observability packages
+
+   ```bash
+   # Build specific subset
+   dotnet build Encina.Core.slnf --configuration Release
+   dotnet test Encina.Messaging.slnf --configuration Release
+   ```
+
+2. **Limit parallelism** with `/m:1` (sequential build):
+   ```bash
+   dotnet build Encina.slnx --configuration Release /m:1
+   dotnet test Encina.slnx --configuration Release /m:1
+   ```
+
+3. **Build individual projects**:
+   ```bash
+   dotnet test tests/Encina.Tests/Encina.Tests.csproj --configuration Release
+   ```
+
+**References**:
+- [dotnet/runtime Issue #93893](https://github.com/dotnet/runtime/issues/93893)
+- [MSBuild Race Conditions](https://learn.microsoft.com/en-us/visualstudio/msbuild/fix-intermittent-build-failures)
 
 ### Spanish/English
 
