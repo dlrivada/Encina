@@ -324,4 +324,9 @@ public sealed class RedisCacheOptions
     /// Gets or sets the key prefix for all cache keys.
     /// </summary>
     public string KeyPrefix { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets the provider health check options.
+    /// </summary>
+    public Messaging.Health.ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
 }

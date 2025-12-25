@@ -1,3 +1,4 @@
+using Encina.Messaging.Health;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 
@@ -58,6 +59,11 @@ public sealed class EncinaMongoDbOptions
     /// Gets or sets the scheduling options.
     /// </summary>
     public SchedulingOptions SchedulingOptions { get; set; } = new();
+
+    /// <summary>
+    /// Gets the provider health check options.
+    /// </summary>
+    public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
 }
 
 /// <summary>

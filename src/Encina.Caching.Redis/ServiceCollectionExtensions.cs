@@ -1,3 +1,5 @@
+using Encina.Caching.Redis.Health;
+using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -129,13 +131,15 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(connectionFactory);
 
         // Configure options
+        var cacheOptions = new RedisCacheOptions();
         if (configureCacheOptions is not null)
         {
+            configureCacheOptions(cacheOptions);
             services.Configure(configureCacheOptions);
         }
         else
         {
-            services.TryAddSingleton(Options.Create(new RedisCacheOptions()));
+            services.TryAddSingleton(Options.Create(cacheOptions));
         }
 
         if (configureLockOptions is not null)
@@ -151,6 +155,25 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ICacheProvider, RedisCacheProvider>();
         services.TryAddSingleton<IPubSubProvider, RedisPubSubProvider>();
         services.TryAddSingleton<IDistributedLockProvider, RedisDistributedLockProvider>();
+
+        // Register health check if enabled
+        services.RegisterHealthCheck(cacheOptions);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers health check for Redis if enabled in cache options.
+    /// </summary>
+    internal static IServiceCollection RegisterHealthCheck(
+        this IServiceCollection services,
+        RedisCacheOptions options)
+    {
+        if (options.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(options.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, RedisHealthCheck>();
+        }
 
         return services;
     }

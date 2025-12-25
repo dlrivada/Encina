@@ -1,7 +1,9 @@
+using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Encina.MongoDB.Health;
 using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Outbox;
 using Encina.MongoDB.Sagas;
@@ -89,6 +91,13 @@ public static class ServiceCollectionExtensions
             services.AddHostedService<MongoDbIndexCreator>();
         }
 
+        // Register provider health check if enabled
+        if (options.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(options.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, MongoDbHealthCheck>();
+        }
+
         return services;
     }
 
@@ -149,6 +158,13 @@ public static class ServiceCollectionExtensions
         if (options.CreateIndexes)
         {
             services.AddHostedService<MongoDbIndexCreator>();
+        }
+
+        // Register provider health check if enabled
+        if (options.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(options.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, MongoDbHealthCheck>();
         }
 
         return services;

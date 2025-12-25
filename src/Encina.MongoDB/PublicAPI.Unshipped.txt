@@ -102,12 +102,15 @@ Encina.MongoDB.Sagas.SagaState.StartedAtUtc.get -> System.DateTime
 Encina.MongoDB.Sagas.SagaState.StartedAtUtc.set -> void
 Encina.MongoDB.Sagas.SagaState.Status.get -> string!
 Encina.MongoDB.Sagas.SagaState.Status.set -> void
+Encina.MongoDB.Sagas.SagaState.TimeoutAtUtc.get -> System.DateTime?
+Encina.MongoDB.Sagas.SagaState.TimeoutAtUtc.set -> void
 Encina.MongoDB.Sagas.SagaStateFactory
-Encina.MongoDB.Sagas.SagaStateFactory.Create(System.Guid sagaId, string! sagaType, string! data, string! status, int currentStep, System.DateTime startedAtUtc) -> Encina.Messaging.Sagas.ISagaState!
+Encina.MongoDB.Sagas.SagaStateFactory.Create(System.Guid sagaId, string! sagaType, string! data, string! status, int currentStep, System.DateTime startedAtUtc, System.DateTime? timeoutAtUtc = null) -> Encina.Messaging.Sagas.ISagaState!
 Encina.MongoDB.Sagas.SagaStateFactory.SagaStateFactory() -> void
 Encina.MongoDB.Sagas.SagaStoreMongoDB
 Encina.MongoDB.Sagas.SagaStoreMongoDB.AddAsync(Encina.Messaging.Sagas.ISagaState! saga, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.MongoDB.Sagas.SagaStoreMongoDB.GetAsync(System.Guid sagaId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Sagas.ISagaState?>!
+Encina.MongoDB.Sagas.SagaStoreMongoDB.GetExpiredSagasAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Sagas.ISagaState!>!>!
 Encina.MongoDB.Sagas.SagaStoreMongoDB.GetStuckSagasAsync(System.TimeSpan olderThan, int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Sagas.ISagaState!>!>!
 Encina.MongoDB.Sagas.SagaStoreMongoDB.SagaStoreMongoDB(MongoDB.Driver.IMongoClient! mongoClient, Microsoft.Extensions.Options.IOptions<Encina.MongoDB.EncinaMongoDbOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.MongoDB.Sagas.SagaStoreMongoDB!>! logger) -> void
 Encina.MongoDB.Sagas.SagaStoreMongoDB.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -178,3 +181,7 @@ Encina.MongoDB.EncinaMongoDbOptions.UseScheduling.get -> bool
 Encina.MongoDB.EncinaMongoDbOptions.UseScheduling.set -> void
 static Encina.MongoDB.ServiceCollectionExtensions.AddEncinaMongoDB(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, MongoDB.Driver.IMongoClient! mongoClient, System.Action<Encina.MongoDB.EncinaMongoDbOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.MongoDB.ServiceCollectionExtensions.AddEncinaMongoDB(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.MongoDB.EncinaMongoDbOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.MongoDB.EncinaMongoDbOptions.ProviderHealthCheck.get -> Encina.Messaging.Health.ProviderHealthCheckOptions!
+Encina.MongoDB.Health.MongoDbHealthCheck
+Encina.MongoDB.Health.MongoDbHealthCheck.MongoDbHealthCheck(System.IServiceProvider! serviceProvider, Encina.Messaging.Health.ProviderHealthCheckOptions? options) -> void
+const Encina.MongoDB.Health.MongoDbHealthCheck.DefaultName = "encina-mongodb" -> string!
