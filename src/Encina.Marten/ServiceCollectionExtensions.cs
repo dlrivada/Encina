@@ -1,3 +1,5 @@
+using Encina.Marten.Health;
+using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -31,10 +33,20 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
 
+        var options = new EncinaMartenOptions();
+        configure.Invoke(options);
+
         services.Configure(configure);
 
         // Register the open generic aggregate repository
         services.TryAddScoped(typeof(IAggregateRepository<>), typeof(MartenAggregateRepository<>));
+
+        // Register health check if enabled
+        if (options.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(options.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, MartenHealthCheck>();
+        }
 
         return services;
     }

@@ -1,3 +1,5 @@
+using Encina.Hangfire.Health;
+using Encina.Messaging.Health;
 using Hangfire;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -14,12 +16,25 @@ public static class ServiceCollectionExtensions
     /// Registers job adapters for executing requests and notifications as background jobs.
     /// </summary>
     /// <param name="services">The service collection.</param>
+    /// <param name="configure">Optional configuration action.</param>
     /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddEncinaHangfire(this IServiceCollection services)
+    public static IServiceCollection AddEncinaHangfire(
+        this IServiceCollection services,
+        Action<EncinaHangfireOptions>? configure = null)
     {
+        var options = new EncinaHangfireOptions();
+        configure?.Invoke(options);
+
         // Register adapters as transient (Hangfire creates new instances per job)
         services.TryAddTransient(typeof(HangfireRequestJobAdapter<,>));
         services.TryAddTransient(typeof(HangfireNotificationJobAdapter<>));
+
+        // Register health check if enabled
+        if (options.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(options.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, HangfireHealthCheck>();
+        }
 
         return services;
     }

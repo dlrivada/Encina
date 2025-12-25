@@ -1,3 +1,5 @@
+using Encina.Messaging.Health;
+
 namespace Encina.Marten;
 
 /// <summary>
@@ -28,4 +30,9 @@ public sealed class EncinaMartenOptions
     /// Default is empty (no prefix).
     /// </summary>
     public string StreamPrefix { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets the provider health check options.
+    /// </summary>
+    public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
 }

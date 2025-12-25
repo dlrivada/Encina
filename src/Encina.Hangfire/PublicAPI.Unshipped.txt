@@ -8,7 +8,13 @@ Encina.Hangfire.HangfireRequestJobAdapter<TRequest, TResponse>.HangfireRequestJo
 Encina.Hangfire.ServiceCollectionExtensions
 static Encina.Hangfire.ServiceCollectionExtensions.AddOrUpdateRecurringNotification<TNotification>(this Hangfire.IRecurringJobManager! manager, string! recurringJobId, TNotification notification, string! cronExpression, Hangfire.RecurringJobOptions? options = null) -> void
 static Encina.Hangfire.ServiceCollectionExtensions.AddOrUpdateRecurringRequest<TRequest, TResponse>(this Hangfire.IRecurringJobManager! manager, string! recurringJobId, TRequest request, string! cronExpression, Hangfire.RecurringJobOptions? options = null) -> void
-static Encina.Hangfire.ServiceCollectionExtensions.AddEncinaHangfire(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Hangfire.ServiceCollectionExtensions.AddEncinaHangfire(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Hangfire.EncinaHangfireOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Hangfire.EncinaHangfireOptions
+Encina.Hangfire.EncinaHangfireOptions.EncinaHangfireOptions() -> void
+Encina.Hangfire.EncinaHangfireOptions.ProviderHealthCheck.get -> Encina.Messaging.Health.ProviderHealthCheckOptions!
+Encina.Hangfire.Health.HangfireHealthCheck
+Encina.Hangfire.Health.HangfireHealthCheck.HangfireHealthCheck(System.IServiceProvider! serviceProvider, Encina.Messaging.Health.ProviderHealthCheckOptions? options) -> void
+const Encina.Hangfire.Health.HangfireHealthCheck.DefaultName = "encina-hangfire" -> string!
 static Encina.Hangfire.ServiceCollectionExtensions.EnqueueNotification<TNotification>(this Hangfire.IBackgroundJobClient! client, TNotification notification) -> string!
 static Encina.Hangfire.ServiceCollectionExtensions.EnqueueRequest<TRequest, TResponse>(this Hangfire.IBackgroundJobClient! client, TRequest request) -> string!
 static Encina.Hangfire.ServiceCollectionExtensions.ScheduleNotificationAt<TNotification>(this Hangfire.IBackgroundJobClient! client, TNotification notification, System.DateTimeOffset enqueueAt) -> string!

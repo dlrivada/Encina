@@ -1,3 +1,5 @@
+using Encina.Messaging.Health;
+using Encina.Quartz.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Quartz;
 
@@ -14,11 +16,16 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Optional Quartz configuration action.</param>
+    /// <param name="configureOptions">Optional Encina options configuration action.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddEncinaQuartz(
         this IServiceCollection services,
-        Action<IServiceCollectionQuartzConfigurator>? configure = null)
+        Action<IServiceCollectionQuartzConfigurator>? configure = null,
+        Action<EncinaQuartzOptions>? configureOptions = null)
     {
+        var options = new EncinaQuartzOptions();
+        configureOptions?.Invoke(options);
+
         services.AddQuartz(quartzConfig =>
         {
             // Allow user customization
@@ -26,10 +33,17 @@ public static class ServiceCollectionExtensions
         });
 
         // Add Quartz hosted service
-        services.AddQuartzHostedService(options =>
+        services.AddQuartzHostedService(opts =>
         {
-            options.WaitForJobsToComplete = true;
+            opts.WaitForJobsToComplete = true;
         });
+
+        // Register health check if enabled
+        if (options.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(options.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, QuartzHealthCheck>();
+        }
 
         return services;
     }

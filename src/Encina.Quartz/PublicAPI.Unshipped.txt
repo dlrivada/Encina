@@ -8,6 +8,12 @@ Encina.Quartz.QuartzRequestJob<TRequest, TResponse>.QuartzRequestJob(Encina.IEnc
 Encina.Quartz.ServiceCollectionExtensions
 static Encina.Quartz.ServiceCollectionExtensions.AddNotificationJob<TNotification>(this Quartz.IServiceCollectionQuartzConfigurator! configurator, TNotification notification, System.Action<Quartz.ITriggerConfigurator!>! configureTrigger, Quartz.JobKey? jobKey = null) -> Quartz.IServiceCollectionQuartzConfigurator!
 static Encina.Quartz.ServiceCollectionExtensions.AddRequestJob<TRequest, TResponse>(this Quartz.IServiceCollectionQuartzConfigurator! configurator, TRequest request, System.Action<Quartz.ITriggerConfigurator!>! configureTrigger, Quartz.JobKey? jobKey = null) -> Quartz.IServiceCollectionQuartzConfigurator!
-static Encina.Quartz.ServiceCollectionExtensions.AddEncinaQuartz(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Quartz.IServiceCollectionQuartzConfigurator!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Quartz.ServiceCollectionExtensions.AddEncinaQuartz(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Quartz.IServiceCollectionQuartzConfigurator!>? configure = null, System.Action<Encina.Quartz.EncinaQuartzOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Quartz.EncinaQuartzOptions
+Encina.Quartz.EncinaQuartzOptions.EncinaQuartzOptions() -> void
+Encina.Quartz.EncinaQuartzOptions.ProviderHealthCheck.get -> Encina.Messaging.Health.ProviderHealthCheckOptions!
+Encina.Quartz.Health.QuartzHealthCheck
+Encina.Quartz.Health.QuartzHealthCheck.QuartzHealthCheck(System.IServiceProvider! serviceProvider, Encina.Messaging.Health.ProviderHealthCheckOptions? options) -> void
+const Encina.Quartz.Health.QuartzHealthCheck.DefaultName = "encina-quartz" -> string!
 static Encina.Quartz.ServiceCollectionExtensions.ScheduleNotification<TNotification>(this Quartz.IScheduler! scheduler, TNotification notification, Quartz.ITrigger! trigger, Quartz.JobKey? jobKey = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Quartz.TriggerKey!>!
 static Encina.Quartz.ServiceCollectionExtensions.ScheduleRequest<TRequest, TResponse>(this Quartz.IScheduler! scheduler, TRequest request, Quartz.ITrigger! trigger, Quartz.JobKey? jobKey = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Quartz.TriggerKey!>!
