@@ -1,7 +1,9 @@
 using System.Data;
+using Encina.ADO.PostgreSQL.Health;
 using Encina.ADO.PostgreSQL.Inbox;
 using Encina.ADO.PostgreSQL.Outbox;
 using Encina.Messaging;
+using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -29,12 +31,21 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
-        return services.AddMessagingServicesCore<
+        services.AddMessagingServicesCore<
             OutboxStoreADO,
             OutboxMessageFactory,
             InboxStoreADO,
             InboxMessageFactory,
             OutboxProcessor>(config);
+
+        // Register provider health check if enabled
+        if (config.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(config.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, PostgreSqlHealthCheck>();
+        }
+
+        return services;
     }
 
     /// <summary>

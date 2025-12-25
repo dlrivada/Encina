@@ -88,12 +88,15 @@ Encina.Dapper.Sqlite.Sagas.SagaState.StartedAtUtc.get -> System.DateTime
 Encina.Dapper.Sqlite.Sagas.SagaState.StartedAtUtc.set -> void
 Encina.Dapper.Sqlite.Sagas.SagaState.Status.get -> string!
 Encina.Dapper.Sqlite.Sagas.SagaState.Status.set -> void
+Encina.Dapper.Sqlite.Sagas.SagaState.TimeoutAtUtc.get -> System.DateTime?
+Encina.Dapper.Sqlite.Sagas.SagaState.TimeoutAtUtc.set -> void
 Encina.Dapper.Sqlite.Sagas.SagaStateFactory
-Encina.Dapper.Sqlite.Sagas.SagaStateFactory.Create(System.Guid sagaId, string! sagaType, string! data, string! status, int currentStep, System.DateTime startedAtUtc) -> Encina.Messaging.Sagas.ISagaState!
+Encina.Dapper.Sqlite.Sagas.SagaStateFactory.Create(System.Guid sagaId, string! sagaType, string! data, string! status, int currentStep, System.DateTime startedAtUtc, System.DateTime? timeoutAtUtc = null) -> Encina.Messaging.Sagas.ISagaState!
 Encina.Dapper.Sqlite.Sagas.SagaStateFactory.SagaStateFactory() -> void
 Encina.Dapper.Sqlite.Sagas.SagaStoreDapper
 Encina.Dapper.Sqlite.Sagas.SagaStoreDapper.AddAsync(Encina.Messaging.Sagas.ISagaState! sagaState, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Sqlite.Sagas.SagaStoreDapper.GetAsync(System.Guid sagaId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Sagas.ISagaState?>!
+Encina.Dapper.Sqlite.Sagas.SagaStoreDapper.GetExpiredSagasAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Sagas.ISagaState!>!>!
 Encina.Dapper.Sqlite.Sagas.SagaStoreDapper.GetStuckSagasAsync(System.TimeSpan olderThan, int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Sagas.ISagaState!>!>!
 Encina.Dapper.Sqlite.Sagas.SagaStoreDapper.SagaStoreDapper(System.Data.IDbConnection! connection, string! tableName = "SagaStates") -> void
 Encina.Dapper.Sqlite.Sagas.SagaStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -139,6 +142,9 @@ Encina.Dapper.Sqlite.Scheduling.ScheduledMessageStoreDapper.MarkAsProcessedAsync
 Encina.Dapper.Sqlite.Scheduling.ScheduledMessageStoreDapper.RescheduleRecurringMessageAsync(System.Guid messageId, System.DateTime nextScheduledAtUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Sqlite.Scheduling.ScheduledMessageStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Sqlite.Scheduling.ScheduledMessageStoreDapper.ScheduledMessageStoreDapper(System.Data.IDbConnection! connection, string! tableName = "ScheduledMessages") -> void
+Encina.Dapper.Sqlite.Health.SqliteHealthCheck
+const Encina.Dapper.Sqlite.Health.SqliteHealthCheck.DefaultName = "encina-sqlite" -> string!
+Encina.Dapper.Sqlite.Health.SqliteHealthCheck.SqliteHealthCheck(System.IServiceProvider! serviceProvider, Encina.Messaging.Health.ProviderHealthCheckOptions? options) -> void
 Encina.Dapper.Sqlite.ServiceCollectionExtensions
 static Encina.Dapper.Sqlite.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Dapper.Sqlite.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

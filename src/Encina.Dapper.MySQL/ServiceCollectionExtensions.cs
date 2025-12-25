@@ -1,9 +1,11 @@
 using System.Data;
+using Encina.Dapper.MySQL.Health;
 using Encina.Dapper.MySQL.Inbox;
 using Encina.Dapper.MySQL.Outbox;
 using Encina.Dapper.MySQL.Sagas;
 using Encina.Dapper.MySQL.Scheduling;
 using Encina.Messaging;
+using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 
@@ -31,7 +33,7 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
-        return services.AddMessagingServices<
+        services.AddMessagingServices<
             OutboxStoreDapper,
             OutboxMessageFactory,
             InboxStoreDapper,
@@ -41,6 +43,15 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreDapper,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        // Register provider health check if enabled
+        if (config.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(config.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, MySqlHealthCheck>();
+        }
+
+        return services;
     }
 
     /// <summary>

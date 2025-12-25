@@ -1,9 +1,11 @@
 using System.Data;
+using Encina.Dapper.SqlServer.Health;
 using Encina.Dapper.SqlServer.Inbox;
 using Encina.Dapper.SqlServer.Outbox;
 using Encina.Dapper.SqlServer.Sagas;
 using Encina.Dapper.SqlServer.Scheduling;
 using Encina.Messaging;
+using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.Dapper.SqlServer;
@@ -30,7 +32,7 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
-        return services.AddMessagingServices<
+        services.AddMessagingServices<
             OutboxStoreDapper,
             OutboxMessageFactory,
             InboxStoreDapper,
@@ -40,6 +42,15 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreDapper,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        // Register provider health check if enabled
+        if (config.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(config.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, SqlServerHealthCheck>();
+        }
+
+        return services;
     }
 
     /// <summary>

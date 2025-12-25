@@ -88,12 +88,15 @@ Encina.Dapper.SqlServer.Sagas.SagaState.StartedAtUtc.get -> System.DateTime
 Encina.Dapper.SqlServer.Sagas.SagaState.StartedAtUtc.set -> void
 Encina.Dapper.SqlServer.Sagas.SagaState.Status.get -> string!
 Encina.Dapper.SqlServer.Sagas.SagaState.Status.set -> void
+Encina.Dapper.SqlServer.Sagas.SagaState.TimeoutAtUtc.get -> System.DateTime?
+Encina.Dapper.SqlServer.Sagas.SagaState.TimeoutAtUtc.set -> void
 Encina.Dapper.SqlServer.Sagas.SagaStateFactory
-Encina.Dapper.SqlServer.Sagas.SagaStateFactory.Create(System.Guid sagaId, string! sagaType, string! data, string! status, int currentStep, System.DateTime startedAtUtc) -> Encina.Messaging.Sagas.ISagaState!
+Encina.Dapper.SqlServer.Sagas.SagaStateFactory.Create(System.Guid sagaId, string! sagaType, string! data, string! status, int currentStep, System.DateTime startedAtUtc, System.DateTime? timeoutAtUtc = null) -> Encina.Messaging.Sagas.ISagaState!
 Encina.Dapper.SqlServer.Sagas.SagaStateFactory.SagaStateFactory() -> void
 Encina.Dapper.SqlServer.Sagas.SagaStoreDapper
 Encina.Dapper.SqlServer.Sagas.SagaStoreDapper.AddAsync(Encina.Messaging.Sagas.ISagaState! sagaState, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.SqlServer.Sagas.SagaStoreDapper.GetAsync(System.Guid sagaId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Sagas.ISagaState?>!
+Encina.Dapper.SqlServer.Sagas.SagaStoreDapper.GetExpiredSagasAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Sagas.ISagaState!>!>!
 Encina.Dapper.SqlServer.Sagas.SagaStoreDapper.GetStuckSagasAsync(System.TimeSpan olderThan, int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Sagas.ISagaState!>!>!
 Encina.Dapper.SqlServer.Sagas.SagaStoreDapper.SagaStoreDapper(System.Data.IDbConnection! connection, string! tableName = "SagaStates") -> void
 Encina.Dapper.SqlServer.Sagas.SagaStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -139,6 +142,9 @@ Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper.MarkAsProcessedAs
 Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper.RescheduleRecurringMessageAsync(System.Guid messageId, System.DateTime nextScheduledAtUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.SqlServer.Scheduling.ScheduledMessageStoreDapper.ScheduledMessageStoreDapper(System.Data.IDbConnection! connection, string! tableName = "ScheduledMessages") -> void
+Encina.Dapper.SqlServer.Health.SqlServerHealthCheck
+const Encina.Dapper.SqlServer.Health.SqlServerHealthCheck.DefaultName = "encina-sqlserver" -> string!
+Encina.Dapper.SqlServer.Health.SqlServerHealthCheck.SqlServerHealthCheck(System.IServiceProvider! serviceProvider, Encina.Messaging.Health.ProviderHealthCheckOptions? options) -> void
 Encina.Dapper.SqlServer.ServiceCollectionExtensions
 static Encina.Dapper.SqlServer.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Dapper.SqlServer.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

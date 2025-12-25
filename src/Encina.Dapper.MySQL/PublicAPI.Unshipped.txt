@@ -88,12 +88,15 @@ Encina.Dapper.MySQL.Sagas.SagaState.StartedAtUtc.get -> System.DateTime
 Encina.Dapper.MySQL.Sagas.SagaState.StartedAtUtc.set -> void
 Encina.Dapper.MySQL.Sagas.SagaState.Status.get -> string!
 Encina.Dapper.MySQL.Sagas.SagaState.Status.set -> void
+Encina.Dapper.MySQL.Sagas.SagaState.TimeoutAtUtc.get -> System.DateTime?
+Encina.Dapper.MySQL.Sagas.SagaState.TimeoutAtUtc.set -> void
 Encina.Dapper.MySQL.Sagas.SagaStateFactory
-Encina.Dapper.MySQL.Sagas.SagaStateFactory.Create(System.Guid sagaId, string! sagaType, string! data, string! status, int currentStep, System.DateTime startedAtUtc) -> Encina.Messaging.Sagas.ISagaState!
+Encina.Dapper.MySQL.Sagas.SagaStateFactory.Create(System.Guid sagaId, string! sagaType, string! data, string! status, int currentStep, System.DateTime startedAtUtc, System.DateTime? timeoutAtUtc = null) -> Encina.Messaging.Sagas.ISagaState!
 Encina.Dapper.MySQL.Sagas.SagaStateFactory.SagaStateFactory() -> void
 Encina.Dapper.MySQL.Sagas.SagaStoreDapper
 Encina.Dapper.MySQL.Sagas.SagaStoreDapper.AddAsync(Encina.Messaging.Sagas.ISagaState! sagaState, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.MySQL.Sagas.SagaStoreDapper.GetAsync(System.Guid sagaId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Sagas.ISagaState?>!
+Encina.Dapper.MySQL.Sagas.SagaStoreDapper.GetExpiredSagasAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Sagas.ISagaState!>!>!
 Encina.Dapper.MySQL.Sagas.SagaStoreDapper.GetStuckSagasAsync(System.TimeSpan olderThan, int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Sagas.ISagaState!>!>!
 Encina.Dapper.MySQL.Sagas.SagaStoreDapper.SagaStoreDapper(System.Data.IDbConnection! connection, string! tableName = "SagaStates") -> void
 Encina.Dapper.MySQL.Sagas.SagaStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -139,6 +142,9 @@ Encina.Dapper.MySQL.Scheduling.ScheduledMessageStoreDapper.MarkAsProcessedAsync(
 Encina.Dapper.MySQL.Scheduling.ScheduledMessageStoreDapper.RescheduleRecurringMessageAsync(System.Guid messageId, System.DateTime nextScheduledAtUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.MySQL.Scheduling.ScheduledMessageStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.MySQL.Scheduling.ScheduledMessageStoreDapper.ScheduledMessageStoreDapper(System.Data.IDbConnection! connection, string! tableName = "ScheduledMessages") -> void
+Encina.Dapper.MySQL.Health.MySqlHealthCheck
+const Encina.Dapper.MySQL.Health.MySqlHealthCheck.DefaultName = "encina-mysql" -> string!
+Encina.Dapper.MySQL.Health.MySqlHealthCheck.MySqlHealthCheck(System.IServiceProvider! serviceProvider, Encina.Messaging.Health.ProviderHealthCheckOptions? options) -> void
 Encina.Dapper.MySQL.ServiceCollectionExtensions
 static Encina.Dapper.MySQL.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Dapper.MySQL.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

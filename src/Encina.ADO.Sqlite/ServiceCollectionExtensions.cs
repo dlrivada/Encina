@@ -1,7 +1,9 @@
 using System.Data;
+using Encina.ADO.Sqlite.Health;
 using Encina.ADO.Sqlite.Inbox;
 using Encina.ADO.Sqlite.Outbox;
 using Encina.Messaging;
+using Encina.Messaging.Health;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -29,12 +31,21 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
-        return services.AddMessagingServicesCore<
+        services.AddMessagingServicesCore<
             OutboxStoreADO,
             OutboxMessageFactory,
             InboxStoreADO,
             InboxMessageFactory,
             OutboxProcessor>(config);
+
+        // Register provider health check if enabled
+        if (config.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(config.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, SqliteHealthCheck>();
+        }
+
+        return services;
     }
 
     /// <summary>

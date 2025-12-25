@@ -88,12 +88,15 @@ Encina.Dapper.Oracle.Sagas.SagaState.StartedAtUtc.get -> System.DateTime
 Encina.Dapper.Oracle.Sagas.SagaState.StartedAtUtc.set -> void
 Encina.Dapper.Oracle.Sagas.SagaState.Status.get -> string!
 Encina.Dapper.Oracle.Sagas.SagaState.Status.set -> void
+Encina.Dapper.Oracle.Sagas.SagaState.TimeoutAtUtc.get -> System.DateTime?
+Encina.Dapper.Oracle.Sagas.SagaState.TimeoutAtUtc.set -> void
 Encina.Dapper.Oracle.Sagas.SagaStateFactory
-Encina.Dapper.Oracle.Sagas.SagaStateFactory.Create(System.Guid sagaId, string! sagaType, string! data, string! status, int currentStep, System.DateTime startedAtUtc) -> Encina.Messaging.Sagas.ISagaState!
+Encina.Dapper.Oracle.Sagas.SagaStateFactory.Create(System.Guid sagaId, string! sagaType, string! data, string! status, int currentStep, System.DateTime startedAtUtc, System.DateTime? timeoutAtUtc = null) -> Encina.Messaging.Sagas.ISagaState!
 Encina.Dapper.Oracle.Sagas.SagaStateFactory.SagaStateFactory() -> void
 Encina.Dapper.Oracle.Sagas.SagaStoreDapper
 Encina.Dapper.Oracle.Sagas.SagaStoreDapper.AddAsync(Encina.Messaging.Sagas.ISagaState! sagaState, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Oracle.Sagas.SagaStoreDapper.GetAsync(System.Guid sagaId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Sagas.ISagaState?>!
+Encina.Dapper.Oracle.Sagas.SagaStoreDapper.GetExpiredSagasAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Sagas.ISagaState!>!>!
 Encina.Dapper.Oracle.Sagas.SagaStoreDapper.GetStuckSagasAsync(System.TimeSpan olderThan, int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Sagas.ISagaState!>!>!
 Encina.Dapper.Oracle.Sagas.SagaStoreDapper.SagaStoreDapper(System.Data.IDbConnection! connection, string! tableName = "SagaStates") -> void
 Encina.Dapper.Oracle.Sagas.SagaStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -139,6 +142,9 @@ Encina.Dapper.Oracle.Scheduling.ScheduledMessageStoreDapper.MarkAsProcessedAsync
 Encina.Dapper.Oracle.Scheduling.ScheduledMessageStoreDapper.RescheduleRecurringMessageAsync(System.Guid messageId, System.DateTime nextScheduledAtUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Oracle.Scheduling.ScheduledMessageStoreDapper.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Dapper.Oracle.Scheduling.ScheduledMessageStoreDapper.ScheduledMessageStoreDapper(System.Data.IDbConnection! connection, string! tableName = "ScheduledMessages") -> void
+Encina.Dapper.Oracle.Health.OracleHealthCheck
+const Encina.Dapper.Oracle.Health.OracleHealthCheck.DefaultName = "encina-oracle" -> string!
+Encina.Dapper.Oracle.Health.OracleHealthCheck.OracleHealthCheck(System.IServiceProvider! serviceProvider, Encina.Messaging.Health.ProviderHealthCheckOptions? options) -> void
 Encina.Dapper.Oracle.ServiceCollectionExtensions
 static Encina.Dapper.Oracle.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Dapper.Oracle.ServiceCollectionExtensions.AddEncinaDapper(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Messaging.MessagingConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

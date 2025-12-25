@@ -1,8 +1,10 @@
+using Encina.EntityFrameworkCore.Health;
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.EntityFrameworkCore.Scheduling;
 using Encina.Messaging;
+using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
@@ -121,6 +123,13 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreEF>();
             services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
             services.AddScoped<SchedulerOrchestrator>();
+        }
+
+        // Register provider health check if enabled
+        if (config.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(config.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, EntityFrameworkCoreHealthCheck>();
         }
 
         return services;
