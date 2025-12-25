@@ -10,6 +10,8 @@ namespace Encina.MongoDB.Sagas;
 /// </summary>
 public sealed class SagaStoreMongoDB : ISagaStore
 {
+    private static readonly string[] ActiveSagaStatuses = ["Running", "Compensating"];
+
     private readonly IMongoCollection<SagaState> _collection;
     private readonly ILogger<SagaStoreMongoDB> _logger;
 
@@ -133,7 +135,7 @@ public sealed class SagaStoreMongoDB : ISagaStore
         var now = DateTime.UtcNow;
 
         var filter = Builders<SagaState>.Filter.And(
-            Builders<SagaState>.Filter.In(s => s.Status, new[] { "Running", "Compensating" }),
+            Builders<SagaState>.Filter.In(s => s.Status, ActiveSagaStatuses),
             Builders<SagaState>.Filter.Ne(s => s.TimeoutAtUtc, null),
             Builders<SagaState>.Filter.Lte(s => s.TimeoutAtUtc, now)
         );

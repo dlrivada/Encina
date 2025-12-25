@@ -535,6 +535,16 @@ public static class SagaErrorCodes
     /// Saga exceeded its configured timeout.
     /// </summary>
     public const string Timeout = "saga.timeout";
+
+    /// <summary>
+    /// Saga not found handler was cancelled.
+    /// </summary>
+    public const string HandlerCancelled = "saga.handler.cancelled";
+
+    /// <summary>
+    /// Saga not found handler failed with an exception.
+    /// </summary>
+    public const string HandlerFailed = "saga.handler.failed";
 }
 
 /// <summary>
