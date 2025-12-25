@@ -17,41 +17,46 @@ public static class EncinaErrors
     /// <summary>
     /// Creates an error with explicit code and message.
     /// </summary>
-    public static EncinaError Create(string code, string message, Exception? exception = null, object? details = null)
+    /// <param name="code">The error code.</param>
+    /// <param name="message">The error message.</param>
+    /// <param name="exception">Optional exception that caused the error.</param>
+    /// <param name="details">Optional structured metadata as a dictionary.</param>
+    /// <returns>An EncinaError with the specified details.</returns>
+    public static EncinaError Create(
+        string code,
+        string message,
+        Exception? exception = null,
+        IReadOnlyDictionary<string, object?>? details = null)
         => EncinaError.FromEncinaException(new EncinaException(code, message, exception, details));
 
     /// <summary>
     /// Wraps an exception inside a typed error.
     /// </summary>
-    public static EncinaError FromException(string code, Exception exception, string? message = null, object? details = null)
+    /// <param name="code">The error code.</param>
+    /// <param name="exception">The exception to wrap.</param>
+    /// <param name="message">Optional message override. If null, uses the exception message.</param>
+    /// <param name="details">Optional structured metadata as a dictionary.</param>
+    /// <returns>An EncinaError wrapping the exception.</returns>
+    public static EncinaError FromException(
+        string code,
+        Exception exception,
+        string? message = null,
+        IReadOnlyDictionary<string, object?>? details = null)
         => Create(code, message ?? exception.Message, exception, details);
 }
 
 /// <summary>
 /// Internal exception used to capture Encina failure metadata without leaking it.
 /// </summary>
-internal sealed class EncinaException(string code, string message, Exception? innerException, object? details) : Exception(message, innerException)
+internal sealed class EncinaException(
+    string code,
+    string message,
+    Exception? innerException,
+    IReadOnlyDictionary<string, object?>? details) : Exception(message, innerException)
 {
     public string Code { get; } = code;
 
-    public object? Details { get; } = details;
-
-    public IReadOnlyDictionary<string, object?> Metadata { get; } = NormalizeMetadata(details);
-
-    private static IReadOnlyDictionary<string, object?> NormalizeMetadata(object? details)
-    {
-        if (details is null)
-        {
-            return ImmutableDictionary<string, object?>.Empty;
-        }
-
-        if (details is IReadOnlyDictionary<string, object?> dict)
-        {
-            return dict;
-        }
-
-        return ImmutableDictionary<string, object?>.Empty.Add("detail", details);
-    }
+    public IReadOnlyDictionary<string, object?> Details { get; } = details ?? ImmutableDictionary<string, object?>.Empty;
 }
 
 /// <summary>
@@ -69,25 +74,28 @@ public static class EncinaErrorExtensions
         return error.MetadataException.Match(
             Some: ex => ex switch
             {
-                EncinaException EncinaException => Some(EncinaException.Code),
+                EncinaException enEx => Some(enEx.Code),
                 _ => None
             },
             None: () => None);
     }
 
     /// <summary>
-    /// Gets the error details from the Encina error.
+    /// Gets the error details dictionary from the Encina error.
     /// </summary>
     /// <param name="error">The Encina error.</param>
-    /// <returns>The error details if available.</returns>
-    public static Option<object> GetDetails(this EncinaError error)
+    /// <returns>The error details dictionary, or empty if not available.</returns>
+    public static IReadOnlyDictionary<string, object?> GetDetails(this EncinaError error)
     {
-        return error.MetadataException.Bind(ex => ex switch
-        {
-            EncinaException EncinaException when EncinaException.Details is not null
-                => Some(EncinaException.Details),
-            _ => None
-        });
+        var details = error.MetadataException.MatchUnsafe(
+            ex => ex switch
+            {
+                EncinaException enEx => enEx.Details,
+                _ => ImmutableDictionary<string, object?>.Empty
+            },
+            () => ImmutableDictionary<string, object?>.Empty);
+
+        return details ?? ImmutableDictionary<string, object?>.Empty;
     }
 
     /// <summary>
@@ -95,18 +103,9 @@ public static class EncinaErrorExtensions
     /// </summary>
     /// <param name="error">The Encina error.</param>
     /// <returns>The error metadata dictionary, or empty if not available.</returns>
+    /// <remarks>This is an alias for <see cref="GetDetails"/>.</remarks>
     public static IReadOnlyDictionary<string, object?> GetMetadata(this EncinaError error)
-    {
-        var metadata = error.MetadataException.MatchUnsafe(
-            ex => ex switch
-            {
-                EncinaException EncinaException => EncinaException.Metadata,
-                _ => ImmutableDictionary<string, object?>.Empty
-            },
-            () => ImmutableDictionary<string, object?>.Empty);
-
-        return metadata ?? ImmutableDictionary<string, object?>.Empty;
-    }
+        => GetDetails(error);
 
     // Internal method for compatibility
     internal static string GetEncinaCode(this EncinaError error)
@@ -114,35 +113,17 @@ public static class EncinaErrorExtensions
         return error.MetadataException.Match(
             Some: ex => ex switch
             {
-                EncinaException EncinaException => EncinaException.Code,
+                EncinaException enEx => enEx.Code,
                 _ => ex.GetType().Name
             },
             None: () => string.IsNullOrWhiteSpace(error.Message) ? "Encina.unknown" : error.Message);
     }
 
     // Internal method for compatibility
-    internal static object? GetEncinaDetails(this EncinaError error)
-    {
-        return error.MetadataException.MatchUnsafe(
-            ex => ex switch
-            {
-                EncinaException EncinaException => EncinaException.Details,
-                _ => null
-            },
-            () => null);
-    }
+    internal static IReadOnlyDictionary<string, object?> GetEncinaDetails(this EncinaError error)
+        => GetDetails(error);
 
     // Internal method for compatibility
     internal static IReadOnlyDictionary<string, object?> GetEncinaMetadata(this EncinaError error)
-    {
-        var metadata = error.MetadataException.MatchUnsafe(
-            ex => ex switch
-            {
-                EncinaException EncinaException => EncinaException.Metadata,
-                _ => ImmutableDictionary<string, object?>.Empty
-            },
-            () => ImmutableDictionary<string, object?>.Empty);
-
-        return metadata ?? ImmutableDictionary<string, object?>.Empty;
-    }
+        => GetDetails(error);
 }

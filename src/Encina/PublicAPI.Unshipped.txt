@@ -87,8 +87,8 @@ Encina.EncinaError.EncinaError() -> void
 Encina.EncinaError.Message.get -> string!
 Encina.EncinaErrorCodes
 Encina.EncinaErrors
-static Encina.EncinaErrors.Create(string! code, string! message, System.Exception? exception = null, object? details = null) -> Encina.EncinaError
-static Encina.EncinaErrors.FromException(string! code, System.Exception! exception, string? message = null, object? details = null) -> Encina.EncinaError
+static Encina.EncinaErrors.Create(string! code, string! message, System.Exception? exception = null, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? details = null) -> Encina.EncinaError
+static Encina.EncinaErrors.FromException(string! code, System.Exception! exception, string? message = null, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? details = null) -> Encina.EncinaError
 static Encina.EncinaErrors.Unknown.get -> Encina.EncinaError
 Encina.EncinaMetrics
 Encina.EncinaMetrics.EncinaMetrics() -> void
@@ -153,7 +153,7 @@ static Encina.ServiceCollectionExtensions.AddEncina(this Microsoft.Extensions.De
 static Encina.ServiceCollectionExtensions.AddEncina(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.EncinaConfiguration!>? configure, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Encina.EncinaErrorExtensions
 static Encina.EncinaErrorExtensions.GetCode(this Encina.EncinaError error) -> LanguageExt.Option<string!>
-static Encina.EncinaErrorExtensions.GetDetails(this Encina.EncinaError error) -> LanguageExt.Option<object!>
+static Encina.EncinaErrorExtensions.GetDetails(this Encina.EncinaError error) -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
 static Encina.EncinaErrorExtensions.GetMetadata(this Encina.EncinaError error) -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
 const Encina.EncinaErrorCodes.NotificationMultipleFailures = "encina.notification.multiple_failures" -> string!
 Encina.NotificationDispatchOptions
@@ -190,3 +190,24 @@ Encina.Validation.ValidationResult.ToErrorMessage(string! requestTypeName) -> st
 static Encina.Validation.ValidationResult.Failure(string! propertyName, string! errorMessage) -> Encina.Validation.ValidationResult!
 static Encina.Validation.ValidationResult.Failure(System.Collections.Generic.IEnumerable<Encina.Validation.ValidationError!>! errors) -> Encina.Validation.ValidationResult!
 static Encina.Validation.ValidationResult.Success.get -> Encina.Validation.ValidationResult!
+Encina.Modules.IModule
+Encina.Modules.IModule.ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> void
+Encina.Modules.IModule.Name.get -> string!
+Encina.Modules.IModuleLifecycle
+Encina.Modules.IModuleLifecycle.OnStartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Modules.IModuleLifecycle.OnStopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Modules.IModuleRegistry
+Encina.Modules.IModuleRegistry.ContainsModule(string! name) -> bool
+Encina.Modules.IModuleRegistry.GetLifecycleModules() -> System.Collections.Generic.IReadOnlyList<Encina.Modules.IModuleLifecycle!>!
+Encina.Modules.IModuleRegistry.GetModule(string! name) -> Encina.Modules.IModule?
+Encina.Modules.IModuleRegistry.GetModule<TModule>() -> TModule?
+Encina.Modules.IModuleRegistry.Modules.get -> System.Collections.Generic.IReadOnlyList<Encina.Modules.IModule!>!
+Encina.Modules.ModuleConfiguration
+Encina.Modules.ModuleConfiguration.ModuleConfiguration() -> void
+Encina.Modules.ModuleConfiguration.AddModule(Encina.Modules.IModule! module) -> Encina.Modules.ModuleConfiguration!
+Encina.Modules.ModuleConfiguration.AddModule(Encina.Modules.IModule! module, System.Reflection.Assembly? handlerAssembly) -> Encina.Modules.ModuleConfiguration!
+Encina.Modules.ModuleConfiguration.AddModule<TModule>() -> Encina.Modules.ModuleConfiguration!
+Encina.Modules.ModuleConfiguration.WithoutHandlerDiscovery() -> Encina.Modules.ModuleConfiguration!
+Encina.Modules.ModuleServiceCollectionExtensions
+static Encina.Modules.ModuleServiceCollectionExtensions.AddEncinaModules(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Modules.ModuleConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Modules.ModuleServiceCollectionExtensions.AddEncinaModules(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Modules.ModuleConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

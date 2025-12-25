@@ -39,18 +39,20 @@ public sealed class EncinaErrorExtensionsTests
     [Fact]
     public void GetEncinaDetails_ReturnsDetails_FromEncinaException()
     {
-        var details = new { Value = 42 };
+        var details = new Dictionary<string, object?> { ["Value"] = 42 };
         var error = EncinaErrors.Create("Encina.details", "boom", details: details);
 
-        error.GetEncinaDetails().ShouldBe(details);
+        var result = error.GetEncinaDetails();
+        result.ShouldContainKey("Value");
+        result["Value"].ShouldBe(42);
     }
 
     [Fact]
-    public void GetEncinaDetails_ReturnsNull_ForNonEncinaMetadata()
+    public void GetEncinaDetails_ReturnsEmpty_ForNonEncinaMetadata()
     {
         var error = EncinaError.New("boom", new InvalidOperationException("oops"));
 
-        error.GetEncinaDetails().ShouldBeNull();
+        error.GetEncinaDetails().ShouldBeEmpty();
     }
 
     [Fact]
@@ -172,21 +174,24 @@ public sealed class EncinaErrorExtensionsTests
     }
 
     [Fact]
-    public void EncinaErrors_Create_WithNonDictionaryDetails_WrapsInMetadata()
+    public void EncinaErrors_Create_WithDictionaryDetails_PreservesMetadata()
     {
-        var customDetail = new { Value = 42, Name = "Test" };
+        var customDetail = new Dictionary<string, object?> { ["Value"] = 42, ["Name"] = "Test" };
         var error = EncinaErrors.Create("test.code", "test message", details: customDetail);
 
         error.GetEncinaCode().ShouldBe("test.code");
         error.Message.ShouldBe("test message");
 
         var details = error.GetEncinaDetails();
-        details.ShouldBe(customDetail);
+        details.ShouldNotBeNull();
+        details.ShouldContainKey("Value");
+        details["Value"].ShouldBe(42);
+        details["Name"].ShouldBe("Test");
 
         var metadata = error.GetEncinaMetadata();
         metadata.ShouldNotBeNull();
-        metadata.ShouldContainKey("detail");
-        metadata["detail"].ShouldBe(customDetail);
+        metadata.ShouldContainKey("Value");
+        metadata["Value"].ShouldBe(42);
     }
 
     [Fact]

@@ -525,14 +525,15 @@ public sealed class EncinaTests
     public void EncinaErrors_FromException_PopulatesMetadata()
     {
         var inner = new InvalidOperationException("failure");
+        var details = new Dictionary<string, object?> { ["Value"] = 42 };
 
-        var error = EncinaErrors.FromException("Encina.test", inner, "boom", new { Value = 42 });
+        var error = EncinaErrors.FromException("Encina.test", inner, "boom", details);
 
         error.Message.ShouldBe("boom");
         ExtractException(error).ShouldBe(inner);
         error.GetEncinaCode().ShouldBe("Encina.test");
-        error.GetEncinaDetails().ShouldNotBeNull();
-        error.GetEncinaDetails()!.ShouldBeAssignableTo<object>();
+        error.GetEncinaDetails().ShouldNotBeEmpty();
+        error.GetEncinaDetails()["Value"].ShouldBe(42);
     }
 
     [Fact]
@@ -561,7 +562,7 @@ public sealed class EncinaTests
 
         error.Message.ShouldBe("An error occurred");
         error.Exception.IsSome.ShouldBeFalse();
-        error.GetEncinaDetails().ShouldBeNull();
+        error.GetEncinaDetails().ShouldBeEmpty();
     }
 
     [Fact]
@@ -571,34 +572,35 @@ public sealed class EncinaTests
 
         error.Message.ShouldBe("An error occurred");
         error.Exception.IsSome.ShouldBeFalse();
-        error.GetEncinaDetails().ShouldBeNull();
+        error.GetEncinaDetails().ShouldBeEmpty();
     }
 
     [Fact]
     public void Error_NewException_NormalizesEncinaExceptionInner()
     {
         var inner = new InvalidOperationException("inner");
-        var EncinaException = new EncinaException("Encina.code", "outer", inner, details: null);
+        var enEx = new EncinaException("Encina.code", "outer", inner, details: null);
 
-        var error = EncinaError.New(EncinaException);
+        var error = EncinaError.New(enEx);
 
         error.Message.ShouldBe("outer");
         ExtractException(error).ShouldBe(inner);
         error.GetEncinaCode().ShouldBe("Encina.code");
-        error.GetEncinaDetails().ShouldBeNull();
+        error.GetEncinaDetails().ShouldBeEmpty();
     }
 
     [Fact]
     public void Error_NewExceptionWithOverride_PreservesMetadata()
     {
-        var EncinaException = new EncinaException("Encina.override", "outer", innerException: null, details: 99);
+        var details = new Dictionary<string, object?> { ["value"] = 99 };
+        var enEx = new EncinaException("Encina.override", "outer", innerException: null, details: details);
 
-        var error = EncinaError.New(EncinaException, "override message");
+        var error = EncinaError.New(enEx, "override message");
 
         error.Message.ShouldBe("override message");
-        ExtractException(error).ShouldBe(EncinaException);
+        ExtractException(error).ShouldBe(enEx);
         error.GetEncinaCode().ShouldBe("Encina.override");
-        error.GetEncinaDetails().ShouldBe(99);
+        error.GetEncinaDetails()["value"].ShouldBe(99);
     }
 
     [Fact]
@@ -611,7 +613,7 @@ public sealed class EncinaTests
         error.Message.ShouldBe("boom");
         ExtractException(error).ShouldBe(exception);
         error.GetEncinaCode().ShouldBe(nameof(InvalidOperationException));
-        error.GetEncinaDetails().ShouldBeNull();
+        error.GetEncinaDetails().ShouldBeEmpty();
     }
 
     [Fact]
