@@ -1,3 +1,5 @@
+using Encina.Messaging.Health;
+using Encina.NATS.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NATS.Client.Core;
@@ -57,6 +59,13 @@ public static class ServiceCollectionExtensions
         // JetStream is optional - only register if configured
 
         services.TryAddScoped<INATSMessagePublisher, NATSMessagePublisher>();
+
+        // Register health check if enabled
+        if (options.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(options.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, NATSHealthCheck>();
+        }
 
         return services;
     }

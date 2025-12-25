@@ -1,5 +1,7 @@
 using Amazon.SimpleNotificationService;
 using Amazon.SQS;
+using Encina.AmazonSQS.Health;
+using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -56,6 +58,13 @@ public static class ServiceCollectionExtensions
         });
 
         services.TryAddScoped<IAmazonSQSMessagePublisher, AmazonSQSMessagePublisher>();
+
+        // Register health check if enabled
+        if (options.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(options.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, AmazonSQSHealthCheck>();
+        }
 
         return services;
     }

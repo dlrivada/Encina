@@ -1,3 +1,5 @@
+using Encina.Messaging.Health;
+
 namespace Encina.NATS;
 
 /// <summary>
@@ -44,4 +46,9 @@ public sealed class EncinaNATSOptions
     /// Gets or sets the maximum deliver attempts.
     /// </summary>
     public int MaxDeliver { get; set; } = 5;
+
+    /// <summary>
+    /// Gets the provider health check options.
+    /// </summary>
+    public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
 }

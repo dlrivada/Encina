@@ -1,3 +1,5 @@
+using Encina.Messaging.Health;
+
 namespace Encina.RabbitMQ;
 
 /// <summary>
@@ -49,4 +51,9 @@ public sealed class EncinaRabbitMQOptions
     /// Gets or sets a value indicating whether messages should be durable.
     /// </summary>
     public bool Durable { get; set; } = true;
+
+    /// <summary>
+    /// Gets the provider health check options.
+    /// </summary>
+    public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
 }

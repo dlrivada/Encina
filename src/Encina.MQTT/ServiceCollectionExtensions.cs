@@ -1,3 +1,5 @@
+using Encina.Messaging.Health;
+using Encina.MQTT.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MQTTnet;
@@ -38,7 +40,7 @@ public static class ServiceCollectionExtensions
             opt.KeepAliveSeconds = options.KeepAliveSeconds;
         });
 
-        services.TryAddSingleton(sp =>
+        services.TryAddSingleton<IMqttClient>(sp =>
         {
             var factory = new MqttClientFactory();
             var client = factory.CreateMqttClient();
@@ -68,6 +70,13 @@ public static class ServiceCollectionExtensions
         });
 
         services.TryAddScoped<IMQTTMessagePublisher, MQTTMessagePublisher>();
+
+        // Register health check if enabled
+        if (options.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(options.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, MQTTHealthCheck>();
+        }
 
         return services;
     }

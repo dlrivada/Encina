@@ -1,3 +1,5 @@
+using Encina.Messaging.Health;
+
 namespace Encina.AzureServiceBus;
 
 /// <summary>
@@ -44,4 +46,9 @@ public sealed class EncinaAzureServiceBusOptions
     /// Gets or sets the maximum auto-lock renewal duration.
     /// </summary>
     public TimeSpan MaxAutoLockRenewalDuration { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Gets the provider health check options.
+    /// </summary>
+    public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
 }

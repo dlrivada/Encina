@@ -1,3 +1,5 @@
+using Encina.Messaging.Health;
+
 namespace Encina.Kafka;
 
 /// <summary>
@@ -49,4 +51,9 @@ public sealed class EncinaKafkaOptions
     /// Gets or sets the message timeout in milliseconds.
     /// </summary>
     public int MessageTimeoutMs { get; set; } = 30000;
+
+    /// <summary>
+    /// Gets the provider health check options.
+    /// </summary>
+    public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
 }

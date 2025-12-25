@@ -13,7 +13,7 @@ namespace Encina.MQTT;
 /// </summary>
 public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposable
 {
-    private readonly MqttClient _client;
+    private readonly IMqttClient _client;
     private readonly ILogger<MQTTMessagePublisher> _logger;
     private readonly EncinaMQTTOptions _options;
 
@@ -24,7 +24,7 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposab
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
     public MQTTMessagePublisher(
-        MqttClient client,
+        IMqttClient client,
         ILogger<MQTTMessagePublisher> logger,
         IOptions<EncinaMQTTOptions> options)
     {
@@ -122,7 +122,7 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposab
 
         await _client.SubscribeAsync(subscribeOptions, cancellationToken).ConfigureAwait(false);
 
-        var subscription = new MqttSubscription<TMessage>(_client, topic, handler, _logger);
+        var subscription = new MqttSubscription<TMessage>((MqttClient)_client, topic, handler, _logger);
 
         return subscription;
     }
@@ -156,7 +156,7 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposab
 
         await _client.SubscribeAsync(subscribeOptions, cancellationToken).ConfigureAwait(false);
 
-        var subscription = new MqttPatternSubscription<TMessage>(_client, topicFilter, handler, _logger);
+        var subscription = new MqttPatternSubscription<TMessage>((MqttClient)_client, topicFilter, handler, _logger);
 
         return subscription;
     }

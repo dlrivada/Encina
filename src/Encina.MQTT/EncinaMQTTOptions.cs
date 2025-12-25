@@ -1,3 +1,5 @@
+using Encina.Messaging.Health;
+
 namespace Encina.MQTT;
 
 /// <summary>
@@ -54,6 +56,11 @@ public sealed class EncinaMQTTOptions
     /// Gets or sets the keep alive interval in seconds.
     /// </summary>
     public int KeepAliveSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Gets the provider health check options.
+    /// </summary>
+    public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
 }
 
 /// <summary>

@@ -1,4 +1,6 @@
 using Azure.Messaging.ServiceBus;
+using Encina.AzureServiceBus.Health;
+using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -46,6 +48,13 @@ public static class ServiceCollectionExtensions
             new ServiceBusClient(options.ConnectionString));
 
         services.TryAddScoped<IAzureServiceBusMessagePublisher, AzureServiceBusMessagePublisher>();
+
+        // Register health check if enabled
+        if (options.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(options.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, AzureServiceBusHealthCheck>();
+        }
 
         return services;
     }

@@ -1,4 +1,6 @@
 using Confluent.Kafka;
+using Encina.Kafka.Health;
+using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -57,6 +59,13 @@ public static class ServiceCollectionExtensions
         });
 
         services.TryAddScoped<IKafkaMessagePublisher, KafkaMessagePublisher>();
+
+        // Register health check if enabled
+        if (options.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(options.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, KafkaHealthCheck>();
+        }
 
         return services;
     }

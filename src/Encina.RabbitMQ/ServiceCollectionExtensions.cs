@@ -1,3 +1,5 @@
+using Encina.Messaging.Health;
+using Encina.RabbitMQ.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using RabbitMQ.Client;
@@ -58,6 +60,13 @@ public static class ServiceCollectionExtensions
         });
 
         services.TryAddScoped<IRabbitMQMessagePublisher, RabbitMQMessagePublisher>();
+
+        // Register health check if enabled
+        if (options.ProviderHealthCheck.Enabled)
+        {
+            services.AddSingleton(options.ProviderHealthCheck);
+            services.AddSingleton<IEncinaHealthCheck, RabbitMQHealthCheck>();
+        }
 
         return services;
     }

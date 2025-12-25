@@ -1,3 +1,5 @@
+using Encina.Messaging.Health;
+
 namespace Encina.AmazonSQS;
 
 /// <summary>
@@ -44,4 +46,9 @@ public sealed class EncinaAmazonSQSOptions
     /// Gets or sets a value indicating whether to use content-based deduplication.
     /// </summary>
     public bool UseContentBasedDeduplication { get; set; }
+
+    /// <summary>
+    /// Gets the provider health check options.
+    /// </summary>
+    public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
 }
