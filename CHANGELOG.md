@@ -11,6 +11,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Health Check Abstractions (Issue #35):
+  - `IEncinaHealthCheck` interface for provider-agnostic health monitoring
+  - `HealthCheckResult` struct with `Healthy`/`Degraded`/`Unhealthy` status
+  - `EncinaHealthCheck` abstract base class with exception handling
+  - `OutboxHealthCheck` for monitoring pending outbox messages
+  - `InboxHealthCheck` for monitoring inbox processing state
+  - `SagaHealthCheck` for detecting stuck/expired sagas
+  - `SchedulingHealthCheck` for monitoring overdue scheduled messages
+  - Configurable warning/critical thresholds for all health checks
+  - ASP.NET Core integration via `EncinaHealthCheckAdapter`
+  - `CompositeEncinaHealthCheck` for aggregating multiple health checks
+  - Extension methods: `AddEncinaHealthChecks()`, `AddEncinaOutbox()`, `AddEncinaInbox()`, `AddEncinaSaga()`, `AddEncinaScheduling()`
+  - Kubernetes readiness/liveness probe compatible
+- Automatic Provider Health Checks (Issue #113):
+  - `ProviderHealthCheckOptions` for configuring provider health checks (enabled by default)
+  - `DatabaseHealthCheck` abstract base class for database connectivity checks
+  - Automatic health check registration when configuring Dapper providers:
+    - `PostgreSqlHealthCheck` for PostgreSQL (Encina.Dapper.PostgreSQL)
+    - `MySqlHealthCheck` for MySQL/MariaDB (Encina.Dapper.MySQL)
+    - `SqlServerHealthCheck` for SQL Server (Encina.Dapper.SqlServer)
+    - `OracleHealthCheck` for Oracle Database (Encina.Dapper.Oracle)
+    - `SqliteHealthCheck` for SQLite (Encina.Dapper.Sqlite)
+  - Automatic health check registration when configuring ADO.NET providers:
+    - `PostgreSqlHealthCheck` for PostgreSQL (Encina.ADO.PostgreSQL)
+    - `MySqlHealthCheck` for MySQL/MariaDB (Encina.ADO.MySQL)
+    - `SqlServerHealthCheck` for SQL Server (Encina.ADO.SqlServer)
+    - `OracleHealthCheck` for Oracle Database (Encina.ADO.Oracle)
+    - `SqliteHealthCheck` for SQLite (Encina.ADO.Sqlite)
+  - `EntityFrameworkCoreHealthCheck` for EF Core DbContext connectivity (Encina.EntityFrameworkCore)
+  - `MongoDbHealthCheck` for MongoDB connectivity (Encina.MongoDB)
+  - `RedisHealthCheck` for Redis/Valkey/KeyDB/Dragonfly/Garnet connectivity (Encina.Caching.Redis)
+  - `RabbitMQHealthCheck` for RabbitMQ broker connectivity (Encina.RabbitMQ)
+  - `KafkaHealthCheck` for Apache Kafka broker connectivity (Encina.Kafka)
+  - `AzureServiceBusHealthCheck` for Azure Service Bus connectivity (Encina.AzureServiceBus)
+  - `AmazonSQSHealthCheck` for Amazon SQS connectivity (Encina.AmazonSQS)
+  - `NATSHealthCheck` for NATS server connectivity (Encina.NATS)
+  - `MQTTHealthCheck` for MQTT broker connectivity (Encina.MQTT)
+  - `MartenHealthCheck` for Marten/PostgreSQL event store connectivity (Encina.Marten)
+  - `HangfireHealthCheck` for Hangfire scheduler status (Encina.Hangfire)
+  - `QuartzHealthCheck` for Quartz.NET scheduler status (Encina.Quartz)
+  - Configurable timeout, tags, and failure status
+  - Opt-out via `config.ProviderHealthCheck.Enabled = false`
+  - Integration tests with Testcontainers for all providers
+- Modular Monolith support (Issue #57):
+  - `IModule` interface for defining application modules
+  - `IModuleLifecycle` interface for modules with startup/shutdown hooks
+  - `IModuleRegistry` for runtime module discovery and lookup
+  - `ModuleConfiguration` for fluent module registration
+  - `ModuleLifecycleHostedService` for automatic lifecycle management
+  - `AddEncinaModules()` extension method for service registration
+  - Automatic handler discovery from module assemblies
+  - Module ordering: start in registration order, stop in reverse (LIFO)
+- Saga Not Found Handler support (Issue #43):
+  - `IHandleSagaNotFound<TMessage>` interface for custom handling when saga correlation fails
+  - `SagaNotFoundContext` with `Ignore()` and `MoveToDeadLetterAsync()` actions
+  - `SagaNotFoundAction` enum (`None`, `Ignored`, `MovedToDeadLetter`)
+  - `ISagaNotFoundDispatcher` for invoking registered handlers
+  - `SagaErrorCodes.HandlerCancelled` and `SagaErrorCodes.HandlerFailed` error codes
+  - Automatic DI registration when `UseSagas` is enabled
+
+### Changed
+
+- **BREAKING**: `EncinaErrors.Create()` and `EncinaErrors.FromException()` `details` parameter changed from `object?` to `IReadOnlyDictionary<string, object?>?` (Issue #34)
+- **BREAKING**: `EncinaErrorExtensions.GetDetails()` now returns `IReadOnlyDictionary<string, object?>` instead of `Option<object>`
+- `EncinaException` internal class now stores `Details` as `IReadOnlyDictionary<string, object?>` instead of `object?`
+- `GetMetadata()` is now an alias for `GetDetails()` (both return the same dictionary)
 - Saga timeout support (Issue #38):
   - `TimeoutAtUtc` property in `ISagaState` interface
   - `SagaStatus.TimedOut` status constant
