@@ -116,6 +116,27 @@ const Encina.Messaging.Outbox.OutboxErrorCodes.MaxRetriesExceeded = "outbox.max_
 const Encina.Messaging.Outbox.OutboxErrorCodes.PublishFailed = "outbox.publish_failed" -> string!
 const Encina.Messaging.Outbox.OutboxErrorCodes.UnknownNotificationType = "outbox.unknown_notification_type" -> string!
 Encina.Messaging.MessagingConfiguration.SagaOptions.get -> Encina.Messaging.Sagas.SagaOptions!
+Encina.Messaging.Sagas.IHandleSagaNotFound<TMessage>
+Encina.Messaging.Sagas.IHandleSagaNotFound<TMessage>.HandleAsync(TMessage message, Encina.Messaging.Sagas.SagaNotFoundContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Messaging.Sagas.ISagaNotFoundDispatcher
+Encina.Messaging.Sagas.ISagaNotFoundDispatcher.DispatchAsync<TMessage>(TMessage message, Encina.Messaging.Sagas.SagaNotFoundContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Messaging.Sagas.SagaNotFoundAction
+Encina.Messaging.Sagas.SagaNotFoundAction.Ignored = 1 -> Encina.Messaging.Sagas.SagaNotFoundAction
+Encina.Messaging.Sagas.SagaNotFoundAction.MovedToDeadLetter = 2 -> Encina.Messaging.Sagas.SagaNotFoundAction
+Encina.Messaging.Sagas.SagaNotFoundAction.None = 0 -> Encina.Messaging.Sagas.SagaNotFoundAction
+Encina.Messaging.Sagas.SagaNotFoundContext
+Encina.Messaging.Sagas.SagaNotFoundContext.Action.get -> Encina.Messaging.Sagas.SagaNotFoundAction
+Encina.Messaging.Sagas.SagaNotFoundContext.DeadLetterReason.get -> string?
+Encina.Messaging.Sagas.SagaNotFoundContext.Ignore() -> void
+Encina.Messaging.Sagas.SagaNotFoundContext.MessageType.get -> System.Type!
+Encina.Messaging.Sagas.SagaNotFoundContext.MoveToDeadLetterAsync(string! reason, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Sagas.SagaNotFoundContext.SagaId.get -> System.Guid
+Encina.Messaging.Sagas.SagaNotFoundContext.SagaNotFoundContext(System.Guid sagaId, string! sagaType, System.Type! messageType, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>? moveToDeadLetterAsync = null) -> void
+Encina.Messaging.Sagas.SagaNotFoundContext.SagaType.get -> string!
+Encina.Messaging.Sagas.SagaNotFoundContext.WasIgnored.get -> bool
+Encina.Messaging.Sagas.SagaNotFoundContext.WasMovedToDeadLetter.get -> bool
+const Encina.Messaging.Sagas.SagaErrorCodes.HandlerCancelled = "saga.handler.cancelled" -> string!
+const Encina.Messaging.Sagas.SagaErrorCodes.HandlerFailed = "saga.handler.failed" -> string!
 Encina.Messaging.MessagingLog
 static Encina.Messaging.MessagingLog.MissingIdempotencyKey(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
 static Encina.Messaging.MessagingLog.ProcessingIdempotentRequest(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string! messageId, string? correlationId) -> void
@@ -141,3 +162,71 @@ Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.TransactionPip
 Encina.Messaging.TransactionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 static Encina.Messaging.MessagingServiceCollectionExtensions.AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Messaging.MessagingConfiguration! config) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Messaging.MessagingServiceCollectionExtensions.AddMessagingServicesCore<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Messaging.MessagingConfiguration! config) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Messaging.Health.EncinaHealthCheck
+Encina.Messaging.Health.EncinaHealthCheck.CheckHealthAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Health.HealthCheckResult>!
+Encina.Messaging.Health.EncinaHealthCheck.EncinaHealthCheck(string! name, System.Collections.Generic.IReadOnlyCollection<string!>? tags = null) -> void
+Encina.Messaging.Health.EncinaHealthCheck.Name.get -> string!
+Encina.Messaging.Health.EncinaHealthCheck.Tags.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+Encina.Messaging.Health.HealthCheckResult
+Encina.Messaging.Health.HealthCheckResult.Data.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>!
+Encina.Messaging.Health.HealthCheckResult.Description.get -> string?
+Encina.Messaging.Health.HealthCheckResult.Exception.get -> System.Exception?
+Encina.Messaging.Health.HealthCheckResult.HealthCheckResult() -> void
+Encina.Messaging.Health.HealthCheckResult.HealthCheckResult(Encina.Messaging.Health.HealthStatus status, string? description = null, System.Exception? exception = null, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? data = null) -> void
+Encina.Messaging.Health.HealthCheckResult.Status.get -> Encina.Messaging.Health.HealthStatus
+Encina.Messaging.Health.HealthStatus
+Encina.Messaging.Health.HealthStatus.Degraded = 1 -> Encina.Messaging.Health.HealthStatus
+Encina.Messaging.Health.HealthStatus.Healthy = 2 -> Encina.Messaging.Health.HealthStatus
+Encina.Messaging.Health.HealthStatus.Unhealthy = 0 -> Encina.Messaging.Health.HealthStatus
+Encina.Messaging.Health.IEncinaHealthCheck
+Encina.Messaging.Health.IEncinaHealthCheck.CheckHealthAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Health.HealthCheckResult>!
+Encina.Messaging.Health.IEncinaHealthCheck.Name.get -> string!
+Encina.Messaging.Health.IEncinaHealthCheck.Tags.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+Encina.Messaging.Health.InboxHealthCheck
+Encina.Messaging.Health.InboxHealthCheck.InboxHealthCheck(Encina.Messaging.Inbox.IInboxStore! store) -> void
+Encina.Messaging.Health.OutboxHealthCheck
+Encina.Messaging.Health.OutboxHealthCheck.OutboxHealthCheck(Encina.Messaging.Outbox.IOutboxStore! store, Encina.Messaging.Health.OutboxHealthCheckOptions? options = null) -> void
+Encina.Messaging.Health.OutboxHealthCheckOptions
+Encina.Messaging.Health.OutboxHealthCheckOptions.OutboxHealthCheckOptions() -> void
+Encina.Messaging.Health.OutboxHealthCheckOptions.PendingMessageCriticalThreshold.get -> int
+Encina.Messaging.Health.OutboxHealthCheckOptions.PendingMessageCriticalThreshold.set -> void
+Encina.Messaging.Health.OutboxHealthCheckOptions.PendingMessageWarningThreshold.get -> int
+Encina.Messaging.Health.OutboxHealthCheckOptions.PendingMessageWarningThreshold.set -> void
+Encina.Messaging.Health.SagaHealthCheck
+Encina.Messaging.Health.SagaHealthCheck.SagaHealthCheck(Encina.Messaging.Sagas.ISagaStore! store, Encina.Messaging.Health.SagaHealthCheckOptions? options = null) -> void
+Encina.Messaging.Health.SagaHealthCheckOptions
+Encina.Messaging.Health.SagaHealthCheckOptions.SagaCriticalThreshold.get -> int
+Encina.Messaging.Health.SagaHealthCheckOptions.SagaCriticalThreshold.set -> void
+Encina.Messaging.Health.SagaHealthCheckOptions.SagaHealthCheckOptions() -> void
+Encina.Messaging.Health.SagaHealthCheckOptions.SagaWarningThreshold.get -> int
+Encina.Messaging.Health.SagaHealthCheckOptions.SagaWarningThreshold.set -> void
+Encina.Messaging.Health.SagaHealthCheckOptions.StuckSagaThreshold.get -> System.TimeSpan
+Encina.Messaging.Health.SagaHealthCheckOptions.StuckSagaThreshold.set -> void
+Encina.Messaging.Health.SchedulingHealthCheck
+Encina.Messaging.Health.SchedulingHealthCheck.SchedulingHealthCheck(Encina.Messaging.Scheduling.IScheduledMessageStore! store, Encina.Messaging.Health.SchedulingHealthCheckOptions? options = null) -> void
+Encina.Messaging.Health.SchedulingHealthCheckOptions
+Encina.Messaging.Health.SchedulingHealthCheckOptions.OverdueCriticalThreshold.get -> int
+Encina.Messaging.Health.SchedulingHealthCheckOptions.OverdueCriticalThreshold.set -> void
+Encina.Messaging.Health.SchedulingHealthCheckOptions.OverdueTolerance.get -> System.TimeSpan
+Encina.Messaging.Health.SchedulingHealthCheckOptions.OverdueTolerance.set -> void
+Encina.Messaging.Health.SchedulingHealthCheckOptions.OverdueWarningThreshold.get -> int
+Encina.Messaging.Health.SchedulingHealthCheckOptions.OverdueWarningThreshold.set -> void
+Encina.Messaging.Health.SchedulingHealthCheckOptions.SchedulingHealthCheckOptions() -> void
+static Encina.Messaging.Health.HealthCheckResult.Degraded(string? description = null, System.Exception? exception = null, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? data = null) -> Encina.Messaging.Health.HealthCheckResult
+static Encina.Messaging.Health.HealthCheckResult.Healthy(string? description = null, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? data = null) -> Encina.Messaging.Health.HealthCheckResult
+static Encina.Messaging.Health.HealthCheckResult.Unhealthy(string? description = null, System.Exception? exception = null, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? data = null) -> Encina.Messaging.Health.HealthCheckResult
+Encina.Messaging.Health.DatabaseHealthCheck
+Encina.Messaging.Health.DatabaseHealthCheck.DatabaseHealthCheck(string! name, System.Func<System.Data.IDbConnection!>! connectionFactory, Encina.Messaging.Health.ProviderHealthCheckOptions? options = null) -> void
+Encina.Messaging.Health.ProviderHealthCheckOptions
+Encina.Messaging.Health.ProviderHealthCheckOptions.Enabled.get -> bool
+Encina.Messaging.Health.ProviderHealthCheckOptions.Enabled.set -> void
+Encina.Messaging.Health.ProviderHealthCheckOptions.FailureStatus.get -> Encina.Messaging.Health.HealthStatus
+Encina.Messaging.Health.ProviderHealthCheckOptions.FailureStatus.set -> void
+Encina.Messaging.Health.ProviderHealthCheckOptions.Name.get -> string?
+Encina.Messaging.Health.ProviderHealthCheckOptions.Name.set -> void
+Encina.Messaging.Health.ProviderHealthCheckOptions.ProviderHealthCheckOptions() -> void
+Encina.Messaging.Health.ProviderHealthCheckOptions.Tags.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+Encina.Messaging.Health.ProviderHealthCheckOptions.Tags.set -> void
+Encina.Messaging.Health.ProviderHealthCheckOptions.Timeout.get -> System.TimeSpan
+Encina.Messaging.Health.ProviderHealthCheckOptions.Timeout.set -> void
+Encina.Messaging.MessagingConfiguration.ProviderHealthCheck.get -> Encina.Messaging.Health.ProviderHealthCheckOptions!

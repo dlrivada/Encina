@@ -1,3 +1,4 @@
+using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
@@ -113,6 +114,21 @@ public sealed class MessagingConfiguration
     /// Gets the configuration options for the Scheduling Pattern.
     /// </summary>
     public SchedulingOptions SchedulingOptions { get; } = new();
+
+    /// <summary>
+    /// Gets the configuration options for provider-specific health checks.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled (default), the messaging provider automatically registers a health check
+    /// for the underlying infrastructure (database, message broker, cache, etc.).
+    /// </para>
+    /// <para>
+    /// This is separate from the pattern-specific health checks (Outbox, Inbox, Saga, Scheduling),
+    /// which monitor the state of the messaging patterns themselves.
+    /// </para>
+    /// </remarks>
+    public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
 
     /// <summary>
     /// Gets a value indicating whether any messaging patterns are enabled.

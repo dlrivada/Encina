@@ -74,6 +74,7 @@ public static class MessagingServiceCollectionExtensions
             services.AddScoped<ISagaStore, TSagaStore>();
             services.AddScoped<ISagaStateFactory, TSagaFactory>();
             services.AddScoped<SagaOrchestrator>();
+            services.AddScoped<ISagaNotFoundDispatcher, SagaNotFoundDispatcher>();
         }
 
         if (config.UseScheduling)
