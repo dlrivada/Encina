@@ -14,7 +14,8 @@ public sealed class SagaStateFactory : ISagaStateFactory
         string data,
         string status,
         int currentStep,
-        DateTime startedAtUtc)
+        DateTime startedAtUtc,
+        DateTime? timeoutAtUtc = null)
     {
         return new SagaState
         {
@@ -24,7 +25,8 @@ public sealed class SagaStateFactory : ISagaStateFactory
             Status = status,
             CurrentStep = currentStep,
             StartedAtUtc = startedAtUtc,
-            LastUpdatedAtUtc = startedAtUtc
+            LastUpdatedAtUtc = startedAtUtc,
+            TimeoutAtUtc = timeoutAtUtc
         };
     }
 }

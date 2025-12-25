@@ -68,9 +68,26 @@ public sealed class SagaOrchestrator
     /// <param name="data">The initial saga data.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The saga ID.</returns>
+    public Task<Guid> StartAsync<TSagaData>(
+        string sagaType,
+        TSagaData data,
+        CancellationToken cancellationToken = default)
+        where TSagaData : class
+        => StartAsync(sagaType, data, timeout: null, cancellationToken);
+
+    /// <summary>
+    /// Starts a new saga with a specific timeout.
+    /// </summary>
+    /// <typeparam name="TSagaData">The saga data type.</typeparam>
+    /// <param name="sagaType">The saga type name.</param>
+    /// <param name="data">The initial saga data.</param>
+    /// <param name="timeout">The timeout for this saga. Null means use default or no timeout.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The saga ID.</returns>
     public async Task<Guid> StartAsync<TSagaData>(
         string sagaType,
         TSagaData data,
+        TimeSpan? timeout,
         CancellationToken cancellationToken = default)
         where TSagaData : class
     {
@@ -81,17 +98,28 @@ public sealed class SagaOrchestrator
         var now = DateTime.UtcNow;
         var serializedData = JsonSerializer.Serialize(data, JsonOptions);
 
+        var effectiveTimeout = timeout ?? _options.DefaultSagaTimeout;
+        var timeoutAtUtc = effectiveTimeout.HasValue ? now.Add(effectiveTimeout.Value) : (DateTime?)null;
+
         var state = _stateFactory.Create(
             sagaId,
             sagaType,
             serializedData,
             SagaStatus.Running,
             currentStep: 0,
-            now);
+            now,
+            timeoutAtUtc);
 
         await _store.AddAsync(state, cancellationToken).ConfigureAwait(false);
 
-        Log.SagaStarted(_logger, sagaId, sagaType);
+        if (timeoutAtUtc.HasValue)
+        {
+            Log.SagaStartedWithTimeout(_logger, sagaId, sagaType, timeoutAtUtc.Value);
+        }
+        else
+        {
+            Log.SagaStarted(_logger, sagaId, sagaType);
+        }
 
         return sagaId;
     }
@@ -336,6 +364,53 @@ public sealed class SagaOrchestrator
             _options.StuckSagaBatchSize,
             cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Marks a saga as timed out and starts compensation.
+    /// </summary>
+    /// <param name="sagaId">The saga ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The current step to start compensation from, or an error.</returns>
+    public async Task<Either<EncinaError, int>> TimeoutAsync(
+        Guid sagaId,
+        CancellationToken cancellationToken = default)
+    {
+        var state = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+
+        if (state == null)
+        {
+            Log.SagaNotFound(_logger, sagaId);
+            return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
+        }
+
+        if (state.Status is not (SagaStatus.Running or SagaStatus.Compensating))
+        {
+            Log.SagaNotRunning(_logger, sagaId, state.Status);
+            return EncinaErrors.Create(SagaErrorCodes.InvalidStatus, $"Cannot timeout saga with status: {state.Status}");
+        }
+
+        state.Status = SagaStatus.TimedOut;
+        state.ErrorMessage = "Saga exceeded its configured timeout";
+        state.LastUpdatedAtUtc = DateTime.UtcNow;
+
+        await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+
+        Log.SagaTimedOut(_logger, sagaId, state.CurrentStep);
+
+        return state.CurrentStep;
+    }
+
+    /// <summary>
+    /// Gets sagas that have exceeded their timeout.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A collection of expired sagas.</returns>
+    public async Task<IEnumerable<ISagaState>> GetExpiredSagasAsync(CancellationToken cancellationToken = default)
+    {
+        return await _store.GetExpiredSagasAsync(
+            _options.ExpiredSagaBatchSize,
+            cancellationToken).ConfigureAwait(false);
+    }
 }
 
 /// <summary>
@@ -378,6 +453,7 @@ public interface ISagaStateFactory
     /// <param name="status">The initial status.</param>
     /// <param name="currentStep">The current step.</param>
     /// <param name="startedAtUtc">The start time.</param>
+    /// <param name="timeoutAtUtc">Optional timeout for the saga.</param>
     /// <returns>A new saga state instance.</returns>
     ISagaState Create(
         Guid sagaId,
@@ -385,7 +461,8 @@ public interface ISagaStateFactory
         string data,
         string status,
         int currentStep,
-        DateTime startedAtUtc);
+        DateTime startedAtUtc,
+        DateTime? timeoutAtUtc = null);
 }
 
 /// <summary>
@@ -417,6 +494,11 @@ public static class SagaStatus
     /// Saga or compensation failed, manual intervention needed.
     /// </summary>
     public const string Failed = "Failed";
+
+    /// <summary>
+    /// Saga exceeded its timeout and is being compensated.
+    /// </summary>
+    public const string TimedOut = "TimedOut";
 }
 
 /// <summary>
@@ -448,6 +530,11 @@ public static class SagaErrorCodes
     /// Saga compensation failed.
     /// </summary>
     public const string CompensationFailed = "saga.compensation_failed";
+
+    /// <summary>
+    /// Saga exceeded its configured timeout.
+    /// </summary>
+    public const string Timeout = "saga.timeout";
 }
 
 /// <summary>
@@ -472,6 +559,22 @@ public sealed class SagaOptions
     /// </summary>
     /// <value>Default: 1 minute</value>
     public TimeSpan StuckSagaCheckInterval { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Gets or sets the default timeout for new sagas.
+    /// </summary>
+    /// <remarks>
+    /// When set, all new sagas will have this timeout unless overridden.
+    /// Null means no default timeout is configured.
+    /// </remarks>
+    /// <value>Default: null (no timeout)</value>
+    public TimeSpan? DefaultSagaTimeout { get; set; }
+
+    /// <summary>
+    /// Gets or sets the batch size for retrieving expired sagas.
+    /// </summary>
+    /// <value>Default: 100</value>
+    public int ExpiredSagaBatchSize { get; set; } = 100;
 }
 
 /// <summary>
@@ -532,4 +635,16 @@ internal static partial class Log
         Level = LogLevel.Warning,
         Message = "Saga {SagaId} is not running (status: {Status})")]
     public static partial void SagaNotRunning(ILogger logger, Guid sagaId, string status);
+
+    [LoggerMessage(
+        EventId = 210,
+        Level = LogLevel.Warning,
+        Message = "Saga {SagaId} timed out at step {CurrentStep}")]
+    public static partial void SagaTimedOut(ILogger logger, Guid sagaId, int currentStep);
+
+    [LoggerMessage(
+        EventId = 211,
+        Level = LogLevel.Information,
+        Message = "Saga {SagaId} started with timeout at {TimeoutAtUtc} (type: {SagaType})")]
+    public static partial void SagaStartedWithTimeout(ILogger logger, Guid sagaId, string sagaType, DateTime timeoutAtUtc);
 }

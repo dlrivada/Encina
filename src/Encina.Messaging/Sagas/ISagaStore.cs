@@ -51,6 +51,16 @@ public interface ISagaStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets sagas that have exceeded their timeout.
+    /// </summary>
+    /// <param name="batchSize">Maximum number of sagas to retrieve.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A collection of saga states that have expired.</returns>
+    Task<IEnumerable<ISagaState>> GetExpiredSagasAsync(
+        int batchSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Saves all pending changes (for stores that support it like EF Core).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>

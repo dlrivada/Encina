@@ -126,6 +126,30 @@ public sealed class SagaStoreMongoDB : ISagaStore
     }
 
     /// <inheritdoc />
+    public async Task<IEnumerable<ISagaState>> GetExpiredSagasAsync(
+        int batchSize,
+        CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+
+        var filter = Builders<SagaState>.Filter.And(
+            Builders<SagaState>.Filter.In(s => s.Status, new[] { "Running", "Compensating" }),
+            Builders<SagaState>.Filter.Ne(s => s.TimeoutAtUtc, null),
+            Builders<SagaState>.Filter.Lte(s => s.TimeoutAtUtc, now)
+        );
+
+        var sagas = await _collection
+            .Find(filter)
+            .SortBy(s => s.TimeoutAtUtc)
+            .Limit(batchSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        Log.RetrievedExpiredSagas(_logger, sagas.Count);
+        return sagas;
+    }
+
+    /// <inheritdoc />
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // MongoDB operations are immediately persisted, no SaveChanges needed

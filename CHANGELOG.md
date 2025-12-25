@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Saga timeout support (Issue #38):
+  - `TimeoutAtUtc` property in `ISagaState` interface
+  - `SagaStatus.TimedOut` status constant
+  - `SagaErrorCodes.Timeout` error code
+  - `TimeoutAsync()` method in `SagaOrchestrator` to mark sagas as timed out
+  - `GetExpiredSagasAsync()` method in `ISagaStore` and all implementations
+  - `StartAsync()` overload with timeout parameter
+  - `DefaultSagaTimeout` and `ExpiredSagaBatchSize` options in `SagaOptions`
+  - Full implementation across all providers (EF Core, Dapper, MongoDB, ADO.NET)
 - Regex timeout protection against ReDoS attacks (S6444) in caching and SignalR components
 - SQL injection prevention via `SqlIdentifierValidator` for dynamic table names
 - ROP assertion extensions in `Encina.TestInfrastructure.Extensions`:

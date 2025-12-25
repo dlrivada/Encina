@@ -70,4 +70,13 @@ public interface ISagaState
     /// Gets or sets when the saga was last updated.
     /// </summary>
     DateTime LastUpdatedAtUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC timestamp when the saga should timeout.
+    /// </summary>
+    /// <remarks>
+    /// When set, the saga will be marked as timed out if it hasn't completed by this time.
+    /// Null means no timeout is configured for this saga.
+    /// </remarks>
+    DateTime? TimeoutAtUtc { get; set; }
 }

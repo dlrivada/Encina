@@ -116,6 +116,9 @@ internal static partial class Log
     [LoggerMessage(EventId = 43, Level = LogLevel.Debug, Message = "Retrieved {Count} stuck sagas")]
     public static partial void RetrievedStuckSagas(ILogger logger, int count);
 
+    [LoggerMessage(EventId = 44, Level = LogLevel.Debug, Message = "Retrieved {Count} expired sagas")]
+    public static partial void RetrievedExpiredSagas(ILogger logger, int count);
+
     // ScheduledMessageStoreMongoDB: EventIds 50-59
     [LoggerMessage(EventId = 50, Level = LogLevel.Debug, Message = "Added scheduled message {MessageId} for {ScheduledAt}")]
     public static partial void AddedScheduledMessage(ILogger logger, Guid messageId, DateTime scheduledAt);

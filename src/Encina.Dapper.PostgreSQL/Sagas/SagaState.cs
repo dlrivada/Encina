@@ -53,4 +53,10 @@ public sealed class SagaState : ISagaState
     /// Gets or sets the current step number in the saga execution.
     /// </summary>
     public int CurrentStep { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC timestamp when the saga should timeout.
+    /// Null means no timeout is configured.
+    /// </summary>
+    public DateTime? TimeoutAtUtc { get; set; }
 }

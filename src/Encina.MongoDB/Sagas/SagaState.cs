@@ -48,4 +48,9 @@ public sealed class SagaState : ISagaState
     [BsonElement("lastUpdatedAtUtc")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime LastUpdatedAtUtc { get; set; }
+
+    /// <inheritdoc />
+    [BsonElement("timeoutAtUtc")]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime? TimeoutAtUtc { get; set; }
 }

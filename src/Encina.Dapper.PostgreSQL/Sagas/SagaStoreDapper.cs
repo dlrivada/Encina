@@ -49,9 +49,9 @@ public sealed class SagaStoreDapper : ISagaStore
 
         var sql = $@"
             INSERT INTO {_tableName}
-            (SagaId, SagaType, Data, Status, StartedAtUtc, LastUpdatedAtUtc, CompletedAtUtc, ErrorMessage, CurrentStep)
+            (SagaId, SagaType, Data, Status, StartedAtUtc, LastUpdatedAtUtc, CompletedAtUtc, ErrorMessage, CurrentStep, TimeoutAtUtc)
             VALUES
-            (@SagaId, @SagaType, @Data, @Status, @StartedAtUtc, @LastUpdatedAtUtc, @CompletedAtUtc, @ErrorMessage, @CurrentStep)";
+            (@SagaId, @SagaType, @Data, @Status, @StartedAtUtc, @LastUpdatedAtUtc, @CompletedAtUtc, @ErrorMessage, @CurrentStep, @TimeoutAtUtc)";
 
         await _connection.ExecuteAsync(sql, sagaState);
     }
@@ -69,7 +69,8 @@ public sealed class SagaStoreDapper : ISagaStore
                 LastUpdatedAtUtc = NOW() AT TIME ZONE 'UTC',
                 CompletedAtUtc = @CompletedAtUtc,
                 ErrorMessage = @ErrorMessage,
-                CurrentStep = @CurrentStep
+                CurrentStep = @CurrentStep,
+                TimeoutAtUtc = @TimeoutAtUtc
             WHERE SagaId = @SagaId";
 
         await _connection.ExecuteAsync(sql, sagaState);
@@ -103,6 +104,35 @@ public sealed class SagaStoreDapper : ISagaStore
                 Running = "Running",
                 Compensating = "Compensating",
                 ThresholdUtc = thresholdUtc
+            });
+
+        return sagas.Cast<ISagaState>();
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<ISagaState>> GetExpiredSagasAsync(
+        int batchSize,
+        CancellationToken cancellationToken = default)
+    {
+        if (batchSize <= 0)
+            throw new ArgumentException("Batch size must be greater than zero.", nameof(batchSize));
+
+        var sql = $@"
+            SELECT *
+            FROM {_tableName}
+            WHERE (Status = @Running OR Status = @Compensating)
+              AND TimeoutAtUtc IS NOT NULL
+              AND TimeoutAtUtc <= NOW() AT TIME ZONE 'UTC'
+            ORDER BY TimeoutAtUtc
+            LIMIT @BatchSize";
+
+        var sagas = await _connection.QueryAsync<SagaState>(
+            sql,
+            new
+            {
+                BatchSize = batchSize,
+                Running = "Running",
+                Compensating = "Compensating"
             });
 
         return sagas.Cast<ISagaState>();

@@ -87,6 +87,25 @@ public sealed class SagaStoreEF : ISagaStore
     }
 
     /// <inheritdoc/>
+    public async Task<IEnumerable<ISagaState>> GetExpiredSagasAsync(
+        int batchSize,
+        CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+
+        var sagas = await _dbContext.Set<SagaState>()
+            .Where(s =>
+                (s.Status == SagaStatus.Running || s.Status == SagaStatus.Compensating) &&
+                s.TimeoutAtUtc != null &&
+                s.TimeoutAtUtc <= now)
+            .OrderBy(s => s.TimeoutAtUtc)
+            .Take(batchSize)
+            .ToListAsync(cancellationToken);
+
+        return sagas;
+    }
+
+    /// <inheritdoc/>
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         await _dbContext.SaveChangesAsync(cancellationToken);

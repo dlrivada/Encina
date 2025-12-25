@@ -223,6 +223,179 @@ public class SagaStoreEFTests : IDisposable
         stuck.Should().HaveCount(5);
     }
 
+    [Fact]
+    public async Task GetExpiredSagasAsync_ShouldReturnSagasWithExpiredTimeout()
+    {
+        // Arrange
+        var expiredSaga = new SagaState
+        {
+            SagaId = Guid.NewGuid(),
+            SagaType = "ExpiredSaga",
+            Data = "{}",
+            Status = SagaStatus.Running,
+            StartedAtUtc = DateTime.UtcNow.AddHours(-2),
+            LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-2),
+            TimeoutAtUtc = DateTime.UtcNow.AddHours(-1), // Expired 1 hour ago
+            CurrentStep = 1
+        };
+
+        var activeWithTimeout = new SagaState
+        {
+            SagaId = Guid.NewGuid(),
+            SagaType = "ActiveWithTimeout",
+            Data = "{}",
+            Status = SagaStatus.Running,
+            StartedAtUtc = DateTime.UtcNow.AddMinutes(-30),
+            LastUpdatedAtUtc = DateTime.UtcNow.AddMinutes(-30),
+            TimeoutAtUtc = DateTime.UtcNow.AddHours(1), // Still valid
+            CurrentStep = 1
+        };
+
+        var sagaWithoutTimeout = new SagaState
+        {
+            SagaId = Guid.NewGuid(),
+            SagaType = "NoTimeout",
+            Data = "{}",
+            Status = SagaStatus.Running,
+            StartedAtUtc = DateTime.UtcNow.AddHours(-3),
+            LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-3),
+            TimeoutAtUtc = null, // No timeout configured
+            CurrentStep = 1
+        };
+
+        await _dbContext.SagaStates.AddRangeAsync(expiredSaga, activeWithTimeout, sagaWithoutTimeout);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var expired = await _store.GetExpiredSagasAsync(batchSize: 10);
+
+        // Assert
+        expired.Should().HaveCount(1);
+        expired.First().SagaId.Should().Be(expiredSaga.SagaId);
+    }
+
+    [Fact]
+    public async Task GetExpiredSagasAsync_ShouldNotReturnCompletedSagas()
+    {
+        // Arrange
+        var expiredButCompleted = new SagaState
+        {
+            SagaId = Guid.NewGuid(),
+            SagaType = "ExpiredCompleted",
+            Data = "{}",
+            Status = SagaStatus.Completed,
+            StartedAtUtc = DateTime.UtcNow.AddHours(-2),
+            LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-1),
+            CompletedAtUtc = DateTime.UtcNow.AddHours(-1),
+            TimeoutAtUtc = DateTime.UtcNow.AddMinutes(-30), // Expired but already completed
+            CurrentStep = 3
+        };
+
+        await _dbContext.SagaStates.AddAsync(expiredButCompleted);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var expired = await _store.GetExpiredSagasAsync(batchSize: 10);
+
+        // Assert
+        expired.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetExpiredSagasAsync_ShouldIncludeCompensatingSagas()
+    {
+        // Arrange
+        var compensatingExpired = new SagaState
+        {
+            SagaId = Guid.NewGuid(),
+            SagaType = "CompensatingExpired",
+            Data = "{}",
+            Status = SagaStatus.Compensating,
+            StartedAtUtc = DateTime.UtcNow.AddHours(-2),
+            LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-1),
+            TimeoutAtUtc = DateTime.UtcNow.AddMinutes(-30), // Expired while compensating
+            CurrentStep = 2
+        };
+
+        await _dbContext.SagaStates.AddAsync(compensatingExpired);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var expired = await _store.GetExpiredSagasAsync(batchSize: 10);
+
+        // Assert
+        expired.Should().HaveCount(1);
+        expired.First().SagaId.Should().Be(compensatingExpired.SagaId);
+    }
+
+    [Fact]
+    public async Task GetExpiredSagasAsync_ShouldRespectBatchSize()
+    {
+        // Arrange
+        for (var i = 0; i < 10; i++)
+        {
+            await _dbContext.SagaStates.AddAsync(new SagaState
+            {
+                SagaId = Guid.NewGuid(),
+                SagaType = $"ExpiredSaga{i}",
+                Data = "{}",
+                Status = SagaStatus.Running,
+                StartedAtUtc = DateTime.UtcNow.AddHours(-2),
+                LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-2),
+                TimeoutAtUtc = DateTime.UtcNow.AddHours(-1).AddMinutes(-i), // All expired
+                CurrentStep = 0
+            });
+        }
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var expired = await _store.GetExpiredSagasAsync(batchSize: 5);
+
+        // Assert
+        expired.Should().HaveCount(5);
+    }
+
+    [Fact]
+    public async Task GetExpiredSagasAsync_ShouldOrderByTimeoutAtUtc()
+    {
+        // Arrange
+        var earlierExpired = new SagaState
+        {
+            SagaId = Guid.NewGuid(),
+            SagaType = "EarlierExpired",
+            Data = "{}",
+            Status = SagaStatus.Running,
+            StartedAtUtc = DateTime.UtcNow.AddHours(-3),
+            LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-3),
+            TimeoutAtUtc = DateTime.UtcNow.AddHours(-2), // Expired 2 hours ago
+            CurrentStep = 0
+        };
+
+        var laterExpired = new SagaState
+        {
+            SagaId = Guid.NewGuid(),
+            SagaType = "LaterExpired",
+            Data = "{}",
+            Status = SagaStatus.Running,
+            StartedAtUtc = DateTime.UtcNow.AddHours(-2),
+            LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-2),
+            TimeoutAtUtc = DateTime.UtcNow.AddHours(-1), // Expired 1 hour ago
+            CurrentStep = 0
+        };
+
+        // Add in reverse order to test ordering
+        await _dbContext.SagaStates.AddRangeAsync(laterExpired, earlierExpired);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var expired = (await _store.GetExpiredSagasAsync(batchSize: 10)).ToList();
+
+        // Assert
+        expired.Should().HaveCount(2);
+        expired[0].SagaId.Should().Be(earlierExpired.SagaId);
+        expired[1].SagaId.Should().Be(laterExpired.SagaId);
+    }
+
     public void Dispose()
     {
         _dbContext.Dispose();
