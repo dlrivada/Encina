@@ -393,10 +393,99 @@ This package draws inspiration from mature messaging frameworks:
 - **Axon Framework** (Java): Event sourcing, sagas
 - **Temporal** (Polyglot): Workflow orchestration, durable execution
 
+## Health Checks
+
+Encina.Messaging provides a unified health check abstraction for all providers. Health checks are automatically registered when you configure a provider.
+
+### Automatic Registration
+
+```csharp
+// PostgreSQL Dapper - health check automatically registered
+services.AddEncinaDapper<PostgreSqlConnection>(config =>
+{
+    config.UseOutbox = true;
+    config.ProviderHealthCheck.Enabled = true; // Default
+});
+
+// The following health checks are registered:
+// - "encina-postgresql" (database connectivity)
+// - "encina-outbox" (outbox pattern health)
+```
+
+### Configuration Options
+
+```csharp
+services.AddEncinaDapper<PostgreSqlConnection>(config =>
+{
+    config.ProviderHealthCheck.Enabled = true;          // Enable/disable
+    config.ProviderHealthCheck.Name = "my-custom-db";   // Custom name
+    config.ProviderHealthCheck.Timeout = TimeSpan.FromSeconds(5);
+    config.ProviderHealthCheck.Tags = ["critical", "database"];
+});
+```
+
+### Available Health Checks
+
+| Provider | Default Name | Tags |
+|----------|--------------|------|
+| **PostgreSQL** | `encina-postgresql` | `database`, `postgresql`, `ready` |
+| **MySQL** | `encina-mysql` | `database`, `mysql`, `ready` |
+| **SQL Server** | `encina-sqlserver` | `database`, `sqlserver`, `ready` |
+| **SQLite** | `encina-sqlite` | `database`, `sqlite`, `ready` |
+| **Oracle** | `encina-oracle` | `database`, `oracle`, `ready` |
+| **MongoDB** | `encina-mongodb` | `database`, `mongodb`, `ready` |
+| **RabbitMQ** | `encina-rabbitmq` | `messaging`, `rabbitmq`, `ready` |
+| **Kafka** | `encina-kafka` | `messaging`, `kafka`, `ready` |
+| **NATS** | `encina-nats` | `messaging`, `nats`, `ready` |
+| **MQTT** | `encina-mqtt` | `messaging`, `mqtt`, `ready` |
+| **Redis** | `encina-redis` | `caching`, `redis`, `ready` |
+| **SignalR** | `encina-signalr` | `messaging`, `signalr`, `ready` |
+| **gRPC** | `encina-grpc` | `messaging`, `grpc`, `ready` |
+
+### Custom Health Checks
+
+Extend `EncinaHealthCheck` for custom implementations:
+
+```csharp
+public sealed class MyCustomHealthCheck : EncinaHealthCheck
+{
+    public const string DefaultName = "my-custom-check";
+
+    public MyCustomHealthCheck(IServiceProvider serviceProvider, ProviderHealthCheckOptions? options)
+        : base(options?.Name ?? DefaultName, options?.Tags ?? ["encina", "custom", "ready"])
+    {
+        // Store dependencies
+    }
+
+    protected override Task<HealthCheckResult> CheckHealthCoreAsync(CancellationToken cancellationToken)
+    {
+        // Implement health logic
+        return Task.FromResult(HealthCheckResult.Healthy("All good"));
+    }
+}
+```
+
+### ASP.NET Core Integration
+
+```csharp
+// In Program.cs
+builder.Services.AddHealthChecks()
+    .AddCheck<PostgreSqlHealthCheck>("database")
+    .AddCheck<RabbitMQHealthCheck>("messaging");
+
+// Map endpoints
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
+```
+
 ## Roadmap
 
 - ✅ Core abstractions (IOutboxMessage, IInboxMessage, etc.)
 - ✅ Messaging configuration (opt-in patterns)
+- ✅ Health check abstractions and implementations
 - ⏳ Entity Framework Core provider
 - ⏳ Dapper provider
 - ⏳ ADO.NET provider
