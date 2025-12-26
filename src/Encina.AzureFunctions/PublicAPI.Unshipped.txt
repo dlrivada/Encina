@@ -1,0 +1,43 @@
+#nullable enable
+Encina.AzureFunctions.EncinaAzureFunctionsOptions
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.EncinaAzureFunctionsOptions() -> void
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.EnableRequestContextEnrichment.get -> bool
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.EnableRequestContextEnrichment.set -> void
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.CorrelationIdHeader.get -> string!
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.CorrelationIdHeader.set -> void
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.TenantIdHeader.get -> string!
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.TenantIdHeader.set -> void
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.UserIdClaimType.get -> string!
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.UserIdClaimType.set -> void
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.TenantIdClaimType.get -> string!
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.TenantIdClaimType.set -> void
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.IncludeExceptionDetailsInResponse.get -> bool
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.IncludeExceptionDetailsInResponse.set -> void
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.ProviderHealthCheck.get -> Encina.Messaging.Health.ProviderHealthCheckOptions!
+Encina.AzureFunctions.EncinaAzureFunctionsOptions.ProviderHealthCheck.set -> void
+Encina.AzureFunctions.FunctionContextExtensions
+static Encina.AzureFunctions.FunctionContextExtensions.GetCorrelationId(this Microsoft.Azure.Functions.Worker.FunctionContext! context) -> string?
+static Encina.AzureFunctions.FunctionContextExtensions.GetCorrelationId(this Microsoft.Azure.Functions.Worker.FunctionContext! context, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! httpRequest, Encina.AzureFunctions.EncinaAzureFunctionsOptions? options = null) -> string?
+static Encina.AzureFunctions.FunctionContextExtensions.GetTenantId(this Microsoft.Azure.Functions.Worker.FunctionContext! context) -> string?
+static Encina.AzureFunctions.FunctionContextExtensions.GetTenantId(this Microsoft.Azure.Functions.Worker.FunctionContext! context, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! httpRequest, Encina.AzureFunctions.EncinaAzureFunctionsOptions? options = null) -> string?
+static Encina.AzureFunctions.FunctionContextExtensions.GetUserId(this Microsoft.Azure.Functions.Worker.FunctionContext! context) -> string?
+static Encina.AzureFunctions.FunctionContextExtensions.GetUserId(this Microsoft.Azure.Functions.Worker.FunctionContext! context, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! httpRequest, Encina.AzureFunctions.EncinaAzureFunctionsOptions? options = null) -> string?
+static Encina.AzureFunctions.FunctionContextExtensions.GetInvocationId(this Microsoft.Azure.Functions.Worker.FunctionContext! context) -> string!
+Encina.AzureFunctions.HttpResponseDataExtensions
+static Encina.AzureFunctions.HttpResponseDataExtensions.ToHttpResponseData<T>(this LanguageExt.Either<Encina.EncinaError, T> result, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! request, int successStatusCode = 200, int? errorStatusCode = null) -> System.Threading.Tasks.ValueTask<Microsoft.Azure.Functions.Worker.Http.HttpResponseData!>
+static Encina.AzureFunctions.HttpResponseDataExtensions.ToProblemDetailsResponse(this Encina.EncinaError error, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! request, int? statusCode = null) -> System.Threading.Tasks.ValueTask<Microsoft.Azure.Functions.Worker.Http.HttpResponseData!>
+static Encina.AzureFunctions.HttpResponseDataExtensions.ToCreatedResponse<T>(this LanguageExt.Either<Encina.EncinaError, T> result, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! request, System.Func<T, string!>! locationFactory) -> System.Threading.Tasks.ValueTask<Microsoft.Azure.Functions.Worker.Http.HttpResponseData!>
+static Encina.AzureFunctions.HttpResponseDataExtensions.ToNoContentResponse(this LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit> result, Microsoft.Azure.Functions.Worker.Http.HttpRequestData! request) -> System.Threading.Tasks.ValueTask<Microsoft.Azure.Functions.Worker.Http.HttpResponseData!>
+Encina.AzureFunctions.ServiceCollectionExtensions
+static Encina.AzureFunctions.ServiceCollectionExtensions.AddEncinaAzureFunctions(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.AzureFunctions.ServiceCollectionExtensions.AddEncinaAzureFunctions(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.AzureFunctions.EncinaAzureFunctionsOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.AzureFunctions.FunctionsWorkerApplicationBuilderExtensions
+static Encina.AzureFunctions.FunctionsWorkerApplicationBuilderExtensions.UseEncinaMiddleware(this Microsoft.Azure.Functions.Worker.IFunctionsWorkerApplicationBuilder! builder) -> Microsoft.Azure.Functions.Worker.IFunctionsWorkerApplicationBuilder!
+Encina.AzureFunctions.Health.AzureFunctionsHealthCheck
+Encina.AzureFunctions.Health.AzureFunctionsHealthCheck.AzureFunctionsHealthCheck(Microsoft.Extensions.Options.IOptions<Encina.AzureFunctions.EncinaAzureFunctionsOptions!>! options) -> void
+Encina.AzureFunctions.Health.AzureFunctionsHealthCheck.Name.get -> string!
+Encina.AzureFunctions.Health.AzureFunctionsHealthCheck.Tags.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+Encina.AzureFunctions.Health.AzureFunctionsHealthCheck.CheckHealthAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Health.HealthCheckResult>!
+Encina.AzureFunctions.EncinaFunctionMiddleware
+Encina.AzureFunctions.EncinaFunctionMiddleware.EncinaFunctionMiddleware(Microsoft.Extensions.Options.IOptions<Encina.AzureFunctions.EncinaAzureFunctionsOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.AzureFunctions.EncinaFunctionMiddleware!>! logger) -> void
+Encina.AzureFunctions.EncinaFunctionMiddleware.Invoke(Microsoft.Azure.Functions.Worker.FunctionContext! context, Microsoft.Azure.Functions.Worker.Middleware.FunctionExecutionDelegate! next) -> System.Threading.Tasks.Task!

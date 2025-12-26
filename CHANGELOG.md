@@ -11,6 +11,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Azure Functions Integration (Issue #59):
+  - **Encina.AzureFunctions** package for serverless function execution
+  - HTTP Trigger integration with automatic result-to-response conversion:
+    - `ToHttpResponseData<T>()` for standard responses
+    - `ToCreatedResponse<T>()` for 201 Created with Location header
+    - `ToNoContentResponse()` for 204 No Content responses
+  - `ToProblemDetailsResponse()` for RFC 7807 compliant error responses
+  - `EncinaFunctionMiddleware` for request context enrichment:
+    - Automatic correlation ID extraction/generation
+    - User ID extraction from claims
+    - Tenant ID extraction from headers or claims
+    - Structured logging for function execution
+  - `FunctionContextExtensions` for context information access:
+    - `GetCorrelationId()`, `GetUserId()`, `GetTenantId()`, `GetInvocationId()`
+  - `EncinaAzureFunctionsOptions` for configuration:
+    - `EnableRequestContextEnrichment` toggle
+    - Customizable header names and claim types
+    - `IncludeExceptionDetailsInResponse` for development
+    - `ProviderHealthCheck` configuration
+  - `AzureFunctionsHealthCheck` implementing `IEncinaHealthCheck`
+  - Error code to HTTP status mapping:
+    - `validation.*` → 400 Bad Request
+    - `authorization.unauthenticated` → 401 Unauthorized
+    - `authorization.*` → 403 Forbidden
+    - `*.not_found`, `*.missing` → 404 Not Found
+    - `*.conflict`, `*.already_exists`, `*.duplicate` → 409 Conflict
+  - DI registration via `AddEncinaAzureFunctions()`
+  - Middleware registration via `builder.UseEncinaMiddleware()`
+  - Comprehensive test coverage: unit, contract, property, guard, benchmarks
+  - Full documentation with examples for HTTP, Queue, and Timer triggers
+
 - Routing Slip Pattern for Dynamic Message Routing (Issue #62):
   - `RoutingSlipBuilder` fluent API for defining routing slips with inline step definitions
   - `RoutingSlipStepBuilder` for configuring individual steps with execute and compensate functions
