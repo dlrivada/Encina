@@ -1,5 +1,6 @@
 using Encina.Marten.Projections;
 using Encina.Marten.Snapshots;
+using Encina.Marten.Versioning;
 using Encina.Messaging.Health;
 
 namespace Encina.Marten;
@@ -62,4 +63,33 @@ public sealed class EncinaMartenOptions
     /// </code>
     /// </example>
     public SnapshotOptions Snapshots { get; } = new();
+
+    /// <summary>
+    /// Gets the event versioning options for schema evolution support.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Event versioning enables transparent migration of old event schemas to new ones
+    /// during event replay. This is essential for long-term event store maintenance.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaMarten(options =>
+    /// {
+    ///     options.EventVersioning.Enabled = true;
+    ///
+    ///     // Register upcaster by type
+    ///     options.EventVersioning.AddUpcaster&lt;OrderCreatedV1ToV2Upcaster&gt;();
+    ///
+    ///     // Register inline upcaster
+    ///     options.EventVersioning.AddUpcaster&lt;OrderCreatedV1, OrderCreatedV2&gt;(
+    ///         old => new OrderCreatedV2(old.OrderId, old.CustomerName, "unknown@example.com"));
+    ///
+    ///     // Scan assembly for upcasters
+    ///     options.EventVersioning.ScanAssembly(typeof(Program).Assembly);
+    /// });
+    /// </code>
+    /// </example>
+    public EventVersioningOptions EventVersioning { get; } = new();
 }

@@ -1,9 +1,12 @@
 using Encina.Marten.Health;
 using Encina.Marten.Projections;
 using Encina.Marten.Snapshots;
+using Encina.Marten.Versioning;
 using Encina.Messaging.Health;
+using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Marten;
 
@@ -60,6 +63,12 @@ public static class ServiceCollectionExtensions
         if (options.Snapshots.Enabled)
         {
             services.AddSnapshots(options.Snapshots);
+        }
+
+        // Register event versioning infrastructure if enabled
+        if (options.EventVersioning.Enabled)
+        {
+            services.AddEventVersioning(options.EventVersioning);
         }
 
         return services;
@@ -160,6 +169,62 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Adds event versioning infrastructure to the service collection.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="options">The event versioning options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    internal static IServiceCollection AddEventVersioning(
+        this IServiceCollection services,
+        EventVersioningOptions options)
+    {
+        // Register the upcaster registry as singleton
+        services.TryAddSingleton<EventUpcasterRegistry>();
+
+        // Configure Marten to use registered upcasters
+        services.TryAddSingleton<IConfigureOptions<StoreOptions>, ConfigureMartenEventVersioning>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers an event upcaster with the event versioning system.
+    /// </summary>
+    /// <typeparam name="TUpcaster">The upcaster type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Use this method to register individual upcasters after calling
+    /// <see cref="AddEncinaMarten(IServiceCollection, Action{EncinaMartenOptions})"/>
+    /// with event versioning enabled.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaMarten(options =>
+    /// {
+    ///     options.EventVersioning.Enabled = true;
+    /// });
+    ///
+    /// // Register upcasters individually
+    /// services.AddEventUpcaster&lt;OrderCreatedV1ToV2Upcaster&gt;();
+    /// services.AddEventUpcaster&lt;OrderCreatedV2ToV3Upcaster&gt;();
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEventUpcaster<TUpcaster>(this IServiceCollection services)
+        where TUpcaster : class, IEventUpcaster, new()
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        // Add registration action that will be executed when the registry is built
+        services.AddSingleton<IEventUpcasterRegistrar>(
+            new EventUpcasterRegistrar<TUpcaster>());
+
+        return services;
+    }
+
+    /// <summary>
     /// Registers a snapshotable aggregate with snapshot-aware repository.
     /// </summary>
     /// <typeparam name="TAggregate">The aggregate type (must implement <see cref="ISnapshotable{TAggregate}"/>).</typeparam>
@@ -234,5 +299,31 @@ internal sealed class ProjectionRegistrar<TProjection, TReadModel> : IProjection
     public void Register(ProjectionRegistry registry)
     {
         registry.Register<TProjection, TReadModel>();
+    }
+}
+
+/// <summary>
+/// Interface for upcaster registration during startup.
+/// </summary>
+internal interface IEventUpcasterRegistrar
+{
+    /// <summary>
+    /// Registers the upcaster with the registry.
+    /// </summary>
+    /// <param name="registry">The upcaster registry.</param>
+    void Register(EventUpcasterRegistry registry);
+}
+
+/// <summary>
+/// Typed upcaster registrar.
+/// </summary>
+/// <typeparam name="TUpcaster">The upcaster type.</typeparam>
+internal sealed class EventUpcasterRegistrar<TUpcaster> : IEventUpcasterRegistrar
+    where TUpcaster : class, IEventUpcaster, new()
+{
+    /// <inheritdoc />
+    public void Register(EventUpcasterRegistry registry)
+    {
+        registry.Register<TUpcaster>();
     }
 }

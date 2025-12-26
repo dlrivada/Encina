@@ -11,6 +11,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Event Versioning/Upcasting for Schema Evolution (Issue #37):
+  - `IEventUpcaster` marker interface for event upcasters with `SourceEventTypeName`, `TargetEventType`, `SourceEventType`
+  - `IEventUpcaster<TFrom, TTo>` strongly-typed generic interface with `Upcast(TFrom)` method
+  - `EventUpcasterBase<TFrom, TTo>` abstract base class wrapping Marten's `EventUpcaster<TFrom, TTo>`
+  - `LambdaEventUpcaster<TFrom, TTo>` for inline lambda-based upcasting without dedicated classes
+  - `EventUpcasterRegistry` for discovering and managing event upcasters:
+    - `Register<TUpcaster>()`, `Register(Type)`, `Register(IEventUpcaster)` registration methods
+    - `TryRegister()` for non-throwing duplicate handling
+    - `GetUpcasterForEventType(string)`, `GetAllUpcasters()`, `HasUpcasterFor(string)` lookup methods
+    - `ScanAndRegister(Assembly)` for automatic assembly scanning
+  - `EventVersioningOptions` for configuration:
+    - `Enabled` toggle (default: false)
+    - `ThrowOnUpcastFailure` option (default: true)
+    - `AddUpcaster<TUpcaster>()` for type registration
+    - `AddUpcaster<TFrom, TTo>(Func<TFrom, TTo>)` for inline lambda registration
+    - `ScanAssembly(Assembly)`, `ScanAssemblies(params Assembly[])` for assembly scanning
+    - `ApplyTo(EventUpcasterRegistry)` for applying configuration to registry
+  - `ConfigureMartenEventVersioning` as `IConfigureOptions<StoreOptions>` for Marten integration
+  - `EventVersioningErrorCodes` with error codes:
+    - `event.versioning.upcast_failed`, `event.versioning.upcaster_not_found`
+    - `event.versioning.registration_failed`, `event.versioning.duplicate_upcaster`
+    - `event.versioning.invalid_configuration`
+  - `VersioningLog` high-performance logging with LoggerMessage source generators (EventIds 100-129)
+  - DI integration via `AddEventVersioning()` internal method
+  - `AddEventUpcaster<TUpcaster>()` extension method for individual upcaster registration
+  - Comprehensive test coverage: 85+ tests (unit, property, contract, guard, integration)
+  - Example:
+    ```csharp
+    // Define upcaster class
+    public class OrderCreatedV1ToV2Upcaster : EventUpcasterBase<OrderCreatedV1, OrderCreatedV2>
+    {
+        protected override OrderCreatedV2 Upcast(OrderCreatedV1 old)
+            => new(old.OrderId, old.CustomerName, Email: "unknown@example.com");
+    }
+
+    // Configure with class-based upcasters
+    services.AddEncinaMarten(options =>
+    {
+        options.EventVersioning.Enabled = true;
+        options.EventVersioning.AddUpcaster<OrderCreatedV1ToV2Upcaster>();
+        options.EventVersioning.ScanAssembly(typeof(Program).Assembly);
+    });
+
+    // Or use inline lambda for simple transformations
+    services.AddEncinaMarten(options =>
+    {
+        options.EventVersioning.Enabled = true;
+        options.EventVersioning.AddUpcaster<OrderCreatedV1, OrderCreatedV2>(
+            old => new OrderCreatedV2(old.OrderId, old.CustomerName, "migrated@example.com"));
+    });
+    ```
 - Snapshotting for large aggregates (Issue #52):
   - `ISnapshotable<TAggregate>` marker interface for aggregates supporting snapshots
   - `ISnapshot<TAggregate>` interface with `AggregateId`, `Version`, `CreatedAtUtc` properties
