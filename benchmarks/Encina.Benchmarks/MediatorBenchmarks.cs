@@ -22,6 +22,7 @@ public static class Program
         // Run all benchmark suites
         BenchmarkRunner.Run<EncinaBenchmarks>(config);
         BenchmarkRunner.Run<DelegateInvocationBenchmarks>(config);
+        BenchmarkRunner.Run<CacheOptimizationBenchmarks>(config);
         BenchmarkRunner.Run<StreamRequestBenchmarks>(config);
 
         // Validation benchmarks (FluentValidation vs DataAnnotations vs MiniValidator vs GuardClauses)

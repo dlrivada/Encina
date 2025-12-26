@@ -35,6 +35,8 @@ public sealed partial class Encina
     /// </remarks>
     private static class RequestDispatcher
     {
+        // Cache for request kind determination to avoid repeated IsAssignableFrom calls
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, string> RequestKindCache = new();
         public static async Task<Either<EncinaError, TResponse>> ExecuteAsync<TResponse>(Encina Encina, IRequest<TResponse> request, CancellationToken cancellationToken)
         {
             // --- SETUP PHASE ---
@@ -52,9 +54,14 @@ public sealed partial class Encina
             // --- HANDLER RESOLUTION PHASE ---
             // Get or create a cached dispatcher wrapper that knows how to invoke the handler
             // This avoids repeated reflection on every request - wrappers are generated once per request/response type pair
-            var dispatcher = RequestHandlerCache.GetOrAdd(
-                (requestType, typeof(TResponse)),
-                static key => CreateRequestHandlerWrapper(key.Request, key.Response));
+            // Optimization: TryGetValue first avoids delegate allocation on cache hits (hot path)
+            var cacheKey = (requestType, typeof(TResponse));
+            if (!RequestHandlerCache.TryGetValue(cacheKey, out var dispatcher))
+            {
+                dispatcher = RequestHandlerCache.GetOrAdd(
+                    cacheKey,
+                    static key => CreateRequestHandlerWrapper(key.Request, key.Response));
+            }
 
             // Resolve the actual handler instance from DI
             // May return null if no handler is registered
@@ -169,8 +176,22 @@ public sealed partial class Encina
         /// <item>Metrics segmentation (track command vs query performance separately)</item>
         /// <item>Tracing/logging categorization for better observability</item>
         /// </list>
+        /// Results are cached per type to avoid repeated IsAssignableFrom calls on hot paths.
         /// </remarks>
         private static string GetRequestKind(Type requestType)
+        {
+            // Optimization: Cache type checks to avoid repeated IsAssignableFrom calls
+            if (RequestKindCache.TryGetValue(requestType, out var cachedKind))
+            {
+                return cachedKind;
+            }
+
+            var kind = DetermineRequestKind(requestType);
+            RequestKindCache.TryAdd(requestType, kind);
+            return kind;
+        }
+
+        private static string DetermineRequestKind(Type requestType)
         {
             if (typeof(ICommand).IsAssignableFrom(requestType))
             {

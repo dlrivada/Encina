@@ -192,7 +192,9 @@ public sealed partial class Encina
 
         private static bool TryGetNotificationExecutor(Type handlerType, Type desiredNotificationType, Type? runtimeNotificationType, string notificationName, out Func<object, object?, CancellationToken, Task<Either<EncinaError, Unit>>> executor, out EncinaError failure)
         {
-            if (NotificationHandlerInvokerCache.TryGetValue((handlerType, desiredNotificationType), out var cached))
+            // Optimization: Check cache first with TryGetValue to avoid allocations on hot path
+            var cacheKey = (handlerType, desiredNotificationType);
+            if (NotificationHandlerInvokerCache.TryGetValue(cacheKey, out var cached))
             {
                 executor = cached;
                 failure = default;
@@ -221,7 +223,12 @@ public sealed partial class Encina
             }
 
             var handledType = method.GetParameters()[0].ParameterType;
-            executor = NotificationHandlerInvokerCache.GetOrAdd((handlerType, handledType), _ => CreateNotificationInvoker(method, handlerType, handledType));
+            var invokerCacheKey = (handlerType, handledType);
+            // Optimization: TryGetValue first to avoid delegate allocation on cache hits
+            if (!NotificationHandlerInvokerCache.TryGetValue(invokerCacheKey, out executor!))
+            {
+                executor = NotificationHandlerInvokerCache.GetOrAdd(invokerCacheKey, _ => CreateNotificationInvoker(method, handlerType, handledType));
+            }
             failure = default;
             return true;
         }
