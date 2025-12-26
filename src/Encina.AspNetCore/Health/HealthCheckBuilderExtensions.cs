@@ -1,8 +1,10 @@
+using Encina.AspNetCore.Modules;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Encina.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using AspNetHealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
@@ -231,6 +233,123 @@ public static class HealthCheckBuilderExtensions
             },
             failureStatus,
             allTags));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds health checks from all registered modules that implement <see cref="IModuleWithHealthChecks"/>.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="tags">Additional tags to apply to all module health checks.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method registers individual health checks for each module that implements
+    /// <see cref="IModuleWithHealthChecks"/>. Each module's health checks are registered
+    /// with the module name as a tag for easy filtering.
+    /// </para>
+    /// <para>
+    /// Health checks are named using the pattern "module-{moduleName}-{healthCheckName}".
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaModuleHealthChecks();
+    ///
+    /// // Query module-specific health checks
+    /// app.MapHealthChecks("/health/modules", new HealthCheckOptions
+    /// {
+    ///     Predicate = check => check.Tags.Contains("modules")
+    /// });
+    ///
+    /// // Query specific module's health checks
+    /// app.MapHealthChecks("/health/modules/orders", new HealthCheckOptions
+    /// {
+    ///     Predicate = check => check.Tags.Contains("module-orders")
+    /// });
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaModuleHealthChecks(
+        this IHealthChecksBuilder builder,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Add(new HealthCheckRegistration(
+            "encina-modules",
+            sp =>
+            {
+                var registry = sp.GetService<IModuleRegistry>();
+                if (registry is null)
+                {
+                    return new EmptyHealthCheck();
+                }
+
+                var healthChecks = new List<IEncinaHealthCheck>();
+
+                foreach (var module in registry.Modules.OfType<IModuleWithHealthChecks>())
+                {
+                    healthChecks.AddRange(module.GetHealthChecks());
+                }
+
+                return new CompositeEncinaHealthCheck(healthChecks);
+            },
+            failureStatus,
+            CombineTags(tags, "modules")));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds health checks from a specific module.
+    /// </summary>
+    /// <typeparam name="TModule">The module type that implements health checks.</typeparam>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="tags">Additional tags to apply to the module's health checks.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Use this method when you want to register health checks from a specific module
+    /// rather than all modules. The health checks are aggregated into a single
+    /// composite health check for the module.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaModuleHealthChecks&lt;OrdersModule&gt;();
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaModuleHealthChecks<TModule>(
+        this IHealthChecksBuilder builder,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+        where TModule : class, IModuleWithHealthChecks
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Add(new HealthCheckRegistration(
+            $"encina-module-{typeof(TModule).Name.ToLowerInvariant().Replace("module", "")}",
+            sp =>
+            {
+                var module = sp.GetService<TModule>();
+                if (module is null)
+                {
+                    return new EmptyHealthCheck();
+                }
+
+                var healthChecks = module.GetHealthChecks();
+                return new CompositeEncinaHealthCheck(healthChecks);
+            },
+            failureStatus,
+            CombineTags(tags, "modules", $"module-{typeof(TModule).Name.ToLowerInvariant().Replace("module", "")}")));
 
         return builder;
     }

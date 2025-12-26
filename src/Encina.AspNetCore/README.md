@@ -588,6 +588,174 @@ public class UsersControllerTests : IClassFixture<WebApplicationFactory<Program>
 - **Zero Allocations**: Hot paths avoid allocations where possible
 - **Thread-Safe**: All components are thread-safe and support high concurrency
 
+## Module Health Checks
+
+For applications using the Modular Monolith pattern, Encina.AspNetCore provides health check integration for modules that implement `IModuleWithHealthChecks`.
+
+### Implementing Health Checks in Modules
+
+```csharp
+using Encina.AspNetCore.Modules;
+using Encina.Messaging.Health;
+
+public class OrdersModule : IModuleWithHealthChecks
+{
+    private readonly string _connectionString;
+
+    public OrdersModule(string connectionString)
+    {
+        _connectionString = connectionString;
+    }
+
+    public string Name => "Orders";
+
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services.AddScoped<IOrderRepository, OrderRepository>();
+    }
+
+    public IEnumerable<IEncinaHealthCheck> GetHealthChecks()
+    {
+        yield return new OrdersDatabaseHealthCheck(_connectionString);
+        yield return new OrdersQueueHealthCheck();
+    }
+}
+```
+
+### Registering Module Health Checks
+
+```csharp
+// Register all module health checks
+builder.Services
+    .AddHealthChecks()
+    .AddEncinaModuleHealthChecks();
+
+// Or register health checks for a specific module
+builder.Services
+    .AddHealthChecks()
+    .AddEncinaModuleHealthChecks<OrdersModule>();
+```
+
+### Exposing Health Check Endpoints
+
+```csharp
+// All module health checks
+app.MapHealthChecks("/health/modules", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("modules")
+});
+
+// All encina health checks (includes modules)
+app.MapHealthChecks("/health/encina", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("encina")
+});
+```
+
+### Default Tags
+
+Module health checks are automatically tagged with:
+- `encina` - All Encina health checks
+- `ready` - Readiness probe compatible
+- `modules` - Module-specific health checks
+
+## Health Checks in Microservices
+
+For microservices architectures, Encina provides health checks for infrastructure dependencies (databases, message brokers, caches) through its provider packages. For checking downstream service dependencies, we recommend combining Encina health checks with existing .NET ecosystem packages.
+
+### Combining Encina with Downstream Service Checks
+
+```csharp
+// Install: dotnet add package AspNetCore.HealthChecks.Uris
+
+builder.Services
+    .AddHealthChecks()
+    // Encina infrastructure health checks
+    .AddEncinaHealthChecks()           // All registered IEncinaHealthCheck
+    .AddEncinaOutbox()                 // Outbox pattern monitoring
+    .AddEncinaSaga()                   // Saga state monitoring
+    // Downstream service dependencies
+    .AddUrlGroup(
+        new Uri("https://orders-api/health"),
+        name: "orders-service",
+        tags: ["downstream", "ready"])
+    .AddUrlGroup(
+        new Uri("https://payments-api/health"),
+        name: "payments-service",
+        tags: ["downstream", "ready"])
+    .AddUrlGroup(
+        new Uri("https://inventory-api/health"),
+        name: "inventory-service",
+        tags: ["downstream", "critical"]);
+```
+
+### Kubernetes Probes Configuration
+
+```csharp
+// Liveness - Is the service alive? (only local checks)
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("live")
+});
+
+// Readiness - Can the service handle traffic? (includes dependencies)
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
+
+// Startup - Has the service started? (one-time checks)
+app.MapHealthChecks("/health/startup", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("startup")
+});
+```
+
+### Recommended Packages for Microservices
+
+| Package | Purpose |
+|---------|---------|
+| `AspNetCore.HealthChecks.Uris` | HTTP endpoint checks for downstream services |
+| `Grpc.AspNetCore.HealthChecks` | gRPC service health checks |
+| `AspNetCore.HealthChecks.Kubernetes` | Kubernetes API health checks |
+| `AspNetCore.HealthChecks.OpenIdConnect` | Identity provider health checks |
+
+### Example: Complete Microservice Health Configuration
+
+```csharp
+builder.Services
+    .AddHealthChecks()
+    // Infrastructure (Encina providers)
+    .AddEncinaHealthChecks()                          // All Encina checks
+    // Database (from Encina.Dapper.PostgreSQL)
+    // Automatically registered when using AddEncinaDapper()
+    // Message broker (from Encina.RabbitMQ)
+    // Automatically registered when using AddEncinaRabbitMQ()
+    // Cache (from Encina.Caching.Redis)
+    // Automatically registered when using AddEncinaRedis()
+    // Downstream services
+    .AddUrlGroup(new Uri("https://auth-service/health"), "auth-service", tags: ["downstream", "critical"])
+    .AddUrlGroup(new Uri("https://notification-service/health"), "notification-service", tags: ["downstream"]);
+
+// Expose endpoints
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready") || check.Tags.Contains("downstream")
+});
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false // Empty check = always healthy if service responds
+});
+```
+
+> **For a comprehensive guide** on integrating Encina health checks with the ASP.NET Core ecosystem, Kubernetes probes, and recommended NuGet packages, see [Health Checks Integration Guide](../../docs/guides/health-checks.md).
+
 ## Roadmap
 
 This package does NOT include ORM-specific features. For data access integration, see:

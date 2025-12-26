@@ -66,6 +66,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `AddEncinaModules()` extension method for service registration
   - Automatic handler discovery from module assemblies
   - Module ordering: start in registration order, stop in reverse (LIFO)
+- Module Health Checks (Issue #114):
+  - `IModuleWithHealthChecks` interface for modules to expose health checks
+  - `IModuleHealthCheck` interface for module-specific health checks with `ModuleName` property
+  - `AddEncinaModuleHealthChecks()` extension method for registering all module health checks
+  - `AddEncinaModuleHealthChecks<TModule>()` for registering specific module health checks
+  - Automatic tagging with `encina`, `ready`, and `modules` tags
+  - Integration with ASP.NET Core health check endpoints
+- Health Checks Integration Guide (Issue #115):
+  - Comprehensive documentation for integrating Encina with AspNetCore.HealthChecks.* packages
+  - Examples for microservice and modular monolith architectures
+  - Kubernetes probes configuration (liveness, readiness, startup)
+  - Recommended NuGet packages table for databases, caches, message brokers, cloud services
+  - Best practices for health check organization and tagging
+  - Located at `docs/guides/health-checks.md`
 - Saga Not Found Handler support (Issue #43):
   - `IHandleSagaNotFound<TMessage>` interface for custom handling when saga correlation fails
   - `SagaNotFoundContext` with `Ignore()` and `MoveToDeadLetterAsync()` actions
