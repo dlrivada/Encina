@@ -410,3 +410,105 @@ Encina.Messaging.Sagas.LowCeremony.SagaStepDefinition<TData>.Compensate.get -> S
 Encina.Messaging.Sagas.LowCeremony.SagaStepDefinition<TData>.Execute.get -> System.Func<TData, Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TData>>>!
 Encina.Messaging.Sagas.LowCeremony.SagaStepDefinition<TData>.Name.get -> string!
 static Encina.Messaging.Sagas.LowCeremony.SagaDefinition.Create<TData>(string! sagaType) -> Encina.Messaging.Sagas.LowCeremony.SagaDefinition<TData>!
+Encina.Messaging.MessagingConfiguration.UseRoutingSlips.get -> bool
+Encina.Messaging.MessagingConfiguration.UseRoutingSlips.set -> void
+Encina.Messaging.MessagingConfiguration.RoutingSlipOptions.get -> Encina.Messaging.RoutingSlip.RoutingSlipOptions!
+Encina.Messaging.RoutingSlip.RoutingSlipErrorCodes
+const Encina.Messaging.RoutingSlip.RoutingSlipErrorCodes.NotFound = "routingslip.not_found" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipErrorCodes.InvalidStatus = "routingslip.invalid_status" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipErrorCodes.DeserializationFailed = "routingslip.deserialization_failed" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipErrorCodes.StepFailed = "routingslip.step_failed" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipErrorCodes.CompensationFailed = "routingslip.compensation_failed" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipErrorCodes.Timeout = "routingslip.timeout" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipErrorCodes.HandlerCancelled = "routingslip.handler.cancelled" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipErrorCodes.HandlerFailed = "routingslip.handler.failed" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipErrorCodes.NoSteps = "routingslip.no_steps" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipErrorCodes.AlreadyCompleted = "routingslip.already_completed" -> string!
+Encina.Messaging.RoutingSlip.RoutingSlipStatus
+const Encina.Messaging.RoutingSlip.RoutingSlipStatus.Running = "Running" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipStatus.Completed = "Completed" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipStatus.Compensating = "Compensating" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipStatus.Compensated = "Compensated" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipStatus.Failed = "Failed" -> string!
+const Encina.Messaging.RoutingSlip.RoutingSlipStatus.TimedOut = "TimedOut" -> string!
+Encina.Messaging.RoutingSlip.RoutingSlipOptions
+Encina.Messaging.RoutingSlip.RoutingSlipOptions.RoutingSlipOptions() -> void
+Encina.Messaging.RoutingSlip.RoutingSlipOptions.DefaultTimeout.get -> System.TimeSpan
+Encina.Messaging.RoutingSlip.RoutingSlipOptions.DefaultTimeout.set -> void
+Encina.Messaging.RoutingSlip.RoutingSlipOptions.StuckCheckInterval.get -> System.TimeSpan
+Encina.Messaging.RoutingSlip.RoutingSlipOptions.StuckCheckInterval.set -> void
+Encina.Messaging.RoutingSlip.RoutingSlipOptions.StuckThreshold.get -> System.TimeSpan
+Encina.Messaging.RoutingSlip.RoutingSlipOptions.StuckThreshold.set -> void
+Encina.Messaging.RoutingSlip.RoutingSlipOptions.BatchSize.get -> int
+Encina.Messaging.RoutingSlip.RoutingSlipOptions.BatchSize.set -> void
+Encina.Messaging.RoutingSlip.RoutingSlipOptions.ContinueCompensationOnFailure.get -> bool
+Encina.Messaging.RoutingSlip.RoutingSlipOptions.ContinueCompensationOnFailure.set -> void
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>.RoutingSlipId.get -> System.Guid
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>.SlipType.get -> string!
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>.RequestContext.get -> Encina.IRequestContext!
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>.CurrentStepIndex.get -> int
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>.RemainingStepCount.get -> int
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>.ActivityLog.get -> System.Collections.Generic.IReadOnlyList<Encina.Messaging.RoutingSlip.RoutingSlipActivityEntry<TData>!>!
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>.AddStep(Encina.Messaging.RoutingSlip.RoutingSlipStepDefinition<TData>! step) -> void
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>.AddStepNext(Encina.Messaging.RoutingSlip.RoutingSlipStepDefinition<TData>! step) -> void
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>.InsertStep(int index, Encina.Messaging.RoutingSlip.RoutingSlipStepDefinition<TData>! step) -> void
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>.RemoveStepAt(int index) -> bool
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>.ClearRemainingSteps() -> void
+Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>.GetRemainingStepNames() -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepDefinition<TData>
+Encina.Messaging.RoutingSlip.RoutingSlipStepDefinition<TData>.Name.get -> string!
+Encina.Messaging.RoutingSlip.RoutingSlipStepDefinition<TData>.Execute.get -> System.Func<TData, Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TData>>>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepDefinition<TData>.Compensate.get -> System.Func<TData, Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
+Encina.Messaging.RoutingSlip.RoutingSlipStepDefinition<TData>.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepDefinition<TData>.RoutingSlipStepDefinition(string! name, System.Func<TData, Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TData>>>! execute, System.Func<TData, Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>? compensate = null, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? metadata = null) -> void
+Encina.Messaging.RoutingSlip.RoutingSlipActivityEntry<TData>
+Encina.Messaging.RoutingSlip.RoutingSlipActivityEntry<TData>.StepName.get -> string!
+Encina.Messaging.RoutingSlip.RoutingSlipActivityEntry<TData>.DataAfterExecution.get -> TData
+Encina.Messaging.RoutingSlip.RoutingSlipActivityEntry<TData>.Compensate.get -> System.Func<TData, Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
+Encina.Messaging.RoutingSlip.RoutingSlipActivityEntry<TData>.ExecutedAtUtc.get -> System.DateTime
+Encina.Messaging.RoutingSlip.RoutingSlipActivityEntry<TData>.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
+Encina.Messaging.RoutingSlip.RoutingSlipActivityEntry<TData>.RoutingSlipActivityEntry(string! stepName, TData dataAfterExecution, System.Func<TData, Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>? compensate, System.DateTime executedAtUtc, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? metadata = null) -> void
+Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>
+Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>.RoutingSlipId.get -> System.Guid
+Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>.FinalData.get -> TData
+Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>.StepsExecuted.get -> int
+Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>.StepsAdded.get -> int
+Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>.StepsRemoved.get -> int
+Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>.Duration.get -> System.TimeSpan
+Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>.ActivityLog.get -> System.Collections.Generic.IReadOnlyList<Encina.Messaging.RoutingSlip.RoutingSlipActivityEntry<TData>!>!
+Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>.RoutingSlipResult(System.Guid routingSlipId, TData finalData, int stepsExecuted, int stepsAdded, int stepsRemoved, System.TimeSpan duration, System.Collections.Generic.IReadOnlyList<Encina.Messaging.RoutingSlip.RoutingSlipActivityEntry<TData>!>! activityLog) -> void
+Encina.Messaging.RoutingSlip.RoutingSlipBuilder
+static Encina.Messaging.RoutingSlip.RoutingSlipBuilder.Create<TData>(string! slipType) -> Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>
+Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>.SlipType.get -> string!
+Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>.Step(string? stepName = null) -> Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>.OnCompletion(System.Func<TData, Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! onCompletion) -> Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>.OnCompletion(System.Func<TData, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! onCompletion) -> Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>.WithTimeout(System.TimeSpan timeout) -> Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>.Build() -> Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>!
+Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>
+Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>.SlipType.get -> string!
+Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>.Steps.get -> System.Collections.Generic.IReadOnlyList<Encina.Messaging.RoutingSlip.RoutingSlipStepDefinition<TData>!>!
+Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>.OnCompletion.get -> System.Func<TData, Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
+Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>.Timeout.get -> System.TimeSpan?
+Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>.InitialStepCount.get -> int
+Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>
+Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>.Execute(System.Func<TData, Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TData>>>! execute) -> Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>.Execute(System.Func<TData, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TData>>>! execute) -> Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>.Execute(System.Func<TData, LanguageExt.Either<Encina.EncinaError, TData>>! execute) -> Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>.Compensate(System.Func<TData, Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! compensate) -> Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>.Compensate(System.Func<TData, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! compensate) -> Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>.Compensate(System.Action<TData>! compensate) -> Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>.WithMetadata(string! key, object? value) -> Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>.Step(string? stepName = null) -> Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>.OnCompletion(System.Func<TData, Encina.Messaging.RoutingSlip.RoutingSlipContext<TData>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! onCompletion) -> Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>.WithTimeout(System.TimeSpan timeout) -> Encina.Messaging.RoutingSlip.RoutingSlipBuilder<TData>!
+Encina.Messaging.RoutingSlip.RoutingSlipStepBuilder<TData>.Build() -> Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>!
+Encina.Messaging.RoutingSlip.IRoutingSlipRunner
+Encina.Messaging.RoutingSlip.IRoutingSlipRunner.RunAsync<TData>(Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>! definition, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>!>>
+Encina.Messaging.RoutingSlip.IRoutingSlipRunner.RunAsync<TData>(Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>! definition, TData initialData, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>!>>
+Encina.Messaging.RoutingSlip.RoutingSlipRunner
+Encina.Messaging.RoutingSlip.RoutingSlipRunner.RoutingSlipRunner(Encina.IRequestContext! requestContext, Encina.Messaging.RoutingSlip.RoutingSlipOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.RoutingSlip.RoutingSlipRunner!>! logger) -> void
+Encina.Messaging.RoutingSlip.RoutingSlipRunner.RunAsync<TData>(Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>! definition, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>!>>
+Encina.Messaging.RoutingSlip.RoutingSlipRunner.RunAsync<TData>(Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>! definition, TData initialData, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>!>>

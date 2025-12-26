@@ -63,7 +63,7 @@ Key areas:
 - **Saga Enhancements** — Timeouts, low-ceremony syntax, not-found handlers
 - **Developer Tooling** — `Encina.Testing` package with fluent assertions
 - **Performance** — Source generators for zero-reflection dispatch
-- **Enterprise Patterns** — ✅ Recoverability pipeline (Issue #39), ✅ Rate limiting with adaptive throttling (Issue #40), ✅ Dead Letter Queue (Issue #42), ✅ Bulkhead Isolation (Issue #53)
+- **Enterprise Patterns** — ✅ Recoverability pipeline (Issue #39), ✅ Rate limiting with adaptive throttling (Issue #40), ✅ Dead Letter Queue (Issue #42), ✅ Bulkhead Isolation (Issue #53), ✅ Routing Slip pattern (Issue #62)
 - **Cross-cutting** — ✅ Health checks (Issue #35), ✅ Projections/read models (Issue #36), ✅ Snapshotting for large aggregates (Issue #52), ✅ Event versioning (Issue #37)
 
 → [View Phase 2 Issues](https://github.com/dlrivada/Encina/milestone/2)

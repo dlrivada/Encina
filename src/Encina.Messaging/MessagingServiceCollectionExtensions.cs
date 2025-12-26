@@ -3,6 +3,7 @@ using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Recoverability;
+using Encina.Messaging.RoutingSlip;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Sagas.LowCeremony;
 using Encina.Messaging.Scheduling;
@@ -85,6 +86,12 @@ public static class MessagingServiceCollectionExtensions
             services.AddScoped<ISagaRunner, SagaRunner>();
         }
 
+        if (config.UseRoutingSlips)
+        {
+            services.AddSingleton(config.RoutingSlipOptions);
+            services.AddScoped<IRoutingSlipRunner, RoutingSlipRunner>();
+        }
+
         if (config.UseScheduling)
         {
             services.AddSingleton(config.SchedulingOptions);
@@ -155,6 +162,12 @@ public static class MessagingServiceCollectionExtensions
             services.AddScoped<IInboxMessageFactory, TInboxFactory>();
             services.AddScoped<InboxOrchestrator>();
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(InboxPipelineBehavior<,>));
+        }
+
+        if (config.UseRoutingSlips)
+        {
+            services.AddSingleton(config.RoutingSlipOptions);
+            services.AddScoped<IRoutingSlipRunner, RoutingSlipRunner>();
         }
 
         if (config.UseRecoverability)

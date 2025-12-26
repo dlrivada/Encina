@@ -3,6 +3,7 @@ using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Recoverability;
+using Encina.Messaging.RoutingSlip;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 
@@ -19,6 +20,7 @@ namespace Encina.Messaging;
 /// <item><description><b>Outbox</b>: Reliable event publishing (at-least-once delivery)</description></item>
 /// <item><description><b>Inbox</b>: Idempotent message processing (exactly-once semantics)</description></item>
 /// <item><description><b>Sagas</b>: Distributed transactions with compensation</description></item>
+/// <item><description><b>RoutingSlips</b>: Dynamic message routing through multiple steps</description></item>
 /// <item><description><b>Scheduling</b>: Delayed/recurring message execution</description></item>
 /// <item><description><b>Recoverability</b>: Automatic retry with immediate and delayed strategies</description></item>
 /// </list>
@@ -44,6 +46,7 @@ namespace Encina.Messaging;
 ///     config.UseOutbox = true;
 ///     config.UseInbox = true;
 ///     config.UseSagas = true;
+///     config.UseRoutingSlips = true;
 ///     config.UseScheduling = true;
 ///     config.UseRecoverability = true;
 /// });
@@ -89,6 +92,22 @@ public sealed class MessagingConfiguration
     /// </remarks>
     /// <value>Default: false (opt-in)</value>
     public bool UseSagas { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to enable the Routing Slip pattern for dynamic message routing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, messages can be routed through multiple processing steps, with
+    /// the ability to dynamically add, remove, or modify steps during execution.
+    /// </para>
+    /// <para>
+    /// Unlike Sagas where steps are predefined, Routing Slips allow each step to
+    /// modify the remaining itinerary based on the result of its execution.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseRoutingSlips { get; set; }
 
     /// <summary>
     /// Gets or sets whether to enable scheduled/delayed message execution.
@@ -154,6 +173,11 @@ public sealed class MessagingConfiguration
     public SagaOptions SagaOptions { get; } = new();
 
     /// <summary>
+    /// Gets the configuration options for the Routing Slip Pattern.
+    /// </summary>
+    public RoutingSlipOptions RoutingSlipOptions { get; } = new();
+
+    /// <summary>
     /// Gets the configuration options for the Scheduling Pattern.
     /// </summary>
     public SchedulingOptions SchedulingOptions { get; } = new();
@@ -187,5 +211,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseScheduling || UseRecoverability || UseDeadLetterQueue;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue;
 }

@@ -11,6 +11,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Routing Slip Pattern for Dynamic Message Routing (Issue #62):
+  - `RoutingSlipBuilder` fluent API for defining routing slips with inline step definitions
+  - `RoutingSlipStepBuilder` for configuring individual steps with execute and compensate functions
+  - `BuiltRoutingSlipDefinition<TData>` immutable definition ready for execution
+  - `RoutingSlipStepDefinition<TData>` representing a single step in the itinerary
+  - `RoutingSlipContext<TData>` for dynamic route modification during execution:
+    - `AddStep()`, `AddStepNext()`, `InsertStep()` for adding steps
+    - `RemoveStepAt()`, `ClearRemainingSteps()` for removing steps
+    - `GetRemainingStepNames()` for inspecting itinerary
+  - `RoutingSlipActivityEntry<TData>` for activity log with compensation data
+  - `RoutingSlipResult<TData>` with execution metrics:
+    - `RoutingSlipId`, `FinalData`, `StepsExecuted`, `StepsAdded`, `StepsRemoved`
+    - `Duration`, `ActivityLog`
+  - `IRoutingSlipRunner` interface and `RoutingSlipRunner` implementation with:
+    - Step-by-step execution with dynamic modification tracking
+    - Automatic compensation in reverse order on failure
+    - Configurable compensation failure handling
+    - High-performance logging with LoggerMessage (EventIds 400-415)
+  - `RoutingSlipOptions` for configuration:
+    - `DefaultTimeout`, `StuckCheckInterval`, `StuckThreshold`, `BatchSize`
+    - `ContinueCompensationOnFailure` (default: true)
+  - `RoutingSlipStatus` constants: Running, Completed, Compensating, Compensated, Failed, TimedOut
+  - `RoutingSlipErrorCodes` with error codes:
+    - `routingslip.not_found`, `routingslip.invalid_status`, `routingslip.step_failed`
+    - `routingslip.compensation_failed`, `routingslip.timeout`
+    - `routingslip.handler.cancelled`, `routingslip.handler.failed`
+  - DI integration via `MessagingConfiguration.UseRoutingSlips`
+  - Comprehensive test coverage: 137+ tests (unit, property, guard)
+  - Example:
+    ```csharp
+    var definition = RoutingSlipBuilder.Create<OrderData>("ProcessOrder")
+        .Step("Validate Order")
+            .Execute(async (data, ctx, ct) => {
+                // Validation logic
+                return Right<EncinaError, OrderData>(data);
+            })
+        .Step("Process Payment")
+            .Execute(async (data, ctx, ct) => {
+                // Dynamically add verification step if needed
+                if (data.RequiresVerification)
+                    ctx.AddStepNext(verificationStep);
+                return Right<EncinaError, OrderData>(data);
+            })
+            .Compensate(async (data, ctx, ct) => await RefundPaymentAsync(data))
+        .Step("Ship Order")
+            .Execute(async (data, ctx, ct) => {
+                data.TrackingNumber = await ShipAsync(data);
+                return Right<EncinaError, OrderData>(data);
+            })
+            .Compensate(async (data, ctx, ct) => await CancelShipmentAsync(data))
+        .OnCompletion(async (data, ctx, ct) => await NotifyCompletedAsync(data))
+        .WithTimeout(TimeSpan.FromMinutes(5))
+        .Build();
+
+    var result = await runner.RunAsync(definition, new OrderData());
+    ```
+
 - Event Versioning/Upcasting for Schema Evolution (Issue #37):
   - `IEventUpcaster` marker interface for event upcasters with `SourceEventTypeName`, `TargetEventType`, `SourceEventType`
   - `IEventUpcaster<TFrom, TTo>` strongly-typed generic interface with `Upcast(TFrom)` method
