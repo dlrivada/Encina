@@ -28,6 +28,7 @@ services.AddEncinaMessaging(config =>
     config.UseInbox = true;
     config.UseSagas = true;
     config.UseScheduling = true;
+    config.UseRecoverability = true;
 });
 ```
 
@@ -178,7 +179,82 @@ public class OrderHandler : ICommandHandler<CreateOrderCommand, Order>
 }
 ```
 
-### 5. **Transactions** (Automatic Database Transactions)
+### 5. **Recoverability Pipeline** (Transient Error Handling)
+
+**Problem**: Transient errors (network timeouts, temporary unavailability) can cause message processing failures.
+
+**Solution**: Two-phase retry strategy with intelligent error classification.
+
+**Guarantees**: Automatic retries for transient errors, dead letter queue for permanent failures.
+
+```csharp
+services.AddEncinaMessaging(config =>
+{
+    config.UseRecoverability = true;
+    config.RecoverabilityOptions = new RecoverabilityOptions
+    {
+        // Immediate retries (in-memory, fast)
+        ImmediateRetries = 3,
+        ImmediateRetryDelay = TimeSpan.FromMilliseconds(100),
+        UseExponentialBackoffForImmediateRetries = true,
+
+        // Delayed retries (persistent, scheduled)
+        EnableDelayedRetries = true,
+        DelayedRetries = [
+            TimeSpan.FromSeconds(30),
+            TimeSpan.FromMinutes(5),
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromHours(2)
+        ],
+
+        // Jitter to prevent thundering herd
+        UseJitter = true,
+        MaxJitterPercent = 20,
+
+        // Dead letter queue callback
+        OnPermanentFailure = async (failedMessage, ct) =>
+        {
+            await _deadLetterQueue.SendAsync(failedMessage, ct);
+            _logger.LogError("Message {Id} moved to DLQ after {Attempts} attempts",
+                failedMessage.Id, failedMessage.TotalAttempts);
+        }
+    };
+});
+```
+
+**Error Classification**:
+
+The `DefaultErrorClassifier` automatically categorizes errors:
+
+| Classification | Exception Types | Behavior |
+|---------------|-----------------|----------|
+| **Transient** | `TimeoutException`, `HttpRequestException` (5xx), `IOException` | Retry immediately, then schedule delayed retries |
+| **Permanent** | `ArgumentException`, `ValidationException`, `HttpRequestException` (4xx) | Move directly to DLQ |
+| **Unknown** | Other exceptions | Treat as transient (configurable) |
+
+**Custom Error Classifier**:
+
+```csharp
+public class MyErrorClassifier : IErrorClassifier
+{
+    public ErrorClassification Classify(EncinaError error, Exception? exception)
+    {
+        // Custom classification logic
+        if (exception is MyCustomTransientException)
+            return ErrorClassification.Transient;
+
+        if (error.Message.Contains("rate limit"))
+            return ErrorClassification.Transient;
+
+        return ErrorClassification.Permanent;
+    }
+}
+
+// Register custom classifier
+config.RecoverabilityOptions.ErrorClassifier = new MyErrorClassifier();
+```
+
+### 6. **Transactions** (Automatic Database Transactions)
 
 **Problem**: Manual transaction management is verbose and error-prone.
 
@@ -486,6 +562,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 - ✅ Core abstractions (IOutboxMessage, IInboxMessage, etc.)
 - ✅ Messaging configuration (opt-in patterns)
 - ✅ Health check abstractions and implementations
+- ✅ Recoverability Pipeline (two-phase retry, error classification, DLQ)
 - ⏳ Entity Framework Core provider
 - ⏳ Dapper provider
 - ⏳ ADO.NET provider

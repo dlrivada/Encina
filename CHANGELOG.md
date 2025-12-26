@@ -91,6 +91,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New `CacheOptimizationBenchmarks.cs` for validating cache performance improvements
   - Benchmarks for TryGetValue vs GetOrAdd patterns
   - Type check caching comparison benchmarks
+- Recoverability Pipeline (Issue #39):
+  - Two-phase retry strategy: immediate retries (in-memory) + delayed retries (persistent/scheduled)
+  - `RecoverabilityOptions` with configurable immediate retries (default 3), delayed retries (30s, 5m, 30m, 2h), exponential backoff, and jitter
+  - `IErrorClassifier` interface with `DefaultErrorClassifier` for classifying errors as Transient/Permanent/Unknown
+  - Error classification by exception type (TimeoutException → Transient, ArgumentException → Permanent)
+  - Error classification by HTTP status codes (5xx → Transient, 4xx → Permanent)
+  - Error classification by message patterns ("timeout", "connection" → Transient)
+  - `RecoverabilityContext` for tracking retry state and history
+  - `FailedMessage` record for dead letter queue handling with full context
+  - `RecoverabilityPipelineBehavior<TRequest, TResponse>` pipeline behavior
+  - `IDelayedRetryScheduler`, `IDelayedRetryStore`, `IDelayedRetryMessage` abstractions
+  - `DelayedRetryScheduler` and `DelayedRetryProcessor` (BackgroundService) implementations
+  - `OnPermanentFailure` callback for DLQ integration
+  - Opt-in via `MessagingConfiguration.UseRecoverability = true`
+  - 64 unit tests covering all recoverability scenarios
 
 ### Changed
 
