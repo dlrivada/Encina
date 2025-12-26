@@ -127,6 +127,7 @@ These areas are under consideration for post-1.0 development:
 - Content-Based Router
 
 ### Advanced Performance
+- ✅ Delegate cache optimization (TryGetValue pattern, type check caching) - Issue #49
 - NativeAOT full support via source generators
 - Switch-based dispatch (no dictionary lookup)
 

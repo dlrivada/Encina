@@ -87,8 +87,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ISagaNotFoundDispatcher` for invoking registered handlers
   - `SagaErrorCodes.HandlerCancelled` and `SagaErrorCodes.HandlerFailed` error codes
   - Automatic DI registration when `UseSagas` is enabled
+- Delegate Cache Optimization benchmarks (Issue #49):
+  - New `CacheOptimizationBenchmarks.cs` for validating cache performance improvements
+  - Benchmarks for TryGetValue vs GetOrAdd patterns
+  - Type check caching comparison benchmarks
 
 ### Changed
+
+- **Performance**: Optimized delegate caches to minimize reflection and boxing (Issue #49):
+  - TryGetValue-before-GetOrAdd pattern on ConcurrentDictionary to avoid delegate allocation on cache hits
+  - Cached `GetRequestKind` type checks to avoid repeated `IsAssignableFrom` calls on hot paths
+  - Applied to both `RequestDispatcher` and `NotificationDispatcher`
 
 - **BREAKING**: `EncinaErrors.Create()` and `EncinaErrors.FromException()` `details` parameter changed from `object?` to `IReadOnlyDictionary<string, object?>?` (Issue #34)
 - **BREAKING**: `EncinaErrorExtensions.GetDetails()` now returns `IReadOnlyDictionary<string, object?>` instead of `Option<object>`

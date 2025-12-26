@@ -1,6 +1,7 @@
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.Recoverability;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 
@@ -18,6 +19,7 @@ namespace Encina.Messaging;
 /// <item><description><b>Inbox</b>: Idempotent message processing (exactly-once semantics)</description></item>
 /// <item><description><b>Sagas</b>: Distributed transactions with compensation</description></item>
 /// <item><description><b>Scheduling</b>: Delayed/recurring message execution</description></item>
+/// <item><description><b>Recoverability</b>: Automatic retry with immediate and delayed strategies</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -42,6 +44,7 @@ namespace Encina.Messaging;
 ///     config.UseInbox = true;
 ///     config.UseSagas = true;
 ///     config.UseScheduling = true;
+///     config.UseRecoverability = true;
 /// });
 /// </code>
 /// </example>
@@ -96,6 +99,25 @@ public sealed class MessagingConfiguration
     public bool UseScheduling { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable the Recoverability Pipeline.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, failed requests are automatically retried using a two-phase strategy:
+    /// <list type="number">
+    /// <item><description>Immediate retries: Fast, in-memory retries for transient failures</description></item>
+    /// <item><description>Delayed retries: Persistent, scheduled retries for extended recovery</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Errors are classified to determine retry behavior. Permanent errors skip retries
+    /// and go directly to the Dead Letter Queue (DLQ).
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseRecoverability { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -116,6 +138,11 @@ public sealed class MessagingConfiguration
     public SchedulingOptions SchedulingOptions { get; } = new();
 
     /// <summary>
+    /// Gets the configuration options for the Recoverability Pipeline.
+    /// </summary>
+    public RecoverabilityOptions RecoverabilityOptions { get; } = new();
+
+    /// <summary>
     /// Gets the configuration options for provider-specific health checks.
     /// </summary>
     /// <remarks>
@@ -134,5 +161,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseScheduling;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseScheduling || UseRecoverability;
 }

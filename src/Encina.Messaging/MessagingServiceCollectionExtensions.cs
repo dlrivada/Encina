@@ -1,8 +1,10 @@
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.Recoverability;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Encina.Messaging;
 
@@ -85,6 +87,20 @@ public static class MessagingServiceCollectionExtensions
             services.AddScoped<SchedulerOrchestrator>();
         }
 
+        if (config.UseRecoverability)
+        {
+            services.AddSingleton(config.RecoverabilityOptions);
+            services.TryAddSingleton<IErrorClassifier>(
+                config.RecoverabilityOptions.ErrorClassifier ?? new DefaultErrorClassifier());
+            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));
+
+            if (config.RecoverabilityOptions.EnableDelayedRetries)
+            {
+                services.TryAddScoped<IDelayedRetryScheduler, DelayedRetryScheduler>();
+                services.AddHostedService<DelayedRetryProcessor>();
+            }
+        }
+
         return services;
     }
 
@@ -133,6 +149,22 @@ public static class MessagingServiceCollectionExtensions
             services.AddScoped<IInboxMessageFactory, TInboxFactory>();
             services.AddScoped<InboxOrchestrator>();
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(InboxPipelineBehavior<,>));
+        }
+
+        if (config.UseRecoverability)
+        {
+            services.AddSingleton(config.RecoverabilityOptions);
+            services.TryAddSingleton<IErrorClassifier>(
+                config.RecoverabilityOptions.ErrorClassifier ?? new DefaultErrorClassifier());
+            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));
+
+            // Note: Delayed retries require IDelayedRetryStore which must be
+            // registered by the provider (Dapper, EF Core, ADO.NET)
+            if (config.RecoverabilityOptions.EnableDelayedRetries)
+            {
+                services.TryAddScoped<IDelayedRetryScheduler, DelayedRetryScheduler>();
+                services.AddHostedService<DelayedRetryProcessor>();
+            }
         }
 
         return services;
