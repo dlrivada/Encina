@@ -11,6 +11,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Dead Letter Queue (Issue #42):
+  - `IDeadLetterMessage` interface for dead letter message abstraction
+  - `IDeadLetterStore` interface for provider-agnostic storage:
+    - `AddAsync`, `GetAsync`, `GetMessagesAsync`, `GetCountAsync`
+    - `MarkAsReplayedAsync`, `DeleteAsync`, `DeleteExpiredAsync`
+    - Pagination support with `skip` and `take` parameters
+  - `IDeadLetterMessageFactory` for creating messages from failed requests
+  - `DeadLetterFilter` for querying messages:
+    - Factory methods: `All`, `FromSource`, `Since`, `ByCorrelationId`
+    - Filter by source pattern, request type, correlation ID, date range
+    - `ExcludeReplayed` option for pending messages only
+  - `DeadLetterOptions` for configuration:
+    - `RetentionPeriod` - how long to keep messages (default: 30 days)
+    - `CleanupInterval` - background cleanup frequency (default: 1 hour)
+    - `EnableAutomaticCleanup` - toggle cleanup processor
+    - Integration flags: `IntegrateWithRecoverability`, `IntegrateWithOutbox`, etc.
+    - `OnDeadLetter` callback for custom notifications
+  - `DeadLetterOrchestrator` for coordinating DLQ operations
+  - `IDeadLetterManager` with message replay capabilities:
+    - `ReplayAsync(messageId)` - replay single message
+    - `ReplayAllAsync(filter)` - batch replay with filter
+    - `GetStatisticsAsync()` - queue statistics
+    - `CleanupExpiredAsync()` - manual cleanup
+  - `DeadLetterManager` implementation with reflection-based replay
+  - `ReplayResult` and `BatchReplayResult` for replay operation results
+  - `DeadLetterStatistics` with counts by source pattern
+  - `DeadLetterHealthCheck` with warning/critical thresholds:
+    - Configurable `WarningThreshold` (default: 10 messages)
+    - Configurable `CriticalThreshold` (default: 100 messages)
+    - `OldMessageThreshold` for stale message detection
+  - `DeadLetterCleanupProcessor` background service for automatic cleanup
+  - `DeadLetterSourcePatterns` constants: Recoverability, Outbox, Inbox, Scheduling, Saga, Choreography
+  - `DeadLetterErrorCodes` for standardized error codes
+  - High-performance logging with `LoggerMessage` attributes
+  - DI registration via `AddEncinaDeadLetterQueue<TStore, TFactory>()`
+  - Comprehensive test coverage: 75 unit tests, 11 integration tests, 22 property tests, 12 contract tests
+  - Example:
+    ```csharp
+    // Configure DLQ
+    services.AddEncinaDeadLetterQueue<DeadLetterStoreEF, DeadLetterMessageFactoryEF>(options =>
+    {
+        options.RetentionPeriod = TimeSpan.FromDays(30);
+        options.EnableAutomaticCleanup = true;
+        options.IntegrateWithRecoverability = true;
+        options.OnDeadLetter = async (msg, ct) =>
+            await alertService.SendAlertAsync($"Message dead-lettered: {msg.RequestType}");
+    });
+
+    // Query and replay
+    var stats = await manager.GetStatisticsAsync();
+    var result = await manager.ReplayAsync(messageId);
+    ```
 - Low-Ceremony Sagas (Issue #41):
   - `SagaDefinition.Create<TData>(sagaType)` fluent API for defining sagas inline
   - `SagaStepBuilder<TData>` with `Execute()` and `Compensate()` methods

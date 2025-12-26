@@ -1,3 +1,4 @@
+using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
@@ -118,6 +119,26 @@ public sealed class MessagingConfiguration
     public bool UseRecoverability { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable the Dead Letter Queue pattern.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, permanently failed messages are stored in the DLQ for:
+    /// <list type="bullet">
+    /// <item><description>Inspection and debugging</description></item>
+    /// <item><description>Manual or automatic replay</description></item>
+    /// <item><description>Alerting and monitoring</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// The DLQ integrates with other messaging patterns (Outbox, Inbox, Recoverability, Sagas)
+    /// to capture messages that exhaust their retry attempts.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseDeadLetterQueue { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -143,6 +164,11 @@ public sealed class MessagingConfiguration
     public RecoverabilityOptions RecoverabilityOptions { get; } = new();
 
     /// <summary>
+    /// Gets the configuration options for the Dead Letter Queue pattern.
+    /// </summary>
+    public DeadLetterOptions DeadLetterOptions { get; } = new();
+
+    /// <summary>
     /// Gets the configuration options for provider-specific health checks.
     /// </summary>
     /// <remarks>
@@ -161,5 +187,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseScheduling || UseRecoverability;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseScheduling || UseRecoverability || UseDeadLetterQueue;
 }
