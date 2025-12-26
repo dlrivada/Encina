@@ -375,3 +375,38 @@ Encina.Messaging.Recoverability.DelayedRetryProcessor.BatchSize.set -> void
 static Encina.Messaging.Recoverability.RecoverabilityServiceCollectionExtensions.AddEncinaRecoverability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Messaging.Recoverability.RecoverabilityOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Messaging.Recoverability.RecoverabilityServiceCollectionExtensions.AddEncinaRecoverability<TClassifier>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Messaging.Recoverability.RecoverabilityOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Messaging.Recoverability.RecoverabilityServiceCollectionExtensions.AddEncinaDelayedRetryStore<TStore, TFactory>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Messaging.Sagas.LowCeremony.BuiltSagaDefinition<TData>
+Encina.Messaging.Sagas.LowCeremony.BuiltSagaDefinition<TData>.SagaType.get -> string!
+Encina.Messaging.Sagas.LowCeremony.BuiltSagaDefinition<TData>.Steps.get -> System.Collections.Generic.IReadOnlyList<Encina.Messaging.Sagas.LowCeremony.SagaStepDefinition<TData>!>!
+Encina.Messaging.Sagas.LowCeremony.BuiltSagaDefinition<TData>.Timeout.get -> System.TimeSpan?
+Encina.Messaging.Sagas.LowCeremony.BuiltSagaDefinition<TData>.StepCount.get -> int
+Encina.Messaging.Sagas.LowCeremony.ISagaRunner
+Encina.Messaging.Sagas.LowCeremony.ISagaRunner.RunAsync<TData>(Encina.Messaging.Sagas.LowCeremony.BuiltSagaDefinition<TData>! definition, TData initialData, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Sagas.LowCeremony.SagaResult<TData>!>>
+Encina.Messaging.Sagas.LowCeremony.ISagaRunner.RunAsync<TData>(Encina.Messaging.Sagas.LowCeremony.BuiltSagaDefinition<TData>! definition, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Sagas.LowCeremony.SagaResult<TData>!>>
+Encina.Messaging.Sagas.LowCeremony.SagaDefinition
+Encina.Messaging.Sagas.LowCeremony.SagaDefinition<TData>
+Encina.Messaging.Sagas.LowCeremony.SagaDefinition<TData>.Build() -> Encina.Messaging.Sagas.LowCeremony.BuiltSagaDefinition<TData>!
+Encina.Messaging.Sagas.LowCeremony.SagaDefinition<TData>.SagaType.get -> string!
+Encina.Messaging.Sagas.LowCeremony.SagaDefinition<TData>.Step(string? stepName = null) -> Encina.Messaging.Sagas.LowCeremony.SagaStepBuilder<TData>!
+Encina.Messaging.Sagas.LowCeremony.SagaDefinition<TData>.WithTimeout(System.TimeSpan timeout) -> Encina.Messaging.Sagas.LowCeremony.SagaDefinition<TData>!
+Encina.Messaging.Sagas.LowCeremony.SagaResult<TData>
+Encina.Messaging.Sagas.LowCeremony.SagaResult<TData>.Data.get -> TData
+Encina.Messaging.Sagas.LowCeremony.SagaResult<TData>.SagaId.get -> System.Guid
+Encina.Messaging.Sagas.LowCeremony.SagaResult<TData>.StepsExecuted.get -> int
+Encina.Messaging.Sagas.LowCeremony.SagaRunner
+Encina.Messaging.Sagas.LowCeremony.SagaRunner.RunAsync<TData>(Encina.Messaging.Sagas.LowCeremony.BuiltSagaDefinition<TData>! definition, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Sagas.LowCeremony.SagaResult<TData>!>>
+Encina.Messaging.Sagas.LowCeremony.SagaRunner.RunAsync<TData>(Encina.Messaging.Sagas.LowCeremony.BuiltSagaDefinition<TData>! definition, TData initialData, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Sagas.LowCeremony.SagaResult<TData>!>>
+Encina.Messaging.Sagas.LowCeremony.SagaRunner.SagaRunner(Encina.Messaging.Sagas.SagaOrchestrator! orchestrator, Encina.IRequestContext! requestContext, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Sagas.LowCeremony.SagaRunner!>! logger) -> void
+Encina.Messaging.Sagas.LowCeremony.SagaStepBuilder<TData>
+Encina.Messaging.Sagas.LowCeremony.SagaStepBuilder<TData>.Build() -> Encina.Messaging.Sagas.LowCeremony.BuiltSagaDefinition<TData>!
+Encina.Messaging.Sagas.LowCeremony.SagaStepBuilder<TData>.Compensate(System.Func<TData, Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! compensate) -> Encina.Messaging.Sagas.LowCeremony.SagaDefinition<TData>!
+Encina.Messaging.Sagas.LowCeremony.SagaStepBuilder<TData>.Compensate(System.Func<TData, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! compensate) -> Encina.Messaging.Sagas.LowCeremony.SagaDefinition<TData>!
+Encina.Messaging.Sagas.LowCeremony.SagaStepBuilder<TData>.Execute(System.Func<TData, Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TData>>>! execute) -> Encina.Messaging.Sagas.LowCeremony.SagaStepBuilder<TData>!
+Encina.Messaging.Sagas.LowCeremony.SagaStepBuilder<TData>.Execute(System.Func<TData, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TData>>>! execute) -> Encina.Messaging.Sagas.LowCeremony.SagaStepBuilder<TData>!
+Encina.Messaging.Sagas.LowCeremony.SagaStepBuilder<TData>.Step(string? stepName = null) -> Encina.Messaging.Sagas.LowCeremony.SagaStepBuilder<TData>!
+Encina.Messaging.Sagas.LowCeremony.SagaStepBuilder<TData>.WithTimeout(System.TimeSpan timeout) -> Encina.Messaging.Sagas.LowCeremony.SagaDefinition<TData>!
+Encina.Messaging.Sagas.LowCeremony.SagaStepDefinition<TData>
+Encina.Messaging.Sagas.LowCeremony.SagaStepDefinition<TData>.Compensate.get -> System.Func<TData, Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
+Encina.Messaging.Sagas.LowCeremony.SagaStepDefinition<TData>.Execute.get -> System.Func<TData, Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TData>>>!
+Encina.Messaging.Sagas.LowCeremony.SagaStepDefinition<TData>.Name.get -> string!
+static Encina.Messaging.Sagas.LowCeremony.SagaDefinition.Create<TData>(string! sagaType) -> Encina.Messaging.Sagas.LowCeremony.SagaDefinition<TData>!

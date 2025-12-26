@@ -2,6 +2,7 @@ using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Recoverability;
 using Encina.Messaging.Sagas;
+using Encina.Messaging.Sagas.LowCeremony;
 using Encina.Messaging.Scheduling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -77,6 +78,9 @@ public static class MessagingServiceCollectionExtensions
             services.AddScoped<ISagaStateFactory, TSagaFactory>();
             services.AddScoped<SagaOrchestrator>();
             services.AddScoped<ISagaNotFoundDispatcher, SagaNotFoundDispatcher>();
+
+            // Low-ceremony saga runner
+            services.AddScoped<ISagaRunner, SagaRunner>();
         }
 
         if (config.UseScheduling)

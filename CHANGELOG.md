@@ -11,6 +11,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Low-Ceremony Sagas (Issue #41):
+  - `SagaDefinition.Create<TData>(sagaType)` fluent API for defining sagas inline
+  - `SagaStepBuilder<TData>` with `Execute()` and `Compensate()` methods
+  - `ISagaRunner` interface for executing saga definitions
+  - `SagaRunner` implementation with full lifecycle management:
+    - Sequential step execution with data flow between steps
+    - Automatic compensation in reverse order on failure
+    - Exception handling with compensation continuation
+  - `SagaResult<TData>` record with `SagaId`, `Data`, and `StepsExecuted`
+  - Simplified overloads without `IRequestContext` parameter
+  - Optional timeout configuration via `WithTimeout(TimeSpan)`
+  - Auto-generated step names (`Step 1`, `Step 2`, etc.) when not specified
+  - High-performance logging with `LoggerMessage` attributes
+  - Full test coverage: unit, property-based, and contract tests
+  - Automatic DI registration when `UseSagas = true`
+  - Example:
+    ```csharp
+    var saga = SagaDefinition.Create<OrderData>("ProcessOrder")
+        .Step("Reserve Inventory")
+            .Execute(async (data, ct) => /* ... */)
+            .Compensate(async (data, ct) => /* ... */)
+        .Step("Process Payment")
+            .Execute(async (data, ct) => /* ... */)
+            .Compensate(async (data, ct) => /* ... */)
+        .WithTimeout(TimeSpan.FromMinutes(5))
+        .Build();
+
+    var result = await sagaRunner.RunAsync(saga, initialData);
+    ```
 - Automatic Rate Limiting with Adaptive Throttling (Issue #40):
   - `RateLimitAttribute` with configurable properties:
     - `MaxRequestsPerWindow` - Maximum requests allowed in the time window
