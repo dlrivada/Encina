@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Polly;
 
@@ -9,7 +10,7 @@ namespace Encina.Polly;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds Polly resilience behaviors (Retry and Circuit Breaker) to the Encina pipeline.
+    /// Adds Polly resilience behaviors (Retry, Circuit Breaker, and Rate Limiting) to the Encina pipeline.
     /// </summary>
     /// <param name="services">Service collection.</param>
     /// <returns>Service collection for fluent chaining.</returns>
@@ -17,10 +18,12 @@ public static class ServiceCollectionExtensions
     /// This extension registers:
     /// - <see cref="RetryPipelineBehavior{TRequest, TResponse}"/> for automatic retries
     /// - <see cref="CircuitBreakerPipelineBehavior{TRequest, TResponse}"/> for circuit breaker pattern
+    /// - <see cref="RateLimitingPipelineBehavior{TRequest, TResponse}"/> for adaptive rate limiting
     ///
     /// Behaviors are only applied when requests are decorated with:
     /// - <see cref="RetryAttribute"/> for retry logic
     /// - <see cref="CircuitBreakerAttribute"/> for circuit breaker logic
+    /// - <see cref="RateLimitAttribute"/> for rate limiting with adaptive throttling
     /// </remarks>
     /// <example>
     /// <code>
@@ -30,6 +33,7 @@ public static class ServiceCollectionExtensions
     /// // Now use attributes on requests:
     /// [Retry(MaxAttempts = 3, BackoffType = BackoffType.Exponential)]
     /// [CircuitBreaker(FailureThreshold = 5, DurationOfBreakSeconds = 60)]
+    /// [RateLimit(MaxRequestsPerWindow = 100, WindowSizeSeconds = 60)]
     /// public record CallExternalApiQuery(string Url) : IRequest&lt;ApiResponse&gt;;
     /// </code>
     /// </example>
@@ -37,7 +41,13 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // Register Retry behavior - Use AddTransient (not Try) to add both behaviors
+        // Register Adaptive Rate Limiter as singleton (shared state across requests)
+        services.TryAddSingleton<IRateLimiter, AdaptiveRateLimiter>();
+
+        // Register Rate Limiting behavior (first in pipeline to reject early)
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(RateLimitingPipelineBehavior<,>));
+
+        // Register Retry behavior
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(RetryPipelineBehavior<,>));
 
         // Register Circuit Breaker behavior

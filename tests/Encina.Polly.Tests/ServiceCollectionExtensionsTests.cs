@@ -9,7 +9,7 @@ namespace Encina.Polly.Tests;
 public class ServiceCollectionExtensionsTests
 {
     [Fact]
-    public void AddEncinaPolly_ShouldRegisterBothBehaviors()
+    public void AddEncinaPolly_ShouldRegisterAllBehaviors()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -20,13 +20,32 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var behaviorDescriptors = services.Where(sd => sd.ServiceType == typeof(IPipelineBehavior<,>)).ToList();
 
-        behaviorDescriptors.Should().HaveCount(2, "both Retry and CircuitBreaker behaviors should be registered");
+        behaviorDescriptors.Should().HaveCount(3, "Retry, CircuitBreaker, and RateLimiting behaviors should be registered");
 
         var hasRetryBehavior = behaviorDescriptors.Any(d => d.ImplementationType?.Name.Contains("RetryPipelineBehavior") == true);
         var hasCircuitBreakerBehavior = behaviorDescriptors.Any(d => d.ImplementationType?.Name.Contains("CircuitBreakerPipelineBehavior") == true);
+        var hasRateLimitingBehavior = behaviorDescriptors.Any(d => d.ImplementationType?.Name.Contains("RateLimitingPipelineBehavior") == true);
 
         hasRetryBehavior.Should().BeTrue("RetryPipelineBehavior should be registered");
         hasCircuitBreakerBehavior.Should().BeTrue("CircuitBreakerPipelineBehavior should be registered");
+        hasRateLimitingBehavior.Should().BeTrue("RateLimitingPipelineBehavior should be registered");
+    }
+
+    [Fact]
+    public void AddEncinaPolly_ShouldRegisterRateLimiterAsSingleton()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        services.AddEncinaPolly();
+
+        // Assert
+        var rateLimiterDescriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(IRateLimiter));
+
+        rateLimiterDescriptor.Should().NotBeNull("IRateLimiter should be registered");
+        rateLimiterDescriptor!.Lifetime.Should().Be(ServiceLifetime.Singleton, "IRateLimiter should be singleton for shared state");
+        rateLimiterDescriptor.ImplementationType.Should().Be(typeof(AdaptiveRateLimiter));
     }
 
     [Fact]
@@ -193,6 +212,6 @@ public class ServiceCollectionExtensionsTests
         // Assert - AddTransient allows duplicates (not Try)
         var behaviorDescriptors = services.Where(sd => sd.ServiceType == typeof(IPipelineBehavior<,>)).ToList();
 
-        behaviorDescriptors.Should().HaveCount(4, "both behaviors should be registered twice (2 + 2)");
+        behaviorDescriptors.Should().HaveCount(6, "all three behaviors should be registered twice (3 + 3)");
     }
 }

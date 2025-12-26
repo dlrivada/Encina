@@ -82,4 +82,7 @@ public static class EncinaErrorCodes
 
     /// <summary>Request post-processor threw an exception.</summary>
     public const string PostProcessorException = "encina.postprocessor.exception";
+
+    /// <summary>Rate limit exceeded for request.</summary>
+    public const string RateLimitExceeded = "encina.ratelimit.exceeded";
 }

@@ -49,4 +49,44 @@ public class AttributePropertyTests
         // Assert
         attribute.MinimumThroughput.Should().BeGreaterThan(0);
     }
+
+    [Fact]
+    public void RateLimitAttribute_MaxRequestsPerWindow_ShouldBePositive()
+    {
+        // Arrange & Act
+        var attribute = new RateLimitAttribute { MaxRequestsPerWindow = 100 };
+
+        // Assert
+        attribute.MaxRequestsPerWindow.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public void RateLimitAttribute_WindowSizeSeconds_ShouldBePositive()
+    {
+        // Arrange & Act
+        var attribute = new RateLimitAttribute { WindowSizeSeconds = 60 };
+
+        // Assert
+        attribute.WindowSizeSeconds.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public void RateLimitAttribute_ErrorThresholdPercent_ShouldBeBetween0And100()
+    {
+        // Arrange & Act
+        var attribute = new RateLimitAttribute { ErrorThresholdPercent = 50 };
+
+        // Assert
+        attribute.ErrorThresholdPercent.Should().BeInRange(0, 100);
+    }
+
+    [Fact]
+    public void RateLimitAttribute_RampUpFactor_ShouldBePositive()
+    {
+        // Arrange & Act
+        var attribute = new RateLimitAttribute { RampUpFactor = 1.5 };
+
+        // Assert
+        attribute.RampUpFactor.Should().BeGreaterThan(0);
+    }
 }

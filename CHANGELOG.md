@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Automatic Rate Limiting with Adaptive Throttling (Issue #40):
+  - `RateLimitAttribute` with configurable properties:
+    - `MaxRequestsPerWindow` - Maximum requests allowed in the time window
+    - `WindowSizeSeconds` - Duration of the sliding window
+    - `ErrorThresholdPercent` - Error rate threshold for adaptive throttling (default: 50%)
+    - `CooldownSeconds` - Duration to remain in throttled state (default: 30s)
+    - `RampUpFactor` - Rate of capacity increase during recovery (default: 1.5x)
+    - `EnableAdaptiveThrottling` - Toggle adaptive behavior (default: true)
+    - `MinimumThroughputForThrottling` - Minimum requests before error rate is calculated
+  - `IRateLimiter` interface with `AcquireAsync`, `RecordSuccess`, `RecordFailure`, `GetState`, `Reset`
+  - `AdaptiveRateLimiter` implementation with:
+    - Sliding window rate limiting algorithm
+    - State machine: `Normal` → `Throttled` → `Recovering` → `Normal`
+    - Thread-safe `ConcurrentDictionary` for per-key state management
+    - Automatic outage detection via error rate monitoring
+    - Gradual recovery with configurable ramp-up
+  - `RateLimitingPipelineBehavior<TRequest, TResponse>` for automatic rate limiting
+  - `RateLimitResult` record struct with `Allowed()` and `Denied()` factory methods
+  - `RateLimitState` enum (`Normal`, `Throttled`, `Recovering`)
+  - `EncinaErrorCodes.RateLimitExceeded` error code
+  - Automatic DI registration as singleton (shared state across requests)
+  - Comprehensive test coverage: 104 unit tests, 22 property tests, 22 contract tests, 10 guard tests, 4 load tests
+  - Performance benchmarks for rate limiter operations
 - AggregateTestBase for Event Sourcing testing (Issue #46):
   - `AggregateTestBase<TAggregate, TId>` base class for Given/When/Then testing pattern
   - `AggregateTestBase<TAggregate>` convenience class for Guid identifiers

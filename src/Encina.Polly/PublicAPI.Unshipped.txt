@@ -39,3 +39,57 @@ Encina.Polly.EncinaPollyOptions.EnableTelemetry.set -> void
 Encina.Polly.EncinaPollyOptions.EncinaPollyOptions() -> void
 static Encina.Polly.ServiceCollectionExtensions.AddEncinaPolly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Polly.ServiceCollectionExtensions.AddEncinaPolly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Polly.EncinaPollyOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Polly.RateLimitAttribute
+Encina.Polly.RateLimitAttribute.RateLimitAttribute() -> void
+Encina.Polly.RateLimitAttribute.MaxRequestsPerWindow.get -> int
+Encina.Polly.RateLimitAttribute.MaxRequestsPerWindow.init -> void
+Encina.Polly.RateLimitAttribute.WindowSizeSeconds.get -> int
+Encina.Polly.RateLimitAttribute.WindowSizeSeconds.init -> void
+Encina.Polly.RateLimitAttribute.ErrorThresholdPercent.get -> double
+Encina.Polly.RateLimitAttribute.ErrorThresholdPercent.init -> void
+Encina.Polly.RateLimitAttribute.CooldownSeconds.get -> int
+Encina.Polly.RateLimitAttribute.CooldownSeconds.init -> void
+Encina.Polly.RateLimitAttribute.RampUpFactor.get -> double
+Encina.Polly.RateLimitAttribute.RampUpFactor.init -> void
+Encina.Polly.RateLimitAttribute.EnableAdaptiveThrottling.get -> bool
+Encina.Polly.RateLimitAttribute.EnableAdaptiveThrottling.init -> void
+Encina.Polly.RateLimitAttribute.MinimumThroughputForThrottling.get -> int
+Encina.Polly.RateLimitAttribute.MinimumThroughputForThrottling.init -> void
+Encina.Polly.RateLimitState
+Encina.Polly.RateLimitState.Normal = 0 -> Encina.Polly.RateLimitState
+Encina.Polly.RateLimitState.Throttled = 1 -> Encina.Polly.RateLimitState
+Encina.Polly.RateLimitState.Recovering = 2 -> Encina.Polly.RateLimitState
+Encina.Polly.RateLimitResult
+Encina.Polly.RateLimitResult.RateLimitResult() -> void
+Encina.Polly.RateLimitResult.RateLimitResult(bool IsAllowed, Encina.Polly.RateLimitState CurrentState, System.TimeSpan? RetryAfter, int CurrentCount, int CurrentLimit, double ErrorRate) -> void
+Encina.Polly.RateLimitResult.IsAllowed.get -> bool
+Encina.Polly.RateLimitResult.IsAllowed.init -> void
+Encina.Polly.RateLimitResult.CurrentState.get -> Encina.Polly.RateLimitState
+Encina.Polly.RateLimitResult.CurrentState.init -> void
+Encina.Polly.RateLimitResult.RetryAfter.get -> System.TimeSpan?
+Encina.Polly.RateLimitResult.RetryAfter.init -> void
+Encina.Polly.RateLimitResult.CurrentCount.get -> int
+Encina.Polly.RateLimitResult.CurrentCount.init -> void
+Encina.Polly.RateLimitResult.CurrentLimit.get -> int
+Encina.Polly.RateLimitResult.CurrentLimit.init -> void
+Encina.Polly.RateLimitResult.ErrorRate.get -> double
+Encina.Polly.RateLimitResult.ErrorRate.init -> void
+static Encina.Polly.RateLimitResult.Allowed(Encina.Polly.RateLimitState state, int currentCount, int currentLimit, double errorRate) -> Encina.Polly.RateLimitResult
+static Encina.Polly.RateLimitResult.Denied(Encina.Polly.RateLimitState state, System.TimeSpan retryAfter, int currentCount, int currentLimit, double errorRate) -> Encina.Polly.RateLimitResult
+Encina.Polly.IRateLimiter
+Encina.Polly.IRateLimiter.AcquireAsync(string! key, Encina.Polly.RateLimitAttribute! config, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.Polly.RateLimitResult>
+Encina.Polly.IRateLimiter.RecordSuccess(string! key) -> void
+Encina.Polly.IRateLimiter.RecordFailure(string! key) -> void
+Encina.Polly.IRateLimiter.GetState(string! key) -> Encina.Polly.RateLimitState?
+Encina.Polly.IRateLimiter.Reset(string! key) -> void
+Encina.Polly.AdaptiveRateLimiter
+Encina.Polly.AdaptiveRateLimiter.AdaptiveRateLimiter() -> void
+Encina.Polly.AdaptiveRateLimiter.AdaptiveRateLimiter(System.TimeProvider! timeProvider) -> void
+Encina.Polly.AdaptiveRateLimiter.AcquireAsync(string! key, Encina.Polly.RateLimitAttribute! config, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.Polly.RateLimitResult>
+Encina.Polly.AdaptiveRateLimiter.RecordSuccess(string! key) -> void
+Encina.Polly.AdaptiveRateLimiter.RecordFailure(string! key) -> void
+Encina.Polly.AdaptiveRateLimiter.GetState(string! key) -> Encina.Polly.RateLimitState?
+Encina.Polly.AdaptiveRateLimiter.Reset(string! key) -> void
+Encina.Polly.RateLimitingPipelineBehavior<TRequest, TResponse>
+Encina.Polly.RateLimitingPipelineBehavior<TRequest, TResponse>.RateLimitingPipelineBehavior(Microsoft.Extensions.Logging.ILogger<Encina.Polly.RateLimitingPipelineBehavior<TRequest, TResponse>>! logger, Encina.Polly.IRateLimiter! rateLimiter) -> void
+Encina.Polly.RateLimitingPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>

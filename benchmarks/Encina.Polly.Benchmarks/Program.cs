@@ -8,5 +8,7 @@ public class Program
     {
         BenchmarkRunner.Run<RetryBenchmarks>(args: args);
         BenchmarkRunner.Run<CircuitBreakerBenchmarks>(args: args);
+        BenchmarkRunner.Run<RateLimitingBenchmarks>(args: args);
+        BenchmarkRunner.Run<RateLimitingMultiKeyBenchmarks>(args: args);
     }
 }
