@@ -320,7 +320,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         }
     }
 
-    private RecoverabilityContext DeserializeContext(string contextContent)
+    private static RecoverabilityContext DeserializeContext(string contextContent)
     {
         var serializable = JsonSerializer.Deserialize<SerializableRecoverabilityContext>(contextContent, JsonOptions);
 
@@ -361,7 +361,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         {
             var context = DeserializeContext(message.ContextContent);
             context.RecordFailedAttempt(
-                new EncinaError(RecoverabilityErrorCodes.PermanentlyFailed, errorMessage),
+                EncinaError.New($"[{RecoverabilityErrorCodes.PermanentlyFailed}] {errorMessage}"),
                 null,
                 ErrorClassification.Permanent);
 

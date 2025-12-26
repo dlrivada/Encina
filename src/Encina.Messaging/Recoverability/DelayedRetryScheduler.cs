@@ -111,7 +111,6 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
             CorrelationId = context.CorrelationId,
             IdempotencyKey = context.IdempotencyKey,
             RequestTypeName = context.RequestTypeName,
-            LastErrorCode = context.LastError?.Code,
             LastErrorMessage = context.LastError?.Message
         };
 
@@ -131,7 +130,6 @@ internal sealed class SerializableRecoverabilityContext
     public string? CorrelationId { get; set; }
     public string? IdempotencyKey { get; set; }
     public string? RequestTypeName { get; set; }
-    public string? LastErrorCode { get; set; }
     public string? LastErrorMessage { get; set; }
 }
 
