@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Configurable timeout, tags, and failure status
   - Opt-out via `config.ProviderHealthCheck.Enabled = false`
   - Integration tests with Testcontainers for all providers
+  - `SignalRHealthCheck` for SignalR hub connectivity (Encina.SignalR)
+  - `GrpcHealthCheck` for gRPC service connectivity (Encina.gRPC)
+  - Health check documentation in all provider READMEs
 - Modular Monolith support (Issue #57):
   - `IModule` interface for defining application modules
   - `IModuleLifecycle` interface for modules with startup/shutdown hooks
@@ -106,6 +109,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - SonarCloud coverage detection with proper `SonarQubeTestProject` configuration
 - Benchmark CSV parsing and mutation report path detection
+- EF Core PropertyTests compilation errors (Issue #116):
+  - Removed obsolete FsCheck 2.x files (`Generators.cs`, `OutboxStoreEFFsCheckTests.cs`)
+  - Fixed `SagaStatus` type ambiguity in `SagaStoreEFPropertyTests.cs`
+  - Fixed `SagaStatus` type ambiguity in `SagaStoreEFIntegrationTests.cs`
 
 ---
 

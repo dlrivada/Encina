@@ -596,12 +596,64 @@ builder.Services.AddHealthChecks()
     .AddCheck<QuartzHealthCheck>("quartz");
 ```
 
+## Health Checks
+
+Quartz health checks are automatically registered when you configure the provider.
+
+### Automatic Registration
+
+```csharp
+builder.Services.AddEncinaQuartz(quartz =>
+{
+    quartz.UseInMemoryStore();
+});
+
+// Health check "encina-quartz" is automatically registered
+```
+
+### Configuration Options
+
+```csharp
+builder.Services.AddEncinaQuartz(config =>
+{
+    config.ProviderHealthCheck.Enabled = true;
+    config.ProviderHealthCheck.Name = "my-quartz";
+    config.ProviderHealthCheck.Timeout = TimeSpan.FromSeconds(5);
+    config.ProviderHealthCheck.Tags = ["critical", "scheduling"];
+});
+```
+
+### Health Check Details
+
+| Property | Value |
+|----------|-------|
+| **Default Name** | `encina-quartz` |
+| **Default Tags** | `encina`, `scheduling`, `quartz`, `ready` |
+| **Check Type** | Verifies ISchedulerFactory is configured and scheduler is operational |
+| **Data Returned** | `scheduler_name`, `is_started`, `is_shutdown`, `is_standby` |
+| **Degraded Status** | Returned when scheduler is in standby mode |
+
+### ASP.NET Core Integration
+
+```csharp
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
+app.MapHealthChecks("/health/scheduling", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("scheduling")
+});
+```
+
 ## Roadmap
 
 - ✅ CRON-based scheduling
 - ✅ Clustering support
 - ✅ Persistent job storage
 - ✅ Misfire handling
+- ✅ Health checks
 - ⏳ Job history API
 - ⏳ Custom dashboard
 - ⏳ Job retry policies

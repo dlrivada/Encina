@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.Messaging.Sagas;
 using Xunit;
+using SagaStatus = Encina.EntityFrameworkCore.Sagas.SagaStatus;
 
 namespace Encina.EntityFrameworkCore.ContractTests.Sagas;
 
@@ -201,6 +202,7 @@ public sealed class SagaStoreEFContractTests : IDisposable
         public DateTime? CompletedAtUtc { get; set; }
         public string? ErrorMessage { get; set; }
         public DateTime LastUpdatedAtUtc { get; set; }
+        public DateTime? TimeoutAtUtc { get; set; }
     }
 
     private sealed class TestDbContext : DbContext

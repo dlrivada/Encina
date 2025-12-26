@@ -4,6 +4,8 @@ using Shouldly;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.Messaging.Sagas;
 
+using SagaStatus = Encina.EntityFrameworkCore.Sagas.SagaStatus;
+
 namespace Encina.EntityFrameworkCore.PropertyTests.Sagas;
 
 /// <summary>

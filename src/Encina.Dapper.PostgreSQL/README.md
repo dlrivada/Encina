@@ -473,6 +473,57 @@ config.SchedulingOptions.EnableProcessor = true;
 6. **Use Async Methods**: `ExecuteAsync`, `QueryAsync`, etc.
 7. **Handle Connection Disposal**: Let DI container handle it
 
+## Health Checks
+
+PostgreSQL health checks are automatically registered when you configure the provider.
+
+### Automatic Registration
+
+```csharp
+builder.Services.AddEncinaDapper(connectionString, config =>
+{
+    config.UseTransactions = true;
+    config.ProviderHealthCheck.Enabled = true; // Default
+});
+
+// Health check "encina-postgresql" is automatically registered
+```
+
+### Configuration Options
+
+```csharp
+builder.Services.AddEncinaDapper(connectionString, config =>
+{
+    config.ProviderHealthCheck.Enabled = true;
+    config.ProviderHealthCheck.Name = "my-postgres";
+    config.ProviderHealthCheck.Timeout = TimeSpan.FromSeconds(5);
+    config.ProviderHealthCheck.Tags = ["critical", "database"];
+});
+```
+
+### Health Check Details
+
+| Property | Value |
+|----------|-------|
+| **Default Name** | `encina-postgresql` |
+| **Default Tags** | `encina`, `database`, `postgresql`, `ready` |
+| **Check Type** | Database connectivity via `SELECT 1` |
+
+### ASP.NET Core Integration
+
+```csharp
+// Map health endpoints
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
+app.MapHealthChecks("/health/database", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("database")
+});
+```
+
 ## Related Packages
 
 - **Encina**: Core Encina implementation with Railway Oriented Programming

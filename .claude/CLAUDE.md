@@ -618,6 +618,8 @@ Use the appropriate template when creating issues:
 
 #### When to Create Issues
 
+Nunca dejaremos sin resolver o anotar un problema identificado. Lo normal será resolver en el momento, pero si resolverlo significa cambiar significativamente el limitado contexto, lo que haremos es anotarlo, para no alvidarlo y resolverlo en otro momento con otro contexto. Para anotarlo, abriremos una Issue con el problema encintrado, y continuaremos con nuestra tarea. Al final en el resumen informaremos de las issues abiertas.
+
 - **Bugs found during development** → Create immediately with `[BUG]` prefix
 - **Technical debt discovered** → Create with `[DEBT]` prefix (don't fix inline if it risks derailing current work)
 - **Feature ideas** → Create with `[FEATURE]` prefix for later discussion

@@ -336,6 +336,40 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(b => b.AddMeter("Encina"));
 ```
 
+## Health Checks
+
+Encina provides automatic health check registration for all providers. When you configure a provider, health checks are registered automatically.
+
+```csharp
+// Health checks registered automatically
+builder.Services.AddEncinaDapper<PostgreSqlConnection>(config =>
+{
+    config.UseOutbox = true;
+    config.ProviderHealthCheck.Enabled = true; // Default
+});
+
+// Configure ASP.NET Core health endpoints
+builder.Services.AddHealthChecks();
+
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
+```
+
+### Available Health Checks
+
+| Category | Providers | Default Tags |
+|----------|-----------|--------------|
+| **Databases** | PostgreSQL, MySQL, SQL Server, SQLite, Oracle, MongoDB, Marten | `database`, `ready` |
+| **Message Brokers** | RabbitMQ, Kafka, NATS, MQTT, Azure Service Bus, Amazon SQS | `messaging`, `ready` |
+| **Caching** | Redis (and compatible: Valkey, KeyDB, Dragonfly, Garnet) | `caching`, `ready` |
+| **Scheduling** | Hangfire, Quartz | `scheduling`, `ready` |
+| **Other** | SignalR, gRPC, EF Core | `messaging`/`database`, `ready` |
+
+See [Encina.Messaging README](src/Encina.Messaging/README.md#health-checks) for detailed configuration options.
+
 ## Pipeline Behavior Example
 
 ```csharp

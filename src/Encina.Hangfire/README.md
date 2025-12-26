@@ -520,12 +520,63 @@ var jobId = BackgroundJob.Enqueue<IEncina>(m => m.Send(command, default));
 var jobId = _backgroundJobs.EnqueueRequest<CreateOrderCommand, Order>(command);
 ```
 
+## Health Checks
+
+Hangfire health checks are automatically registered when you configure the provider.
+
+### Automatic Registration
+
+```csharp
+builder.Services.AddEncinaHangfire(config =>
+{
+    config.ProviderHealthCheck.Enabled = true; // Default
+});
+
+// Health check "encina-hangfire" is automatically registered
+```
+
+### Configuration Options
+
+```csharp
+builder.Services.AddEncinaHangfire(config =>
+{
+    config.ProviderHealthCheck.Enabled = true;
+    config.ProviderHealthCheck.Name = "my-scheduler";
+    config.ProviderHealthCheck.Timeout = TimeSpan.FromSeconds(5);
+    config.ProviderHealthCheck.Tags = ["critical", "scheduling"];
+});
+```
+
+### Health Check Details
+
+| Property | Value |
+|----------|-------|
+| **Default Name** | `encina-hangfire` |
+| **Default Tags** | `encina`, `scheduling`, `hangfire`, `ready` |
+| **Check Type** | Verifies JobStorage is configured and accessible |
+| **Data Returned** | `servers`, `queues`, `scheduled`, `enqueued` counts |
+
+### ASP.NET Core Integration
+
+```csharp
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
+app.MapHealthChecks("/health/scheduling", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("scheduling")
+});
+```
+
 ## Roadmap
 
 - ✅ Fire-and-forget jobs
 - ✅ Delayed execution
 - ✅ Recurring jobs
 - ✅ Request context preservation
+- ✅ Health checks
 - ⏳ Batch job helpers
 - ⏳ Job continuation builders
 - ⏳ Custom retry policies
