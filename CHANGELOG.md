@@ -11,6 +11,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Projections/Read Models for CQRS read side (Issue #36):
+  - `IReadModel` interface for read model abstraction with `Guid Id` property
+  - `IReadModel<TId>` generic variant for strongly-typed identifiers
+  - `IProjection<TReadModel>` interface with `ProjectionName` property
+  - `IProjectionHandler<TEvent, TReadModel>` for handling events on existing read models:
+    - `Apply(TEvent, TReadModel, ProjectionContext)` method
+  - `IProjectionCreator<TEvent, TReadModel>` for creating read models from events:
+    - `Create(TEvent, ProjectionContext)` method
+  - `IProjectionDeleter<TEvent, TReadModel>` for conditional deletion:
+    - `ShouldDelete(TEvent, TReadModel, ProjectionContext)` method
+  - `ProjectionContext` with event metadata:
+    - `StreamId`, `SequenceNumber`, `GlobalPosition`, `Timestamp`
+    - `EventType`, `CorrelationId`, `CausationId`, `Metadata`
+  - `IReadModelRepository<TReadModel>` for read model persistence:
+    - `GetByIdAsync`, `GetByIdsAsync`, `QueryAsync`
+    - `StoreAsync`, `StoreManyAsync`, `DeleteAsync`, `DeleteAllAsync`
+    - `ExistsAsync`, `CountAsync`
+    - ROP-based error handling with `Either<EncinaError, T>`
+  - `IProjectionManager` for projection lifecycle management:
+    - `RebuildAsync<TReadModel>` with configurable options
+    - `GetStatusAsync`, `GetAllStatusesAsync` for monitoring
+    - `StartAsync`, `StopAsync`, `PauseAsync`, `ResumeAsync` lifecycle methods
+  - `RebuildOptions` for rebuild configuration:
+    - `BatchSize` (default 1000), `DeleteExisting`, `OnProgress` callback
+    - `StartPosition`, `EndPosition` for incremental rebuilds
+    - `RunInBackground` for async rebuilding
+  - `ProjectionStatus` with state tracking:
+    - `State` enum: `Stopped`, `Starting`, `Running`, `CatchingUp`, `Rebuilding`, `Paused`, `Faulted`, `Stopping`
+    - `LastProcessedPosition`, `EventsProcessed`, `LastUpdatedAtUtc`, `ErrorMessage`
+  - `ProjectionRegistry` for projection registration and discovery:
+    - `Register<TProjection, TReadModel>()` method
+    - `GetProjectionsForEvent(Type)`, `GetProjectionForReadModel<T>()`, `GetAllProjections()`
+  - `IInlineProjectionDispatcher` for synchronous projection updates:
+    - `DispatchAsync(object, ProjectionContext)` for single event
+    - `DispatchManyAsync(IEnumerable<(object, ProjectionContext)>)` for batch
+  - Marten implementations:
+    - `MartenReadModelRepository<TReadModel>` with Marten IDocumentSession
+    - `MartenProjectionManager` with event stream processing
+    - `MartenInlineProjectionDispatcher` for inline projection updates
+  - `ProjectionOptions` for configuration:
+    - `EnableInlineProjections`, `RebuildOnStartup`
+    - `DefaultBatchSize`, `MaxConcurrentRebuilds`
+    - `OnProjectionFaulted` callback
+  - `IProjectionRegistrar` interface for startup registration
+  - DI registration via `AddProjection<TProjection, TReadModel>()`
+  - High-performance logging with `LoggerMessage` attributes
+  - 80 tests: 30 unit, 22 property-based, 11 contract, 17 guard clause
+  - Example:
+    ```csharp
+    // Define a read model
+    public class OrderSummary : IReadModel
+    {
+        public Guid Id { get; set; }
+        public string CustomerName { get; set; }
+        public decimal TotalAmount { get; set; }
+    }
+
+    // Define a projection
+    public class OrderSummaryProjection :
+        IProjection<OrderSummary>,
+        IProjectionCreator<OrderCreated, OrderSummary>,
+        IProjectionHandler<OrderItemAdded, OrderSummary>
+    {
+        public string ProjectionName => "OrderSummary";
+
+        public OrderSummary Create(OrderCreated e, ProjectionContext ctx) =>
+            new() { Id = ctx.StreamId, CustomerName = e.CustomerName };
+
+        public OrderSummary Apply(OrderItemAdded e, OrderSummary m, ProjectionContext ctx) =>
+            m with { TotalAmount = m.TotalAmount + e.Price * e.Quantity };
+    }
+
+    // Register and use
+    services.AddEncinaMarten(options => {
+        options.Projections.EnableInlineProjections = true;
+    }).AddProjection<OrderSummaryProjection, OrderSummary>();
+
+    // Query read models
+    var summary = await repository.GetByIdAsync(orderId);
+    ```
 - Bulkhead Isolation Pattern (Issue #53):
   - `BulkheadAttribute` for attribute-based bulkhead configuration:
     - `MaxConcurrency` - Maximum parallel executions allowed (default: 10)

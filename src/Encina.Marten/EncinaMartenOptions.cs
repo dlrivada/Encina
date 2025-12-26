@@ -1,3 +1,4 @@
+using Encina.Marten.Projections;
 using Encina.Messaging.Health;
 
 namespace Encina.Marten;
@@ -35,4 +36,9 @@ public sealed class EncinaMartenOptions
     /// Gets the provider health check options.
     /// </summary>
     public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
+
+    /// <summary>
+    /// Gets the projection options for CQRS read models.
+    /// </summary>
+    public ProjectionOptions Projections { get; } = new();
 }
