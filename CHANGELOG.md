@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- AggregateTestBase for Event Sourcing testing (Issue #46):
+  - `AggregateTestBase<TAggregate, TId>` base class for Given/When/Then testing pattern
+  - `AggregateTestBase<TAggregate>` convenience class for Guid identifiers
+  - `Given(params object[] events)` for setting up event history
+  - `GivenEmpty()` for testing aggregate creation scenarios
+  - `When(Action<TAggregate>)` and `WhenAsync(Func<TAggregate, Task>)` for command execution
+  - `Then<TEvent>()` and `Then<TEvent>(Action<TEvent>)` for event assertions
+  - `ThenEvents(params Type[])` for verifying event sequence
+  - `ThenNoEvents()` for idempotency testing
+  - `ThenState(Action<TAggregate>)` for state assertions
+  - `ThenThrows<TException>()` for exception assertions
+  - `GetUncommittedEvents()` and `GetUncommittedEvents<TEvent>()` for direct access
+  - Located in `Encina.Testing.EventSourcing` namespace
+  - 75 tests covering unit, property, contract, and guard clause scenarios
 - Health Check Abstractions (Issue #35):
   - `IEncinaHealthCheck` interface for provider-agnostic health monitoring
   - `HealthCheckResult` struct with `Healthy`/`Degraded`/`Unhealthy` status
