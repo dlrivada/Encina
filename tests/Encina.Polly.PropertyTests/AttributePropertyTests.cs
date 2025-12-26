@@ -89,4 +89,102 @@ public class AttributePropertyTests
         // Assert
         attribute.RampUpFactor.Should().BeGreaterThan(0);
     }
+
+    #region Bulkhead Attribute Properties
+
+    [Fact]
+    public void BulkheadAttribute_MaxConcurrency_ShouldBePositive()
+    {
+        // Arrange & Act
+        var attribute = new BulkheadAttribute { MaxConcurrency = 10 };
+
+        // Assert
+        attribute.MaxConcurrency.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public void BulkheadAttribute_MaxQueuedActions_ShouldBeNonNegative()
+    {
+        // Arrange & Act
+        var attribute = new BulkheadAttribute { MaxQueuedActions = 20 };
+
+        // Assert
+        attribute.MaxQueuedActions.Should().BeGreaterThanOrEqualTo(0);
+    }
+
+    [Fact]
+    public void BulkheadAttribute_QueueTimeoutMs_ShouldBePositive()
+    {
+        // Arrange & Act
+        var attribute = new BulkheadAttribute { QueueTimeoutMs = 5000 };
+
+        // Assert
+        attribute.QueueTimeoutMs.Should().BeGreaterThan(0);
+    }
+
+    [Property]
+    public bool BulkheadMetrics_RejectionRate_ShouldBeBetween0And100(PositiveInt acquired, PositiveInt rejected)
+    {
+        var metrics = new BulkheadMetrics(
+            0, 0, 10, 20,
+            acquired.Get,
+            rejected.Get);
+
+        return metrics.RejectionRate >= 0 && metrics.RejectionRate <= 100;
+    }
+
+    [Property]
+    public bool BulkheadMetrics_ConcurrencyUtilization_ShouldBeBetween0And100(PositiveInt currentConcurrency, PositiveInt maxConcurrency)
+    {
+        var current = Math.Min(currentConcurrency.Get, maxConcurrency.Get);
+        var max = Math.Max(maxConcurrency.Get, 1);
+        var metrics = new BulkheadMetrics(
+            current,
+            0,
+            max,
+            20,
+            100,
+            0);
+
+        return metrics.ConcurrencyUtilization >= 0 && metrics.ConcurrencyUtilization <= 100;
+    }
+
+    [Property]
+    public bool BulkheadMetrics_QueueUtilization_ShouldBeBetween0And100(PositiveInt currentQueued, PositiveInt maxQueued)
+    {
+        var current = Math.Min(currentQueued.Get, maxQueued.Get);
+        var max = Math.Max(maxQueued.Get, 1);
+        var metrics = new BulkheadMetrics(
+            0,
+            current,
+            10,
+            max,
+            100,
+            0);
+
+        return metrics.QueueUtilization >= 0 && metrics.QueueUtilization <= 100;
+    }
+
+    [Property]
+    public bool BulkheadAttribute_MaxConcurrency_ShouldPreserveValue(PositiveInt value)
+    {
+        var attribute = new BulkheadAttribute { MaxConcurrency = value.Get };
+        return attribute.MaxConcurrency == value.Get;
+    }
+
+    [Property]
+    public bool BulkheadAttribute_MaxQueuedActions_ShouldPreserveValue(NonNegativeInt value)
+    {
+        var attribute = new BulkheadAttribute { MaxQueuedActions = value.Get };
+        return attribute.MaxQueuedActions == value.Get;
+    }
+
+    [Property]
+    public bool BulkheadAttribute_QueueTimeoutMs_ShouldPreserveValue(PositiveInt value)
+    {
+        var attribute = new BulkheadAttribute { QueueTimeoutMs = value.Get };
+        return attribute.QueueTimeoutMs == value.Get;
+    }
+
+    #endregion
 }

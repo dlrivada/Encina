@@ -93,3 +93,63 @@ Encina.Polly.AdaptiveRateLimiter.Reset(string! key) -> void
 Encina.Polly.RateLimitingPipelineBehavior<TRequest, TResponse>
 Encina.Polly.RateLimitingPipelineBehavior<TRequest, TResponse>.RateLimitingPipelineBehavior(Microsoft.Extensions.Logging.ILogger<Encina.Polly.RateLimitingPipelineBehavior<TRequest, TResponse>>! logger, Encina.Polly.IRateLimiter! rateLimiter) -> void
 Encina.Polly.RateLimitingPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Polly.BulkheadAttribute
+Encina.Polly.BulkheadAttribute.BulkheadAttribute() -> void
+Encina.Polly.BulkheadAttribute.MaxConcurrency.get -> int
+Encina.Polly.BulkheadAttribute.MaxConcurrency.init -> void
+Encina.Polly.BulkheadAttribute.MaxQueuedActions.get -> int
+Encina.Polly.BulkheadAttribute.MaxQueuedActions.init -> void
+Encina.Polly.BulkheadAttribute.QueueTimeoutMs.get -> int
+Encina.Polly.BulkheadAttribute.QueueTimeoutMs.init -> void
+Encina.Polly.BulkheadRejectionReason
+Encina.Polly.BulkheadRejectionReason.None = 0 -> Encina.Polly.BulkheadRejectionReason
+Encina.Polly.BulkheadRejectionReason.BulkheadFull = 1 -> Encina.Polly.BulkheadRejectionReason
+Encina.Polly.BulkheadRejectionReason.QueueTimeout = 2 -> Encina.Polly.BulkheadRejectionReason
+Encina.Polly.BulkheadRejectionReason.Cancelled = 3 -> Encina.Polly.BulkheadRejectionReason
+Encina.Polly.BulkheadMetrics
+Encina.Polly.BulkheadMetrics.BulkheadMetrics() -> void
+Encina.Polly.BulkheadMetrics.BulkheadMetrics(int CurrentConcurrency, int CurrentQueuedCount, int MaxConcurrency, int MaxQueuedActions, long TotalAcquired, long TotalRejected) -> void
+Encina.Polly.BulkheadMetrics.CurrentConcurrency.get -> int
+Encina.Polly.BulkheadMetrics.CurrentConcurrency.init -> void
+Encina.Polly.BulkheadMetrics.CurrentQueuedCount.get -> int
+Encina.Polly.BulkheadMetrics.CurrentQueuedCount.init -> void
+Encina.Polly.BulkheadMetrics.MaxConcurrency.get -> int
+Encina.Polly.BulkheadMetrics.MaxConcurrency.init -> void
+Encina.Polly.BulkheadMetrics.MaxQueuedActions.get -> int
+Encina.Polly.BulkheadMetrics.MaxQueuedActions.init -> void
+Encina.Polly.BulkheadMetrics.TotalAcquired.get -> long
+Encina.Polly.BulkheadMetrics.TotalAcquired.init -> void
+Encina.Polly.BulkheadMetrics.TotalRejected.get -> long
+Encina.Polly.BulkheadMetrics.TotalRejected.init -> void
+Encina.Polly.BulkheadMetrics.ConcurrencyUtilization.get -> double
+Encina.Polly.BulkheadMetrics.QueueUtilization.get -> double
+Encina.Polly.BulkheadMetrics.RejectionRate.get -> double
+Encina.Polly.BulkheadAcquireResult
+Encina.Polly.BulkheadAcquireResult.BulkheadAcquireResult() -> void
+Encina.Polly.BulkheadAcquireResult.BulkheadAcquireResult(bool IsAcquired, Encina.Polly.BulkheadRejectionReason RejectionReason, System.IDisposable? Releaser, Encina.Polly.BulkheadMetrics Metrics) -> void
+Encina.Polly.BulkheadAcquireResult.IsAcquired.get -> bool
+Encina.Polly.BulkheadAcquireResult.IsAcquired.init -> void
+Encina.Polly.BulkheadAcquireResult.RejectionReason.get -> Encina.Polly.BulkheadRejectionReason
+Encina.Polly.BulkheadAcquireResult.RejectionReason.init -> void
+Encina.Polly.BulkheadAcquireResult.Releaser.get -> System.IDisposable?
+Encina.Polly.BulkheadAcquireResult.Releaser.init -> void
+Encina.Polly.BulkheadAcquireResult.Metrics.get -> Encina.Polly.BulkheadMetrics
+Encina.Polly.BulkheadAcquireResult.Metrics.init -> void
+static Encina.Polly.BulkheadAcquireResult.Acquired(System.IDisposable! releaser, Encina.Polly.BulkheadMetrics metrics) -> Encina.Polly.BulkheadAcquireResult
+static Encina.Polly.BulkheadAcquireResult.RejectedBulkheadFull(Encina.Polly.BulkheadMetrics metrics) -> Encina.Polly.BulkheadAcquireResult
+static Encina.Polly.BulkheadAcquireResult.RejectedQueueTimeout(Encina.Polly.BulkheadMetrics metrics) -> Encina.Polly.BulkheadAcquireResult
+static Encina.Polly.BulkheadAcquireResult.RejectedCancelled(Encina.Polly.BulkheadMetrics metrics) -> Encina.Polly.BulkheadAcquireResult
+Encina.Polly.IBulkheadManager
+Encina.Polly.IBulkheadManager.TryAcquireAsync(string! key, Encina.Polly.BulkheadAttribute! config, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.Polly.BulkheadAcquireResult>
+Encina.Polly.IBulkheadManager.GetMetrics(string! key) -> Encina.Polly.BulkheadMetrics?
+Encina.Polly.IBulkheadManager.Reset(string! key) -> void
+Encina.Polly.BulkheadManager
+Encina.Polly.BulkheadManager.BulkheadManager() -> void
+Encina.Polly.BulkheadManager.BulkheadManager(System.TimeProvider! timeProvider) -> void
+Encina.Polly.BulkheadManager.TryAcquireAsync(string! key, Encina.Polly.BulkheadAttribute! config, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.Polly.BulkheadAcquireResult>
+Encina.Polly.BulkheadManager.GetMetrics(string! key) -> Encina.Polly.BulkheadMetrics?
+Encina.Polly.BulkheadManager.Reset(string! key) -> void
+Encina.Polly.BulkheadManager.Dispose() -> void
+Encina.Polly.BulkheadPipelineBehavior<TRequest, TResponse>
+Encina.Polly.BulkheadPipelineBehavior<TRequest, TResponse>.BulkheadPipelineBehavior(Microsoft.Extensions.Logging.ILogger<Encina.Polly.BulkheadPipelineBehavior<TRequest, TResponse>>! logger, Encina.Polly.IBulkheadManager! bulkheadManager) -> void
+Encina.Polly.BulkheadPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>

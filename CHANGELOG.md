@@ -11,6 +11,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bulkhead Isolation Pattern (Issue #53):
+  - `BulkheadAttribute` for attribute-based bulkhead configuration:
+    - `MaxConcurrency` - Maximum parallel executions allowed (default: 10)
+    - `MaxQueuedActions` - Additional requests that can wait in queue (default: 20)
+    - `QueueTimeoutMs` - Maximum time to wait in queue (default: 30000ms)
+  - `IBulkheadManager` interface for bulkhead management:
+    - `TryAcquireAsync` - Acquire permit with timeout and cancellation support
+    - `GetMetrics` - Get current bulkhead metrics (concurrency, queue, rejection rate)
+    - `Reset` - Reset bulkhead state for a key
+  - `BulkheadManager` implementation with `SemaphoreSlim`:
+    - Thread-safe concurrent dictionary for per-key bulkhead isolation
+    - Automatic permit release via `IDisposable` pattern
+    - `TimeProvider` injection for testability
+  - `BulkheadPipelineBehavior<TRequest, TResponse>` for automatic bulkhead enforcement
+  - `BulkheadAcquireResult` record struct with factory methods:
+    - `Acquired()` - Successful acquisition with releaser
+    - `RejectedBulkheadFull()` - Both concurrency and queue limits reached
+    - `RejectedQueueTimeout()` - Queue wait timeout exceeded
+    - `RejectedCancelled()` - Request cancelled while waiting
+  - `BulkheadMetrics` record struct with calculated properties:
+    - `ConcurrencyUtilization` - Percentage of concurrency capacity in use
+    - `QueueUtilization` - Percentage of queue capacity in use
+    - `RejectionRate` - Total rejection rate as percentage
+  - `BulkheadRejectionReason` enum (`None`, `BulkheadFull`, `QueueTimeout`, `Cancelled`)
+  - Automatic DI registration via `AddEncinaPolly()` (singleton manager)
+  - Comprehensive test coverage: unit, integration, property-based, contract, guard, load tests
+  - Performance benchmarks for acquire/release operations
+  - Example:
+    ```csharp
+    // Limit payment processing to 10 concurrent executions
+    [Bulkhead(MaxConcurrency = 10, MaxQueuedActions = 20)]
+    public record ProcessPaymentCommand(PaymentData Data) : ICommand<PaymentResult>;
+
+    // Limit external API calls with custom timeout
+    [Bulkhead(MaxConcurrency = 5, MaxQueuedActions = 10, QueueTimeoutMs = 5000)]
+    public record CallExternalApiQuery(string Endpoint) : IRequest<ApiResponse>;
+    ```
 - Dead Letter Queue (Issue #42):
   - `IDeadLetterMessage` interface for dead letter message abstraction
   - `IDeadLetterStore` interface for provider-agnostic storage:

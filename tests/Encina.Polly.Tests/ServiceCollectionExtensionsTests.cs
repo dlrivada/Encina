@@ -20,15 +20,17 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var behaviorDescriptors = services.Where(sd => sd.ServiceType == typeof(IPipelineBehavior<,>)).ToList();
 
-        behaviorDescriptors.Should().HaveCount(3, "Retry, CircuitBreaker, and RateLimiting behaviors should be registered");
+        behaviorDescriptors.Should().HaveCount(4, "Retry, CircuitBreaker, RateLimiting, and Bulkhead behaviors should be registered");
 
         var hasRetryBehavior = behaviorDescriptors.Any(d => d.ImplementationType?.Name.Contains("RetryPipelineBehavior") == true);
         var hasCircuitBreakerBehavior = behaviorDescriptors.Any(d => d.ImplementationType?.Name.Contains("CircuitBreakerPipelineBehavior") == true);
         var hasRateLimitingBehavior = behaviorDescriptors.Any(d => d.ImplementationType?.Name.Contains("RateLimitingPipelineBehavior") == true);
+        var hasBulkheadBehavior = behaviorDescriptors.Any(d => d.ImplementationType?.Name.Contains("BulkheadPipelineBehavior") == true);
 
         hasRetryBehavior.Should().BeTrue("RetryPipelineBehavior should be registered");
         hasCircuitBreakerBehavior.Should().BeTrue("CircuitBreakerPipelineBehavior should be registered");
         hasRateLimitingBehavior.Should().BeTrue("RateLimitingPipelineBehavior should be registered");
+        hasBulkheadBehavior.Should().BeTrue("BulkheadPipelineBehavior should be registered");
     }
 
     [Fact]
@@ -212,6 +214,6 @@ public class ServiceCollectionExtensionsTests
         // Assert - AddTransient allows duplicates (not Try)
         var behaviorDescriptors = services.Where(sd => sd.ServiceType == typeof(IPipelineBehavior<,>)).ToList();
 
-        behaviorDescriptors.Should().HaveCount(6, "all three behaviors should be registered twice (3 + 3)");
+        behaviorDescriptors.Should().HaveCount(8, "all four behaviors should be registered twice (4 + 4)");
     }
 }

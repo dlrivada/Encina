@@ -82,9 +82,10 @@ public sealed partial class Encina(
         var effectiveError = error ?? EncinaErrors.Unknown;
 
         var errorCode = effectiveError.GetEncinaCode();
-        var exception = effectiveError.Exception.Match(
+        // Use MatchUnsafe to allow null return values from None case
+        var exception = effectiveError.Exception.MatchUnsafe(
             Some: ex => (Exception?)ex,
-            None: () => null);
+            None: () => (Exception?)null);
 
         if (IsCancellationCode(errorCode))
         {

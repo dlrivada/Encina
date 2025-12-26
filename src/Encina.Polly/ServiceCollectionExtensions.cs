@@ -10,20 +10,22 @@ namespace Encina.Polly;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds Polly resilience behaviors (Retry, Circuit Breaker, and Rate Limiting) to the Encina pipeline.
+    /// Adds Polly resilience behaviors (Retry, Circuit Breaker, Rate Limiting, and Bulkhead) to the Encina pipeline.
     /// </summary>
     /// <param name="services">Service collection.</param>
     /// <returns>Service collection for fluent chaining.</returns>
     /// <remarks>
     /// This extension registers:
+    /// - <see cref="BulkheadPipelineBehavior{TRequest, TResponse}"/> for bulkhead isolation
+    /// - <see cref="RateLimitingPipelineBehavior{TRequest, TResponse}"/> for adaptive rate limiting
     /// - <see cref="RetryPipelineBehavior{TRequest, TResponse}"/> for automatic retries
     /// - <see cref="CircuitBreakerPipelineBehavior{TRequest, TResponse}"/> for circuit breaker pattern
-    /// - <see cref="RateLimitingPipelineBehavior{TRequest, TResponse}"/> for adaptive rate limiting
     ///
     /// Behaviors are only applied when requests are decorated with:
+    /// - <see cref="BulkheadAttribute"/> for bulkhead isolation (concurrency limiting)
+    /// - <see cref="RateLimitAttribute"/> for rate limiting with adaptive throttling
     /// - <see cref="RetryAttribute"/> for retry logic
     /// - <see cref="CircuitBreakerAttribute"/> for circuit breaker logic
-    /// - <see cref="RateLimitAttribute"/> for rate limiting with adaptive throttling
     /// </remarks>
     /// <example>
     /// <code>
@@ -31,6 +33,7 @@ public static class ServiceCollectionExtensions
     /// services.AddEncinaPolly();
     ///
     /// // Now use attributes on requests:
+    /// [Bulkhead(MaxConcurrency = 10, MaxQueuedActions = 20)]
     /// [Retry(MaxAttempts = 3, BackoffType = BackoffType.Exponential)]
     /// [CircuitBreaker(FailureThreshold = 5, DurationOfBreakSeconds = 60)]
     /// [RateLimit(MaxRequestsPerWindow = 100, WindowSizeSeconds = 60)]
@@ -41,10 +44,16 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // Register Bulkhead Manager as singleton (shared state across requests)
+        services.TryAddSingleton<IBulkheadManager, BulkheadManager>();
+
         // Register Adaptive Rate Limiter as singleton (shared state across requests)
         services.TryAddSingleton<IRateLimiter, AdaptiveRateLimiter>();
 
-        // Register Rate Limiting behavior (first in pipeline to reject early)
+        // Register Bulkhead behavior (first in pipeline to limit concurrency early)
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(BulkheadPipelineBehavior<,>));
+
+        // Register Rate Limiting behavior (second to reject early based on rate)
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(RateLimitingPipelineBehavior<,>));
 
         // Register Retry behavior
