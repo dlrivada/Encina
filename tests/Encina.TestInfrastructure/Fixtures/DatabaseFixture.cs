@@ -20,6 +20,11 @@ public abstract class DatabaseFixture<TContainer> : IAsyncLifetime
     protected TContainer? Container { get; set; }
 
     /// <summary>
+    /// Gets a value indicating whether the database container is available.
+    /// </summary>
+    public bool IsAvailable => Container is not null && !string.IsNullOrEmpty(ConnectionString);
+
+    /// <summary>
     /// Gets the connection string for the test database.
     /// </summary>
     public abstract string ConnectionString { get; }
