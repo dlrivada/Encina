@@ -11,6 +11,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Snapshotting for large aggregates (Issue #52):
+  - `ISnapshotable<TAggregate>` marker interface for aggregates supporting snapshots
+  - `ISnapshot<TAggregate>` interface with `AggregateId`, `Version`, `CreatedAtUtc` properties
+  - `Snapshot<TAggregate>` sealed class storing aggregate state at a specific version
+  - `SnapshotOptions` for global and per-aggregate configuration:
+    - `Enabled` - toggle snapshotting (default: false)
+    - `SnapshotEvery` - event threshold for snapshot creation (default: 100)
+    - `KeepSnapshots` - retention limit (default: 3, 0 = keep all)
+    - `AsyncSnapshotCreation` - async vs sync snapshot creation (default: true)
+    - `ConfigureAggregate<T>(snapshotEvery, keepSnapshots)` for per-aggregate overrides
+  - `ISnapshotStore<TAggregate>` interface for snapshot storage:
+    - `SaveAsync`, `GetLatestAsync`, `PruneAsync` with ROP error handling
+  - `MartenSnapshotStore<TAggregate>` Marten-based implementation:
+    - PostgreSQL document storage via Marten
+    - Composite key: `{AggregateType}:{AggregateId}:{Version}`
+    - Automatic pruning of old snapshots
+  - `SnapshotEnvelope<TAggregate>` document wrapper for Marten storage
+  - `SnapshotAwareAggregateRepository<TAggregate>` for optimized aggregate loading:
+    - Loads from latest snapshot + replays only subsequent events
+    - Automatic snapshot creation when threshold exceeded
+    - Falls back to standard event replay if no snapshot exists
+  - `SnapshotErrorCodes` with standardized error codes:
+    - `snapshot.load_failed`, `snapshot.save_failed`, `snapshot.prune_failed`, `snapshot.invalid_state`
+  - High-performance logging with `LoggerMessage` source generators (EventIds 100-159)
+  - DI registration via `AddSnapshotableAggregate<TAggregate>()`
+  - Comprehensive test coverage: 121 unit tests, property tests, contract tests, guard clause tests
+  - Integration tests with Testcontainers/PostgreSQL
+  - Example:
+    ```csharp
+    // Enable snapshotting for aggregates
+    services.AddEncinaMarten(options =>
+    {
+        options.Snapshots.Enabled = true;
+        options.Snapshots.SnapshotEvery = 100;
+        options.Snapshots.KeepSnapshots = 3;
+
+        // Per-aggregate configuration
+        options.Snapshots.ConfigureAggregate<Order>(
+            snapshotEvery: 50,
+            keepSnapshots: 5);
+    });
+
+    // Register snapshotable aggregate
+    services.AddSnapshotableAggregate<Order>();
+
+    // Aggregate must implement ISnapshotable<TAggregate>
+    public class Order : AggregateBase, ISnapshotable<Order>
+    {
+        // ... standard aggregate implementation
+    }
+    ```
 - Projections/Read Models for CQRS read side (Issue #36):
   - `IReadModel` interface for read model abstraction with `Guid Id` property
   - `IReadModel<TId>` generic variant for strongly-typed identifiers

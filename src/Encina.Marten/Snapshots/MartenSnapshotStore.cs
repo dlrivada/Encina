@@ -1,0 +1,283 @@
+using LanguageExt;
+using Marten;
+using Microsoft.Extensions.Logging;
+using static LanguageExt.Prelude;
+
+namespace Encina.Marten.Snapshots;
+
+/// <summary>
+/// Marten-based implementation of the snapshot store.
+/// Uses Marten's document storage to persist snapshots as JSON documents.
+/// </summary>
+/// <typeparam name="TAggregate">The aggregate type.</typeparam>
+public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
+    where TAggregate : class, IAggregate, ISnapshotable<TAggregate>
+{
+    private readonly IDocumentSession _session;
+    private readonly ILogger<MartenSnapshotStore<TAggregate>> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MartenSnapshotStore{TAggregate}"/> class.
+    /// </summary>
+    /// <param name="session">The Marten document session.</param>
+    /// <param name="logger">The logger instance.</param>
+    public MartenSnapshotStore(
+        IDocumentSession session,
+        ILogger<MartenSnapshotStore<TAggregate>> logger)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _session = session;
+        _logger = logger;
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, Snapshot<TAggregate>?>> GetLatestAsync(
+        Guid aggregateId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            SnapshotLog.LoadingLatestSnapshot(_logger, typeof(TAggregate).Name, aggregateId);
+
+            var envelope = await _session
+                .Query<SnapshotEnvelope<TAggregate>>()
+                .Where(s => s.AggregateId == aggregateId)
+                .OrderByDescending(s => s.Version)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (envelope is null)
+            {
+                SnapshotLog.NoSnapshotFound(_logger, typeof(TAggregate).Name, aggregateId);
+                return Right<EncinaError, Snapshot<TAggregate>?>(null);
+            }
+
+            var snapshot = envelope.ToSnapshot();
+            SnapshotLog.LoadedSnapshot(_logger, typeof(TAggregate).Name, aggregateId, snapshot.Version);
+
+            return Right<EncinaError, Snapshot<TAggregate>?>(snapshot);
+        }
+        catch (Exception ex)
+        {
+            SnapshotLog.ErrorLoadingSnapshot(_logger, ex, typeof(TAggregate).Name, aggregateId);
+
+            return Left<EncinaError, Snapshot<TAggregate>?>(
+                EncinaErrors.FromException(
+                    SnapshotErrorCodes.LoadFailed,
+                    ex,
+                    $"Failed to load snapshot for aggregate {typeof(TAggregate).Name} with ID {aggregateId}."));
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, Snapshot<TAggregate>?>> GetAtVersionAsync(
+        Guid aggregateId,
+        int maxVersion,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            SnapshotLog.LoadingSnapshotAtVersion(_logger, typeof(TAggregate).Name, aggregateId, maxVersion);
+
+            var envelope = await _session
+                .Query<SnapshotEnvelope<TAggregate>>()
+                .Where(s => s.AggregateId == aggregateId && s.Version <= maxVersion)
+                .OrderByDescending(s => s.Version)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (envelope is null)
+            {
+                return Right<EncinaError, Snapshot<TAggregate>?>(null);
+            }
+
+            return Right<EncinaError, Snapshot<TAggregate>?>(envelope.ToSnapshot());
+        }
+        catch (Exception ex)
+        {
+            SnapshotLog.ErrorLoadingSnapshot(_logger, ex, typeof(TAggregate).Name, aggregateId);
+
+            return Left<EncinaError, Snapshot<TAggregate>?>(
+                EncinaErrors.FromException(
+                    SnapshotErrorCodes.LoadFailed,
+                    ex,
+                    $"Failed to load snapshot at version {maxVersion} for aggregate {typeof(TAggregate).Name} with ID {aggregateId}."));
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, Unit>> SaveAsync(
+        Snapshot<TAggregate> snapshot,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        try
+        {
+            SnapshotLog.SavingSnapshot(_logger, typeof(TAggregate).Name, snapshot.AggregateId, snapshot.Version);
+
+            var envelope = SnapshotEnvelope.Create(snapshot);
+            _session.Store(envelope);
+
+            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            SnapshotLog.SavedSnapshot(_logger, typeof(TAggregate).Name, snapshot.AggregateId, snapshot.Version);
+
+            return Right<EncinaError, Unit>(Unit.Default);
+        }
+        catch (Exception ex)
+        {
+            SnapshotLog.ErrorSavingSnapshot(_logger, ex, typeof(TAggregate).Name, snapshot.AggregateId);
+
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
+                    SnapshotErrorCodes.SaveFailed,
+                    ex,
+                    $"Failed to save snapshot for aggregate {typeof(TAggregate).Name} with ID {snapshot.AggregateId}."));
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> PruneAsync(
+        Guid aggregateId,
+        int keepCount,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(keepCount);
+
+        try
+        {
+            SnapshotLog.PruningSnapshots(_logger, typeof(TAggregate).Name, aggregateId, keepCount);
+
+            // Get all snapshots ordered by version descending
+            var allSnapshots = await _session
+                .Query<SnapshotEnvelope<TAggregate>>()
+                .Where(s => s.AggregateId == aggregateId)
+                .OrderByDescending(s => s.Version)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            // Skip the ones to keep and delete the rest
+            var toDelete = allSnapshots.Skip(keepCount).ToList();
+
+            if (toDelete.Count == 0)
+            {
+                return Right<EncinaError, int>(0);
+            }
+
+            foreach (var snapshot in toDelete)
+            {
+                _session.Delete(snapshot);
+            }
+
+            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            SnapshotLog.PrunedSnapshots(_logger, typeof(TAggregate).Name, aggregateId, toDelete.Count);
+
+            return Right<EncinaError, int>(toDelete.Count);
+        }
+        catch (Exception ex)
+        {
+            SnapshotLog.ErrorPruningSnapshots(_logger, ex, typeof(TAggregate).Name, aggregateId);
+
+            return Left<EncinaError, int>(
+                EncinaErrors.FromException(
+                    SnapshotErrorCodes.PruneFailed,
+                    ex,
+                    $"Failed to prune snapshots for aggregate {typeof(TAggregate).Name} with ID {aggregateId}."));
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> DeleteAllAsync(
+        Guid aggregateId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            SnapshotLog.DeletingAllSnapshots(_logger, typeof(TAggregate).Name, aggregateId);
+
+            var snapshots = await _session
+                .Query<SnapshotEnvelope<TAggregate>>()
+                .Where(s => s.AggregateId == aggregateId)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (snapshots.Count == 0)
+            {
+                return Right<EncinaError, int>(0);
+            }
+
+            foreach (var snapshot in snapshots)
+            {
+                _session.Delete(snapshot);
+            }
+
+            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            SnapshotLog.DeletedAllSnapshots(_logger, typeof(TAggregate).Name, aggregateId, snapshots.Count);
+
+            return Right<EncinaError, int>(snapshots.Count);
+        }
+        catch (Exception ex)
+        {
+            SnapshotLog.ErrorDeletingSnapshots(_logger, ex, typeof(TAggregate).Name, aggregateId);
+
+            return Left<EncinaError, int>(
+                EncinaErrors.FromException(
+                    SnapshotErrorCodes.DeleteFailed,
+                    ex,
+                    $"Failed to delete snapshots for aggregate {typeof(TAggregate).Name} with ID {aggregateId}."));
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, bool>> ExistsAsync(
+        Guid aggregateId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var exists = await _session
+                .Query<SnapshotEnvelope<TAggregate>>()
+                .AnyAsync(s => s.AggregateId == aggregateId, cancellationToken)
+                .ConfigureAwait(false);
+
+            return Right<EncinaError, bool>(exists);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, bool>(
+                EncinaErrors.FromException(
+                    SnapshotErrorCodes.LoadFailed,
+                    ex,
+                    $"Failed to check snapshot existence for aggregate {typeof(TAggregate).Name} with ID {aggregateId}."));
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> CountAsync(
+        Guid aggregateId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var count = await _session
+                .Query<SnapshotEnvelope<TAggregate>>()
+                .CountAsync(s => s.AggregateId == aggregateId, cancellationToken)
+                .ConfigureAwait(false);
+
+            return Right<EncinaError, int>(count);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, int>(
+                EncinaErrors.FromException(
+                    SnapshotErrorCodes.LoadFailed,
+                    ex,
+                    $"Failed to count snapshots for aggregate {typeof(TAggregate).Name} with ID {aggregateId}."));
+        }
+    }
+}

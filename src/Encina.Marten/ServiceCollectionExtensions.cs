@@ -1,5 +1,6 @@
 using Encina.Marten.Health;
 using Encina.Marten.Projections;
+using Encina.Marten.Snapshots;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -53,6 +54,12 @@ public static class ServiceCollectionExtensions
         if (options.Projections.Enabled)
         {
             services.AddProjections(options.Projections);
+        }
+
+        // Register snapshot infrastructure if enabled
+        if (options.Snapshots.Enabled)
+        {
+            services.AddSnapshots(options.Snapshots);
         }
 
         return services;
@@ -132,6 +139,71 @@ public static class ServiceCollectionExtensions
         // Add to registry - we need to do this at startup time
         services.AddSingleton<IProjectionRegistrar>(sp =>
             new ProjectionRegistrar<TProjection, TReadModel>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds snapshot infrastructure to the service collection.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="options">The snapshot options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    internal static IServiceCollection AddSnapshots(
+        this IServiceCollection services,
+        SnapshotOptions options)
+    {
+        // Register open generic snapshot store
+        services.TryAddScoped(typeof(ISnapshotStore<>), typeof(MartenSnapshotStore<>));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers a snapshotable aggregate with snapshot-aware repository.
+    /// </summary>
+    /// <typeparam name="TAggregate">The aggregate type (must implement <see cref="ISnapshotable{TAggregate}"/>).</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Call this method for each aggregate that should use snapshot-optimized loading.
+    /// The aggregate must implement <see cref="ISnapshotable{TAggregate}"/> and have
+    /// a parameterless constructor.
+    /// </para>
+    /// <para>
+    /// When registered, the aggregate repository will:
+    /// <list type="bullet">
+    /// <item>Load from the most recent snapshot when available</item>
+    /// <item>Replay only events after the snapshot version</item>
+    /// <item>Automatically create snapshots based on configuration</item>
+    /// <item>Prune old snapshots to prevent storage bloat</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Enable snapshots globally
+    /// services.AddEncinaMarten(options =>
+    /// {
+    ///     options.Snapshots.Enabled = true;
+    ///     options.Snapshots.SnapshotEvery = 100;
+    /// });
+    ///
+    /// // Register specific aggregate for snapshot-aware loading
+    /// services.AddSnapshotableAggregate&lt;Order&gt;();
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddSnapshotableAggregate<TAggregate>(this IServiceCollection services)
+        where TAggregate : class, IAggregate, ISnapshotable<TAggregate>, new()
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        // Register snapshot store for this aggregate type
+        services.TryAddScoped<ISnapshotStore<TAggregate>, MartenSnapshotStore<TAggregate>>();
+
+        // Override the default repository with snapshot-aware one
+        services.AddScoped<IAggregateRepository<TAggregate>, SnapshotAwareAggregateRepository<TAggregate>>();
 
         return services;
     }

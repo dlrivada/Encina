@@ -1,4 +1,5 @@
 using Encina.Marten.Projections;
+using Encina.Marten.Snapshots;
 using Encina.Messaging.Health;
 
 namespace Encina.Marten;
@@ -41,4 +42,24 @@ public sealed class EncinaMartenOptions
     /// Gets the projection options for CQRS read models.
     /// </summary>
     public ProjectionOptions Projections { get; } = new();
+
+    /// <summary>
+    /// Gets the snapshot options for optimizing aggregate loading.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaMarten(options =>
+    /// {
+    ///     options.Snapshots.Enabled = true;
+    ///     options.Snapshots.SnapshotEvery = 100;
+    ///     options.Snapshots.KeepSnapshots = 3;
+    ///
+    ///     // Configure specific aggregate
+    ///     options.Snapshots.ConfigureAggregate&lt;Order&gt;(
+    ///         snapshotEvery: 50,
+    ///         keepSnapshots: 5);
+    /// });
+    /// </code>
+    /// </example>
+    public SnapshotOptions Snapshots { get; } = new();
 }
