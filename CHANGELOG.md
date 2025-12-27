@@ -11,6 +11,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- AWS Lambda Integration (Issue #60):
+  - **Encina.AwsLambda** package for serverless function execution on AWS
+  - API Gateway integration with result-to-response extensions:
+    - `ToApiGatewayResponse<T>()` for standard 200 OK responses
+    - `ToCreatedResponse<T>()` for 201 Created with Location header
+    - `ToNoContentResponse()` for 204 No Content responses
+    - `ToHttpApiResponse<T>()` for HTTP API (V2) responses
+  - `ToProblemDetailsResponse()` for RFC 7807 compliant error responses
+  - SQS trigger support with batch processing:
+    - `ProcessBatchAsync<T>()` for partial batch failure reporting via `SQSBatchResponse`
+    - `ProcessAllAsync()` for all-or-nothing processing
+    - `DeserializeMessage<T>()` for type-safe message deserialization
+    - Automatic `BatchItemFailures` for failed message IDs
+  - EventBridge (CloudWatch Events) integration:
+    - `ProcessAsync<TDetail, TResult>()` for strongly-typed event handling
+    - `ProcessRawAsync<TDetail, TResult>()` for raw JSON event processing
+    - `GetMetadata()` for extracting event metadata
+    - `EventBridgeMetadata` class with Id, Source, DetailType, Account, Region, Time
+  - `LambdaContextExtensions` for context information access:
+    - `GetCorrelationId()`, `GetUserId()`, `GetTenantId()`
+    - `GetAwsRequestId()`, `GetFunctionName()`, `GetRemainingTimeMs()`
+  - `EncinaAwsLambdaOptions` for configuration:
+    - `EnableRequestContextEnrichment` toggle
+    - Customizable header names (`CorrelationIdHeader`, `TenantIdHeader`)
+    - Claim types (`UserIdClaimType`, `TenantIdClaimType`)
+    - `IncludeExceptionDetailsInResponse` for development debugging
+    - `UseApiGatewayV2Format`, `EnableSqsBatchItemFailures` toggles
+    - `ProviderHealthCheck` configuration
+  - `AwsLambdaHealthCheck` implementing `IEncinaHealthCheck`
+  - Error code to HTTP status mapping:
+    - `validation.*` → 400 Bad Request
+    - `authorization.unauthenticated` → 401 Unauthorized
+    - `authorization.*` → 403 Forbidden
+    - `*.not_found`, `*.missing` → 404 Not Found
+    - `*.conflict`, `*.already_exists`, `*.duplicate` → 409 Conflict
+  - DI registration via `AddEncinaAwsLambda()`
+  - Comprehensive test coverage: 97 unit, 21 contract, 10 property, 21 guard tests
+  - Benchmarks for API Gateway response creation performance
+  - Full documentation with examples for API Gateway, SQS, and EventBridge triggers
+
 - Azure Functions Integration (Issue #59):
   - **Encina.AzureFunctions** package for serverless function execution
   - HTTP Trigger integration with automatic result-to-response conversion:

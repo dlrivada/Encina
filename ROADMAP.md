@@ -9,13 +9,14 @@ This document outlines the vision, current status, and future direction of Encin
 ## Current Status
 
 **Version**: Pre-1.0 (breaking changes allowed)
-**Packages**: 39 active
+**Packages**: 41 active
 **Target**: .NET 10
 
 | Category | Packages | Status |
 |----------|----------|--------|
 | Core & Validation | 5 | ✅ Production |
 | Web Integration | 2 | ✅ Production |
+| Serverless | 2 | ✅ Production |
 | Database Providers | 12 | ✅ Production |
 | Messaging Transports | 10 | ✅ Production |
 | Caching | 8 | ✅ Production |
@@ -117,8 +118,8 @@ These areas are under consideration for post-1.0 development:
 - Module-scoped pipeline behaviors
 
 ### Serverless Integration
-- Azure Functions adapter
-- AWS Lambda adapter
+- ✅ Azure Functions adapter (Issue #59) - `Encina.AzureFunctions`
+- ✅ AWS Lambda adapter (Issue #60) - `Encina.AwsLambda`
 - Durable Functions support
 
 ### Enterprise Integration Patterns

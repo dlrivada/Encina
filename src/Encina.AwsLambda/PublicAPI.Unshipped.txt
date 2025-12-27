@@ -1,0 +1,67 @@
+#nullable enable
+Encina.AwsLambda.EncinaAwsLambdaOptions
+Encina.AwsLambda.EncinaAwsLambdaOptions.EncinaAwsLambdaOptions() -> void
+Encina.AwsLambda.EncinaAwsLambdaOptions.EnableRequestContextEnrichment.get -> bool
+Encina.AwsLambda.EncinaAwsLambdaOptions.EnableRequestContextEnrichment.set -> void
+Encina.AwsLambda.EncinaAwsLambdaOptions.CorrelationIdHeader.get -> string!
+Encina.AwsLambda.EncinaAwsLambdaOptions.CorrelationIdHeader.set -> void
+Encina.AwsLambda.EncinaAwsLambdaOptions.TenantIdHeader.get -> string!
+Encina.AwsLambda.EncinaAwsLambdaOptions.TenantIdHeader.set -> void
+Encina.AwsLambda.EncinaAwsLambdaOptions.UserIdClaimType.get -> string!
+Encina.AwsLambda.EncinaAwsLambdaOptions.UserIdClaimType.set -> void
+Encina.AwsLambda.EncinaAwsLambdaOptions.TenantIdClaimType.get -> string!
+Encina.AwsLambda.EncinaAwsLambdaOptions.TenantIdClaimType.set -> void
+Encina.AwsLambda.EncinaAwsLambdaOptions.IncludeExceptionDetailsInResponse.get -> bool
+Encina.AwsLambda.EncinaAwsLambdaOptions.IncludeExceptionDetailsInResponse.set -> void
+Encina.AwsLambda.EncinaAwsLambdaOptions.ProviderHealthCheck.get -> Encina.Messaging.Health.ProviderHealthCheckOptions!
+Encina.AwsLambda.EncinaAwsLambdaOptions.ProviderHealthCheck.set -> void
+Encina.AwsLambda.EncinaAwsLambdaOptions.UseApiGatewayV2Format.get -> bool
+Encina.AwsLambda.EncinaAwsLambdaOptions.UseApiGatewayV2Format.set -> void
+Encina.AwsLambda.EncinaAwsLambdaOptions.EnableSqsBatchItemFailures.get -> bool
+Encina.AwsLambda.EncinaAwsLambdaOptions.EnableSqsBatchItemFailures.set -> void
+Encina.AwsLambda.ServiceCollectionExtensions
+static Encina.AwsLambda.ServiceCollectionExtensions.AddEncinaAwsLambda(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.AwsLambda.ServiceCollectionExtensions.AddEncinaAwsLambda(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.AwsLambda.EncinaAwsLambdaOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.AwsLambda.ApiGatewayResponseExtensions
+static Encina.AwsLambda.ApiGatewayResponseExtensions.ToApiGatewayResponse<T>(this LanguageExt.Either<Encina.EncinaError, T> result, int successStatusCode = 200, int? errorStatusCode = null) -> Amazon.Lambda.APIGatewayEvents.APIGatewayProxyResponse!
+static Encina.AwsLambda.ApiGatewayResponseExtensions.ToProblemDetailsResponse(this Encina.EncinaError error, int? statusCode = null) -> Amazon.Lambda.APIGatewayEvents.APIGatewayProxyResponse!
+static Encina.AwsLambda.ApiGatewayResponseExtensions.ToCreatedResponse<T>(this LanguageExt.Either<Encina.EncinaError, T> result, System.Func<T, string!>! locationFactory) -> Amazon.Lambda.APIGatewayEvents.APIGatewayProxyResponse!
+static Encina.AwsLambda.ApiGatewayResponseExtensions.ToNoContentResponse(this LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit> result) -> Amazon.Lambda.APIGatewayEvents.APIGatewayProxyResponse!
+static Encina.AwsLambda.ApiGatewayResponseExtensions.ToHttpApiResponse<T>(this LanguageExt.Either<Encina.EncinaError, T> result, int successStatusCode = 200, int? errorStatusCode = null) -> Amazon.Lambda.APIGatewayEvents.APIGatewayHttpApiV2ProxyResponse!
+Encina.AwsLambda.LambdaContextExtensions
+static Encina.AwsLambda.LambdaContextExtensions.GetCorrelationId(this Amazon.Lambda.Core.ILambdaContext! context, Amazon.Lambda.APIGatewayEvents.APIGatewayProxyRequest? request = null, Encina.AwsLambda.EncinaAwsLambdaOptions? options = null) -> string!
+static Encina.AwsLambda.LambdaContextExtensions.GetCorrelationId(this Amazon.Lambda.Core.ILambdaContext! context, Amazon.Lambda.APIGatewayEvents.APIGatewayHttpApiV2ProxyRequest? request, Encina.AwsLambda.EncinaAwsLambdaOptions? options = null) -> string!
+static Encina.AwsLambda.LambdaContextExtensions.GetTenantId(this Amazon.Lambda.Core.ILambdaContext! context, Amazon.Lambda.APIGatewayEvents.APIGatewayProxyRequest? request = null, Encina.AwsLambda.EncinaAwsLambdaOptions? options = null) -> string?
+static Encina.AwsLambda.LambdaContextExtensions.GetUserId(this Amazon.Lambda.Core.ILambdaContext! context, Amazon.Lambda.APIGatewayEvents.APIGatewayProxyRequest? request = null, Encina.AwsLambda.EncinaAwsLambdaOptions? options = null) -> string?
+static Encina.AwsLambda.LambdaContextExtensions.GetAwsRequestId(this Amazon.Lambda.Core.ILambdaContext! context) -> string!
+static Encina.AwsLambda.LambdaContextExtensions.GetFunctionName(this Amazon.Lambda.Core.ILambdaContext! context) -> string!
+static Encina.AwsLambda.LambdaContextExtensions.GetRemainingTimeMs(this Amazon.Lambda.Core.ILambdaContext! context) -> int
+Encina.AwsLambda.SqsMessageHandler
+static Encina.AwsLambda.SqsMessageHandler.ProcessBatchAsync<T>(Amazon.Lambda.SQSEvents.SQSEvent! sqsEvent, System.Func<Amazon.Lambda.SQSEvents.SQSEvent.SQSMessage!, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!>! processMessage, Microsoft.Extensions.Logging.ILogger? logger = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Amazon.Lambda.SQSEvents.SQSBatchResponse!>!
+static Encina.AwsLambda.SqsMessageHandler.ProcessBatchAsync<TMessage, TResult>(Amazon.Lambda.SQSEvents.SQSEvent! sqsEvent, System.Func<TMessage, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResult>>!>! processMessage, Microsoft.Extensions.Logging.ILogger? logger = null, System.Text.Json.JsonSerializerOptions? jsonOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Amazon.Lambda.SQSEvents.SQSBatchResponse!>!
+static Encina.AwsLambda.SqsMessageHandler.ProcessAllAsync<T>(Amazon.Lambda.SQSEvents.SQSEvent! sqsEvent, System.Func<Amazon.Lambda.SQSEvents.SQSEvent.SQSMessage!, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!>! processMessage, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+static Encina.AwsLambda.SqsMessageHandler.DeserializeMessage<T>(Amazon.Lambda.SQSEvents.SQSEvent.SQSMessage! record, System.Text.Json.JsonSerializerOptions? jsonOptions = null) -> LanguageExt.Either<Encina.EncinaError, T>
+Encina.AwsLambda.EventBridgeHandler
+static Encina.AwsLambda.EventBridgeHandler.ProcessAsync<TDetail, TResult>(Amazon.Lambda.CloudWatchEvents.CloudWatchEvent<TDetail>! eventBridgeEvent, System.Func<TDetail, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResult>>!>! processEvent, Microsoft.Extensions.Logging.ILogger? logger = null) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResult>>!
+static Encina.AwsLambda.EventBridgeHandler.ProcessAsync<TDetail>(Amazon.Lambda.CloudWatchEvents.CloudWatchEvent<TDetail>! eventBridgeEvent, System.Func<TDetail, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!>! processEvent, Microsoft.Extensions.Logging.ILogger? logger = null) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+static Encina.AwsLambda.EventBridgeHandler.ProcessRawAsync<TDetail, TResult>(string! eventJson, System.Func<TDetail, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResult>>!>! processEvent, Microsoft.Extensions.Logging.ILogger? logger = null, System.Text.Json.JsonSerializerOptions? jsonOptions = null) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResult>>!
+static Encina.AwsLambda.EventBridgeHandler.GetMetadata<TDetail>(Amazon.Lambda.CloudWatchEvents.CloudWatchEvent<TDetail>! eventBridgeEvent) -> Encina.AwsLambda.EventBridgeMetadata!
+Encina.AwsLambda.EventBridgeMetadata
+Encina.AwsLambda.EventBridgeMetadata.EventBridgeMetadata() -> void
+Encina.AwsLambda.EventBridgeMetadata.Id.get -> string!
+Encina.AwsLambda.EventBridgeMetadata.Id.set -> void
+Encina.AwsLambda.EventBridgeMetadata.Source.get -> string!
+Encina.AwsLambda.EventBridgeMetadata.Source.set -> void
+Encina.AwsLambda.EventBridgeMetadata.DetailType.get -> string!
+Encina.AwsLambda.EventBridgeMetadata.DetailType.set -> void
+Encina.AwsLambda.EventBridgeMetadata.Account.get -> string!
+Encina.AwsLambda.EventBridgeMetadata.Account.set -> void
+Encina.AwsLambda.EventBridgeMetadata.Region.get -> string!
+Encina.AwsLambda.EventBridgeMetadata.Region.set -> void
+Encina.AwsLambda.EventBridgeMetadata.Time.get -> System.DateTime
+Encina.AwsLambda.EventBridgeMetadata.Time.set -> void
+Encina.AwsLambda.Health.AwsLambdaHealthCheck
+Encina.AwsLambda.Health.AwsLambdaHealthCheck.AwsLambdaHealthCheck(Microsoft.Extensions.Options.IOptions<Encina.AwsLambda.EncinaAwsLambdaOptions!>! options) -> void
+Encina.AwsLambda.Health.AwsLambdaHealthCheck.Name.get -> string!
+Encina.AwsLambda.Health.AwsLambdaHealthCheck.Tags.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+Encina.AwsLambda.Health.AwsLambdaHealthCheck.CheckHealthAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Health.HealthCheckResult>!
