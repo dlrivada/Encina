@@ -1,0 +1,277 @@
+namespace Encina.DistributedLock.Redis;
+
+/// <summary>
+/// Redis implementation of <see cref="IDistributedLockProvider"/> using StackExchange.Redis.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This provider implements distributed locking using Redis SET NX with expiration.
+/// For production use with multiple Redis instances, consider implementing the Redlock algorithm.
+/// </para>
+/// <para>
+/// This provider is wire-compatible with Redis, Garnet, Valkey, Dragonfly, and KeyDB.
+/// </para>
+/// </remarks>
+public sealed partial class RedisDistributedLockProvider : IDistributedLockProvider
+{
+    private readonly IConnectionMultiplexer _connection;
+    private readonly RedisLockOptions _options;
+    private readonly ILogger<RedisDistributedLockProvider> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RedisDistributedLockProvider"/> class.
+    /// </summary>
+    /// <param name="connection">The Redis connection multiplexer.</param>
+    /// <param name="options">The lock options.</param>
+    /// <param name="logger">The logger.</param>
+    public RedisDistributedLockProvider(
+        IConnectionMultiplexer connection,
+        IOptions<RedisLockOptions> options,
+        ILogger<RedisDistributedLockProvider> logger)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _connection = connection;
+        _options = options.Value;
+        _logger = logger;
+    }
+
+    private IDatabase Database => _connection.GetDatabase(_options.Database);
+
+    /// <inheritdoc/>
+    public async Task<IAsyncDisposable?> TryAcquireAsync(
+        string resource,
+        TimeSpan expiry,
+        TimeSpan wait,
+        TimeSpan retry,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var lockKey = GetLockKey(resource);
+        var lockValue = Guid.NewGuid().ToString();
+        var deadline = DateTime.UtcNow.Add(wait);
+
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var acquired = await Database.StringSetAsync(
+                lockKey,
+                lockValue,
+                expiry,
+                When.NotExists).ConfigureAwait(false);
+
+            if (acquired)
+            {
+                var now = DateTime.UtcNow;
+                LogLockAcquired(_logger, resource, lockValue);
+                return new LockHandle(this, Database, lockKey, lockValue, resource, now, now.Add(expiry), _logger);
+            }
+
+            await Task.Delay(retry, cancellationToken).ConfigureAwait(false);
+        }
+
+        LogLockFailed(_logger, resource);
+        return null;
+    }
+
+    /// <inheritdoc/>
+    public async Task<IAsyncDisposable> AcquireAsync(
+        string resource,
+        TimeSpan expiry,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var lockKey = GetLockKey(resource);
+        var lockValue = Guid.NewGuid().ToString();
+        var retryInterval = TimeSpan.FromMilliseconds(100);
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var acquired = await Database.StringSetAsync(
+                lockKey,
+                lockValue,
+                expiry,
+                When.NotExists).ConfigureAwait(false);
+
+            if (acquired)
+            {
+                var now = DateTime.UtcNow;
+                LogLockAcquired(_logger, resource, lockValue);
+                return new LockHandle(this, Database, lockKey, lockValue, resource, now, now.Add(expiry), _logger);
+            }
+
+            await Task.Delay(retryInterval, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> IsLockedAsync(string resource, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var lockKey = GetLockKey(resource);
+        return await Database.KeyExistsAsync(lockKey).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> ExtendAsync(string resource, TimeSpan extension, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var lockKey = GetLockKey(resource);
+
+        // Extend the TTL
+        var extended = await Database.KeyExpireAsync(lockKey, extension).ConfigureAwait(false);
+
+        if (extended)
+        {
+            LogLockExtended(_logger, resource, extension);
+        }
+
+        return extended;
+    }
+
+    private string GetLockKey(string resource)
+    {
+        return string.IsNullOrEmpty(_options.KeyPrefix)
+            ? $"lock:{resource}"
+            : $"{_options.KeyPrefix}:lock:{resource}";
+    }
+
+    [LoggerMessage(
+        EventId = 1,
+        Level = LogLevel.Debug,
+        Message = "Lock acquired on resource: {Resource} with lockId: {LockId}")]
+    private static partial void LogLockAcquired(ILogger logger, string resource, string lockId);
+
+    [LoggerMessage(
+        EventId = 2,
+        Level = LogLevel.Debug,
+        Message = "Lock released on resource: {Resource} with lockId: {LockId}")]
+    internal static partial void LogLockReleased(ILogger logger, string resource, string lockId);
+
+    [LoggerMessage(
+        EventId = 3,
+        Level = LogLevel.Debug,
+        Message = "Lock extended on resource: {Resource} by {Extension}")]
+    private static partial void LogLockExtended(ILogger logger, string resource, TimeSpan extension);
+
+    [LoggerMessage(
+        EventId = 4,
+        Level = LogLevel.Debug,
+        Message = "Failed to acquire lock on resource: {Resource}")]
+    private static partial void LogLockFailed(ILogger logger, string resource);
+
+    private sealed class LockHandle : ILockHandle
+    {
+        private readonly RedisDistributedLockProvider _provider;
+        private readonly IDatabase _database;
+        private readonly string _lockKey;
+        private readonly string _lockValue;
+        private readonly ILogger _logger;
+        private bool _disposed;
+
+        // Lua script to safely release the lock only if we own it
+        private const string ReleaseLockScript = """
+            if redis.call("get", KEYS[1]) == ARGV[1] then
+                return redis.call("del", KEYS[1])
+            else
+                return 0
+            end
+            """;
+
+        // Lua script to safely extend the lock only if we own it
+        private const string ExtendLockScript = """
+            if redis.call("get", KEYS[1]) == ARGV[1] then
+                return redis.call("pexpire", KEYS[1], ARGV[2])
+            else
+                return 0
+            end
+            """;
+
+        public LockHandle(
+            RedisDistributedLockProvider provider,
+            IDatabase database,
+            string lockKey,
+            string lockValue,
+            string resource,
+            DateTime acquiredAtUtc,
+            DateTime expiresAtUtc,
+            ILogger logger)
+        {
+            _provider = provider;
+            _database = database;
+            _lockKey = lockKey;
+            _lockValue = lockValue;
+            Resource = resource;
+            LockId = lockValue;
+            AcquiredAtUtc = acquiredAtUtc;
+            ExpiresAtUtc = expiresAtUtc;
+            _logger = logger;
+        }
+
+        public string Resource { get; }
+        public string LockId { get; }
+        public DateTime AcquiredAtUtc { get; }
+        public DateTime ExpiresAtUtc { get; private set; }
+        public bool IsReleased => _disposed;
+
+        public async Task<bool> ExtendAsync(TimeSpan extension, CancellationToken cancellationToken = default)
+        {
+            if (_disposed)
+            {
+                return false;
+            }
+
+            var extensionMs = (long)extension.TotalMilliseconds;
+
+            var result = await _database.ScriptEvaluateAsync(
+                ExtendLockScript,
+                [_lockKey],
+                [_lockValue, extensionMs]).ConfigureAwait(false);
+
+            if ((int)result == 1)
+            {
+                ExpiresAtUtc = DateTime.UtcNow.Add(extension);
+                return true;
+            }
+
+            return false;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+
+            try
+            {
+                await _database.ScriptEvaluateAsync(
+                    ReleaseLockScript,
+                    [_lockKey],
+                    [_lockValue]).ConfigureAwait(false);
+
+                LogLockReleased(_logger, Resource, LockId);
+            }
+            catch
+            {
+                // Log but don't throw - the lock will expire anyway
+            }
+        }
+    }
+}

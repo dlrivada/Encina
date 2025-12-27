@@ -11,6 +11,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Distributed Lock Abstractions (Issue #55):
+  - **Encina.DistributedLock** - Core abstractions for distributed locking
+    - `IDistributedLockProvider` interface with `TryAcquireAsync`, `AcquireAsync`, `IsLockedAsync`, `ExtendAsync`
+    - `ILockHandle` interface with lock metadata (`Resource`, `LockId`, `AcquiredAtUtc`, `ExpiresAtUtc`, `IsReleased`)
+    - `LockAcquisitionException` for lock acquisition failures
+    - `DistributedLockOptions` with `KeyPrefix`, `DefaultExpiry`, `DefaultWait`, `DefaultRetry`, `ProviderHealthCheck`
+    - DI registration via `AddEncinaDistributedLock()`
+  - **Encina.DistributedLock.InMemory** - In-memory provider for testing
+    - `InMemoryDistributedLockProvider` with `ConcurrentDictionary` storage
+    - `InMemoryLockOptions` with `WarnOnUse` flag
+    - `TimeProvider` injection for testability
+    - DI registration via `AddEncinaDistributedLockInMemory()`
+  - **Encina.DistributedLock.Redis** - Redis provider for production
+    - `RedisDistributedLockProvider` using StackExchange.Redis
+    - Lua scripts for atomic lock release (owner verification)
+    - Wire-compatible with Redis, Garnet, Valkey, Dragonfly, KeyDB
+    - `RedisLockOptions` with `Database` and `KeyPrefix`
+    - `RedisDistributedLockHealthCheck` implementing `IEncinaHealthCheck`
+    - DI registration via `AddEncinaDistributedLockRedis()`
+  - **Encina.DistributedLock.SqlServer** - SQL Server provider
+    - `SqlServerDistributedLockProvider` using `sp_getapplock`/`sp_releaseapplock`
+    - Session-scoped locks with automatic release on connection close
+    - `SqlServerLockOptions` with `ConnectionString` and `KeyPrefix`
+    - `SqlServerDistributedLockHealthCheck` implementing `IEncinaHealthCheck`
+    - DI registration via `AddEncinaDistributedLockSqlServer()`
+  - Updated `Encina.Caching` to reference `Encina.DistributedLock` abstractions
+  - Comprehensive test coverage:
+    - Unit tests for all providers
+    - Integration tests with Testcontainers (Redis, SQL Server)
+    - Property-based tests with FsCheck
+    - Contract tests for `IDistributedLockProvider`
+    - Guard clause tests for all public APIs
+    - Load tests for high concurrency scenarios
+    - Benchmarks for performance validation
+  - Full documentation with usage examples
+
 - Module-scoped Pipeline Behaviors (Issue #58):
   - **IModulePipelineBehavior<TModule, TRequest, TResponse>** interface for module-specific behaviors
   - **ModuleBehaviorAdapter** wraps module behaviors and filters execution by module ownership
