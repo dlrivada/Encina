@@ -62,11 +62,12 @@ Focus: Fix failing tests, re-enable excluded test projects, verify all workflows
 
 Key areas:
 - **Saga Enhancements** — Timeouts, low-ceremony syntax, not-found handlers
-- **Developer Tooling** — `Encina.Testing` package with fluent assertions, `Encina.Cli` scaffolding tool
-- **Performance** — Source generators for zero-reflection dispatch, switch-based handler routing
-- **Enterprise Patterns** — ✅ Recoverability pipeline (Issue #39), ✅ Rate limiting with adaptive throttling (Issue #40), ✅ Dead Letter Queue (Issue #42), ✅ Bulkhead Isolation (Issue #53), ✅ Routing Slip pattern (Issue #62), ✅ Scatter-Gather pattern (Issue #63)
-- **Cross-cutting** — ✅ Health checks (Issue #35), ✅ Projections/read models (Issue #36), ✅ Snapshotting for large aggregates (Issue #52), ✅ Event versioning (Issue #37), ✅ Distributed Lock Abstractions (Issue #55), ✅ Content-Based Router (Issue #64)
-- **Modular Monolith** — ✅ Module-scoped behaviors (Issue #58)
+- **Developer Tooling** — `Encina.Testing` package with fluent assertions, `Encina.Cli` scaffolding tool (Issue #47)
+- **Performance** — ✅ Delegate cache optimization (Issue #49), Source generators for NativeAOT (Issue #50), Switch-based dispatch (Issue #51)
+- **Enterprise Patterns** — ✅ Recoverability pipeline (Issue #39), ✅ Rate limiting (Issue #40), ✅ Dead Letter Queue (Issue #42), ✅ Bulkhead Isolation (Issue #53), ✅ Routing Slip (Issue #62), ✅ Scatter-Gather (Issue #63), ✅ Content-Based Router (Issue #64)
+- **Cross-cutting** — ✅ Health checks (Issue #35), ✅ Projections/read models (Issue #36), ✅ Snapshotting (Issue #52), ✅ Event versioning (Issue #37), ✅ Distributed Lock (Issue #55)
+- **Modular Monolith** — ✅ `IModule` interface, ✅ Module registry & lifecycle hooks, ✅ Module-scoped behaviors (Issue #58)
+- **Serverless** — ✅ Azure Functions (Issue #59), ✅ AWS Lambda (Issue #60), ✅ Durable Functions (Issue #61)
 
 → [View Phase 2 Issues](https://github.com/dlrivada/Encina/milestone/2)
 
@@ -106,32 +107,6 @@ Key deliverables:
 - Final documentation review
 
 → [View Phase 6 Issues](https://github.com/dlrivada/Encina/milestone/6)
-
----
-
-## Future Directions
-
-These areas are under consideration for post-1.0 development:
-
-### Modular Monolith Support
-- `IModule` interface for module definition
-- Module registry and lifecycle hooks
-- Module-scoped pipeline behaviors
-
-### Serverless Integration
-- ✅ Azure Functions adapter (Issue #59) - `Encina.AzureFunctions`
-- ✅ AWS Lambda adapter (Issue #60) - `Encina.AwsLambda`
-- ✅ Durable Functions support (Issue #61) - `Encina.AzureFunctions.Durable`
-
-### Enterprise Integration Patterns
-- ✅ Routing Slip pattern (Issue #62)
-- ✅ Scatter-Gather pattern (Issue #63)
-- ✅ Content-Based Router (Issue #64)
-
-### Advanced Performance
-- ✅ Delegate cache optimization (TryGetValue pattern, type check caching) - Issue #49
-- NativeAOT full support via source generators
-- Switch-based dispatch (no dictionary lookup)
 
 ---
 
