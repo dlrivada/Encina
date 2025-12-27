@@ -41,3 +41,99 @@ Encina.AzureFunctions.Health.AzureFunctionsHealthCheck.CheckHealthAsync(System.T
 Encina.AzureFunctions.EncinaFunctionMiddleware
 Encina.AzureFunctions.EncinaFunctionMiddleware.EncinaFunctionMiddleware(Microsoft.Extensions.Options.IOptions<Encina.AzureFunctions.EncinaAzureFunctionsOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.AzureFunctions.EncinaFunctionMiddleware!>! logger) -> void
 Encina.AzureFunctions.EncinaFunctionMiddleware.Invoke(Microsoft.Azure.Functions.Worker.FunctionContext! context, Microsoft.Azure.Functions.Worker.Middleware.FunctionExecutionDelegate! next) -> System.Threading.Tasks.Task!
+Encina.AzureFunctions.Durable.ActivityResult<T>
+Encina.AzureFunctions.Durable.ActivityResult<T>.ActivityResult() -> void
+Encina.AzureFunctions.Durable.ActivityResult<T>.IsSuccess.get -> bool
+Encina.AzureFunctions.Durable.ActivityResult<T>.IsSuccess.set -> void
+Encina.AzureFunctions.Durable.ActivityResult<T>.Value.get -> T?
+Encina.AzureFunctions.Durable.ActivityResult<T>.Value.set -> void
+Encina.AzureFunctions.Durable.ActivityResult<T>.ErrorCode.get -> string?
+Encina.AzureFunctions.Durable.ActivityResult<T>.ErrorCode.set -> void
+Encina.AzureFunctions.Durable.ActivityResult<T>.ErrorMessage.get -> string?
+Encina.AzureFunctions.Durable.ActivityResult<T>.ErrorMessage.set -> void
+static Encina.AzureFunctions.Durable.ActivityResult<T>.Success(T value) -> Encina.AzureFunctions.Durable.ActivityResult<T>!
+static Encina.AzureFunctions.Durable.ActivityResult<T>.Failure(Encina.EncinaError error) -> Encina.AzureFunctions.Durable.ActivityResult<T>!
+static Encina.AzureFunctions.Durable.ActivityResult<T>.Failure(string! errorCode, string! errorMessage) -> Encina.AzureFunctions.Durable.ActivityResult<T>!
+Encina.AzureFunctions.Durable.ActivityResult<T>.ToEither() -> LanguageExt.Either<Encina.EncinaError, T>
+Encina.AzureFunctions.Durable.ActivityResultExtensions
+static Encina.AzureFunctions.Durable.ActivityResultExtensions.ToActivityResult<T>(this LanguageExt.Either<Encina.EncinaError, T> either) -> Encina.AzureFunctions.Durable.ActivityResult<T>!
+static Encina.AzureFunctions.Durable.ActivityResultExtensions.ToActivityResult(this LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit> either) -> Encina.AzureFunctions.Durable.ActivityResult<LanguageExt.Unit>!
+Encina.AzureFunctions.Durable.DurableFunctionsHealthCheck
+Encina.AzureFunctions.Durable.DurableFunctionsHealthCheck.DurableFunctionsHealthCheck(Microsoft.Extensions.Options.IOptions<Encina.AzureFunctions.Durable.DurableFunctionsOptions!>! options) -> void
+Encina.AzureFunctions.Durable.DurableFunctionsHealthCheck.Name.get -> string!
+Encina.AzureFunctions.Durable.DurableFunctionsHealthCheck.Tags.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+Encina.AzureFunctions.Durable.DurableFunctionsHealthCheck.CheckHealthAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Messaging.Health.HealthCheckResult>!
+Encina.AzureFunctions.Durable.DurableFunctionsOptions
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.DurableFunctionsOptions() -> void
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.DefaultMaxRetries.get -> int
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.DefaultMaxRetries.set -> void
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.DefaultFirstRetryInterval.get -> System.TimeSpan
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.DefaultFirstRetryInterval.set -> void
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.DefaultBackoffCoefficient.get -> double
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.DefaultBackoffCoefficient.set -> void
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.DefaultMaxRetryInterval.get -> System.TimeSpan
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.DefaultMaxRetryInterval.set -> void
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.ContinueCompensationOnError.get -> bool
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.ContinueCompensationOnError.set -> void
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.DefaultSagaTimeout.get -> System.TimeSpan?
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.DefaultSagaTimeout.set -> void
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.ProviderHealthCheck.get -> Encina.Messaging.Health.ProviderHealthCheckOptions!
+Encina.AzureFunctions.Durable.DurableFunctionsOptions.ProviderHealthCheck.set -> void
+Encina.AzureFunctions.Durable.DurableServiceCollectionExtensions
+static Encina.AzureFunctions.Durable.DurableServiceCollectionExtensions.AddEncinaDurableFunctions(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.AzureFunctions.Durable.DurableFunctionsOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.AzureFunctions.Durable.OrchestrationContextExtensions
+static Encina.AzureFunctions.Durable.OrchestrationContextExtensions.CallEncinaActivityAsync<TInput, TResult>(this Microsoft.DurableTask.TaskOrchestrationContext! context, string! activityName, TInput input, Microsoft.DurableTask.TaskOptions? options = null) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResult>>!
+static Encina.AzureFunctions.Durable.OrchestrationContextExtensions.CallEncinaActivityWithResultAsync<TInput, TResult>(this Microsoft.DurableTask.TaskOrchestrationContext! context, string! activityName, TInput input, Microsoft.DurableTask.TaskOptions? options = null) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResult>>!
+static Encina.AzureFunctions.Durable.OrchestrationContextExtensions.CallEncinaSubOrchestratorAsync<TInput, TResult>(this Microsoft.DurableTask.TaskOrchestrationContext! context, string! orchestratorName, TInput input, Microsoft.DurableTask.TaskOptions? options = null) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResult>>!
+static Encina.AzureFunctions.Durable.OrchestrationContextExtensions.CallEncinaSubOrchestratorWithResultAsync<TInput, TResult>(this Microsoft.DurableTask.TaskOrchestrationContext! context, string! orchestratorName, TInput input, Microsoft.DurableTask.TaskOptions? options = null) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResult>>!
+static Encina.AzureFunctions.Durable.OrchestrationContextExtensions.WaitForEncinaExternalEventAsync<T>(this Microsoft.DurableTask.TaskOrchestrationContext! context, string! eventName, System.TimeSpan? timeout = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!
+static Encina.AzureFunctions.Durable.OrchestrationContextExtensions.CreateRetryOptions(int maxRetries, System.TimeSpan firstRetryInterval, double backoffCoefficient = 2, System.TimeSpan? maxRetryInterval = null) -> Microsoft.DurableTask.TaskOptions!
+static Encina.AzureFunctions.Durable.OrchestrationContextExtensions.GetCorrelationId(this Microsoft.DurableTask.TaskOrchestrationContext! context) -> string!
+Encina.AzureFunctions.Durable.DurableSagaBuilder
+static Encina.AzureFunctions.Durable.DurableSagaBuilder.Create<TData>() -> Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>!
+Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>
+Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>.DurableSagaBuilder() -> void
+Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>.Step(string! stepName) -> Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>!
+Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>.WithDefaultRetryOptions(Microsoft.DurableTask.TaskOptions! options) -> Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>!
+Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>.WithTimeout(System.TimeSpan timeout) -> Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>!
+Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>.Build() -> Encina.AzureFunctions.Durable.DurableSaga<TData>!
+Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>
+Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.Execute(string! activityName) -> Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>!
+Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.Compensate(string! activityName) -> Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>!
+Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.WithRetry(Microsoft.DurableTask.TaskOptions! options) -> Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>!
+Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.SkipCompensationOnFailure() -> Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>!
+Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.Step(string! stepName) -> Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>!
+Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.Build() -> Encina.AzureFunctions.Durable.DurableSaga<TData>!
+Encina.AzureFunctions.Durable.DurableSagaStep<TData>
+Encina.AzureFunctions.Durable.DurableSagaStep<TData>.DurableSagaStep() -> void
+Encina.AzureFunctions.Durable.DurableSagaStep<TData>.StepName.get -> string!
+Encina.AzureFunctions.Durable.DurableSagaStep<TData>.StepName.set -> void
+Encina.AzureFunctions.Durable.DurableSagaStep<TData>.ExecuteActivityName.get -> string!
+Encina.AzureFunctions.Durable.DurableSagaStep<TData>.ExecuteActivityName.set -> void
+Encina.AzureFunctions.Durable.DurableSagaStep<TData>.CompensateActivityName.get -> string?
+Encina.AzureFunctions.Durable.DurableSagaStep<TData>.CompensateActivityName.set -> void
+Encina.AzureFunctions.Durable.DurableSagaStep<TData>.RetryOptions.get -> Microsoft.DurableTask.TaskOptions?
+Encina.AzureFunctions.Durable.DurableSagaStep<TData>.RetryOptions.set -> void
+Encina.AzureFunctions.Durable.DurableSagaStep<TData>.SkipCompensationOnFailure.get -> bool
+Encina.AzureFunctions.Durable.DurableSagaStep<TData>.SkipCompensationOnFailure.set -> void
+Encina.AzureFunctions.Durable.DurableSaga<TData>
+Encina.AzureFunctions.Durable.DurableSaga<TData>.Steps.get -> System.Collections.Generic.IReadOnlyList<Encina.AzureFunctions.Durable.DurableSagaStep<TData>!>!
+Encina.AzureFunctions.Durable.DurableSaga<TData>.ExecuteAsync(Microsoft.DurableTask.TaskOrchestrationContext! context, TData initialData) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.AzureFunctions.Durable.DurableSagaError!, TData>>!
+Encina.AzureFunctions.Durable.DurableSagaError
+Encina.AzureFunctions.Durable.DurableSagaError.DurableSagaError() -> void
+Encina.AzureFunctions.Durable.DurableSagaError.FailedStep.get -> string!
+Encina.AzureFunctions.Durable.DurableSagaError.FailedStep.set -> void
+Encina.AzureFunctions.Durable.DurableSagaError.OriginalError.get -> Encina.EncinaError
+Encina.AzureFunctions.Durable.DurableSagaError.OriginalError.set -> void
+Encina.AzureFunctions.Durable.DurableSagaError.CompensationErrors.get -> System.Collections.Generic.Dictionary<string!, Encina.EncinaError?>!
+Encina.AzureFunctions.Durable.DurableSagaError.CompensationErrors.set -> void
+Encina.AzureFunctions.Durable.DurableSagaError.WasCompensated.get -> bool
+Encina.AzureFunctions.Durable.DurableSagaError.WasCompensated.set -> void
+Encina.AzureFunctions.Durable.FanOutFanInExtensions
+static Encina.AzureFunctions.Durable.FanOutFanInExtensions.FanOutAsync<TInput, TResult>(this Microsoft.DurableTask.TaskOrchestrationContext! context, string! activityName, System.Collections.Generic.IEnumerable<TInput>! inputs, Microsoft.DurableTask.TaskOptions? options = null) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<LanguageExt.Either<Encina.EncinaError, TResult>>!>!
+static Encina.AzureFunctions.Durable.FanOutFanInExtensions.FanOutAllAsync<TInput, TResult>(this Microsoft.DurableTask.TaskOrchestrationContext! context, string! activityName, System.Collections.Generic.IEnumerable<TInput>! inputs, Microsoft.DurableTask.TaskOptions? options = null) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<TResult>!>>!
+static Encina.AzureFunctions.Durable.FanOutFanInExtensions.FanOutWithResultAsync<TInput, TResult>(this Microsoft.DurableTask.TaskOrchestrationContext! context, string! activityName, System.Collections.Generic.IEnumerable<TInput>! inputs, Microsoft.DurableTask.TaskOptions? options = null) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<LanguageExt.Either<Encina.EncinaError, TResult>>!>!
+static Encina.AzureFunctions.Durable.FanOutFanInExtensions.FanOutMultipleAsync<T1, T2>(this Microsoft.DurableTask.TaskOrchestrationContext! context, (string! Name, object! Input) activity1, (string! Name, object! Input) activity2) -> System.Threading.Tasks.Task<(LanguageExt.Either<Encina.EncinaError, T1>, LanguageExt.Either<Encina.EncinaError, T2>)>!
+static Encina.AzureFunctions.Durable.FanOutFanInExtensions.FanOutMultipleAsync<T1, T2, T3>(this Microsoft.DurableTask.TaskOrchestrationContext! context, (string! Name, object! Input) activity1, (string! Name, object! Input) activity2, (string! Name, object! Input) activity3) -> System.Threading.Tasks.Task<(LanguageExt.Either<Encina.EncinaError, T1>, LanguageExt.Either<Encina.EncinaError, T2>, LanguageExt.Either<Encina.EncinaError, T3>)>!
+static Encina.AzureFunctions.Durable.FanOutFanInExtensions.FanOutFirstSuccessAsync<TInput, TResult>(this Microsoft.DurableTask.TaskOrchestrationContext! context, string! activityName, System.Collections.Generic.IEnumerable<TInput>! inputs, Microsoft.DurableTask.TaskOptions? options = null) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResult>>!
+static Encina.AzureFunctions.Durable.FanOutFanInExtensions.Partition<T>(this System.Collections.Generic.IEnumerable<LanguageExt.Either<Encina.EncinaError, T>>! results) -> (System.Collections.Generic.IReadOnlyList<T>! Successes, System.Collections.Generic.IReadOnlyList<Encina.EncinaError>! Failures)

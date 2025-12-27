@@ -13,3 +13,12 @@ using System.Diagnostics.CodeAnalysis;
     Justification = "Using source-generated LoggerMessage delegates",
     Scope = "namespaceanddescendants",
     Target = "~N:Encina.AzureFunctions")]
+
+// CA1000: Do not declare static members on generic types
+// Suppressed for ActivityResult<T> factory methods - commonly used pattern for Result types
+[assembly: SuppressMessage(
+    "Design",
+    "CA1000:Do not declare static members on generic types",
+    Justification = "Factory pattern for ActivityResult<T> is idiomatic and improves usability",
+    Scope = "type",
+    Target = "~T:Encina.AzureFunctions.Durable.ActivityResult`1")]

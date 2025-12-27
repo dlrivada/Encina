@@ -303,6 +303,151 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 services.AddEncinaAzureFunctions();
 ```
 
+## Durable Functions Integration
+
+The package provides integration with Azure Durable Functions for orchestration workflows, including Railway Oriented Programming support.
+
+### Enable Durable Functions
+
+```csharp
+services.AddEncina(typeof(Program).Assembly);
+services.AddEncinaAzureFunctions();
+services.AddEncinaDurableFunctions(options =>
+{
+    options.DefaultMaxRetries = 3;
+    options.DefaultFirstRetryInterval = TimeSpan.FromSeconds(5);
+    options.DefaultBackoffCoefficient = 2.0;
+});
+```
+
+### Orchestration with ROP Support
+
+```csharp
+[Function("OrderProcessingOrchestrator")]
+public async Task<Either<EncinaError, OrderResult>> RunOrchestrator(
+    [OrchestrationTrigger] TaskOrchestrationContext context)
+{
+    var orderId = context.GetInput<Guid>();
+
+    // Call activities with Either result support
+    var validationResult = await context.CallEncinaActivityWithResultAsync<Guid, OrderData>(
+        "ValidateOrder",
+        orderId);
+
+    if (validationResult.IsLeft)
+    {
+        return validationResult.Match(Left: e => e, Right: _ => default!);
+    }
+
+    var orderData = validationResult.Match(Right: d => d, Left: _ => default!);
+
+    // Continue with more activities...
+    var paymentResult = await context.CallEncinaActivityWithResultAsync<OrderData, PaymentConfirmation>(
+        "ProcessPayment",
+        orderData);
+
+    return paymentResult.Match(
+        Right: payment => new OrderResult(orderId, payment.TransactionId),
+        Left: error => error);
+}
+```
+
+### Activity Functions with Either Results
+
+```csharp
+[Function("ValidateOrder")]
+public async Task<ActivityResult<OrderData>> ValidateOrder(
+    [ActivityTrigger] Guid orderId,
+    IEncina encina)
+{
+    var query = new GetOrderById(orderId);
+    var result = await encina.Send(query);
+
+    // Convert Either to serializable ActivityResult
+    return result.ToActivityResult();
+}
+```
+
+### Saga Pattern with Compensation
+
+Build distributed sagas with automatic compensation on failure:
+
+```csharp
+[Function("OrderFulfillmentOrchestrator")]
+public async Task<Either<DurableSagaError, FulfillmentResult>> RunSaga(
+    [OrchestrationTrigger] TaskOrchestrationContext context)
+{
+    var orderData = context.GetInput<OrderData>();
+
+    var saga = DurableSagaBuilder.Create<OrderData>()
+        .WithDefaultRetryOptions(TaskOptions.FromRetryPolicy(new RetryPolicy(3, TimeSpan.FromSeconds(1))))
+        .Step("ReserveInventory")
+            .Execute("ReserveInventoryActivity")
+            .Compensate("ReleaseInventoryActivity")
+        .Step("ProcessPayment")
+            .Execute("ProcessPaymentActivity")
+            .Compensate("RefundPaymentActivity")
+        .Step("ShipOrder")
+            .Execute("ShipOrderActivity")
+            .Compensate("CancelShipmentActivity")
+        .Build();
+
+    return await saga.ExecuteAsync(context, orderData);
+}
+```
+
+### Fan-Out/Fan-In Pattern
+
+Execute activities in parallel with result aggregation:
+
+```csharp
+[Function("BatchProcessingOrchestrator")]
+public async Task<IReadOnlyList<Either<EncinaError, ProcessedItem>>> RunBatchProcessing(
+    [OrchestrationTrigger] TaskOrchestrationContext context)
+{
+    var items = context.GetInput<List<ItemToProcess>>();
+
+    // Process all items in parallel
+    var results = await context.FanOutAsync<ItemToProcess, ProcessedItem>(
+        "ProcessItemActivity",
+        items);
+
+    return results;
+}
+
+// Or require all to succeed
+var allSuccessResult = await context.FanOutAllAsync<ItemToProcess, ProcessedItem>(
+    "ProcessItemActivity",
+    items);
+
+// Or get first success
+var firstSuccess = await context.FanOutFirstSuccessAsync<ItemToProcess, ProcessedItem>(
+    "ProcessItemActivity",
+    items);
+```
+
+### Durable Functions Configuration
+
+```csharp
+services.AddEncinaDurableFunctions(options =>
+{
+    // Retry defaults
+    options.DefaultMaxRetries = 3;
+    options.DefaultFirstRetryInterval = TimeSpan.FromSeconds(5);
+    options.DefaultBackoffCoefficient = 2.0;
+    options.DefaultMaxRetryInterval = TimeSpan.FromMinutes(5);
+
+    // Saga configuration
+    options.ContinueCompensationOnError = true;
+    options.DefaultSagaTimeout = TimeSpan.FromHours(1);
+
+    // Health check
+    options.ProviderHealthCheck.Enabled = true;
+    options.ProviderHealthCheck.Name = "durable-functions";
+    options.ProviderHealthCheck.Tags = ["encina", "durable", "ready"];
+});
+```
+
 ## Best Practices
 
 1. **Always use the middleware** for consistent context propagation
@@ -311,11 +456,14 @@ services.AddEncinaAzureFunctions();
 4. **Disable exception details in production** for security
 5. **Implement health check endpoints** for monitoring
 6. **Use structured logging** through the ILogger interface
+7. **Use ActivityResult<T>** for serializable Either results in activities
+8. **Use DurableSagaBuilder** for workflows that need compensation
 
 ## Requirements
 
 - .NET 10.0
 - Azure Functions Worker SDK 2.0+
+- Microsoft.Azure.Functions.Worker.Extensions.DurableTask (for Durable Functions)
 
 ## License
 

@@ -82,6 +82,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Comprehensive test coverage: unit, contract, property, guard, benchmarks
   - Full documentation with examples for HTTP, Queue, and Timer triggers
 
+- Durable Functions Integration (Issue #61):
+  - Azure Durable Functions support with Railway Oriented Programming (ROP)
+  - `OrchestrationContextExtensions` for ROP-compatible activity calls:
+    - `CallEncinaActivityAsync<TInput, TResult>()` for Either-returning activities
+    - `CallEncinaActivityWithResultAsync<TInput, TResult>()` for ActivityResult activities
+    - `CallEncinaSubOrchestratorAsync<TInput, TResult>()` for sub-orchestrators
+    - `WaitForEncinaExternalEventAsync<T>()` for external events with timeout
+    - `CreateRetryOptions()` for retry configuration
+    - `GetCorrelationId()` for instance ID access
+  - `ActivityResult<T>` serializable wrapper for Either results:
+    - `Success()` and `Failure()` factory methods
+    - `ToEither()` for conversion back to Either
+    - `ToActivityResult()` extension for Either conversion
+  - `DurableSagaBuilder` fluent API for saga workflows:
+    - `Step()` for adding saga steps
+    - `Execute()` and `Compensate()` for activity configuration
+    - `WithRetry()` for step-level retry options
+    - `SkipCompensationOnFailure()` for idempotent operations
+    - `WithTimeout()` for saga-level timeout
+    - `WithDefaultRetryOptions()` for default retry configuration
+    - Automatic compensation in reverse order on failure
+  - `DurableSaga<TData>` executable saga with `ExecuteAsync()`
+  - `DurableSagaError` with original error and compensation results
+  - Fan-out/fan-in pattern extensions:
+    - `FanOutAsync<TInput, TResult>()` for parallel activity execution
+    - `FanOutAllAsync<TInput, TResult>()` requiring all to succeed
+    - `FanOutFirstSuccessAsync<TInput, TResult>()` returning first success
+    - `FanOutMultipleAsync<T1, T2>()` for different activities in parallel
+    - `Partition<T>()` for separating successes from failures
+  - `DurableFunctionsOptions` for configuration:
+    - `DefaultMaxRetries`, `DefaultFirstRetryInterval`, `DefaultBackoffCoefficient`
+    - `DefaultMaxRetryInterval`, `ContinueCompensationOnError`, `DefaultSagaTimeout`
+    - `ProviderHealthCheck` configuration
+  - `DurableFunctionsHealthCheck` implementing `IEncinaHealthCheck`
+  - DI registration via `AddEncinaDurableFunctions()`
+  - Comprehensive test coverage: 124 unit, 58 contract, 27 property, 19 guard tests
+  - Full documentation with examples for orchestrations, sagas, and fan-out/fan-in
+
 - Routing Slip Pattern for Dynamic Message Routing (Issue #62):
   - `RoutingSlipBuilder` fluent API for defining routing slips with inline step definitions
   - `RoutingSlipStepBuilder` for configuring individual steps with execute and compensate functions

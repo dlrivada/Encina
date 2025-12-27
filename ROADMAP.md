@@ -120,7 +120,7 @@ These areas are under consideration for post-1.0 development:
 ### Serverless Integration
 - ✅ Azure Functions adapter (Issue #59) - `Encina.AzureFunctions`
 - ✅ AWS Lambda adapter (Issue #60) - `Encina.AwsLambda`
-- Durable Functions support
+- ✅ Durable Functions support (Issue #61) - `Encina.AzureFunctions.Durable`
 
 ### Enterprise Integration Patterns
 - Routing Slip pattern
