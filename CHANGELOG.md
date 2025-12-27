@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CLI Scaffolding Tool (`Encina.Cli`) - Issue #47:
+  - `encina new <template> <name>` - Create new Encina projects (api, worker, console)
+    - Options: `--database`, `--caching`, `--transport`, `--output`, `--force`
+  - `encina generate handler <name>` - Generate command handlers with optional response types
+  - `encina generate query <name> --response <type>` - Generate query handlers
+  - `encina generate saga <name> --steps <steps>` - Generate saga definitions
+  - `encina generate notification <name>` - Generate notifications and handlers
+  - `encina add caching|database|transport|validation|resilience|observability` - Add packages
+  - Built with System.CommandLine 2.0 and Spectre.Console
+  - Packaged as .NET global tool (`dotnet tool install Encina.Cli`)
+  - Comprehensive test coverage: 65 tests (unit, guard)
+
 ### Removed
 
 - **API Versioning Helpers** (Issue #54) - Closed as "won't fix". `Asp.Versioning` provides complete HTTP-level versioning; adding `[ApiVersion]` to CQRS handlers would be redundant since versioning belongs on the public API surface (controllers/endpoints), not internal handlers.

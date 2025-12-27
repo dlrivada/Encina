@@ -9,7 +9,7 @@ This document outlines the vision, current status, and future direction of Encin
 ## Current Status
 
 **Version**: Pre-1.0 (breaking changes allowed)
-**Packages**: 41 active
+**Packages**: 53 active (including CLI tool)
 **Target**: .NET 10
 
 | Category | Packages | Status |
@@ -24,6 +24,7 @@ This document outlines the vision, current status, and future direction of Encin
 | Resilience | 3 | ✅ Production |
 | Event Sourcing | 1 | ✅ Production |
 | Observability | 1 | ✅ Production |
+| Developer Tooling | 1 | ✅ Production |
 
 ### Quality Metrics
 
@@ -62,7 +63,7 @@ Focus: Fix failing tests, re-enable excluded test projects, verify all workflows
 
 Key areas:
 - **Saga Enhancements** — Timeouts, low-ceremony syntax, not-found handlers
-- **Developer Tooling** — `Encina.Testing` package with fluent assertions, `Encina.Cli` scaffolding tool (Issue #47)
+- **Developer Tooling** — `Encina.Testing` package with fluent assertions, ✅ `Encina.Cli` scaffolding tool (Issue #47)
 - **Performance** — ✅ Delegate cache optimization (Issue #49), Source generators for NativeAOT (Issue #50), Switch-based dispatch (Issue #51)
 - **Enterprise Patterns** — ✅ Recoverability pipeline (Issue #39), ✅ Rate limiting (Issue #40), ✅ Dead Letter Queue (Issue #42), ✅ Bulkhead Isolation (Issue #53), ✅ Routing Slip (Issue #62), ✅ Scatter-Gather (Issue #63), ✅ Content-Based Router (Issue #64)
 - **Cross-cutting** — ✅ Health checks (Issue #35), ✅ Projections/read models (Issue #36), ✅ Snapshotting (Issue #52), ✅ Event versioning (Issue #37), ✅ Distributed Lock (Issue #55)
