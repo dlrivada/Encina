@@ -6,6 +6,7 @@ using Encina.Messaging.Outbox;
 using Encina.Messaging.Recoverability;
 using Encina.Messaging.RoutingSlip;
 using Encina.Messaging.Sagas;
+using Encina.Messaging.ScatterGather;
 using Encina.Messaging.Scheduling;
 
 namespace Encina.Messaging;
@@ -182,6 +183,27 @@ public sealed class MessagingConfiguration
     public bool UseContentRouter { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable the Scatter-Gather pattern.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, requests can be broadcast to multiple handlers (scatter) and
+    /// their responses aggregated using a configurable strategy (gather).
+    /// This is an Enterprise Integration Pattern (EIP) for parallel request distribution.
+    /// </para>
+    /// <para>
+    /// Use cases include:
+    /// <list type="bullet">
+    /// <item><description>Getting price quotes from multiple vendors</description></item>
+    /// <item><description>Querying multiple data sources in parallel</description></item>
+    /// <item><description>Distributed processing with result aggregation</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseScatterGather { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -222,6 +244,11 @@ public sealed class MessagingConfiguration
     public ContentRouterOptions ContentRouterOptions { get; } = new();
 
     /// <summary>
+    /// Gets the configuration options for the Scatter-Gather pattern.
+    /// </summary>
+    public ScatterGatherOptions ScatterGatherOptions { get; } = new();
+
+    /// <summary>
     /// Gets the configuration options for provider-specific health checks.
     /// </summary>
     /// <remarks>
@@ -240,5 +267,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather;
 }

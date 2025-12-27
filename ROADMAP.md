@@ -64,7 +64,7 @@ Key areas:
 - **Saga Enhancements** — Timeouts, low-ceremony syntax, not-found handlers
 - **Developer Tooling** — `Encina.Testing` package with fluent assertions, `Encina.Cli` scaffolding tool
 - **Performance** — Source generators for zero-reflection dispatch, switch-based handler routing
-- **Enterprise Patterns** — ✅ Recoverability pipeline (Issue #39), ✅ Rate limiting with adaptive throttling (Issue #40), ✅ Dead Letter Queue (Issue #42), ✅ Bulkhead Isolation (Issue #53), ✅ Routing Slip pattern (Issue #62), Scatter-Gather pattern (Issue #63)
+- **Enterprise Patterns** — ✅ Recoverability pipeline (Issue #39), ✅ Rate limiting with adaptive throttling (Issue #40), ✅ Dead Letter Queue (Issue #42), ✅ Bulkhead Isolation (Issue #53), ✅ Routing Slip pattern (Issue #62), ✅ Scatter-Gather pattern (Issue #63)
 - **Cross-cutting** — ✅ Health checks (Issue #35), ✅ Projections/read models (Issue #36), ✅ Snapshotting for large aggregates (Issue #52), ✅ Event versioning (Issue #37), ✅ Distributed Lock Abstractions (Issue #55), ✅ Content-Based Router (Issue #64)
 - **Modular Monolith** — ✅ Module-scoped behaviors (Issue #58)
 
@@ -124,8 +124,8 @@ These areas are under consideration for post-1.0 development:
 - ✅ Durable Functions support (Issue #61) - `Encina.AzureFunctions.Durable`
 
 ### Enterprise Integration Patterns
-- Routing Slip pattern
-- Scatter-Gather pattern
+- ✅ Routing Slip pattern (Issue #62)
+- ✅ Scatter-Gather pattern (Issue #63)
 - ✅ Content-Based Router (Issue #64)
 
 ### Advanced Performance

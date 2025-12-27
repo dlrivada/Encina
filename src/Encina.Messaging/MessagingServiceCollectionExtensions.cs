@@ -7,6 +7,7 @@ using Encina.Messaging.Recoverability;
 using Encina.Messaging.RoutingSlip;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Sagas.LowCeremony;
+using Encina.Messaging.ScatterGather;
 using Encina.Messaging.Scheduling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -121,6 +122,12 @@ public static class MessagingServiceCollectionExtensions
             services.AddScoped<IContentRouter, ContentRouter.ContentRouter>();
         }
 
+        if (config.UseScatterGather)
+        {
+            services.AddSingleton(config.ScatterGatherOptions);
+            services.AddScoped<IScatterGatherRunner, ScatterGatherRunner>();
+        }
+
         return services;
     }
 
@@ -197,6 +204,12 @@ public static class MessagingServiceCollectionExtensions
         {
             services.AddSingleton(config.ContentRouterOptions);
             services.AddScoped<IContentRouter, ContentRouter.ContentRouter>();
+        }
+
+        if (config.UseScatterGather)
+        {
+            services.AddSingleton(config.ScatterGatherOptions);
+            services.AddScoped<IScatterGatherRunner, ScatterGatherRunner>();
         }
 
         return services;

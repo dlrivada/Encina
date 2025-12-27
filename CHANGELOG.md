@@ -19,6 +19,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Scatter-Gather Pattern (Issue #63):
+  - Enterprise Integration Pattern for sending requests to multiple handlers and aggregating results
+  - `IScatterGatherRunner` interface with `ExecuteAsync` method returning `Either<EncinaError, ScatterGatherResult<T>>`
+  - `ScatterGatherBuilder` fluent API for defining scatter-gather operations:
+    - `ScatterTo(name, handler)` for adding scatter handlers with multiple overloads (sync/async, with/without Either)
+    - `WithPriority(int)` for handler ordering (lower = higher priority)
+    - `WithMetadata(key, value)` for handler metadata
+    - `ExecuteInParallel(maxDegreeOfParallelism?)` / `ExecuteSequentially()` for execution mode
+    - `WithTimeout(TimeSpan)` for operation timeout
+  - Four gather strategies via `GatherStrategy` enum:
+    - `WaitForAll` - Wait for all handlers to complete (fail on any failure)
+    - `WaitForFirst` - Return on first successful response
+    - `WaitForQuorum` - Return when quorum count is reached
+    - `WaitForAllAllowPartial` - Wait for all, tolerate partial failures
+  - Gather configuration via `GatherBuilder`:
+    - `GatherAll()` / `GatherFirst()` / `GatherQuorum(count)` / `GatherAllAllowingPartialFailures()`
+    - `GatherWith(GatherStrategy, quorumCount?)` for explicit strategy
+    - Aggregation methods: `TakeFirst()`, `TakeMin()`, `TakeMax()`, `Aggregate()`, `AggregateSuccessful()`
+  - `ScatterGatherResult<TResponse>` with execution metrics:
+    - `Response` - Aggregated result
+    - `ScatterResults` - List of `ScatterExecutionResult<TResponse>` with handler name, result, duration
+    - `SuccessCount`, `FailureCount`, `OperationId`, `TotalDuration`
+  - `ScatterGatherOptions` configuration:
+    - `DefaultTimeout` (default: 30s)
+    - `ExecuteScattersInParallel` (default: true)
+    - `MaxDegreeOfParallelism` (default: null/unlimited)
+  - `ScatterGatherErrorCodes` for standardized error codes:
+    - `scattergather.cancelled`, `scattergather.timed_out`
+    - `scattergather.all_scatters_failed`, `scattergather.quorum_not_reached`
+    - `scattergather.gather_failed`, `scattergather.scatter_failed`
+  - High-performance logging with `LoggerMessage` source generators (EventIds 600-615)
+  - DI integration via `MessagingConfiguration.UseScatterGather = true`
+  - Comprehensive test coverage: 131 tests (unit, property, contract, guard, load)
+  - Benchmarks for scatter-gather performance across strategies
+  - Example:
+    ```csharp
+    var definition = ScatterGatherBuilder.Create<PriceRequest, decimal>("PriceAggregator")
+        .ScatterTo("SupplierA", async (req, ct) => await GetPriceFromA(req, ct))
+        .ScatterTo("SupplierB", async (req, ct) => await GetPriceFromB(req, ct))
+        .ScatterTo("SupplierC", async (req, ct) => await GetPriceFromC(req, ct))
+        .ExecuteInParallel()
+        .GatherAll()
+        .TakeMin(price => price)  // Get lowest price
+        .Build();
+
+    var result = await runner.ExecuteAsync(definition, new PriceRequest("SKU123"));
+    ```
+
 - Content-Based Router (Issue #64):
   - Enterprise Integration Pattern for routing messages based on content inspection
   - `IContentRouter` interface with `RouteAsync` methods returning `Either<EncinaError, ContentRouterResult<T>>`
