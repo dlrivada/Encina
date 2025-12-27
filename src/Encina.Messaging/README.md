@@ -274,6 +274,63 @@ public record UpdateInventoryCommand(...) : ICommand;
 // - Rolls back if Left or exception
 ```
 
+### 7. **Content-Based Router** (Message Routing)
+
+**Problem**: Different messages require different handlers based on message content.
+
+**Solution**: Route messages to handlers based on content inspection using configurable routing rules.
+
+```csharp
+// Define routing rules
+var definition = ContentRouterBuilder.Create<Order, string>()
+    .When("Premium", o => o.CustomerType == "Premium" && o.Total > 500)
+        .WithPriority(1)
+        .RouteTo(async (o, ct) => await ProcessPremiumOrder(o, ct))
+
+    .When("HighValue", o => o.Total > 1000)
+        .WithPriority(2)
+        .RouteTo(o => Right<EncinaError, string>("HighValueHandler"))
+
+    .When("International", o => o.IsInternational)
+        .WithPriority(3)
+        .RouteTo(o => Right<EncinaError, string>("InternationalHandler"))
+
+    .Default(o => Right<EncinaError, string>("StandardHandler"))
+    .Build();
+
+// Route messages
+var result = await router.RouteAsync(definition, order);
+result.Match(
+    Right: r => Console.WriteLine($"Routed to: {r.RouteResults[0].RouteName}"),
+    Left: e => Console.WriteLine($"Error: {e.Message}")
+);
+```
+
+**Configuration Options**:
+
+```csharp
+services.AddEncinaMessaging(config =>
+{
+    config.UseContentRouter = true;
+    config.ContentRouterOptions = new ContentRouterOptions
+    {
+        ThrowOnNoMatch = true,        // Return error when no route matches
+        AllowMultipleMatches = false, // Execute all matching routes
+        EvaluateInParallel = false,   // Parallel route execution
+        MaxDegreeOfParallelism = 4    // Concurrency limit when parallel
+    };
+});
+```
+
+**Features**:
+
+- **Priority-based Routing**: Routes are evaluated in priority order (lower = higher priority)
+- **Multiple Handlers**: Execute multiple matching routes with `AllowMultipleMatches = true`
+- **Parallel Execution**: Process routes in parallel with `EvaluateInParallel = true`
+- **Named Routes**: Identify routes for logging and debugging
+- **Route Metadata**: Attach custom metadata to routes
+- **Execution Metrics**: Track route execution time and matched route count
+
 ## Scheduling vs Hangfire/Quartz.NET
 
 ### Key Differences
@@ -563,6 +620,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 - ✅ Messaging configuration (opt-in patterns)
 - ✅ Health check abstractions and implementations
 - ✅ Recoverability Pipeline (two-phase retry, error classification, DLQ)
+- ✅ Content-Based Router (EIP pattern for message routing)
 - ⏳ Entity Framework Core provider
 - ⏳ Dapper provider
 - ⏳ ADO.NET provider

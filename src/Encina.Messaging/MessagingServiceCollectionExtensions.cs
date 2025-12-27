@@ -1,3 +1,4 @@
+using Encina.Messaging.ContentRouter;
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
@@ -114,6 +115,12 @@ public static class MessagingServiceCollectionExtensions
             }
         }
 
+        if (config.UseContentRouter)
+        {
+            services.AddSingleton(config.ContentRouterOptions);
+            services.AddScoped<IContentRouter, ContentRouter.ContentRouter>();
+        }
+
         return services;
     }
 
@@ -184,6 +191,12 @@ public static class MessagingServiceCollectionExtensions
                 services.TryAddScoped<IDelayedRetryScheduler, DelayedRetryScheduler>();
                 services.AddHostedService<DelayedRetryProcessor>();
             }
+        }
+
+        if (config.UseContentRouter)
+        {
+            services.AddSingleton(config.ContentRouterOptions);
+            services.AddScoped<IContentRouter, ContentRouter.ContentRouter>();
         }
 
         return services;

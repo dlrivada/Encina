@@ -1,3 +1,4 @@
+using Encina.Messaging.ContentRouter;
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
@@ -23,6 +24,7 @@ namespace Encina.Messaging;
 /// <item><description><b>RoutingSlips</b>: Dynamic message routing through multiple steps</description></item>
 /// <item><description><b>Scheduling</b>: Delayed/recurring message execution</description></item>
 /// <item><description><b>Recoverability</b>: Automatic retry with immediate and delayed strategies</description></item>
+/// <item><description><b>ContentRouter</b>: Route messages to handlers based on content inspection</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -49,6 +51,7 @@ namespace Encina.Messaging;
 ///     config.UseRoutingSlips = true;
 ///     config.UseScheduling = true;
 ///     config.UseRecoverability = true;
+///     config.UseContentRouter = true;
 /// });
 /// </code>
 /// </example>
@@ -158,6 +161,27 @@ public sealed class MessagingConfiguration
     public bool UseDeadLetterQueue { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable the Content-Based Router pattern.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, messages can be routed to different handlers based on their
+    /// content rather than just their type. This is an Enterprise Integration Pattern (EIP)
+    /// that enables dynamic routing based on message properties.
+    /// </para>
+    /// <para>
+    /// Use cases include:
+    /// <list type="bullet">
+    /// <item><description>Routing high-value orders to a specialized handler</description></item>
+    /// <item><description>Routing international orders to a compliance handler</description></item>
+    /// <item><description>Routing messages based on priority, category, or other properties</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseContentRouter { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -193,6 +217,11 @@ public sealed class MessagingConfiguration
     public DeadLetterOptions DeadLetterOptions { get; } = new();
 
     /// <summary>
+    /// Gets the configuration options for the Content-Based Router pattern.
+    /// </summary>
+    public ContentRouterOptions ContentRouterOptions { get; } = new();
+
+    /// <summary>
     /// Gets the configuration options for provider-specific health checks.
     /// </summary>
     /// <remarks>
@@ -211,5 +240,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter;
 }

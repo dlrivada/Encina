@@ -126,7 +126,7 @@ These areas are under consideration for post-1.0 development:
 ### Enterprise Integration Patterns
 - Routing Slip pattern
 - Scatter-Gather pattern
-- Content-Based Router
+- ✅ Content-Based Router (Issue #64)
 
 ### Advanced Performance
 - ✅ Delegate cache optimization (TryGetValue pattern, type check caching) - Issue #49

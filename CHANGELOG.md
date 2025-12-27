@@ -11,6 +11,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Content-Based Router (Issue #64):
+  - Enterprise Integration Pattern for routing messages based on content inspection
+  - `IContentRouter` interface with `RouteAsync` methods returning `Either<EncinaError, ContentRouterResult<T>>`
+  - `ContentRouterBuilder` fluent API for defining routing rules:
+    - `When(condition)` / `When(name, condition)` for conditional routes
+    - `RouteTo(handler)` with multiple overloads (sync/async, with/without Either)
+    - `WithPriority(int)` for route ordering (lower = higher priority)
+    - `WithMetadata(key, value)` for route metadata
+    - `Default(handler)` / `DefaultResult(value)` for fallback handling
+    - `Build()` to create immutable `BuiltContentRouterDefinition<TMessage, TResult>`
+  - `ContentRouterOptions` configuration:
+    - `ThrowOnNoMatch` - Return error when no route matches (default: true)
+    - `AllowMultipleMatches` - Execute all matching routes (default: false)
+    - `EvaluateInParallel` - Parallel route execution with `MaxDegreeOfParallelism`
+  - `ContentRouterResult<TResult>` with execution metrics:
+    - `RouteResults` - List of `RouteExecutionResult<TResult>` with route name, result, duration
+    - `MatchedRouteCount`, `TotalDuration`, `UsedDefaultRoute`
+  - `RouteDefinition<TMessage, TResult>` for route configuration
+  - `ContentRouterErrorCodes` for standardized error codes:
+    - `contentrouter.no_matching_route`, `contentrouter.route_execution_failed`
+    - `contentrouter.cancelled`, `contentrouter.invalid_configuration`
+  - High-performance logging with `LoggerMessage` source generators
+  - DI integration via `MessagingConfiguration.UseContentRouter = true`
+  - Comprehensive test coverage: 117 tests (unit, integration, property, contract, guard, load)
+  - Benchmarks for routing performance
+  - Example:
+    ```csharp
+    var definition = ContentRouterBuilder.Create<Order, string>()
+        .When("HighValue", o => o.Total > 10000)
+            .WithPriority(1)
+            .RouteTo(async (o, ct) => await ProcessHighValueOrder(o, ct))
+        .When("International", o => o.IsInternational)
+            .WithPriority(2)
+            .RouteTo(o => Right<EncinaError, string>("InternationalHandler"))
+        .Default(o => Right<EncinaError, string>("StandardHandler"))
+        .Build();
+
+    var result = await router.RouteAsync(definition, order);
+    ```
+
 - Distributed Lock Abstractions (Issue #55):
   - **Encina.DistributedLock** - Core abstractions for distributed locking
     - `IDistributedLockProvider` interface with `TryAcquireAsync`, `AcquireAsync`, `IsLockedAsync`, `ExtendAsync`
