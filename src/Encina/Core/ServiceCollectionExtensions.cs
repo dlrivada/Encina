@@ -1,4 +1,5 @@
 using System.Reflection;
+using Encina.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -56,6 +57,10 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IEncina, Encina>();
         services.TryAddSingleton<IEncinaMetrics, EncinaMetrics>();
         services.TryAddSingleton<IFunctionalFailureDetector>(NullFunctionalFailureDetector.Instance);
+
+        // Register null module handler registry for when modules are not used
+        // (will be overwritten if AddEncinaModules is called)
+        services.TryAddSingleton<IModuleHandlerRegistry>(NullModuleHandlerRegistry.Instance);
 
         // Register notification dispatch options
         services.Configure<NotificationDispatchOptions>(options =>

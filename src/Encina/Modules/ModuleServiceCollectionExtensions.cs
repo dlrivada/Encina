@@ -64,10 +64,15 @@ public static class ModuleServiceCollectionExtensions
         ModuleConfiguration configuration)
     {
         var modules = configuration.ModuleDescriptors.Select(d => d.Module).ToList();
+        var descriptors = configuration.ModuleDescriptors;
 
         // Register the module registry as a singleton
         var registry = new ModuleRegistry(modules);
         services.TryAddSingleton<IModuleRegistry>(registry);
+
+        // Register the handler registry for module-scoped behaviors
+        var handlerRegistry = new ModuleHandlerRegistry(descriptors);
+        services.TryAddSingleton<IModuleHandlerRegistry>(handlerRegistry);
 
         // Register individual modules for direct injection
         foreach (var module in modules)

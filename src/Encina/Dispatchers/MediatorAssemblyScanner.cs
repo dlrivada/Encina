@@ -54,6 +54,13 @@ internal static class EncinaAssemblyScanner
                         continue;
                     }
 
+                    // Skip ModuleBehaviorAdapter - it has 3 type parameters but IPipelineBehavior has 2
+                    // It is registered explicitly via AddEncinaModuleBehavior extension method
+                    if (type.FullName?.StartsWith("Encina.Modules.ModuleBehaviorAdapter`", StringComparison.Ordinal) == true)
+                    {
+                        continue;
+                    }
+
                     var serviceType = implementedInterface.ContainsGenericParameters
                         ? typeof(IPipelineBehavior<,>)
                         : implementedInterface;

@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Module-scoped Pipeline Behaviors (Issue #58):
+  - **IModulePipelineBehavior<TModule, TRequest, TResponse>** interface for module-specific behaviors
+  - **ModuleBehaviorAdapter** wraps module behaviors and filters execution by module ownership
+  - **IModuleHandlerRegistry** maps handler types to their owning modules via assembly association
+  - Request context extensions for module information:
+    - `GetModuleName()` for retrieving current module name
+    - `WithModuleName()` for setting module name (overloads for string and IModule)
+    - `IsInModule()` for checking if context is in a specific module
+  - DI extension methods:
+    - `AddEncinaModuleBehavior<TModule, TRequest, TResponse, TBehavior>()` for registration
+    - Overload with `ServiceLifetime` parameter for custom lifetimes
+  - Case-insensitive module name matching
+  - Null Object pattern with `NullModuleHandlerRegistry` for when modules aren't configured
+  - Comprehensive test coverage: 100 module-related unit tests
+
 - AWS Lambda Integration (Issue #60):
   - **Encina.AwsLambda** package for serverless function execution on AWS
   - API Gateway integration with result-to-response extensions:

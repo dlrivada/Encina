@@ -212,3 +212,19 @@ Encina.Modules.ModuleServiceCollectionExtensions
 static Encina.Modules.ModuleServiceCollectionExtensions.AddEncinaModules(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Encina.Modules.ModuleConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Modules.ModuleServiceCollectionExtensions.AddEncinaModules(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Modules.ModuleConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 const Encina.EncinaErrorCodes.RateLimitExceeded = "encina.ratelimit.exceeded" -> string!
+Encina.Modules.IModuleHandlerRegistry
+Encina.Modules.IModuleHandlerRegistry.BelongsToModule(System.Type! handlerType, string! moduleName) -> bool
+Encina.Modules.IModuleHandlerRegistry.BelongsToModule<TModule>(System.Type! handlerType) -> bool
+Encina.Modules.IModuleHandlerRegistry.GetModule(System.Type! handlerType) -> Encina.Modules.IModule?
+Encina.Modules.IModuleHandlerRegistry.GetModuleName(System.Type! handlerType) -> string?
+Encina.Modules.IModulePipelineBehavior<TModule, TRequest, TResponse>
+Encina.Modules.IModulePipelineBehavior<TModule, TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Modules.ModuleBehaviorServiceCollectionExtensions
+static Encina.Modules.ModuleBehaviorServiceCollectionExtensions.AddEncinaModuleBehavior<TModule, TRequest, TResponse, TBehavior>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Modules.ModuleBehaviorServiceCollectionExtensions.AddEncinaModuleBehavior<TModule, TRequest, TResponse, TBehavior>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Modules.RequestContextModuleExtensions
+static Encina.Modules.RequestContextModuleExtensions.GetModuleName(this Encina.IRequestContext! context) -> string?
+static Encina.Modules.RequestContextModuleExtensions.IsInModule(this Encina.IRequestContext! context, string! moduleName) -> bool
+static Encina.Modules.RequestContextModuleExtensions.IsInModule<TModule>(this Encina.IRequestContext! context, TModule! module) -> bool
+static Encina.Modules.RequestContextModuleExtensions.WithModuleName(this Encina.IRequestContext! context, Encina.Modules.IModule! module) -> Encina.IRequestContext!
+static Encina.Modules.RequestContextModuleExtensions.WithModuleName(this Encina.IRequestContext! context, string! moduleName) -> Encina.IRequestContext!
