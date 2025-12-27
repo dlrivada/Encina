@@ -1,7 +1,7 @@
 # Encina - Inventario Completo
 
 > **Documento generado**: 27 de diciembre de 2025
-> **Versión**: Pre-1.0 (Phase 2: Functionality ~93%)
+> **Versión**: Pre-1.0 (Phase 2: Functionality ~95%)
 > **Propósito**: Inventario exhaustivo de todas las funcionalidades, patrones, paquetes y características de Encina
 
 ---
@@ -24,7 +24,7 @@
 
 | Métrica | Valor |
 |---------|-------|
-| **Total de Paquetes** | 52 |
+| **Total de Paquetes** | 53 |
 | **Patrones de Messaging** | 10 |
 | **Providers de Base de Datos** | 14 |
 | **Providers de Caching** | 8 |
@@ -49,10 +49,10 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              APLICACIÓN                                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  Web/API          │  Serverless        │  Workers          │  Console       │
-│  ─────────────    │  ────────────      │  ────────         │  ────────      │
-│  AspNetCore       │  AwsLambda         │  Hangfire         │  CLI Apps      │
-│  GraphQL          │  AzureFunctions    │  Quartz           │                │
+│  Web/API          │  Serverless        │  Workers          │  CLI/Console   │
+│  ─────────────    │  ────────────      │  ────────         │  ────────────  │
+│  AspNetCore       │  AwsLambda         │  Hangfire         │  Encina.Cli    │
+│  GraphQL          │  AzureFunctions    │  Quartz           │  Console Apps  │
 │  gRPC             │                    │                   │                │
 │  SignalR          │                    │                   │                │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -604,20 +604,27 @@ public interface IDistributedLockProvider
 
 | Issue | Título | Complejidad | Prioridad |
 |-------|--------|-------------|-----------|
-| **#47** | Encina.Cli - Command-line scaffolding tool | Alta | Media |
 | **#50** | Source Generators - Zero-reflection, NativeAOT ready | Muy Alta | Media |
 | **#51** | Switch-based dispatch - No dictionary lookup | Alta | Media |
 
-#### #47 - Encina.Cli
+### Issues Completados Recientemente
 
-**Descripción**: CLI tool para scaffolding de proyectos y componentes Encina.
+#### ✅ #47 - Encina.Cli (Completado 27-dic-2025)
 
-**Features planificadas**:
-- `encina new api MyApi` - Crear proyecto API
-- `encina generate handler CreateOrder` - Generar handlers
-- `encina generate saga OrderProcessing --steps "Create,Pay,Ship"` - Generar sagas
-- `encina add caching redis` - Añadir paquetes
-- Integración con `dotnet new` templates
+CLI tool para scaffolding de proyectos y componentes Encina.
+
+**Comandos implementados**:
+- `encina new <template> <name>` - Crear proyecto (api, worker, console)
+  - Opciones: `--database`, `--caching`, `--transport`, `--output`, `--force`
+- `encina generate handler <name>` - Generar command handlers
+- `encina generate query <name> --response <type>` - Generar query handlers
+- `encina generate saga <name> --steps <steps>` - Generar sagas
+- `encina generate notification <name>` - Generar notifications
+- `encina add <category> <provider>` - Añadir paquetes Encina
+
+**Tecnología**: System.CommandLine 2.0.1 + Spectre.Console
+
+### Issues Pendientes
 
 #### #50 - Source Generators
 
@@ -660,19 +667,19 @@ public interface IDistributedLockProvider
 | Web/API | 6 | 6 | 100% |
 | Observability | 1 | 1 | 100% |
 | Testing | 1 | 1 | 100% |
-| **Total** | **52** | **52** | **100%** |
+| CLI | 1 | 1 | 100% |
+| **Total** | **53** | **53** | **100%** |
 
 ### Features Pendientes
 
 | Feature | Estado | Bloqueante para 1.0 |
 |---------|--------|---------------------|
 | Source Generators (#50) | Pendiente | No (nice-to-have) |
-| CLI Tool (#47) | Pendiente | No (nice-to-have) |
 | Switch Dispatch (#51) | Pendiente | No (nice-to-have) |
 
 ### Conclusión
 
-**Phase 2: Functionality está al ~93%** con 3 issues restantes que son mejoras de rendimiento y developer experience, no funcionalidades core. El framework está funcionalmente completo para uso en producción.
+**Phase 2: Functionality está al ~95%** con 2 issues restantes que son mejoras de rendimiento (NativeAOT), no funcionalidades core. El framework está funcionalmente completo para uso en producción.
 
 ---
 
@@ -731,7 +738,8 @@ src/
 ├── Encina.gRPC/                     # gRPC integration
 ├── Encina.Refit/                    # Refit HTTP client integration
 ├── Encina.OpenTelemetry/            # OpenTelemetry observability
-└── Encina.Testing/                  # Testing utilities
+├── Encina.Testing/                  # Testing utilities
+└── Encina.Cli/                      # CLI scaffolding tool
 ```
 
 ---
