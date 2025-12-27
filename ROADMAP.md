@@ -62,10 +62,10 @@ Focus: Fix failing tests, re-enable excluded test projects, verify all workflows
 
 Key areas:
 - **Saga Enhancements** — Timeouts, low-ceremony syntax, not-found handlers
-- **Developer Tooling** — `Encina.Testing` package with fluent assertions
-- **Performance** — Source generators for zero-reflection dispatch
-- **Enterprise Patterns** — ✅ Recoverability pipeline (Issue #39), ✅ Rate limiting with adaptive throttling (Issue #40), ✅ Dead Letter Queue (Issue #42), ✅ Bulkhead Isolation (Issue #53), ✅ Routing Slip pattern (Issue #62)
-- **Cross-cutting** — ✅ Health checks (Issue #35), ✅ Projections/read models (Issue #36), ✅ Snapshotting for large aggregates (Issue #52), ✅ Event versioning (Issue #37), ✅ Distributed Lock Abstractions (Issue #55)
+- **Developer Tooling** — `Encina.Testing` package with fluent assertions, `Encina.Cli` scaffolding tool
+- **Performance** — Source generators for zero-reflection dispatch, switch-based handler routing
+- **Enterprise Patterns** — ✅ Recoverability pipeline (Issue #39), ✅ Rate limiting with adaptive throttling (Issue #40), ✅ Dead Letter Queue (Issue #42), ✅ Bulkhead Isolation (Issue #53), ✅ Routing Slip pattern (Issue #62), Scatter-Gather pattern (Issue #63)
+- **Cross-cutting** — ✅ Health checks (Issue #35), ✅ Projections/read models (Issue #36), ✅ Snapshotting for large aggregates (Issue #52), ✅ Event versioning (Issue #37), ✅ Distributed Lock Abstractions (Issue #55), ✅ Content-Based Router (Issue #64)
 - **Modular Monolith** — ✅ Module-scoped behaviors (Issue #58)
 
 → [View Phase 2 Issues](https://github.com/dlrivada/Encina/milestone/2)
@@ -141,6 +141,13 @@ These areas are under consideration for post-1.0 development:
 |---------|--------|
 | Generic Variance | Conflicts with "explicit over implicit" principle |
 | EncinaResult wrapper | `Either<L,R>` from LanguageExt is sufficient |
+| API Versioning Helpers (Issue #54) | `Asp.Versioning` already provides complete HTTP-level versioning; handler-level versioning is redundant |
+
+## Deferred to Post-1.0
+
+| Feature | Reason |
+|---------|--------|
+| ODBC Provider (Issue #56) | Valuable for legacy databases but not critical for core release; evaluate based on community demand |
 
 ### Deprecated Packages
 

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **API Versioning Helpers** (Issue #54) - Closed as "won't fix". `Asp.Versioning` provides complete HTTP-level versioning; adding `[ApiVersion]` to CQRS handlers would be redundant since versioning belongs on the public API surface (controllers/endpoints), not internal handlers.
+
+### Deferred
+
+- **ODBC Provider** (Issue #56) - Moved to post-1.0 evaluation. Valuable for legacy database scenarios but not critical for core 1.0 release.
+
 ### Added
 
 - Content-Based Router (Issue #64):
