@@ -45,59 +45,76 @@
 
 ## Arquitectura General
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              APLICACIÓN                                      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  Web/API          │  Serverless        │  Workers          │  CLI/Console   │
-│  ─────────────    │  ────────────      │  ────────         │  ────────────  │
-│  AspNetCore       │  AwsLambda         │  Hangfire         │  Encina.Cli    │
-│  GraphQL          │  AzureFunctions    │  Quartz           │  Console Apps  │
-│  gRPC             │                    │                   │                │
-│  SignalR          │                    │                   │                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                           ENCINA CORE                                        │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  IEncina (Mediator)                                                  │    │
-│  │  ├── Send<TRequest, TResponse>() → Either<EncinaError, TResponse>   │    │
-│  │  ├── Publish<TNotification>() → Either<EncinaError, Unit>           │    │
-│  │  └── Stream<TRequest, TItem>() → IAsyncEnumerable<Either<...>>      │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                    │                                         │
-│  ┌─────────────────────────────────▼───────────────────────────────────┐    │
-│  │  Pipeline (Pre-Processors → Behaviors → Handler → Post-Processors)  │    │
-│  │  ├── ValidationPipelineBehavior                                      │    │
-│  │  ├── AuthorizationPipelineBehavior                                   │    │
-│  │  ├── CachingPipelineBehavior                                         │    │
-│  │  ├── TransactionPipelineBehavior                                     │    │
-│  │  ├── RetryPipelineBehavior                                           │    │
-│  │  ├── CircuitBreakerPipelineBehavior                                  │    │
-│  │  └── ...más behaviors...                                             │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                         MESSAGING PATTERNS                                   │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐ ┌───────────────┐    │
-│  │  Outbox  │ │  Inbox   │ │  Sagas   │ │ Scheduling │ │ Dead Letter   │    │
-│  └──────────┘ └──────────┘ └──────────┘ └────────────┘ └───────────────┘    │
-│  ┌──────────────┐ ┌───────────────┐ ┌────────────────┐ ┌────────────────┐   │
-│  │ Routing Slip │ │Content Router │ │ Scatter-Gather │ │  Choreography  │   │
-│  └──────────────┘ └───────────────┘ └────────────────┘ └────────────────┘   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                            CROSS-CUTTING                                     │
-│  ┌───────────┐ ┌─────────────┐ ┌────────────┐ ┌─────────────────────────┐   │
-│  │ Caching   │ │ Resilience  │ │ Dist. Lock │ │ Observability           │   │
-│  └───────────┘ └─────────────┘ └────────────┘ └─────────────────────────┘   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                          DATA PROVIDERS                                      │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌─────────┐ ┌───────────┐     │
-│  │ EF Core    │ │ Dapper     │ │ ADO.NET    │ │ MongoDB │ │ Marten    │     │
-│  └────────────┘ └────────────┘ └────────────┘ └─────────┘ └───────────┘     │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                          TRANSPORTS                                          │
-│  ┌──────────┐ ┌───────┐ ┌──────────────┐ ┌───────────┐ ┌──────┐ ┌──────┐   │
-│  │ RabbitMQ │ │ Kafka │ │ Azure SB     │ │ Amazon SQS│ │ NATS │ │ MQTT │   │
-│  └──────────┘ └───────┘ └──────────────┘ └───────────┘ └──────┘ └──────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph APP["APPLICATION LAYER"]
+        direction LR
+        subgraph WebAPI["Web/API"]
+            AspNetCore
+            GraphQL
+            gRPC
+            SignalR
+        end
+        subgraph Serverless
+            AwsLambda["AWS Lambda"]
+            AzureFunctions["Azure Functions"]
+        end
+        subgraph Workers
+            Hangfire
+            Quartz
+        end
+        subgraph CLI["CLI/Console"]
+            EncinaCli["Encina.Cli"]
+            ConsoleApps["Console Apps"]
+        end
+    end
+
+    subgraph CORE["ENCINA CORE"]
+        direction TB
+        subgraph Mediator["IEncina (Mediator)"]
+            Send["Send&lt;TRequest, TResponse&gt;() → Either&lt;EncinaError, TResponse&gt;"]
+            Publish["Publish&lt;TNotification&gt;() → Either&lt;EncinaError, Unit&gt;"]
+            Stream["Stream&lt;TRequest, TItem&gt;() → IAsyncEnumerable&lt;Either&lt;...&gt;&gt;"]
+        end
+        subgraph Pipeline["Pipeline (Pre → Behaviors → Handler → Post)"]
+            Validation["ValidationPipelineBehavior"]
+            Authorization["AuthorizationPipelineBehavior"]
+            Caching["CachingPipelineBehavior"]
+            Transaction["TransactionPipelineBehavior"]
+            Retry["RetryPipelineBehavior"]
+            CircuitBreaker["CircuitBreakerPipelineBehavior"]
+            Otros["...más behaviors..."]
+        end
+        Mediator --> Pipeline
+    end
+
+    subgraph MESSAGING["MESSAGING PATTERNS"]
+        direction LR
+        Outbox & Inbox & Sagas & Scheduling & DeadLetter["Dead Letter"]
+        RoutingSlip["Routing Slip"] & ContentRouter["Content Router"] & ScatterGather["Scatter-Gather"] & Choreography
+    end
+
+    subgraph CROSSCUTTING["CROSS-CUTTING CONCERNS"]
+        direction LR
+        CachingCC["Caching"] & Resilience & DistLock["Distributed Lock"] & Observability
+    end
+
+    subgraph DATA["DATA PROVIDERS"]
+        direction LR
+        EFCore["EF Core"] & Dapper & ADONET["ADO.NET"] & MongoDB & Marten
+    end
+
+    subgraph TRANSPORTS["MESSAGE TRANSPORTS"]
+        direction LR
+        RabbitMQ & Kafka & AzureSB["Azure Service Bus"] & AmazonSQS["Amazon SQS"] & NATS & MQTT
+    end
+
+    APP --> CORE
+    CORE --> MESSAGING
+    CORE --> CROSSCUTTING
+    MESSAGING --> DATA
+    CROSSCUTTING --> DATA
+    MESSAGING --> TRANSPORTS
 ```
 
 ---
