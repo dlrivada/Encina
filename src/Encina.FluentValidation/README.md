@@ -213,14 +213,16 @@ EncinaError
 
 ## How It Works
 
-The `ValidationPipelineBehavior<TRequest, TResponse>` intercepts all requests:
+The centralized `Encina.Validation.ValidationPipelineBehavior<TRequest, TResponse>` intercepts all requests:
 
-1. **Resolve Validators**: Gets all `IValidator<TRequest>` from DI container
+1. **Resolve Validators**: Gets all `IValidator<TRequest>` from DI container via `ValidationOrchestrator`
 2. **Enrich Context**: Passes correlation ID, user ID, tenant ID to validation context
 3. **Parallel Validation**: Runs all validators concurrently using `Task.WhenAll`
 4. **Aggregate Failures**: Collects all validation errors from all validators
 5. **Short-Circuit**: If validation fails, returns `Left<EncinaError>` with `ValidationException`
 6. **Continue**: If validation passes, calls the next pipeline step (handler)
+
+> **Note**: FluentValidation uses the shared `ValidationPipelineBehavior` from `Encina.Validation` through the Orchestrator pattern. The `FluentValidationProvider` implements `IValidationProvider` to integrate FluentValidation validators with the centralized behavior.
 
 ## Performance
 

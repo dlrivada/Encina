@@ -249,7 +249,7 @@ Key areas already completed:
 - **Advanced Validation** (new - based on December 2025 research):
   - Source-Generated Validation (#227) — Compile-time validation with NativeAOT support (Validot-inspired)
   - Domain/Value Object Validation (#228) — Always-Valid Domain Model with ROP factory methods
-  - Consolidate ValidationPipelineBehavior (#229) — Remove duplicate behaviors (CRITICAL)
+  - ✅ Consolidate ValidationPipelineBehavior (#229) — Remove duplicate behaviors (CRITICAL) - COMPLETED
   - Async/Cross-Field Validation (#230) — Database-backed and cross-property validation
   - OpenAPI Schema Validation (#231) — Contract-first validation against OpenAPI 3.1
   - Security Validation (#232) — OWASP-compliant input sanitization and injection prevention
