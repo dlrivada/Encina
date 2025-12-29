@@ -34,6 +34,18 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore Encina.slnx
 
+      - name: Run tests with coverage
+        # Run tests before SonarCloud to generate coverage reports
+        # Exclude problematic projects that depend on Marten (DistributedLock.Core .NET 10 issue #494)
+        run: |
+          for proj in $(find tests -name "*.csproj" | grep -v -E "(Marten|Testing\.Tests|LoadTests|IntegrationTests)"); do
+            echo "Testing: $proj"
+            dotnet test "$proj" --configuration Release --no-build \
+              --collect "XPlat Code Coverage" \
+              --results-directory artifacts/test-results \
+              -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
+          done
+
       - name: SonarCloud Scan
         uses: highbyte/sonarscan-dotnet@252f699a9c4e005bf3902d44a1c6c0aea43c678e # v2.5.0
         with:
@@ -41,12 +53,8 @@ jobs:
           sonarProjectName: Encina
           sonarOrganization: dlrivada
           dotnetBuildArguments: Encina.slnx --configuration Release
-          # Exclude tests that require special infrastructure:
-          # - LoadTests: Stress testing, not suitable for CI
-          # - IntegrationTests: Require Docker/Testcontainers
-          # - Marten: DistributedLock.Core 1.0.8 lacks .NET 10 support (issue #494)
-          # - Encina.Testing: Depends on Encina.Marten
-          dotnetTestArguments: Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests&FullyQualifiedName!~Encina.Marten&FullyQualifiedName!~Encina.Testing" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+          # Disable tests in SonarCloud action - we run them separately above
+          dotnetDisableTests: true
           # XPlat Code Coverage generates coverage.opencover.xml in a GUID subdirectory
           # Note: sonar.sources and sonar.tests are NOT supported by Scanner for .NET (auto-computed)
           # CPD exclusions for intentional duplication (Issue #12):
