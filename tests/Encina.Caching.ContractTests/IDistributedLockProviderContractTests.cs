@@ -1,4 +1,6 @@
-﻿namespace Encina.Caching.ContractTests;
+﻿using Encina.DistributedLock;
+
+namespace Encina.Caching.ContractTests;
 
 /// <summary>
 /// Contract tests that verify all IDistributedLockProvider implementations follow the same behavioral contract.

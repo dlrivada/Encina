@@ -98,7 +98,7 @@ public sealed class EventUpcasterBaseTests
         // Act
         IEventUpcaster<OrderCreatedV1, OrderCreatedV2> typedV1ToV2 = upcasterV1ToV2;
         IEventUpcaster<OrderCreatedV2, OrderCreatedV3> typedV2ToV3 = upcasterV2ToV3;
-        
+
         var v2Event = typedV1ToV2.Upcast(v1Event);
         var v3Event = typedV2ToV3.Upcast(v2Event);
 

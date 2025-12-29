@@ -1,8 +1,8 @@
+using System.Linq.Expressions;
 using Encina.DomainModeling;
 using FsCheck;
 using FsCheck.Xunit;
 using LanguageExt;
-using System.Linq.Expressions;
 
 namespace Encina.DomainModeling.PropertyTests;
 

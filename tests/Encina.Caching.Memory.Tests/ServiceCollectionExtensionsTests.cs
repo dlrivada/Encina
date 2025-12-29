@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Encina.DistributedLock;
+
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.Caching.Memory.Tests;
 

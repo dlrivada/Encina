@@ -13,7 +13,7 @@ namespace Encina.DistributedLock.IntegrationTests;
 public class RedisDistributedLockIntegrationTests : IAsyncLifetime
 {
     private readonly RedisContainer _redisContainer;
-    private IConnectionMultiplexer? _connection;
+    private ConnectionMultiplexer? _connection;
     private RedisDistributedLockProvider? _provider;
 
     public RedisDistributedLockIntegrationTests()

@@ -1,6 +1,6 @@
+using System.Reflection;
 using Encina.DomainModeling;
 using Microsoft.Extensions.DependencyInjection;
-using System.Reflection;
 
 namespace Encina.DomainModeling.ContractTests;
 

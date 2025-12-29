@@ -1,5 +1,5 @@
-using Encina.DomainModeling;
 using System.Reflection;
+using Encina.DomainModeling;
 
 namespace Encina.DomainModeling.ContractTests;
 

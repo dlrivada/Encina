@@ -1,6 +1,6 @@
+using System.Reflection;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
-using System.Reflection;
 
 namespace Encina.DomainModeling;
 

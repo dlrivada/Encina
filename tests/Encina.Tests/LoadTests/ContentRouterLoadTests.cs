@@ -1,9 +1,15 @@
-using Encina.Messaging.ContentRouter;
-using LanguageExt;
-using Microsoft.Extensions.Logging;
-using NSubstitute;
-using Shouldly;
 using System.Diagnostics;
+
+using Encina.Messaging.ContentRouter;
+
+using LanguageExt;
+
+using Microsoft.Extensions.Logging;
+
+using NSubstitute;
+
+using Shouldly;
+
 using static LanguageExt.Prelude;
 
 namespace Encina.Tests.LoadTests;
