@@ -1,7 +1,9 @@
 name: Conventional Commits
 
 on:
-    pull_request:
+    # Use pull_request_target to get proper token permissions for the semantic check
+    # This is safe because this action only reads PR metadata (title), not PR code
+    pull_request_target:
         types: [opened, edited, synchronize, reopened]
 
 permissions:

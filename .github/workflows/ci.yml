@@ -44,8 +44,10 @@ jobs:
         # Exclude tests that require special infrastructure:
         # - LoadTests: Require NBomber load testing infrastructure
         # - IntegrationTests: Require Docker containers or external services
+        # - Marten: DistributedLock.Core 1.0.8 lacks .NET 10 support (tracked in issue)
+        # - Encina.Testing: Depends on Encina.Marten
         # ContractTests and PropertyTests are included for coverage
-        run: dotnet test Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --verbosity normal --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests"
+        run: dotnet test Encina.slnx --configuration Release --no-build --collect "XPlat Code Coverage" --results-directory artifacts/test-results --verbosity normal --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests&FullyQualifiedName!~Encina.Marten&FullyQualifiedName!~Encina.Testing"
 
       - name: Generate coverage report
         run: dotnet tool run reportgenerator -reports:"artifacts/test-results/**/coverage.cobertura.xml" -targetdir:"artifacts/coverage" -reporttypes:"Html;HtmlSummary;TextSummary;JsonSummary"
