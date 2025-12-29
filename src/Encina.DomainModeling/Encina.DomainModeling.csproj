@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Encina.DomainModeling</PackageId>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <Authors>David Lozano Rivada;Daniel Lozano Rivada</Authors>
+    <Company>Consulta Psicologica</Company>
+    <Description>DDD building blocks for .NET: Entity, ValueObject, StronglyTypedId, and AggregateRoot base classes with Railway Oriented Programming support.</Description>
+    <RepositoryUrl>https://github.com/dlrivada/Encina</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>ddd;domain-driven-design;entity;value-object;aggregate;strongly-typed-id;cqrs</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <IncludeSymbols>false</IncludeSymbols>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Pre-1.0: Public API tracking is relaxed. We don't maintain backward compatibility yet. -->
+    <NoWarn>$(NoWarn);RS0016;RS0017;RS0026;RS0036;RS0037</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LanguageExt.Core" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="" Link="README.md" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="" Link="LICENSE" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.DomainModeling.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.DomainModeling.PropertyTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.DomainModeling.ContractTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>

@@ -86,14 +86,29 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 ##### v0.10.0 — DDD Foundations
 *Prerequisites for all other features*
 
-- Domain Events vs Integration Events separation
-- Specification Pattern for query composition
-- Value Objects & Aggregate base classes
-- Strongly Typed IDs
-- Domain Services abstraction
-- Anti-Corruption Layer (ACL) pattern
-- Ports & Adapters factory
-- Result Pattern extensions (Either Fluent API)
+**Completed:**
+- ✅ Entity base class with identity-based equality (#369)
+- ✅ Value Objects with structural equality (#367)
+- ✅ Strongly Typed IDs (Guid, Int, Long, String) (#374)
+- ✅ AggregateRoot with domain event support
+- ✅ AuditableAggregateRoot (CreatedAt/ModifiedAt)
+- ✅ SoftDeletableAggregateRoot (soft delete pattern)
+- ✅ Domain Events vs Integration Events separation (#312)
+- ✅ Anti-Corruption Layer mapper interface (#299)
+- ✅ Specification Pattern for query composition (#295) - With And/Or/Not composition, QuerySpecification
+- ✅ Business Rules Pattern for domain invariants (#372) - Separate from input validation
+- ✅ Domain Services abstraction (#377) - IDomainService marker interface
+- ✅ Result Pattern extensions (Either Fluent API) (#468) - Map, Bind, Combine, Ensure, Tap, etc.
+- ✅ Rich Domain Event Envelope (#368) - DomainEventMetadata, DomainEventEnvelope<T>, extensions
+- ✅ Integration Event Extensions (#373) - Async mappers, fallible mappers, publishers
+- ✅ Generic Repository Pattern (#380) - IRepository<T,TId>, IReadOnlyRepository, PagedResult
+- ✅ Ports & Adapters Factory Pattern (#475) - IPort, IInboundPort, IOutboundPort, AdapterBase
+- ✅ Result/DTO Mapping with ROP (#478) - IResultMapper, IAsyncResultMapper, MappingError
+- ✅ Application Services Interface (#479) - IApplicationService, ApplicationServiceError
+- ✅ Bounded Context helpers (#379) - BoundedContextAttribute, ContextMap, BoundedContextModule
+- ✅ Domain Language DSL (#381) - DomainBuilder, AggregateBuilder, Quantity/Percentage/DateRange/TimeRange
+- ✅ Bounded Context & Module Boundaries (#477) - IBoundedContextModule, BoundedContextValidator
+- ✅ Vertical Slice + Hexagonal Hybrid (#476) - FeatureSlice, IUseCaseHandler, SliceDependency
 
 → [View v0.10.0 Issues](https://github.com/dlrivada/Encina/milestone/7)
 

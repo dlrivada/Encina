@@ -4,6 +4,7 @@ using Encina.DataAnnotations;
 using Encina.FluentValidation;
 using Encina.GuardClauses;
 using Encina.MiniValidator;
+using Encina.Validation;
 // FluentValidation extension methods (NotEmpty, EmailAddress, etc.)
 using FluentValidation;
 using LanguageExt;
@@ -18,6 +19,7 @@ namespace Encina.Benchmarks;
 /// - DataAnnotations (built-in .NET, zero dependencies)
 /// - MiniValidator (lightweight, ~20KB)
 /// - GuardClauses (defensive programming)
+/// All use the centralized ValidationPipelineBehavior with provider-specific IValidationProvider.
 /// </summary>
 [MemoryDiagnoser]
 [RankColumn]
@@ -31,31 +33,25 @@ public class ValidationBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        // FluentValidation setup
+        // FluentValidation setup - uses centralized ValidationPipelineBehavior
         var fluentServices = new ServiceCollection();
         fluentServices.AddEncina();
         fluentServices.AddTransient<IValidator<FluentCommand>, FluentCommandValidator>();
-        fluentServices.AddTransient<ValidationPipelineBehavior<FluentCommand, Guid>>();
-        fluentServices.AddTransient<IPipelineBehavior<FluentCommand, Guid>>(sp =>
-            sp.GetRequiredService<ValidationPipelineBehavior<FluentCommand, Guid>>());
+        fluentServices.AddEncinaFluentValidation(typeof(ValidationBenchmarks).Assembly);
         fluentServices.AddTransient<ICommandHandler<FluentCommand, Guid>, FluentCommandHandler>();
         _fluentProvider = fluentServices.BuildServiceProvider();
 
-        // DataAnnotations setup
+        // DataAnnotations setup - uses centralized ValidationPipelineBehavior
         var dataAnnotationsServices = new ServiceCollection();
         dataAnnotationsServices.AddEncina();
-        dataAnnotationsServices.AddTransient<DataAnnotationsValidationBehavior<DataAnnotationsCommand, Guid>>();
-        dataAnnotationsServices.AddTransient<IPipelineBehavior<DataAnnotationsCommand, Guid>>(sp =>
-            sp.GetRequiredService<DataAnnotationsValidationBehavior<DataAnnotationsCommand, Guid>>());
+        dataAnnotationsServices.AddDataAnnotationsValidation();
         dataAnnotationsServices.AddTransient<ICommandHandler<DataAnnotationsCommand, Guid>, DataAnnotationsCommandHandler>();
         _dataAnnotationsProvider = dataAnnotationsServices.BuildServiceProvider();
 
-        // MiniValidator setup
+        // MiniValidator setup - uses centralized ValidationPipelineBehavior
         var miniValidatorServices = new ServiceCollection();
         miniValidatorServices.AddEncina();
-        miniValidatorServices.AddTransient<MiniValidationBehavior<MiniValidatorCommand, Guid>>();
-        miniValidatorServices.AddTransient<IPipelineBehavior<MiniValidatorCommand, Guid>>(sp =>
-            sp.GetRequiredService<MiniValidationBehavior<MiniValidatorCommand, Guid>>());
+        miniValidatorServices.AddMiniValidation();
         miniValidatorServices.AddTransient<ICommandHandler<MiniValidatorCommand, Guid>, MiniValidatorCommandHandler>();
         _miniValidatorProvider = miniValidatorServices.BuildServiceProvider();
 

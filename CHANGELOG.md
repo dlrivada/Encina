@@ -9,7 +9,150 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Encina.DomainModeling Package** - DDD tactical pattern building blocks (Issues #367, #369, #374):
+  - `Entity<TId>` - Base class for entities with identity-based equality
+  - `ValueObject` - Base class for value objects with structural equality
+  - `SingleValueObject<TValue>` - Wrapper for single-value primitives with implicit conversion
+  - `StronglyTypedId<TValue>` - Base class for type-safe identifiers with comparison and equality
+  - `GuidStronglyTypedId<TSelf>` - GUID-based strongly typed IDs with `New()`, `From()`, `TryParse()`, `Empty`
+  - `IntStronglyTypedId<TSelf>`, `LongStronglyTypedId<TSelf>`, `StringStronglyTypedId<TSelf>` - Numeric and string IDs
+  - `AggregateRoot<TId>` - Base class for aggregate roots with domain event support
+  - `AuditableAggregateRoot<TId>` - Aggregate with `CreatedAtUtc`, `CreatedBy`, `ModifiedAtUtc`, `ModifiedBy`
+  - `SoftDeletableAggregateRoot<TId>` - Aggregate with soft delete (`IsDeleted`, `DeletedAtUtc`, `DeletedBy`)
+  - `DomainEvent` and `RichDomainEvent` - Base records for domain events with correlation/causation tracking
+  - `IntegrationEvent` - Base record for cross-boundary events with versioning
+  - `IDomainEventToIntegrationEventMapper<TDomain, TIntegration>` - Anti-corruption layer mapper interface
+  - Auditing interfaces: `IAuditable`, `ISoftDeletable`, `IConcurrencyAware`, `IVersioned`
+
+- **Specification Pattern** (Issue #295) - Query composition and encapsulation:
+  - `Specification<T>` - Base class with `And()`, `Or()`, `Not()` composition
+  - `QuerySpecification<T>` - Extended specification with includes, ordering, paging, tracking options
+  - `QuerySpecification<T, TResult>` - Specification with projection support via `Selector`
+  - Expression tree composition for LINQ provider compatibility
+  - Implicit conversion to `Expression<Func<T, bool>>`
+
+- **Business Rules Pattern** (Issue #372) - Domain invariant validation:
+  - `IBusinessRule` interface with `ErrorCode`, `ErrorMessage`, `IsSatisfied()`
+  - `BusinessRule` abstract base class
+  - `BusinessRuleViolationException` for throw-based validation
+  - `BusinessRuleError` and `AggregateBusinessRuleError` records for ROP
+  - `BusinessRuleExtensions`: `Check()`, `CheckFirst()`, `CheckAll()`, `ThrowIfNotSatisfied()`, `ThrowIfAnyNotSatisfied()`
+
+- **Domain Service Marker** (Issue #377) - Semantic clarity:
+  - `IDomainService` marker interface for domain services identification
+
+- **Anti-Corruption Layer Pattern** (Issue #299) - Bounded context translation:
+  - `TranslationError` record with factory methods (`UnsupportedType`, `MissingRequiredField`, `InvalidFormat`)
+  - `IAntiCorruptionLayer<TExternal, TInternal>` sync interface
+  - `IAsyncAntiCorruptionLayer<TExternal, TInternal>` async variant
+  - `AntiCorruptionLayerBase<TExternal, TInternal>` with helper methods
+
+- **Result Pattern Extensions** (Issue #468) - Fluent API for Either type:
+  - Combination: `Combine()` for 2/3/4 values and collections
+  - Conditional: `When()`, `Ensure()`, `OrElse()`, `GetOrDefault()`, `GetOrElse()`
+  - Side effects: `Tap()`, `TapError()`
+  - Async: `BindAsync()`, `MapAsync()`, `TapAsync()` (for Task<Either> and Either)
+  - Conversion: `ToOption()`, `ToEither()` (from Option), `GetOrThrow()`
+
+- **Rich Domain Event Envelope** (Issue #368) - Extended domain event metadata:
+  - `IDomainEventMetadata` interface with `CorrelationId`, `CausationId`, `UserId`, `TenantId`, `AdditionalMetadata`
+  - `DomainEventMetadata` record with factory methods (`Empty`, `WithCorrelation`, `WithCausation`)
+  - `DomainEventEnvelope<TEvent>` - Wraps events with metadata, envelope ID, and timestamp
+  - `DomainEventExtensions` - Fluent API: `ToEnvelope()`, `WithMetadata()`, `WithCorrelation()`, `Map()`
+
+- **Integration Event Extensions** (Issue #373) - Cross-context event mapping:
+  - `IAsyncDomainEventToIntegrationEventMapper<TDomain, TIntegration>` - Async mapper interface
+  - `IFallibleDomainEventToIntegrationEventMapper<TDomain, TIntegration, TError>` - ROP mapper with Either
+  - `IIntegrationEventPublisher` - Publisher interface with `PublishAsync()`, `PublishManyAsync()`
+  - `IFallibleIntegrationEventPublisher<TError>` - ROP publisher variant
+  - `IntegrationEventMappingError` and `IntegrationEventPublishError` - Structured error types
+  - `IntegrationEventMappingExtensions` - `MapTo()`, `MapToAsync()`, `MapAll()`, `TryMapTo()`, `Compose()`
+
+- **Generic Repository Pattern** (Issue #380) - Provider-agnostic data access:
+  - `IReadOnlyRepository<TEntity, TId>` - Query operations with Specification support
+  - `IRepository<TEntity, TId>` - Full CRUD operations extending read-only
+  - `IAggregateRepository<TAggregate, TId>` - Aggregate-specific with `SaveAsync()`
+  - `PagedResult<T>` - Pagination with `TotalPages`, `HasPreviousPage`, `HasNextPage`, `Map()`
+  - `RepositoryError` - Error types (`NotFound`, `AlreadyExists`, `ConcurrencyConflict`, `OperationFailed`)
+  - `RepositoryExtensions` - `GetByIdOrErrorAsync()`, `GetByIdOrThrowAsync()`, `AddIfNotExistsAsync()`, `UpdateIfExistsAsync()`
+  - `EntityNotFoundException` - Exception for entity lookup failures
+
+- **Ports & Adapters Factory Pattern** (Issue #475) - Hexagonal Architecture support:
+  - `IPort`, `IInboundPort`, `IOutboundPort` - Port marker interfaces
+  - `IAdapter<TPort>` - Adapter marker interface with port constraint
+  - `AdapterBase<TPort>` - Base class with `Execute()`, `ExecuteAsync()` for error handling
+  - `AdapterError` - Error types (`OperationFailed`, `Cancelled`, `NotFound`, `CommunicationFailed`, `ExternalError`)
+  - `PortRegistrationExtensions` - DI registration: `AddPort<TPort, TAdapter>()`, `AddPortsFromAssembly()`
+
+- **Result/DTO Mapping with ROP Semantics** (Issue #478) - Domain-to-DTO mapping:
+  - `IResultMapper<TDomain, TDto>` - Sync mapper returning `Either<MappingError, TDto>`
+  - `IAsyncResultMapper<TDomain, TDto>` - Async mapper variant
+  - `IBidirectionalMapper<TDomain, TDto>` - Two-way mapping with `MapToDomain()`
+  - `IAsyncBidirectionalMapper<TDomain, TDto>` - Async bidirectional variant
+  - `MappingError` - Error types (`NullProperty`, `ValidationFailed`, `ConversionFailed`, `EmptyCollection`)
+  - `ResultMapperExtensions` - `MapAll()`, `MapAllCollectErrors()`, `TryMap()`, `Compose()`
+  - `ResultMapperRegistrationExtensions` - `AddResultMapper()`, `AddResultMappersFromAssembly()`
+
+- **Application Services Interface** (Issue #479) - Use case orchestration:
+  - `IApplicationService` - Marker interface for application services
+  - `IApplicationService<TInput, TOutput>` - Typed service with `ExecuteAsync()`
+  - `IApplicationService<TOutput>` - Parameterless service for scheduled tasks
+  - `IVoidApplicationService<TInput>` - Service returning `Unit` on success
+  - `ApplicationServiceError` - Error types (`NotFound`, `ValidationFailed`, `BusinessRuleViolation`, `ConcurrencyConflict`, `InfrastructureFailure`, `Unauthorized`)
+  - `ApplicationServiceExtensions` - `ToApplicationServiceError()` for error conversion
+  - `ApplicationServiceRegistrationExtensions` - `AddApplicationService()`, `AddApplicationServicesFromAssembly()`
+
+- **Bounded Context Patterns** (Issues #379, #477) - Strategic DDD support:
+  - `BoundedContextAttribute` - Mark types with bounded context membership
+  - `ContextMap` - Document relationships between contexts with fluent API
+  - `ContextRelationship` enum - Conformist, ACL, SharedKernel, CustomerSupplier, PublishedLanguage, SeparateWays, Partnership, OpenHost
+  - `ContextRelation` record - Stores upstream/downstream context with relationship type
+  - `BoundedContextModule` abstract class - Modular monolith module base with DI configuration
+  - `IBoundedContextModule` interface - Module contract with `Name`, `Dependencies`, `ConfigureServices()`
+  - `BoundedContextValidator` - Validate circular dependencies and orphaned consumers
+  - `BoundedContextError` - Error types (`OrphanedConsumer`, `CircularDependency`, `ValidationFailed`)
+  - `BoundedContextExtensions` - `GetBoundedContextName()`, `AddBoundedContextModules()`, `ValidateBoundedContexts()`
+  - Mermaid diagram generation via `ToMermaidDiagram()`
+
+- **Domain Language DSL** (Issue #381) - Fluent domain building:
+  - `DomainBuilder<T, TBuilder>` - CRTP fluent builder with ROP
+  - `AggregateBuilder<TAggregate, TId, TBuilder>` - Aggregate builder with business rule validation
+  - `DomainBuilderError` - Error types (`MissingValue`, `ValidationFailed`, `BusinessRulesViolated`, `InvalidState`)
+  - `DomainDslExtensions` - Fluent specification checks: `Is()`, `Satisfies()`, `Violates()`, `Passes()`, `Fails()`
+  - Fluent validation: `EnsureValid()`, `EnsureNotNull()`, `EnsureNotEmpty()` returning Either
+  - **Common Domain Types**:
+    - `Quantity` struct - Non-negative quantity with arithmetic operators
+    - `Percentage` struct - 0-100 percentage with `ApplyTo()`, `AsFraction`, `Complement`
+    - `DateRange` struct - Date range with `Contains()`, `Overlaps()`, `Intersect()`, `ExtendBy()`
+    - `TimeRange` struct - Time range with `Duration`, `Contains()`, `Overlaps()`
+
+- **Vertical Slice + Hexagonal Hybrid Architecture** (Issue #476) - Feature slices:
+  - `FeatureSlice` abstract class - Base for vertical slices with `FeatureName`, `ConfigureServices()`
+  - `IFeatureSliceWithEndpoints` - Slices with HTTP endpoint configuration
+  - `IFeatureSliceWithDependencies` - Slices with explicit inter-slice dependencies
+  - `SliceDependency` record - Represents dependency on another slice (optional flag)
+  - `FeatureSliceConfiguration` - Fluent configuration: `AddSlice<T>()`, `AddSlicesFromAssembly()`
+  - `FeatureSliceExtensions` - `AddFeatureSlices()`, `AddFeatureSlice<T>()`, `GetFeatureSlices()`, `GetFeatureSlice()`
+  - `FeatureSliceError` - Error types (`MissingDependency`, `CircularDependency`, `RegistrationFailed`)
+  - **Use Case Handlers**:
+    - `IUseCaseHandler` marker interface
+    - `IUseCaseHandler<TInput, TOutput>` - Handler with input and output
+    - `IUseCaseHandler<TInput>` - Command handler (void output)
+    - `UseCaseHandlerExtensions` - `AddUseCaseHandler<T>()`, `AddUseCaseHandlersFromAssembly()`
+
+- Comprehensive test coverage: 175 unit tests, 275 property tests, 531 contract tests, 80 guard tests (1061 total)
+
 ### Changed
+
+- **Validation Architecture Consolidation** (Issue #229) - Remove duplicate validation behaviors:
+  - **BREAKING**: Removed `Encina.FluentValidation.ValidationPipelineBehavior<TRequest, TResponse>` (use centralized `Encina.Validation.ValidationPipelineBehavior<,>`)
+  - **BREAKING**: Removed `Encina.DataAnnotations.DataAnnotationsValidationBehavior<TRequest, TResponse>` (use centralized behavior)
+  - **BREAKING**: Removed `Encina.MiniValidator.MiniValidationBehavior<TRequest, TResponse>` (use centralized behavior)
+  - All validation now goes through `ValidationOrchestrator` + provider-specific `IValidationProvider`
+  - DRY: Single `ValidationPipelineBehavior` in `Encina.Validation` namespace
+  - Consistent error handling across all validation providers
 
 - **Milestone Reorganization**: Phase 2 (364 issues) split into 10 incremental milestones:
   - v0.10.0 — DDD Foundations (31 issues)
