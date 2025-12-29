@@ -11,6 +11,2222 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- AI/LLM Patterns Issues (12 new features planned based on December 29, 2025 research):
+  - **MCP (Model Context Protocol) Support** (Issue #481) - MCP server/client integration
+    - `MCPServerBuilder` for creating MCP servers in C#
+    - `MCPClientBehavior` for consuming external MCP tools
+    - Native integration with `IEncina` - expose handlers as AI tools
+    - SSE and HTTP transports
+    - Azure Functions support for remote MCP servers
+    - Priority: HIGH - Industry standard adopted by OpenAI, Anthropic, Microsoft
+  - **Semantic Caching Pipeline Behavior** (Issue #482) - Embedding-based cache
+    - `SemanticCachingPipelineBehavior<TRequest, TResponse>`
+    - `ISemanticCacheProvider` abstraction with Redis, Qdrant providers
+    - Similarity threshold configurable (default 0.95)
+    - Reduces LLM costs by 40-70%, latency from 850ms to <120ms
+    - New packages planned: `Encina.AI.Caching.Redis`, `Encina.AI.Caching.Qdrant`
+    - Priority: HIGH - Major cost reduction
+  - **AI Guardrails & Safety Pipeline** (Issue #483) - Security for AI applications
+    - `PromptInjectionDetectionBehavior` - OWASP #1 threat for LLMs
+    - `PIIDetectionBehavior` - Detect and redact sensitive data
+    - `ContentModerationBehavior` - Filter harmful content
+    - `IGuardrailProvider` abstraction with Azure Prompt Shields, AWS Bedrock, OpenGuardrails
+    - Configurable actions: Block, Warn, Log, Redact
+    - New package planned: `Encina.AI.Safety`
+    - Priority: HIGH - Essential for production AI
+  - **RAG Pipeline Patterns** (Issue #484) - Retrieval-Augmented Generation
+    - `IRagPipeline<TQuery, TResponse>` abstraction
+    - Query rewriting (multi-query, HyDE), chunk retrieval, re-ranking
+    - Hybrid search (keyword + semantic)
+    - Agentic RAG with query planning
+    - Citation/source tracking
+    - New package planned: `Encina.AI.RAG`
+    - Priority: HIGH - Most demanded LLM pattern
+  - **Token Budget & Cost Management** (Issue #485) - LLM cost control
+    - `TokenBudgetPipelineBehavior<TRequest, TResponse>`
+    - `ITokenBudgetStore` with Redis/SQL providers
+    - Per-user/tenant/request type limits
+    - Cost estimation and reporting
+    - Automatic fallback to cheaper models
+    - Priority: MEDIUM - Enterprise cost control
+  - **LLM Observability Integration** (Issue #486) - AI-specific metrics
+    - Enhancement to `Encina.OpenTelemetry`
+    - `LLMActivityEnricher` with GenAI semantic conventions
+    - Token usage metrics (input/output/cached/reasoning)
+    - Time to first token (TTFT) measurement
+    - Cost attribution per model/user/tenant
+    - Integration with Langfuse, Datadog LLM Observability
+    - Priority: HIGH - Production monitoring
+  - **Multi-Agent Orchestration Patterns** (Issue #487) - AI agent workflows
+    - `IAgent` and `IAgentHandler<TRequest, TResponse>` interfaces
+    - Orchestration patterns: Sequential, Concurrent, Handoff, GroupChat, Magentic
+    - `IAgentSelector` for dynamic routing
+    - Human-in-the-Loop (HITL) support
+    - Cross-language agents via MCP
+    - Semantic Kernel adapter: `SemanticKernelAgentAdapter`
+    - New package planned: `Encina.Agents`
+    - Priority: MEDIUM - Microsoft Agent Framework
+  - **Structured Output Handler** (Issue #488) - JSON schema enforcement
+    - `IStructuredOutputHandler<TRequest, TOutput>` interface
+    - `IJsonSchemaGenerator` with System.Text.Json support
+    - Response validation with retry on failure
+    - Fallback parsing for edge cases
+    - Priority: MEDIUM - Schema guarantees
+  - **Function Calling Orchestration** (Issue #489) - LLM tool use
+    - `IFunctionCallingOrchestrator` interface
+    - `[AIFunction]` attribute for handler decoration
+    - Auto/Manual/Confirm invocation modes
+    - Parallel function calls support
+    - Semantic Kernel plugin adapter: `EncinaPluginAdapter`
+    - Priority: MEDIUM - Native LLM feature
+  - **Vector Store Abstraction** (Issue #490) - Embedding storage
+    - `IVectorStore` and `IVectorRecord` abstractions
+    - Integration with `IEmbeddingGenerator` (Microsoft.Extensions.AI)
+    - Metadata filtering, hybrid search, batch operations
+    - New packages planned: `Encina.VectorData`, `Encina.VectorData.Qdrant`, `Encina.VectorData.AzureSearch`, `Encina.VectorData.Milvus`, `Encina.VectorData.Chroma`, `Encina.VectorData.InMemory`
+    - Priority: HIGH - Foundation for RAG and Semantic Cache
+  - **Prompt Management & Versioning** (Issue #491) - Enterprise prompt governance
+    - `IPromptRepository` and `IPromptTemplateEngine`
+    - Versioned prompt templates with A/B testing
+    - Prompt analytics and performance tracking
+    - Storage providers: FileSystem (YAML/JSON), Database, Git
+    - Priority: LOW - Enterprise governance
+  - **AI Streaming Pipeline Enhancement** (Issue #492) - Token-level streaming
+    - `IAIStreamRequest<TChunk>` and `TokenChunk` types
+    - `BackpressureStreamBehavior` for slow consumers
+    - SSE endpoint helper in `Encina.AspNetCore`
+    - Time to first token (TTFT) measurement
+    - Integration with `IChatClient.CompleteStreamingAsync`
+    - Priority: MEDIUM - UX enhancement
+
+- Hexagonal Architecture Patterns Issues (10 new features planned based on December 29, 2025 research):
+  - **Domain Events vs Integration Events** (Issue #470) - Formal separation between domain events and integration events
+    - `DomainEvent` base class with AggregateId, OccurredAtUtc, Version
+    - `IntegrationEvent` base class extending INotification with EventType, CorrelationId
+    - `IDomainEventHandler<TEvent>` for in-process synchronous processing
+    - Integration with existing Outbox pattern for integration event publishing
+    - Priority: CRITICAL - Foundational for DDD/microservices
+  - **Specification Pattern** (Issue #471) - Composable, testable query encapsulation
+    - `Specification<T>` and `Specification<T, TResult>` base classes
+    - `ISpecificationRepository<T>` with EF Core and Dapper support
+    - And/Or/Not composition operators
+    - New packages planned: `Encina.Specifications`, `Encina.Specifications.EFCore`
+    - Priority: CRITICAL - High demand (~9M downloads for Ardalis.Specification)
+  - **Value Objects & Aggregates** (Issue #472) - DDD building blocks
+    - `ValueObject` with structural equality
+    - `StronglyTypedId<T>` for type-safe identifiers
+    - `Entity<TId>` for non-root entities
+    - `AggregateRoot<TId>` with domain events and version for concurrency
+    - New package planned: `Encina.DDD`
+    - Priority: CRITICAL - Core DDD patterns
+  - **Domain Services** (Issue #473) - IDomainService marker interface
+    - Pure domain logic without infrastructure dependencies
+    - Auto-registration via `AddDomainServicesFromAssembly()`
+    - Priority: HIGH - Complements handlers with domain logic
+  - **Anti-Corruption Layer** (Issue #474) - External system isolation
+    - `IAntiCorruptionLayer<TExternal, TDomain>` bidirectional interface
+    - `IInboundAntiCorruptionLayer` and `IOutboundAntiCorruptionLayer`
+    - ROP semantics for all translations
+    - New package planned: `Encina.Hexagonal`
+    - Priority: HIGH - Essential for integrations
+  - **Ports & Adapters Factory** (Issue #475) - Hexagonal architecture formalization
+    - `IPort`, `IInboundPort`, `IOutboundPort` marker interfaces
+    - `AddPort<TPort, TAdapter>()` registration method
+    - `AdapterBase<TPort>` with logging and error handling
+    - Priority: HIGH - Formalizes hexagonal boundaries
+  - **Vertical Slice + Hexagonal Hybrid** (Issue #476) - Feature organization
+    - `IFeatureSlice` extending `IModule`
+    - `MapEncinaSlices()` for endpoint mapping
+    - Combines vertical slice organization with hexagonal boundaries
+    - Priority: MEDIUM - Architectural guidance
+  - **Bounded Context Modules** (Issue #477) - Module boundary contracts
+    - `IBoundedContextModule` with PublishedIntegrationEvents and ConsumedIntegrationEvents
+    - `IContextMap` for relationship visualization
+    - Mermaid diagram generation
+    - Priority: MEDIUM - SaaS and modular monolith support
+  - **Result/DTO Mapping** (Issue #478) - Domain to DTO with ROP
+    - `IResultMapper<TDomain, TDto>` interface
+    - `IAsyncResultMapper<TDomain, TDto>` for async mappings
+    - `MapAll()` and `MapAllCollectErrors()` extensions
+    - Priority: MEDIUM
+  - **Application Services** (Issue #479) - Use case orchestration
+    - `IApplicationService<TInput, TOutput>` interface
+    - Clear separation from Domain Services (logic vs orchestration)
+    - Priority: MEDIUM
+
+- New labels created for Hexagonal Architecture Patterns:
+  - `area-application-services` - Application Services and use case orchestration (#2E8B57)
+  - `area-ports-adapters` - Ports and Adapters (Hexagonal Architecture) patterns (#4169E1)
+  - `area-hexagonal` - Hexagonal Architecture patterns and infrastructure (#6A5ACD)
+  - `area-dto-mapping` - DTO mapping and object transformation patterns (#9370DB)
+  - `clean-architecture` - Clean Architecture patterns and structure (#32CD32)
+  - `abp-inspired` - Pattern inspired by ABP Framework (#FF6B6B)
+  - `ardalis-inspired` - Pattern inspired by Steve Smith (Ardalis) libraries (#FF8C00)
+
+- TDD Patterns Issues (12 new features planned based on December 29, 2025 research):
+  - **Encina.Testing.Fakes** (Issue #426) - Test doubles for IEncina and messaging stores
+    - `FakeEncina : IEncina` with configurable handlers
+    - `FakeOutboxStore`, `FakeInboxStore`, `FakeSagaStore`, `FakeScheduledMessageStore`
+    - Verification methods: `VerifySent<T>()`, `VerifyPublished<T>()`
+    - New package planned: `Encina.Testing.Fakes`
+    - Priority: HIGH - Foundational for unit testing
+  - **Encina.Testing.Respawn** (Issue #427) - Intelligent database reset with Respawn
+    - `RespawnDatabaseFixture<TContainer>` base class
+    - FK-aware deterministic deletion (3x faster than truncate)
+    - Integration with existing Testcontainers fixtures
+    - New package planned: `Encina.Testing.Respawn`
+    - Priority: HIGH - Essential for integration testing
+  - **Encina.Testing.WireMock** (Issue #428) - HTTP API mocking for integration tests
+    - `EncinaWireMockFixture` with fluent stubbing API
+    - Fault simulation for resilience testing
+    - New package planned: `Encina.Testing.WireMock`
+    - Priority: HIGH - External API testing
+  - **Encina.Testing.Shouldly** (Issue #429) - Open-source assertions (FluentAssertions alternative)
+    - `ShouldBeSuccess()`, `ShouldBeError()` for `Either<EncinaError, T>`
+    - Replaces FluentAssertions after commercial license change (Jan 2025)
+    - New package planned: `Encina.Testing.Shouldly`
+    - Priority: HIGH - Open-source assertion library
+  - **Encina.Testing.Verify** (Issue #430) - Snapshot testing integration
+    - `VerifyEither()`, `VerifyUncommittedEvents()`, `VerifySagaState()`
+    - Automatic scrubbers for timestamps and GUIDs
+    - New package planned: `Encina.Testing.Verify`
+    - Priority: MEDIUM
+  - **Encina.Testing.Bogus** (Issue #431) - Realistic test data generation
+    - `EncinaFaker<TRequest>` base class with conventions
+    - Pre-built fakers for messaging entities
+    - New package planned: `Encina.Testing.Bogus`
+    - Priority: MEDIUM
+  - **Encina.Testing.Architecture** (Issue #432) - Architectural rules enforcement
+    - `EncinaArchitectureRules` with CQRS/DDD rules
+    - ArchUnitNET integration
+    - New package planned: `Encina.Testing.Architecture`
+    - Priority: MEDIUM
+  - **FakeTimeProvider** (Issue #433) - Time control for testing
+    - `FakeTimeProvider : TimeProvider` (.NET 8+ compatible)
+    - `Advance()`, `SetUtcNow()`, `Freeze()` methods
+    - Priority: MEDIUM - Added to Encina.Testing core
+  - **BDD Specification Testing** (Issue #434) - Given/When/Then for handlers
+    - `HandlerSpecification<TRequest, TResponse>` base class
+    - Extension of existing `AggregateTestBase` pattern
+    - Priority: LOW
+  - **Encina.Testing.FsCheck** (Issue #435) - Property-based testing extensions
+    - `EncinaArbitraries` for Encina types
+    - `EncinaProperties` for common invariants
+    - New package planned: `Encina.Testing.FsCheck`
+    - Priority: LOW - Advanced testing
+  - **Encina.Testing.Pact** (Issue #436) - Consumer-Driven Contract Testing
+    - `EncinaPactConsumerBuilder`, `EncinaPactProviderVerifier`
+    - Microservices contract verification
+    - New package planned: `Encina.Testing.Pact`
+    - Priority: LOW - Microservices focus
+  - **Stryker.NET Configuration** (Issue #437) - Mutation testing templates
+    - `stryker-config.json` templates
+    - GitHub Actions and Azure DevOps workflows
+    - `encina generate stryker` CLI command
+    - Priority: LOW - Quality tooling
+
+- New labels created for TDD Patterns:
+  - `testing-property-based` - Property-based testing and invariant verification (#9B59B6)
+  - `testing-contract` - Contract testing and consumer-driven contracts (#8E44AD)
+  - `testing-bdd` - Behavior-driven development and Given/When/Then patterns (#A569BD)
+  - `testing-time-control` - Time manipulation and FakeTimeProvider for testing (#7D3C98)
+  - `testing-assertions` - Assertion libraries and fluent assertions (#6C3483)
+  - `testing-database-reset` - Database cleanup and reset between tests (#5B2C6F)
+
+- Developer Tooling & DX Issues (11 new features planned based on December 29, 2025 research):
+  - **Encina.Analyzers** (Issue #438) - Roslyn analyzers and code fixes
+    - 10+ analyzers: ENC001 (CancellationToken), ENC002 (Validator missing), ENC003 (Saga compensation)
+    - Code fixes: generate handler skeleton, add CancellationToken, implement IIdempotentRequest
+    - Compatible with NativeAOT and Source Generators
+    - New package planned: `Encina.Analyzers`
+    - Priority: HIGH - Compile-time error detection
+  - **Saga Visualizer** (Issue #439) - State machine diagram generation
+    - Generate Mermaid, Graphviz (DOT), PlantUML from saga definitions
+    - Runtime visualization with current state highlighted
+    - CLI: `encina visualize saga OrderFulfillmentSaga --output mermaid`
+    - Priority: MEDIUM - Documentation and debugging
+  - **Encina.Aspire** (Issue #440) - .NET Aspire integration package
+    - `EncinaResource` as first-class Aspire resource
+    - Dashboard panel for Outbox, Inbox, Sagas
+    - Health checks and OTLP pre-configured
+    - New packages planned: `Encina.Aspire`, `Encina.Aspire.Hosting`
+    - Priority: HIGH - Modern .NET stack integration
+  - **Encina.Diagnostics** (Issue #441) - Enhanced exception formatting
+    - Pretty-print for `EncinaError` with box-drawing characters
+    - Demystified stack traces (Ben.Demystifier-inspired)
+    - Validation errors grouped by property
+    - ANSI colors with plain text fallback
+    - New package planned: `Encina.Diagnostics`
+    - Priority: MEDIUM - Developer experience
+  - **Hot Reload Support** (Issue #442) - Handler hot reload
+    - Integration with `MetadataUpdateHandler.ClearCache`
+    - Automatic pipeline cache invalidation
+    - Development-only (no production impact)
+    - Priority: MEDIUM - Inner loop improvement
+  - **AI-Ready Request Tracing** (Issue #443) - Request/response capture
+    - Automatic serialization with PII redaction
+    - `[Trace]` attribute with RedactProperties
+    - AI-compatible export format
+    - Sampling strategies (errors always, slow requests, random)
+    - Priority: MEDIUM - Modern debugging
+  - **Enhanced Testing Fixtures** (Issue #444) - Testing improvements
+    - `EncinaTestFixture` with fluent builder
+    - Either assertions: `ShouldBeSuccess()`, `ShouldBeError()`
+    - Time-travel for sagas: `AdvanceTimeBy()`
+    - Outbox/Inbox assertions: `OutboxShouldContain<T>()`
+    - Priority: MEDIUM - Testing DX
+  - **Encina.Dashboard** (Issue #445) - Developer dashboard web UI
+    - Local web UI for debugging (Hangfire Dashboard-style)
+    - Panels: Handlers, Pipeline, Outbox, Inbox, Sagas, Cache, Errors
+    - Real-time updates via SignalR
+    - Actions: Retry Outbox, Cancel Saga, Invalidate Cache
+    - New package planned: `Encina.Dashboard`
+    - Priority: HIGH - Development visibility
+  - **Encina.OpenApi** (Issue #446) - OpenAPI integration
+    - Auto-generate OpenAPI spec from Commands/Queries
+    - `app.MapEncinaEndpoints()` for endpoint generation
+    - FluentValidation constraints in schema
+    - OpenAPI 3.1 support (.NET 10)
+    - New package planned: `Encina.OpenApi`
+    - Priority: MEDIUM - API-first development
+  - **Dev Containers Support** (Issue #447) - Container development
+    - `.devcontainer/` configuration
+    - GitHub Codespaces support
+    - Docker Compose with Postgres, Redis, RabbitMQ
+    - CLI: `encina add devcontainer --services postgres,redis`
+    - Priority: LOW - Developer onboarding
+  - **Interactive Documentation** (Issue #448) - Documentation site
+    - Docusaurus or DocFX site
+    - Playground with executable code
+    - API reference from XML docs
+    - Versioned documentation
+    - Priority: LOW - Community growth
+
+- New labels created for Developer Tooling:
+  - `area-analyzers` - Roslyn analyzers and code fixes (#5C2D91)
+  - `area-visualization` - Visualization and diagram generation (#9B59B6)
+  - `area-dashboard` - Developer dashboard and monitoring UI (#E74C3C)
+  - `area-diagnostics` - Diagnostics, error formatting, and debugging aids (#E67E22)
+  - `area-devcontainers` - Dev Containers and Codespaces support (#0DB7ED)
+  - `area-documentation-site` - Documentation website and interactive docs (#3498DB)
+
+- .NET Aspire Integration Patterns Issues (10 new features planned based on December 29, 2025 research):
+  - **Encina.Aspire.Hosting** (Issue #416) - AppHost integration package
+    - `WithEncina()` extension method for `IResourceBuilder<ProjectResource>`
+    - Custom `EncinaResource` for Dashboard visibility
+    - Configuration propagation via environment variables
+    - Custom commands: Process Outbox, Retry Dead Letters, Cancel Saga
+    - New package planned: `Encina.Aspire.Hosting`
+    - Priority: MEDIUM - Foundational for Aspire integration
+  - **Encina.Aspire.ServiceDefaults** (Issue #417) - Service Defaults extension
+    - `AddEncinaDefaults()` for `IHostApplicationBuilder`
+    - OpenTelemetry integration (tracing + metrics)
+    - Health checks for all messaging patterns
+    - Standard Resilience pipeline integration
+    - New package planned: `Encina.Aspire.ServiceDefaults`
+    - Priority: HIGH - Centralizes cross-cutting concerns
+  - **Encina.Aspire.Testing** (Issue #418) - Testing integration
+    - `WithEncinaTestSupport()` for `DistributedApplicationTestingBuilder`
+    - Assertion extensions: `AssertOutboxContains<T>()`, `AssertSagaCompleted<T>()`
+    - Test data reset helpers (clear outbox, inbox, sagas)
+    - Wait helpers: `WaitForOutboxProcessing()`, `WaitForSagaCompletion()`
+    - New package planned: `Encina.Aspire.Testing`
+    - Priority: HIGH - "Largest gap" per official Aspire roadmap
+  - **Encina.Aspire.Dashboard** (Issue #419) - Dashboard extensions
+    - Custom commands via `WithCommand()` API
+    - Encina-specific metrics visibility
+    - Commands: `process-outbox`, `retry-dead-letters`, `cancel-saga`
+    - New package planned: `Encina.Aspire.Dashboard`
+    - Priority: MEDIUM - Improves observability
+  - **Encina.Dapr** (Issue #420) - Dapr building blocks integration
+    - Dapr State Store for Saga/Scheduling state
+    - Dapr Pub/Sub for Outbox publishing
+    - Dapr Service Invocation for inter-service commands
+    - Dapr Actors for saga orchestration (optional)
+    - New package planned: `Encina.Dapr`
+    - Priority: MEDIUM - CNCF graduated, high demand
+  - **Encina.Aspire.Deployment** (Issue #421) - Deployment publishers
+    - Azure Container Apps publisher with Encina infrastructure
+    - Kubernetes manifests generation
+    - Docker Compose environment support
+    - KEDA scaling rules for processors
+    - New package planned: `Encina.Aspire.Deployment`
+    - Priority: LOW - azd already automates much
+  - **Encina.Aspire.AI** (Issue #422) - AI Agent & MCP Server support
+    - MCP Server to expose Encina state to AI agents
+    - Tools: `analyze_saga_failure`, `retry_dead_letter`
+    - Azure AI Foundry integration
+    - Dashboard Copilot integration
+    - New package planned: `Encina.Aspire.AI`
+    - Priority: LOW - Roadmap 2026
+  - **Modular Monolith Architecture Support** (Issue #423)
+    - `IEncinaModule` interface with lifecycle hooks
+    - `WithEncinaModules()` for AppHost
+    - Inter-module communication via Encina messaging
+    - Module isolation with separate DbContexts
+    - Priority: MEDIUM - Trending architecture 2025
+  - **Multi-Repo Support** (Issue #424)
+    - `AddEncinaExternalService()` for services in other repos
+    - Service discovery: Kubernetes, Consul, DNS
+    - Shared message broker configuration
+    - Contract-first approach
+    - Priority: MEDIUM - Enterprise demand
+  - **Hot Reload Support** (Issue #425)
+    - Hot reload of handlers during development
+    - Integration with `MetadataUpdateHandler`
+    - State preservation (outbox, inbox, sagas)
+    - Dashboard indication during reload
+    - Priority: MEDIUM - Developer experience
+
+- New labels created for Aspire integration:
+  - `area-aspire` - Aspire hosting, orchestration, and deployment (#512BD4)
+  - `area-mcp` - Model Context Protocol and AI agent integration (#8B5CF6)
+  - `area-hot-reload` - Hot reload and live code updates (#F59E0B)
+
+- Cloud-Native Patterns Issues (11 new features planned based on December 29, 2025 research):
+  - **Encina.Aspire** (Issue #449) - .NET Aspire integration
+    - `AddEncinaAspireDefaults()` extension method
+    - Service Discovery integration for distributed handlers
+    - OpenTelemetry pre-configured for Encina pipeline
+    - Health checks for Outbox, Inbox, Sagas
+    - Aspire Dashboard integration
+    - New package planned: `Encina.Aspire`
+    - Priority: HIGH - Official Microsoft cloud-native stack
+  - **Encina.Dapr** (Issue #450) - Dapr Building Blocks integration
+    - `DaprSagaStore`, `DaprOutboxStore`, `DaprInboxStore` via Dapr State API
+    - `DaprOutboxPublisher` via Dapr Pub/Sub
+    - `DaprDistributedLockProvider` via Dapr Lock API
+    - Secrets injection via `[DaprSecret]` attribute
+    - Cloud-agnostic: same code on AWS, Azure, GCP, on-prem
+    - New package planned: `Encina.Dapr`
+    - Priority: HIGH - CNCF graduated, multi-cloud demand
+  - **Encina.FeatureFlags** (Issue #451) - Feature flags abstraction
+    - `IFeatureFlagProvider` abstraction
+    - `[Feature("key")]` attribute for handler injection
+    - `FeatureFlagInjectionBehavior` pipeline behavior
+    - Providers: ConfigCat, LaunchDarkly, Azure App Configuration, OpenFeature
+    - New packages planned: `Encina.FeatureFlags`, `Encina.FeatureFlags.ConfigCat`, `Encina.FeatureFlags.LaunchDarkly`, `Encina.FeatureFlags.OpenFeature`
+    - Priority: MEDIUM - Progressive deployment enabler
+  - **Encina.Secrets** (Issue #452) - Secrets management abstraction
+    - `ISecretsProvider` abstraction
+    - `[Secret("key")]` attribute for DI injection
+    - Secret rotation monitoring (optional)
+    - Providers: Azure Key Vault, AWS Secrets Manager, HashiCorp Vault
+    - New packages planned: `Encina.Secrets`, `Encina.Secrets.AzureKeyVault`, `Encina.Secrets.AwsSecretsManager`, `Encina.Secrets.HashiCorpVault`
+    - Priority: MEDIUM - Security best practice
+  - **Encina.ServiceDiscovery** (Issue #453) - Service discovery abstraction
+    - `IServiceDiscoveryProvider` abstraction
+    - Load balancing strategies: RoundRobin, Random, LeastConnections
+    - `IEncina.SendToService<>()` extension methods
+    - Providers: Kubernetes DNS, Consul, Aspire
+    - New packages planned: `Encina.ServiceDiscovery`, `Encina.ServiceDiscovery.Kubernetes`, `Encina.ServiceDiscovery.Consul`
+    - Priority: MEDIUM - Microservices fundamental
+  - **Encina.HealthChecks** (Issue #454) - Kubernetes health probes
+    - `OutboxHealthCheck`, `InboxHealthCheck`, `SagaHealthCheck`, `HandlerHealthCheck`
+    - Separate endpoints: `/health/live`, `/health/ready`, `/health/startup`
+    - Integration with `Microsoft.Extensions.Diagnostics.HealthChecks`
+    - New package planned: `Encina.HealthChecks`
+    - Priority: MEDIUM - Kubernetes deployment essential
+  - **Encina.GracefulShutdown** (Issue #455) - Kubernetes graceful termination
+    - `IInFlightRequestTracker` for active request tracking
+    - `InFlightTrackingBehavior` pipeline behavior
+    - Pre-stop delay for LB drain
+    - Outbox flush before shutdown
+    - New package planned: `Encina.GracefulShutdown`
+    - Priority: MEDIUM - K8s reliability essential
+  - **Encina.MultiTenancy** (Issue #456) - Multi-tenancy for SaaS
+    - Tenant resolution: Header, Subdomain, Route, Claim, Custom
+    - Data isolation: Row, Schema, Database strategies
+    - `TenantAwareOutboxStore`, `TenantAwareSagaStore`, `TenantAwareInboxStore`
+    - GDPR data residency support
+    - New package planned: `Encina.MultiTenancy`
+    - Priority: MEDIUM - SaaS market enabler
+  - **Encina.CDC** (Issue #457) - Change Data Capture for Outbox
+    - `ICdcProvider` abstraction for change streaming
+    - CDC Orchestrator hosted service
+    - Providers: SQL Server CDC, PostgreSQL Logical Replication, Debezium
+    - Near real-time message capture, minimal database load
+    - New packages planned: `Encina.CDC`, `Encina.CDC.SqlServer`, `Encina.CDC.PostgreSQL`
+    - Priority: LOW - Alternative to polling, high complexity
+  - **Encina.ApiVersioning** (Issue #458) - Handler versioning support
+    - `[ApiVersion("1.0")]` attribute for handlers
+    - Version resolution: Header, Query, Path, MediaType
+    - Deprecation support with Sunset header
+    - Version discovery endpoint
+    - New package planned: `Encina.ApiVersioning`
+    - Priority: LOW - API evolution support
+  - **Encina.Orleans** (Issue #459) - Orleans virtual actors integration
+    - `IGrainHandler<,>` interface
+    - Orleans-based request dispatcher
+    - Saga grains with Orleans state and reminders
+    - Scheduling via grain timers
+    - New package planned: `Encina.Orleans`
+    - Priority: LOW - High-concurrency niche
+
+- Microservices Architecture Patterns Issues (12 new features planned based on December 29, 2025 research):
+  - **Service Discovery & Configuration Management** (Issue #382) - Foundational microservices pattern
+    - `IServiceDiscovery` with `ResolveAsync`, `RegisterAsync`, `DeregisterAsync`, `WatchAsync`
+    - `IConfigurationProvider` for externalized configuration
+    - Multiple backends: Consul, Kubernetes DNS, .NET Aspire
+    - New packages planned: `Encina.ServiceDiscovery`, `Encina.ServiceDiscovery.Consul`, `Encina.ServiceDiscovery.Kubernetes`, `Encina.ServiceDiscovery.Aspire`
+    - Priority: CRITICAL - Fundamental pattern missing from Encina
+  - **API Gateway / Backends for Frontends (BFF)** (Issue #383) - Essential modern architecture pattern
+    - `IBffRequestAdapter` for proxying with Encina pipeline
+    - `IResponseAggregator<T>` for combining multiple service responses
+    - `[BffRoute]`, `[AggregateFrom]` declarative attributes
+    - Microsoft YARP integration
+    - New packages planned: `Encina.BFF`, `Encina.BFF.YARP`, `Encina.BFF.Aggregation`
+    - Priority: CRITICAL - Very high demand in 2025
+  - **Domain Events vs Integration Events Separation** (Issue #384) - DDD best practice
+    - `IDomainEvent` for in-process bounded context events
+    - `IIntegrationEvent` with `EventId`, `SourceService`, `Version`
+    - `IIntegrationEventMapper<TDomain, TIntegration>` for automatic translation
+    - `DomainToIntegrationEventBehavior` for Outbox auto-publishing
+    - Priority: CRITICAL - Inspired by MassTransit, NServiceBus
+  - **Multi-Tenancy Support** (Issue #385) - SaaS-critical pattern
+    - `ITenantContext` with `CurrentTenant`, `IsolationLevel`
+    - `TenantIsolationLevel`: SharedSchema, SeparateSchema, SeparateDatabase
+    - `ITenantResolver` with Header, Claims, Subdomain, Route resolvers
+    - `TenantFilteringPipelineBehavior` for automatic query filtering
+    - EF Core integration with automatic tenant filtering
+    - New packages planned: `Encina.MultiTenancy`, `Encina.MultiTenancy.EntityFrameworkCore`
+    - Priority: HIGH - Essential for SaaS applications
+  - **Anti-Corruption Layer (ACL)** (Issue #386) - Legacy integration pattern
+    - `IAntiCorruptionLayer<TExternal, TDomain>` bidirectional translation
+    - `[AntiCorruptionLayer]` attribute for HTTP clients (Refit integration)
+    - `AntiCorruptionPipelineBehavior` for automatic translation
+    - New package planned: `Encina.AntiCorruption`
+    - Priority: HIGH - Essential for brownfield development
+  - **Dapr Integration** (Issue #387) - CNCF graduated project integration
+    - Dapr State Store as Outbox, Inbox, Saga store backend
+    - Dapr Pub/Sub as message transport
+    - Dapr Workflows as Saga backend alternative
+    - Dapr Actors integration
+    - New packages planned: `Encina.Dapr`, `Encina.Dapr.StateStore`, `Encina.Dapr.PubSub`
+    - **Re-planned**: Previously deprecated, now restored due to CNCF graduation and high community demand
+    - Priority: HIGH - Leading microservices framework 2025
+  - **Virtual Actors (Orleans Integration)** (Issue #388) - High concurrency pattern
+    - `IEncinaActor` and `IEncinaActor<TState>` abstractions
+    - `EncinaGrain<TState>` base class for Orleans Grains
+    - Full Encina pipeline support within actors
+    - New packages planned: `Encina.Actors`, `Encina.Orleans`
+    - Priority: MEDIUM - Gaming, IoT, high-concurrency use cases
+  - **API Versioning Pipeline Behavior** (Issue #389) - API evolution support
+    - `[ApiVersion]` attribute with deprecation support
+    - `IApiVersionContext` with `CurrentVersion`, `IsDeprecated`
+    - `IApiVersionResolver` with Header, QueryString, URL, MediaType resolvers
+    - `ApiVersioningPipelineBehavior` for version-aware handler routing
+    - Priority: MEDIUM - Important for production API evolution
+  - **Enhanced Message Deduplication** (Issue #390) - Inbox pattern improvement
+    - `IDeduplicationKeyGenerator<T>` for content-based keys
+    - `SlidingWindowDeduplicationOptions` with Window, Strategy, Cleanup
+    - `DeduplicationStrategy`: RejectSilently, ReturnCachedResult, ReturnError
+    - `[Deduplicate]` declarative attribute
+    - Priority: MEDIUM - Improves existing Inbox functionality
+  - **Sidecar/Ambassador Pattern Support** (Issue #391) - Kubernetes-native pattern
+    - `ISidecarProxy` for Encina as sidecar process
+    - `IAmbassadorProxy` for client connectivity offloading
+    - `EncinaSidecarHost` BackgroundService
+    - Kubernetes deployment examples, Docker images
+    - New package planned: `Encina.Sidecar`
+    - Priority: MEDIUM - Important for containerized deployments
+  - **Event Collaboration / Process Manager** (Issue #392) - Hybrid orchestration pattern
+    - `IProcessManager<TState>` with `HandleEventAsync`, `GetAuditTrailAsync`
+    - `ProcessManagerBase<TState>` base class
+    - `[CorrelateBy]` attribute for event routing
+    - `ProcessManagerRoutingBehavior` for automatic event dispatch
+    - Dashboard/visibility queries
+    - Priority: MEDIUM - Hybrid choreography/orchestration with visibility
+  - **Eventual Consistency Helpers** (Issue #393) - Distributed systems helpers
+    - `IEventualConsistencyMonitor` with `CheckAsync`, `WaitForConsistencyAsync`
+    - `IConflictResolver<TState>` with LastWriteWins, Merge, ManualResolution strategies
+    - `[EventuallyConsistent]` attribute with `MaxLagMs`, `WaitForConsistency`
+    - `IReadYourWritesGuarantee` for session-level consistency
+    - Priority: LOW - Nice-to-have for complex systems
+
+- New labels created for Microservices patterns:
+  - `area-service-discovery` - Service discovery and registry patterns
+  - `area-configuration` - Configuration management and externalization
+  - `orleans-integration` - Microsoft Orleans integration
+  - `dapr-integration` - Dapr runtime integration
+  - `yarp-integration` - Microsoft YARP reverse proxy integration
+  - `consul-integration` - HashiCorp Consul integration
+  - `aspire-integration` - .NET Aspire integration
+  - `kubernetes-native` - Kubernetes-native patterns and deployment
+  - `pattern-sidecar` - Sidecar and Ambassador patterns
+  - `pattern-bff` - Backend for Frontend pattern
+
+- Security Patterns Issues (8 new features planned based on December 29, 2025 research):
+  - **Core Security Abstractions** (Issue #394) - Foundational security pattern
+    - `ISecurityContext` with CurrentPrincipal, Permissions, Roles, Claims
+    - `IPermissionEvaluator<TResource>` for dynamic permission evaluation
+    - `SecurityPipelineBehavior` with `[Authorize]`, `[RequirePermission]`, `[RequireRole]` attributes
+    - RBAC, ABAC, Permission-based authorization support
+    - New package planned: `Encina.Security`
+    - Priority: CRITICAL - Foundation for all security patterns
+  - **Audit Trail Logging** (Issue #395) - Compliance-ready audit logging
+    - `IAuditLogger` with who/what/when/where tracking
+    - `AuditPipelineBehavior` for automatic capture
+    - `[Auditable]` attribute with None, Minimal, Standard, Detailed levels
+    - Storage backends: Database, Elasticsearch, Azure Table Storage, CloudWatch
+    - Sensitive data redaction
+    - New package planned: `Encina.Security.Audit`
+    - Priority: CRITICAL - Required for SOX, HIPAA, GDPR, PCI compliance
+  - **Field-Level Encryption** (Issue #396) - Data protection at rest
+    - `IFieldEncryptor` with encrypt/decrypt/rotate key operations
+    - `[Encrypt]` attribute for sensitive properties
+    - `EncryptionPipelineBehavior` for automatic encrypt/decrypt
+    - Key rotation with versioning, Azure Key Vault/AWS KMS integration
+    - Crypto-shredding for GDPR (delete key = "forget" data)
+    - New package planned: `Encina.Security.Encryption`
+    - Priority: HIGH - PCI-DSS, GDPR sensitive data protection
+  - **PII Masking** (Issue #397) - Personal data protection
+    - `IPIIMasker` with mask/unmask/detect operations
+    - `[PII]` attribute with Email, Phone, SSN, CreditCard, Address types
+    - `PIIMaskingPipelineBehavior` for automatic response masking
+    - Auto-detection, logging redaction
+    - New package planned: `Encina.Security.PII`
+    - Priority: HIGH - GDPR essential
+  - **Anti-Tampering** (Issue #398) - Request integrity verification
+    - `IRequestSigner` with HMAC-SHA256/512, RSA-SHA256, ECDSA
+    - `[SignedRequest]` attribute for handlers requiring verification
+    - `SignatureVerificationPipelineBehavior`
+    - Timestamp validation, nonce management for replay attack prevention
+    - New package planned: `Encina.Security.AntiTampering`
+    - Priority: HIGH - API security for webhooks, inter-service communication
+  - **Input Sanitization** (Issue #399) - OWASP Top 10 prevention
+    - `ISanitizer<T>` with sanitize/validate operations
+    - `[Sanitize]` attribute with Html, Sql, Command, Path, Url types
+    - `SanitizationPipelineBehavior` for automatic input cleaning
+    - XSS, SQL injection, command injection, path traversal prevention
+    - New package planned: `Encina.Security.Sanitization`
+    - Priority: HIGH - OWASP Top 10 prevention
+  - **Secrets Management** (Issue #400) - Cloud-native secrets handling
+    - `ISecretProvider` with get/set/rotate operations
+    - `SecretProviderChain` for fallback between providers
+    - Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager integration
+    - Automatic rotation, TTL caching, access auditing
+    - New packages planned: `Encina.Security.Secrets.*`
+    - Priority: MEDIUM - Cloud-native best practice
+  - **ABAC Engine** (Issue #401) - Advanced authorization
+    - `IAbacEngine` with evaluate(subject, resource, action, environment)
+    - Policy DSL for access policies
+    - `AbacPipelineBehavior` for automatic evaluation
+    - PDP/PEP pattern, OPA integration
+    - New package planned: `Encina.Security.ABAC`
+    - Priority: MEDIUM - Complex enterprise authorization
+
+- New labels created for Security patterns:
+  - `area-security` - Security patterns and authentication/authorization
+  - `owasp-pattern` - Based on OWASP security best practices
+
+- Compliance Patterns Issues - GDPR & EU Laws (14 new features planned based on December 29, 2025 research):
+  - **GDPR Core Abstractions** (Issue #402) - Foundation for EU compliance
+    - `IDataController`, `IDataProcessor` interfaces
+    - `RoPARegistry` (Record of Processing Activities) - Art. 30
+    - `GDPRCompliancePipelineBehavior` for automatic validation
+    - New package planned: `Encina.Compliance.GDPR`
+    - Priority: CRITICAL - Mandatory for EU operations
+  - **Consent Management** (Issue #403) - Art. 7 compliance
+    - `IConsentManager` with request/grant/withdraw/check operations
+    - `[RequireConsent("purpose")]` attribute
+    - Consent versioning, proof of consent, granular purposes
+    - New package planned: `Encina.Compliance.Consent`
+    - Priority: CRITICAL - Art. 7 requirement
+  - **Data Subject Rights** (Issue #404) - Arts. 15-22 implementation
+    - `IDataSubjectRightsService` for all GDPR rights
+    - Right of Access (Art. 15), Rectification (Art. 16), Erasure (Art. 17)
+    - Right to Portability (Art. 20), Restriction (Art. 18), Object (Art. 21)
+    - Request tracking, 30-day SLA monitoring
+    - New package planned: `Encina.Compliance.DataSubjectRights`
+    - Priority: CRITICAL - Fundamental GDPR rights
+  - **Data Residency** (Issue #405) - Data sovereignty enforcement
+    - `IDataResidencyEnforcer` with geo-routing
+    - `[DataResidency("EU")]` attribute
+    - Multi-region database routing, SCCs validation
+    - Cloud provider region mapping (AWS, Azure, GCP)
+    - New package planned: `Encina.Compliance.DataResidency`
+    - Priority: CRITICAL - Post-Schrems II requirement
+  - **Data Retention** (Issue #406) - Storage limitation (Art. 5(1)(e))
+    - `IRetentionPolicyEngine` with automatic deletion
+    - Legal hold support, retention reporting
+    - New package planned: `Encina.Compliance.Retention`
+    - Priority: HIGH
+  - **Anonymization** (Issue #407) - Art. 4(5) pseudonymization
+    - `IAnonymizer` with k-anonymity, l-diversity, differential privacy
+    - Crypto-shredding: delete key = data "forgotten"
+    - New package planned: `Encina.Compliance.Anonymization`
+    - Priority: HIGH
+  - **Breach Notification** (Issue #408) - 72-hour notification (Arts. 33-34)
+    - `IBreachNotificationService` with detection/assessment/notification
+    - SIEM integration (Splunk, Azure Sentinel)
+    - New package planned: `Encina.Compliance.BreachNotification`
+    - Priority: HIGH
+  - **DPIA Automation** (Issue #409) - Art. 35 impact assessment
+    - `IDPIAService` with risk assessment and report generation
+    - New package planned: `Encina.Compliance.DPIA`
+    - Priority: MEDIUM
+  - **Processor Agreements** (Issue #410) - Art. 28 compliance
+    - `IProcessorAgreementService` for DPA management
+    - New package planned: `Encina.Compliance.ProcessorAgreements`
+    - Priority: MEDIUM
+  - **Privacy by Design** (Issue #411) - Art. 25 enforcement
+    - `IPrivacyByDesignValidator`, Roslyn analyzer
+    - New package planned: `Encina.Compliance.PrivacyByDesign`
+    - Priority: MEDIUM
+  - **Cross-Border Transfer** (Issue #412) - Chapter V compliance
+    - `ICrossBorderTransferValidator` with SCCs, BCRs, TIA
+    - New package planned: `Encina.Compliance.CrossBorderTransfer`
+    - Priority: MEDIUM
+  - **Lawful Basis** (Issue #413) - Art. 6 tracking
+    - `ILawfulBasisService` for processing validation
+    - New package planned: `Encina.Compliance.LawfulBasis`
+    - Priority: MEDIUM
+  - **NIS2 Directive** (Issue #414) - EU 2022/2555 cybersecurity
+    - `INIS2ComplianceService` for incident reporting
+    - New package planned: `Encina.Compliance.NIS2`
+    - Priority: MEDIUM
+  - **EU AI Act** (Issue #415) - EU 2024/1689 AI governance
+    - `IAIActComplianceService` for risk classification
+    - New package planned: `Encina.Compliance.AIAct`
+    - Priority: MEDIUM
+
+- New labels created for Compliance patterns:
+  - `area-compliance` - Regulatory compliance patterns (GDPR, NIS2, AI Act)
+  - `eu-regulation` - Related to European Union regulations
+  - `pattern-data-masking` - Data masking and PII protection
+  - `pattern-consent-management` - Consent management and tracking
+  - `pattern-data-sovereignty` - Data residency and sovereignty
+  - `area-data-protection` - Data protection and privacy features
+
+- Advanced Validation Patterns Issues (10 new features planned based on December 2025 research):
+  - **Source-Generated Validation** (Issue #227) - Compile-time validation code generation
+    - Zero reflection, NativeAOT and trimming compatible
+    - ~1.6x faster, ~4.7x less memory (Validot benchmarks)
+    - Attributes: `[GenerateValidation]`, `[NotEmpty]`, `[Email]`, `[Positive]`, etc.
+    - New package planned: `Encina.Validation.Generators`
+    - Inspired by Validot, Microsoft Options Validation Source Generator
+  - **Domain/Value Object Validation** (Issue #228) - Always-Valid Domain Model
+    - Value Objects with built-in validation
+    - Factory methods returning `Either<EncinaError, T>` for ROP
+    - Base classes: `ValueObject<TSelf>`, `SingleValueObject<TSelf, TValue>`
+    - Common value objects: `Email`, `PhoneNumber`, `Url`, `Money`, `NonEmptyString`
+    - New package planned: `Encina.Validation.Domain`
+    - Inspired by Enterprise Craftsmanship, Milan Jovanovic's DDD patterns
+  - **Consolidate ValidationPipelineBehavior** (Issue #229) - Remove duplicate behaviors
+    - CRITICAL technical debt: Each provider has its own duplicated behavior
+    - Affected: FluentValidation, DataAnnotations, MiniValidator packages
+    - Solution: Use centralized `ValidationPipelineBehavior` from core
+    - Low effort, high impact cleanup
+  - **Enhanced Async/Cross-Field Validation** (Issue #230) - Database-backed validation
+    - Extensions: `MustExistAsync()`, `MustBeUniqueAsync()`, `GreaterThan(x => x.OtherProperty)`
+    - Cross-field comparison validators
+    - Conditional validation with `WhenAsync()`, `UnlessAsync()`
+  - **OpenAPI Schema Validation** (Issue #231) - Contract-first validation
+    - Automatic validation against OpenAPI 3.1 schemas
+    - Request/Response validation
+    - Prevents API drift between contract and implementation
+    - New package planned: `Encina.Validation.OpenApi`
+    - Inspired by Zuplo, openVALIDATION
+  - **Security-Focused Validation** (Issue #232) - OWASP-compliant validation
+    - Prevents >90% of injection attacks (OWASP statistics)
+    - Allowlist validators: `AllowlistPattern()`, `AllowlistValues()`
+    - Injection prevention: `NoSqlInjection()`, `NoXss()`, `NoCommandInjection()`
+    - Sanitizers: `SanitizeHtml()`, `StripHtml()`, `EncodeHtml()`
+    - New package planned: `Encina.Validation.Security`
+    - Inspired by OWASP Input Validation Cheat Sheet, ASVS
+  - **Validation Error Localization** (Issue #233) - Internationalization support
+    - Integration with ASP.NET Core `IStringLocalizer`
+    - Built-in translations for 12+ languages
+    - Placeholder support: `{PropertyName}`, `{PropertyValue}`
+  - **Validation Result Aggregation** (Issue #234) - Multi-source validation
+    - `ValidationAggregator` builder for combining validators
+    - Strategies: FailFast, CollectAll, ParallelCollectAll, ParallelFailFast
+    - Error source tracking and deduplication
+  - **Zod-like Schema Builder** (Issue #235) - TypeScript-inspired fluent API
+    - Chainable schema definitions
+    - Parse returns `Either<EncinaError, T>`
+    - New package planned: `Encina.Validation.Schema`
+    - Inspired by Zod (TypeScript), zod-rs (Rust)
+  - **Two-Phase Validation Pattern** (Issue #236) - Pipeline + Domain separation
+    - Phase 1 (Pipeline): Fast structural validation
+    - Phase 2 (Handler): Domain validation with repository access
+    - Interfaces: `IDomainValidator<TRequest>`, `IDomainValidatedRequest`
+    - Best practice for clean CQRS architecture
+
+- New label created: `area-source-generators` for source generator-related features
+
+- Advanced Event Sourcing Patterns Issues (13 new features planned based on December 2025 research):
+  - **Decider Pattern Support** (Issue #320) - Functional event sourcing with pure functions
+    - `IDecider<TCommand, TEvent, TState>` interface with `Decide`, `Evolve`, `InitialState`
+    - Pure functions = trivial testing without mocks
+    - Industry best practice 2025 (Marten, Wolverine recommended)
+    - Aligns with Encina's Railway Oriented Programming philosophy
+  - **Causation/Correlation ID Tracking** (Issue #321) - Distributed tracing metadata
+    - `EventMetadata` with MessageId, CausationId, CorrelationId
+    - Automatic propagation from `IRequestContext`
+    - 30-40% reduction in troubleshooting time (empirical studies)
+    - Integration with `Encina.OpenTelemetry`
+  - **Crypto-Shredding for GDPR** (Issue #322) - GDPR Article 17 compliance
+    - New package planned: `Encina.Marten.GDPR`
+    - `[PersonalData]` attribute for PII properties
+    - `ICryptoShredder` with key vault integrations (HashiCorp, Azure, AWS)
+    - Delete encryption key = data becomes unreadable ("forgotten")
+    - **No .NET library offers first-class GDPR support** - competitive differentiator
+  - **Advanced Snapshot Strategies** (Issue #323) - Beyond event-count based
+    - `SnapshotStrategy` enum: EventCount, TimeInterval, BusinessBoundary, Composite
+    - `ISnapshotBoundaryDetector` for custom boundaries
+    - Per-aggregate configuration
+  - **Blue-Green Projection Rebuild** (Issue #324) - Zero-downtime updates
+    - `IProjectionRebuildManager` with progress tracking
+    - Build projection in secondary schema, switch when caught up
+    - CLI command: `encina projections rebuild <name>`
+  - **Temporal Queries** (Issue #325) - Point-in-time state reconstruction
+    - `LoadAtAsync(id, timestamp)` for historical state
+    - `ITemporalEventStore` for range queries
+    - 30% improvement in debugging time
+  - **Multi-Tenancy Event Sourcing** (Issue #326) - SaaS tenant isolation
+    - `MultiTenancyMode`: Conjoined, Dedicated, SchemaPerTenant
+    - Automatic tenant filtering in repositories
+    - `ITenantManager` for provisioning
+  - **Event Archival and Compaction** (Issue #327) - Storage management at scale
+    - Hot/warm/cold tiering with cloud storage (Azure Blob, S3)
+    - Stream compaction strategies
+    - Background archival service
+  - **Bi-Temporal Modeling** (Issue #328) - Transaction + Valid time
+    - `IBiTemporalEvent` with ValidTime and TransactionTime
+    - Timeline visualization for audit
+    - Use cases: Financial, insurance, HR
+  - **Visual Event Stream Explorer** (Issue #329) - CLI debugging tool
+    - `encina events list/show/replay/trace` commands
+    - Projection status and lag monitoring
+    - Rich terminal output with Spectre.Console
+  - **Actor-Based Event Sourcing** (Issue #330) - Alternative pattern
+    - `IEventSourcedActor<TState, TCommand, TEvent>` interface
+    - Orleans/Akka-inspired concurrency model
+    - Automatic lifecycle management
+  - **EventQL Preconditions** (Issue #331) - Query-based constraints
+    - `IAppendPrecondition` interface
+    - Built-in: `StreamExists`, `NoEventOfType<T>`, `ExpectedVersion`
+    - Composite with `Preconditions.All()`/`Any()`
+  - **Tri-Temporal Modeling** (Issue #332) - Full audit trail
+    - Transaction + Valid + Decision time
+    - Use cases: Fraud detection, legal discovery
+
+- New labels created for Event Sourcing patterns:
+  - `area-event-sourcing` - Event Sourcing patterns and infrastructure
+  - `area-gdpr` - GDPR compliance and data privacy
+  - `pattern-decider` - Decider pattern for functional event sourcing
+  - `pattern-crypto-shredding` - Crypto-shredding pattern for GDPR compliance
+  - `pattern-blue-green` - Blue-Green deployment/rebuild pattern
+  - `pattern-temporal-query` - Temporal queries and time-travel pattern
+  - `pattern-snapshot` - Aggregate snapshotting pattern
+  - `area-archival` - Event archival and cold storage patterns
+  - `area-developer-experience` - Developer experience and tooling improvements
+  - `marten-integration` - Marten library integration
+
+- Advanced CQRS Patterns Issues (12 new features planned based on December 2025 market research):
+  - **Zero-Interface Handlers** (Issue #333) - Convention-based handler discovery
+    - Handlers discovered by naming convention, no `IRequestHandler<,>` required
+    - Static handlers supported (`public static class CreateOrderHandler`)
+    - Reduces boilerplate and improves DDD alignment
+    - Inspired by Wolverine's convention-based approach
+    - Depends on #50 (Source Generators) for NativeAOT compatibility
+  - **Idempotency Pipeline Behavior** (Issue #334) - Lightweight deduplication
+    - `IIdempotencyStore` interface for key tracking
+    - `IdempotencyPipelineBehavior<,>` for automatic verification
+    - Cache-based storage (Redis, In-memory) for lightweight dedup
+    - Complements existing Inbox pattern for simpler use cases (APIs, webhooks)
+    - Inspired by MassTransit and Stripe patterns
+  - **Request Timeout Behavior** (Issue #335) - Per-request timeouts
+    - `[Timeout(Seconds = 30)]` attribute for declarative configuration
+    - `IHasTimeout` interface for programmatic configuration
+    - Fallback strategies: ThrowException, ReturnDefault, ReturnCached
+    - OpenTelemetry integration for timeout events
+    - Inspired by Brighter's timeout middleware
+  - **Cursor-Based Pagination** (Issue #336) - O(1) pagination helpers
+    - `ICursorPaginatedQuery<T>` interface
+    - `CursorPaginatedResult<T>` with NextCursor, HasNextPage
+    - `ToCursorPaginatedAsync()` EF Core extension
+    - O(1) performance vs O(n) for offset pagination
+    - Inspired by GraphQL Cursor Connections specification
+  - **Request Versioning** (Issue #337) - Command/query upcasting
+    - `[RequestVersion(1)]` attribute for versioning
+    - `IRequestUpcaster<TFrom, TTo>` for automatic migration
+    - Version chains: V1 → V2 → V3 automatic upcasting
+    - Deprecation logging and metrics
+    - Inspired by Axon Framework's event upcasting
+  - **Multi-Tenant Context Middleware** (Issue #338) - Tenant isolation
+    - `ITenantResolver` with built-in implementations (Header, Subdomain, Claims, Route)
+    - `TenantValidationBehavior` for tenant validation
+    - `TenantIsolationBehavior` for isolation enforcement
+    - EF Core global query filter integration
+    - Labels: `area-multitenancy`, `area-security`, `industry-best-practice`
+  - **Batch Command Processing** (Issue #339) - Atomic batch operations
+    - `IBatchCommand<TCommand, TResponse>` interface
+    - Strategies: AllOrNothing, PartialSuccess, StopOnFirstError, ContinueOnError
+    - Batch deduplication and parallel processing options
+    - Inspired by MassTransit batch consumers
+  - **Request Enrichment** (Issue #340) - Auto-populate from context
+    - `[EnrichFrom(ContextProperty.UserId)]` for context properties
+    - `[EnrichFromClaim("claim_name")]` for JWT claims
+    - `IRequestEnricher<T>`, `IResponseEnricher<T>` interfaces
+    - Reduces handler boilerplate
+    - Inspired by Wolverine middleware
+  - **Notification Fanout Strategies** (Issue #341) - Advanced delivery
+    - New strategies: PriorityOrdered, Throttled, Quorum, FirstSuccessful
+    - `[NotificationPriority]` attribute for ordering
+    - Dead letter handling for failed notifications
+    - Circuit breaker integration
+  - **Request Composition** (Issue #342) - Combine multiple queries
+    - `QueryComposer<TResult>` fluent builder
+    - Parallel execution of independent queries
+    - Dependency resolution for dependent queries
+    - Reduces API chattiness
+    - Inspired by GraphQL query composition
+  - **Handler Discovery Analyzers** (Issue #343) - Compile-time validation
+    - ENCINA001: Handler not registered
+    - ENCINA002: Handler naming convention mismatch
+    - ENCINA003: Query modifies state (anti-pattern)
+    - ENCINA004: Response type mismatch
+    - ENCINA005: Missing validator
+    - Automatic code fixes
+    - New package: `Encina.Analyzers`
+  - **Progressive CQRS Adoption Guide** (Issue #344) - Documentation
+    - Decision tree: when to use/not use CQRS
+    - Adoption levels (0-4)
+    - Anti-patterns to avoid
+    - Vertical Slice Architecture integration
+
+- New labels created for Advanced CQRS patterns:
+  - `wolverine-inspired` - Pattern inspired by Wolverine library
+  - `brighter-inspired` - Pattern inspired by Brighter library
+  - `axon-inspired` - Pattern inspired by Axon Framework (Java)
+  - `graphql-inspired` - Pattern inspired by GraphQL ecosystem
+  - `pattern-batch-processing` - Batch processing and bulk command pattern
+  - `pattern-request-composition` - Request composition and aggregation pattern
+
+- Domain Modeling Building Blocks Issues (15 new features planned based on December 29, 2025 DDD research):
+  - **Value Objects Base Class** (Issue #367) - Structural equality and immutability
+    - `ValueObject<T>` abstract record with `GetEqualityComponents()`
+    - ROP-compatible factory methods returning `Either<EncinaError, T>`
+    - Prevents "primitive obsession" anti-pattern
+    - Inspired by Vogen (~5M downloads demand)
+    - New package planned: `Encina.DomainModeling`
+    - Labels: `foundational`, `area-domain-modeling`, `aot-compatible`, `industry-best-practice`
+  - **Rich Domain Events** (Issue #368) - Domain events with metadata
+    - `DomainEvent` base record implementing `INotification`
+    - Properties: EventId, OccurredAtUtc, EventVersion, CorrelationId, CausationId, AggregateId, AggregateVersion
+    - Integrates with existing Encina pipeline and Marten event sourcing
+    - Labels: `foundational`, `area-domain-modeling`, `area-messaging`, `area-observability`
+  - **Entity Base Class** (Issue #369) - Identity equality for non-aggregates
+    - `Entity<TId>` with identity-based equality
+    - Separate from `AggregateRoot` for entities within aggregates
+    - Labels: `foundational`, `area-domain-modeling`, `aot-compatible`
+  - **Provider-Agnostic AggregateRoot** (Issue #370) - State-based persistence support
+    - `AggregateRoot<TId>` extending `Entity<TId>` with domain event collection
+    - `RaiseDomainEvent()`, `ClearDomainEvents()`, `CheckRule()` methods
+    - Works with EF Core, Dapper (not just Marten event sourcing)
+    - Labels: `foundational`, `area-domain-modeling`, `area-messaging`
+  - **Specification Pattern** (Issue #371) - Composable query specifications
+    - `Specification<T>` abstract class with `ToExpression()`
+    - `And()`, `Or()`, `Not()` composition operators
+    - New packages: `Encina.Specifications`, `Encina.Specifications.EntityFrameworkCore`
+    - Inspired by Ardalis.Specification (~7M downloads)
+    - Labels: `new-package`, `area-specifications`, `industry-best-practice`
+  - **Business Rules Validation** (Issue #372) - Domain invariant validation
+    - `IBusinessRule` interface with `ErrorCode`, `ErrorMessage`, `IsSatisfied()`
+    - ROP extension: `Check()` returning `Either<EncinaError, Unit>`
+    - Separate from input validation (FluentValidation, DataAnnotations)
+    - Labels: `foundational`, `area-domain-modeling`, `area-validation`
+  - **Integration Events** (Issue #373) - Cross-bounded-context events
+    - `IntegrationEvent` base record with schema versioning
+    - `IDomainToIntegrationEventMapper<TDomain, TIntegration>` interface
+    - Bounded context isolation pattern
+    - Labels: `area-domain-modeling`, `area-modular-monolith`, `area-microservices`
+  - **Strongly Typed IDs** (Issue #374) - Type-safe entity identifiers
+    - `StronglyTypedId<TValue>` base record
+    - Convenience classes: `GuidId`, `IntId`, `LongId`, `StringId`
+    - Prevents mixing `OrderId` with `CustomerId` at compile-time
+    - Inspired by StronglyTypedId (~3M downloads)
+    - Labels: `foundational`, `area-domain-modeling`, `aot-compatible`
+  - **Soft Delete Pattern** (Issue #375) - Logical deletion with auto-filtering
+    - `ISoftDeletable` interface with `IsDeleted`, `DeletedAtUtc`, `DeletedBy`
+    - EF Core global query filter extension
+    - Pipeline behavior for query filtering
+    - Labels: `area-auditing`, `area-domain-modeling`, `area-gdpr`, `area-compliance`
+  - **Auditing Pattern** (Issue #376) - Created/Modified tracking
+    - `IAudited` interface with CreatedAtUtc/By, LastModifiedAtUtc/By
+    - EF Core SaveChanges interceptor for auto-population
+    - Uses `IRequestContext.UserId`
+    - Labels: `area-auditing`, `area-domain-modeling`, `area-compliance`, `area-security`
+  - **Domain Service Marker** (Issue #377) - Semantic interface for domain services
+    - `IDomainService` marker interface
+    - Auto-registration extension method
+    - Labels: `area-domain-modeling`, `aot-compatible`
+  - **Anti-Corruption Layer** (Issue #378) - External system isolation
+    - `IAntiCorruptionTranslator<TExternal, TDomain>` interface
+    - `IBidirectionalTranslator<,>` for two-way translation
+    - Labels: `area-domain-modeling`, `area-integration`, `area-microservices`
+  - **Bounded Context Helpers** (Issue #379) - Context mapping
+    - `BoundedContext` base class with `Configure()`
+    - `ContextMap` for documenting context relationships
+    - Integration with existing `IModule` system
+    - Labels: `area-domain-modeling`, `area-modular-monolith`, `area-architecture-testing`
+  - **Generic Repository** (Issue #380) - Provider-agnostic repository abstraction
+    - `IRepository<TAggregate, TId>` with CRUD operations
+    - `IRepositoryWithSpecification<,>` for specification queries
+    - Note: Controversial pattern - many prefer DbContext directly
+    - Labels: `area-domain-modeling`, `area-specifications`
+  - **Domain DSL Helpers** (Issue #381) - Fluent domain builders
+    - `AggregateBuilder<TAggregate, TId, TBuilder>` with rule validation
+    - Fluent extensions for ubiquitous language
+    - Common domain types: `Quantity`, `Percentage`, `DateRange`
+    - Labels: `area-domain-modeling`, `aot-compatible`
+
+- New labels created for Domain Modeling patterns:
+  - `area-domain-modeling` - Domain modeling building blocks (Entities, Value Objects, Aggregates)
+  - `area-specifications` - Specification pattern for composable queries
+  - `area-auditing` - Auditing, change tracking, and soft delete patterns (already existed)
+  - `foundational` - Core building block that other features depend on
+
+- Vertical Slice Architecture Patterns Issues (12 new features planned based on December 29, 2025 research):
+  - **Feature Flags Integration** (Issue #345) - Microsoft.FeatureManagement integration
+    - `[FeatureFlag("NewCheckoutFlow")]` attribute for handlers
+    - `FeatureFlagPipelineBehavior<,>` for automatic verification
+    - Built-in filters: Percentage, TimeWindow, Targeting, Contextual
+    - New package planned: `Encina.FeatureFlags`
+    - Labels: `area-feature-flags`, `saas-essential`, `industry-best-practice`, `aot-compatible`
+  - **Multi-Tenancy Support** (Issue #346) - Comprehensive SaaS multi-tenant patterns
+    - `ITenantResolver` with implementations (Header, Subdomain, Claim, Route, QueryString)
+    - `TenantResolutionPipelineBehavior` and `TenantIsolationPipelineBehavior`
+    - Database strategies: DatabasePerTenant, SchemaPerTenant, SharedDatabase
+    - EF Core query filter integration
+    - New packages planned: `Encina.MultiTenancy`, `Encina.MultiTenancy.EntityFrameworkCore`
+    - Labels: `area-multi-tenancy`, `saas-essential`, `area-security`
+  - **Specification Pattern Integration** (Issue #347) - Composable query specifications
+    - `Specification<T>` base class with `And()`, `Or()`, `Not()` composition
+    - `QuerySpecification<T>` with includes, ordering, paging
+    - `ISpecificationEvaluator<T>` for EF Core and Dapper
+    - New packages planned: `Encina.Specification`, `Encina.Specification.EntityFrameworkCore`
+    - Inspired by Ardalis.Specification
+  - **API Versioning Integration** (Issue #348) - Handler-level API versioning
+    - `[ApiVersion("1.0")]` attribute for versioned handlers
+    - `VersionedRequestDispatcher` for automatic routing
+    - Deprecation headers: Deprecation, Sunset, Link
+    - New package planned: `Encina.AspNetCore.Versioning`
+  - **Request Batching / Bulk Operations** (Issue #349) - Batch processing for DDD
+    - `BatchCommand<TCommand, TResponse>` and `BatchQuery<,>` wrappers
+    - Strategies: AllOrNothing, PartialSuccess, StopOnFirstError, ParallelAll
+    - Fluent `BatchBuilder<,>` API
+    - New package planned: `Encina.Batching`
+  - **Domain Events vs Integration Events** (Issue #350) - Clear separation (DDD best practice)
+    - `IDomainEvent` (in-process) vs `IIntegrationEvent` (cross-boundary)
+    - `IDomainEventDispatcher` with configurable timing (BeforeCommit, AfterCommit)
+    - `IIntegrationEventPublisher` using Outbox pattern
+    - `AggregateRoot<TId>` base class with domain event collection
+    - EF Core `DomainEventDispatchingInterceptor`
+  - **Audit Trail Pipeline Behavior** (Issue #351) - Compliance and auditing
+    - `[Auditable]`, `[NotAuditable]` attributes
+    - `IAuditStore` with EF Core, Dapper, Elasticsearch implementations
+    - Sensitive data redaction with `ISensitiveDataRedactor`
+    - New packages planned: `Encina.Auditing`, `Encina.Auditing.EntityFrameworkCore`
+    - Labels: `area-auditing`, `area-gdpr`, `area-compliance`
+  - **Modular Monolith Support** (Issue #352) - Architecture pattern 2025
+    - `EncinaModule` base class with lifecycle hooks
+    - `IModuleEventBus` for inter-module communication
+    - `ModuleIsolationPipelineBehavior` for boundary enforcement
+    - Database isolation strategies: SharedDatabase, SchemaPerModule
+    - New package planned: `Encina.Modules`
+    - Inspired by Milan Jovanovic, kgrzybek/modular-monolith-with-ddd
+  - **CDC Integration** (Issue #353) - Change Data Capture patterns
+    - `IChangeDataHandler<T>` for entity change handling
+    - Providers: SQL Server CDC, PostgreSQL Logical Replication, Debezium/Kafka
+    - New packages planned: `Encina.CDC`, `Encina.CDC.SqlServer`, `Encina.CDC.Debezium`
+  - **Enhanced Streaming Support** (Issue #354) - IAsyncEnumerable improvements
+    - `StreamCachingPipelineBehavior<,>` for caching streams
+    - `StreamRateLimitingPipelineBehavior<,>` for per-item rate limiting
+    - Backpressure strategies: Block, Drop, DropOldest, Error
+    - Extension methods: `ToListAsync()`, `FirstOrDefaultAsync()`
+  - **Enhanced Idempotency** (Issue #355) - Stripe-style idempotency keys
+    - `[Idempotent]` attribute for handlers
+    - `IIdempotencyStore` with TTL and distributed locking
+    - ASP.NET Core middleware for X-Idempotency-Key header
+    - Response caching with Idempotent-Replayed header
+  - **Policy-Based Authorization Enhancement** (Issue #356) - Resource-based auth
+    - `[AuthorizeRoles]`, `[AuthorizeClaim]` shortcuts
+    - `[ResourceAuthorize(typeof(Order), "Edit")]` for resource-based auth
+    - CQRS-aware default policies (Commands vs Queries)
+    - Pre/Post authorization processors
+
+- New labels created for Vertical Slice Architecture patterns:
+  - `area-feature-flags` - Feature flags and feature toggles patterns
+  - `area-authorization` - Authorization and access control patterns
+  - `area-streaming` - Streaming and IAsyncEnumerable patterns
+  - `area-batching` - Request batching and bulk operations
+  - `area-specification` - Specification pattern for queries
+  - `area-versioning` - API versioning patterns
+  - `area-auditing` - Audit trail and logging patterns
+  - `area-domain-events` - Domain events and integration events
+  - `saas-essential` - Essential pattern for SaaS applications
+
+- Modular Monolith Architecture Patterns Issues (10 new features planned based on December 29, 2025 research):
+  - **Multi-Tenancy Support** (Issue #357) - Comprehensive SaaS multi-tenant patterns
+    - `ITenantContext` with CurrentTenantId, CurrentTenantName, IsHost
+    - `ITenantResolver` implementations: Header, Subdomain, QueryString, Route, Claim, Cookie
+    - `DataIsolationLevel` enum: RowLevel, Schema, Database
+    - `TenantContextPipelineBehavior` for automatic tenant propagation
+    - EF Core integration with automatic `TenantQueryFilter`
+    - New packages planned: `Encina.MultiTenancy`, `Encina.MultiTenancy.EntityFrameworkCore`, `Encina.MultiTenancy.AspNetCore`
+    - Labels: `area-multitenancy`, `area-data-isolation`, `saas-enabler`, `cloud-azure`, `cloud-aws`
+    - Inspired by ABP Framework, Milan Jovanović
+  - **Inter-Module Communication** (Issue #358) - Integration Events pattern
+    - `IDomainEvent : INotification` for in-process, synchronous events
+    - `IIntegrationEvent : INotification` with EventId, OccurredAtUtc, SourceModule
+    - `IIntegrationEventBus` for in-memory inter-module communication
+    - `IModulePublicApi<TModule>` for module public contracts
+    - Optional Outbox integration for reliability
+    - Labels: `area-messaging`, `area-microservices`, `area-ddd`, `industry-best-practice`
+    - Inspired by Microsoft Domain Events, Milan Jovanović
+  - **Data Isolation per Module** (Issue #359) - Module boundary enforcement
+    - `ModuleDataIsolation` enum: None, SeparateSchema, SeparateDatabase
+    - `[ModuleSchema("orders")]` attribute for module schema declaration
+    - `IModuleDbContext<TModule>` interface
+    - Roslyn analyzer `ModuleDataIsolationAnalyzer` with rules:
+      - ENC001: Cross-module DbContext access detected
+      - ENC002: Direct table reference to another module's schema
+      - ENC003: JOIN across module boundaries
+    - Runtime query boundary enforcement
+    - New packages planned: `Encina.Modular.Data`, `Encina.Modular.Data.Analyzers`
+    - Labels: `area-data-isolation`, `roslyn-analyzer`, `area-architecture-testing`
+    - Inspired by Milan Jovanović Data Isolation patterns
+  - **Module Lifecycle Enhancement** (Issue #360) - Orleans/NestJS-inspired module system
+    - Automatic module discovery: `DiscoverModulesFromAssemblies()`, `DiscoverModulesFromPattern()`
+    - `[DependsOn(typeof(OtherModule))]` for dependency declaration
+    - Topological sort for startup order
+    - Expanded lifecycle hooks: OnModulePreConfigure, Configure, PostConfigure, Initialize, Started, Stopping, Stopped
+    - Module exports (NestJS-inspired): `public override Type[] Exports`
+    - `ModuleGraph` for visualization/debugging
+    - Labels: `area-module-system`, `area-pipeline`, `industry-best-practice`
+    - Inspired by Orleans Lifecycle, NestJS Modules
+  - **Feature Flags Integration** (Issue #361) - Microsoft.FeatureManagement integration
+    - `[FeatureGate("FeatureName")]` attribute for handlers
+    - `FeatureGatePipelineBehavior` with short-circuit on disabled feature
+    - `[FallbackHandler]` for fallback when feature is off
+    - Per-tenant feature flags with `[TenantFeatureFilter]`
+    - Azure App Configuration support
+    - New packages planned: `Encina.FeatureManagement`, `Encina.FeatureManagement.AspNetCore`
+    - Labels: `area-feature-flags`, `saas-enabler`, `cloud-azure`
+  - **Module Testing Utilities** (Issue #362) - Encina.Testing extensions
+    - `ModuleTestBase<TModule>` base class for isolated module testing
+    - `WithMockedModule<TApi>()` for mocking module dependencies
+    - `IntegrationEvents.ShouldContain<TEvent>()` assertions
+    - `ModuleArchitecture.Analyze()` for architecture testing
+    - `ModuleDataArchitecture` for data isolation tests
+    - Given/When/Then helpers for saga testing
+    - Labels: `area-testing`, `area-architecture-testing`, `testing-integration`
+    - Inspired by ArchUnitNET, NetArchTest
+  - **Anti-Corruption Layer Support** (Issue #363) - DDD pattern
+    - `IAntiCorruptionLayer<TExternal, TInternal>` interface
+    - `IAsyncAntiCorruptionLayer<,>` for complex async translations
+    - `[ModuleAdapter(From, To)]` for inter-module adapters
+    - `[ExternalSystemAdapter("LegacyERP")]` for external systems
+    - `AntiCorruptionPipelineBehavior` for automatic translation
+    - Auto-discovery of adapters
+    - Labels: `area-acl`, `area-ddd`, `area-interop`, `area-microservices`
+    - Inspired by Azure ACL Pattern
+  - **Module Health & Readiness** (Issue #364) - Cloud-native module health
+    - `IModuleHealthCheck` for per-module health checks
+    - `IModuleReadinessCheck` for readiness probes
+    - `ModuleHealthCheckBase` abstract class
+    - Dependency-aware health propagation
+    - ASP.NET Core integration: `AddEncinaModuleHealthChecks()`
+    - Per-module endpoints: `/health/{moduleName}`
+    - Labels: `area-health-checks`, `area-cloud-native`, `cloud-aws`, `cloud-azure`
+  - **Vertical Slice Architecture Support** (Issue #365) - VSA formalization
+    - `[VerticalSlice("Orders/PlaceOrder")]` attribute
+    - `[SlicePipeline(...)]` for slice-scoped behaviors
+    - Feature folder convention: `Features/{Domain}/{Slice}/`
+    - CLI generator: `encina generate slice`
+    - `SliceTestBase<TSlice>` for isolated testing
+    - Labels: `area-vertical-slice`, `area-cli`, `industry-best-practice`
+    - Inspired by Jimmy Bogard VSA
+  - **Module Versioning** (Issue #366) - API evolution for modules
+    - `[ModuleVersion("2.0")]` attribute
+    - `[ModuleApiVersion]` for versioned public APIs
+    - `[Deprecated("message", RemovalVersion = "3.0")]` with warnings
+    - `IModuleVersionAdapter<TFrom, TTo>` for version bridging
+    - Roslyn analyzer for deprecated API usage (ENC010)
+    - Version compatibility validation at startup
+    - Labels: `area-versioning`, `roslyn-analyzer`, `area-openapi`
+
+- New labels created for Modular Monolith patterns:
+  - `area-modular-monolith` - Modular Monolith architecture patterns
+  - `area-data-isolation` - Data isolation and schema separation
+  - `area-acl` - Anti-Corruption Layer patterns
+  - `area-vertical-slice` - Vertical Slice Architecture patterns
+  - `area-module-system` - Module system, lifecycle, and discovery
+  - `saas-enabler` - Enables SaaS application development
+  - `roslyn-analyzer` - Requires Roslyn analyzer implementation
+
+- Advanced Messaging Patterns Issues (15 new features planned based on market research):
+  - **Message Batching** (Issue #121) - Process multiple messages in a single handler invocation
+    - Inspired by Wolverine 4.0's batch handler support
+    - Time-based, count-based, and size-based batching modes
+    - Integration with Outbox/Inbox patterns
+  - **Claim Check Pattern** (Issue #122) - External storage for large message payloads
+    - Store large payloads in Azure Blob, S3, or FileSystem
+    - Pass only reference through message broker
+    - Reduces messaging costs and improves throughput
+    - New packages planned: `Encina.ClaimCheck`, `Encina.ClaimCheck.AzureBlob`, `Encina.ClaimCheck.AmazonS3`
+  - **Message Priority** (Issue #123) - Priority-based message processing
+    - Process high-priority messages before lower-priority ones
+    - Anti-starvation mechanisms for fairness
+  - **Enhanced Deduplication** (Issue #124) - Multiple deduplication strategies
+    - MessageId, ContentHash, TimeWindow, IdempotencyKey strategies
+    - Extends current Inbox pattern capabilities
+  - **Multi-Tenancy Messaging** (Issue #125) - First-class SaaS tenant isolation
+    - Automatic TenantId propagation in message context
+    - Tenant-isolated stores (Outbox, Inbox, Saga)
+    - Per-tenant configuration and rate limits
+  - **Message TTL** (Issue #126) - Time-to-live and automatic expiration
+    - Prevents processing stale data
+    - Integration with Dead Letter Queue
+  - **Request/Response RPC** (Issue #127) - RPC-style messaging
+    - Synchronous-style communication over message brokers
+    - Correlation ID management and timeout handling
+  - **Saga Visibility** (Issue #128) - Enhanced saga observability
+    - Query APIs for saga state
+    - Step history and audit trail
+    - Metrics for in-flight, completed, and failed sagas
+  - **Message Encryption** (Issue #129) - Compliance-ready encryption
+    - Transparent encryption/decryption in Outbox/Inbox
+    - Multiple providers: Azure Key Vault, AWS KMS, Data Protection
+    - GDPR, HIPAA, PCI-DSS compliance support
+    - New packages planned: `Encina.Encryption`, `Encina.Encryption.AzureKeyVault`, `Encina.Encryption.AwsKms`
+  - **Competing Consumers** (Issue #130) - Consumer group management
+    - Consumer group registration and rebalancing
+    - Partition assignment strategies
+    - Kubernetes-native scaling support
+  - **Backpressure & Flow Control** (Issue #131) - Overload protection
+    - Producer rate limiting
+    - Queue depth monitoring
+    - Adaptive concurrency control
+  - **W3C Trace Context** (Issue #132) - OpenTelemetry context propagation
+    - Full W3C Trace Context support (traceparent, tracestate)
+    - Baggage propagation for custom metadata
+    - Activity integration for handlers
+  - **Recurring Messages** (Issue #133) - Cron-style scheduling
+    - Cron expression support with timezone handling
+    - Missed occurrence strategies
+    - Extends current Scheduling pattern
+  - **Message Versioning** (Issue #134) - Schema evolution with upcasting
+    - Version stamps on messages
+    - Upcaster registry for automatic transformation
+    - Zero-downtime deployments
+  - **Poison Message Detection** (Issue #135) - Intelligent poison message handling
+    - Automatic classification (transient, permanent, malformed)
+    - Per-classification actions (retry, DLQ, quarantine)
+    - Security violation alerting
+
+- Database Providers Patterns Issues (16 new features planned based on December 2025 research):
+  - **Generic Repository Pattern** (Issue #279) - Unified data access abstraction
+    - `IRepository<TEntity, TId>` with GetByIdAsync, AddAsync, UpdateAsync, DeleteAsync, ListAsync
+    - `IReadRepository<TEntity, TId>` for CQRS scenarios
+    - Implementations for EF Core, Dapper, MongoDB
+    - Inspired by Ardalis.Specification
+  - **Specification Pattern** (Issue #280) - Reusable query encapsulation
+    - `ISpecification<T>` with Criteria, Includes, OrderBy, Paging
+    - `Specification<T>` base class with fluent API
+    - Provider-specific evaluators (EF Core LINQ, Dapper SQL, MongoDB FilterDefinition)
+  - **Unit of Work Pattern** (Issue #281) - Cross-aggregate transactions
+    - `IUnitOfWork` with SaveChangesAsync, BeginTransactionAsync, CommitAsync, RollbackAsync
+    - Repository factory method for transactional consistency
+  - **Multi-Tenancy Database Support** (Issue #282) - SaaS tenant isolation
+    - Strategies: Shared Schema, Schema-per-Tenant, Database-per-Tenant
+    - Tenant resolvers: Header, Subdomain, JWT Claim, Route
+    - New packages planned: `Encina.Tenancy`, `Encina.Tenancy.SharedSchema`, etc.
+  - **Read/Write Database Separation** (Issue #283) - CQRS physical split
+    - `IReadWriteDbContextFactory<TContext>` for read replica routing
+    - Automatic routing based on IQuery/ICommand
+    - Azure SQL ApplicationIntent=ReadOnly support
+  - **Bulk Operations** (Issue #284) - High-performance data operations
+    - `IBulkOperations<TEntity>`: BulkInsertAsync, BulkUpdateAsync, BulkDeleteAsync, BulkMergeAsync
+    - Performance: 680x faster than SaveChanges() for 1M rows
+    - Inspired by EFCore.BulkExtensions
+  - **Soft Delete & Temporal Tables** (Issue #285) - Logical delete + history
+    - `ISoftDeletable` interface with automatic global query filter
+    - `ITemporalRepository<TEntity, TId>` for SQL Server temporal tables
+    - Queries: GetAsOfAsync, GetHistoryAsync, GetChangedBetweenAsync
+  - **Audit Trail Pattern** (Issue #286) - Change tracking
+    - `IAuditableEntity` with CreatedAtUtc, CreatedBy, ModifiedAtUtc, ModifiedBy
+    - `AuditInterceptor` for automatic population via IRequestContext.UserId
+    - TimeProvider integration for testable timestamps
+  - **Optimistic Concurrency Abstractions** (Issue #287) - Conflict resolution
+    - `IConcurrencyAware` (RowVersion) and `IVersioned` (integer version)
+    - `IConcurrencyConflictResolver<TEntity>`: ClientWins, DatabaseWins, Merge strategies
+    - `IConcurrentRepository<TEntity, TId>` with retry support
+  - **CDC Integration** (Issue #288) - Change Data Capture
+    - `ChangeEvent<T>` with Operation, Before, After, Metadata
+    - `ICDCConsumer<T>`, `ICDCSubscriptionManager` interfaces
+    - New packages planned: `Encina.CDC`, `Encina.CDC.Debezium`
+    - Complements Outbox for legacy system integration
+  - **Database Sharding Abstractions** (Issue #289) - Horizontal partitioning
+    - `IShardable`, `IShardRouter<TEntity>`, `IShardedRepository<TEntity, TId>`
+    - Strategies: Hash (consistent hashing), Range, Directory, Geo
+    - Scatter-Gather for cross-shard queries
+  - **Connection Pool Resilience** (Issue #290) - Pool monitoring and health
+    - `IDatabaseHealthMonitor` with ConnectionPoolStats
+    - Database-aware circuit breaker, connection warm-up
+    - Integration with Encina.Extensions.Resilience
+  - **Query Cache Interceptor** (Issue #291) - EF Core second-level cache
+    - `IDbCommandInterceptor` for automatic query result caching
+    - Automatic invalidation on SaveChanges
+    - Integration with existing ICacheProvider
+  - **Domain Entity Base Classes** (Issue #292) - DDD foundations
+    - `Entity<TId>` with equality and domain events collection
+    - `AggregateRoot<TId>` with audit + concurrency traits
+    - `DomainEventDispatcher` SaveChanges interceptor
+  - **Pagination Abstractions** (Issue #293) - Standardized paging
+    - `PagedResult<T>` with TotalCount, TotalPages, HasNext/Previous
+    - `PaginationOptions`, `SortedPaginationOptions`
+    - `IPagedSpecification<T>` integration
+  - **Cursor-based Pagination** (Issue #294) - Keyset pagination research
+    - O(1) performance vs offset O(n) for large datasets
+    - GraphQL Relay Connection spec compatible
+    - Use cases: Infinite scroll, real-time feeds, public APIs
+
+- New labels created (10) for database patterns:
+  - `area-repository` - Repository pattern and data access abstractions
+  - `area-unit-of-work` - Unit of Work and transaction patterns
+  - `area-cqrs` - CQRS and read/write separation patterns
+  - `area-bulk-operations` - Bulk insert, update, delete operations
+  - `area-audit` - Audit trails and change tracking
+  - `area-cdc` - Change Data Capture patterns
+  - `area-sharding` - Database sharding and horizontal partitioning
+  - `area-pagination` - Pagination patterns (offset, cursor, keyset)
+  - `area-concurrency` - Concurrency control and conflict resolution
+  - `area-connection-pool` - Connection pooling and management
+
+- Advanced DDD & Workflow Patterns Issues (13 new features planned based on December 29, 2025 research):
+  - **Specification Pattern** (Issue #295) - Query composition with reusable specifications
+    - `ISpecification<T>` with Criteria, Includes, OrderBy, Paging
+    - `Specification<T>` base class with fluent builder
+    - AND/OR/NOT composition operators
+    - Provider evaluators for EF Core and Dapper
+    - Inspired by Ardalis.Specification
+    - Labels: `pattern-specification`, `area-ddd`, `area-repository`, `industry-best-practice`
+  - **Process Manager Pattern** (Issue #296) - Dynamic workflow orchestration
+    - `IProcessManager<TData>` with `ProcessDecision` types
+    - Dynamic routing vs predefined Saga sequences
+    - Background processor for process advancement
+    - Inspired by Enterprise Integration Patterns
+    - Labels: `pattern-process-manager`, `area-workflow`, `area-eip`, `masstransit-inspired`
+  - **State Machine Pattern (FSM)** (Issue #297) - Fluent state machine for entity lifecycle
+    - `StateMachineBuilder<TState, TTrigger>` fluent API
+    - Entry/exit actions, substates, guards
+    - External state accessor for ORM integration
+    - DOT graph export for visualization
+    - Inspired by Stateless library (6k+ stars) and MassTransit Automatonymous
+    - Labels: `pattern-state-machine`, `area-saga`, `area-workflow`, `masstransit-inspired`
+  - **Claim Check Pattern** (Issue #298) - Large payload handling
+    - `IClaimCheckStore` for external payload storage
+    - `[ClaimCheck]` attribute with threshold and expiry
+    - `ClaimCheckPipelineBehavior` for automatic handling
+    - Providers: Azure Blob, S3, File System, In-Memory
+    - Classic Enterprise Integration Pattern
+    - Labels: `pattern-claim-check`, `area-eip`, `area-messaging`, `area-scalability`
+  - **Anti-Corruption Layer (ACL)** (Issue #299) - Domain protection from external APIs
+    - `IAntiCorruptionLayer<TExternal, TInternal>` interface
+    - `AntiCorruptionLayerBehavior` for automatic translation
+    - `IExternalEventTranslator` for integration events
+    - Core DDD pattern by Eric Evans
+    - Labels: `pattern-acl`, `area-ddd`, `area-integration`, `industry-best-practice`
+  - **Feature Flag Integration** (Issue #300) - Microsoft.FeatureManagement pipeline
+    - `[FeatureGate]` attribute with behavior options
+    - `FeatureFlagPipelineBehavior` for short-circuit
+    - Contextual targeting via IRequestContext
+    - Use cases: dark deployments, canary releases, A/B testing
+    - Labels: `pattern-feature-flags`, `area-feature-management`, `cloud-azure`
+  - **Priority Queue Support** (Issue #301) - Priority-based message processing
+    - `MessagePriority` enum (Critical, High, Normal, Low, Background)
+    - `[MessagePriority]` attribute for requests
+    - Priority-aware batch fetching in Outbox and Scheduling
+    - Labels: `area-messaging`, `area-scheduling`, `area-scalability`
+  - **Batching/Bulk Operations** (Issue #302) - Batch handler pattern
+    - `IBatchHandler<TRequest, TResponse>` interface
+    - `BatchingPipelineBehavior` with auto-batching
+    - `[BatchOptions]` with MaxBatchSize, MaxDelayMs
+    - Failure strategies: Individual, FailAll, RetryFailed
+    - Labels: `area-bulk-operations`, `area-messaging`, `area-performance`
+  - **Durable Execution / Checkpointing** (Issue #303) - Long-running workflow support
+    - `IDurableContext` with ExecuteActivityAsync, WaitForEventAsync, CreateTimerAsync
+    - `IDurableWorkflow<TInput, TOutput>` interface
+    - Deterministic replay with history
+    - Inspired by Azure Durable Functions and Temporal.io
+    - Labels: `pattern-durable-execution`, `area-workflow`, `temporal-inspired`, `cloud-azure`
+  - **Multi-Tenancy Pipeline Behavior** (Issue #304) - Automatic tenant isolation
+    - `ITenantScopedQuery/Command` marker interfaces
+    - `TenantIsolationPipelineBehavior` for enforcement
+    - EF Core global query filter extension
+    - `[AllowCrossTenant]` for admin scenarios
+    - Labels: `area-multi-tenancy`, `area-security`, `area-compliance`, `industry-best-practice`
+  - **AI Agent Orchestration** (Issue #305) - LLM agent coordination (Future)
+    - `IAgentHandler<TRequest, TResponse>` with capabilities
+    - Orchestration patterns: Sequential, Concurrent, Handoff
+    - Semantic Kernel adapter
+    - Inspired by Microsoft Agent Framework (Oct 2025)
+    - Labels: `area-ai-ml`, `area-workflow`, `new-package`
+  - **Integration Events** (Issue #306) - Modular Monolith inter-module events
+    - `IIntegrationEvent` with EventId, OccurredAtUtc, SourceModule
+    - `IModuleEventBus` for in-process publishing
+    - Outbox integration for reliability
+    - Inspired by Spring Modulith 2.0
+    - Labels: `area-modular-monolith`, `area-messaging`, `area-microservices`
+  - **Request Versioning Pattern** (Issue #307) - Request evolution and upcasting
+    - `[RequestVersion]` and `IUpgradableFrom<T>` interfaces
+    - `RequestVersioningBehavior` for auto-upgrade
+    - `[DeprecatedRequest]` with warnings
+    - Inspired by Marten Event Upcasting
+    - Labels: `pattern-versioning`, `area-messaging`, `area-event-sourcing`
+
+- New labels created (12) for DDD & Workflow patterns:
+  - `pattern-specification` - Specification pattern for query composition
+  - `pattern-process-manager` - Process Manager workflow orchestration
+  - `pattern-state-machine` - Finite State Machine pattern
+  - `pattern-claim-check` - Claim Check pattern for large payloads
+  - `pattern-acl` - Anti-Corruption Layer pattern
+  - `pattern-feature-flags` - Feature Flags/Toggles pattern
+  - `pattern-durable-execution` - Durable Execution and checkpointing
+  - `pattern-versioning` - Request/Event versioning pattern
+  - `area-feature-management` - Feature flag management
+  - `area-workflow` - Workflow and process orchestration
+  - `temporal-inspired` - Pattern inspired by Temporal.io
+  - `masstransit-inspired` - Pattern inspired by MassTransit
+
+- Advanced EDA Patterns Issues (12 new features planned based on December 29, 2025 research):
+  - Based on analysis of MassTransit, Wolverine 5.0, Temporal.io, Axon Framework, Debezium, and community demand
+  - **CDC (Change Data Capture) Pattern** (Issue #308) - Database change streaming
+    - `ICdcConnector`, `IChangeEventHandler<TEntity>` for insert/update/delete
+    - New packages planned: `Encina.CDC`, `Encina.CDC.Debezium`, `Encina.CDC.SqlServer`
+    - Use case: Strangler Fig migration, legacy system integration
+    - Labels: `area-cdc`, `area-microservices`, `industry-best-practice`, `aot-compatible`
+  - **Schema Registry Integration** (Issue #309) - Event schema governance
+    - `ISchemaRegistry` with GetSchema, RegisterSchema, CheckCompatibility
+    - New packages planned: `Encina.SchemaRegistry`, `Encina.SchemaRegistry.Confluent`
+    - Supports Avro, Protobuf, JsonSchema formats
+    - Labels: `area-schema-registry`, `transport-kafka`, `area-compliance`, `industry-best-practice`
+  - **Event Mesh / Event Gateway** (Issue #310) - Enterprise event distribution
+    - `IEventMesh`, `IEventGateway` for cross-transport routing
+    - New packages planned: `Encina.EventMesh`, `Encina.EventMesh.CloudEvents`
+    - Cross-transport: Kafka → RabbitMQ → Azure Service Bus
+    - Labels: `area-cloud-native`, `area-integration`, `industry-best-practice`
+  - **Claim Check Pattern** (Issue #311) - Large payload external storage
+    - `IClaimCheckStore` with Store/Retrieve/Delete and `ClaimTicket`
+    - New packages planned: `Encina.ClaimCheck`, `Encina.ClaimCheck.AzureBlob`, `Encina.ClaimCheck.S3`
+    - `[ClaimCheck]` attribute with ThresholdBytes
+    - Labels: `area-eip`, `area-performance`, `cloud-azure`, `cloud-aws`
+  - **Domain vs Integration Events** (Issue #312) - Clear event type separation
+    - `IDomainEvent` (in-process), `IIntegrationEvent` (cross-service)
+    - `IEventTranslator<TDomain, TIntegration>` for Anti-Corruption Layer
+    - Core DDD pattern for bounded context isolation
+    - Labels: `area-ddd`, `area-event-sourcing`, `area-modular-monolith`, `area-microservices`
+  - **Event Correlation & Causation Tracking** (Issue #313) - Full event traceability
+    - `IEventMetadata` with EventId, CorrelationId, CausationId, Timestamp
+    - `EventCorrelationPipelineBehavior` for automatic propagation
+    - OpenTelemetry integration with span tags
+    - Labels: `area-observability`, `netflix-pattern`, `industry-best-practice`
+  - **Temporal Queries (Time Travel)** (Issue #314) - Point-in-time state queries
+    - `ITemporalRepository<T>` with GetAt(pointInTime), GetAtVersion, GetHistory
+    - `AggregateDiff<T>` for state comparison
+    - Use case: Auditing, debugging, what-if scenarios
+    - Labels: `area-event-sourcing`, `area-compliance`, `industry-best-practice`
+  - **Durable Execution / Workflow Engine** (Issue #315) - Lightweight Temporal.io-style
+    - `IDurableWorkflow<TInput, TOutput>`, `IWorkflowContext`, `IWorkflowRunner`
+    - Activities, durable timers, signals, deterministic replay
+    - New packages planned: `Encina.DurableExecution`, `Encina.DurableExecution.EntityFrameworkCore`
+    - Labels: `area-workflow`, `temporal-pattern`, `uber-pattern`, `netflix-pattern`
+  - **Event Enrichment Pipeline** (Issue #316) - Batch enrichment for projections
+    - `IEventEnricher<T>`, `IBatchEventEnricher` for N+1 avoidance
+    - `EnrichmentContext` with StreamId, Version, Services
+    - Inspired by Marten 4.13 EnrichEventsAsync
+    - Labels: `area-event-sourcing`, `area-performance`, `area-pipeline`
+  - **Process Manager Pattern** (Issue #317) - Long-running aggregate coordination
+    - `IProcessManager<TState>`, `ProcessManagerBase<TState>`
+    - Event-driven coordination vs Saga's predefined sequences
+    - `IProcessManagerStore` for persistence
+    - Labels: `area-saga`, `area-event-sourcing`, `area-coordination`
+  - **Event Streaming Abstractions** (Issue #318) - First-class event streams
+    - `IEventStreamPublisher`, `IEventStreamSubscription`
+    - Consumer groups, position tracking, acknowledgment
+    - Similar to Kafka consumer groups, RabbitMQ Streams
+    - Labels: `area-event-streaming`, `transport-kafka`, `transport-redis`, `netflix-pattern`
+  - **Idempotency Key Generator** (Issue #319) - Standardized key generation
+    - `IIdempotencyKeyGenerator` with Generate, GenerateFromParts
+    - `[IdempotencyKey]` attribute with Properties, Namespace, Format
+    - Strategies: Hash (SHA256), Composite, UUID v5
+    - Labels: `area-idempotency`, `stripe-pattern`, `uber-pattern`, `netflix-pattern`
+
+- New labels created (6) for EDA patterns:
+  - `area-schema-registry` - Schema Registry and event schema governance
+  - `area-event-streaming` - Event streaming and persistent log patterns
+  - `area-idempotency` - Idempotency and exactly-once processing
+  - `uber-pattern` - Pattern inspired by Uber engineering
+  - `stripe-pattern` - Pattern inspired by Stripe engineering
+  - `temporal-pattern` - Pattern inspired by Temporal.io
+
+- Advanced Caching Patterns Issues (13 new features planned based on December 2025 research):
+  - **Cache Stampede Protection** (Issue #266) - Thundering herd prevention with multiple strategies
+    - Inspired by FusionCache (most popular .NET caching library 2025)
+    - Single-Flight pattern: Coalesce concurrent requests into one factory execution
+    - Probabilistic Early Expiration (PER): Renew cache before expiration probabilistically
+    - TTL Jitter: Add random variation to prevent synchronized expiration
+    - Labels: `pattern-stampede-protection`, `area-resilience`, `area-performance`
+  - **Eager Refresh / Background Refresh** (Issue #267) - Proactive cache refresh
+    - Inspired by FusionCache's EagerRefreshThreshold
+    - Refresh in background before TTL expires (e.g., after 80% of duration)
+    - Users always get cached response, fresh data arrives asynchronously
+    - Eliminates latency spikes from cache expiration
+  - **Fail-Safe / Stale-While-Revalidate** (Issue #268) - Resilient caching
+    - Serve stale data when factory fails or is slow
+    - Soft/Hard timeout support: Return stale immediately if factory exceeds threshold
+    - FailSafeDurationSeconds: Extended TTL for emergency use
+    - Fail-safe throttling to prevent retry storms
+  - **Cache Warming / Pre-warming** (Issue #269) - Cold cache elimination
+    - `ICacheWarmer` interface for custom warmers
+    - `[CacheWarmer]` attribute for automatic query warming
+    - Startup warming via `CacheWarmingHostedService`
+    - Configurable strategies: Sequential, Parallel, TopHeavy
+  - **Cache Backplane** (Issue #270) - Multi-node synchronization
+    - `ICacheBackplane` interface for L1 cache sync across instances
+    - Redis backplane implementation with Pub/Sub
+    - Modes: InvalidationOnly, SmallValueReplication, FullReplication
+    - Node coordination and health tracking
+  - **Enhanced Tag-Based Invalidation** (Issue #271) - Semantic cache grouping
+    - `Tags` property on `[Cache]` attribute
+    - `[CacheTag]` attribute for dynamic tags from response
+    - `RemoveByTagAsync` on `ICacheProvider`
+    - More efficient than pattern-based invalidation (O(1) vs scan)
+  - **Read-Through / Write-Through Patterns** (Issue #272) - Alternative caching strategies
+    - `CacheStrategy` enum: CacheAside, ReadThrough, WriteThrough, WriteBehind
+    - Read-Through: Cache as primary data source
+    - Write-Through: Synchronous write to cache + database
+    - Write-Behind: Async persistence with batching
+  - **Cache Metrics OpenTelemetry** (Issue #273) - Comprehensive observability
+    - Counters: hits, misses, sets, removals, evictions
+    - Histograms: latency, value size
+    - Gauges: size_bytes, entry_count, hit_rate
+    - Resilience: stampede_prevented, stale_served, backplane_messages
+  - **Advanced Serialization** (Issue #274) - Performance optimization
+    - Per-type serializer configuration
+    - MemoryPack support (NativeAOT, ~10x faster than MessagePack)
+    - Zstd compression (better ratio than LZ4)
+    - Smart compression based on payload size
+  - **Multi-Tenant Cache Policies** (Issue #275) - SaaS support
+    - `CacheTenantPolicy` per tier (premium, standard, free)
+    - Quotas: MaxEntries, MaxMemoryMb, DefaultDuration
+    - Rate limiting per tenant
+    - Tenant isolation levels: KeyPrefix, Database, Instance
+  - **Cache Diagnostics & Debugging** (Issue #276) - Development tooling
+    - HTTP headers: X-Cache-Status, X-Cache-Key, X-Cache-Age, X-Cache-TTL
+    - Diagnostic endpoints: /cache/stats, /cache/keys, /cache/key/{key}
+    - `ICacheInspector` API for programmatic access
+    - Cache debugger middleware (?cache-debug=true)
+  - **New Cache Providers** (Issue #277) - Expanded ecosystem
+    - `Encina.Caching.Memcached` - Pure Memcached support
+    - `Encina.Caching.MemoryPack` - AOT-friendly serialization
+    - `Encina.Caching.Pogocache` - New 2025 cache (evaluate when stable)
+  - **Auto-Recovery / Self-Healing** (Issue #278) - Automatic resilience
+    - Retry logic with exponential backoff
+    - Circuit breaker for cache operations
+    - Automatic reconnection with `ICacheConnectionManager`
+    - Fallback strategies: SkipCache, UseLocalMemory, UseSecondaryProvider
+    - Self-healing backplane (auto-resubscribe, clear L1 on reconnect)
+
+- New pattern labels created for caching:
+  - `pattern-stampede-protection` - Cache stampede and thundering herd protection
+  - `pattern-stale-while-revalidate` - Stale-While-Revalidate caching pattern
+  - `pattern-read-through` - Read-Through caching pattern
+  - `pattern-write-through` - Write-Through caching pattern
+  - `pattern-cache-aside` - Cache-Aside caching pattern
+  - `pattern-backplane` - Cache backplane synchronization pattern
+  - `pattern-circuit-breaker` - Circuit Breaker resilience pattern
+  - `fustioncache-inspired` - Pattern inspired by FusionCache library
+
+- Issue #140 (Cache Stampede Prevention) closed as duplicate of #266 (more comprehensive)
+
+- Advanced Resilience Patterns Issues (9 new features planned based on 2025 research):
+  - **Hedging Pattern** (Issue #136) - Parallel redundant requests for latency reduction
+    - Inspired by Polly v8 and Istio service mesh
+    - Configure parallel requests with first-response-wins semantics
+    - Latency percentile-based triggering (P95, P99)
+    - Integration with OpenTelemetry for observability
+  - **Fallback / Graceful Degradation** (Issue #137) - Alternative responses when primary operations fail
+    - Inspired by Resilience4j and Polly
+    - Cached fallbacks, static defaults, and degraded responses
+    - Fallback chain with priority ordering
+    - Circuit breaker integration for proactive fallback
+  - **Load Shedding with Priority** (Issue #138) - Netflix/Uber-inspired priority-based request shedding
+    - Request priority levels: Critical, Degraded, BestEffort, Bulk
+    - Adaptive shedding based on system load metrics
+    - Integration with rate limiting and circuit breakers
+  - **Adaptive Concurrency Control** (Issue #139) - Netflix-inspired dynamic concurrency limits
+    - Inspired by Netflix's `concurrency-limits` library
+    - AIMD (Additive Increase/Multiplicative Decrease) algorithm
+    - Gradient-based limit adjustment based on latency
+    - TCP Vegas-style congestion control for services
+  - ~~**Cache Stampede Prevention** (Issue #140)~~ - Closed as duplicate of #266 (more comprehensive)
+    - Probabilistic early expiration to spread load
+  - **Cascading Timeout Coordination** (Issue #141) - Timeout budget propagation across call chains
+    - Request deadline propagation via gRPC-style patterns
+    - Remaining budget calculation at each service hop
+    - Early termination when budget exhausted
+  - **Health Checks Standardization** (Issue #142) - Unified health checks across all providers
+    - Kubernetes liveness/readiness/startup probe patterns
+    - Consistent health check interface for all Encina providers
+    - Health aggregation for composite systems
+  - **Observability-Resilience Correlation** (Issue #143) - OpenTelemetry integration for resilience events
+    - Resilience events as OpenTelemetry spans
+    - Metrics for circuit breaker state, retry counts, fallback usage
+    - Distributed tracing context propagation through resilience policies
+  - **Backpressure / Flow Control** (Issue #144) - Reactive Streams-style backpressure for streaming
+    - Producer/consumer rate coordination
+    - Buffer overflow strategies (drop, block, latest)
+    - Integration with IAsyncEnumerable and stream requests
+  - **Chaos Engineering Integration** (Issue #145) - Polly Chaos strategies for fault injection testing
+    - Latency injection, exception injection, result manipulation
+    - Controlled chaos via feature flags
+    - Integration with testing infrastructure
+
+- Advanced Scheduling Patterns Issues (15 new features planned based on 2025 research):
+  - **Cancellation & Update API** (Issue #146) - Cancel, reschedule, or update scheduled messages
+    - Inspired by MassTransit, Hangfire, Temporal
+    - `CancelAsync`, `RescheduleAsync`, `UpdatePayloadAsync` methods
+    - Batch cancellation with filters
+  - **Priority Queue Support** (Issue #147) - Priority-based message processing
+    - Inspired by Meta FOQS and BullMQ
+    - Priority levels: Critical, High, Normal, Low, Background
+    - Anti-starvation with aging mechanism
+  - **Idempotency Keys** (Issue #148) - Exactly-once execution guarantee
+    - Inspired by Temporal, Azure Durable Functions
+    - User-provided idempotency keys
+    - Automatic duplicate detection and rejection
+  - **Dead Letter Queue Integration** (Issue #149) - DLQ for failed scheduled messages
+    - Integration with existing DLQ infrastructure
+    - Automatic move after max retries
+    - Inspection and replay capabilities
+  - **Timezone-Aware Scheduling** (Issue #150) - Full timezone support
+    - Inspired by Hangfire, Quartz.NET
+    - DST transition handling
+    - IANA timezone database support
+  - **Rate Limiting for Scheduled** (Issue #151) - Prevent burst execution
+    - Inspired by Meta FOQS, Redis Queue
+    - Per-type and global rate limits
+    - Token bucket algorithm
+  - **Dependency Chains** (Issue #152) - DAG-based job dependencies
+    - Inspired by Apache Airflow, Temporal
+    - Job dependencies with `DependsOn`
+    - Parallel execution of independent jobs
+  - **Observability & Metrics** (Issue #153) - OpenTelemetry integration
+    - Scheduling-specific spans and metrics
+    - Queue depth, execution latency, success/failure rates
+    - Grafana dashboard templates
+  - **Batch Scheduling** (Issue #154) - Efficient bulk operations
+    - `ScheduleManyAsync` for bulk scheduling
+    - Transactional batch support
+    - Optimized database operations
+  - **Delayed Message Visibility** (Issue #155) - SQS-style visibility timeout
+    - Inspired by Amazon SQS
+    - Lease-based processing
+    - Automatic re-queue on timeout
+  - **Scheduling Persistence Providers** (Issue #156) - Backend adapters
+    - Hangfire backend adapter
+    - Quartz.NET backend adapter
+    - Unified API across backends
+  - **Execution Windows** (Issue #157) - Business hours support
+    - Inspired by Quartz.NET, enterprise schedulers
+    - Business hours and maintenance windows
+    - Holiday calendar integration
+  - **Schedule Templates** (Issue #158) - Reusable configurations
+    - Named schedule templates
+    - Template inheritance and override
+    - Centralized schedule management
+  - **Webhook Notifications** (Issue #159) - External system notifications
+    - HTTP webhook on schedule events
+    - Retry with exponential backoff
+    - Signature verification for security
+  - **Multi-Region Scheduling** (Issue #160) - Globally distributed scheduling
+    - Inspired by Meta FOQS, Uber Cadence
+    - Leader election per region
+    - Cross-region coordination
+
+- Advanced Observability Patterns Issues (15 new features planned based on 2025 research):
+  - **Real Metrics Collection (EncinaMetrics)** (Issue #174) - Full IEncinaMetrics implementation
+    - System.Diagnostics.Metrics for zero-allocation metrics
+    - Histograms: `encina.request.duration`, `encina.handler.duration`
+    - Counters: `encina.requests.total`, `encina.errors.total`
+    - Gauges: `encina.active.handlers`, `encina.pending.outbox`
+    - Standardized tags for all metrics
+    - Inspired by MassTransit, Wolverine OpenTelemetry
+  - **Correlation & Causation ID Support** (Issue #175) - Request tracking across services
+    - CorrelationId propagation through pipeline
+    - CausationId for message causation chains
+    - Extension methods for context enrichment
+    - Standard headers for all transports
+    - Inspired by NServiceBus, MassTransit
+  - **Baggage Propagation Utilities** (Issue #176) - W3C Baggage support
+    - Helpers for IRequestContext baggage
+    - AddBaggage(), GetBaggage(), GetAllBaggage()
+    - Automatic propagation to handlers
+    - Activity.Baggage integration
+    - Inspired by OpenTelemetry spec, .NET Aspire
+  - **Missing Semantic Convention Attributes** (Issue #177) - OTel messaging semantics
+    - Complete messaging semantic attributes
+    - messaging.system, messaging.operation, messaging.destination
+    - Handler-specific attributes
+    - OpenTelemetry Semantic Conventions compliant
+  - **Encina.OpenTelemetry.AzureMonitor** (Issue #178) - Azure integration package
+    - Azure Application Insights integration
+    - Native Azure Monitor exporters
+    - Live Metrics Stream support
+    - Azure distributed tracing
+  - **Encina.OpenTelemetry.AwsXRay** (Issue #179) - AWS integration package
+    - AWS X-Ray via ADOT integration
+    - Native AWS exporters
+    - AWS Lambda instrumentation
+    - AWS distributed tracing
+  - **Encina.OpenTelemetry.Prometheus** (Issue #180) - Prometheus metrics package
+    - Native /metrics endpoint
+    - OpenMetrics format
+    - Configurable labels
+    - Grafana integration
+  - **Encina.HealthChecks Package** (Issue #181) - Dedicated health checks
+    - Kubernetes probes: liveness, readiness, startup
+    - Health check aggregation
+    - Status dashboard support
+    - Pattern-specific health checks
+  - **Encina.Serilog.OpenTelemetry** (Issue #182) - Serilog to OTel bridge
+    - Serilog → OpenTelemetry Logs export
+    - Automatic trace context enrichment
+    - Optimized formatters
+  - **Sampling Behaviors** (Issue #183) - Configurable trace sampling
+    - Head and tail sampling
+    - Probabilistic sampling
+    - Rate-limiting sampler
+    - Per-request-type sampling rules
+  - **Request Tracing Behavior** (Issue #184) - Detailed request tracing
+    - Per-request Activity spans
+    - Handler timing
+    - Pipeline step visibility
+    - Error correlation
+  - **Error Recording Enhancements** (Issue #185) - Enhanced error capture
+    - Exception details in spans
+    - Stack trace recording
+    - Error categorization
+    - OTel error semantic conventions
+  - **Distributed Context Properties** (Issue #186) - Context propagation
+    - Custom property propagation
+    - Cross-service context sharing
+    - W3C Trace Context extensions
+  - **Grafana Dashboards** (Issue #187) - Pre-built visualizations
+    - Main Encina dashboard JSON
+    - Per-pattern dashboards (Outbox, Saga, etc.)
+    - Configurable alerts
+    - One-click import
+  - **Aspire Dashboard Integration Guide** (Issue #188) - .NET Aspire docs
+    - Aspire Dashboard configuration
+    - Encina trace visualization
+    - Local development setup
+
+- Web/API Integration Patterns Issues (18 new features planned based on December 2025 research):
+  - **Server-Sent Events** (Issue #189) - Native .NET 10 SSE support
+    - Leverage `TypedResults.ServerSentEvents` API from ASP.NET Core 10
+    - `SseEndpointExtensions` for easy endpoint registration
+    - Heartbeat/keep-alive and automatic retry configuration
+    - Integration with notification streaming patterns
+    - Use cases: dashboards, real-time notifications, progress indicators
+  - **REPR Pattern Support** (Issue #190) - Request-Endpoint-Response pattern
+    - `EncinaEndpoint<TRequest, TResponse>` abstract base class
+    - `CommandEndpoint` and `QueryEndpoint` specialized variants
+    - Fluent `EndpointBuilder` for configuration
+    - Auto-registration via assembly scanning
+    - Alignment with Vertical Slice Architecture and CQRS
+    - Inspired by FastEndpoints and industry best practices
+  - **Problem Details RFC 9457** (Issue #191) - Updated error response standard
+    - Update from RFC 7807 to RFC 9457 (supersedes 7807)
+    - Automatic TraceId inclusion in error responses
+    - `IExceptionHandler` implementation for global exception handling
+    - Timestamp and error code in extensions
+    - Validation problem details with proper grouping
+  - **API Versioning Helpers** (Issue #192) - Comprehensive versioning support
+    - Integration with `Asp.Versioning.Http` package
+    - `[ApiVersion]` attribute support for handlers
+    - Version-aware handler resolution
+    - Deprecation headers (Sunset RFC 8594, Deprecation)
+    - Multiple versioning strategies (URI, query, header, media type)
+  - **Minimal APIs Organization** (Issue #193) - Endpoint organization extensions
+    - `IEncinaEndpointModule` interface for modular organization
+    - `MapEncinaModules` for auto-registration
+    - `MapPostEncina`, `MapGetEncina`, etc. extension methods
+    - `WithEncinaResponses()` for common response documentation
+    - Feature folder conventions support
+  - **Encina.SignalR Package** (Issue #194) - Real-time bidirectional communication
+    - New package: `Encina.SignalR` (documented but not yet implemented)
+    - `ISignalRNotificationBroadcaster` for broadcasting notifications
+    - `EncinaHub` base class with Send/Publish methods
+    - Group management with tenant isolation
+    - `[BroadcastToSignalR]` attribute for automatic broadcasting
+    - Integration with existing notification patterns
+  - **GraphQL/HotChocolate Full Integration** (Issue #195) - Complete GraphQL support
+    - Enhance existing `Encina.GraphQL` from basic bridge to full integration
+    - Auto-generate Query/Mutation types from handlers with `[GraphQLQuery]`, `[GraphQLMutation]`
+    - Subscription support with pub/sub integration
+    - DataLoader base class for N+1 prevention
+    - `Either<EncinaError, T>` → GraphQL error mapping via `EncinaErrorFilter`
+    - RequestContext propagation to resolvers
+  - **gRPC Improvements** (Issue #196) - Strong typing and streaming
+    - Proto code generation from handler types
+    - Strongly-typed service implementations (replacing reflection-based)
+    - Server, client, and bidirectional streaming with `IAsyncEnumerable`
+    - Service interceptors for logging, auth, metrics
+    - `EncinaError` → gRPC Status code mapping
+  - **Rate Limiting Pipeline Behavior** (Issue #197) - Handler-level rate limiting
+    - `[RateLimit]` attribute for per-handler configuration
+    - Support for Fixed/Sliding/Token/Concurrency limiters
+    - Partition keys: User, Tenant, IP, ApiKey, Custom
+    - Response headers: X-RateLimit-Limit, X-RateLimit-Remaining, Retry-After
+    - Distributed rate limiting support (Redis, SQL Server)
+    - Integration with ASP.NET Core rate limiting middleware
+  - **OpenAPI 3.1 Enhanced** (Issue #198) - Schema generation and SDK support
+    - Auto-generate OpenAPI schemas from handler types
+    - Data annotation → OpenAPI constraint mapping
+    - XML comments integration
+    - Encina error response documentation
+    - Client SDK generation helpers (NSwag, OpenAPI Generator)
+    - YAML export support
+  - **BFF Pattern Support** (Issue #199) - Backend for Frontend
+    - New package: `Encina.AspNetCore.BFF`
+    - `IBffAggregator` for query aggregation
+    - Client-specific response transformation
+    - Client detection (header, user-agent, claims)
+    - Client-aware caching
+    - Parallel aggregation with timeout and partial results
+  - **AI/LLM Integration Patterns** (Issue #200) - Provider-agnostic AI integration
+    - New packages: `Encina.AI`, `Encina.AI.OpenAI`, `Encina.AI.Azure`, `Encina.AI.Anthropic`, `Encina.AI.Ollama`, `Encina.AI.SemanticKernel`
+    - `IAIProvider` abstraction for multiple LLM providers
+    - `IAIRequest<TResponse>` integration with Encina pipeline
+    - Chat completion, embedding, and structured output support
+    - Streaming responses via `IAsyncEnumerable`
+    - Prompt validation behavior (PII detection, injection prevention)
+    - Semantic Kernel adapter for orchestration
+    - Fallback chain for provider resilience
+  - **Vertical Slice Architecture Templates** (Issue #201) - CLI scaffolding
+    - `encina new feature <name>` command for complete feature slices
+    - Generate command, query, endpoint, validator, and test files
+    - Module registration and DI extension files
+    - Custom template support
+    - Interactive mode for guided generation
+  - **WebHook Support** (Issue #202) - Webhook receiving and sending
+    - `IWebhookHandler<TPayload>` interface
+    - Signature validation (HMAC-SHA256, HMAC-SHA1)
+    - Timestamp validation for replay attack prevention
+    - Inbox pattern integration for idempotency
+    - Webhook sender with retry and dead letter
+    - Provider configuration (Stripe, GitHub, etc.)
+  - **Health Aggregation Endpoint** (Issue #203) - Combined health checks
+    - Aggregated `/health` endpoint
+    - `/health/ready` and `/health/live` separation (Kubernetes probes)
+    - `/health/detailed` with authorization
+    - Module health check auto-discovery
+    - Response caching
+  - **Passkey Authentication** (Issue #204) - WebAuthn/FIDO2 support
+    - `[RequirePasskey]` attribute for high-security operations
+    - Integration with .NET 10 ASP.NET Core Identity passkey features
+    - `IPasskeyChallenger` for challenge/response flow
+    - Fallback to password option
+  - **Google Cloud Functions** (Issue #205) - GCF integration
+    - New package: `Encina.GoogleCloudFunctions`
+    - `EncinaHttpFunction` base class
+    - `EncinaCloudEventFunction` for Pub/Sub events
+    - Context enrichment (correlation ID, trace ID)
+    - Health check integration
+  - **Cloudflare Workers** (Issue #206) - Edge computing integration
+    - New package: `Encina.CloudflareWorkers`
+    - `EncinaWorker` base class
+    - KV storage integration (as cache provider)
+    - Durable Objects for saga coordination (future)
+    - D1 database integration (future)
+
+- New Labels Created (Web/API - December 2025):
+  - `area-ai-ml` - AI/ML and LLM integration patterns
+  - `area-bff` - Backend for Frontend patterns
+  - `area-openapi` - OpenAPI/Swagger documentation and generation
+  - `area-webhooks` - Webhook receiving and sending patterns
+  - `area-rate-limiting` - Rate limiting and throttling patterns
+  - `area-health-checks` - Health checks and readiness probes
+  - `area-authentication` - Authentication patterns (Passkeys, OAuth, etc.)
+  - `cloud-cloudflare` - Cloudflare Workers and services
+
+- Advanced Testing Patterns Issues (13 new features planned based on 2025 research):
+  - **Test Data Generation** (Issue #161) - Bogus/AutoBogus integration for realistic test data
+    - `EncinaFaker<T>` base class with Encina-specific conventions
+    - Pre-built fakers for messaging entities (Outbox, Inbox, Saga, Scheduled)
+    - Seed support for deterministic, reproducible tests
+    - New package planned: `Encina.Testing.DataGeneration`
+  - **Testcontainers Integration** (Issue #162) - Docker fixtures for database testing
+    - Pre-configured fixtures: `SqlServerContainerFixture`, `PostgreSqlContainerFixture`, `MongoDbContainerFixture`, `RedisContainerFixture`
+    - Integration with existing `EncinaFixture`
+    - GitHub Actions CI/CD compatible
+    - New package planned: `Encina.Testing.Testcontainers`
+  - **Database Reset with Respawn** (Issue #163) - Intelligent cleanup between tests
+    - `EncinaRespawner` factory with Encina-specific table exclusions
+    - `DatabaseIntegrationTestBase` abstract class
+    - 3x faster than truncate/recreate approach
+  - **HTTP Mocking with WireMock** (Issue #164) - External API mocking
+    - `EncinaWireMockFixture` with helpers: `SetupOutboxWebhook()`, `SetupExternalApi()`
+    - `EncinaRefitMockFixture<TClient>` for Refit clients
+    - Fault simulation: `SetupFault()`, `SetupDelay()`
+    - New package planned: `Encina.Testing.WireMock`
+  - **Snapshot Testing with Verify** (Issue #165) - Approval testing for complex responses
+    - `EncinaVerifyExtensions` for Either, ValidationResult, EncinaError
+    - Custom JSON converters for Encina types
+    - Data scrubbing for non-deterministic values (GUIDs, dates)
+  - **Architecture Testing with ArchUnitNET** (Issue #166) - CQRS architecture rules
+    - `EncinaArchitectureRules` with pre-defined rules
+    - `CommandsMustNotReturnVoid()`, `QueriesMustNotModifyState()`
+    - `HandlersMustNotDependOnControllers()`, `DomainMustNotDependOnInfrastructure()`
+    - New package planned: `Encina.Testing.Architecture`
+  - **Handler Registration Tests** (Issue #167) - Verify all handlers are registered
+    - `EncinaRegistrationAssertions.AllRequestsShouldHaveHandlers(assembly)`
+    - `EncinaRegistrationAssertions.AllNotificationsShouldHaveHandlers(assembly)`
+    - `RegistrationVerifier` fluent API
+    - Early detection of missing handler registrations
+  - **Pipeline Testing Utilities** (Issue #168) - Control behaviors in tests
+    - `PipelineTestContext<TRequest, TResponse>` for pipeline testing
+    - `WithBehavior<T>()`, `WithoutBehavior<T>()`, `WithMockedHandler()` methods
+    - `VerifyBehaviorCalled<T>(Times)` verification
+    - `PipelineTest.For<TRequest, TResponse>()` factory
+  - **Messaging Pattern Helpers** (Issue #169) - Helpers for Outbox, Inbox, Saga, Scheduling
+    - `OutboxTestHelper`: `CaptureMessages()`, `VerifyMessagePublished<T>()`
+    - `InboxTestHelper`: `SimulateIdempotentMessage()`, `VerifyProcessedOnce()`
+    - `SagaTestBase<TSaga, TData>`: Given/When/Then for sagas
+    - `SchedulingTestHelper`: `AdvanceTimeAndGetDue()`, `VerifyCronNextExecution()`
+  - **Improved Assertions** (Issue #170) - Fluent assertions with chaining
+    - `AndConstraint<T>` for chained assertions
+    - `ShouldBeSuccess().And.ShouldSatisfy(x => ...)`
+    - Streaming assertions for `IAsyncEnumerable<Either<EncinaError, T>>`
+    - Error collection assertions
+  - **TUnit Support** (Issue #171) - Source-generated testing framework
+    - `EncinaTUnitFixture` adapted for TUnit model
+    - NativeAOT compatible (aligns with Source Generators #50)
+    - 10-200x faster test execution
+    - New package planned: `Encina.Testing.TUnit`
+  - **Mutation Testing Integration** (Issue #172) - Stryker.NET configuration
+    - Pre-configured `stryker-config.json` for Encina projects
+    - `scripts/run-stryker.cs` helper script
+    - GitHub Actions workflow for mutation testing
+    - `MutationKillerAttribute` for edge case tests
+  - **CI/CD Workflow Templates** (Issue #173) - Reusable GitHub Actions
+    - `encina-test.yml` - Basic unit + integration tests
+    - `encina-matrix.yml` - Cross-platform, multi-database testing
+    - `encina-full-ci.yml` - Complete CI with architecture + mutation tests
+
+- New Labels Created (Testing):
+  - `area-testing` - Testing utilities and frameworks
+  - `testing-integration` - Integration testing utilities
+  - `testing-unit` - Unit testing utilities
+  - `testing-mocking` - Mocking and stubbing utilities
+  - `testing-snapshot` - Snapshot and approval testing
+  - `testing-data-generation` - Test data generation and fixtures
+  - `area-mutation-testing` - Mutation testing and test quality
+  - `area-architecture-testing` - Architecture rules and verification
+  - `area-ci-cd` - CI/CD pipelines and automation
+  - `area-docker` - Docker and containerization
+  - `aot-compatible` - NativeAOT and trimming compatible
+
+- Advanced Distributed Lock Patterns Issues (20 new features planned based on December 2025 research):
+  - **PostgreSQL Provider** (Issue #207) - Native PostgreSQL advisory locks
+    - `pg_advisory_lock(key)` for exclusive locks
+    - `pg_advisory_lock_shared(key)` for shared locks
+    - `pg_try_advisory_lock()` for non-blocking acquisition
+    - Session-level and transaction-level lock APIs
+    - No additional table required, uses PostgreSQL native locks
+    - Inspired by DistributedLock (madelson) - most requested database provider
+  - **MySQL Provider** (Issue #208) - GET_LOCK-based locking
+    - `GET_LOCK(name, timeout)` / `RELEASE_LOCK(name)` functions
+    - Session-scoped locks with timeout support
+    - Lock name validation and sanitization
+    - Compatible with MySQL 5.7+, MariaDB 10.0+
+  - **Azure Blob Storage Provider** (Issue #209) - Cloud-native blob leases
+    - Blob lease acquisition with 15-60s duration (max 60s)
+    - Auto-renewal background thread
+    - `IAzureBlobLockProvider` specialized interface
+    - Health checks for lease monitoring
+    - Inspired by Azure SDK, Medallion.Threading
+  - **DynamoDB Provider** (Issue #210) - AWS-native conditional writes
+    - Conditional writes with `attribute_not_exists` for lock acquisition
+    - TTL-based automatic expiration
+    - Heartbeat mechanism for lease extension
+    - Fence tokens for consistency
+    - Inspired by AWS DynamoDB Locking Client
+  - **Consul Provider** (Issue #211) - HashiCorp session-based locks
+    - Session-based locking with configurable TTL
+    - Health check integration for automatic lock release
+    - Leader election primitives
+    - Watch for lock state changes
+    - Inspired by HashiCorp Consul
+  - **etcd Provider** (Issue #212) - Lease-based distributed coordination
+    - etcd lease creation with TTL
+    - Transaction-based lock acquisition
+    - Watch for key changes
+    - Integration with etcd v3 API
+    - Inspired by etcd.io distributed lock recipe
+  - **ZooKeeper Provider** (Issue #213) - Ephemeral sequential nodes
+    - Ephemeral sequential node creation
+    - Watch mechanism for predecessor node deletion
+    - Automatic lock release on session disconnect
+    - Lock fairness through sequence ordering
+    - Inspired by Apache ZooKeeper recipes
+  - **Oracle Provider** (Issue #214) - DBMS_LOCK package
+    - `DBMS_LOCK.REQUEST()` / `DBMS_LOCK.RELEASE()` procedures
+    - Multiple lock modes (Shared, Exclusive)
+    - Lock handle allocation and management
+    - Compatible with Oracle 12c+
+    - Inspired by DistributedLock (madelson)
+  - **Distributed Semaphores** (Issue #215) - Counting locks for N-concurrent access
+    - `IDistributedSemaphore` interface with count-based acquisition
+    - `TryAcquireAsync(resource, maxCount, expiry)` method
+    - `GetAvailableCountAsync(resource)` for monitoring
+    - Use cases: rate limiting, connection pooling, resource throttling
+    - Implementations: Redis (Lua scripts), PostgreSQL, SQL Server
+    - Inspired by DistributedLock (madelson) semaphore support
+  - **Leader Election** (Issue #216) - Cluster-wide leader selection
+    - `ILeaderElectionProvider` interface for leader management
+    - `AcquireLeadershipAsync()`, `IsLeaderAsync()` methods
+    - `WatchLeadershipAsync()` for change notifications via `IAsyncEnumerable`
+    - Automatic lease renewal
+    - Use cases: singleton services, scheduled job coordination
+    - Inspired by Consul, etcd, Kubernetes leader election
+  - **Read/Write Locks** (Issue #217) - Multiple readers, exclusive writer
+    - `IDistributedReadWriteLockProvider` interface
+    - Shared read locks (multiple concurrent readers)
+    - Exclusive write locks (single writer, no readers)
+    - Upgrade/downgrade support where possible
+    - Inspired by PostgreSQL `pg_advisory_lock_shared`, ReaderWriterLockSlim
+  - **Fencing Tokens** (Issue #218) - Split-brain prevention
+    - Monotonically increasing token with each lock acquisition
+    - Storage rejects operations with stale tokens
+    - Prevents processing with expired locks
+    - Inspired by Martin Kleppmann "Designing Data-Intensive Applications"
+  - **Multi-Resource Locks** (Issue #219) - Atomic multi-lock acquisition
+    - Acquire multiple resources atomically
+    - Deadlock prevention via consistent ordering
+    - All-or-nothing semantics
+    - Inspired by Two-Phase Locking protocol
+  - **DistributedLockPipelineBehavior** (Issue #220) - Declarative handler locking
+    - `[DistributedLock("{request.EntityId}", ExpirySeconds = 30)]` attribute
+    - Key template support with property placeholders
+    - Configurable expiry, retry, and wait timeouts
+    - Automatic lock acquisition/release around handler
+    - Integration with existing pipeline infrastructure
+  - **LeaderElectionPipelineBehavior** (Issue #221) - Leader-only handler execution
+    - `[RequiresLeadership("scheduler-leader")]` attribute
+    - Handler only executes on current leader node
+    - Non-leaders receive predefined fallback response
+    - Automatic leadership monitoring
+    - Use cases: singleton scheduled jobs, exclusive processors
+  - **OpenTelemetry Integration for Locks** (Issue #222) - Metrics and traces
+    - Metrics: `encina.lock.acquired`, `encina.lock.released`, `encina.lock.wait_time`, `encina.lock.contention`
+    - Traces: Spans for lock acquisition, hold duration, release
+    - Tags: lock type, resource name, outcome (acquired/timeout/failed)
+    - Integration with existing Encina.OpenTelemetry infrastructure
+  - **Auto-extend Locks** (Issue #223) - Automatic lease extension
+    - Background renewal for long-running operations
+    - Configurable extension interval (e.g., renew at 50% of expiry)
+    - Graceful handling of extension failures
+    - Prevents accidental lock expiration during processing
+  - **Lock Metadata** (Issue #224) - Lock holder information
+    - `GetLockInfoAsync(resource)` returning holder identity, acquisition time
+    - Useful for debugging and operations
+    - Optional: machine name, process ID, correlation ID
+    - Read-only, does not affect lock semantics
+  - **Lock Queuing & Fairness** (Issue #225) - FIFO ordering for waiters
+    - Fair ordering: first waiter acquires lock first
+    - Prevents starvation of long-waiting requesters
+    - Optional: priority-based queuing
+    - Implementations vary by backend capabilities
+  - **RedLock Algorithm** (Issue #226) - High-availability multi-Redis locking
+    - Consensus across N/2+1 Redis instances for lock acquisition
+    - Clock drift compensation
+    - Automatic retry with jitter on partial acquisition
+    - `IRedLockProvider` as wrapper around `IDistributedLockProvider`
+    - Inspired by Redis RedLock specification, RedLock.net
+
+- New Labels Created (Distributed Lock - December 2025):
+  - `area-distributed-lock` - Distributed locking patterns
+  - `area-leader-election` - Leader election and coordination
+  - `area-semaphore` - Distributed semaphores and counting locks
+  - `area-coordination` - Distributed coordination primitives
+  - `area-pipeline` - Pipeline behaviors and middleware
+
+- Message Transport Patterns Issues (29 new features planned based on December 2025 research):
+  - **New Message Transports (6 issues)**:
+    - **Google Cloud Pub/Sub Transport** (Issue #237) - Native GCP integration
+      - `IMessageTransportPubSub` interface with dead-lettering and ordering keys
+      - Exactly-once delivery (Preview feature), flow control
+      - Schema validation, message filtering, BigQuery subscriptions
+      - New package planned: `Encina.Transport.GooglePubSub`
+    - **AWS EventBridge Transport** (Issue #238) - Event-driven AWS integration
+      - Event bus publishing with partner/custom buses
+      - Content-based filtering with event patterns
+      - Archive and replay, cross-account delivery
+      - Schema discovery integration
+      - New package planned: `Encina.Transport.EventBridge`
+    - **Apache Pulsar Transport** (Issue #239) - Multi-tenant messaging
+      - Exclusive, Shared, Failover, Key_Shared subscription types
+      - Topic compaction, tiered storage, geo-replication
+      - Schema registry with Avro/Protobuf/JSON
+      - Pulsar Functions integration for stream processing
+      - New package planned: `Encina.Transport.Pulsar`
+    - **Redis Streams Transport** (Issue #240) - Redis-native streaming
+      - `XADD`/`XREAD`/`XREADGROUP` command integration
+      - Consumer groups with automatic rebalancing
+      - Stream trimming (`MAXLEN`, `MINID`)
+      - Pending Entry List (PEL) management, message acknowledgment
+      - New package planned: `Encina.Transport.RedisStreams`
+    - **Apache ActiveMQ Artemis Transport** (Issue #241) - Enterprise JMS-compatible broker
+      - AMQP 1.0 and CORE protocol support
+      - Scheduled messages, last-value queues, ring queues
+      - Message grouping, large message support
+      - Divert and bridge configurations
+      - New package planned: `Encina.Transport.ActiveMQ`
+    - **Dapr Transport** (Issue #242) - Cloud-agnostic pub/sub abstraction
+      - Component-based pub/sub (40+ broker implementations)
+      - CloudEvents format native support
+      - Bulk publish, per-message metadata
+      - Subscriber routing rules
+      - New package planned: `Encina.Transport.Dapr`
+  - **Enterprise Integration Patterns (9 issues)**:
+    - **Message Translator** (Issue #243) - Transform message formats between systems
+      - `IMessageTranslator<TFrom, TTo>` interface
+      - Bidirectional translation support
+      - AutoMapper and Mapster integration
+    - **Content Enricher** (Issue #244) - Augment messages with external data
+      - `IContentEnricher<TMessage>` interface
+      - Async enrichment from external services
+      - Caching support for enrichment data
+    - **Splitter Pattern** (Issue #245) - Break composite messages into parts
+      - `IMessageSplitter<TComposite, TPart>` interface
+      - Correlation ID propagation
+      - Sequential and parallel splitting
+    - **Aggregator Pattern** (Issue #246) - Combine related messages
+      - `IMessageAggregator<TPart, TResult>` interface
+      - Time-based and count-based completion conditions
+      - Correlation strategies (CorrelationId, custom keys)
+    - **Claim Check Pattern** (Issue #247) - Large message handling
+      - `IClaimCheckStore` interface for payload storage
+      - Azure Blob, S3, local filesystem providers
+      - Automatic check-in/check-out with message metadata
+    - **Async Request-Reply** (Issue #248) - Correlation-based responses
+      - `IAsyncRequestReply<TRequest, TResponse>` interface
+      - Reply-to queue management
+      - Timeout handling with continuation tokens
+    - **Competing Consumers** (Issue #249) - Parallel message processing
+      - `ICompetingConsumerPool` interface
+      - Dynamic scaling based on queue depth
+      - Affinity and stickiness options
+    - **Message Filter** (Issue #250) - Route messages by content
+      - `IMessageFilter<TMessage>` interface
+      - Predicate-based filtering
+      - Dead-letter routing for filtered messages
+    - **Priority Queue** (Issue #251) - Priority-based message delivery
+      - `IMessagePriority` interface for priority assignment
+      - Multiple priority levels configuration
+      - Fair scheduling to prevent starvation
+  - **Advanced Transport Features (8 issues)**:
+    - **Message Batching** (Issue #252) - Efficient bulk operations
+      - `BatchPublisher<TMessage>` with configurable batch size/timeout
+      - Async flush with backpressure
+      - Per-transport batch optimization
+    - **Native Delayed Delivery** (Issue #253) - Broker-native scheduling
+      - `IDelayedDeliveryTransport` interface
+      - `DelayUntil(DateTimeOffset)`, `DelayFor(TimeSpan)` methods
+      - Fallback to Encina.Scheduling when not supported
+    - **Message Deduplication** (Issue #254) - Transport-level idempotency
+      - `IDeduplicationStrategy` interface
+      - Content-hash, Message-ID, custom key strategies
+      - Configurable deduplication window
+    - **Partitioning** (Issue #255) - Ordered message delivery
+      - `IPartitionKeyProvider<TMessage>` interface
+      - Consistent hashing for partition assignment
+      - Partition affinity for stateful consumers
+    - **Consumer Groups** (Issue #256) - Coordinated consumption
+      - `IConsumerGroup` interface
+      - Automatic partition assignment and rebalancing
+      - Offset tracking and commit strategies
+    - **Bidirectional Streaming** (Issue #257) - gRPC streaming support
+      - `IStreamingTransport<TRequest, TResponse>` interface
+      - Client and server streaming modes
+      - Flow control and backpressure
+    - **Message Compression** (Issue #258) - Payload compression
+      - `IMessageCompressor` interface
+      - Gzip, Brotli, LZ4, Snappy algorithms
+      - Content-encoding negotiation
+    - **Schema Registry Integration** (Issue #259) - Schema evolution
+      - `ISchemaRegistry` interface
+      - Confluent Schema Registry, AWS Glue support
+      - Compatibility checks (BACKWARD, FORWARD, FULL)
+  - **Transport Interoperability (3 issues)**:
+    - **CloudEvents Format Support** (Issue #260) - CNCF standard events
+      - `ICloudEventsSerializer` interface
+      - Structured and binary content modes
+      - Extension attributes support
+    - **NServiceBus Interoperability** (Issue #261) - Bridge to NServiceBus
+      - Message format translation
+      - Header mapping (NServiceBus ↔ Encina)
+      - Gateway pattern for gradual migration
+    - **MassTransit Interoperability** (Issue #262) - Bridge to MassTransit
+      - Envelope format translation
+      - Consumer adapter patterns
+      - Saga state migration utilities
+  - **Transport Observability (3 issues)**:
+    - **Transport Health Checks** (Issue #263) - Liveness and readiness probes
+      - `ITransportHealthCheck` interface per transport
+      - Connection state, queue depth, consumer lag
+      - ASP.NET Core Health Checks integration
+    - **Transport Metrics** (Issue #264) - Performance metrics
+      - Messages sent/received/failed per transport
+      - Latency histograms (P50, P95, P99)
+      - OpenTelemetry Metrics integration
+    - **Transport Distributed Tracing** (Issue #265) - End-to-end tracing
+      - W3C Trace Context propagation
+      - Span creation for publish/consume operations
+      - Baggage propagation for cross-service context
+
+- New Labels Created (Message Transport - December 2025):
+  - `transport-rabbitmq` - RabbitMQ transport provider
+  - `transport-kafka` - Apache Kafka transport provider
+  - `transport-azure-sb` - Azure Service Bus transport provider
+  - `transport-sqs` - AWS SQS transport provider
+  - `transport-redis` - Redis transport provider
+  - `transport-nats` - NATS transport provider
+  - `transport-pulsar` - Apache Pulsar transport provider
+  - `transport-grpc` - gRPC transport provider
+  - `transport-dapr` - Dapr transport provider
+  - `transport-eventbridge` - AWS EventBridge transport provider
+  - `transport-pubsub` - Google Cloud Pub/Sub transport provider
+  - `transport-activemq` - Apache ActiveMQ Artemis transport provider
+
+- New Labels Created (Previously):
+  - `area-scheduling` - Scheduling and recurring message patterns
+  - `area-saga` - Saga and Process Manager patterns
+  - `area-encryption` - Message encryption and data protection
+  - `area-scalability` - Horizontal scaling and consumer patterns
+  - `area-polly` - Polly v8 integration and resilience strategies
+  - `netflix-pattern` - Patterns inspired by Netflix OSS
+  - `industry-best-practice` - Industry-proven patterns from major tech companies
+  - `meta-pattern` - Patterns inspired by Meta/Facebook infrastructure (FOQS, etc.)
+
 - CLI Scaffolding Tool (`Encina.Cli`) - Issue #47:
   - `encina new <template> <name>` - Create new Encina projects (api, worker, console)
     - Options: `--database`, `--caching`, `--transport`, `--output`, `--force`
@@ -22,6 +2238,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Built with System.CommandLine 2.0 and Spectre.Console
   - Packaged as .NET global tool (`dotnet tool install Encina.Cli`)
   - Comprehensive test coverage: 65 tests (unit, guard)
+
+- Clean Architecture Patterns Issues (2 new features planned based on December 29, 2025 research):
+  - **Result Pattern Extensions** (Issue #468) - Fluent API for Either
+    - `EitherCombineExtensions`: `Combine<T1, T2>()`, `Combine<T1, T2, T3>()` for combining multiple results
+    - `EitherAccumulateExtensions`: Error accumulation instead of fail-fast
+    - `EitherAsyncExtensions`: `BindAsync()`, `MapAsync()`, `TapAsync()` for async chains
+    - `EitherHttpExtensions`: `ToProblemDetails()`, `ToActionResult()`, `ToResult()` for Minimal APIs
+    - `EitherConditionalExtensions`: `When()`, `Ensure()`, `OrElse()` for conditional operations
+    - Inspired by FluentResults, language-ext, CSharpFunctionalExtensions
+    - Priority: MEDIUM - Improves ROP ergonomics
+  - **Partitioned Sequential Messaging** (Issue #469) - Wolverine 5.0-inspired pattern
+    - `IPartitionedMessage` interface with `PartitionKey`
+    - Specialized interfaces: `ISagaPartitionedMessage`, `ITenantPartitionedMessage`, `IAggregatePartitionedMessage`
+    - `IPartitionedQueueManager` with System.Threading.Channels
+    - `PartitionedMessageBehavior` for pipeline integration
+    - `IPartitionStore` for optional durability
+    - Messages with same PartitionKey process sequentially; different partitions in parallel
+    - Priority: MEDIUM - Critical for saga workflows and multi-tenancy
+
+- New labels created for Clean Architecture Patterns:
+  - `area-value-objects` - Value Objects and domain primitives (#2E8B57)
+  - `area-strongly-typed-ids` - Strongly Typed IDs and identity patterns (#2E8B57)
+  - `area-specification-pattern` - Specification pattern for queries (#2E8B57)
+  - `area-domain-services` - Domain Services abstraction (#2E8B57)
+  - `area-result-pattern` - Result/Either pattern and functional error handling (#9932CC)
+  - `area-bounded-context` - Bounded Context and module boundaries (#2E8B57)
 
 ### Removed
 
