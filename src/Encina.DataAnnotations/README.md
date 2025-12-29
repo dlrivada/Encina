@@ -251,13 +251,15 @@ EncinaError
 
 ## How It Works
 
-The `DataAnnotationsValidationBehavior<TRequest, TResponse>` intercepts all requests:
+The centralized `Encina.Validation.ValidationPipelineBehavior<TRequest, TResponse>` intercepts all requests:
 
-1. **Validate**: Calls `Validator.TryValidateObject` with `validateAllProperties: true`
+1. **Validate**: Calls `Validator.TryValidateObject` with `validateAllProperties: true` via `DataAnnotationsValidationProvider`
 2. **Enrich Context**: Passes correlation ID, user ID, tenant ID to validation context
 3. **Aggregate Failures**: Collects all validation errors
 4. **Short-Circuit**: If validation fails, returns `Left<EncinaError>` with `ValidationException`
 5. **Continue**: If validation passes, calls the next pipeline step (handler)
+
+> **Note**: Data Annotations uses the shared `ValidationPipelineBehavior` from `Encina.Validation` through the Orchestrator pattern. The `DataAnnotationsValidationProvider` implements `IValidationProvider` to integrate Data Annotations with the centralized behavior.
 
 ## Performance
 
@@ -452,8 +454,8 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 
 - **Encina** - Core Encina library
 - **Encina.FluentValidation** - FluentValidation integration (for complex validation)
-- **Encina.MiniValidator** - Lightweight validation for Minimal APIs (coming soon)
-- **Encina.AspNetCore** - ASP.NET Core integration (coming soon)
+- **Encina.MiniValidator** - Lightweight validation for Minimal APIs
+- **Encina.AspNetCore** - ASP.NET Core integration
 
 ## Support
 

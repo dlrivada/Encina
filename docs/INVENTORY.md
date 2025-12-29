@@ -40,8 +40,8 @@
 | **Interfaces Públicas (Core)** | ~25 |
 | **Pipeline Behaviors** | ~20+ |
 | **Phase 2 Milestones** | 10 milestones (v0.10.0 → v0.19.0) |
-| **v0.10.0 - DDD Foundations** | 31 issues |
-| **v0.11.0 - Testing Infrastructure** | 25 issues |
+| **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
+| **v0.11.0 - Testing Infrastructure** | 25 issues 🔜 Próximo |
 | **v0.12.0 - Database & Repository** | 22 issues |
 | **v0.13.0 - Security & Compliance** | 25 issues |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
@@ -248,8 +248,8 @@ flowchart TB
 | Color/Etiqueta | Milestone | Estado |
 |----------------|-----------|--------|
 | (sin etiqueta) | Implementado | ✅ Producción |
-| **(v0.10.0)** | DDD Foundations | 🔜 Próximo |
-| **(v0.11.0)** | Testing Infrastructure | 📋 Planificado |
+| **(v0.10.0)** | DDD Foundations | ✅ **COMPLETADO** |
+| **(v0.11.0)** | Testing Infrastructure | 🔜 Próximo |
 | **(v0.12.0)** | Database & Repository | 📋 Planificado |
 | **(v0.13.0)** | Security & Compliance | 📋 Planificado |
 | **(v0.14.0)** | Cloud-Native & Aspire | 📋 Planificado |
@@ -1853,7 +1853,7 @@ Métodos Try-pattern:
 
 | Issue | Mejora | Descripción | Prioridad | Tipo |
 |-------|--------|-------------|-----------|------|
-| **#229** | Consolidar ValidationPipelineBehavior | Eliminar behaviors duplicados en providers | Crítica | Technical Debt |
+| **#229** | ✅ ~~Consolidar ValidationPipelineBehavior~~ | ~~Eliminar behaviors duplicados en providers~~ | ~~Crítica~~ | ~~Technical Debt~~ - **COMPLETADO** |
 | **#230** | Async/Cross-Field Validation | Mejoras para validación asíncrona y campos cruzados | Media | Enhancement |
 | **#233** | Localization/i18n | Internacionalización de mensajes de error | Media | Enhancement |
 | **#234** | Validation Aggregation | Agregación de resultados de múltiples validadores | Baja | Enhancement |
@@ -1952,11 +1952,14 @@ Either<ValidationError, User> result = userSchema.Parse(input);
 
 #### Detalle de Mejoras
 
-**#229 - Consolidar ValidationPipelineBehavior** (Prioridad Crítica):
-- Problema: Cada provider tiene su propio behavior duplicado
-- Afectados: `FluentValidation/ValidationPipelineBehavior.cs`, `DataAnnotations/DataAnnotationsValidationBehavior.cs`, `MiniValidator/MiniValidationBehavior.cs`
-- Solución: Eliminar duplicados, usar solo el centralizado en `Encina/Validation/`
-- Tipo: Technical debt, bajo esfuerzo, alto impacto
+**#229 - Consolidar ValidationPipelineBehavior** ✅ **COMPLETADO**:
+- ~~Problema: Cada provider tiene su propio behavior duplicado~~
+- **Eliminados**:
+  - `FluentValidation/ValidationPipelineBehavior.cs`
+  - `DataAnnotations/DataAnnotationsValidationBehavior.cs`
+  - `MiniValidator/MiniValidationBehavior.cs`
+- **Solución aplicada**: Todos los providers ahora usan `Encina.Validation.ValidationPipelineBehavior<,>` centralizado
+- **Breaking Changes**: Los behaviors eliminados eran públicos pero nunca se usaban en runtime (los ServiceCollectionExtensions ya registraban el centralizado)
 
 **#230 - Async/Cross-Field Validation**:
 - Extensions: `MustExistAsync()`, `MustBeUniqueAsync()`, `GreaterThan(x => x.OtherProperty)`
@@ -3419,8 +3422,8 @@ Estas issues complementan y en algunos casos consolidan issues existentes:
 
 | Milestone | Issues | Descripción |
 |-----------|--------|-------------|
-| [v0.10.0 - DDD Foundations](https://github.com/dlrivada/Encina/milestone/7) | 31 | Value Objects, Entities, Aggregates, Specifications, ACL |
-| [v0.11.0 - Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) | 25 | Fakes, Respawn, WireMock, Shouldly, Bogus |
+| [v0.10.0 - DDD Foundations](https://github.com/dlrivada/Encina/milestone/7) | 31 ✅ | Value Objects, Entities, Aggregates, Specifications, ACL - **COMPLETADO** |
+| [v0.11.0 - Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) | 25 🔜 | Fakes, Respawn, WireMock, Shouldly, Bogus |
 | [v0.12.0 - Database & Repository](https://github.com/dlrivada/Encina/milestone/9) | 22 | Repository, UoW, Bulk Ops, Pagination |
 | [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Security, GDPR, NIS2, AI Act |
 | [v0.14.0 - Cloud-Native & Aspire](https://github.com/dlrivada/Encina/milestone/11) | 23 | Aspire, Dapr, Orleans, HealthChecks |
@@ -5955,8 +5958,8 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 
 | Milestone | Issues | Estado |
 |-----------|--------|--------|
-| v0.10.0 - DDD Foundations | 31 | Próximo |
-| v0.11.0 - Testing Infrastructure | 25 | Pendiente |
+| v0.10.0 - DDD Foundations | 31 | ✅ **COMPLETADO** |
+| v0.11.0 - Testing Infrastructure | 25 | 🔜 Próximo |
 | v0.12.0 - Database & Repository | 22 | Pendiente |
 | v0.13.0 - Security & Compliance | 25 | Pendiente |
 | v0.14.0 - Cloud-Native & Aspire | 23 | Pendiente |

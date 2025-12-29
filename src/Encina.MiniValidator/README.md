@@ -274,12 +274,14 @@ app.MapPost("/users", async (CreateUser request, IEncina Encina) =>
 
 ## How It Works
 
-The `MiniValidationBehavior<TRequest, TResponse>` intercepts all requests:
+The centralized `Encina.Validation.ValidationPipelineBehavior<TRequest, TResponse>` intercepts all requests:
 
-1. **Validate**: Calls `MiniValidator.TryValidate` on the request
+1. **Validate**: Calls `MiniValidator.TryValidate` on the request via `MiniValidationProvider`
 2. **Collect Errors**: Aggregates all validation failures
 3. **Short-Circuit**: If validation fails, returns `Left<EncinaError>` with error message
 4. **Continue**: If validation passes, calls the next pipeline step (handler)
+
+> **Note**: MiniValidator uses the shared `ValidationPipelineBehavior` from `Encina.Validation` through the Orchestrator pattern. The `MiniValidationProvider` implements `IValidationProvider` to integrate MiniValidation with the centralized behavior.
 
 ## Performance
 
@@ -432,7 +434,7 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 - **Encina** - Core Encina library
 - **Encina.FluentValidation** - FluentValidation integration (for complex validation)
 - **Encina.DataAnnotations** - Data Annotations integration (zero dependencies)
-- **Encina.AspNetCore** - ASP.NET Core integration (coming soon)
+- **Encina.AspNetCore** - ASP.NET Core integration
 
 ## Support
 
