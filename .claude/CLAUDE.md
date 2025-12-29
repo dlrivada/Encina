@@ -657,3 +657,116 @@ This CLAUDE.md file is for **development guidelines**, not issue tracking.
 - ❌ Don't track bugs or technical debt in this file
 - ✅ Use GitHub Issues for all tracking
 - ✅ Reference issue numbers in commits and PRs
+
+## CodeRabbit Integration
+
+This project uses [CodeRabbit](https://coderabbit.ai) for AI-powered code reviews and issue management. Configuration is in `.coderabbit.yaml`.
+
+### CodeRabbit Features
+
+#### 1. Pull Request Reviews
+
+CodeRabbit automatically reviews all PRs with:
+- Code quality analysis
+- Security vulnerability detection
+- Best practices suggestions
+- .NET 10 / C# 14 specific guidance
+
+**Interacting with CodeRabbit in PRs:**
+
+| Command | Effect |
+|---------|--------|
+| `@coderabbitai review` | Request a new review |
+| `@coderabbitai resolve` | Mark all comments as resolved |
+| `@coderabbitai plan` | Generate implementation plan |
+| `@coderabbitai help` | Show available commands |
+
+#### 2. Issue Enrichment (Automatic)
+
+When you **create or edit** an issue, CodeRabbit automatically:
+
+- **Detects duplicates** - Finds existing issues that may be duplicates
+- **Finds related issues** - Links similar issues for context
+- **Finds related PRs** - Shows PRs that addressed similar problems
+- **Suggests assignees** - Recommends team members based on expertise
+- **Auto-labels** - Categorizes issues with appropriate labels
+
+> **Note**: CodeRabbit only triggers on new/edited issues, not existing ones. To enrich an existing issue, make a minor edit to trigger re-analysis.
+
+#### 3. Linked Issue Validation
+
+When a PR references an issue (e.g., `Fixes #123`), CodeRabbit:
+
+1. Analyzes the issue title and description
+2. Examines the PR changes
+3. Validates if changes meet the requirements
+4. Provides assessment: ✅ Addressed, ❌ Not addressed, or ❓ Unclear
+
+**Best practices for linked issue validation:**
+
+- Write clear, technical issue titles
+- Include specific acceptance criteria in descriptions
+- Use consistent terminology between issues and PRs
+- Reference issues with `Fixes #N` or `Closes #N` in PR description
+
+#### 4. Plan Mode (Implementation Planning)
+
+CodeRabbit can generate detailed implementation plans from issues:
+
+**How to trigger:**
+- Check the "Create Plan" checkbox in the enrichment comment
+- Or comment `@coderabbitai plan` on the issue
+
+**What it generates:**
+- Step-by-step implementation plan
+- File-specific guidance on what to change
+- Code examples from the codebase
+- Testing recommendations
+
+**Use with Claude Code:**
+The generated plan can be copied and used as context for Claude Code sessions. This is especially useful for complex features.
+
+#### 5. Configuration (`.coderabbit.yaml`)
+
+Key settings for this project:
+
+```yaml
+language: es-ES  # Spanish summaries
+reviews:
+  high_level_summary: true
+  path_instructions:
+    - path: "src/**/*.cs"
+      instructions: ".NET 10, C# 14, zero warnings..."
+  path_filters:
+    - "!docs/INVENTORY.md"  # Excluded from review
+```
+
+**Auto-planning by label:**
+
+```yaml
+issue_enrichment:
+  planning:
+    auto_planning:
+      enabled: true
+      labels:
+        - "plan-me"      # Issues with this label get auto-planned
+        - "!no-plan"     # Issues with this label are excluded
+```
+
+### Workflow: Issues + CodeRabbit + Claude Code
+
+1. **Create Issue** → CodeRabbit enriches with related issues/PRs
+2. **Request Plan** → `@coderabbitai plan` generates implementation steps
+3. **Copy Plan** → Use as context in Claude Code session
+4. **Create PR** → Reference issue with `Fixes #N`
+5. **CodeRabbit Reviews** → Validates PR addresses issue requirements
+6. **Iterate** → Address CodeRabbit comments
+7. **Merge** → Issue auto-closes
+
+### Tips for Effective CodeRabbit Usage
+
+1. **Write detailed issue descriptions** - CodeRabbit uses titles and descriptions (not comments) for analysis
+2. **Use conventional commits** - Helps CodeRabbit understand change context
+3. **Reference issues in PRs** - Enables linked issue validation
+4. **Review the enrichment** - Check related issues/PRs for context before starting work
+5. **Leverage Plan Mode** - For complex features, let CodeRabbit analyze the codebase first
