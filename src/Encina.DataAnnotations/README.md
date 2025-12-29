@@ -454,8 +454,8 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 
 - **Encina** - Core Encina library
 - **Encina.FluentValidation** - FluentValidation integration (for complex validation)
-- **Encina.MiniValidator** - Lightweight validation for Minimal APIs (coming soon)
-- **Encina.AspNetCore** - ASP.NET Core integration (coming soon)
+- **Encina.MiniValidator** - Lightweight validation for Minimal APIs
+- **Encina.AspNetCore** - ASP.NET Core integration
 
 ## Support
 

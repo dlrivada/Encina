@@ -372,8 +372,10 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 ## Related Packages
 
 - **Encina** - Core Encina library
-- **Encina.AspNetCore** - ASP.NET Core integration (coming soon)
-- **Encina.OpenTelemetry** - Distributed tracing (coming soon)
+- **Encina.DataAnnotations** - Data Annotations integration (zero dependencies)
+- **Encina.MiniValidator** - Lightweight validation for Minimal APIs
+- **Encina.AspNetCore** - ASP.NET Core integration
+- **Encina.OpenTelemetry** - Distributed tracing
 
 ## Support
 
