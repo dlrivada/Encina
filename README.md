@@ -452,14 +452,35 @@ dotnet run --file scripts/run-stryker.cs
 
 ## Roadmap
 
-Encina is currently at **90% to 1.0**. See [ROADMAP.md](ROADMAP.md) for:
+Encina is in active development toward **1.0**. See [ROADMAP.md](ROADMAP.md) for details.
 
-- **Phase 1**: Stability - All tests passing
-- **Phase 2**: Functionality - New features (Testing helpers, Saga timeouts)
-- **Phase 3**: Testing & Quality - Coverage targets (85%+)
-- **Phase 4**: Code Quality - SonarCloud compliance
-- **Phase 5**: Documentation - User guides and examples
-- **Phase 6**: Release - NuGet publishing, branding
+### Current Progress
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1 | ✅ Complete | Stability - All tests passing |
+| **Phase 2** | **In Progress** | Functionality - 364 issues across 10 milestones |
+| Phase 3 | Pending | Testing & Quality - Coverage targets (85%+) |
+| Phase 4 | Pending | Code Quality - SonarCloud compliance |
+| Phase 5 | Pending | Documentation - User guides and examples |
+| Phase 6 | Pending | Release - NuGet publishing, branding |
+
+### Phase 2 Milestones (v0.10.0 → v0.19.0)
+
+| Version | Focus | Issues |
+|---------|-------|--------|
+| v0.10.0 | DDD Foundations | 31 |
+| v0.11.0 | Testing Infrastructure | 25 |
+| v0.12.0 | Database & Repository | 22 |
+| v0.13.0 | Security & Compliance | 25 |
+| v0.14.0 | Cloud-Native & Aspire | 23 |
+| v0.15.0 | Messaging & EIP | 71 |
+| v0.16.0 | Multi-Tenancy & Modular | 21 |
+| v0.17.0 | AI/LLM Patterns | 16 |
+| v0.18.0 | Developer Experience | 43 |
+| v0.19.0 | Observability & Resilience | 87 |
+
+→ [View all milestones](https://github.com/dlrivada/Encina/milestones)
 
 ## Contributing
 

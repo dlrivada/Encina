@@ -1,7 +1,7 @@
 # Encina - Inventario Completo
 
 > **Documento generado**: 29 de diciembre de 2025
-> **Versión**: Pre-1.0 (Phase 2: Functionality in progress)
+> **Versión**: Pre-1.0 (Phase 2 reorganizada en 10 milestones: v0.10.0 → v0.19.0)
 > **Propósito**: Inventario exhaustivo de todas las funcionalidades, patrones, paquetes y características de Encina
 
 ---
@@ -13,7 +13,7 @@
 3. [Paquetes por Categoría](#paquetes-por-categoría)
 4. [Patrones Implementados](#patrones-implementados)
 5. [Características por Ángulo](#características-por-ángulo)
-6. [Features Pendientes (Phase 2)](#features-pendientes-phase-2)
+6. [Features Pendientes (v0.10.0 → v0.19.0)](#features-pendientes-v0100--v0190)
 7. [Matriz de Completitud](#matriz-de-completitud)
 
 ---
@@ -39,27 +39,18 @@
 | **Integraciones Web/Serverless** | 6 |
 | **Interfaces Públicas (Core)** | ~25 |
 | **Pipeline Behaviors** | ~20+ |
-| **Issues Phase 2 (Transports)** | 29 (#237-#265) |
-| **Issues Phase 2 (Caching)** | 13 (#266-#278) |
-| **Issues Phase 2 (Database Patterns)** | 16 (#279-#294) |
-| **Issues Phase 2 (DDD & Workflow)** | 13 (#295-#307) |
-| **Issues Phase 2 (EDA Patterns)** | 12 (#308-#319) |
-| **Issues Phase 2 (Event Sourcing)** | 13 (#320-#332) |
-| **Issues Phase 2 (Advanced CQRS)** | 12 (#333-#344) |
-| **Issues Phase 2 (Vertical Slice Architecture)** | 12 (#345-#356) |
-| **Issues Phase 2 (Modular Monolith Patterns)** | 10 (#357-#366) |
-| **Issues Phase 2 (Domain Modeling)** | 15 (#367-#381) |
-| **Issues Phase 2 (Microservices Patterns)** | 12 (#382-#393) |
-| **Issues Phase 2 (Security Patterns)** | 8 (#394-#401) |
-| **Issues Phase 2 (Compliance Patterns)** | 14 (#402-#415) |
-| **Issues Phase 2 (.NET Aspire Integration)** | 10 (#416-#425) |
-| **Issues Phase 2 (TDD Patterns)** | 12 (#426-#437) |
-| **Issues Phase 2 (Developer Tooling & DX)** | 11 (#438-#448) |
-| **Issues Phase 2 (Cloud-Native Patterns)** | 11 (#449-#459) |
-| **Issues Phase 2 (Clean Architecture Patterns)** | 2 (#468-#469) |
-| **Issues Phase 2 (Hexagonal Architecture Patterns)** | 10 (#470-#479) |
-| **Issues Phase 2 (AI/LLM Patterns)** | 12 (#481-#492) |
-| **Patrones AI/LLM** | 0 (+ 12 planificados: #481-#492) |
+| **Phase 2 Milestones** | 10 milestones (v0.10.0 → v0.19.0) |
+| **v0.10.0 - DDD Foundations** | 31 issues |
+| **v0.11.0 - Testing Infrastructure** | 25 issues |
+| **v0.12.0 - Database & Repository** | 22 issues |
+| **v0.13.0 - Security & Compliance** | 25 issues |
+| **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
+| **v0.15.0 - Messaging & EIP** | 71 issues |
+| **v0.16.0 - Multi-Tenancy & Modular** | 21 issues |
+| **v0.17.0 - AI/LLM Patterns** | 16 issues |
+| **v0.18.0 - Developer Experience** | 43 issues |
+| **v0.19.0 - Observability & Resilience** | 87 issues |
+| **Total Issues Phase 2** | 364 issues |
 
 ### Filosofía de Diseño
 
@@ -82,10 +73,12 @@ flowchart TB
             GraphQL
             gRPC
             SignalR
+            MinimalAPI["Minimal APIs"]
         end
         subgraph Serverless
             AwsLambda["AWS Lambda"]
             AzureFunctions["Azure Functions"]
+            DurableFunctions["Durable Functions"]
         end
         subgraph Workers
             Hangfire
@@ -95,55 +88,176 @@ flowchart TB
             EncinaCli["Encina.Cli"]
             ConsoleApps["Console Apps"]
         end
+        subgraph CloudNative["Cloud-Native"]
+            Aspire[".NET Aspire"]
+            Dapr["Dapr"]
+            Orleans["Orleans"]
+        end
     end
 
     subgraph CORE["ENCINA CORE"]
         direction TB
         subgraph Mediator["IEncina (Mediator)"]
-            Send["Send&lt;TRequest, TResponse&gt;() → Either&lt;EncinaError, TResponse&gt;"]
-            Publish["Publish&lt;TNotification&gt;() → Either&lt;EncinaError, Unit&gt;"]
-            Stream["Stream&lt;TRequest, TItem&gt;() → IAsyncEnumerable&lt;Either&lt;...&gt;&gt;"]
+            Send["Send() → Either&lt;EncinaError, T&gt;"]
+            Publish["Publish() → Either&lt;EncinaError, Unit&gt;"]
+            Stream["Stream() → IAsyncEnumerable"]
         end
-        subgraph Pipeline["Pipeline (Pre → Behaviors → Handler → Post)"]
-            Validation["ValidationPipelineBehavior"]
-            Authorization["AuthorizationPipelineBehavior"]
-            Caching["CachingPipelineBehavior"]
-            Transaction["TransactionPipelineBehavior"]
-            Retry["RetryPipelineBehavior"]
-            CircuitBreaker["CircuitBreakerPipelineBehavior"]
-            Otros["...más behaviors..."]
+        subgraph Pipeline["Pipeline Behaviors"]
+            Validation & Authorization & Caching & Transaction
+            Retry & CircuitBreaker & Bulkhead & Timeout
+            Audit["Audit Trail"] & Tenancy["Multi-Tenancy"] & FeatureFlags["Feature Flags"]
+            AIBehaviors["AI Behaviors (Guardrails, Semantic Cache)"]
         end
         Mediator --> Pipeline
     end
 
-    subgraph MESSAGING["MESSAGING PATTERNS"]
+    subgraph DDD["DDD BUILDING BLOCKS (v0.10.0)"]
         direction LR
-        Outbox & Inbox & Sagas & Scheduling & DeadLetter["Dead Letter"]
-        RoutingSlip["Routing Slip"] & ContentRouter["Content Router"] & ScatterGather["Scatter-Gather"] & Choreography
+        ValueObjects["Value Objects"] & Entities & Aggregates
+        DomainEvents["Domain Events"] & IntegrationEvents["Integration Events"]
+        Specifications & Repository["Repository Pattern"]
+        DomainServices["Domain Services"] & ACL["Anti-Corruption Layer"]
+    end
+
+    subgraph MESSAGING["MESSAGING PATTERNS (v0.15.0)"]
+        direction LR
+        subgraph Reliability
+            Outbox & Inbox & Sagas & DeadLetter["Dead Letter"]
+        end
+        subgraph EIP["Enterprise Integration"]
+            RoutingSlip["Routing Slip"] & ContentRouter["Content Router"]
+            ScatterGather["Scatter-Gather"] & ClaimCheck["Claim Check"]
+            ProcessManager["Process Manager"] & StateMachine["State Machine"]
+        end
+        subgraph Advanced
+            Batching & Priority & Dedup["Deduplication"]
+            Scheduling & Encryption["Encryption"]
+        end
+    end
+
+    subgraph SECURITY["SECURITY & COMPLIANCE (v0.13.0)"]
+        direction LR
+        subgraph SecCore["Security Core"]
+            RBAC & ABAC & Permissions
+            FieldEncryption["Field Encryption"] & PIIMasking["PII Masking"]
+            AuditTrail["Audit Trail"] & AntiTampering["Anti-Tampering"]
+        end
+        subgraph Compliance["EU Compliance"]
+            GDPR["GDPR (RoPA, Consent, DSR)"]
+            DataResidency["Data Residency"]
+            NIS2["NIS2"] & AIAct["AI Act"]
+        end
+    end
+
+    subgraph AIML["AI/LLM PATTERNS (v0.17.0)"]
+        direction LR
+        MCP["MCP Protocol"] & SemanticCache["Semantic Caching"]
+        Guardrails["AI Guardrails"] & RAG["RAG Pipeline"]
+        TokenBudget["Token Budget"] & LLMObservability["LLM Observability"]
+        MultiAgent["Multi-Agent"] & VectorStore["Vector Store"]
     end
 
     subgraph CROSSCUTTING["CROSS-CUTTING CONCERNS"]
         direction LR
-        CachingCC["Caching"] & Resilience & DistLock["Distributed Lock"] & Observability
+        subgraph CachingLayer["Caching"]
+            Memory & Redis & Hybrid & Valkey
+        end
+        subgraph ResilienceLayer["Resilience"]
+            Polly & Refit & Fallback & Hedging
+        end
+        subgraph ObsLayer["Observability (v0.19.0)"]
+            OpenTelemetry & Metrics & Tracing & Logging
+        end
+        DistLock["Distributed Lock"] & HealthChecks["Health Checks"]
     end
 
-    subgraph DATA["DATA PROVIDERS"]
+    subgraph TESTING["TESTING (v0.11.0)"]
         direction LR
-        EFCore["EF Core"] & Dapper & ADONET["ADO.NET"] & MongoDB & Marten
+        Fakes & Respawn & WireMock
+        Shouldly & Verify & Bogus
+        ArchTests["Architecture Tests"] & FakeTime["FakeTimeProvider"]
+    end
+
+    subgraph DATA["DATA PROVIDERS (v0.12.0)"]
+        direction LR
+        subgraph ORM
+            EFCore["EF Core"] & Dapper & ADONET["ADO.NET"]
+        end
+        subgraph NoSQL
+            MongoDB & Marten["Marten (ES)"]
+        end
+        subgraph Patterns
+            UnitOfWork["Unit of Work"] & BulkOps["Bulk Operations"]
+            SoftDelete["Soft Delete"] & Pagination
+            CDC["Change Data Capture"]
+        end
     end
 
     subgraph TRANSPORTS["MESSAGE TRANSPORTS"]
         direction LR
-        RabbitMQ & Kafka & AzureSB["Azure Service Bus"] & AmazonSQS["Amazon SQS"] & NATS & MQTT
+        subgraph Cloud
+            AzureSB["Azure Service Bus"] & AmazonSQS["Amazon SQS"]
+            GCPPubSub["GCP Pub/Sub"] & EventBridge["EventBridge"]
+        end
+        subgraph OpenSource
+            RabbitMQ & Kafka & NATS & MQTT
+            Pulsar & RedisStreams["Redis Streams"]
+        end
+        InMemory["In-Memory"] & gRPCTransport["gRPC"]
     end
 
+    subgraph MULTITENANCY["MULTI-TENANCY & MODULAR (v0.16.0)"]
+        direction LR
+        TenantContext["Tenant Context"] & TenantResolver["Tenant Resolver"]
+        ModularMonolith["Modular Monolith"] & Modules["IModule"]
+        InterModuleComm["Inter-Module Events"] & DataIsolation["Data Isolation"]
+    end
+
+    subgraph DEVEX["DEVELOPER EXPERIENCE (v0.18.0)"]
+        direction LR
+        Analyzers["Roslyn Analyzers"] & Dashboard["Dev Dashboard"]
+        OpenAPI & HotReload["Hot Reload"]
+        SourceGen["Source Generators"] & DevContainers["Dev Containers"]
+    end
+
+    %% Connections
     APP --> CORE
+    CORE --> DDD
     CORE --> MESSAGING
+    CORE --> SECURITY
+    CORE --> AIML
     CORE --> CROSSCUTTING
+    CORE --> MULTITENANCY
+
+    DDD --> DATA
     MESSAGING --> DATA
-    CROSSCUTTING --> DATA
     MESSAGING --> TRANSPORTS
+    SECURITY --> DATA
+    AIML --> DATA
+    MULTITENANCY --> DATA
+
+    TESTING -.->|tests| CORE
+    TESTING -.->|tests| DATA
+    DEVEX -.->|tooling| CORE
+
+    CloudNative --> CORE
 ```
+
+### Leyenda de Milestones
+
+| Color/Etiqueta | Milestone | Estado |
+|----------------|-----------|--------|
+| (sin etiqueta) | Implementado | ✅ Producción |
+| **(v0.10.0)** | DDD Foundations | 🔜 Próximo |
+| **(v0.11.0)** | Testing Infrastructure | 📋 Planificado |
+| **(v0.12.0)** | Database & Repository | 📋 Planificado |
+| **(v0.13.0)** | Security & Compliance | 📋 Planificado |
+| **(v0.14.0)** | Cloud-Native & Aspire | 📋 Planificado |
+| **(v0.15.0)** | Messaging & EIP | 📋 Planificado |
+| **(v0.16.0)** | Multi-Tenancy & Modular | 📋 Planificado |
+| **(v0.17.0)** | AI/LLM Patterns | 📋 Planificado |
+| **(v0.18.0)** | Developer Experience | 📋 Planificado |
+| **(v0.19.0)** | Observability & Resilience | 📋 Planificado |
 
 ---
 
@@ -3296,7 +3410,29 @@ Estas issues complementan y en algunos casos consolidan issues existentes:
 
 ---
 
-## Features Pendientes (Phase 2)
+## Features Pendientes (v0.10.0 → v0.19.0)
+
+> **Nota**: Phase 2 ha sido reorganizada en 10 milestones incrementales (29-dic-2025).
+> Ver [ROADMAP.md](../ROADMAP.md) para detalles completos.
+
+### Resumen de Milestones
+
+| Milestone | Issues | Descripción |
+|-----------|--------|-------------|
+| [v0.10.0 - DDD Foundations](https://github.com/dlrivada/Encina/milestone/7) | 31 | Value Objects, Entities, Aggregates, Specifications, ACL |
+| [v0.11.0 - Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) | 25 | Fakes, Respawn, WireMock, Shouldly, Bogus |
+| [v0.12.0 - Database & Repository](https://github.com/dlrivada/Encina/milestone/9) | 22 | Repository, UoW, Bulk Ops, Pagination |
+| [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Security, GDPR, NIS2, AI Act |
+| [v0.14.0 - Cloud-Native & Aspire](https://github.com/dlrivada/Encina/milestone/11) | 23 | Aspire, Dapr, Orleans, HealthChecks |
+| [v0.15.0 - Messaging & EIP](https://github.com/dlrivada/Encina/milestone/12) | 71 | EIP, Transports, Process Manager |
+| [v0.16.0 - Multi-Tenancy & Modular](https://github.com/dlrivada/Encina/milestone/13) | 21 | Multi-Tenancy, Modular Monolith |
+| [v0.17.0 - AI/LLM Patterns](https://github.com/dlrivada/Encina/milestone/14) | 16 | MCP, RAG, Semantic Cache, Agents |
+| [v0.18.0 - Developer Experience](https://github.com/dlrivada/Encina/milestone/15) | 43 | Analyzers, Dashboard, OpenAPI |
+| [v0.19.0 - Observability & Resilience](https://github.com/dlrivada/Encina/milestone/16) | 87 | OpenTelemetry, Caching, Locks |
+
+**Total: 364 issues**
+
+---
 
 ### Messaging Patterns - Nuevas Issues (Diciembre 2025)
 
@@ -5815,7 +5951,22 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 
 ### Conclusión
 
-**Phase 2: Functionality en progreso** con 269+ issues abiertos:
+**Phase 2 reorganizada en 10 milestones** (29-dic-2025) con 364 issues distribuidas:
+
+| Milestone | Issues | Estado |
+|-----------|--------|--------|
+| v0.10.0 - DDD Foundations | 31 | Próximo |
+| v0.11.0 - Testing Infrastructure | 25 | Pendiente |
+| v0.12.0 - Database & Repository | 22 | Pendiente |
+| v0.13.0 - Security & Compliance | 25 | Pendiente |
+| v0.14.0 - Cloud-Native & Aspire | 23 | Pendiente |
+| v0.15.0 - Messaging & EIP | 71 | Pendiente |
+| v0.16.0 - Multi-Tenancy & Modular | 21 | Pendiente |
+| v0.17.0 - AI/LLM Patterns | 16 | Pendiente |
+| v0.18.0 - Developer Experience | 43 | Pendiente |
+| v0.19.0 - Observability & Resilience | 87 | Pendiente |
+
+**Áreas cubiertas:**
 - **AI/LLM Patterns** (NEW - 29 Dic 2025): 12 nuevas issues (#481-#492) incluyendo MCP (Model Context Protocol), Semantic Caching, AI Guardrails & Safety (prompt injection, PII), RAG Pipeline, Token Budget & Cost Management, LLM Observability, Multi-Agent Orchestration, Structured Output, Function Calling, Vector Store Abstraction, Prompt Management, AI Streaming
 - **Cloud-Native Patterns** (NEW - 29 Dic 2025): 11 nuevas issues (#449-#459) incluyendo Encina.Aspire (.NET Aspire integration), Encina.Dapr (Building Blocks multi-cloud), Feature Flags, Secrets Management, Service Discovery, Kubernetes Health Checks, Graceful Shutdown, Multi-Tenancy (SaaS), CDC for Outbox, API Versioning, Orleans Integration
 - **.NET Aspire Integration Patterns** (NEW - 29 Dic 2025): 10 nuevas issues (#416-#425) incluyendo Encina.Aspire.Hosting, ServiceDefaults (OpenTelemetry, health checks), Testing integration, Dashboard extensions, Dapr building blocks, Deployment publishers (ACA, K8s), AI/MCP Server, Modular Monolith support, Multi-Repo support, Hot Reload

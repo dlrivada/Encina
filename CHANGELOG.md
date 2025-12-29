@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Milestone Reorganization**: Phase 2 (364 issues) split into 10 incremental milestones:
+  - v0.10.0 — DDD Foundations (31 issues)
+  - v0.11.0 — Testing Infrastructure (25 issues)
+  - v0.12.0 — Database & Repository (22 issues)
+  - v0.13.0 — Security & Compliance (25 issues)
+  - v0.14.0 — Cloud-Native & Aspire (23 issues)
+  - v0.15.0 — Messaging & EIP (71 issues)
+  - v0.16.0 — Multi-Tenancy & Modular (21 issues)
+  - v0.17.0 — AI/LLM Patterns (16 issues)
+  - v0.18.0 — Developer Experience (43 issues)
+  - v0.19.0 — Observability & Resilience (87 issues)
+
 ### Added
 
 - AI/LLM Patterns Issues (12 new features planned based on December 29, 2025 research):

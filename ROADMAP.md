@@ -52,17 +52,178 @@ This document outlines the vision, current status, and future direction of Encin
 
 Progress is tracked via [GitHub Milestones](https://github.com/dlrivada/Encina/milestones).
 
-### Phase 1: Stability
+### Phase 1: Stability ✅
 *Ensure green CI and all tests passing*
 
 Focus: Fix failing tests, re-enable excluded test projects, verify all workflows.
 
-→ [View Phase 1 Issues](https://github.com/dlrivada/Encina/milestone/1)
+→ [View Phase 1 Issues](https://github.com/dlrivada/Encina/milestone/1) (Completed)
 
-### Phase 2: Functionality
+---
+
+### Phase 2: Functionality (v0.10.0 → v0.19.0)
 *Expand capabilities with new features*
 
-Key areas:
+Phase 2 has been reorganized into 10 incremental milestones for better manageability:
+
+| Version | Milestone | Issues | Focus |
+|---------|-----------|--------|-------|
+| **v0.10.0** | [DDD Foundations](https://github.com/dlrivada/Encina/milestone/7) | 31 | Value Objects, Entities, Aggregates, Specifications, Domain Events, ACL |
+| **v0.11.0** | [Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) | 25 | Fakes, Respawn, WireMock, Shouldly, Verify, Bogus, Architecture tests |
+| **v0.12.0** | [Database & Repository](https://github.com/dlrivada/Encina/milestone/9) | 22 | Generic Repository, Specification, Unit of Work, Bulk Operations, Pagination |
+| **v0.13.0** | [Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Core Security, Audit Trail, Encryption, GDPR, Consent, NIS2, AI Act |
+| **v0.14.0** | [Cloud-Native & Aspire](https://github.com/dlrivada/Encina/milestone/11) | 23 | .NET Aspire, Dapr, Service Discovery, HealthChecks, Orleans |
+| **v0.15.0** | [Messaging & EIP](https://github.com/dlrivada/Encina/milestone/12) | 71 | Enterprise Integration Patterns, Transports, Process Manager, Schema Registry |
+| **v0.16.0** | [Multi-Tenancy & Modular](https://github.com/dlrivada/Encina/milestone/13) | 21 | Multi-Tenancy, Modular Monolith, Feature Flags, BFF Pattern |
+| **v0.17.0** | [AI/LLM Patterns](https://github.com/dlrivada/Encina/milestone/14) | 16 | MCP, Semantic Caching, AI Guardrails, RAG, Vector Store, Multi-Agent |
+| **v0.18.0** | [Developer Experience](https://github.com/dlrivada/Encina/milestone/15) | 43 | Roslyn Analyzers, Dashboard, OpenAPI, Hot Reload, Minimal API patterns |
+| **v0.19.0** | [Observability & Resilience](https://github.com/dlrivada/Encina/milestone/16) | 87 | OpenTelemetry, Metrics, Circuit Breaker, Caching, Distributed Lock |
+
+**Total: 364 issues across 10 milestones**
+
+#### Milestone Details
+
+##### v0.10.0 — DDD Foundations
+*Prerequisites for all other features*
+
+- Domain Events vs Integration Events separation
+- Specification Pattern for query composition
+- Value Objects & Aggregate base classes
+- Strongly Typed IDs
+- Domain Services abstraction
+- Anti-Corruption Layer (ACL) pattern
+- Ports & Adapters factory
+- Result Pattern extensions (Either Fluent API)
+
+→ [View v0.10.0 Issues](https://github.com/dlrivada/Encina/milestone/7)
+
+##### v0.11.0 — Testing Infrastructure
+*Complete testing toolkit*
+
+- `Encina.Testing.Fakes` — Test doubles for IEncina
+- `Encina.Testing.Respawn` — Database reset
+- `Encina.Testing.WireMock` — HTTP API mocking
+- `Encina.Testing.Shouldly` — Open-source assertions
+- `Encina.Testing.Verify` — Snapshot testing
+- `Encina.Testing.Bogus` — Test data generation
+- `Encina.Testing.Architecture` — Architectural rules
+- `FakeTimeProvider` — Time control for testing
+
+→ [View v0.11.0 Issues](https://github.com/dlrivada/Encina/milestone/8)
+
+##### v0.12.0 — Database & Repository
+*Enterprise data access patterns*
+
+- Generic Repository Pattern
+- Specification Pattern with EF Core/Dapper
+- Unit of Work
+- Bulk Operations (Insert/Update/Delete)
+- Soft Delete & Temporal Tables
+- Audit Trail Pattern
+- Optimistic Concurrency
+- CDC Integration
+- Pagination abstractions
+
+→ [View v0.12.0 Issues](https://github.com/dlrivada/Encina/milestone/9)
+
+##### v0.13.0 — Security & Compliance
+*Production-ready for EU/GDPR*
+
+- Core Security abstractions
+- Audit Trail logging
+- Field-Level Encryption
+- PII Masking
+- GDPR Core (RoPA, Consent, Data Subject Rights)
+- Data Residency enforcement
+- NIS2 Directive compliance
+- AI Act compliance
+
+→ [View v0.13.0 Issues](https://github.com/dlrivada/Encina/milestone/10)
+
+##### v0.14.0 — Cloud-Native & Aspire
+*.NET Aspire first-class integration*
+
+- `Encina.Aspire` hosting package
+- Aspire ServiceDefaults
+- Dapr Building Blocks integration
+- Service Discovery abstraction
+- HealthChecks for Kubernetes
+- Graceful Shutdown
+- Orleans integration
+
+→ [View v0.14.0 Issues](https://github.com/dlrivada/Encina/milestone/11)
+
+##### v0.15.0 — Messaging & EIP
+*Enterprise Integration Patterns*
+
+- Process Manager pattern
+- State Machine (FSM)
+- Claim Check pattern
+- Durable Execution
+- Schema Registry
+- Event Streaming
+- New Transports (GCP Pub/Sub, Pulsar, Redis Streams)
+- Message batching, compression, partitioning
+
+→ [View v0.15.0 Issues](https://github.com/dlrivada/Encina/milestone/12)
+
+##### v0.16.0 — Multi-Tenancy & Modular
+*SaaS-ready architecture*
+
+- Multi-Tenancy support
+- Modular Monolith patterns
+- Inter-Module Communication
+- Feature Flags integration
+- Module Lifecycle management
+- BFF Pattern
+
+→ [View v0.16.0 Issues](https://github.com/dlrivada/Encina/milestone/13)
+
+##### v0.17.0 — AI/LLM Patterns
+*AI-native CQRS framework*
+
+- MCP (Model Context Protocol) support
+- Semantic Caching pipeline behavior
+- AI Guardrails & Safety
+- RAG Pipeline patterns
+- Token Budget & Cost Management
+- LLM Observability
+- Multi-Agent Orchestration
+- Vector Store abstraction
+
+→ [View v0.17.0 Issues](https://github.com/dlrivada/Encina/milestone/14)
+
+##### v0.18.0 — Developer Experience
+*First-class DX*
+
+- Roslyn Analyzers & Code Fixes
+- Developer Dashboard
+- OpenAPI/Swagger integration
+- Hot Reload support
+- Dev Containers
+- Minimal API patterns
+- Performance optimizations
+
+→ [View v0.18.0 Issues](https://github.com/dlrivada/Encina/milestone/15)
+
+##### v0.19.0 — Observability & Resilience
+*Production-ready monitoring*
+
+- OpenTelemetry integration
+- Metrics & Tracing
+- Circuit Breaker patterns
+- Advanced Caching patterns
+- Distributed Lock providers
+- Serverless enhancements
+- Validation enhancements
+
+→ [View v0.19.0 Issues](https://github.com/dlrivada/Encina/milestone/16)
+
+---
+
+#### Legacy Phase 2 Details (Completed Items)
+
+Key areas already completed:
 - **Saga Enhancements** — ✅ Timeouts, ✅ low-ceremony syntax, ✅ not-found handlers, Saga Visibility (#128)
 - **Developer Tooling** — ✅ `Encina.Testing` package with fluent assertions, ✅ `Encina.Cli` scaffolding tool (Issue #47)
 - **Performance** — ✅ Delegate cache optimization (Issue #49), Source generators for NativeAOT (Issue #50), Switch-based dispatch (Issue #51)
