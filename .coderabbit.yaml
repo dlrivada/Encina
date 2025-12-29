@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: es-ES
+
+reviews:
+  # High-level summary for each PR
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+
+  # Request changes workflow (auto-approve when issues resolved)
+  request_changes_workflow: true
+
+  # Review status (show in PR comments)
+  review_status: true
+
+  # Collapse walkthrough details by default
+  collapse_walkthrough: true
+
+  # Sequence diagrams for complex logic
+  sequence_diagrams: true
+
+  # Poem in review (disabled - keep it professional)
+  poem: false
+
+  # Path-based instructions for reviewers
+  path_instructions:
+    - path: "src/**/*.cs"
+      instructions: |
+        - This is a .NET 10 library using C# 14 features
+        - All code must have zero warnings (treat warnings as errors)
+        - Check for proper nullable reference type annotations
+        - Verify XML documentation on public APIs
+        - Ensure Railway Oriented Programming pattern (Either<EncinaError, T>) is used correctly
+        - No backward compatibility concerns - this is pre-1.0
+        - All messaging patterns (Outbox, Inbox, Saga, Scheduling) must be opt-in
+
+    - path: "tests/**/*.cs"
+      instructions: |
+        - Tests should follow AAA pattern (Arrange, Act, Assert)
+        - Test names should be descriptive
+        - Unit tests must be fast (<1ms per test)
+        - Check for proper use of xUnit attributes
+        - Verify test isolation (no shared state)
+
+    - path: "**/*.md"
+      instructions: |
+        - Documentation must be in English
+        - Check for broken links
+        - Verify code examples compile
+
+  # Tools configuration
+  tools:
+    # GitHub Checks integration
+    github-checks:
+      enabled: true
+      timeout_ms: 120000
+
+  # Auto-review settings
+  auto_review:
+    enabled: true
+    # Only review when ready (not draft)
+    drafts: false
+    # Ignore generated files
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+    # Base branches to review
+    base_branches:
+      - main
+
+chat:
+  # Enable chat in PR comments
+  auto_reply: true
+
+# Tone and style
+tone_instructions: |
+  - Be direct and technical
+  - Focus on code quality and best practices
+  - No excessive praise or validation
+  - Point out issues clearly with suggested fixes
+  - Consider .NET 10 and C# 14 features
+  - Remember this is pre-1.0: breaking changes are acceptable
