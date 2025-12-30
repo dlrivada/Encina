@@ -1,15 +1,49 @@
-# Changelog
-
-All notable changes to Encina will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-> **Note**: Encina is in pre-1.0 development. Version numbers below represent conceptual milestones, not published releases. The first official release will be v1.0.0.
-
 ## [Unreleased]
 
+### Table of Contents
+
+- [Added](#added)
+  - [AI/LLM Patterns Issues](#aillm-patterns-issues-12-new-features-planned-based-on-december-29-2025-research)
+  - [Hexagonal Architecture Patterns Issues](#hexagonal-architecture-patterns-issues-10-new-features-planned-based-on-december-29-2025-research)
+  - [TDD Patterns Issues](#tdd-patterns-issues-12-new-features-planned-based-on-december-29-2025-research)
+  - [Developer Tooling & DX Issues](#developer-tooling--dx-issues-11-new-features-planned-based-on-december-29-2025-research)
+  - [.NET Aspire Integration Patterns Issues](#net-aspire-integration-patterns-issues-10-new-features-planned-based-on-december-29-2025-research)
+  - [Cloud-Native Patterns Issues](#cloud-native-patterns-issues-11-new-features-planned-based-on-december-29-2025-research)
+  - [Microservices Architecture Patterns Issues](#microservices-architecture-patterns-issues-12-new-features-planned-based-on-december-29-2025-research)
+  - [Security Patterns Issues](#security-patterns-issues-8-new-features-planned-based-on-december-29-2025-research)
+  - [Advanced Validation Patterns Issues](#advanced-validation-patterns-issues-10-new-features-planned-based-on-december-2025-research)
+  - [Advanced Event Sourcing Patterns Issues](#advanced-event-sourcing-patterns-issues-13-new-features-planned-based-on-december-2025-research)
+  - [Advanced CQRS Patterns Issues](#advanced-cqrs-patterns-issues-12-new-features-planned-based-on-december-2025-market-research)
+  - [Domain Modeling Building Blocks Issues](#domain-modeling-building-blocks-issues-15-new-features-planned-based-on-december-29-2025-ddd-research)
+  - [Vertical Slice Architecture Patterns Issues](#vertical-slice-architecture-patterns-issues-12-new-features-planned-based-on-december-29-2025-research)
+  - [Modular Monolith Architecture Patterns Issues](#modular-monolith-architecture-patterns-issues-10-new-features-planned-based-on-december-29-2025-research)
+  - [Advanced Messaging Patterns Issues](#advanced-messaging-patterns-issues-15-new-features-planned-based-on-market-research)
+  - [Database Providers Patterns Issues](#database-providers-patterns-issues-16-new-features-planned-based-on-december-2025-research)
+  - [Advanced DDD & Workflow Patterns Issues](#advanced-ddd--workflow-patterns-issues-13-new-features-planned-based-on-december-29-2025-research)
+  - [Advanced EDA Patterns Issues](#advanced-eda-patterns-issues-12-new-features-planned-based-on-december-29-2025-research)
+  - [Advanced Caching Patterns Issues](#advanced-caching-patterns-issues-13-new-features-planned-based-on-december-2025-research)
+  - [Advanced Resilience Patterns Issues](#advanced-resilience-patterns-issues-9-new-features-planned-based-on-2025-research)
+  - [Advanced Scheduling Patterns Issues](#advanced-scheduling-patterns-issues-15-new-features-planned-based-on-2025-research)
+  - [Advanced Observability Patterns Issues](#advanced-observability-patterns-issues-15-new-features-planned-based-on-2025-research)
+  - [Web/API Integration Patterns Issues](#webapi-integration-patterns-issues-18-new-features-planned-based-on-december-2025-research)
+  - [Advanced Testing Patterns Issues](#advanced-testing-patterns-issues-13-new-features-planned-based-on-2025-research)
+  - [Advanced Distributed Lock Patterns Issues](#advanced-distributed-lock-patterns-issues-20-new-features-planned-based-on-december-2025-research)
+  - [Message Transport Patterns Issues](#message-transport-patterns-issues-29-new-features-planned-based-on-december-2025-research)
+  - [Clean Architecture Patterns Issues](#clean-architecture-patterns-issues-2-new-features-planned-based-on-december-29-2025-research)
+- [Changed](#changed)
+
+---
+
 ### Added
+
+- **Encina.Testing.Fakes Package** - Test doubles for Encina components (Issue #426):
+  - `FakeEncina` - In-memory IEncina implementation with verification methods
+  - `FakeOutboxStore`, `FakeInboxStore`, `FakeSagaStore` - Messaging store fakes
+  - `FakeScheduledMessageStore`, `FakeDeadLetterStore` - Additional store fakes
+  - Thread-safe implementations preserving insertion order
+  - Fluent API for setup: `SetupResponse()`, `SetupError()`, `SetupStream()`
+  - Verification methods: `WasSent()`, `WasPublished()`, `GetSentRequests()`
+  - DI extensions: `AddFakeEncina()`, `AddFakeStores()`, `AddEncinaTestingFakes()`
 
 - **Encina.DomainModeling Package** - DDD tactical pattern building blocks (Issues #367, #369, #374):
   - `Entity<TId>` - Base class for entities with identity-based equality
@@ -53,7 +87,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Combination: `Combine()` for 2/3/4 values and collections
   - Conditional: `When()`, `Ensure()`, `OrElse()`, `GetOrDefault()`, `GetOrElse()`
   - Side effects: `Tap()`, `TapError()`
-  - Async: `BindAsync()`, `MapAsync()`, `TapAsync()` (for Task<Either> and Either)
+  - Async: `BindAsync()`, `MapAsync()`, `TapAsync()` (for `Task<Either>` and `Either`)
+    - New Encina extensions in `Encina.Core.Extensions.EitherAsyncExtensions`
+    - Namespace: `using Encina.Core.Extensions;`
+    - Example: `Task<Either<L, R>> BindAsync<L, R, R2>(this Task<Either<L, R>> task, Func<R, Task<Either<L, R2>>> f)`
   - Conversion: `ToOption()`, `ToEither()` (from Option), `GetOrThrow()`
 
 - **Rich Domain Event Envelope** (Issue #368) - Extended domain event metadata:
@@ -142,34 +179,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `IUseCaseHandler<TInput>` - Command handler (void output)
     - `UseCaseHandlerExtensions` - `AddUseCaseHandler<T>()`, `AddUseCaseHandlersFromAssembly()`
 
-- Comprehensive test coverage: 175 unit tests, 275 property tests, 531 contract tests, 80 guard tests (1061 total)
+- Comprehensive test coverage: 175 unit tests, 275 property tests, 531 contract tests, 80 guard tests (1061 total).
+  - **Note**: Load tests (`[Trait("Category", "Load")]`) are excluded from default runs due to a .NET 10 JIT bug affecting Release builds with `IAsyncEnumerable<Either<EncinaError, T>>` under NBomber load scenarios.
+  - **Workaround**: To run load tests locally, set environment variable `DOTNET_JitObjectStackAllocationConditionalEscape=0` before executing.
 
-### Changed
 
-- **Validation Architecture Consolidation** (Issue #229) - Remove duplicate validation behaviors:
-  - **BREAKING**: Removed `Encina.FluentValidation.ValidationPipelineBehavior<TRequest, TResponse>` (use centralized `Encina.Validation.ValidationPipelineBehavior<,>`)
-  - **BREAKING**: Removed `Encina.DataAnnotations.DataAnnotationsValidationBehavior<TRequest, TResponse>` (use centralized behavior)
-  - **BREAKING**: Removed `Encina.MiniValidator.MiniValidationBehavior<TRequest, TResponse>` (use centralized behavior)
-  - All validation now goes through `ValidationOrchestrator` + provider-specific `IValidationProvider`
-  - DRY: Single `ValidationPipelineBehavior` in `Encina.Validation` namespace
-  - Consistent error handling across all validation providers
+#### AI/LLM Patterns Issues (12 new features planned based on December 29, 2025 research)
 
-- **Milestone Reorganization**: Phase 2 (364 issues) split into 10 incremental milestones:
-  - v0.10.0 — DDD Foundations (31 issues)
-  - v0.11.0 — Testing Infrastructure (25 issues)
-  - v0.12.0 — Database & Repository (22 issues)
-  - v0.13.0 — Security & Compliance (25 issues)
-  - v0.14.0 — Cloud-Native & Aspire (23 issues)
-  - v0.15.0 — Messaging & EIP (71 issues)
-  - v0.16.0 — Multi-Tenancy & Modular (21 issues)
-  - v0.17.0 — AI/LLM Patterns (16 issues)
-  - v0.18.0 — Developer Experience (43 issues)
-  - v0.19.0 — Observability & Resilience (87 issues)
-
-### Added
-
-- AI/LLM Patterns Issues (12 new features planned based on December 29, 2025 research):
-  - **MCP (Model Context Protocol) Support** (Issue #481) - MCP server/client integration
+- **MCP (Model Context Protocol) Support** (Issue #481) - MCP server/client integration
     - `MCPServerBuilder` for creating MCP servers in C#
     - `MCPClientBehavior` for consuming external MCP tools
     - Native integration with `IEncina` - expose handlers as AI tools
@@ -256,8 +273,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Integration with `IChatClient.CompleteStreamingAsync`
     - Priority: MEDIUM - UX enhancement
 
-- Hexagonal Architecture Patterns Issues (10 new features planned based on December 29, 2025 research):
-  - **Domain Events vs Integration Events** (Issue #470) - Formal separation between domain events and integration events
+#### Hexagonal Architecture Patterns Issues (10 new features planned based on December 29, 2025 research)
+
+- **Domain Events vs Integration Events** (Issue #470) - Formal separation between domain events and integration events
     - `DomainEvent` base class with AggregateId, OccurredAtUtc, Version
     - `IntegrationEvent` base class extending INotification with EventType, CorrelationId
     - `IDomainEventHandler<TEvent>` for in-process synchronous processing
@@ -320,8 +338,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `abp-inspired` - Pattern inspired by ABP Framework (#FF6B6B)
   - `ardalis-inspired` - Pattern inspired by Steve Smith (Ardalis) libraries (#FF8C00)
 
-- TDD Patterns Issues (12 new features planned based on December 29, 2025 research):
-  - **Encina.Testing.Fakes** (Issue #426) - Test doubles for IEncina and messaging stores
+#### TDD Patterns Issues (12 new features planned based on December 29, 2025 research)
+
+- **Encina.Testing.Fakes** (Issue #426) - Test doubles for IEncina and messaging stores
     - `FakeEncina : IEncina` with configurable handlers
     - `FakeOutboxStore`, `FakeInboxStore`, `FakeSagaStore`, `FakeScheduledMessageStore`
     - Verification methods: `VerifySent<T>()`, `VerifyPublished<T>()`
@@ -390,8 +409,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `testing-assertions` - Assertion libraries and fluent assertions (#6C3483)
   - `testing-database-reset` - Database cleanup and reset between tests (#5B2C6F)
 
-- Developer Tooling & DX Issues (11 new features planned based on December 29, 2025 research):
-  - **Encina.Analyzers** (Issue #438) - Roslyn analyzers and code fixes
+#### Developer Tooling & DX Issues (11 new features planned based on December 29, 2025 research)
+
+- **Encina.Analyzers** (Issue #438) - Roslyn analyzers and code fixes
     - 10+ analyzers: ENC001 (CancellationToken), ENC002 (Validator missing), ENC003 (Saga compensation)
     - Code fixes: generate handler skeleton, add CancellationToken, implement IIdempotentRequest
     - Compatible with NativeAOT and Source Generators
@@ -467,8 +487,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `area-devcontainers` - Dev Containers and Codespaces support (#0DB7ED)
   - `area-documentation-site` - Documentation website and interactive docs (#3498DB)
 
-- .NET Aspire Integration Patterns Issues (10 new features planned based on December 29, 2025 research):
-  - **Encina.Aspire.Hosting** (Issue #416) - AppHost integration package
+#### .NET Aspire Integration Patterns Issues (10 new features planned based on December 29, 2025 research)
+
+- **Encina.Aspire.Hosting** (Issue #416) - AppHost integration package
     - `WithEncina()` extension method for `IResourceBuilder<ProjectResource>`
     - Custom `EncinaResource` for Dashboard visibility
     - Configuration propagation via environment variables
@@ -540,8 +561,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `area-mcp` - Model Context Protocol and AI agent integration (#8B5CF6)
   - `area-hot-reload` - Hot reload and live code updates (#F59E0B)
 
-- Cloud-Native Patterns Issues (11 new features planned based on December 29, 2025 research):
-  - **Encina.Aspire** (Issue #449) - .NET Aspire integration
+#### Cloud-Native Patterns Issues (11 new features planned based on December 29, 2025 research)
+
+- **Encina.Aspire** (Issue #449) - .NET Aspire integration
     - `AddEncinaAspireDefaults()` extension method
     - Service Discovery integration for distributed handlers
     - OpenTelemetry pre-configured for Encina pipeline
@@ -620,8 +642,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - New package planned: `Encina.Orleans`
     - Priority: LOW - High-concurrency niche
 
-- Microservices Architecture Patterns Issues (12 new features planned based on December 29, 2025 research):
-  - **Service Discovery & Configuration Management** (Issue #382) - Foundational microservices pattern
+
+#### Microservices Architecture Patterns Issues (12 new features planned based on December 29, 2025 research)
+
+- **Service Discovery & Configuration Management** (Issue #382) - Foundational microservices pattern
     - `IServiceDiscovery` with `ResolveAsync`, `RegisterAsync`, `DeregisterAsync`, `WatchAsync`
     - `IConfigurationProvider` for externalized configuration
     - Multiple backends: Consul, Kubernetes DNS, .NET Aspire
@@ -713,8 +737,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `pattern-sidecar` - Sidecar and Ambassador patterns
   - `pattern-bff` - Backend for Frontend pattern
 
-- Security Patterns Issues (8 new features planned based on December 29, 2025 research):
-  - **Core Security Abstractions** (Issue #394) - Foundational security pattern
+
+#### Security Patterns Issues (8 new features planned based on December 29, 2025 research)
+
+- **Core Security Abstractions** (Issue #394) - Foundational security pattern
     - `ISecurityContext` with CurrentPrincipal, Permissions, Roles, Claims
     - `IPermissionEvaluator<TResource>` for dynamic permission evaluation
     - `SecurityPipelineBehavior` with `[Authorize]`, `[RequirePermission]`, `[RequireRole]` attributes
@@ -856,8 +882,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `pattern-data-sovereignty` - Data residency and sovereignty
   - `area-data-protection` - Data protection and privacy features
 
-- Advanced Validation Patterns Issues (10 new features planned based on December 2025 research):
-  - **Source-Generated Validation** (Issue #227) - Compile-time validation code generation
+
+#### Advanced Validation Patterns Issues (10 new features planned based on December 2025 research)
+
+- **Source-Generated Validation** (Issue #227) - Compile-time validation code generation
     - Zero reflection, NativeAOT and trimming compatible
     - ~1.6x faster, ~4.7x less memory (Validot benchmarks)
     - Attributes: `[GenerateValidation]`, `[NotEmpty]`, `[Email]`, `[Positive]`, etc.
@@ -913,8 +941,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - New label created: `area-source-generators` for source generator-related features
 
-- Advanced Event Sourcing Patterns Issues (13 new features planned based on December 2025 research):
-  - **Decider Pattern Support** (Issue #320) - Functional event sourcing with pure functions
+
+#### Advanced Event Sourcing Patterns Issues (13 new features planned based on December 2025 research)
+
+- **Decider Pattern Support** (Issue #320) - Functional event sourcing with pure functions
     - `IDecider<TCommand, TEvent, TState>` interface with `Decide`, `Evolve`, `InitialState`
     - Pure functions = trivial testing without mocks
     - Industry best practice 2025 (Marten, Wolverine recommended)
@@ -982,8 +1012,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `area-developer-experience` - Developer experience and tooling improvements
   - `marten-integration` - Marten library integration
 
-- Advanced CQRS Patterns Issues (12 new features planned based on December 2025 market research):
-  - **Zero-Interface Handlers** (Issue #333) - Convention-based handler discovery
+
+#### Advanced CQRS Patterns Issues (12 new features planned based on December 2025 market research)
+
+- **Zero-Interface Handlers** (Issue #333) - Convention-based handler discovery
     - Handlers discovered by naming convention, no `IRequestHandler<,>` required
     - Static handlers supported (`public static class CreateOrderHandler`)
     - Reduces boilerplate and improves DDD alignment
@@ -1063,8 +1095,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `pattern-batch-processing` - Batch processing and bulk command pattern
   - `pattern-request-composition` - Request composition and aggregation pattern
 
-- Domain Modeling Building Blocks Issues (15 new features planned based on December 29, 2025 DDD research):
-  - **Value Objects Base Class** (Issue #367) - Structural equality and immutability
+
+#### Domain Modeling Building Blocks Issues (15 new features planned based on December 29, 2025 DDD research)
+
+- **Value Objects Base Class** (Issue #367) - Structural equality and immutability
     - `ValueObject<T>` abstract record with `GetEqualityComponents()`
     - ROP-compatible factory methods returning `Either<EncinaError, T>`
     - Prevents "primitive obsession" anti-pattern
@@ -1147,8 +1181,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `area-auditing` - Auditing, change tracking, and soft delete patterns (already existed)
   - `foundational` - Core building block that other features depend on
 
-- Vertical Slice Architecture Patterns Issues (12 new features planned based on December 29, 2025 research):
-  - **Feature Flags Integration** (Issue #345) - Microsoft.FeatureManagement integration
+
+#### Vertical Slice Architecture Patterns Issues (12 new features planned based on December 29, 2025 research)
+
+- **Feature Flags Integration** (Issue #345) - Microsoft.FeatureManagement integration
     - `[FeatureFlag("NewCheckoutFlow")]` attribute for handlers
     - `FeatureFlagPipelineBehavior<,>` for automatic verification
     - Built-in filters: Percentage, TimeWindow, Targeting, Contextual
@@ -1227,8 +1263,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `area-domain-events` - Domain events and integration events
   - `saas-essential` - Essential pattern for SaaS applications
 
-- Modular Monolith Architecture Patterns Issues (10 new features planned based on December 29, 2025 research):
-  - **Multi-Tenancy Support** (Issue #357) - Comprehensive SaaS multi-tenant patterns
+
+#### Modular Monolith Architecture Patterns Issues (10 new features planned based on December 29, 2025 research)
+
+- **Multi-Tenancy Support** (Issue #357) - Comprehensive SaaS multi-tenant patterns
     - `ITenantContext` with CurrentTenantId, CurrentTenantName, IsHost
     - `ITenantResolver` implementations: Header, Subdomain, QueryString, Route, Claim, Cookie
     - `DataIsolationLevel` enum: RowLevel, Schema, Database
@@ -1326,8 +1364,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `saas-enabler` - Enables SaaS application development
   - `roslyn-analyzer` - Requires Roslyn analyzer implementation
 
-- Advanced Messaging Patterns Issues (15 new features planned based on market research):
-  - **Message Batching** (Issue #121) - Process multiple messages in a single handler invocation
+
+#### Advanced Messaging Patterns Issues (15 new features planned based on market research)
+
+- **Message Batching** (Issue #121) - Process multiple messages in a single handler invocation
     - Inspired by Wolverine 4.0's batch handler support
     - Time-based, count-based, and size-based batching modes
     - Integration with Outbox/Inbox patterns
@@ -1386,8 +1426,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Per-classification actions (retry, DLQ, quarantine)
     - Security violation alerting
 
-- Database Providers Patterns Issues (16 new features planned based on December 2025 research):
-  - **Generic Repository Pattern** (Issue #279) - Unified data access abstraction
+
+#### Database Providers Patterns Issues (16 new features planned based on December 2025 research)
+
+- **Generic Repository Pattern** (Issue #279) - Unified data access abstraction
     - `IRepository<TEntity, TId>` with GetByIdAsync, AddAsync, UpdateAsync, DeleteAsync, ListAsync
     - `IReadRepository<TEntity, TId>` for CQRS scenarios
     - Implementations for EF Core, Dapper, MongoDB
@@ -1465,8 +1507,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `area-concurrency` - Concurrency control and conflict resolution
   - `area-connection-pool` - Connection pooling and management
 
-- Advanced DDD & Workflow Patterns Issues (13 new features planned based on December 29, 2025 research):
-  - **Specification Pattern** (Issue #295) - Query composition with reusable specifications
+
+#### Advanced DDD & Workflow Patterns Issues (13 new features planned based on December 29, 2025 research)
+
+- **Specification Pattern** (Issue #295) - Query composition with reusable specifications
     - `ISpecification<T>` with Criteria, Includes, OrderBy, Paging
     - `Specification<T>` base class with fluent builder
     - AND/OR/NOT composition operators
@@ -1561,9 +1605,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `temporal-inspired` - Pattern inspired by Temporal.io
   - `masstransit-inspired` - Pattern inspired by MassTransit
 
-- Advanced EDA Patterns Issues (12 new features planned based on December 29, 2025 research):
-  - Based on analysis of MassTransit, Wolverine 5.0, Temporal.io, Axon Framework, Debezium, and community demand
-  - **CDC (Change Data Capture) Pattern** (Issue #308) - Database change streaming
+#### Advanced EDA Patterns Issues (12 new features planned based on December 29, 2025 research)
+
+- Based on analysis of MassTransit, Wolverine 5.0, Temporal.io, Axon Framework, Debezium, and community demand
+- **CDC (Change Data Capture) Pattern** (Issue #308) - Database change streaming
     - `ICdcConnector`, `IChangeEventHandler<TEntity>` for insert/update/delete
     - New packages planned: `Encina.CDC`, `Encina.CDC.Debezium`, `Encina.CDC.SqlServer`
     - Use case: Strangler Fig migration, legacy system integration
@@ -1632,8 +1677,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `stripe-pattern` - Pattern inspired by Stripe engineering
   - `temporal-pattern` - Pattern inspired by Temporal.io
 
-- Advanced Caching Patterns Issues (13 new features planned based on December 2025 research):
-  - **Cache Stampede Protection** (Issue #266) - Thundering herd prevention with multiple strategies
+
+#### Advanced Caching Patterns Issues (13 new features planned based on December 2025 research)
+
+- **Cache Stampede Protection** (Issue #266) - Thundering herd prevention with multiple strategies
     - Inspired by FusionCache (most popular .NET caching library 2025)
     - Single-Flight pattern: Coalesce concurrent requests into one factory execution
     - Probabilistic Early Expiration (PER): Renew cache before expiration probabilistically
@@ -1712,8 +1759,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Issue #140 (Cache Stampede Prevention) closed as duplicate of #266 (more comprehensive)
 
-- Advanced Resilience Patterns Issues (9 new features planned based on 2025 research):
-  - **Hedging Pattern** (Issue #136) - Parallel redundant requests for latency reduction
+
+#### Advanced Resilience Patterns Issues (9 new features planned based on 2025 research)
+
+- **Hedging Pattern** (Issue #136) - Parallel redundant requests for latency reduction
     - Inspired by Polly v8 and Istio service mesh
     - Configure parallel requests with first-response-wins semantics
     - Latency percentile-based triggering (P95, P99)
@@ -1755,8 +1804,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Controlled chaos via feature flags
     - Integration with testing infrastructure
 
-- Advanced Scheduling Patterns Issues (15 new features planned based on 2025 research):
-  - **Cancellation & Update API** (Issue #146) - Cancel, reschedule, or update scheduled messages
+
+#### Advanced Scheduling Patterns Issues (15 new features planned based on 2025 research)
+
+- **Cancellation & Update API** (Issue #146) - Cancel, reschedule, or update scheduled messages
     - Inspired by MassTransit, Hangfire, Temporal
     - `CancelAsync`, `RescheduleAsync`, `UpdatePayloadAsync` methods
     - Batch cancellation with filters
@@ -1817,8 +1868,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Leader election per region
     - Cross-region coordination
 
-- Advanced Observability Patterns Issues (15 new features planned based on 2025 research):
-  - **Real Metrics Collection (EncinaMetrics)** (Issue #174) - Full IEncinaMetrics implementation
+
+#### Advanced Observability Patterns Issues (15 new features planned based on 2025 research)
+
+- **Real Metrics Collection (EncinaMetrics)** (Issue #174) - Full IEncinaMetrics implementation
     - System.Diagnostics.Metrics for zero-allocation metrics
     - Histograms: `encina.request.duration`, `encina.handler.duration`
     - Counters: `encina.requests.total`, `encina.errors.total`
@@ -1895,8 +1948,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Encina trace visualization
     - Local development setup
 
-- Web/API Integration Patterns Issues (18 new features planned based on December 2025 research):
-  - **Server-Sent Events** (Issue #189) - Native .NET 10 SSE support
+
+#### Web/API Integration Patterns Issues (18 new features planned based on December 2025 research)
+
+- **Server-Sent Events** (Issue #189) - Native .NET 10 SSE support
     - Leverage `TypedResults.ServerSentEvents` API from ASP.NET Core 10
     - `SseEndpointExtensions` for easy endpoint registration
     - Heartbeat/keep-alive and automatic retry configuration
@@ -2024,8 +2079,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `area-authentication` - Authentication patterns (Passkeys, OAuth, etc.)
   - `cloud-cloudflare` - Cloudflare Workers and services
 
-- Advanced Testing Patterns Issues (13 new features planned based on 2025 research):
-  - **Test Data Generation** (Issue #161) - Bogus/AutoBogus integration for realistic test data
+
+#### Advanced Testing Patterns Issues (13 new features planned based on 2025 research)
+
+- **Test Data Generation** (Issue #161) - Bogus/AutoBogus integration for realistic test data
     - `EncinaFaker<T>` base class with Encina-specific conventions
     - Pre-built fakers for messaging entities (Outbox, Inbox, Saga, Scheduled)
     - Seed support for deterministic, reproducible tests
@@ -2101,8 +2158,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `area-docker` - Docker and containerization
   - `aot-compatible` - NativeAOT and trimming compatible
 
-- Advanced Distributed Lock Patterns Issues (20 new features planned based on December 2025 research):
-  - **PostgreSQL Provider** (Issue #207) - Native PostgreSQL advisory locks
+
+#### Advanced Distributed Lock Patterns Issues (20 new features planned based on December 2025 research)
+
+- **PostgreSQL Provider** (Issue #207) - Native PostgreSQL advisory locks
     - `pg_advisory_lock(key)` for exclusive locks
     - `pg_advisory_lock_shared(key)` for shared locks
     - `pg_try_advisory_lock()` for non-blocking acquisition
@@ -2226,8 +2285,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `area-coordination` - Distributed coordination primitives
   - `area-pipeline` - Pipeline behaviors and middleware
 
-- Message Transport Patterns Issues (29 new features planned based on December 2025 research):
-  - **New Message Transports (6 issues)**:
+
+#### Message Transport Patterns Issues (29 new features planned based on December 2025 research)
+
+- **New Message Transports (6 issues)**:
     - **Google Cloud Pub/Sub Transport** (Issue #237) - Native GCP integration
       - `IMessageTransportPubSub` interface with dead-lettering and ordering keys
       - Exactly-once delivery (Preview feature), flow control
@@ -2396,8 +2457,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Packaged as .NET global tool (`dotnet tool install Encina.Cli`)
   - Comprehensive test coverage: 65 tests (unit, guard)
 
-- Clean Architecture Patterns Issues (2 new features planned based on December 29, 2025 research):
-  - **Result Pattern Extensions** (Issue #468) - Fluent API for Either
+
+#### Clean Architecture Patterns Issues (2 new features planned based on December 29, 2025 research)
+
+- **Result Pattern Extensions** (Issue #468) - Fluent API for Either
     - `EitherCombineExtensions`: `Combine<T1, T2>()`, `Combine<T1, T2, T3>()` for combining multiple results
     - `EitherAccumulateExtensions`: Error accumulation instead of fail-fast
     - `EitherAsyncExtensions`: `BindAsync()`, `MapAsync()`, `TapAsync()` for async chains
@@ -2468,6 +2531,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Benchmarks for scatter-gather performance across strategies
   - Example:
     ```csharp
+    using Encina.Messaging.ScatterGather;
+
+    // Helper methods (simplified placeholders for this example)
+    // Task<decimal> GetPriceFromA/B/C(PriceRequest req, CancellationToken ct) => ...
+
     var definition = ScatterGatherBuilder.Create<PriceRequest, decimal>("PriceAggregator")
         .ScatterTo("SupplierA", async (req, ct) => await GetPriceFromA(req, ct))
         .ScatterTo("SupplierB", async (req, ct) => await GetPriceFromB(req, ct))
@@ -2886,6 +2954,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - DI registration via `AddProjection<TProjection, TReadModel>()`
   - High-performance logging with `LoggerMessage` attributes
   - 80 tests: 30 unit, 22 property-based, 11 contract, 17 guard clause
+  - **Language Requirements**: Example uses C# 9+ target-typed `new()` syntax. For C# 8 or earlier, use explicit type: `new OrderSummary { Id = ctx.StreamId, ... }`
+  - **Context-to-Model Mapping**: `ctx.StreamId` is a `Guid` representing the aggregate/stream identifier (e.g., OrderId). This maps directly to `IReadModel.Id` to correlate read models with their source aggregates.
+  - **Null Handling**: Event properties (e.g., `e.CustomerName`) may be null depending on your domain. Use null-coalescing (`e.CustomerName ?? "Unknown"`) or make read model properties nullable (`string? CustomerName`). Validate required fields in `Create`/`Apply` methods.
   - Example:
     ```csharp
     // Define a read model
@@ -3035,7 +3106,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
         .WithTimeout(TimeSpan.FromMinutes(5))
         .Build();
 
+    // SagaResult<TData> contains IsSuccess, Data (final state), Error (if failed),
+    // SagaId, and StepsExecuted count for observability
     var result = await sagaRunner.RunAsync(saga, initialData);
+
+    if (result.IsSuccess)
+    {
+        // Saga completed successfully - continue business flow
+        logger.LogInformation("Order {OrderId} processed. Steps: {Steps}", 
+            result.Data.OrderId, result.StepsExecuted);
+        await notificationService.SendConfirmationAsync(result.Data);
+    }
+    else
+    {
+        // Saga failed and compensations ran - handle the failure
+        logger.LogError("Order saga failed: {Error}", result.Error?.Message);
+        await alertService.NotifyFailureAsync(result.SagaId, result.Error);
+    }
     ```
 - Automatic Rate Limiting with Adaptive Throttling (Issue #40):
   - `RateLimitAttribute` with configurable properties:
@@ -3172,6 +3259,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Validation Architecture Consolidation** (Issue #229) - Remove duplicate validation behaviors:
+  - **BREAKING**: Removed `Encina.FluentValidation.ValidationPipelineBehavior<TRequest, TResponse>` (use centralized `Encina.Validation.ValidationPipelineBehavior<,>`)
+  - **BREAKING**: Removed `Encina.DataAnnotations.DataAnnotationsValidationBehavior<TRequest, TResponse>` (use centralized behavior)
+  - **BREAKING**: Removed `Encina.MiniValidator.MiniValidationBehavior<TRequest, TResponse>` (use centralized behavior)
+  - All validation now goes through `ValidationOrchestrator` + provider-specific `IValidationProvider`
+  - DRY: Single `ValidationPipelineBehavior` in `Encina.Validation` namespace
+  - Consistent error handling across all validation providers
+
+- **Milestone Reorganization**: Phase 2 (364 issues) split into 10 incremental milestones:
+  - v0.10.0 — DDD Foundations (31 issues)
+  - v0.11.0 — Testing Infrastructure (25 issues)
+  - v0.12.0 — Database & Repository (22 issues)
+  - v0.13.0 — Security & Compliance (25 issues)
+  - v0.14.0 — Cloud-Native & Aspire (23 issues)
+  - v0.15.0 — Messaging & EIP (71 issues)
+  - v0.16.0 — Multi-Tenancy & Modular (21 issues)
+  - v0.17.0 — AI/LLM Patterns (16 issues)
+  - v0.18.0 — Developer Experience (43 issues)
+  - v0.19.0 — Observability & Resilience (87 issues)
+
+
 - **Performance**: Optimized delegate caches to minimize reflection and boxing (Issue #49):
   - TryGetValue-before-GetOrAdd pattern on ConcurrentDictionary to avoid delegate allocation on cache hits
   - Cached `GetRequestKind` type checks to avoid repeated `IsAssignableFrom` calls on hot paths
@@ -3200,9 +3308,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ShouldContainSuccess()` / `ShouldContainError()` - Collection contains assertions
   - `ShouldBeErrorWithCode()`, `ShouldBeValidationError()`, `ShouldBeAuthorizationError()` - EncinaError assertions
   - Async variants: `ShouldBeSuccessAsync()`, `ShouldBeErrorAsync()`, `ShouldBeErrorWithCodeAsync()`
-
-### Changed
-
 - Centralized messaging patterns with shared `Log.cs` and `TransactionPipelineBehavior.cs`
 - Improved null handling in `InboxOrchestrator` response deserialization
 
@@ -3217,268 +3322,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.9.0] - 2025-12-23
-
-Major milestone: **Orchestrator Pattern** adoption and project stabilization.
-
-### Added
-
-#### Validation Orchestrator Architecture
-
-- `IValidationProvider`, `ValidationResult`, `ValidationError` abstractions in `Encina.Validation` namespace
-- `ValidationOrchestrator` for centralized validation orchestration
-- `FluentValidationProvider`, `DataAnnotationsValidationProvider`, `MiniValidationProvider` implementations
-
-#### Messaging Orchestrator/Factory Architecture
-
-- `InboxOrchestrator`, `OutboxOrchestrator`, `SagaOrchestrator`, `SchedulerOrchestrator` for centralized domain logic
-- Factory interfaces: `IInboxMessageFactory`, `IOutboxMessageFactory`, `ISagaStateFactory`, `IScheduledMessageFactory`
-- Factories implemented for all 12 providers (Dapper ×5, ADO ×5, EF Core, MongoDB)
-
-#### Documentation
-
-- Comprehensive Saga patterns documentation with Mermaid diagrams
-- Messaging Transports guide with decision flowchart
-
 ### Changed
 
-- **BREAKING**: Centralized `ValidationPipelineBehavior` to `Encina.Validation` namespace
-- **BREAKING**: Centralized `InboxPipelineBehavior` to `Encina.Messaging.Inbox` namespace
-- **BREAKING**: Centralized `OutboxPostProcessor` to `Encina.Messaging.Outbox` namespace
-- Validation packages now use Orchestrator → Provider architecture
-- Lowered coverage threshold to 45% (current: ~47%) for CI stability
-
-### Deprecated
-
-- **Encina.EventStoreDB** - Marten provides better .NET integration for event sourcing
-- **Encina.Wolverine** - Overlapping concerns with Encina's messaging patterns
-- **Encina.NServiceBus** - Overlapping concerns with Encina's messaging patterns
-- **Encina.MassTransit** - Overlapping concerns with Encina's messaging patterns
-- **Encina.Dapr** - Infrastructure concerns delegated to platform
-
-> Deprecated packages preserved in `.backup/deprecated-packages/`.
-
-### Fixed
-
-- Quartz logging tests now use `FakeLogger` instead of NSubstitute mocks
-- SQLite PropertyTests failures with missing database tables
-- ADO.Oracle and ADO.Sqlite SQL scripts syntax errors
-
----
-
-## [0.8.0] - 2025-12-22
-
-Major milestone: **Project renaming** from SimpleMediator to Encina.
-
-### Changed
-
-- **BREAKING**: Renamed project from **SimpleMediator** to **Encina**
-- Updated all namespaces, package names, and references
-- Error codes changed to lowercase (`encina.*` instead of `Encina.*`)
-- License changed from proprietary to **MIT**
-
-### Added
-
-- GitHub Issue templates (bug_report, feature_request, technical_debt)
-- VSCode tasks.json with safe build/test configurations
-- Solution filters for focused development (.slnf files)
-
-### Fixed
-
-- Duplicate behavior registration prevention
-- CLR-crashing load tests skipped (Issue #5 - .NET 10 JIT bug)
-- Quality Gate coverage detection in CI
-- Benchmark AOT compilation errors
-
-### Removed
-
-- 10 obsolete skipped tests cleaned up
-- Hardcoded passwords from configuration files
-
----
-
-## [0.7.0] - 2025-12-21
-
-Major milestone: **Caching, Messaging Transports, and Event Sourcing**.
-
-### Added
-
-#### Caching Infrastructure (8 packages)
-
-- **Encina.Caching** - Core abstractions (`ICacheProvider`, `ICacheKeyGenerator`, `CachingPipelineBehavior`)
-- **Encina.Caching.Memory** - IMemoryCache provider (109 tests)
-- **Encina.Caching.Hybrid** - Microsoft HybridCache for multi-tier caching (.NET 9+)
-- **Encina.Caching.Redis** - StackExchange.Redis provider
-- **Encina.Caching.Garnet** - Microsoft Garnet provider (Redis-compatible)
-- **Encina.Caching.Valkey** - Valkey provider (Redis fork)
-- **Encina.Caching.Dragonfly** - Dragonfly provider (Redis-compatible)
-- **Encina.Caching.KeyDB** - KeyDB provider (Redis fork)
-
-#### Messaging Transports (10 packages)
-
-- **Encina.RabbitMQ** - RabbitMQ.Client 7.2.0 integration
-- **Encina.AzureServiceBus** - Azure Service Bus 7.20.1 integration
-- **Encina.AmazonSQS** - AWS SQS/SNS 4.0.2.3 integration
-- **Encina.Kafka** - Confluent.Kafka 2.12.0 integration
-- **Encina.Redis.PubSub** - StackExchange.Redis pub/sub
-- **Encina.InMemory** - System.Threading.Channels message bus
-- **Encina.NATS** - NATS.Net 2.6.11 with JetStream support
-- **Encina.MQTT** - MQTTnet 5.0.1 integration
-- **Encina.gRPC** - Grpc.AspNetCore 2.71.0 Encina service
-- **Encina.GraphQL** - HotChocolate 15.1.11 bridge
-
-#### Event Sourcing
-
-- **Encina.Marten** - Marten v8.0.0-beta-1 event store with projections
-- `IAggregate` / `AggregateBase` abstractions
-- `IAggregateRepository<TAggregate>` pattern
-- `EventPublishingPipelineBehavior` for auto-publishing domain events
-
-#### Real-time & Integration
-
-- **Encina.SignalR** - SignalR hub base class with `[BroadcastToSignalR]` attribute
-- **Encina.MongoDB** - MongoDB provider for messaging patterns
-
-### Changed
-
-- LoggerMessage source generators across all packages for CA1848 compliance
-- Parallel notification dispatch strategies (opt-in)
-
----
-
-## [0.6.0] - 2025-12-20
-
-Major milestone: **Comprehensive test coverage** and resilience packages.
-
-### Added
-
-#### Resilience Packages (3 packages)
-
-- **Encina.Extensions.Resilience** - Microsoft standard resilience patterns
-- **Encina.Polly** - Retry, circuit breaker, timeout policies
-- **Encina.Refit** - Type-safe REST API clients integration
-
-#### Test Infrastructure
-
-- Comprehensive validation test coverage: FluentValidation (68 tests), DataAnnotations (95%), MiniValidator (95%), GuardClauses (95%)
-- Job Scheduling tests: Guard, Contract, Property, Integration, Load tests
-- AspNetCore comprehensive test suite (104 tests)
-- EntityFrameworkCore test suite (100% coverage)
-- Provider comparison benchmarks (ADO.NET vs Dapper vs EF Core)
-
----
-
-## [0.5.0] - 2025-12-19
-
-Major milestone: **OpenTelemetry, Stream Requests, and database provider tests**.
-
-### Added
-
-#### Observability
-
-- **Encina.OpenTelemetry** - Distributed tracing and metrics
-- `EncinaOpenTelemetryOptions` with ServiceName, ServiceVersion
-- `MessagingActivityEnricher` for Outbox, Inbox, Sagas, Scheduling
-- Docker Compose observability stack (Jaeger, Prometheus, Loki, Grafana)
-
-#### Stream Requests
-
-- `IStreamRequest<TItem>` interface for async enumerable patterns
-- `IStreamRequestHandler<TRequest, TItem>` interface
-- `IStreamPipelineBehavior<TRequest, TItem>` interface
-- `StreamPipelineBuilder<TRequest, TItem>` for pipeline construction
-- 98 tests covering Guard, Contract, Property, Integration, Load scenarios
-
-#### Benchmarks
-
-- Messaging pattern benchmarks (Outbox, Inbox, Infrastructure)
-- Validation benchmarks comparing 4 approaches
-- Stream Request benchmarks (8 scenarios)
-
-### Changed
-
-- Comprehensive database provider test suite (1,763 tests)
-
----
-
-## [0.4.0] - 2025-12-18
-
-Major milestone: **Multi-database support** with 10 provider packages.
-
-### Added
-
-#### Dapper Providers (5 packages)
-
-- **Encina.Dapper.SqlServer** - SQL Server optimized
-- **Encina.Dapper.PostgreSQL** - PostgreSQL with Npgsql
-- **Encina.Dapper.MySQL** - MySQL/MariaDB with MySqlConnector
-- **Encina.Dapper.Sqlite** - SQLite for testing
-- **Encina.Dapper.Oracle** - Oracle with ManagedDataAccess
-
-#### ADO.NET Providers (5 packages)
-
-- **Encina.ADO.SqlServer** - Raw ADO.NET (fastest)
-- **Encina.ADO.PostgreSQL** - PostgreSQL optimized
-- **Encina.ADO.MySQL** - MySQL/MariaDB optimized
-- **Encina.ADO.Sqlite** - SQLite optimized
-- **Encina.ADO.Oracle** - Oracle optimized
-
-### Changed
-
-- Each provider implements dialect-specific SQL (TOP vs LIMIT, GETUTCDATE vs NOW, etc.)
-- All providers share interfaces from `Encina.Messaging`
-
----
-
-## [0.3.0] - 2025-12-17
-
-Major milestone: **Web integration and messaging patterns**.
-
-### Added
-
-- **Encina.AspNetCore** - Middleware, authorization, Problem Details integration
-- **Encina.Messaging** - Shared abstractions for Outbox, Inbox, Sagas, Scheduling
-- **Encina.EntityFrameworkCore** - EF Core implementation of messaging patterns
-- **Encina.Dapper** - Initial Dapper provider with messaging patterns
-- **Encina.ADO** - Initial ADO.NET provider with messaging patterns
-- **Encina.Hangfire** - Background job scheduling with Hangfire
-- **Encina.Quartz** - Enterprise CRON scheduling with Quartz.NET
-
----
-
-## [0.2.0] - 2025-12-14
-
-Major milestone: **Validation satellite packages**.
-
-### Added
-
-- **Encina.FluentValidation** - FluentValidation integration with ROP
-- **Encina.DataAnnotations** - Built-in .NET validation attributes
-- **Encina.MiniValidator** - Ultra-lightweight validation (~20KB)
-- **Encina.GuardClauses** - Defensive programming with Ardalis.GuardClauses
-- `IRequestContext` interface for pipeline extensibility
-- `RequestContext` with CorrelationId, UserId, TenantId, Metadata
-- `IRequestContextAccessor` with AsyncLocal storage
-
----
-
-## [0.1.0] - 2025-12-06
-
-Initial release: **Core toolkit with Railway Oriented Programming**.
-
-### Added
-
-- Pure Railway Oriented Programming with `Either<EncinaError, T>`
-- Request/Notification dispatch with Expression tree compilation
-- Pipeline pattern (Behaviors, PreProcessors, PostProcessors)
-- CQRS markers (`ICommand`, `IQuery`)
-- Observability with `ActivitySource` and Metrics
-- PublicAPI Analyzers compliance
-- Comprehensive unit tests with property-based testing (FsCheck)
-- NBomber load harness for performance validation
-- BenchmarkDotNet micro-benchmarks
-- Stryker mutation testing (79.75% mutation score)
-
----
-
-[Unreleased]: https://github.com/dlrivada/Encina/compare/main...HEAD
+## [0.9.0]
