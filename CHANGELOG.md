@@ -36,6 +36,27 @@
 
 ### Added
 
+- **Encina.Testing.Respawn Package** - Intelligent database cleanup for integration tests (Issue #427):
+  - `DatabaseRespawner` - Abstract base class for provider-specific respawners
+  - `SqlServerRespawner` - SQL Server implementation using Respawn library
+  - `PostgreSqlRespawner` - PostgreSQL implementation using Respawn library
+  - `MySqlRespawner` - MySQL/MariaDB implementation using Respawn library
+  - `SqliteRespawner` - Custom SQLite implementation (Respawn doesn't support SQLite natively)
+  - `RespawnOptions` - Configuration for table filtering, schema control, and Encina messaging tables
+  - `RespawnerFactory` - Factory for creating respawners with automatic provider detection
+  - `RespawnAdapter` - Enum for supported database adapters (SqlServer, PostgreSql, MySql, Oracle)
+  - Features:
+    - Foreign key-aware reset (deletes in correct dependency order)
+    - `TablesToIgnore` - Exclude specific tables from cleanup
+    - `SchemasToInclude`/`SchemasToExclude` - Schema filtering
+    - `ResetEncinaMessagingTables` - Option to preserve Outbox/Inbox/Saga tables (default: true)
+    - `WithReseed` - Reset identity columns (default: true)
+    - `CheckTemporalTables` - Handle SQL Server temporal tables
+    - `InferAdapter()` - Automatically detect database provider from connection string
+    - Builder pattern support via `FromBuilder()` method
+  - Async initialization with `InitializeAsync()` for lazy respawner setup
+  - `GetDeleteCommands()` for debugging and verification
+
 - **Encina.Testing.Shouldly Package** - Open-source assertion extensions (Issue #429):
   - `EitherShouldlyExtensions` - Shouldly-style assertions for `Either<TLeft, TRight>` types:
     - Success assertions: `ShouldBeSuccess()`, `ShouldBeRight()` with value/validator overloads

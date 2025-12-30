@@ -41,7 +41,7 @@
 | **Pipeline Behaviors** | ~20+ |
 | **Phase 2 Milestones** | 10 milestones (v0.10.0 → v0.19.0) |
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
-| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (3/25 completado) | 
+| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (4/25 completado) | 
 | **v0.12.0 - Database & Repository** | 22 issues |
 | **v0.13.0 - Security & Compliance** | 25 issues |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
@@ -2633,7 +2633,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 
 ---
 
-### 12. Testing (2 paquetes implementados + 24 mejoras planificadas)
+### 12. Testing (4 paquetes implementados + 22 mejoras planificadas)
 
 #### Paquetes Implementados
 
@@ -2641,6 +2641,8 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 |---------|-------------|--------|
 | **Encina.Testing** | Helpers para tests | ✅ Completo |
 | **Encina.Testing.Fakes** | Test doubles para IEncina y stores (#426) | ✅ Completo |
+| **Encina.Testing.Shouldly** | Assertions open-source para Either y Aggregates (#429) | ✅ Completo |
+| **Encina.Testing.Respawn** | Database reset inteligente con Respawn (#427) | ✅ Completo |
 
 #### Features Actuales
 
