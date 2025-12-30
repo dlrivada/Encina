@@ -36,6 +36,32 @@
 
 ### Added
 
+- **Encina.Testing.Architecture Package** - Architecture testing rules using ArchUnitNET (Issue #432):
+  - `EncinaArchitectureRules` - Static class with pre-built architecture rules:
+    - `HandlersShouldNotDependOnInfrastructure()` - Handlers should use abstractions
+    - `HandlersShouldBeSealed()` - Handler classes should be sealed
+    - `NotificationsShouldBeSealed()` - Notifications and events should be sealed
+    - `BehaviorsShouldBeSealed()` - Pipeline behaviors should be sealed
+    - `ValidatorsShouldFollowNamingConvention()` - Validators should end with "Validator"
+    - `DomainShouldNotDependOnMessaging(namespace)` - Domain layer isolation
+    - `DomainShouldNotDependOnApplication(domain, app)` - Domain independence
+    - `ApplicationShouldNotDependOnInfrastructure(app, infra)` - Layer separation
+    - `CleanArchitectureLayersShouldBeSeparated(domain, app, infra)` - Combined layer rules
+    - `RepositoryInterfacesShouldResideInDomain(namespace)` - Repository interface location
+    - `RepositoryImplementationsShouldResideInInfrastructure(namespace)` - Impl location
+  - `EncinaArchitectureTestBase` - Abstract test class with pre-defined tests:
+    - Override `ApplicationAssembly`, `DomainAssembly`, `InfrastructureAssembly`
+    - Override namespace properties for layer separation rules
+    - Pre-built test methods: `HandlersShouldNotDependOnInfrastructure()`, etc.
+  - `EncinaArchitectureRulesBuilder` - Fluent builder for custom rule composition:
+    - Chain multiple rules with fluent API
+    - `Verify()` - Throws `ArchitectureRuleException` on violations
+    - `VerifyWithResult()` - Returns `ArchitectureVerificationResult` without throwing
+    - `ApplyAllStandardRules()` - Apply all standard Encina rules at once
+    - `AddCustomRule(IArchRule)` - Add custom ArchUnitNET rules
+  - `ArchitectureRuleViolation` - Record for rule violation details
+  - `ArchitectureVerificationResult` - Result with `IsSuccess`, `IsFailure`, `Violations`
+  - `ArchitectureRuleException` - Exception with formatted violation messages
 - **Encina.Testing.Verify Package** - Snapshot testing integration with Verify (Issue #430):
   - `EncinaVerifySettings` - Configuration for Verify with Encina-specific scrubbers:
     - `Initialize()` - Configures scrubbers and converters (idempotent)

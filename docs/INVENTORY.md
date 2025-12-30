@@ -2646,6 +2646,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | **Encina.Testing.WireMock** | HTTP API mocking con WireMock.NET (#428) | ✅ Completo |
 | **Encina.Testing.Bogus** | Generación de datos realistas con Bogus (#431) | ✅ Completo |
 | **Encina.Testing.Verify** | Snapshot testing con Verify (#430) | ✅ Completo |
+| **Encina.Testing.Architecture** | Architecture testing rules con ArchUnitNET (#432) | ✅ Completo |
 | **Encina.Aspire.Testing** | Aspire integration testing support (#418) | ✅ Completo |
 
 #### Features Actuales
@@ -2778,7 +2779,7 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 | **#429** | Shouldly Assertions | Assertions open-source (alternativa a FluentAssertions) | Alta | Baja | `testing-unit`, `testing-assertions`, `foundational`, `new-package` |
 | **#430** | Verify Snapshot Testing | Snapshot/approval testing para responses complejas | Media | Media | `testing-unit`, `testing-snapshot`, `new-package` |
 | **#431** | Bogus Generators | Generación de datos realistas con Bogus | Media | Media | `testing-unit`, `testing-data-generation`, `new-package` |
-| **#432** | Architecture Testing | Reglas arquitectónicas con ArchUnitNET | Media | Media | `area-architecture-testing`, `area-ddd`, `industry-best-practice`, `new-package` |
+| ~~**#432**~~ | ~~Architecture Testing~~ | ✅ Implementado como Encina.Testing.Architecture | - | - | - |
 | **#433** | FakeTimeProvider | Control de tiempo en tests (.NET 8+ TimeProvider) | Media | Baja | `testing-unit`, `testing-time-control`, `foundational`, `dotnet-10` |
 | **#434** | BDD Specifications | Given/When/Then para handlers (extensión de AggregateTestBase) | Baja | Media | `testing-unit`, `testing-bdd`, `area-ddd`, `area-event-sourcing` |
 | **#435** | FsCheck Extensions | Property-based testing con arbitraries Encina | Baja | Alta | `testing-unit`, `testing-property-based`, `industry-best-practice`, `new-package` |
@@ -2849,19 +2850,25 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - **Nuevo paquete**: `Encina.Testing.Bogus`
 - **Inspiración**: [Bogus](https://github.com/bchavez/Bogus)
 
-**#432 - Encina.Testing.Architecture** (Media Prioridad):
+**~~#432 - Encina.Testing.Architecture~~** ✅ Completado:
 - `EncinaArchitectureRules` con reglas predefinidas:
-  - `HandlersShouldNotDependOnInfrastructure()`
-  - `RequestsShouldBeRecords()`
-  - `CommandsShouldNotReturnData()`
-  - `DomainShouldNotDependOnMessaging()`
-  - `ValidatorsShouldBeColocated()`
-  - `NotificationsShouldBeSealed()`
-- `EncinaArchitectureTestBase` abstract class
-- `EncinaArchitectureRulesBuilder` para custom rules
-- Soporte xUnit y NUnit
-- **Nuevo paquete**: `Encina.Testing.Architecture`
-- **Inspiración**: [ArchUnitNET](https://github.com/TNG/ArchUnitNET), [NetArchTest](https://github.com/BenMorris/NetArchTest)
+  - `HandlersShouldNotDependOnInfrastructure()` - Handlers usan abstracciones
+  - `HandlersShouldBeSealed()` - Handlers deben ser sealed
+  - `NotificationsShouldBeSealed()` - Notifications deben ser sealed
+  - `BehaviorsShouldBeSealed()` - Behaviors deben ser sealed
+  - `ValidatorsShouldFollowNamingConvention()` - Naming conventions
+  - `DomainShouldNotDependOnMessaging()` - Aislamiento de dominio
+  - `DomainShouldNotDependOnApplication()` - Layer separation
+  - `ApplicationShouldNotDependOnInfrastructure()` - Clean architecture
+  - `CleanArchitectureLayersShouldBeSeparated()` - Combined rule
+  - `RepositoryInterfacesShouldResideInDomain()` - Repository location
+  - `RepositoryImplementationsShouldResideInInfrastructure()` - Impl location
+- `EncinaArchitectureTestBase` abstract class con tests predefinidos
+- `EncinaArchitectureRulesBuilder` para fluent rule composition
+- `ArchitectureVerificationResult` con `IsSuccess`, `IsFailure`, `Violations`
+- `ArchitectureRuleException` con mensajes formateados
+- Soporte xUnit
+- **Paquete**: `Encina.Testing.Architecture`
 
 **#433 - FakeTimeProvider** (Media Prioridad):
 - `FakeTimeProvider : TimeProvider` (.NET 8+ compatible)
@@ -2929,8 +2936,8 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 | `Encina.Testing.WireMock` | #428 | HTTP API mocking | Alta |
 | `Encina.Testing.Shouldly` | #429 | Assertions open-source | Alta |
 | ~~`Encina.Testing.Verify`~~ | ~~#430~~ | ~~Snapshot testing~~ | ✅ Completo |
-| `Encina.Testing.Bogus` | #431 | Data generation | Media |
-| `Encina.Testing.Architecture` | #432 | Architecture testing | Media |
+| ~~`Encina.Testing.Bogus`~~ | ~~#431~~ | ~~Data generation~~ | ✅ Completo |
+| ~~`Encina.Testing.Architecture`~~ | ~~#432~~ | ~~Architecture testing~~ | ✅ Completo |
 | `Encina.Testing.FsCheck` | #435 | Property-based testing | Baja |
 | `Encina.Testing.Pact` | #436 | Contract testing | Baja |
 
