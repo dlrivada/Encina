@@ -35,7 +35,7 @@
 ---
 
 ### Added
-
+ 
 - **FakeTimeProvider** - Controllable time for testing (Issue #433):
   - `FakeTimeProvider` - Thread-safe TimeProvider implementation for testing time-dependent code
   - Time manipulation: `SetUtcNow()`, `Advance()`, `AdvanceToNextDay()`, `AdvanceToNextHour()`, `AdvanceMinutes()`, `AdvanceSeconds()`, `AdvanceMilliseconds()`
@@ -45,6 +45,9 @@
   - `ActiveTimerCount` property for timer verification
   - Support for one-shot and periodic timers
   - Deterministic timer firing controlled by time advancement
+  - **Concurrency Guarantees**:
+    - **Thread-safe**: `SetUtcNow()`, `Advance()` (atomic updates); `CreateTimer()` (concurrent creation); `ActiveTimerCount`, `GetUtcNow()` (read-only accessors)
+    - **Not thread-safe**: Manual timer manipulation (`Change()`, `Dispose()` on individual timers); composed sequences (e.g., read-then-advance across threads). These require external synchronization.
 
 - **Encina.Testing.Fakes Package** - Test doubles for Encina components (Issue #426):
   - `FakeEncina` - In-memory IEncina implementation with verification methods
@@ -190,8 +193,14 @@
     - `UseCaseHandlerExtensions` - `AddUseCaseHandler<T>()`, `AddUseCaseHandlersFromAssembly()`
 
 - Comprehensive test coverage: 175 unit tests, 275 property tests, 531 contract tests, 80 guard tests (1061 total).
-  - **Note**: Load tests (`[Trait("Category", "Load")]`) are excluded from default runs due to a .NET 10 JIT bug affecting Release builds with `IAsyncEnumerable<Either<EncinaError, T>>` under NBomber load scenarios.
-  - **Workaround**: To run load tests locally, set environment variable `DOTNET_JitObjectStackAllocationConditionalEscape=0` before executing.
+  - **Note**: Load tests (`[Trait("Category", "Load")]`) are excluded from default CI runs due to a .NET 10 JIT bug.
+  - **Known Issue - CLR Crash on .NET 10** (Encina Issue #5):
+    - **Scope**: Affects load tests only (NBomber + `IAsyncEnumerable<Either<EncinaError, T>>` under high concurrency). Production code is not affected.
+    - **Affected Versions**: .NET 10.0.x (all current releases)
+    - **Upstream Bug**: [dotnet/runtime#121736](https://github.com/dotnet/runtime/issues/121736) - Fixed in .NET 11, awaiting .NET 10.x backport
+    - **CI/CD Mitigation**: Load tests are excluded via project name pattern (`*LoadTests*`) in [.github/workflows/ci.yml](.github/workflows/ci.yml). Dedicated load test workflow runs separately with workaround.
+    - **Local Workaround**: Set `DOTNET_JitObjectStackAllocationConditionalEscape=0` before running load tests
+    - **Internal Docs**: See [docs/history/2025-12.md](docs/history/2025-12.md#clr-crash-on-net-10-issue-5) "Known Issues" section
 
 
 #### AI/LLM Patterns Issues (12 new features planned based on December 29, 2025 research)
@@ -2893,6 +2902,7 @@
   - DI registration via `AddSnapshotableAggregate<TAggregate>()`
   - Comprehensive test coverage: 121 unit tests, property tests, contract tests, guard clause tests
   - Integration tests with Testcontainers/PostgreSQL
+  - **Language Requirements**: Requires C# 14 / .NET 10.
   - Example:
     ```csharp
     // Enable snapshotting for aggregates
@@ -2964,20 +2974,20 @@
   - DI registration via `AddProjection<TProjection, TReadModel>()`
   - High-performance logging with `LoggerMessage` attributes
   - 80 tests: 30 unit, 22 property-based, 11 contract, 17 guard clause
-  - **Language Requirements**: Example uses C# 9+ target-typed `new()` syntax. For C# 8 or earlier, use explicit type: `new OrderSummary { Id = ctx.StreamId, ... }`
-  - **Context-to-Model Mapping**: `ctx.StreamId` is a `Guid` representing the aggregate/stream identifier (e.g., OrderId). This maps directly to `IReadModel.Id` to correlate read models with their source aggregates.
-  - **Null Handling**: Event properties (e.g., `e.CustomerName`) may be null depending on your domain. Use null-coalescing (`e.CustomerName ?? "Unknown"`) or make read model properties nullable (`string? CustomerName`). Validate required fields in `Create`/`Apply` methods.
+  - **Language Requirements**: Requires C# 14 / .NET 10. Example uses target-typed `new()` and `with` expression (requires read model to be a `record` type).
+  - **Context-to-Model Mapping**: `ctx.StreamId` is a `Guid` (non-nullable struct, defaults to `Guid.Empty`). This maps directly to `IReadModel.Id` to correlate read models with their source aggregates. Guard against `Guid.Empty` if your domain requires a valid stream ID.
+  - **Null Handling**: Event properties (e.g., `e.CustomerName`) may be null depending on your domain model. The `Create` method should validate required fields with `ArgumentNullException.ThrowIfNull()` or use null-coalescing for optional fields. The example below demonstrates defensive validation.
   - Example:
     ```csharp
-    // Define a read model
-    public class OrderSummary : IReadModel
+    // Define a read model (must be a record to use 'with' expression)
+    public record OrderSummary : IReadModel
     {
         public Guid Id { get; set; }
-        public string CustomerName { get; set; }
+        public string CustomerName { get; set; } = string.Empty;
         public decimal TotalAmount { get; set; }
     }
 
-    // Define a projection
+    // Define a projection with input validation
     public class OrderSummaryProjection :
         IProjection<OrderSummary>,
         IProjectionCreator<OrderCreated, OrderSummary>,
@@ -2985,8 +2995,17 @@
     {
         public string ProjectionName => "OrderSummary";
 
-        public OrderSummary Create(OrderCreated e, ProjectionContext ctx) =>
-            new() { Id = ctx.StreamId, CustomerName = e.CustomerName };
+        public OrderSummary Create(OrderCreated e, ProjectionContext ctx)
+        {
+            // StreamId is a Guid struct - guard against empty if required
+            if (ctx.StreamId == Guid.Empty)
+                throw new ArgumentException("StreamId cannot be empty", nameof(ctx));
+
+            // Validate required event properties
+            ArgumentNullException.ThrowIfNull(e.CustomerName, nameof(e.CustomerName));
+
+            return new() { Id = ctx.StreamId, CustomerName = e.CustomerName };
+        }
 
         public OrderSummary Apply(OrderItemAdded e, OrderSummary m, ProjectionContext ctx) =>
             m with { TotalAmount = m.TotalAmount + e.Price * e.Quantity };
@@ -3073,10 +3092,39 @@
   - High-performance logging with `LoggerMessage` attributes
   - DI registration via `AddEncinaDeadLetterQueue<TStore, TFactory>()`
   - Comprehensive test coverage: 75 unit tests, 11 integration tests, 22 property tests, 12 contract tests
-  - Example:
+  - **Built-in vs Custom Implementations**:
+    - **Built-in (Testing)**: `FakeDeadLetterStore` in `Encina.Testing.Fakes` - In-memory store for unit/integration tests
+    - **Custom (Production)**: Implement `IDeadLetterStore` and `IDeadLetterMessageFactory` for your persistence layer (EF Core, Dapper, ADO.NET, NoSQL, etc.)
+    - **API Location**: Interface contracts in `Encina.Messaging.DeadLetter` namespace ([IDeadLetterStore.cs](src/Encina.Messaging/DeadLetter/IDeadLetterStore.cs), [IDeadLetterMessageFactory.cs](src/Encina.Messaging/DeadLetter/IDeadLetterMessageFactory.cs))
+    - **Contract Tests**: Use `IDeadLetterStoreContractTests` base class to verify custom implementations
+    - **Sample Implementation**: See `InMemoryDeadLetterStore` in [DeadLetterIntegrationTests.cs](tests/Encina.Tests/Integration/DeadLetterIntegrationTests.cs) for implementation reference
+  - Example (Testing with built-in FakeDeadLetterStore):
     ```csharp
-    // Configure DLQ
-    services.AddEncinaDeadLetterQueue<DeadLetterStoreEF, DeadLetterMessageFactoryEF>(options =>
+    // Testing scenario: Use built-in FakeDeadLetterStore
+    services.AddEncinaDeadLetterQueue<FakeDeadLetterStore, FakeDeadLetterMessageFactory>(options =>
+    {
+        options.RetentionPeriod = TimeSpan.FromDays(30);
+        options.EnableAutomaticCleanup = false; // Disable for testing
+    });
+    ```
+  - Example (Production with custom store):
+    ```csharp
+    // Production scenario: Implement IDeadLetterStore for your persistence layer
+    public class MyEfCoreDeadLetterStore : IDeadLetterStore
+    {
+        private readonly MyDbContext _context;
+        public MyEfCoreDeadLetterStore(MyDbContext context) => _context = context;
+        
+        public async Task AddAsync(IDeadLetterMessage message, CancellationToken ct = default)
+        {
+            _context.DeadLetterMessages.Add(MapToEntity(message));
+            await _context.SaveChangesAsync(ct);
+        }
+        // ... implement remaining interface methods
+    }
+
+    // Register with custom implementations
+    services.AddEncinaDeadLetterQueue<MyEfCoreDeadLetterStore, MyDeadLetterMessageFactory>(options =>
     {
         options.RetentionPeriod = TimeSpan.FromDays(30);
         options.EnableAutomaticCleanup = true;
