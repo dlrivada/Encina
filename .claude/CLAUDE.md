@@ -770,3 +770,18 @@ issue_enrichment:
 3. **Reference issues in PRs** - Enables linked issue validation
 4. **Review the enrichment** - Check related issues/PRs for context before starting work
 5. **Leverage Plan Mode** - For complex features, let CodeRabbit analyze the codebase first
+
+### Requesting CodeRabbit Analysis on Existing Issues
+
+CodeRabbit only enriches issues automatically when they are **created or edited**. For existing issues without CodeRabbit analysis:
+
+1. **Comment to trigger analysis**: Add a comment like `@coderabbitai please review this issue`
+2. **Wait for response**: CodeRabbit will analyze and reply with enrichment (duplicates, related issues, suggestions)
+3. **Request a plan**: Use `@coderabbitai plan` to generate implementation steps
+
+**Standard workflow when reviewing an issue without CodeRabbit comments:**
+```
+@coderabbitai please analyze this issue and suggest related issues/PRs
+```
+
+This practice ensures we get CodeRabbit's insights on all issues we work on, not just newly created ones.
