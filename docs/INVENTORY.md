@@ -41,7 +41,7 @@
 | **Pipeline Behaviors** | ~20+ |
 | **Phase 2 Milestones** | 10 milestones (v0.10.0 → v0.19.0) |
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
-| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (1/25 completado) |
+| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (2/25 completado) |
 | **v0.12.0 - Database & Repository** | 22 issues |
 | **v0.13.0 - Security & Compliance** | 25 issues |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |

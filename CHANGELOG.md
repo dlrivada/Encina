@@ -36,6 +36,16 @@
 
 ### Added
 
+- **FakeTimeProvider** - Controllable time for testing (Issue #433):
+  - `FakeTimeProvider` - Thread-safe TimeProvider implementation for testing time-dependent code
+  - Time manipulation: `SetUtcNow()`, `Advance()`, `AdvanceToNextDay()`, `AdvanceToNextHour()`, `AdvanceMinutes()`, `AdvanceSeconds()`, `AdvanceMilliseconds()`
+  - Timer support via `CreateTimer()` with full `ITimer` implementation
+  - Frozen time scope via `Freeze()` method that restores time on dispose
+  - `Reset()` methods to restore time and clear timers
+  - `ActiveTimerCount` property for timer verification
+  - Support for one-shot and periodic timers
+  - Deterministic timer firing controlled by time advancement
+
 - **Encina.Testing.Fakes Package** - Test doubles for Encina components (Issue #426):
   - `FakeEncina` - In-memory IEncina implementation with verification methods
   - `FakeOutboxStore`, `FakeInboxStore`, `FakeSagaStore` - Messaging store fakes
