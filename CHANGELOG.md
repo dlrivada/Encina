@@ -35,7 +35,28 @@
 ---
 
 ### Added
- 
+
+- **Encina.Testing.Shouldly Package** - Open-source assertion extensions (Issue #429):
+  - `EitherShouldlyExtensions` - Shouldly-style assertions for `Either<TLeft, TRight>` types:
+    - Success assertions: `ShouldBeSuccess()`, `ShouldBeRight()` with value/validator overloads
+    - Error assertions: `ShouldBeError()`, `ShouldBeLeft()` with validator overloads
+    - EncinaError-specific: `ShouldBeValidationError()`, `ShouldBeNotFoundError()`, `ShouldBeAuthorizationError()`, `ShouldBeConflictError()`, `ShouldBeInternalError()`
+    - Code/message assertions: `ShouldBeErrorWithCode()`, `ShouldBeErrorContaining()`
+    - Async versions: `ShouldBeSuccessAsync()`, `ShouldBeErrorAsync()`, etc.
+  - `EitherCollectionShouldlyExtensions` - Batch operation assertions:
+    - `ShouldAllBeSuccess()`, `ShouldAllBeError()` for verifying all results
+    - `ShouldContainSuccess()`, `ShouldContainError()` for at-least-one verification
+    - `ShouldHaveSuccessCount()`, `ShouldHaveErrorCount()` for exact counts
+    - Helper methods: `GetSuccesses()`, `GetErrors()`
+  - `AggregateShouldlyExtensions` - Event sourcing assertions:
+    - `ShouldHaveRaisedEvent<T>()` with predicate overloads
+    - `ShouldHaveRaisedEvents<T>(count)` for multiple events
+    - `ShouldNotHaveRaisedEvent<T>()` for negative assertions
+    - `ShouldHaveNoUncommittedEvents()`, `ShouldHaveUncommittedEventCount()`
+    - `ShouldHaveVersion()`, `ShouldHaveId()` for aggregate state
+    - Helpers: `GetRaisedEvents<T>()`, `GetLastRaisedEvent<T>()`
+  - Open-source alternative to FluentAssertions ($130/dev/year)
+
 - **FakeTimeProvider** - Controllable time for testing (Issue #433):
   - `FakeTimeProvider` - Thread-safe TimeProvider implementation for testing time-dependent code
   - Time manipulation: `SetUtcNow()`, `Advance()`, `AdvanceToNextDay()`, `AdvanceToNextHour()`, `AdvanceMinutes()`, `AdvanceSeconds()`, `AdvanceMilliseconds()`
