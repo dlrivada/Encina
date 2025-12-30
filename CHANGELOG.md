@@ -57,6 +57,36 @@
   - Async initialization with `InitializeAsync()` for lazy respawner setup
   - `GetDeleteCommands()` for debugging and verification
 
+- **Encina.Testing.Bogus Package** - Realistic test data generation with Bogus (Issue #431):
+  - `EncinaFaker<T>` - Base faker class for Encina requests with reproducibility:
+    - Default seed (12345) for deterministic test data
+    - `UseSeed()`, `WithLocale()`, `StrictMode()` configuration methods
+    - Fluent API for custom rules
+  - `OutboxMessageFaker` - Generate outbox messages for testing:
+    - Default pending state with random notification types
+    - `AsProcessed()` - Generate processed messages
+    - `AsFailed(retryCount)` - Generate failed messages with error info
+    - `WithNotificationType()`, `WithContent()` customization
+  - `InboxMessageFaker` - Generate inbox messages for idempotency testing:
+    - `AsProcessed(response)` - Generate processed with cached response
+    - `AsFailed(retryCount)` - Generate failed messages
+    - `AsExpired()` - Generate expired messages for cleanup tests
+    - `WithMessageId()`, `WithRequestType()` customization
+  - `SagaStateFaker` - Generate saga states for orchestration testing:
+    - `AsCompleted()`, `AsCompensating()`, `AsFailed()`, `AsTimedOut()` lifecycle states
+    - `WithSagaType()`, `WithSagaId()`, `WithData()`, `AtStep()` customization
+  - `ScheduledMessageFaker` - Generate scheduled messages:
+    - `AsDue()` - Generate messages ready for execution
+    - `AsRecurring(cron)` - Generate recurring messages with cron expression
+    - `AsRecurringExecuted()` - Generate recurring with last execution
+    - `ScheduledAt()`, `WithRequestType()`, `WithContent()` customization
+  - Extension methods for common Encina patterns:
+    - Identifiers: `CorrelationId()`, `UserId()`, `TenantId()`, `IdempotencyKey()`
+    - Types: `NotificationType()`, `RequestType()`, `SagaType()`, `SagaStatus()`
+    - UTC dates: `RecentUtc()`, `SoonUtc()`
+    - JSON: `JsonContent(propertyCount)`
+  - Fake implementations: `FakeOutboxMessage`, `FakeInboxMessage`, `FakeSagaState`, `FakeScheduledMessage`
+
 - **Encina.Testing.WireMock Package** - HTTP API mocking for integration tests (Issue #428):
   - `EncinaWireMockFixture` - xUnit fixture for in-process WireMock server with fluent API:
     - HTTP method stubs: `StubGet()`, `StubPost()`, `StubPut()`, `StubPatch()`, `StubDelete()`

@@ -2633,7 +2633,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 
 ---
 
-### 12. Testing (5 paquetes implementados + 22 mejoras planificadas)
+### 12. Testing (6 paquetes implementados + 22 mejoras planificadas)
 
 #### Paquetes Implementados
 
@@ -2644,6 +2644,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | **Encina.Testing.Shouldly** | Assertions open-source para Either y Aggregates (#429) | ✅ Completo |
 | **Encina.Testing.Respawn** | Database reset inteligente con Respawn (#427) | ✅ Completo |
 | **Encina.Testing.WireMock** | HTTP API mocking con WireMock.NET (#428) | ✅ Completo |
+| **Encina.Testing.Bogus** | Generación de datos realistas con Bogus (#431) | ✅ Completo |
 
 #### Features Actuales
 
