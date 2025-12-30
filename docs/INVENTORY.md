@@ -2645,6 +2645,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | **Encina.Testing.Respawn** | Database reset inteligente con Respawn (#427) | ✅ Completo |
 | **Encina.Testing.WireMock** | HTTP API mocking con WireMock.NET (#428) | ✅ Completo |
 | **Encina.Testing.Bogus** | Generación de datos realistas con Bogus (#431) | ✅ Completo |
+| **Encina.Testing.Verify** | Snapshot testing con Verify (#430) | ✅ Completo |
 | **Encina.Aspire.Testing** | Aspire integration testing support (#418) | ✅ Completo |
 
 #### Features Actuales
@@ -2671,7 +2672,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | **#162** | Testcontainers Integration | Fixtures Docker para bases de datos | Alta | Testcontainers .NET |
 | ~~#163~~ | ~~Database Reset (Respawn)~~ | ✅ Implementado como Encina.Testing.Respawn (#427) | - | - |
 | ~~#164~~ | ~~HTTP Mocking (WireMock)~~ | ✅ Implementado como Encina.Testing.WireMock (#428) | - | - |
-| **#165** | Snapshot Testing (Verify) | Approval testing para responses complejos | Media | Verify, Simon Cropp |
+| ~~#165~~ | ~~Snapshot Testing (Verify)~~ | ✅ Implementado como Encina.Testing.Verify (#430) | - | - |
 | **#166** | Architecture Testing | Validación de reglas arquitectónicas | Baja | ArchUnitNET |
 | **#167** | Handler Registration Tests | Verificar registros de handlers en DI | Alta | MediatR patterns |
 | **#168** | Pipeline Testing Utilities | Control de behaviors en tests | Alta | Custom |
@@ -2827,15 +2828,15 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - **Nuevo paquete**: `Encina.Testing.Shouldly`
 - **Inspiración**: [Shouldly](https://github.com/shouldly/shouldly)
 
-**#430 - Encina.Testing.Verify** (Media Prioridad):
-- `VerifyEither()`, `VerifySuccess()`, `VerifyError()` extensions
-- `VerifyUncommittedEvents<TAggregate>()` para event sourcing
-- `VerifyAggregateState<TAggregate>()`, `VerifySagaState()`
-- `VerifyOutboxMessages()` para messaging
-- Scrubbers automáticos: timestamps, GUIDs, stack traces
-- Custom converters para tipos Encina
-- `EncinaVerifySettings.Initialize()` module initializer
-- **Nuevo paquete**: `Encina.Testing.Verify`
+**~~#430 - Encina.Testing.Verify~~** ✅ Completado:
+- `PrepareEither()`, `ExtractSuccess()`, `ExtractError()` métodos estáticos
+- `PrepareUncommittedEvents()` para event sourcing
+- `PrepareSagaState()`, `PrepareOutboxMessages()`, `PrepareInboxMessages()`
+- `PrepareScheduledMessages()`, `PrepareDeadLetterMessages()` para messaging
+- Scrubbers automáticos: timestamps UTC, GUIDs, stack traces, ISO 8601
+- Custom `EncinaErrorConverter` para Argon (JSON de Verify)
+- `EncinaVerifySettings.Initialize()` module initializer idempotente
+- **Paquete**: `Encina.Testing.Verify`
 - **Inspiración**: [Verify](https://github.com/VerifyTests/Verify) de Simon Cropp
 
 **#431 - Encina.Testing.Bogus** (Media Prioridad):
@@ -2927,7 +2928,7 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 | `Encina.Testing.Respawn` | #427 | Database reset con Respawn | Alta |
 | `Encina.Testing.WireMock` | #428 | HTTP API mocking | Alta |
 | `Encina.Testing.Shouldly` | #429 | Assertions open-source | Alta |
-| `Encina.Testing.Verify` | #430 | Snapshot testing | Media |
+| ~~`Encina.Testing.Verify`~~ | ~~#430~~ | ~~Snapshot testing~~ | ✅ Completo |
 | `Encina.Testing.Bogus` | #431 | Data generation | Media |
 | `Encina.Testing.Architecture` | #432 | Architecture testing | Media |
 | `Encina.Testing.FsCheck` | #435 | Property-based testing | Baja |

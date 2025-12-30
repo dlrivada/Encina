@@ -1,4 +1,4 @@
-## [Unreleased]
+﻿## [Unreleased]
 
 ### Table of Contents
 
@@ -36,6 +36,25 @@
 
 ### Added
 
+- **Encina.Testing.Verify Package** - Snapshot testing integration with Verify (Issue #430):
+  - `EncinaVerifySettings` - Configuration for Verify with Encina-specific scrubbers:
+    - `Initialize()` - Configures scrubbers and converters (idempotent)
+    - Automatic scrubbing of UTC timestamps (CreatedAtUtc, ProcessedAtUtc, etc.)
+    - Automatic scrubbing of ISO 8601 timestamps in content
+    - Stack trace removal from error messages
+    - Custom EncinaError converter for clean output
+  - `EncinaVerify` - Static helper methods for snapshot preparation:
+    - `PrepareEither<TLeft, TRight>()` - Prepare Either results (shows IsRight, Value/Error)
+    - `ExtractSuccess<TResponse>()` - Extract success value or throw
+    - `ExtractError<TResponse>()` - Extract error or throw
+    - `PrepareUncommittedEvents()` - Prepare aggregate events with metadata
+    - `PrepareOutboxMessages()` - Prepare outbox messages for verification
+    - `PrepareInboxMessages()` - Prepare inbox messages for verification
+    - `PrepareSagaState()` - Prepare saga state for verification
+    - `PrepareScheduledMessages()` - Prepare scheduled messages for verification
+    - `PrepareDeadLetterMessages()` - Prepare dead letter messages for verification
+  - Automatic GUID scrubbing with deterministic placeholders (Guid_1, Guid_2, etc.)
+  - Integration with Verify.Xunit for xUnit test framework
 - **Encina.Aspire.Testing Package** - Aspire integration testing support (Issue #418):
   - `WithEncinaTestSupport()` - Extension for `DistributedApplicationTestingBuilder`:
     - Registers fake stores for testing (outbox, inbox, saga, scheduled, dead letter)
