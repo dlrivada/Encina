@@ -36,6 +36,35 @@
 
 ### Added
 
+- **Encina.Aspire.Testing Package** - Aspire integration testing support (Issue #418):
+  - `WithEncinaTestSupport()` - Extension for `DistributedApplicationTestingBuilder`:
+    - Registers fake stores for testing (outbox, inbox, saga, scheduled, dead letter)
+    - Configurable data cleanup before each test
+    - Customizable wait timeouts and polling intervals
+  - `EncinaTestSupportOptions` - Configuration for test behavior:
+    - `ClearOutboxBeforeTest`, `ClearInboxBeforeTest`, `ResetSagasBeforeTest`
+    - `ClearScheduledMessagesBeforeTest`, `ClearDeadLetterBeforeTest`
+    - `DefaultWaitTimeout`, `PollingInterval`
+  - `EncinaTestContext` - Centralized access to test state and operations:
+    - Direct access to fake stores for inspection
+    - `ClearAll()`, `ClearOutbox()`, `ClearInbox()`, `ClearSagas()` methods
+  - Assertion extensions for messaging patterns:
+    - `AssertOutboxContainsAsync<T>()` - Verify outbox contains notification type
+    - `AssertInboxProcessedAsync()` - Verify inbox message was processed
+    - `AssertSagaCompletedAsync<T>()`, `AssertSagaCompensatedAsync<T>()` - Verify saga lifecycle
+    - `AssertDeadLetterContainsAsync<T>()` - Verify dead letter contains message type
+  - Wait helpers for async operations:
+    - `WaitForOutboxProcessingAsync()` - Wait for all outbox messages to be processed
+    - `WaitForSagaCompletionAsync<T>()` - Wait for specific saga to complete
+  - Inspection helpers:
+    - `GetPendingOutboxMessages()`, `GetRunningSagas<T>()`, `GetDeadLetterMessages()`
+    - `GetEncinaTestContext()`, `GetOutboxStore()`, `GetSagaStore()`
+  - Failure simulation for resilience testing:
+    - `SimulateSagaTimeout()`, `SimulateSagaFailure()` - Saga failure scenarios
+    - `SimulateOutboxMessageFailure()`, `SimulateOutboxDeadLetter()` - Outbox failures
+    - `SimulateInboxMessageFailure()`, `SimulateInboxExpiration()` - Inbox failures
+    - `AddToDeadLetterAsync()` - Directly add messages to dead letter store
+
 - **Encina.Testing.Respawn Package** - Intelligent database cleanup for integration tests (Issue #427):
   - `DatabaseRespawner` - Abstract base class for provider-specific respawners
   - `SqlServerRespawner` - SQL Server implementation using Respawn library
