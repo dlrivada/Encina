@@ -1,3 +1,4 @@
+using Encina.DomainModeling;
 using Encina.Marten.Health;
 using Encina.Marten.Projections;
 using Encina.Marten.Snapshots;

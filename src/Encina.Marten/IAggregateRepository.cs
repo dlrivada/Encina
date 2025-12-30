@@ -1,3 +1,4 @@
+using Encina.DomainModeling;
 using LanguageExt;
 
 namespace Encina.Marten;

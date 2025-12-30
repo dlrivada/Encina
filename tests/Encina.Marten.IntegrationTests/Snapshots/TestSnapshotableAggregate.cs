@@ -1,3 +1,4 @@
+using Encina.DomainModeling;
 using Encina.Marten.Snapshots;
 
 namespace Encina.Marten.IntegrationTests.Snapshots;

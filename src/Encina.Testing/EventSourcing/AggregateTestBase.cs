@@ -1,4 +1,4 @@
-using Encina.Marten;
+using Encina.DomainModeling;
 
 namespace Encina.Testing.EventSourcing;
 

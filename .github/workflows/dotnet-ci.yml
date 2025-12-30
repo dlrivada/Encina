@@ -46,14 +46,13 @@ jobs:
         # Exclude tests that require special infrastructure:
         # - LoadTests: Require NBomber load testing infrastructure
         # - IntegrationTests: Require Docker containers or external services
-        # - Marten/Testing: DistributedLock.Core 1.0.8 lacks .NET 10 support (issue #494)
-        # Note: Using PowerShell to run tests on each project individually, excluding problematic ones
+        # Note: Marten/Testing are now included after fixing issue #494 (AggregateBase moved to DomainModeling)
         shell: pwsh
         run: |
           $projects = Get-ChildItem -Path tests -Filter *.csproj -Recurse
           foreach ($proj in $projects) {
             $name = $proj.FullName
-            if ($name -match 'Marten|Testing\.Tests|LoadTests|IntegrationTests') {
+            if ($name -match 'LoadTests|IntegrationTests') {
               Write-Host "Skipping: $name"
               continue
             }

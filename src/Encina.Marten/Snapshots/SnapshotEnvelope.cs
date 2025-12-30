@@ -1,3 +1,5 @@
+using Encina.DomainModeling;
+
 namespace Encina.Marten.Snapshots;
 
 /// <summary>

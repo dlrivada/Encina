@@ -1,4 +1,4 @@
-using Encina.Marten;
+using Encina.DomainModeling;
 using Encina.Testing.EventSourcing;
 using FluentAssertions;
 

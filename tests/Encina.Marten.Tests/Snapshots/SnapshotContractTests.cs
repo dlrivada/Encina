@@ -1,3 +1,4 @@
+using Encina.DomainModeling;
 using Encina.Marten.Snapshots;
 using LanguageExt;
 using Marten;

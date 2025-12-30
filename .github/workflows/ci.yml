@@ -44,14 +44,13 @@ jobs:
         # Exclude tests that require special infrastructure:
         # - LoadTests: Require NBomber load testing infrastructure
         # - IntegrationTests: Require Docker containers or external services
-        # - Marten/Testing: DistributedLock.Core 1.0.8 lacks .NET 10 support (issue #494)
-        # Note: Using glob to run tests on each project individually, excluding problematic ones
+        # Note: Marten/Testing are now included after fixing issue #494 (AggregateBase moved to DomainModeling)
         run: |
           shopt -s globstar nullglob
           for proj in tests/**/*.csproj; do
             # Skip excluded projects
             case "$proj" in
-              *Marten*|*Testing.Tests*|*LoadTests*|*IntegrationTests*)
+              *LoadTests*|*IntegrationTests*)
                 echo "Skipping: $proj"
                 continue
                 ;;

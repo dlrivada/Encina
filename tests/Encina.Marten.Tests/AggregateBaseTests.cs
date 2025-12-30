@@ -1,4 +1,6 @@
-﻿namespace Encina.Marten.Tests;
+using Encina.DomainModeling;
+
+namespace Encina.Marten.Tests;
 
 public class AggregateBaseTests
 {

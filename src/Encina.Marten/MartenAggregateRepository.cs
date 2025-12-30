@@ -1,3 +1,4 @@
+using Encina.DomainModeling;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.Logging;

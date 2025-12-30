@@ -36,9 +36,9 @@ jobs:
 
       - name: Run tests with coverage
         # Run tests before SonarCloud to generate coverage reports
-        # Exclude problematic projects that depend on Marten (DistributedLock.Core .NET 10 issue #494)
+        # Note: Marten/Testing are now included after fixing issue #494 (AggregateBase moved to DomainModeling)
         run: |
-          for proj in $(find tests -name "*.csproj" | grep -v -E "(Marten|Testing\.Tests|LoadTests|IntegrationTests)"); do
+          for proj in $(find tests -name "*.csproj" | grep -v -E "(LoadTests|IntegrationTests)"); do
             echo "Testing: $proj"
             dotnet test "$proj" --configuration Release --no-build \
               --collect "XPlat Code Coverage" \
