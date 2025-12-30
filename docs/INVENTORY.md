@@ -2633,7 +2633,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 
 ---
 
-### 12. Testing (4 paquetes implementados + 22 mejoras planificadas)
+### 12. Testing (5 paquetes implementados + 22 mejoras planificadas)
 
 #### Paquetes Implementados
 
@@ -2643,6 +2643,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | **Encina.Testing.Fakes** | Test doubles para IEncina y stores (#426) | ✅ Completo |
 | **Encina.Testing.Shouldly** | Assertions open-source para Either y Aggregates (#429) | ✅ Completo |
 | **Encina.Testing.Respawn** | Database reset inteligente con Respawn (#427) | ✅ Completo |
+| **Encina.Testing.WireMock** | HTTP API mocking con WireMock.NET (#428) | ✅ Completo |
 
 #### Features Actuales
 
@@ -2652,6 +2653,13 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
   - `ShouldBeErrorWithCode`, `ShouldBeValidationError`
   - Variantes async: `ShouldBeSuccessAsync`, `ShouldBeErrorAsync`
 - `AggregateTestBase<TAggregate, TId>` - Given/When/Then para Event Sourcing
+- `EncinaWireMockFixture` - HTTP mocking con WireMock.NET
+  - Fluent API: `StubGet`, `StubPost`, `StubPut`, `StubPatch`, `StubDelete`
+  - Fault simulation: `StubFault` con `FaultType` (EmptyResponse, MalformedResponse, Timeout)
+  - Delayed responses: `StubDelay` para simular latencia
+  - Sequence stubs: `StubSequence` para respuestas secuenciales
+  - Verificación: `VerifyCallMade`, `VerifyNoCallsMade`, `GetReceivedRequests`
+- `WireMockContainerFixture` - Testcontainers integration para WireMock en Docker
 
 #### Mejoras Planificadas (Phase 2) - Basadas en investigación 2025
 
@@ -2659,8 +2667,8 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 |-------|--------|-------------|-----------|-------------|
 | **#161** | Test Data Generation | Generación de datos con Bogus/AutoBogus | Media | Bogus, AutoFixture |
 | **#162** | Testcontainers Integration | Fixtures Docker para bases de datos | Alta | Testcontainers .NET |
-| **#163** | Database Reset (Respawn) | Limpieza inteligente de BD entre tests | Media | Respawn, Jimmy Bogard |
-| **#164** | HTTP Mocking (WireMock) | Mocking de APIs externas | Media | WireMock.NET |
+| ~~#163~~ | ~~Database Reset (Respawn)~~ | ✅ Implementado como Encina.Testing.Respawn (#427) | - | - |
+| ~~#164~~ | ~~HTTP Mocking (WireMock)~~ | ✅ Implementado como Encina.Testing.WireMock (#428) | - | - |
 | **#165** | Snapshot Testing (Verify) | Approval testing para responses complejos | Media | Verify, Simon Cropp |
 | **#166** | Architecture Testing | Validación de reglas arquitectónicas | Baja | ArchUnitNET |
 | **#167** | Handler Registration Tests | Verificar registros de handlers en DI | Alta | MediatR patterns |

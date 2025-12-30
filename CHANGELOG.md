@@ -57,6 +57,23 @@
   - Async initialization with `InitializeAsync()` for lazy respawner setup
   - `GetDeleteCommands()` for debugging and verification
 
+- **Encina.Testing.WireMock Package** - HTTP API mocking for integration tests (Issue #428):
+  - `EncinaWireMockFixture` - xUnit fixture for in-process WireMock server with fluent API:
+    - HTTP method stubs: `StubGet()`, `StubPost()`, `StubPut()`, `StubPatch()`, `StubDelete()`
+    - Advanced stubbing: `Stub()` with request configuration, `StubSequence()` for sequential responses
+    - Fault simulation: `StubFault()` for EmptyResponse, MalformedResponse, Timeout
+    - Delay simulation: `StubDelay()` for testing timeout handling
+    - Request verification: `VerifyCallMade()`, `VerifyNoCallsMade()`, `GetReceivedRequests()`
+    - Server management: `Reset()`, `ResetRequestHistory()`, `CreateClient()`
+  - `WireMockContainerFixture` - Docker-based WireMock via Testcontainers:
+    - Automatic container lifecycle management
+    - Admin API access via `CreateAdminClient()`
+    - Full isolation for CI/CD environments
+  - `FaultType` enum - Defines fault types: EmptyResponse, MalformedResponse, Timeout
+  - `ReceivedRequest` record - Captures request path, method, headers, body, timestamp
+  - Fluent method chaining for stub configuration
+  - Automatic JSON serialization with camelCase naming
+
 - **Encina.Testing.Shouldly Package** - Open-source assertion extensions (Issue #429):
   - `EitherShouldlyExtensions` - Shouldly-style assertions for `Either<TLeft, TRight>` types:
     - Success assertions: `ShouldBeSuccess()`, `ShouldBeRight()` with value/validator overloads
@@ -405,23 +422,23 @@
     - `FakeEncina : IEncina` with configurable handlers
     - `FakeOutboxStore`, `FakeInboxStore`, `FakeSagaStore`, `FakeScheduledMessageStore`
     - Verification methods: `VerifySent<T>()`, `VerifyPublished<T>()`
-    - New package planned: `Encina.Testing.Fakes`
+    - Implemented: `Encina.Testing.Fakes`
     - Priority: HIGH - Foundational for unit testing
   - **Encina.Testing.Respawn** (Issue #427) - Intelligent database reset with Respawn
     - `RespawnDatabaseFixture<TContainer>` base class
     - FK-aware deterministic deletion (3x faster than truncate)
     - Integration with existing Testcontainers fixtures
-    - New package planned: `Encina.Testing.Respawn`
+    - Implemented: `Encina.Testing.Respawn`
     - Priority: HIGH - Essential for integration testing
   - **Encina.Testing.WireMock** (Issue #428) - HTTP API mocking for integration tests
     - `EncinaWireMockFixture` with fluent stubbing API
     - Fault simulation for resilience testing
-    - New package planned: `Encina.Testing.WireMock`
+    - Implemented: `Encina.Testing.WireMock`
     - Priority: HIGH - External API testing
   - **Encina.Testing.Shouldly** (Issue #429) - Open-source assertions (FluentAssertions alternative)
     - `ShouldBeSuccess()`, `ShouldBeError()` for `Either<EncinaError, T>`
     - Replaces FluentAssertions after commercial license change (Jan 2025)
-    - New package planned: `Encina.Testing.Shouldly`
+    - Implemented: `Encina.Testing.Shouldly`
     - Priority: HIGH - Open-source assertion library
   - **Encina.Testing.Verify** (Issue #430) - Snapshot testing integration
     - `VerifyEither()`, `VerifyUncommittedEvents()`, `VerifySagaState()`
