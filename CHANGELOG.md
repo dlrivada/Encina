@@ -160,6 +160,27 @@
     - UTC dates: `RecentUtc()`, `SoonUtc()`
     - JSON: `JsonContent(propertyCount)`
   - Fake implementations: `FakeOutboxMessage`, `FakeInboxMessage`, `FakeSagaState`, `FakeScheduledMessage`
+  - **Domain Model Faker Extensions** (Issue #161) - Extension methods for DDD patterns:
+    - Entity ID generation (`Randomizer` extensions):
+      - `EntityId<TId>()` - Generic type-switched entity ID generation (Guid, int, long, string)
+      - `GuidEntityId()` - Generate non-empty GUID identifiers
+      - `IntEntityId(min, max)` - Generate positive integer IDs (min >= 1)
+      - `LongEntityId(min, max)` - Generate positive long IDs (min >= 1)
+      - `StringEntityId(length, prefix)` - Generate alphanumeric IDs with optional prefix
+    - Strongly-typed ID value generation (`Randomizer` extensions):
+      - `StronglyTypedIdValue<TValue>()` - Generic value generation for StronglyTypedId
+      - `GuidStronglyTypedIdValue()` - Non-empty GUID for StronglyTypedId<Guid>
+      - `IntStronglyTypedIdValue(min, max)` - Positive int for StronglyTypedId<int>
+      - `LongStronglyTypedIdValue(min, max)` - Positive long for StronglyTypedId<long>
+      - `StringStronglyTypedIdValue(length, prefix)` - Alphanumeric for StronglyTypedId<string>
+    - Value object generation (`Randomizer` and `Date` extensions):
+      - `QuantityValue(min, max)` - Non-negative integers (default: 0-1000)
+      - `PercentageValue(min, max, decimals)` - Decimal percentage 0-100 with precision
+      - `DateRangeValue(daysInPast, daysSpan)` - (DateOnly Start, DateOnly End) tuple
+      - `TimeRangeValue(minHourSpan, maxHourSpan)` - (TimeOnly Start, TimeOnly End) tuple
+    - Seed reproducibility for all domain model methods:
+      - All ID and value methods are fully reproducible with seed alone
+      - Date/time methods (`DateRangeValue`, `TimeRangeValue`) are reproducible relative to the current base date/time (i.e., seed + current UTC date/time)
 
 - **Encina.Testing.WireMock Package** - HTTP API mocking for integration tests (Issue #428):
   - `EncinaWireMockFixture` - xUnit fixture for in-process WireMock server with fluent API:

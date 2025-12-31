@@ -91,6 +91,24 @@ var faker = new EncinaFaker<Order>().UseSeed(42);
 
 Convenience methods for common Encina patterns:
 
+### Quick Reference
+
+```csharp
+using Bogus;
+using Encina.Testing.Bogus;
+
+var faker = new Faker();
+
+// All extension methods work seamlessly with Bogus:
+var correlationId = faker.Random.CorrelationId();
+var userId = faker.Random.UserId();
+var notificationType = faker.NotificationType();
+var recentDate = faker.Date.RecentUtc();
+var (startDate, endDate) = faker.Date.DateRangeValue();
+```
+
+### Complete Examples
+
 ```csharp
 using Bogus;
 using Encina.Testing.Bogus;
@@ -115,6 +133,25 @@ var futureDate = faker.Date.SoonUtc(30);         // UTC timestamp in next 30 day
 
 // JSON content
 var json = faker.JsonContent(3);                 // {"word1": "sentence...", ...}
+
+// Domain Model - Entity IDs (Guid, int, long, string)
+var guidId = faker.Random.EntityId<Guid>();
+var intId = faker.Random.EntityId<int>();
+var customIntId = faker.Random.IntEntityId(1000, 9999);
+var prefixedStringId = faker.Random.StringEntityId(8, "ORD"); // "ORD_a1b2c3d4"
+
+// Domain Model - Strongly-Typed ID values
+var guidIdValue = faker.Random.StronglyTypedIdValue<Guid>();
+var productIdValue = faker.Random.IntStronglyTypedIdValue();
+var skuValue = faker.Random.StringStronglyTypedIdValue(8, "SKU");
+
+// Domain Model - Value Objects
+var quantityValue = faker.Random.QuantityValue();           // 0-1000
+var smallQty = faker.Random.QuantityValue(1, 10);           // 1-10
+var percentValue = faker.Random.PercentageValue();          // 0.00-100.00
+var discount = faker.Random.PercentageValue(5, 50);         // 5.00-50.00
+var (startDate, endDate) = faker.Date.DateRangeValue();     // Date range tuple
+var (startTime, endTime) = faker.Date.TimeRangeValue();     // Time range tuple
 ```
 
 ## OutboxMessageFaker
@@ -349,6 +386,84 @@ public class OrderServiceTests
         await _processor.HandleFailedSagaAsync(failedSaga);
     }
 }
+```
+
+## Request/Command/Query Fakers
+
+Create fakers for CQRS requests:
+
+```csharp
+// Command faker
+public sealed class CreateOrderFaker : EncinaFaker<CreateOrderCommand>
+{
+    public CreateOrderFaker()
+    {
+        RuleFor(c => c.CustomerId, f => f.Random.GuidStronglyTypedIdValue());
+        RuleFor(c => c.CorrelationId, f => f.Random.CorrelationId());
+        RuleFor(c => c.Items, f => new OrderItemFaker().Generate(f.Random.Int(1, 5)));
+    }
+}
+
+// Query faker
+public sealed class GetOrderByIdFaker : EncinaFaker<GetOrderByIdQuery>
+{
+    public GetOrderByIdFaker()
+    {
+        RuleFor(q => q.OrderId, f => f.Random.GuidStronglyTypedIdValue());
+        RuleFor(q => q.UserId, f => f.Random.UserId());
+        RuleFor(q => q.TenantId, f => f.Random.TenantId());
+    }
+}
+
+// Usage
+var command = new CreateOrderFaker().Generate();
+var query = new GetOrderByIdFaker().Generate();
+```
+
+## Entity and Aggregate Fakers
+
+Create fakers for domain entities:
+
+```csharp
+// Entity faker
+public sealed class ProductFaker : EncinaFaker<Product>
+{
+    public ProductFaker()
+    {
+        CustomInstantiator(f => new Product(
+            ProductId.From(f.Random.IntStronglyTypedIdValue())));
+
+        RuleFor(p => p.Name, f => f.Commerce.ProductName());
+        RuleFor(p => p.Price, f => f.Finance.Amount(10, 1000));
+        RuleFor(p => p.Quantity, f => Quantity.From(f.Random.QuantityValue(1, 100)));
+    }
+}
+
+// Aggregate faker with domain events
+public sealed class OrderFaker : EncinaFaker<Order>
+{
+    public OrderFaker()
+    {
+        CustomInstantiator(f => new Order(
+            OrderId.From(f.Random.GuidStronglyTypedIdValue()),
+            CustomerId.From(f.Random.GuidStronglyTypedIdValue())));
+
+        RuleFor(o => o.Status, _ => OrderStatus.Pending);
+        RuleFor(o => o.CreatedAtUtc, f => f.Date.RecentUtc(30));
+    }
+
+    public OrderFaker AsShipped()
+    {
+        RuleFor(o => o.Status, _ => OrderStatus.Shipped);
+        RuleFor(o => o.ShippedAtUtc, f => f.Date.RecentUtc(7));
+        return this;
+    }
+}
+
+// Usage
+var product = new ProductFaker().Generate();
+var pendingOrder = new OrderFaker().Generate();
+var shippedOrder = new OrderFaker().AsShipped().Generate();
 ```
 
 ## Related Packages

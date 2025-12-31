@@ -41,7 +41,7 @@
 | **Pipeline Behaviors** | ~20+ |
 | **Phase 2 Milestones** | 10 milestones (v0.10.0 → v0.19.0) |
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
-| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (7/25 completado) | 
+| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (8/25 completado) | 
 | **v0.12.0 - Database & Repository** | 22 issues |
 | **v0.13.0 - Security & Compliance** | 25 issues |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
@@ -2669,7 +2669,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 
 | Issue | Mejora | Descripción | Prioridad | Inspiración |
 |-------|--------|-------------|-----------|-------------|
-| **#161** | Test Data Generation | Generación de datos con Bogus/AutoBogus | Media | Bogus, AutoFixture |
+| ~~#161~~ | ~~Test Data Generation~~ | ✅ Implementado como extensiones en Encina.Testing.Bogus | - | Bogus |
 | **#162** | Testcontainers Integration | Fixtures Docker para bases de datos | Alta | Testcontainers .NET |
 | ~~#163~~ | ~~Database Reset (Respawn)~~ | ✅ Implementado como Encina.Testing.Respawn (#427) | - | - |
 | ~~#164~~ | ~~HTTP Mocking (WireMock)~~ | ✅ Implementado como Encina.Testing.WireMock (#428) | - | - |
@@ -2709,11 +2709,11 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 - `SagaTestBase<TSaga, TData>`: Given/When/Then para sagas
 - `SchedulingTestHelper`: `AdvanceTimeAndGetDue()`, `VerifyCronNextExecution()`
 
-**#161 - Test Data Generation**:
-- `EncinaFaker<T>` base class con convenciones Encina
-- Fakers para entidades de messaging: `OutboxMessageFaker`, `SagaStateFaker`
-- Soporte para seeds (reproducibilidad)
-- Nuevo paquete: `Encina.Testing.DataGeneration`
+**~~#161 - Test Data Generation~~** ✅ Completado:
+- Implementado como extensiones en `Encina.Testing.Bogus` (siguiendo recomendación CodeRabbit)
+- Domain Model Faker Extensions: `EntityId<TId>()`, `StronglyTypedIdValue<TValue>()`, `QuantityValue()`, `PercentageValue()`, `DateRangeValue()`, `TimeRangeValue()`
+- 54 unit tests + 23 property-based tests
+- Seed reproducibility para datos determinísticos
 
 **#164 - HTTP Mocking (WireMock)**:
 - `EncinaWireMockFixture` con helpers: `SetupOutboxWebhook()`, `SetupExternalApi()`
@@ -2738,7 +2738,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | Paquete | Issue | Descripción |
 |---------|-------|-------------|
 | `Encina.Testing.Testcontainers` | #162 | Docker fixtures para bases de datos |
-| `Encina.Testing.DataGeneration` | #161 | Generación de datos con Bogus |
+| ~~`Encina.Testing.DataGeneration`~~ | ~~#161~~ | ✅ Implementado como extensiones en `Encina.Testing.Bogus` |
 | `Encina.Testing.WireMock` | #164 | HTTP mocking con WireMock.NET |
 | `Encina.Testing.Architecture` | #166 | Architecture testing con ArchUnitNET |
 | `Encina.Testing.TUnit` | #171 | Soporte para TUnit framework |
@@ -3568,7 +3568,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 | Resilience Patterns | 9 (#136-#139, #141-#145) | 4 (#136, #137, #138, #139) | 1 (#138) |
 | **Caching Patterns** | **13 (#266-#278)** | **4 (#266, #267, #268, #270)** | **3 (#277)** |
 | Scheduling Patterns | 15 (#146-#160) | 5 (#146, #147, #148, #149, #150) | 0 |
-| Testing Patterns | 13 (#161-#173) | 4 (#162, #167, #168, #169) | 5 (#161, #162, #164, #166, #171) |
+| Testing Patterns | 13 (#161-#173) | 4 (#162, #167, #168, #169) | 6 (#161✅, #162, #164, #166, #171) |
 | Observability Patterns | 15 (#174-#188) | 4 (#174, #175, #176, #181) | 5 (#178, #179, #180, #181, #182) |
 | Web/API Patterns | 18 (#189-#206) | 9 (#189-#195, #197) | 10 (#194, #199, #200, #205, #206) |
 | Distributed Lock Patterns | 20 (#207-#226) | 6 (#207, #215, #216, #220, #221) | 8 (#207-#214) |
@@ -4074,7 +4074,7 @@ Los patrones de resiliencia fueron identificados tras investigación exhaustiva 
 
 | Issue | Título | Complejidad | Prioridad | Labels |
 |-------|--------|-------------|-----------|--------|
-| **#161** | Test Data Generation (Bogus/AutoBogus) | Baja | Media | `area-testing`, `testing-data-generation`, `new-package` |
+| ~~#161~~ | ~~Test Data Generation (Bogus/AutoBogus)~~ | ✅ Completo | - | Implementado en Encina.Testing.Bogus |
 | **#162** | Testcontainers Integration | Media | Alta | `area-testing`, `testing-integration`, `area-docker`, `new-package` |
 | **#163** | Database Reset (Respawn) | Baja | Media | `area-testing`, `testing-integration`, `area-database` |
 | **#164** | HTTP Mocking (WireMock.NET) | Media | Media | `area-testing`, `testing-mocking`, `new-package` |
@@ -4157,7 +4157,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 | `Encina.LoadShedding` | #138 | Load Shedding con prioridad (Netflix pattern) |
 | `Encina.CascadingTimeout` | #141 | Coordinación de timeouts en cascada |
 | `Encina.Testing.Testcontainers` | #162 | Docker fixtures para bases de datos |
-| `Encina.Testing.DataGeneration` | #161 | Generación de datos con Bogus |
+| ~~`Encina.Testing.DataGeneration`~~ | ~~#161~~ | ✅ Implementado como extensiones en `Encina.Testing.Bogus` |
 | `Encina.Testing.WireMock` | #164 | HTTP mocking con WireMock.NET |
 | `Encina.Testing.Architecture` | #166 | Architecture testing con ArchUnitNET |
 | `Encina.Testing.TUnit` | #171 | Soporte para TUnit framework |

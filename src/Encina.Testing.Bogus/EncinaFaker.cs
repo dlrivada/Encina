@@ -258,4 +258,411 @@ public static class EncinaFakerExtensions
 
         return JsonSerializer.Serialize(dictionary);
     }
+
+    #region Entity ID Generation
+
+    /// <summary>
+    /// Generates an entity ID of the specified type.
+    /// </summary>
+    /// <typeparam name="TId">The ID type (Guid, int, long, or string).</typeparam>
+    /// <param name="randomizer">The Bogus randomizer.</param>
+    /// <returns>A generated ID value appropriate for the specified type.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="randomizer"/> is null.</exception>
+    /// <exception cref="NotSupportedException">Thrown when <typeparamref name="TId"/> is not a supported type.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var guidId = faker.Random.EntityId&lt;Guid&gt;();
+    /// var intId = faker.Random.EntityId&lt;int&gt;();
+    /// var longId = faker.Random.EntityId&lt;long&gt;();
+    /// var stringId = faker.Random.EntityId&lt;string&gt;();
+    /// </code>
+    /// </example>
+    public static TId EntityId<TId>(this Randomizer randomizer)
+    {
+        ArgumentNullException.ThrowIfNull(randomizer);
+
+        return typeof(TId) switch
+        {
+            Type t when t == typeof(Guid) => (TId)(object)randomizer.Guid(),
+            Type t when t == typeof(int) => (TId)(object)randomizer.Int(1, int.MaxValue),
+            Type t when t == typeof(long) => (TId)(object)randomizer.Long(1, long.MaxValue),
+            Type t when t == typeof(string) => (TId)(object)randomizer.AlphaNumeric(12),
+            _ => throw new NotSupportedException($"Entity ID type '{typeof(TId).Name}' is not supported. Supported types: Guid, int, long, string.")
+        };
+    }
+
+    /// <summary>
+    /// Generates a GUID entity ID.
+    /// </summary>
+    /// <param name="randomizer">The Bogus randomizer.</param>
+    /// <returns>A random GUID suitable for entity identification.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="randomizer"/> is null.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var id = faker.Random.GuidEntityId();
+    /// </code>
+    /// </example>
+    public static Guid GuidEntityId(this Randomizer randomizer)
+    {
+        ArgumentNullException.ThrowIfNull(randomizer);
+        return randomizer.Guid();
+    }
+
+    /// <summary>
+    /// Generates a positive integer entity ID.
+    /// </summary>
+    /// <param name="randomizer">The Bogus randomizer.</param>
+    /// <param name="min">Minimum value (default: 1).</param>
+    /// <param name="max">Maximum value (default: int.MaxValue).</param>
+    /// <returns>A positive integer suitable for entity identification.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="randomizer"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="min"/> is less than 1.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var id = faker.Random.IntEntityId();
+    /// var idInRange = faker.Random.IntEntityId(1000, 9999);
+    /// </code>
+    /// </example>
+    public static int IntEntityId(this Randomizer randomizer, int min = 1, int max = int.MaxValue)
+    {
+        ArgumentNullException.ThrowIfNull(randomizer);
+        ArgumentOutOfRangeException.ThrowIfLessThan(min, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(max, min);
+        return randomizer.Int(min, max);
+    }
+
+    /// <summary>
+    /// Generates a positive long entity ID.
+    /// </summary>
+    /// <param name="randomizer">The Bogus randomizer.</param>
+    /// <param name="min">Minimum value (default: 1).</param>
+    /// <param name="max">Maximum value (default: long.MaxValue).</param>
+    /// <returns>A positive long suitable for entity identification.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="randomizer"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="min"/> is less than 1.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var id = faker.Random.LongEntityId();
+    /// var idInRange = faker.Random.LongEntityId(1_000_000, 9_999_999);
+    /// </code>
+    /// </example>
+    public static long LongEntityId(this Randomizer randomizer, long min = 1, long max = long.MaxValue)
+    {
+        ArgumentNullException.ThrowIfNull(randomizer);
+        ArgumentOutOfRangeException.ThrowIfLessThan(min, 1L);
+        ArgumentOutOfRangeException.ThrowIfLessThan(max, min);
+        return randomizer.Long(min, max);
+    }
+
+    /// <summary>
+    /// Generates a non-empty string entity ID.
+    /// </summary>
+    /// <param name="randomizer">The Bogus randomizer.</param>
+    /// <param name="length">Length of the generated string (default: 12).</param>
+    /// <param name="prefix">Optional prefix for the ID.</param>
+    /// <returns>A non-empty alphanumeric string suitable for entity identification.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="randomizer"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="length"/> is less than 1.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var id = faker.Random.StringEntityId();              // "a1b2c3d4e5f6"
+    /// var prefixedId = faker.Random.StringEntityId(8, "ORD"); // "ORD_a1b2c3d4"
+    /// </code>
+    /// </example>
+    public static string StringEntityId(this Randomizer randomizer, int length = 12, string? prefix = null)
+    {
+        ArgumentNullException.ThrowIfNull(randomizer);
+        ArgumentOutOfRangeException.ThrowIfLessThan(length, 1);
+
+        var id = randomizer.AlphaNumeric(length);
+        return string.IsNullOrEmpty(prefix) ? id : $"{prefix}_{id}";
+    }
+
+    #endregion
+
+    #region Strongly-Typed ID Generation
+
+    /// <summary>
+    /// Generates a value suitable for a strongly-typed ID with the specified underlying type.
+    /// </summary>
+    /// <typeparam name="TValue">The underlying value type (Guid, int, long, or string).</typeparam>
+    /// <param name="randomizer">The Bogus randomizer.</param>
+    /// <returns>A generated value appropriate for the specified type.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="randomizer"/> is null.</exception>
+    /// <exception cref="NotSupportedException">Thrown when <typeparamref name="TValue"/> is not a supported type.</exception>
+    /// <remarks>
+    /// This method generates values compatible with StronglyTypedId&lt;TValue&gt; from Encina.DomainModeling:
+    /// <list type="bullet">
+    /// <item><description>Guid: Random GUID</description></item>
+    /// <item><description>int: Positive integer (1 to int.MaxValue)</description></item>
+    /// <item><description>long: Positive long (1 to long.MaxValue)</description></item>
+    /// <item><description>string: Non-empty alphanumeric string (12 characters)</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    ///
+    /// // Generate values for strongly-typed IDs
+    /// var guidValue = faker.Random.StronglyTypedIdValue&lt;Guid&gt;();
+    /// var orderId = new OrderId(guidValue);
+    ///
+    /// var intValue = faker.Random.StronglyTypedIdValue&lt;int&gt;();
+    /// var productId = new ProductId(intValue);
+    /// </code>
+    /// </example>
+    public static TValue StronglyTypedIdValue<TValue>(this Randomizer randomizer)
+        where TValue : notnull
+    {
+        ArgumentNullException.ThrowIfNull(randomizer);
+
+        return typeof(TValue) switch
+        {
+            Type t when t == typeof(Guid) => (TValue)(object)randomizer.Guid(),
+            Type t when t == typeof(int) => (TValue)(object)randomizer.Int(1, int.MaxValue),
+            Type t when t == typeof(long) => (TValue)(object)randomizer.Long(1, long.MaxValue),
+            Type t when t == typeof(string) => (TValue)(object)randomizer.AlphaNumeric(12),
+            _ => throw new NotSupportedException($"Strongly-typed ID value type '{typeof(TValue).Name}' is not supported. Supported types: Guid, int, long, string.")
+        };
+    }
+
+    /// <summary>
+    /// Generates a GUID value for a GuidStronglyTypedId.
+    /// </summary>
+    /// <param name="randomizer">The Bogus randomizer.</param>
+    /// <returns>A random GUID suitable for GuidStronglyTypedId.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="randomizer"/> is null.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var value = faker.Random.GuidStronglyTypedIdValue();
+    /// var orderId = new OrderId(value);
+    /// </code>
+    /// </example>
+    public static Guid GuidStronglyTypedIdValue(this Randomizer randomizer)
+    {
+        ArgumentNullException.ThrowIfNull(randomizer);
+        return randomizer.Guid();
+    }
+
+    /// <summary>
+    /// Generates a positive integer value for an IntStronglyTypedId.
+    /// </summary>
+    /// <param name="randomizer">The Bogus randomizer.</param>
+    /// <param name="min">Minimum value (default: 1).</param>
+    /// <param name="max">Maximum value (default: int.MaxValue).</param>
+    /// <returns>A positive integer suitable for IntStronglyTypedId.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="randomizer"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="min"/> is less than 1.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var value = faker.Random.IntStronglyTypedIdValue();
+    /// var productId = new ProductId(value);
+    /// </code>
+    /// </example>
+    public static int IntStronglyTypedIdValue(this Randomizer randomizer, int min = 1, int max = int.MaxValue)
+    {
+        ArgumentNullException.ThrowIfNull(randomizer);
+        ArgumentOutOfRangeException.ThrowIfLessThan(min, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(max, min);
+        return randomizer.Int(min, max);
+    }
+
+    /// <summary>
+    /// Generates a positive long value for a LongStronglyTypedId.
+    /// </summary>
+    /// <param name="randomizer">The Bogus randomizer.</param>
+    /// <param name="min">Minimum value (default: 1).</param>
+    /// <param name="max">Maximum value (default: long.MaxValue).</param>
+    /// <returns>A positive long suitable for LongStronglyTypedId.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="randomizer"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="min"/> is less than 1.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var value = faker.Random.LongStronglyTypedIdValue();
+    /// var transactionId = new TransactionId(value);
+    /// </code>
+    /// </example>
+    public static long LongStronglyTypedIdValue(this Randomizer randomizer, long min = 1, long max = long.MaxValue)
+    {
+        ArgumentNullException.ThrowIfNull(randomizer);
+        ArgumentOutOfRangeException.ThrowIfLessThan(min, 1L);
+        ArgumentOutOfRangeException.ThrowIfLessThan(max, min);
+        return randomizer.Long(min, max);
+    }
+
+    /// <summary>
+    /// Generates a non-empty string value for a StringStronglyTypedId.
+    /// </summary>
+    /// <param name="randomizer">The Bogus randomizer.</param>
+    /// <param name="length">Length of the generated string (default: 12).</param>
+    /// <param name="prefix">Optional prefix for the ID value.</param>
+    /// <returns>A non-empty string suitable for StringStronglyTypedId.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="randomizer"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="length"/> is less than 1.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var value = faker.Random.StringStronglyTypedIdValue();
+    /// var sku = new Sku(value);
+    ///
+    /// var prefixedValue = faker.Random.StringStronglyTypedIdValue(8, "SKU");
+    /// var prefixedSku = new Sku(prefixedValue); // "SKU_a1b2c3d4"
+    /// </code>
+    /// </example>
+    public static string StringStronglyTypedIdValue(this Randomizer randomizer, int length = 12, string? prefix = null)
+    {
+        ArgumentNullException.ThrowIfNull(randomizer);
+        ArgumentOutOfRangeException.ThrowIfLessThan(length, 1);
+
+        var id = randomizer.AlphaNumeric(length);
+        return string.IsNullOrEmpty(prefix) ? id : $"{prefix}_{id}";
+    }
+
+    #endregion
+
+    #region Value Object Generation
+
+    /// <summary>
+    /// Generates a random non-negative quantity value.
+    /// </summary>
+    /// <param name="randomizer">The Bogus randomizer.</param>
+    /// <param name="min">Minimum value (default: 0).</param>
+    /// <param name="max">Maximum value (default: 1000).</param>
+    /// <returns>A non-negative integer suitable for Quantity from Encina.DomainModeling.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="randomizer"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="min"/> is negative.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var quantityValue = faker.Random.QuantityValue();
+    /// var quantity = Quantity.From(quantityValue);
+    ///
+    /// var smallQuantity = faker.Random.QuantityValue(1, 10);
+    /// </code>
+    /// </example>
+    public static int QuantityValue(this Randomizer randomizer, int min = 0, int max = 1000)
+    {
+        ArgumentNullException.ThrowIfNull(randomizer);
+        ArgumentOutOfRangeException.ThrowIfNegative(min);
+        ArgumentOutOfRangeException.ThrowIfLessThan(max, min);
+        return randomizer.Int(min, max);
+    }
+
+    /// <summary>
+    /// Generates a random percentage value between 0 and 100.
+    /// </summary>
+    /// <param name="randomizer">The Bogus randomizer.</param>
+    /// <param name="min">Minimum value (default: 0).</param>
+    /// <param name="max">Maximum value (default: 100).</param>
+    /// <param name="decimals">Number of decimal places (default: 2).</param>
+    /// <returns>A decimal value between 0 and 100 suitable for Percentage from Encina.DomainModeling.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="randomizer"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="min"/> is negative or <paramref name="max"/> exceeds 100.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var percentValue = faker.Random.PercentageValue();
+    /// var percentage = Percentage.From(percentValue);
+    ///
+    /// var discountPercent = faker.Random.PercentageValue(5, 50);
+    /// </code>
+    /// </example>
+    public static decimal PercentageValue(this Randomizer randomizer, decimal min = 0m, decimal max = 100m, int decimals = 2)
+    {
+        ArgumentNullException.ThrowIfNull(randomizer);
+        ArgumentOutOfRangeException.ThrowIfNegative(min);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(max, 100m);
+        ArgumentOutOfRangeException.ThrowIfLessThan(max, min);
+
+        return Math.Round(randomizer.Decimal(min, max), decimals);
+    }
+
+    /// <summary>
+    /// Generates a random date range.
+    /// </summary>
+    /// <param name="date">The Bogus date generator.</param>
+    /// <param name="daysInPast">Maximum days in the past for start date (default: 30).</param>
+    /// <param name="daysSpan">Maximum span between start and end dates (default: 30).</param>
+    /// <returns>A tuple of (start, end) dates suitable for DateRange from Encina.DomainModeling.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="date"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="daysInPast"/> or <paramref name="daysSpan"/> is negative.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var (start, end) = faker.Date.DateRangeValue();
+    /// var dateRange = DateRange.From(start, end);
+    ///
+    /// var shortRange = faker.Date.DateRangeValue(daysInPast: 7, daysSpan: 5);
+    /// </code>
+    /// </example>
+    public static (DateOnly Start, DateOnly End) DateRangeValue(this Date date, int daysInPast = 30, int daysSpan = 30)
+    {
+        ArgumentNullException.ThrowIfNull(date);
+        ArgumentOutOfRangeException.ThrowIfNegative(daysInPast);
+        ArgumentOutOfRangeException.ThrowIfNegative(daysSpan);
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var startOffset = date.Random.Int(0, daysInPast);
+        var spanDays = date.Random.Int(1, Math.Max(1, daysSpan));
+
+        var start = today.AddDays(-startOffset);
+        var end = start.AddDays(spanDays);
+
+        return (start, end);
+    }
+
+    /// <summary>
+    /// Generates a random time range within a day.
+    /// </summary>
+    /// <param name="date">The Bogus date generator.</param>
+    /// <param name="minHourSpan">Minimum hours between start and end (default: 1).</param>
+    /// <param name="maxHourSpan">Maximum hours between start and end (default: 8).</param>
+    /// <returns>A tuple of (start, end) times suitable for TimeRange from Encina.DomainModeling.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="date"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when parameters result in invalid time ranges.</exception>
+    /// <example>
+    /// <code>
+    /// var faker = new Faker();
+    /// var (start, end) = faker.Date.TimeRangeValue();
+    /// var timeRange = TimeRange.From(start, end);
+    ///
+    /// var shortMeeting = faker.Date.TimeRangeValue(minHourSpan: 1, maxHourSpan: 2);
+    /// </code>
+    /// </example>
+    public static (TimeOnly Start, TimeOnly End) TimeRangeValue(this Date date, int minHourSpan = 1, int maxHourSpan = 8)
+    {
+        ArgumentNullException.ThrowIfNull(date);
+        ArgumentOutOfRangeException.ThrowIfLessThan(minHourSpan, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxHourSpan, 23);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxHourSpan, minHourSpan);
+
+        // Generate start time ensuring room for the span
+        var maxStartHour = 24 - maxHourSpan;
+        var startHour = date.Random.Int(0, maxStartHour);
+        var startMinute = date.Random.Int(0, 59);
+
+        var hourSpan = date.Random.Int(minHourSpan, maxHourSpan);
+        var minuteOffset = date.Random.Int(0, 59);
+
+        var start = new TimeOnly(startHour, startMinute);
+        var end = start.AddHours(hourSpan).AddMinutes(minuteOffset);
+
+        // Ensure end doesn't wrap around midnight
+        if (end < start)
+        {
+            end = new TimeOnly(23, 59);
+        }
+
+        return (start, end);
+    }
+
+    #endregion
 }
