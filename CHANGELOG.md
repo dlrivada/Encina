@@ -36,6 +36,21 @@
 
 ### Added
 
+- **Encina.Testing.Testcontainers Package** - Docker container fixtures for integration tests (Issue #162):
+  - `SqlServerContainerFixture` - SQL Server container (mcr.microsoft.com/mssql/server:2022-latest)
+  - `PostgreSqlContainerFixture` - PostgreSQL container (postgres:17-alpine)
+  - `MySqlContainerFixture` - MySQL container (mysql:9.1)
+  - `MongoDbContainerFixture` - MongoDB container (mongo:7)
+  - `RedisContainerFixture` - Redis container (redis:7-alpine)
+  - `ConfiguredContainerFixture<TContainer>` - Generic fixture for custom-configured containers
+  - `EncinaContainers` - Static factory class for creating container fixtures:
+    - `SqlServer()`, `PostgreSql()`, `MySql()`, `MongoDb()`, `Redis()` - Default configurations
+    - Overloads accepting `Action<TBuilder>` for custom container configuration
+  - All fixtures implement `IAsyncLifetime` for xUnit integration
+  - Properties: `Container`, `ConnectionString`, `IsRunning`
+  - Automatic cleanup with `WithCleanUp(true)`
+  - Integration with `Encina.Testing.Respawn` for database reset between tests
+
 - **Encina.Testing.Architecture Package** - Architecture testing rules using ArchUnitNET (Issue #432):
   - `EncinaArchitectureRules` - Static class with pre-built architecture rules:
     - `HandlersShouldNotDependOnInfrastructure()` - Handlers should use abstractions
