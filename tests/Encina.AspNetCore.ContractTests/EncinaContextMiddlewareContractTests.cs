@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.TestHost;
 using Shouldly;
 
 namespace Encina.AspNetCore.ContractTests;
@@ -96,7 +96,7 @@ public sealed class EncinaContextMiddlewareContractTests
         var response = await client.SendAsync(request);
 
         // Assert
-        response.Headers.Should().ContainKey("X-Correlation-ID");
+        response.Headers.Contains("X-Correlation-ID").ShouldBeTrue();
         response.Headers.GetValues("X-Correlation-ID").ShouldContain(correlationId);
     }
 
@@ -221,7 +221,8 @@ public sealed class EncinaContextMiddlewareContractTests
         // Assert
         capturedContext.ShouldNotBeNull();
         capturedContext!.CorrelationId.ShouldBe(correlationId);
-        response.Headers.Should().ContainKey("X-Request-ID");
+        response.Headers.Contains("X-Request-ID").ShouldBeTrue();
+        response.Headers.GetValues("X-Request-ID").ShouldContain(correlationId);
     }
 
     [Fact]

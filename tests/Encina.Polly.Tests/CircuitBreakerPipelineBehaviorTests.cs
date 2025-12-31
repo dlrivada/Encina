@@ -1,4 +1,4 @@
-﻿using LanguageExt;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Polly.CircuitBreaker;
 using System.Reflection;
@@ -12,16 +12,20 @@ namespace Encina.Polly.Tests;
 /// </summary>
 public class CircuitBreakerPipelineBehaviorTests
 {
-    private readonly ILogger<CircuitBreakerPipelineBehavior<TestRequest, string>> _logger;
-    private readonly CircuitBreakerPipelineBehavior<TestRequest, string> _behavior;
-
-    public CircuitBreakerPipelineBehaviorTests()
+    /// <summary>
+    /// Clears the static circuit breaker cache to ensure test isolation.
+    /// Note: This is necessary because CircuitBreakerPipelineBehavior uses a static cache.
+    /// </summary>
+    private static void ClearCircuitBreakerCache<TReq, TResp>() where TReq : IRequest<TResp>
     {
-        _logger = Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequest, string>>>();
-        _behavior = new CircuitBreakerPipelineBehavior<TestRequest, string>(_logger);
+        var cacheField = typeof(CircuitBreakerPipelineBehavior<,>)
+            .MakeGenericType(typeof(TReq), typeof(TResp))
+            .GetField("_circuitBreakerCache", BindingFlags.Static | BindingFlags.NonPublic);
 
-        // Clear static cache before each test
-        ClearCircuitBreakerCache();
+        if (cacheField?.GetValue(null) is System.Collections.IDictionary cache)
+        {
+            cache.Clear();
+        }
     }
 
     [Fact]
@@ -42,7 +46,7 @@ public class CircuitBreakerPipelineBehaviorTests
         // Assert
         result.ShouldBeSuccess();
         _ = result.Match(
-            Right: value => value.Should().Be(expectedResponse),
+            Right: value => value.ShouldBe(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
         );
     }
@@ -51,18 +55,21 @@ public class CircuitBreakerPipelineBehaviorTests
     public async Task Handle_WithCircuitBreakerAttribute_SuccessfulRequest_ShouldPassThrough()
     {
         // Arrange
+        ClearCircuitBreakerCache<TestRequest, string>();
+        var logger = Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequest, string>>>();
+        var behavior = new CircuitBreakerPipelineBehavior<TestRequest, string>(logger);
         var request = new TestRequest();
         var context = Substitute.For<IRequestContext>();
         var expectedResponse = "success";
         RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<EncinaError, string>(expectedResponse));
 
         // Act
-        var result = await _behavior.Handle(request, context, next, CancellationToken.None);
+        var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
         result.ShouldBeSuccess();
         _ = result.Match(
-            Right: value => value.Should().Be(expectedResponse),
+            Right: value => value.ShouldBe(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
         );
     }
@@ -71,6 +78,9 @@ public class CircuitBreakerPipelineBehaviorTests
     public async Task Handle_CircuitClosed_ShouldAllowRequests()
     {
         // Arrange
+        ClearCircuitBreakerCache<TestRequest, string>();
+        var logger = Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequest, string>>>();
+        var behavior = new CircuitBreakerPipelineBehavior<TestRequest, string>(logger);
         var request = new TestRequest();
         var context = Substitute.For<IRequestContext>();
         var callCount = 0;
@@ -81,18 +91,20 @@ public class CircuitBreakerPipelineBehaviorTests
         };
 
         // Act
-        await _behavior.Handle(request, context, next, CancellationToken.None);
-        await _behavior.Handle(request, context, next, CancellationToken.None);
-        await _behavior.Handle(request, context, next, CancellationToken.None);
+        await behavior.Handle(request, context, next, CancellationToken.None);
+        await behavior.Handle(request, context, next, CancellationToken.None);
+        await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        callCount.Should().Be(3, "all requests should pass through when circuit is closed");
+        callCount.ShouldBe(3, "all requests should pass through when circuit is closed");
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
     public async Task Handle_RepeatedFailures_ShouldOpenCircuit()
     {
         // Arrange
+        ClearCircuitBreakerCache<TestRequestLowThreshold, string>();
         var request = new TestRequestLowThreshold(); // FailureThreshold = 3, MinimumThroughput = 3
         var context = Substitute.For<IRequestContext>();
         var behavior = new CircuitBreakerPipelineBehavior<TestRequestLowThreshold, string>(
@@ -116,14 +128,16 @@ public class CircuitBreakerPipelineBehaviorTests
         result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should be Left"),
-            Left: error => error.Message.Should().Contain("Circuit breaker is open")
+            Left: error => error.Message.ShouldContain("Circuit breaker is open")
         );
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
     public async Task Handle_CircuitOpen_ShouldReturnCircuitBreakerError()
     {
         // Arrange
+        ClearCircuitBreakerCache<TestRequestLowThreshold, string>();
         var request = new TestRequestLowThreshold();
         var context = Substitute.For<IRequestContext>();
         var behavior = new CircuitBreakerPipelineBehavior<TestRequestLowThreshold, string>(
@@ -149,8 +163,8 @@ public class CircuitBreakerPipelineBehaviorTests
             Right: _ => throw new InvalidOperationException("Should be Left"),
             Left: error =>
             {
-                error.Message.Should().Contain("Circuit breaker is open");
-                error.Message.Should().Contain("Service temporarily unavailable");
+                error.Message.ShouldContain("Circuit breaker is open");
+                error.Message.ShouldContain("Service temporarily unavailable");
             }
         );
     }
@@ -159,16 +173,19 @@ public class CircuitBreakerPipelineBehaviorTests
     public async Task GetOrCreateCircuitBreaker_ShouldCachePipeline()
     {
         // Arrange
+        ClearCircuitBreakerCache<TestRequest, string>();
+        var logger = Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequest, string>>>();
+        var behavior = new CircuitBreakerPipelineBehavior<TestRequest, string>(logger);
         var request = new TestRequest();
         var context = Substitute.For<IRequestContext>();
         RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<EncinaError, string>("success"));
 
         // Act - Multiple calls should use cached pipeline
-        await _behavior.Handle(request, context, next, CancellationToken.None);
-        await _behavior.Handle(request, context, next, CancellationToken.None);
+        await behavior.Handle(request, context, next, CancellationToken.None);
+        await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert - Verify cache is being used (we can't directly test static field, but this ensures no crash)
-        var result = await _behavior.Handle(request, context, next, CancellationToken.None);
+        var result = await behavior.Handle(request, context, next, CancellationToken.None);
         result.ShouldBeSuccess();
     }
 
@@ -176,6 +193,9 @@ public class CircuitBreakerPipelineBehaviorTests
     public async Task GetOrCreateCircuitBreaker_ThreadSafe_ShouldNotCreateDuplicates()
     {
         // Arrange
+        ClearCircuitBreakerCache<TestRequest, string>();
+        var logger = Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequest, string>>>();
+        var behavior = new CircuitBreakerPipelineBehavior<TestRequest, string>(logger);
         var request = new TestRequest();
         var context = Substitute.For<IRequestContext>();
         RequestHandlerCallback<string> next = () => ValueTask.FromResult(Right<EncinaError, string>("success"));
@@ -183,13 +203,13 @@ public class CircuitBreakerPipelineBehaviorTests
         // Act - Call from multiple threads concurrently
         var tasks = Enumerable.Range(0, 10).Select(_ => Task.Run(async () =>
         {
-            await _behavior.Handle(request, context, next, CancellationToken.None);
+            await behavior.Handle(request, context, next, CancellationToken.None);
         }));
 
         await Task.WhenAll(tasks);
 
         // Assert - No exceptions means thread-safe double-check locking worked
-        var result = await _behavior.Handle(request, context, next, CancellationToken.None);
+        var result = await behavior.Handle(request, context, next, CancellationToken.None);
         result.ShouldBeSuccess();
     }
 
@@ -197,18 +217,21 @@ public class CircuitBreakerPipelineBehaviorTests
     public async Task Handle_ExceptionThrown_ShouldReturnEncinaError()
     {
         // Arrange
+        ClearCircuitBreakerCache<TestRequest, string>();
+        var logger = Substitute.For<ILogger<CircuitBreakerPipelineBehavior<TestRequest, string>>>();
+        var behavior = new CircuitBreakerPipelineBehavior<TestRequest, string>(logger);
         var request = new TestRequest();
         var context = Substitute.For<IRequestContext>();
         RequestHandlerCallback<string> next = () => throw new InvalidOperationException("Test exception");
 
         // Act
-        var result = await _behavior.Handle(request, context, next, CancellationToken.None);
+        var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
         result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should be Left"),
-            Left: error => error.Message.Should().Contain("Test exception")
+            Left: error => error.Message.ShouldContain("Test exception")
         );
     }
 
@@ -229,19 +252,6 @@ public class CircuitBreakerPipelineBehaviorTests
         // Assert
         result.ShouldBeSuccess();
         // The fact that it doesn't throw means the custom configuration was applied correctly
-    }
-
-    private static void ClearCircuitBreakerCache()
-    {
-        // Use reflection to clear the static cache between tests
-        var cacheField = typeof(CircuitBreakerPipelineBehavior<,>)
-            .MakeGenericType(typeof(TestRequest), typeof(string))
-            .GetField("_circuitBreakerCache", BindingFlags.Static | BindingFlags.NonPublic);
-
-        if (cacheField?.GetValue(null) is System.Collections.IDictionary cache)
-        {
-            cache.Clear();
-        }
     }
 
     // Test request types

@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.DomainModeling.ContractTests;
 
@@ -15,46 +15,46 @@ public sealed class EntityContracts
     public void Entity_MustImplementIEntity()
     {
         _entityType.GetInterfaces()
-            .Should().Contain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEntity<>));
+            .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEntity<>));
     }
 
     [Fact]
     public void Entity_MustImplementIEquatable()
     {
         _entityType.GetInterfaces()
-            .Should().Contain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEquatable<>));
+            .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEquatable<>));
     }
 
     [Fact]
     public void Entity_MustHaveIdProperty()
     {
         var idProperty = _entityType.GetProperty("Id");
-        idProperty.Should().NotBeNull();
-        idProperty!.CanRead.Should().BeTrue();
+        idProperty.ShouldNotBeNull();
+        idProperty!.CanRead.ShouldBeTrue();
     }
 
     [Fact]
     public void Entity_MustOverrideEquals()
     {
         var equalsMethod = _entityType.GetMethod("Equals", [typeof(object)]);
-        equalsMethod.Should().NotBeNull();
-        equalsMethod!.DeclaringType.Should().Be(_entityType);
+        equalsMethod.ShouldNotBeNull();
+        equalsMethod!.DeclaringType.ShouldBe(_entityType);
     }
 
     [Fact]
     public void Entity_MustOverrideGetHashCode()
     {
         var hashCodeMethod = _entityType.GetMethod("GetHashCode");
-        hashCodeMethod.Should().NotBeNull();
-        hashCodeMethod!.DeclaringType.Should().Be(_entityType);
+        hashCodeMethod.ShouldNotBeNull();
+        hashCodeMethod!.DeclaringType.ShouldBe(_entityType);
     }
 
     [Fact]
     public void Entity_MustOverrideToString()
     {
         var toStringMethod = _entityType.GetMethod("ToString");
-        toStringMethod.Should().NotBeNull();
-        toStringMethod!.DeclaringType.Should().Be(_entityType);
+        toStringMethod.ShouldNotBeNull();
+        toStringMethod!.DeclaringType.ShouldBe(_entityType);
     }
 
     [Fact]
@@ -62,23 +62,23 @@ public sealed class EntityContracts
     {
         var equalityOp = _entityType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "op_Equality");
-        equalityOp.Should().NotBeNull();
+        equalityOp.ShouldNotBeNull();
 
         var inequalityOp = _entityType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "op_Inequality");
-        inequalityOp.Should().NotBeNull();
+        inequalityOp.ShouldNotBeNull();
     }
 
     [Fact]
     public void Entity_MustBeAbstract()
     {
-        _entityType.IsAbstract.Should().BeTrue();
+        _entityType.IsAbstract.ShouldBeTrue();
     }
 
     [Fact]
     public void Entity_MustHaveProtectedConstructor()
     {
         var constructors = _entityType.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-        constructors.Should().Contain(c => c.IsFamily || c.IsFamilyOrAssembly);
+        constructors.ShouldContain(c => c.IsFamily || c.IsFamilyOrAssembly);
     }
 }

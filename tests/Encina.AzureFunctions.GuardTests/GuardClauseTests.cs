@@ -1,5 +1,5 @@
 using Encina.AzureFunctions.Health;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -22,8 +22,8 @@ public class GuardClauseTests
         var action = () => services.AddEncinaAzureFunctions();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -36,8 +36,8 @@ public class GuardClauseTests
         var action = () => services.AddEncinaAzureFunctions(_ => { });
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -50,8 +50,8 @@ public class GuardClauseTests
         var action = () => services.AddEncinaAzureFunctions(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configureOptions");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("configureOptions");
     }
 
     [Fact]
@@ -61,8 +61,8 @@ public class GuardClauseTests
         var action = () => new AzureFunctionsHealthCheck(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public class GuardClauseTests
         var action = () => new EncinaFunctionMiddleware(null!, null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -86,8 +86,8 @@ public class GuardClauseTests
         var action = () => new EncinaFunctionMiddleware(options, null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class GuardClauseTests
         var action = () => builder.UseEncinaMiddleware();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("builder");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("builder");
     }
 }

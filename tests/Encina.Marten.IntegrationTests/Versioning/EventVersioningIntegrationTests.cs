@@ -1,6 +1,6 @@
 using Encina.Marten.IntegrationTests.Fixtures;
 using Encina.Marten.Versioning;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.Marten.IntegrationTests.Versioning;
@@ -31,9 +31,9 @@ public sealed class EventVersioningIntegrationTests
         registry.Register<ProductUpdatedV1ToV2Upcaster>();
 
         // Assert
-        registry.Count.Should().Be(2);
-        registry.HasUpcasterFor(nameof(ProductCreatedV1)).Should().BeTrue();
-        registry.HasUpcasterFor(nameof(ProductUpdatedV1)).Should().BeTrue();
+        registry.Count.ShouldBe(2);
+        registry.HasUpcasterFor(nameof(ProductCreatedV1)).ShouldBeTrue();
+        registry.HasUpcasterFor(nameof(ProductUpdatedV1)).ShouldBeTrue();
     }
 
     [Fact]
@@ -46,8 +46,8 @@ public sealed class EventVersioningIntegrationTests
         var count = registry.ScanAndRegister(typeof(ProductCreatedV1ToV2Upcaster).Assembly);
 
         // Assert
-        count.Should().BeGreaterThan(0);
-        registry.HasUpcasterFor(nameof(ProductCreatedV1)).Should().BeTrue();
+        count.ShouldBeGreaterThan(0);
+        registry.HasUpcasterFor(nameof(ProductCreatedV1)).ShouldBeTrue();
     }
 
     [Fact]
@@ -63,9 +63,9 @@ public sealed class EventVersioningIntegrationTests
         var v2Event = typedUpcaster.Upcast(v1Event);
 
         // Assert
-        v2Event.ProductId.Should().Be(productId);
-        v2Event.Name.Should().Be("Test Product");
-        v2Event.Price.Should().Be(0m);
+        v2Event.ProductId.ShouldBe(productId);
+        v2Event.Name.ShouldBe("Test Product");
+        v2Event.Price.ShouldBe(0m);
     }
 
     [Fact]
@@ -82,9 +82,9 @@ public sealed class EventVersioningIntegrationTests
         var v2Event = typedUpcaster.Upcast(v1Event);
 
         // Assert
-        v2Event.ProductId.Should().Be(productId);
-        v2Event.Name.Should().Be("Lambda Product");
-        v2Event.Price.Should().Be(9.99m);
+        v2Event.ProductId.ShouldBe(productId);
+        v2Event.Name.ShouldBe("Lambda Product");
+        v2Event.Price.ShouldBe(9.99m);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class EventVersioningIntegrationTests
         options.ApplyTo(registry);
 
         // Assert
-        registry.Count.Should().BeGreaterThan(0);
+        registry.Count.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -118,39 +118,36 @@ public sealed class EventVersioningIntegrationTests
         var upcasters = registry.GetAllUpcasters();
 
         // Assert
-        upcasters.Should().HaveCount(2);
-        upcasters.Should().Contain(u => u is ProductCreatedV1ToV2Upcaster);
-        upcasters.Should().Contain(u => u is ProductUpdatedV1ToV2Upcaster);
+        upcasters.Count.ShouldBe(2);
+        upcasters.ShouldContain(u => u is ProductCreatedV1ToV2Upcaster);
+        upcasters.ShouldContain(u => u is ProductUpdatedV1ToV2Upcaster);
     }
 
     [SkippableFact]
-    public async Task StoreV1Event_RetrieveAsV2_AfterUpcast_Works()
+    public void Fixture_IsAvailable_WhenContainerRunning()
     {
         // Skip if Docker/container is not available
         Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
-        // This test demonstrates the concept but would require actual Marten
-        // configuration with the upcasters. The integration with Marten's
-        // event store is handled by ConfigureMartenEventVersioning.
+        // Arrange & Act - verify fixture is configured
+        var store = _fixture.Store;
+        var connectionString = _fixture.ConnectionString;
 
-        // For now, verify the fixture is available
-        _fixture.Store.Should().NotBeNull();
-        _fixture.ConnectionString.Should().NotBeNullOrEmpty();
-
-        await Task.CompletedTask; // Placeholder for async signature
+        // Assert
+        store.ShouldNotBeNull();
+        connectionString.ShouldNotBeNullOrEmpty();
     }
 
     [SkippableFact]
-    public async Task MultipleEventVersions_InSameStream_HandledCorrectly()
+    public void Fixture_Store_IsConfiguredForEventVersioning()
     {
         // Skip if Docker/container is not available
         Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
-        // This test would store events of different versions and verify
-        // that upcasting works correctly during stream loading.
+        // Arrange & Act
+        var store = _fixture.Store;
 
-        _fixture.Store.Should().NotBeNull();
-
-        await Task.CompletedTask; // Placeholder for async signature
+        // Assert - verify the store is available for event versioning tests
+        store.ShouldNotBeNull();
     }
 }

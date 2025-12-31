@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Refit;
 using Encina.Refit;
@@ -13,8 +13,13 @@ namespace Encina.Refit.IntegrationTests;
 public class RestApiRequestHandlerIntegrationTests
 {
     [Fact]
+    [Trait("Category", "E2E")]
     public async Task EndToEnd_RealApiCall_ShouldSucceed()
     {
+        // NOTE: This test makes real HTTP calls to jsonplaceholder.typicode.com
+        // It may fail if the external service is unavailable
+        // Consider using a mock HTTP server for more reliable tests
+
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
@@ -36,9 +41,9 @@ public class RestApiRequestHandlerIntegrationTests
         result.ShouldBeSuccess();
         result.IfRight(post =>
         {
-            post.Id.Should().Be(1);
-            post.Title.Should().NotBeNullOrEmpty();
-            post.Body.Should().NotBeNullOrEmpty();
+            post.Id.ShouldBe(1);
+            post.Title.ShouldNotBeNullOrEmpty();
+            post.Body.ShouldNotBeNullOrEmpty();
         });
     }
 
@@ -66,7 +71,7 @@ public class RestApiRequestHandlerIntegrationTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("404");
+            error.Message.ShouldContain("404");
         });
     }
 
@@ -94,7 +99,7 @@ public class RestApiRequestHandlerIntegrationTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("500");
+            error.Message.ShouldContain("500");
         });
     }
 
@@ -122,20 +127,24 @@ public class RestApiRequestHandlerIntegrationTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("request failed");
+            error.Message.ShouldContain("request failed");
         });
     }
 
     [Fact]
+    [Trait("Category", "E2E")]
     public async Task EndToEnd_Timeout_ShouldReturnTimeoutError()
     {
+        // NOTE: This test makes real HTTP calls to httpbin.org
+        // It may fail if the external service is unavailable
+
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddEncinaRefitClient<IHttpBinApi>(client =>
         {
             client.BaseAddress = new Uri("https://httpbin.org");
-            client.Timeout = TimeSpan.FromMilliseconds(100); // Very short timeout
+            client.Timeout = TimeSpan.FromMilliseconds(500); // Increased from 100ms for more reliable test
         });
         services.AddSingleton<RestApiRequestHandler<GetDelayRequest, IHttpBinApi, string>>();
 
@@ -150,7 +159,7 @@ public class RestApiRequestHandlerIntegrationTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("timed out");
+            error.Message.ShouldContain("timed out");
         });
     }
 

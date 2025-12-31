@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -22,8 +22,8 @@ public sealed class ServiceCollectionExtensionsTests
         var result = builder.WithEncina();
 
         // Assert
-        result.Should().NotBeNull();
-        result.Should().BeSameAs(builder);
+        result.ShouldNotBeNull();
+        result.ShouldBeSameAs(builder);
     }
 
     [Fact]
@@ -42,8 +42,8 @@ public sealed class ServiceCollectionExtensionsTests
         var result = builder.WithEncina(options);
 
         // Assert
-        result.Should().NotBeNull();
-        result.Should().BeSameAs(builder);
+        result.ShouldNotBeNull();
+        result.ShouldBeSameAs(builder);
     }
 
     [Fact]
@@ -52,13 +52,21 @@ public sealed class ServiceCollectionExtensionsTests
         // Arrange
         var services = new ServiceCollection();
         var builder = services.AddOpenTelemetry();
+        var expectedDefaults = new EncinaOpenTelemetryOptions();
 
         // Act
         var result = builder.WithEncina(null);
 
         // Assert
-        result.Should().NotBeNull();
-        result.Should().BeSameAs(builder);
+        using var serviceProvider = services.BuildServiceProvider();
+        var registeredOptions = serviceProvider.GetService<EncinaOpenTelemetryOptions>();
+
+        result.ShouldNotBeNull();
+        result.ShouldBeSameAs(builder);
+        registeredOptions.ShouldNotBeNull();
+        registeredOptions.ServiceName.ShouldBe(expectedDefaults.ServiceName);
+        registeredOptions.ServiceVersion.ShouldBe(expectedDefaults.ServiceVersion);
+        registeredOptions.EnableMessagingEnrichers.ShouldBe(expectedDefaults.EnableMessagingEnrichers);
     }
 
     [Fact]
@@ -74,11 +82,14 @@ public sealed class ServiceCollectionExtensionsTests
             tracerBuilder = builder;
         });
 
-        // Act & Assert
-        tracerBuilder.Should().NotBeNull();
-        var result = tracerBuilder!.AddEncinaInstrumentation();
-        result.Should().NotBeNull();
-        result.Should().BeSameAs(tracerBuilder);
+        tracerBuilder.ShouldNotBeNull();
+
+        // Act
+        var result = tracerBuilder.AddEncinaInstrumentation();
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.ShouldBeSameAs(tracerBuilder);
     }
 
     [Fact]
@@ -94,10 +105,13 @@ public sealed class ServiceCollectionExtensionsTests
             meterBuilder = builder;
         });
 
-        // Act & Assert
-        meterBuilder.Should().NotBeNull();
-        var result = meterBuilder!.AddEncinaInstrumentation();
-        result.Should().NotBeNull();
-        result.Should().BeSameAs(meterBuilder);
+        meterBuilder.ShouldNotBeNull();
+
+        // Act
+        var result = meterBuilder.AddEncinaInstrumentation();
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.ShouldBeSameAs(meterBuilder);
     }
 }

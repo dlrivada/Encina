@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Encina.Dapper.SqlServer;
 using Encina.Messaging;
@@ -25,8 +25,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => services.AddEncinaDapper(configure);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     /// <summary>
@@ -43,8 +43,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => services.AddEncinaDapper(configure);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configure");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("configure");
     }
 
     /// <summary>
@@ -62,8 +62,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => services.AddEncinaDapper(connectionFactory, configure);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     /// <summary>
@@ -81,8 +81,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => services.AddEncinaDapper(connectionFactory, configure);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("connectionFactory");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connectionFactory");
     }
 
     /// <summary>
@@ -100,8 +100,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => services.AddEncinaDapper(connectionFactory, configure);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configure");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("configure");
     }
 
     /// <summary>
@@ -119,8 +119,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => services.AddEncinaDapper(connectionString, configure);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     /// <summary>
@@ -138,8 +138,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => services.AddEncinaDapper(connectionString, configure);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("connectionString");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connectionString");
     }
 
     /// <summary>
@@ -157,8 +157,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => services.AddEncinaDapper(connectionString, configure);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("connectionString");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("connectionString");
     }
 
     /// <summary>
@@ -176,8 +176,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => services.AddEncinaDapper(connectionString, configure);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("connectionString");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("connectionString");
     }
 
     /// <summary>
@@ -195,7 +195,7 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => services.AddEncinaDapper(connectionString, configure);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configure");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("configure");
     }
 }

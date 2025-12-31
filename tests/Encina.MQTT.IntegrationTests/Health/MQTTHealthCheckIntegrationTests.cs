@@ -33,8 +33,8 @@ public sealed class MQTTHealthCheckIntegrationTests : IClassFixture<MqttFixture>
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("connected");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("connected");
     }
 
     [SkippableFact]
@@ -51,8 +51,8 @@ public sealed class MQTTHealthCheckIntegrationTests : IClassFixture<MqttFixture>
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        healthCheck.Name.Should().Be("my-custom-mqtt");
-        result.Status.Should().Be(HealthStatus.Healthy);
+        healthCheck.Name.ShouldBe("my-custom-mqtt");
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [SkippableFact]
@@ -64,11 +64,14 @@ public sealed class MQTTHealthCheckIntegrationTests : IClassFixture<MqttFixture>
         var serviceProvider = CreateServiceProvider();
         var healthCheck = new MQTTHealthCheck(serviceProvider, null);
 
+        // Act
+        var tags = healthCheck.Tags;
+
         // Assert
-        healthCheck.Tags.Should().Contain("encina");
-        healthCheck.Tags.Should().Contain("messaging");
-        healthCheck.Tags.Should().Contain("mqtt");
-        healthCheck.Tags.Should().Contain("ready");
+        tags.ShouldContain("encina");
+        tags.ShouldContain("messaging");
+        tags.ShouldContain("mqtt");
+        tags.ShouldContain("ready");
     }
 
     [SkippableFact]
@@ -91,8 +94,8 @@ public sealed class MQTTHealthCheckIntegrationTests : IClassFixture<MqttFixture>
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("disconnected");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("disconnected");
 
         // Cleanup
         disconnectedClient.Dispose();

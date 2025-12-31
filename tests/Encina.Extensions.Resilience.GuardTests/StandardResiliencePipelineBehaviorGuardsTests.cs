@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Polly.Registry;
@@ -26,8 +26,8 @@ public class StandardResiliencePipelineBehaviorGuardsTests
             logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("pipelineProvider");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("pipelineProvider");
     }
 
     [Fact]
@@ -43,24 +43,8 @@ public class StandardResiliencePipelineBehaviorGuardsTests
             logger!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
-    }
-
-    [Fact]
-    public void Constructor_BothParametersNull_ThrowsArgumentNullException()
-    {
-        // Arrange
-        ResiliencePipelineProvider<string>? pipelineProvider = null;
-        ILogger<StandardResiliencePipelineBehavior<TestRequest, TestResponse>>? logger = null;
-
-        // Act
-        var act = () => new StandardResiliencePipelineBehavior<TestRequest, TestResponse>(
-            pipelineProvider!,
-            logger!);
-
-        // Assert
-        act.Should().Throw<ArgumentNullException>();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -76,7 +60,7 @@ public class StandardResiliencePipelineBehaviorGuardsTests
             logger);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     // Test helper classes

@@ -21,7 +21,7 @@ public abstract class IEncinaHealthCheckContractTests
         var healthCheck = CreateHealthCheck();
 
         // Assert
-        healthCheck.Name.Should().NotBeNull();
+        healthCheck.Name.ShouldNotBeNull();
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public abstract class IEncinaHealthCheckContractTests
         var healthCheck = CreateHealthCheck();
 
         // Assert
-        healthCheck.Name.Should().NotBeEmpty();
+        healthCheck.Name.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public abstract class IEncinaHealthCheckContractTests
         var healthCheck = CreateHealthCheckWithCustomName(customName);
 
         // Assert
-        healthCheck.Name.Should().Be(customName);
+        healthCheck.Name.ShouldBe(customName);
     }
 
     #endregion
@@ -56,7 +56,7 @@ public abstract class IEncinaHealthCheckContractTests
         var healthCheck = CreateHealthCheck();
 
         // Assert
-        healthCheck.Tags.Should().NotBeNull();
+        healthCheck.Tags.ShouldNotBeNull();
     }
 
     [Fact]
@@ -66,20 +66,22 @@ public abstract class IEncinaHealthCheckContractTests
         var healthCheck = CreateHealthCheck();
 
         // Assert
-        healthCheck.Tags.Should().Contain("encina");
+        healthCheck.Tags.ShouldContain("encina");
     }
 
     [Fact]
-    public void Tags_WithCustomTags_ShouldUseCustomTags()
+    public void Tags_WithCustomTags_ShouldContainAllCustomTags()
     {
         // Arrange
         var customTags = new[] { "custom", "tags", "test" };
         var healthCheck = CreateHealthCheckWithCustomTags(customTags);
 
         // Assert
-        healthCheck.Tags.Should().Contain("custom");
-        healthCheck.Tags.Should().Contain("tags");
-        healthCheck.Tags.Should().Contain("test");
+        healthCheck.Tags.ShouldContain("encina");
+        foreach (var tag in customTags)
+        {
+            healthCheck.Tags.ShouldContain(tag);
+        }
     }
 
     #endregion
@@ -87,7 +89,7 @@ public abstract class IEncinaHealthCheckContractTests
     #region CheckHealthAsync Contract
 
     [Fact]
-    public async Task CheckHealthAsync_ShouldReturnResult()
+    public async Task CheckHealthAsync_ShouldReturnValidResult()
     {
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -96,7 +98,8 @@ public abstract class IEncinaHealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Should().NotBeNull();
+        result.Status.ShouldBeOneOf(HealthStatus.Healthy, HealthStatus.Unhealthy, HealthStatus.Degraded);
+        result.Description.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -109,21 +112,22 @@ public abstract class IEncinaHealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().BeOneOf(HealthStatus.Healthy, HealthStatus.Unhealthy, HealthStatus.Degraded);
+        result.Status.ShouldBeOneOf(HealthStatus.Healthy, HealthStatus.Unhealthy, HealthStatus.Degraded);
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WithCancellationToken_ShouldRespectCancellation()
+    public async Task CheckHealthAsync_WithCancelledToken_ShouldThrowOperationCanceledException()
     {
         // Arrange
         var healthCheck = CreateHealthCheck();
         using var cts = new CancellationTokenSource();
+        cts.Cancel();
 
-        // Act - Should not throw when token is not cancelled
-        var result = await healthCheck.CheckHealthAsync(cts.Token);
+        // Act
+        Func<Task> act = () => healthCheck.CheckHealthAsync(cts.Token);
 
         // Assert
-        result.Should().NotBeNull();
+        await Should.ThrowAsync<OperationCanceledException>(act);
     }
 
     [Fact]
@@ -137,10 +141,9 @@ public abstract class IEncinaHealthCheckContractTests
         var result2 = await healthCheck.CheckHealthAsync();
         var result3 = await healthCheck.CheckHealthAsync();
 
-        // Assert - All calls should succeed and return consistent status type
-        result1.Status.Should().BeOneOf(HealthStatus.Healthy, HealthStatus.Unhealthy, HealthStatus.Degraded);
-        result2.Status.Should().BeOneOf(HealthStatus.Healthy, HealthStatus.Unhealthy, HealthStatus.Degraded);
-        result3.Status.Should().BeOneOf(HealthStatus.Healthy, HealthStatus.Unhealthy, HealthStatus.Degraded);
+        // Assert - All calls should return the same status
+        result2.Status.ShouldBe(result1.Status, "Second call should return the same status as first call");
+        result3.Status.ShouldBe(result1.Status, "Third call should return the same status as first call");
     }
 
     #endregion
@@ -176,7 +179,7 @@ public sealed class MockHealthyHealthCheckContractTests : IEncinaHealthCheckCont
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 }
 
@@ -210,7 +213,7 @@ public sealed class MockUnhealthyHealthCheckContractTests : IEncinaHealthCheckCo
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 }
 

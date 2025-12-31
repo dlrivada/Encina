@@ -1,5 +1,5 @@
 using Encina.AzureFunctions.Durable;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AzureFunctions.Tests.Durable;
@@ -13,7 +13,7 @@ public class DurableSagaBuilderTests
         var builder = DurableSagaBuilder.Create<TestSagaData>();
 
         // Assert
-        builder.Should().NotBeNull();
+        builder.ShouldNotBeNull();
     }
 
     [Fact]
@@ -26,10 +26,10 @@ public class DurableSagaBuilderTests
             .Build();
 
         // Assert
-        saga.Steps.Should().HaveCount(1);
-        saga.Steps[0].StepName.Should().Be("Step1");
-        saga.Steps[0].ExecuteActivityName.Should().Be("ExecuteStep1");
-        saga.Steps[0].CompensateActivityName.Should().BeNull();
+        saga.Steps.Count.ShouldBe(1);
+        saga.Steps[0].StepName.ShouldBe("Step1");
+        saga.Steps[0].ExecuteActivityName.ShouldBe("ExecuteStep1");
+        saga.Steps[0].CompensateActivityName.ShouldBeNull();
     }
 
     [Fact]
@@ -48,10 +48,10 @@ public class DurableSagaBuilderTests
             .Build();
 
         // Assert
-        saga.Steps.Should().HaveCount(3);
-        saga.Steps[0].StepName.Should().Be("Step1");
-        saga.Steps[1].StepName.Should().Be("Step2");
-        saga.Steps[2].StepName.Should().Be("Step3");
+        saga.Steps.Count.ShouldBe(3);
+        saga.Steps[0].StepName.ShouldBe("Step1");
+        saga.Steps[1].StepName.ShouldBe("Step2");
+        saga.Steps[2].StepName.ShouldBe("Step3");
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class DurableSagaBuilderTests
             .Build();
 
         // Assert
-        saga.Steps[0].CompensateActivityName.Should().Be("UndoSomething");
+        saga.Steps[0].CompensateActivityName.ShouldBe("UndoSomething");
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class DurableSagaBuilderTests
             .Build();
 
         // Assert
-        saga.Steps[0].RetryOptions.Should().NotBeNull();
+        saga.Steps[0].RetryOptions.ShouldNotBeNull();
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class DurableSagaBuilderTests
             .Build();
 
         // Assert
-        saga.Steps[0].SkipCompensationOnFailure.Should().BeTrue();
+        saga.Steps[0].SkipCompensationOnFailure.ShouldBeTrue();
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class DurableSagaBuilderTests
             .Build();
 
         // Assert - default options are applied to steps without explicit retry at build time
-        saga.Steps[0].RetryOptions.Should().NotBeNull();
+        saga.Steps[0].RetryOptions.ShouldNotBeNull();
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class DurableSagaBuilderTests
             .Build();
 
         // Assert
-        saga.Should().NotBeNull();
+        saga.ShouldNotBeNull();
     }
 
     [Fact]
@@ -143,8 +143,8 @@ public class DurableSagaBuilderTests
 
         // Act & Assert
         var action = () => builder.Build();
-        action.Should().Throw<InvalidOperationException>()
-            .WithMessage("*at least one step*");
+        var ex = Should.Throw<InvalidOperationException>(action);
+        ex.Message.ShouldContain("at least one step");
     }
 
     [Fact]
@@ -156,8 +156,8 @@ public class DurableSagaBuilderTests
             .Build();
 
         // Assert
-        action.Should().Throw<InvalidOperationException>()
-            .WithMessage("*must have an Execute activity*");
+        var ex = Should.Throw<InvalidOperationException>(action);
+        ex.Message.ShouldContain("must have an Execute activity");
     }
 
     [Fact]
@@ -167,7 +167,8 @@ public class DurableSagaBuilderTests
         var action = () => DurableSagaBuilder.Create<TestSagaData>()
             .Step(string.Empty);
 
-        action.Should().Throw<ArgumentException>();
+        var ex = Should.Throw<ArgumentException>(action);
+        ex.ParamName.ShouldBe("stepName");
     }
 
     [Fact]
@@ -178,7 +179,8 @@ public class DurableSagaBuilderTests
             .Step("Step1")
             .Execute(string.Empty);
 
-        action.Should().Throw<ArgumentException>();
+        var ex = Should.Throw<ArgumentException>(action);
+        ex.ParamName.ShouldBe("activityName");
     }
 
     [Fact]
@@ -190,7 +192,8 @@ public class DurableSagaBuilderTests
             .Execute("Execute1")
             .Compensate(string.Empty);
 
-        action.Should().Throw<ArgumentException>();
+        var ex = Should.Throw<ArgumentException>(action);
+        ex.ParamName.ShouldBe("activityName");
     }
 
     [Fact]
@@ -200,7 +203,8 @@ public class DurableSagaBuilderTests
         var action = () => DurableSagaBuilder.Create<TestSagaData>()
             .WithTimeout(TimeSpan.FromSeconds(-1));
 
-        action.Should().Throw<ArgumentOutOfRangeException>();
+        var ex = Should.Throw<ArgumentOutOfRangeException>(action);
+        ex.ParamName.ShouldBe("timeout");
     }
 
     [Fact]
@@ -223,17 +227,17 @@ public class DurableSagaBuilderTests
             .Build();
 
         // Assert
-        saga.Steps.Should().HaveCount(3);
+        saga.Steps.Count.ShouldBe(3);
 
-        saga.Steps[0].StepName.Should().Be("ReserveInventory");
-        saga.Steps[0].ExecuteActivityName.Should().Be("ReserveInventoryActivity");
-        saga.Steps[0].CompensateActivityName.Should().Be("ReleaseInventoryActivity");
+        saga.Steps[0].StepName.ShouldBe("ReserveInventory");
+        saga.Steps[0].ExecuteActivityName.ShouldBe("ReserveInventoryActivity");
+        saga.Steps[0].CompensateActivityName.ShouldBe("ReleaseInventoryActivity");
 
-        saga.Steps[1].StepName.Should().Be("ProcessPayment");
-        saga.Steps[1].RetryOptions.Should().NotBeNull();
+        saga.Steps[1].StepName.ShouldBe("ProcessPayment");
+        saga.Steps[1].RetryOptions.ShouldNotBeNull();
 
-        saga.Steps[2].StepName.Should().Be("ShipOrder");
-        saga.Steps[2].SkipCompensationOnFailure.Should().BeTrue();
+        saga.Steps[2].StepName.ShouldBe("ShipOrder");
+        saga.Steps[2].SkipCompensationOnFailure.ShouldBeTrue();
     }
 
     private sealed class TestSagaData

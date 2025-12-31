@@ -42,7 +42,7 @@ public class BulkheadPipelineBehaviorTests
         // Assert
         result.ShouldBeSuccess();
         _ = result.Match(
-            Right: value => value.Should().Be(expectedResponse),
+            Right: value => value.ShouldBe(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
         );
     }
@@ -93,7 +93,7 @@ public class BulkheadPipelineBehaviorTests
         // Assert
         result.ShouldBeSuccess();
         _ = result.Match(
-            Right: value => value.Should().Be(expectedResponse),
+            Right: value => value.ShouldBe(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
         );
     }
@@ -167,7 +167,7 @@ public class BulkheadPipelineBehaviorTests
         result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should be Left"),
-            Left: error => error.Message.Should().Contain("Bulkhead full")
+            Left: error => error.Message.ShouldContain("Bulkhead full")
         );
     }
 
@@ -191,7 +191,7 @@ public class BulkheadPipelineBehaviorTests
         await _behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        nextCalled.Should().BeFalse("next step should not be called when bulkhead is full");
+        nextCalled.ShouldBeFalse("next step should not be called when bulkhead is full");
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public class BulkheadPipelineBehaviorTests
         result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should be Left"),
-            Left: error => error.Message.Should().Contain("queue timeout")
+            Left: error => error.Message.ShouldContain("queue timeout")
         );
     }
 
@@ -234,7 +234,7 @@ public class BulkheadPipelineBehaviorTests
         result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should be Left"),
-            Left: error => error.Message.Should().Contain("cancelled")
+            Left: error => error.Message.ShouldContain("cancelled")
         );
     }
 
@@ -262,10 +262,10 @@ public class BulkheadPipelineBehaviorTests
             Right: _ => throw new InvalidOperationException("Should be Left"),
             Left: error =>
             {
-                error.Message.Should().Contain("10/10"); // Concurrent
-                error.Message.Should().Contain("20/20"); // Queued
+                error.Message.ShouldContain("10/10"); // Concurrent
+                error.Message.ShouldContain("20/20"); // Queued
                 // Check for rejection rate (locale-independent: matches both "33.3" and "33,3")
-                error.Message.Should().MatchRegex(@"33[.,]3"); // Rejection rate (50/(100+50))
+                error.Message.ShouldMatch(@"33[.,]3"); // Rejection rate (50/(100+50))
                 return Unit.Default;
             }
         );
@@ -308,7 +308,7 @@ public class BulkheadPipelineBehaviorTests
         await Task.WhenAll(tasks);
 
         // Assert - At most 2 should have been concurrent
-        maxConcurrent.Should().BeLessThanOrEqualTo(2);
+        maxConcurrent.ShouldBeLessThanOrEqualTo(2);
     }
 
     #endregion

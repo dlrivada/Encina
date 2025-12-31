@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using LanguageExt;
 using Encina.Dapper.SqlServer;
 
@@ -25,8 +25,8 @@ public sealed class TransactionPipelineBehaviorGuardTests
         var act = () => new TransactionPipelineBehavior<TestRequest, string>(connection);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connection");
     }
 
     /// <summary>
@@ -42,11 +42,11 @@ public sealed class TransactionPipelineBehaviorGuardTests
         RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<EncinaError, string>>("result");
 
         // Act
-        var act = async () => await behavior.Handle(null!, context, next, CancellationToken.None);
+        var act = () => behavior.Handle(null!, context, next, CancellationToken.None).AsTask();
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        ex.ParamName.ShouldBe("request");
     }
 
     /// <summary>
@@ -62,11 +62,11 @@ public sealed class TransactionPipelineBehaviorGuardTests
         RequestHandlerCallback<string> next = () => ValueTask.FromResult<Either<EncinaError, string>>("result");
 
         // Act
-        var act = async () => await behavior.Handle(request, null!, next, CancellationToken.None);
+        var act = () => behavior.Handle(request, null!, next, CancellationToken.None).AsTask();
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        ex.ParamName.ShouldBe("context");
     }
 
     /// <summary>
@@ -82,10 +82,10 @@ public sealed class TransactionPipelineBehaviorGuardTests
         var context = Substitute.For<IRequestContext>();
 
         // Act
-        var act = async () => await behavior.Handle(request, context, null!, CancellationToken.None);
+        var act = () => behavior.Handle(request, context, null!, CancellationToken.None).AsTask();
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("next");
+        ex.ParamName.ShouldBe("next");
     }
 }

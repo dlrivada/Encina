@@ -51,7 +51,7 @@ public class SqlServerDistributedLockIntegrationTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        lockHandle.Should().NotBeNull();
+        lockHandle.ShouldNotBeNull();
         await lockHandle!.DisposeAsync();
     }
 
@@ -77,8 +77,8 @@ public class SqlServerDistributedLockIntegrationTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        firstLock.Should().NotBeNull();
-        secondLock.Should().BeNull();
+        firstLock.ShouldNotBeNull();
+        secondLock.ShouldBeNull();
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class SqlServerDistributedLockIntegrationTests : IAsyncLifetime
         var isLocked = await _provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeTrue();
+        isLocked.ShouldBeTrue();
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class SqlServerDistributedLockIntegrationTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        secondLock.Should().NotBeNull();
+        secondLock.ShouldNotBeNull();
         await secondLock!.DisposeAsync();
     }
 
@@ -150,7 +150,7 @@ public class SqlServerDistributedLockIntegrationTests : IAsyncLifetime
 
         // Assert
         var successCount = results.Count(r => r is not null);
-        successCount.Should().Be(1);
+        successCount.ShouldBe(1);
 
         // Clean up
         foreach (var result in results.Where(r => r is not null))

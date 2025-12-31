@@ -1,9 +1,7 @@
-﻿using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Polly.Registry;
 using Polly.Timeout;
-using Shouldly;
 using Encina.Extensions.Resilience;
 using Xunit;
 
@@ -26,7 +24,7 @@ public class StandardResiliencePipelineBehaviorContractTests
             .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>));
 
         // Assert
-        implementsInterface.Should().BeTrue("StandardResiliencePipelineBehavior must implement IPipelineBehavior");
+        implementsInterface.ShouldBeTrue("StandardResiliencePipelineBehavior must implement IPipelineBehavior");
     }
 
     [Fact]
@@ -37,8 +35,8 @@ public class StandardResiliencePipelineBehaviorContractTests
         var handleMethod = behaviorType.GetMethod("Handle");
 
         // Assert
-        handleMethod.Should().NotBeNull();
-        handleMethod!.ReturnType.Should().BeAssignableTo<ValueTask<Either<EncinaError, TestResponse>>>();
+        handleMethod.ShouldNotBeNull();
+        handleMethod!.ReturnType.ShouldBeAssignableTo<ValueTask<Either<EncinaError, TestResponse>>>();
     }
 
     [Fact]
@@ -53,7 +51,7 @@ public class StandardResiliencePipelineBehaviorContractTests
         var hasCancellationToken = parameters.Any(p => p.ParameterType == typeof(CancellationToken));
 
         // Assert
-        hasCancellationToken.Should().BeTrue("Handle method must accept CancellationToken");
+        hasCancellationToken.ShouldBeTrue("Handle method must accept CancellationToken");
     }
 
     [Fact]
@@ -64,9 +62,9 @@ public class StandardResiliencePipelineBehaviorContractTests
         var handleMethod = behaviorType.GetMethod("Handle");
 
         // Assert
-        handleMethod.Should().NotBeNull();
-        handleMethod!.ReturnType.IsGenericType.Should().BeTrue();
-        handleMethod.ReturnType.GetGenericTypeDefinition().Should().Be(typeof(ValueTask<>));
+        handleMethod.ShouldNotBeNull();
+        handleMethod!.ReturnType.IsGenericType.ShouldBeTrue();
+        handleMethod.ReturnType.GetGenericTypeDefinition().ShouldBe(typeof(ValueTask<>));
     }
 
     [Fact]
@@ -81,7 +79,7 @@ public class StandardResiliencePipelineBehaviorContractTests
         var hasPipelineProvider = parameters.Any(p => p.ParameterType == typeof(ResiliencePipelineProvider<string>));
 
         // Assert
-        hasPipelineProvider.Should().BeTrue("Constructor must accept ResiliencePipelineProvider<string>");
+        hasPipelineProvider.ShouldBeTrue("Constructor must accept ResiliencePipelineProvider<string>");
     }
 
     [Fact]
@@ -98,7 +96,7 @@ public class StandardResiliencePipelineBehaviorContractTests
             p.ParameterType.GetGenericTypeDefinition() == typeof(ILogger<>));
 
         // Assert
-        hasLogger.Should().BeTrue("Constructor must accept ILogger<T>");
+        hasLogger.ShouldBeTrue("Constructor must accept ILogger<T>");
     }
 
     [Fact]
@@ -108,7 +106,7 @@ public class StandardResiliencePipelineBehaviorContractTests
         var behaviorType = typeof(StandardResiliencePipelineBehavior<,>);
 
         // Assert
-        behaviorType.IsSealed.Should().BeTrue("StandardResiliencePipelineBehavior should be sealed");
+        behaviorType.IsSealed.ShouldBeTrue("StandardResiliencePipelineBehavior should be sealed");
     }
 
     [Fact]
@@ -123,12 +121,12 @@ public class StandardResiliencePipelineBehaviorContractTests
         var responseArgument = genericArguments[1];
 
         // Assert
-        requestArgument.Name.Should().Be("TRequest");
-        responseArgument.Name.Should().Be("TResponse");
+        requestArgument.Name.ShouldBe("TRequest");
+        responseArgument.Name.ShouldBe("TResponse");
 
         // TRequest must implement IRequest<TResponse>
         var constraints = requestArgument.GetGenericParameterConstraints();
-        constraints.Should().ContainSingle(c =>
+        constraints.ShouldContain(c =>
             c.IsGenericType &&
             c.GetGenericTypeDefinition() == typeof(IRequest<>));
     }
@@ -154,7 +152,7 @@ public class StandardResiliencePipelineBehaviorContractTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.Should().BeAssignableTo<Either<EncinaError, TestResponse>>();
+        result.ShouldBeAssignableTo<Either<EncinaError, TestResponse>>();
     }
 
     // Test helper classes

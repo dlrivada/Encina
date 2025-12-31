@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Encina.ADO.PostgreSQL.Outbox;
 using Encina.Messaging.Outbox;
 
@@ -21,7 +21,8 @@ public class OutboxStoreADOGuardsTests
 
         // Act & Assert
         var act = () => new OutboxStoreADO(connection, tableName);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connection");
     }
 
     /// <summary>
@@ -36,8 +37,9 @@ public class OutboxStoreADOGuardsTests
         IOutboxMessage message = null!;
 
         // Act & Assert
-        var act = async () => await store.AddAsync(message);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("message");
+        var act = () => store.AddAsync(message);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("message");
     }
 
     /// <summary>
@@ -53,8 +55,9 @@ public class OutboxStoreADOGuardsTests
         string errorMessage = null!;
 
         // Act & Assert
-        var act = async () => await store.MarkAsFailedAsync(messageId, errorMessage, null);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("errorMessage");
+        var act = () => store.MarkAsFailedAsync(messageId, errorMessage, null);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("errorMessage");
     }
 
     /// <summary>
@@ -70,8 +73,9 @@ public class OutboxStoreADOGuardsTests
         var maxRetries = 3;
 
         // Act & Assert
-        var act = async () => await store.GetPendingMessagesAsync(batchSize, maxRetries);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("batchSize");
+        var act = () => store.GetPendingMessagesAsync(batchSize, maxRetries);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("batchSize");
     }
 
     /// <summary>
@@ -87,8 +91,9 @@ public class OutboxStoreADOGuardsTests
         var maxRetries = 3;
 
         // Act & Assert
-        var act = async () => await store.GetPendingMessagesAsync(batchSize, maxRetries);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("batchSize");
+        var act = () => store.GetPendingMessagesAsync(batchSize, maxRetries);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("batchSize");
     }
 
     /// <summary>
@@ -104,7 +109,8 @@ public class OutboxStoreADOGuardsTests
         var maxRetries = -1;
 
         // Act & Assert
-        var act = async () => await store.GetPendingMessagesAsync(batchSize, maxRetries);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("maxRetries");
+        var act = () => store.GetPendingMessagesAsync(batchSize, maxRetries);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("maxRetries");
     }
 }

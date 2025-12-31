@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Encina.ADO.MySQL.Outbox;
 using Encina.Messaging.Outbox;
@@ -23,7 +23,8 @@ public class OutboxProcessorGuardsTests
 
         // Act & Assert
         var act = () => new OutboxProcessor(serviceProvider, logger, options);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("serviceProvider");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("serviceProvider");
     }
 
     /// <summary>
@@ -39,7 +40,8 @@ public class OutboxProcessorGuardsTests
 
         // Act & Assert
         var act = () => new OutboxProcessor(serviceProvider, logger, options);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     /// <summary>
@@ -55,6 +57,7 @@ public class OutboxProcessorGuardsTests
 
         // Act & Assert
         var act = () => new OutboxProcessor(serviceProvider, logger, options);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 }

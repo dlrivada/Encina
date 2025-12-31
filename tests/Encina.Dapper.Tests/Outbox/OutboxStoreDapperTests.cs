@@ -1,8 +1,9 @@
-﻿using Dapper;
+using Dapper;
 using Encina.Dapper.Sqlite.Outbox;
 
 namespace Encina.Dapper.Tests.Outbox;
 
+[Trait("Category", "Integration")]
 public class OutboxStoreDapperTests : IDisposable
 {
     private readonly SqliteTestHelper _dbHelper;
@@ -35,8 +36,8 @@ public class OutboxStoreDapperTests : IDisposable
         var stored = await _dbHelper.Connection.QuerySingleOrDefaultAsync<OutboxMessage>(
             "SELECT * FROM OutboxMessages WHERE Id = @Id",
             new { message.Id });
-        stored.Should().NotBeNull();
-        stored!.NotificationType.Should().Be("TestNotification");
+        stored.ShouldNotBeNull();
+        stored!.NotificationType.ShouldBe("TestNotification");
     }
 
     [Fact]
@@ -79,10 +80,10 @@ public class OutboxStoreDapperTests : IDisposable
         var messages = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Should().HaveCount(2);
-        messages.Should().Contain(m => m.Id == pending1.Id);
-        messages.Should().Contain(m => m.Id == pending2.Id);
-        messages.Should().NotContain(m => m.Id == processed.Id);
+        messages.Count.ShouldBe(2);
+        messages.ShouldContain(m => m.Id == pending1.Id);
+        messages.ShouldContain(m => m.Id == pending2.Id);
+        messages.ShouldNotContain(m => m.Id == processed.Id);
     }
 
     [Fact]
@@ -105,7 +106,7 @@ public class OutboxStoreDapperTests : IDisposable
         var messages = await _store.GetPendingMessagesAsync(batchSize: 5, maxRetries: 3);
 
         // Assert
-        messages.Should().HaveCount(5);
+        messages.Count.ShouldBe(5);
     }
 
     [Fact]
@@ -127,7 +128,7 @@ public class OutboxStoreDapperTests : IDisposable
         var messages = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Should().BeEmpty();
+        messages.ShouldBeEmpty();
     }
 
     [Fact]
@@ -152,8 +153,8 @@ public class OutboxStoreDapperTests : IDisposable
         var updated = await _dbHelper.Connection.QuerySingleAsync<OutboxMessage>(
             "SELECT * FROM OutboxMessages WHERE Id = @Id",
             new { message.Id });
-        updated.ProcessedAtUtc.Should().NotBeNull();
-        updated.ErrorMessage.Should().BeNull();
+        updated.ProcessedAtUtc.ShouldNotBeNull();
+        updated.ErrorMessage.ShouldBeNull();
     }
 
     [Fact]
@@ -180,9 +181,9 @@ public class OutboxStoreDapperTests : IDisposable
         var updated = await _dbHelper.Connection.QuerySingleAsync<OutboxMessage>(
             "SELECT * FROM OutboxMessages WHERE Id = @Id",
             new { message.Id });
-        updated.ErrorMessage.Should().Be("Test error");
-        updated.RetryCount.Should().Be(1);
-        updated.NextRetryAtUtc.Should().BeCloseTo(nextRetry, TimeSpan.FromSeconds(1));
+        updated.ErrorMessage.ShouldBe("Test error");
+        updated.RetryCount.ShouldBe(1);
+        updated.NextRetryAtUtc.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
     [Fact]
@@ -214,8 +215,8 @@ public class OutboxStoreDapperTests : IDisposable
         var messages = (await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3)).ToList();
 
         // Assert
-        messages[0].Id.Should().Be(older.Id);
-        messages[1].Id.Should().Be(newer.Id);
+        messages[0].Id.ShouldBe(older.Id);
+        messages[1].Id.ShouldBe(newer.Id);
     }
 
     [Fact]
@@ -240,7 +241,7 @@ public class OutboxStoreDapperTests : IDisposable
             new { message.Id });
 
         // Assert
-        updated.IsProcessed.Should().BeTrue();
+        updated.IsProcessed.ShouldBeTrue();
     }
 
     public void Dispose()

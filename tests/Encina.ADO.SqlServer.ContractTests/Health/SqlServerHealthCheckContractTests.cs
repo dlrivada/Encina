@@ -35,21 +35,21 @@ public sealed class SqlServerHealthCheckContractTests : IEncinaHealthCheckContra
     [Fact]
     public void DefaultName_ShouldBeEncinaAdoSqlserver()
     {
-        SqlServerHealthCheck.DefaultName.Should().Be("encina-ado-sqlserver");
+        SqlServerHealthCheck.DefaultName.ShouldBe("encina-ado-sqlserver");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainDatabaseTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("database");
+        healthCheck.Tags.ShouldContain("database");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainSqlserverTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("sqlserver");
+        healthCheck.Tags.ShouldContain("sqlserver");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

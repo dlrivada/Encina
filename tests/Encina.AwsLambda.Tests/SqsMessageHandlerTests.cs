@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 using Amazon.Lambda.SQSEvents;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -32,7 +32,7 @@ public class SqsMessageHandlerTests
             _logger);
 
         // Assert
-        result.BatchItemFailures.Should().BeEmpty();
+        result.BatchItemFailures.ShouldBeEmpty();
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public class SqsMessageHandlerTests
             _logger);
 
         // Assert
-        result.BatchItemFailures.Should().ContainSingle()
-            .Which.ItemIdentifier.Should().Be("msg-2");
+        var failure = result.BatchItemFailures.ShouldHaveSingleItem();
+        failure.ItemIdentifier.ShouldBe("msg-2");
     }
 
     [Fact]
@@ -76,8 +76,8 @@ public class SqsMessageHandlerTests
             _logger);
 
         // Assert
-        result.BatchItemFailures.Should().ContainSingle()
-            .Which.ItemIdentifier.Should().Be("msg-1");
+        var failure = result.BatchItemFailures.ShouldHaveSingleItem();
+        failure.ItemIdentifier.ShouldBe("msg-1");
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class SqsMessageHandlerTests
             _logger);
 
         // Assert
-        result.BatchItemFailures.Should().BeEmpty();
+        result.BatchItemFailures.ShouldBeEmpty();
     }
 
     [Fact]
@@ -110,8 +110,8 @@ public class SqsMessageHandlerTests
             _logger);
 
         // Assert
-        result.BatchItemFailures.Should().ContainSingle()
-            .Which.ItemIdentifier.Should().Be("msg-1");
+        var failure = result.BatchItemFailures.ShouldHaveSingleItem();
+        failure.ItemIdentifier.ShouldBe("msg-1");
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class SqsMessageHandlerTests
             _ => Task.FromResult(Either<EncinaError, int>.Right(1)));
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -151,8 +151,8 @@ public class SqsMessageHandlerTests
             });
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        processedCount.Should().Be(1); // Should stop after first failure
+        result.IsLeft.ShouldBeTrue();
+        processedCount.ShouldBe(1); // Should stop after first failure
     }
 
     [Fact]
@@ -165,8 +165,8 @@ public class SqsMessageHandlerTests
         var result = SqsMessageHandler.DeserializeMessage<TestMessage>(record);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(msg => msg.Value.Should().Be(42));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(msg => msg.Value.ShouldBe(42));
     }
 
     [Fact]
@@ -179,8 +179,8 @@ public class SqsMessageHandlerTests
         var result = SqsMessageHandler.DeserializeMessage<TestMessage>(record);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(error => error.GetCode().IfSome(code => code.Should().Be("sqs.deserialization_failed")));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfSome(code => code.ShouldBe("sqs.deserialization_failed")));
     }
 
     [Fact]
@@ -190,21 +190,21 @@ public class SqsMessageHandlerTests
         var action = () => SqsMessageHandler.DeserializeMessage<TestMessage>(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("record");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("record");
     }
 
     [Fact]
     public async Task ProcessBatchAsync_WithNullEvent_ThrowsArgumentNullException()
     {
         // Act
-        var action = () => SqsMessageHandler.ProcessBatchAsync<int>(
+        Func<Task> action = () => SqsMessageHandler.ProcessBatchAsync<int>(
             null!,
             _ => Task.FromResult(Either<EncinaError, int>.Right(1)));
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("sqsEvent");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("sqsEvent");
     }
 
     [Fact]
@@ -214,13 +214,13 @@ public class SqsMessageHandlerTests
         var sqsEvent = CreateSqsEvent();
 
         // Act
-        var action = () => SqsMessageHandler.ProcessBatchAsync<int>(
+        Func<Task> action = () => SqsMessageHandler.ProcessBatchAsync<int>(
             sqsEvent,
             null!);
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("processMessage");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("processMessage");
     }
 
     private static SQSEvent CreateSqsEvent(params SQSEvent.SQSMessage[] messages)

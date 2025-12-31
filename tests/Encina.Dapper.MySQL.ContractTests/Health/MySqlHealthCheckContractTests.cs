@@ -35,21 +35,21 @@ public sealed class MySqlHealthCheckContractTests : IEncinaHealthCheckContractTe
     [Fact]
     public void DefaultName_ShouldBeEncinaMysql()
     {
-        MySqlHealthCheck.DefaultName.Should().Be("encina-mysql");
+        MySqlHealthCheck.DefaultName.ShouldBe("encina-mysql");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainDatabaseTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("database");
+        healthCheck.Tags.ShouldContain("database");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainMysqlTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("mysql");
+        healthCheck.Tags.ShouldContain("mysql");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

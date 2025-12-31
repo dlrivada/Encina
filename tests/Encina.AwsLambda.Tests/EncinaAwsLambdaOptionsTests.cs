@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AwsLambda.Tests;
@@ -12,15 +12,15 @@ public class EncinaAwsLambdaOptionsTests
         var options = new EncinaAwsLambdaOptions();
 
         // Assert
-        options.EnableRequestContextEnrichment.Should().BeTrue();
-        options.CorrelationIdHeader.Should().Be("X-Correlation-ID");
-        options.TenantIdHeader.Should().Be("X-Tenant-ID");
-        options.UserIdClaimType.Should().Be("sub");
-        options.TenantIdClaimType.Should().Be("tenant_id");
-        options.IncludeExceptionDetailsInResponse.Should().BeFalse();
-        options.UseApiGatewayV2Format.Should().BeFalse();
-        options.EnableSqsBatchItemFailures.Should().BeTrue();
-        options.ProviderHealthCheck.Should().NotBeNull();
+        options.EnableRequestContextEnrichment.ShouldBeTrue();
+        options.CorrelationIdHeader.ShouldBe("X-Correlation-ID");
+        options.TenantIdHeader.ShouldBe("X-Tenant-ID");
+        options.UserIdClaimType.ShouldBe("sub");
+        options.TenantIdClaimType.ShouldBe("tenant_id");
+        options.IncludeExceptionDetailsInResponse.ShouldBeFalse();
+        options.UseApiGatewayV2Format.ShouldBeFalse();
+        options.EnableSqsBatchItemFailures.ShouldBeTrue();
+        options.ProviderHealthCheck.ShouldNotBeNull();
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class EncinaAwsLambdaOptionsTests
         options.EnableRequestContextEnrichment = false;
 
         // Assert
-        options.EnableRequestContextEnrichment.Should().BeFalse();
+        options.EnableRequestContextEnrichment.ShouldBeFalse();
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public class EncinaAwsLambdaOptionsTests
         options.CorrelationIdHeader = "X-Request-ID";
 
         // Assert
-        options.CorrelationIdHeader.Should().Be("X-Request-ID");
+        options.CorrelationIdHeader.ShouldBe("X-Request-ID");
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class EncinaAwsLambdaOptionsTests
         options.TenantIdHeader = "X-Organization-ID";
 
         // Assert
-        options.TenantIdHeader.Should().Be("X-Organization-ID");
+        options.TenantIdHeader.ShouldBe("X-Organization-ID");
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class EncinaAwsLambdaOptionsTests
         options.UserIdClaimType = "user_id";
 
         // Assert
-        options.UserIdClaimType.Should().Be("user_id");
+        options.UserIdClaimType.ShouldBe("user_id");
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public class EncinaAwsLambdaOptionsTests
         options.TenantIdClaimType = "org_id";
 
         // Assert
-        options.TenantIdClaimType.Should().Be("org_id");
+        options.TenantIdClaimType.ShouldBe("org_id");
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class EncinaAwsLambdaOptionsTests
         options.IncludeExceptionDetailsInResponse = true;
 
         // Assert
-        options.IncludeExceptionDetailsInResponse.Should().BeTrue();
+        options.IncludeExceptionDetailsInResponse.ShouldBeTrue();
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class EncinaAwsLambdaOptionsTests
         options.UseApiGatewayV2Format = true;
 
         // Assert
-        options.UseApiGatewayV2Format.Should().BeTrue();
+        options.UseApiGatewayV2Format.ShouldBeTrue();
     }
 
     [Fact]
@@ -124,6 +124,6 @@ public class EncinaAwsLambdaOptionsTests
         options.EnableSqsBatchItemFailures = false;
 
         // Assert
-        options.EnableSqsBatchItemFailures.Should().BeFalse();
+        options.EnableSqsBatchItemFailures.ShouldBeFalse();
     }
 }

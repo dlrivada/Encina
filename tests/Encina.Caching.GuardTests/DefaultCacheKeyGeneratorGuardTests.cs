@@ -1,4 +1,4 @@
-﻿namespace Encina.Caching.GuardTests;
+namespace Encina.Caching.GuardTests;
 
 /// <summary>
 /// Guard tests for <see cref="DefaultCacheKeyGenerator"/> to verify null parameter handling.
@@ -16,7 +16,8 @@ public class DefaultCacheKeyGeneratorGuardTests
 
         // Act & Assert
         var act = () => new DefaultCacheKeyGenerator(options);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     /// <summary>
@@ -33,7 +34,8 @@ public class DefaultCacheKeyGeneratorGuardTests
 
         // Act & Assert
         var act = () => generator.GenerateKey<TestQuery, string>(request, context);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("request");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("request");
     }
 
     /// <summary>
@@ -50,7 +52,8 @@ public class DefaultCacheKeyGeneratorGuardTests
 
         // Act & Assert
         var act = () => generator.GenerateKey<TestQuery, string>(request, context);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("context");
     }
 
     /// <summary>
@@ -66,7 +69,8 @@ public class DefaultCacheKeyGeneratorGuardTests
 
         // Act & Assert
         var act = () => generator.GeneratePattern<TestQuery>(context);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("context");
     }
 
     /// <summary>
@@ -84,7 +88,8 @@ public class DefaultCacheKeyGeneratorGuardTests
 
         // Act & Assert
         var act = () => generator.GeneratePatternFromTemplate(keyTemplate, request, context);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("keyTemplate");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("keyTemplate");
     }
 
     /// <summary>
@@ -102,7 +107,8 @@ public class DefaultCacheKeyGeneratorGuardTests
 
         // Act & Assert
         var act = () => generator.GeneratePatternFromTemplate(keyTemplate, request, context);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("context");
     }
 
     private static IRequestContext CreateContext()

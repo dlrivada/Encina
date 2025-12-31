@@ -1,5 +1,5 @@
 using Encina.Cli.Services;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.Cli.Tests.Services;
@@ -39,22 +39,22 @@ public class ProjectScaffolderTests : IDisposable
         var result = await ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        result.Success.Should().BeTrue();
-        result.GeneratedFiles.Should().HaveCountGreaterThanOrEqualTo(2);
+        result.Success.ShouldBeTrue();
+        result.GeneratedFiles.Count.ShouldBeGreaterThanOrEqualTo(2);
 
         var csprojFile = Path.Combine(outputDir, "MyApi.csproj");
         var programFile = Path.Combine(outputDir, "Program.cs");
 
-        File.Exists(csprojFile).Should().BeTrue();
-        File.Exists(programFile).Should().BeTrue();
+        File.Exists(csprojFile).ShouldBeTrue();
+        File.Exists(programFile).ShouldBeTrue();
 
         var csprojContent = await File.ReadAllTextAsync(csprojFile);
-        csprojContent.Should().Contain("Encina.AspNetCore");
-        csprojContent.Should().Contain("net10.0");
+        csprojContent.ShouldContain("Encina.AspNetCore");
+        csprojContent.ShouldContain("net10.0");
 
         var programContent = await File.ReadAllTextAsync(programFile);
-        programContent.Should().Contain("WebApplication");
-        programContent.Should().Contain("AddEncinaAspNetCore");
+        programContent.ShouldContain("WebApplication");
+        programContent.ShouldContain("AddEncinaAspNetCore");
     }
 
     [Fact]
@@ -73,19 +73,19 @@ public class ProjectScaffolderTests : IDisposable
         var result = await ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        result.Success.Should().BeTrue();
+        result.Success.ShouldBeTrue();
 
         var csprojFile = Path.Combine(outputDir, "MyWorker.csproj");
         var programFile = Path.Combine(outputDir, "Program.cs");
 
-        File.Exists(csprojFile).Should().BeTrue();
-        File.Exists(programFile).Should().BeTrue();
+        File.Exists(csprojFile).ShouldBeTrue();
+        File.Exists(programFile).ShouldBeTrue();
 
         var csprojContent = await File.ReadAllTextAsync(csprojFile);
-        csprojContent.Should().Contain("<OutputType>Exe</OutputType>");
+        csprojContent.ShouldContain("<OutputType>Exe</OutputType>");
 
         var programContent = await File.ReadAllTextAsync(programFile);
-        programContent.Should().Contain("Host.CreateApplicationBuilder");
+        programContent.ShouldContain("Host.CreateApplicationBuilder");
     }
 
     [Fact]
@@ -104,13 +104,13 @@ public class ProjectScaffolderTests : IDisposable
         var result = await ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        result.Success.Should().BeTrue();
+        result.Success.ShouldBeTrue();
 
         var programFile = Path.Combine(outputDir, "Program.cs");
         var programContent = await File.ReadAllTextAsync(programFile);
 
-        programContent.Should().Contain("ServiceCollection");
-        programContent.Should().Contain("BuildServiceProvider");
+        programContent.ShouldContain("ServiceCollection");
+        programContent.ShouldContain("BuildServiceProvider");
     }
 
     [Fact]
@@ -130,10 +130,10 @@ public class ProjectScaffolderTests : IDisposable
         var result = await ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        result.Success.Should().BeTrue();
+        result.Success.ShouldBeTrue();
 
         var csprojContent = await File.ReadAllTextAsync(Path.Combine(outputDir, "MyApp.csproj"));
-        csprojContent.Should().Contain("Encina.Dapper.SqlServer");
+        csprojContent.ShouldContain("Encina.Dapper.SqlServer");
     }
 
     [Fact]
@@ -153,11 +153,11 @@ public class ProjectScaffolderTests : IDisposable
         var result = await ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        result.Success.Should().BeTrue();
+        result.Success.ShouldBeTrue();
 
         var csprojContent = await File.ReadAllTextAsync(Path.Combine(outputDir, "MyApp.csproj"));
-        csprojContent.Should().Contain("Encina.Caching");
-        csprojContent.Should().Contain("Encina.Caching.Redis");
+        csprojContent.ShouldContain("Encina.Caching");
+        csprojContent.ShouldContain("Encina.Caching.Redis");
     }
 
     [Fact]
@@ -177,10 +177,10 @@ public class ProjectScaffolderTests : IDisposable
         var result = await ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        result.Success.Should().BeTrue();
+        result.Success.ShouldBeTrue();
 
         var csprojContent = await File.ReadAllTextAsync(Path.Combine(outputDir, "MyApp.csproj"));
-        csprojContent.Should().Contain("Encina.RabbitMQ");
+        csprojContent.ShouldContain("Encina.RabbitMQ");
     }
 
     [Fact]
@@ -198,9 +198,10 @@ public class ProjectScaffolderTests : IDisposable
         var result = await ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("Unknown template");
-        result.ErrorMessage.Should().Contain("api, worker, console");
+        result.Success.ShouldBeFalse();
+        result.ErrorMessage.ShouldNotBeNull();
+        result.ErrorMessage!.ShouldContain("Unknown template");
+        result.ErrorMessage!.ShouldContain("api, worker, console");
     }
 
     [Fact]
@@ -223,9 +224,10 @@ public class ProjectScaffolderTests : IDisposable
         var result = await ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("not empty");
-        result.ErrorMessage.Should().Contain("--force");
+        result.Success.ShouldBeFalse();
+        result.ErrorMessage.ShouldNotBeNull();
+        result.ErrorMessage!.ShouldContain("not empty");
+        result.ErrorMessage!.ShouldContain("--force");
     }
 
     [Fact]
@@ -248,15 +250,15 @@ public class ProjectScaffolderTests : IDisposable
         var result = await ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        result.Success.Should().BeTrue();
+        result.Success.ShouldBeTrue();
     }
 
     [Fact]
-    public void CreateProjectAsync_WithNullOptions_ThrowsArgumentNullException()
+    public async Task CreateProjectAsync_WithNullOptions_ThrowsArgumentNullException()
     {
         // Act & Assert
-        var act = async () => await ProjectScaffolder.CreateProjectAsync(null!);
-        act.Should().ThrowAsync<ArgumentNullException>();
+        Func<Task> act = () => ProjectScaffolder.CreateProjectAsync(null!);
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     [Theory]
@@ -273,7 +275,7 @@ public class ProjectScaffolderTests : IDisposable
         };
 
         // Act & Assert
-        var act = async () => await ProjectScaffolder.CreateProjectAsync(options);
-        await act.Should().ThrowAsync<ArgumentException>();
+        Func<Task> act = () => ProjectScaffolder.CreateProjectAsync(options);
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 }

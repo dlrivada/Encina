@@ -2,7 +2,7 @@ using Encina.AspNetCore.Health;
 using Encina.AspNetCore.Modules;
 using Encina.Messaging.Health;
 using Encina.Modules;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
@@ -36,9 +36,9 @@ public class ModuleHealthCheckTests
         var report = await healthCheckService.CheckHealthAsync();
 
         // Assert
-        report.Status.Should().Be(AspNetHealthStatus.Healthy);
-        report.Entries.Should().ContainKey("encina-modules");
-        report.Entries["encina-modules"].Status.Should().Be(AspNetHealthStatus.Healthy);
+        report.Status.ShouldBe(AspNetHealthStatus.Healthy);
+        report.Entries.ShouldContainKey("encina-modules");
+        report.Entries["encina-modules"].Status.ShouldBe(AspNetHealthStatus.Healthy);
     }
 
     [Fact]
@@ -65,9 +65,9 @@ public class ModuleHealthCheckTests
         var report = await healthCheckService.CheckHealthAsync();
 
         // Assert
-        report.Status.Should().Be(AspNetHealthStatus.Healthy);
-        report.Entries.Should().ContainKey("encina-modules");
-        report.Entries["encina-modules"].Status.Should().Be(AspNetHealthStatus.Healthy);
+        report.Status.ShouldBe(AspNetHealthStatus.Healthy);
+        report.Entries.ShouldContainKey("encina-modules");
+        report.Entries["encina-modules"].Status.ShouldBe(AspNetHealthStatus.Healthy);
     }
 
     [Fact]
@@ -94,8 +94,8 @@ public class ModuleHealthCheckTests
         var report = await healthCheckService.CheckHealthAsync();
 
         // Assert
-        report.Status.Should().Be(AspNetHealthStatus.Unhealthy);
-        report.Entries["encina-modules"].Status.Should().Be(AspNetHealthStatus.Unhealthy);
+        report.Status.ShouldBe(AspNetHealthStatus.Unhealthy);
+        report.Entries["encina-modules"].Status.ShouldBe(AspNetHealthStatus.Unhealthy);
     }
 
     [Fact]
@@ -122,8 +122,8 @@ public class ModuleHealthCheckTests
         var report = await healthCheckService.CheckHealthAsync();
 
         // Assert
-        report.Status.Should().Be(AspNetHealthStatus.Degraded);
-        report.Entries["encina-modules"].Status.Should().Be(AspNetHealthStatus.Degraded);
+        report.Status.ShouldBe(AspNetHealthStatus.Degraded);
+        report.Entries["encina-modules"].Status.ShouldBe(AspNetHealthStatus.Degraded);
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public class ModuleHealthCheckTests
         var report = await healthCheckService.CheckHealthAsync();
 
         // Assert
-        report.Status.Should().Be(AspNetHealthStatus.Healthy);
+        report.Status.ShouldBe(AspNetHealthStatus.Healthy);
     }
 
     [Fact]
@@ -170,9 +170,9 @@ public class ModuleHealthCheckTests
         var registration = healthCheckRegistrations.Registrations.First(r => r.Name == "encina-modules");
 
         // Assert
-        registration.Tags.Should().Contain("encina");
-        registration.Tags.Should().Contain("ready");
-        registration.Tags.Should().Contain("modules");
+        registration.Tags.ShouldContain("encina");
+        registration.Tags.ShouldContain("ready");
+        registration.Tags.ShouldContain("modules");
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public class ModuleHealthCheckTests
         var report = await healthCheckService.CheckHealthAsync();
 
         // Assert
-        report.Status.Should().Be(AspNetHealthStatus.Healthy);
+        report.Status.ShouldBe(AspNetHealthStatus.Healthy);
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public class ModuleHealthCheckTests
         var report = await healthCheckService.CheckHealthAsync();
 
         // Assert
-        report.Status.Should().Be(AspNetHealthStatus.Healthy);
+        report.Status.ShouldBe(AspNetHealthStatus.Healthy);
     }
 
     [Fact]
@@ -226,8 +226,8 @@ public class ModuleHealthCheckTests
         var act = () => builder!.AddEncinaModuleHealthChecks();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("builder");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("builder");
     }
 
     private sealed class TestModuleWithHealthChecks : IModuleWithHealthChecks

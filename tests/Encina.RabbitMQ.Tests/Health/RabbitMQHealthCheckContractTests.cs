@@ -3,6 +3,7 @@ using Encina.Messaging.Health;
 using Encina.RabbitMQ.Health;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.RabbitMQ.Tests.Health;
 
@@ -34,26 +35,25 @@ public sealed class RabbitMQHealthCheckContractTests : IEncinaHealthCheckContrac
     [Fact]
     public void DefaultName_ShouldBeEncinaRabbitmq()
     {
-        RabbitMQHealthCheck.DefaultName.Should().Be("encina-rabbitmq");
+        RabbitMQHealthCheck.DefaultName.ShouldBe("encina-rabbitmq");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainMessagingTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("messaging");
+        healthCheck.Tags.ShouldContain("messaging");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainRabbitmqTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("rabbitmq");
+        healthCheck.Tags.ShouldContain("rabbitmq");
     }
 
     private static IServiceProvider CreateMockServiceProvider()
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        return serviceProvider;
+        return Substitute.For<IServiceProvider>();
     }
 }

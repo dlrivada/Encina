@@ -34,21 +34,21 @@ public sealed class GrpcHealthCheckContractTests : IEncinaHealthCheckContractTes
     [Fact]
     public void DefaultName_ShouldBeEncinaGrpc()
     {
-        GrpcHealthCheck.DefaultName.Should().Be("encina-grpc");
+        GrpcHealthCheck.DefaultName.ShouldBe("encina-grpc");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainMessagingTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("messaging");
+        healthCheck.Tags.ShouldContain("messaging");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainGrpcTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("grpc");
+        healthCheck.Tags.ShouldContain("grpc");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

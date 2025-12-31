@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Encina.Dapper.SqlServer.Inbox;
 
 namespace Encina.Dapper.SqlServer.GuardTests;
@@ -23,8 +23,8 @@ public sealed class InboxStoreDapperGuardTests
         var act = () => new InboxStoreDapper(connection, tableName);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connection");
     }
 
     /// <summary>
@@ -41,8 +41,8 @@ public sealed class InboxStoreDapperGuardTests
         var act = () => new InboxStoreDapper(connection, tableName);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -59,8 +59,8 @@ public sealed class InboxStoreDapperGuardTests
         var act = () => new InboxStoreDapper(connection, tableName);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -77,8 +77,8 @@ public sealed class InboxStoreDapperGuardTests
         var act = () => new InboxStoreDapper(connection, tableName);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -92,11 +92,11 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.GetMessageAsync(null!, CancellationToken.None);
+        var act = () => store.GetMessageAsync(null!, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("messageId");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -110,11 +110,11 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.GetMessageAsync("", CancellationToken.None);
+        var act = () => store.GetMessageAsync("", CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("messageId");
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -128,11 +128,11 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.GetMessageAsync("   ", CancellationToken.None);
+        var act = () => store.GetMessageAsync("   ", CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("messageId");
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -146,11 +146,11 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.AddAsync(null!, CancellationToken.None);
+        var act = () => store.AddAsync(null!, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("message");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("message");
     }
 
     /// <summary>
@@ -164,11 +164,11 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.MarkAsProcessedAsync(null!, null, CancellationToken.None);
+        var act = () => store.MarkAsProcessedAsync(null!, null, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("messageId");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -182,11 +182,11 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.MarkAsProcessedAsync("", null, CancellationToken.None);
+        var act = () => store.MarkAsProcessedAsync("", null, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("messageId");
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -200,11 +200,11 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.MarkAsFailedAsync(null!, "error", null, CancellationToken.None);
+        var act = () => store.MarkAsFailedAsync(null!, "error", null, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("messageId");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -218,11 +218,11 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.MarkAsFailedAsync("", "error", null, CancellationToken.None);
+        var act = () => store.MarkAsFailedAsync("", "error", null, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("messageId");
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -236,11 +236,11 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.MarkAsFailedAsync("msg-123", null!, null, CancellationToken.None);
+        var act = () => store.MarkAsFailedAsync("msg-123", null!, null, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("errorMessage");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("errorMessage");
     }
 
     /// <summary>
@@ -254,11 +254,11 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.MarkAsFailedAsync("msg-123", "", null, CancellationToken.None);
+        var act = () => store.MarkAsFailedAsync("msg-123", "", null, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("errorMessage");
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("errorMessage");
     }
 
     /// <summary>
@@ -275,11 +275,11 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.GetExpiredMessagesAsync(batchSize, CancellationToken.None);
+        var act = () => store.GetExpiredMessagesAsync(batchSize, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName(nameof(batchSize));
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(batchSize));
     }
 
     /// <summary>
@@ -293,11 +293,11 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.RemoveExpiredMessagesAsync(null!, CancellationToken.None);
+        var act = () => store.RemoveExpiredMessagesAsync(null!, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("messageIds");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("messageIds");
     }
 
     /// <summary>
@@ -311,12 +311,12 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = async () => await store.RemoveExpiredMessagesAsync(
+        var act = () => store.RemoveExpiredMessagesAsync(
             Array.Empty<string>(),
             CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("messageIds");
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("messageIds");
     }
 }

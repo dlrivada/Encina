@@ -1,5 +1,8 @@
+using System.Threading.RateLimiting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
+using Shouldly;
 
 namespace Encina.Polly.GuardTests;
 
@@ -18,7 +21,8 @@ public class RateLimitingPipelineBehaviorGuardsTests
 
         // Act & Assert
         var act = () => new RateLimitingPipelineBehavior<TestRateLimitedRequest, string>(logger, rateLimiter);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -30,7 +34,8 @@ public class RateLimitingPipelineBehaviorGuardsTests
 
         // Act & Assert
         var act = () => new RateLimitingPipelineBehavior<TestRateLimitedRequest, string>(logger, rateLimiter);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rateLimiter");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rateLimiter");
     }
 }
 

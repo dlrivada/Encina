@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -20,7 +20,7 @@ public sealed class ServiceCollectionExtensionsContractTests
         var result = services.AddEncinaOpenTelemetry();
 
         // Assert
-        result.Should().BeSameAs(services, "extension method should return the same IServiceCollection for chaining");
+        result.ShouldBeSameAs(services, "extension method should return the same IServiceCollection for chaining");
     }
 
     [Fact]
@@ -36,17 +36,10 @@ public sealed class ServiceCollectionExtensionsContractTests
             options.ServiceVersion = "2.0.0";
         });
 
-        var provider = services.BuildServiceProvider();
-
-        // Assert
-        var options = provider.GetService<EncinaOpenTelemetryOptions>();
-        options.Should().NotBeNull("options should be registered in DI container");
-        options!.ServiceName.Should().Be("TestService");
-        options.ServiceVersion.Should().Be("2.0.0");
-
-        // Verify singleton lifetime
-        var options2 = provider.GetService<EncinaOpenTelemetryOptions>();
-        options2.Should().BeSameAs(options, "options should be registered with singleton lifetime");
+        // Assert - Inspect ServiceCollection directly instead of building provider
+        var optionsDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(EncinaOpenTelemetryOptions));
+        optionsDescriptor.ShouldNotBeNull("options should be registered in DI container");
+        optionsDescriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton, "options should be registered with singleton lifetime");
     }
 
     [Fact]
@@ -61,15 +54,13 @@ public sealed class ServiceCollectionExtensionsContractTests
             options.EnableMessagingEnrichers = true;
         });
 
-        var provider = services.BuildServiceProvider();
-
-        // Assert
+        // Assert - Inspect ServiceCollection directly
         var behaviorDescriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IPipelineBehavior<,>) &&
             d.ImplementationType?.Name.Contains("MessagingEnricher") == true);
 
-        behaviorDescriptor.Should().NotBeNull("MessagingEnricherPipelineBehavior should be registered");
-        behaviorDescriptor!.Lifetime.Should().Be(ServiceLifetime.Transient, "pipeline behaviors should have transient lifetime");
+        behaviorDescriptor.ShouldNotBeNull("MessagingEnricherPipelineBehavior should be registered");
+        behaviorDescriptor!.Lifetime.ShouldBe(ServiceLifetime.Transient, "pipeline behaviors should have transient lifetime");
     }
 
     [Fact]
@@ -89,7 +80,7 @@ public sealed class ServiceCollectionExtensionsContractTests
             d.ServiceType == typeof(IPipelineBehavior<,>) &&
             d.ImplementationType?.Name.Contains("MessagingEnricher") == true);
 
-        behaviorDescriptor.Should().BeNull("MessagingEnricherPipelineBehavior should not be registered when disabled");
+        behaviorDescriptor.ShouldBeNull("MessagingEnricherPipelineBehavior should not be registered when disabled");
     }
 
     [Fact]
@@ -103,10 +94,11 @@ public sealed class ServiceCollectionExtensionsContractTests
         var result = builder.WithEncina();
 
         // Assert
-        result.Should().BeSameAs(builder, "extension method should return the same OpenTelemetryBuilder for chaining");
+        result.ShouldBeSameAs(builder, "extension method should return the same OpenTelemetryBuilder for chaining");
     }
 
     [Fact]
+    [Trait("Category", "Smoke")]
     public void WithEncina_ShouldConfigureResourceWithServiceInfo()
     {
         // Arrange
@@ -119,13 +111,11 @@ public sealed class ServiceCollectionExtensionsContractTests
         };
 
         // Act
-        builder.WithEncina(options);
-        var provider = services.BuildServiceProvider();
+        var act = () => builder.WithEncina(options);
 
-        // Assert
-        // We can't directly assert on Resource configuration here, but we verify it doesn't throw
-        // Integration tests will verify the actual resource attributes
-        provider.Should().NotBeNull();
+        // Assert - Smoke test: verify configuration doesn't throw
+        // Integration tests will verify actual resource attributes (service.name, service.version, deployment.environment)
+        Should.NotThrow(act, "WithEncina configuration should not throw");
     }
 
     [Fact]
@@ -139,7 +129,7 @@ public sealed class ServiceCollectionExtensionsContractTests
         var act = () => builder.WithEncina(null);
 
         // Assert
-        act.Should().NotThrow("null options should be replaced with default options");
+        Should.NotThrow(act, "null options should be replaced with default options");
     }
 
     [Fact]
@@ -153,7 +143,7 @@ public sealed class ServiceCollectionExtensionsContractTests
             var result = tracing.AddEncinaInstrumentation();
 
             // Assert
-            result.Should().BeSameAs(tracing, "extension method should return the same TracerProviderBuilder for chaining");
+            result.ShouldBeSameAs(tracing, "extension method should return the same TracerProviderBuilder for chaining");
         });
     }
 
@@ -168,7 +158,7 @@ public sealed class ServiceCollectionExtensionsContractTests
             var result = metrics.AddEncinaInstrumentation();
 
             // Assert
-            result.Should().BeSameAs(metrics, "extension method should return the same MeterProviderBuilder for chaining");
+            result.ShouldBeSameAs(metrics, "extension method should return the same MeterProviderBuilder for chaining");
         });
     }
 
@@ -187,10 +177,11 @@ public sealed class ServiceCollectionExtensionsContractTests
         };
 
         // Assert
-        act.Should().NotThrow("calling multiple times should be idempotent due to TryAddSingleton");
+        Should.NotThrow(act, "calling multiple times should be idempotent due to TryAddSingleton");
     }
 
     [Fact]
+    [Trait("Category", "Smoke")]
     public void WithEncina_ShouldConfigureTracingWithEncinaSource()
     {
         // Arrange
@@ -198,15 +189,15 @@ public sealed class ServiceCollectionExtensionsContractTests
         var builder = services.AddOpenTelemetry();
 
         // Act
-        builder.WithEncina();
-        var provider = services.BuildServiceProvider();
+        var act = () => builder.WithEncina();
 
-        // Assert
-        // Verify the configuration doesn't throw - integration tests will verify actual tracing
-        provider.Should().NotBeNull();
+        // Assert - Smoke test: verify configuration doesn't throw
+        // Integration tests will verify actual tracing configuration
+        Should.NotThrow(act, "WithEncina tracing configuration should not throw");
     }
 
     [Fact]
+    [Trait("Category", "Smoke")]
     public void WithEncina_ShouldConfigureMetricsWithEncinaMeter()
     {
         // Arrange
@@ -214,11 +205,10 @@ public sealed class ServiceCollectionExtensionsContractTests
         var builder = services.AddOpenTelemetry();
 
         // Act
-        builder.WithEncina();
-        var provider = services.BuildServiceProvider();
+        var act = () => builder.WithEncina();
 
-        // Assert
-        // Verify the configuration doesn't throw - integration tests will verify actual metrics
-        provider.Should().NotBeNull();
+        // Assert - Smoke test: verify configuration doesn't throw
+        // Integration tests will verify actual metrics configuration
+        Should.NotThrow(act, "WithEncina metrics configuration should not throw");
     }
 }

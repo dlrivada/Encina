@@ -1,6 +1,6 @@
 using Encina.AwsLambda.Health;
 using Encina.Messaging.Health;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -21,8 +21,8 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var options = serviceProvider.GetService<IOptions<EncinaAwsLambdaOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.Should().NotBeNull();
+        options.ShouldNotBeNull();
+        options!.Value.ShouldNotBeNull();
     }
 
     [Fact]
@@ -41,8 +41,8 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var options = serviceProvider.GetRequiredService<IOptions<EncinaAwsLambdaOptions>>();
-        options.Value.CorrelationIdHeader.Should().Be("X-Custom-ID");
-        options.Value.EnableSqsBatchItemFailures.Should().BeFalse();
+        options.Value.CorrelationIdHeader.ShouldBe("X-Custom-ID");
+        options.Value.EnableSqsBatchItemFailures.ShouldBeFalse();
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var healthChecks = serviceProvider.GetServices<IEncinaHealthCheck>();
-        healthChecks.Should().ContainSingle()
-            .Which.Should().BeOfType<AwsLambdaHealthCheck>();
+        var healthCheck = healthChecks.ShouldHaveSingleItem();
+        healthCheck.ShouldBeOfType<AwsLambdaHealthCheck>();
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public class ServiceCollectionExtensionsTests
         var action = () => services.AddEncinaAwsLambda();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -85,8 +85,8 @@ public class ServiceCollectionExtensionsTests
         var action = () => services.AddEncinaAwsLambda(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configureOptions");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("configureOptions");
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class ServiceCollectionExtensionsTests
         var result = services.AddEncinaAwsLambda();
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -115,6 +115,6 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var healthChecks = serviceProvider.GetServices<IEncinaHealthCheck>().ToList();
-        healthChecks.Should().ContainSingle();
+        healthChecks.ShouldHaveSingleItem();
     }
 }

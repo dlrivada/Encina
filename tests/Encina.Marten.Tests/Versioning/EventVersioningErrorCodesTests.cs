@@ -1,4 +1,5 @@
 using Encina.Marten.Versioning;
+using Shouldly;
 
 namespace Encina.Marten.Tests.Versioning;
 
@@ -8,35 +9,35 @@ public sealed class EventVersioningErrorCodesTests
     public void UpcastFailed_HasCorrectValue()
     {
         // Act & Assert
-        EventVersioningErrorCodes.UpcastFailed.Should().Be("event.versioning.upcast_failed");
+        EventVersioningErrorCodes.UpcastFailed.ShouldBe("event.versioning.upcast_failed");
     }
 
     [Fact]
     public void UpcasterNotFound_HasCorrectValue()
     {
         // Act & Assert
-        EventVersioningErrorCodes.UpcasterNotFound.Should().Be("event.versioning.upcaster_not_found");
+        EventVersioningErrorCodes.UpcasterNotFound.ShouldBe("event.versioning.upcaster_not_found");
     }
 
     [Fact]
     public void RegistrationFailed_HasCorrectValue()
     {
         // Act & Assert
-        EventVersioningErrorCodes.RegistrationFailed.Should().Be("event.versioning.registration_failed");
+        EventVersioningErrorCodes.RegistrationFailed.ShouldBe("event.versioning.registration_failed");
     }
 
     [Fact]
     public void DuplicateUpcaster_HasCorrectValue()
     {
         // Act & Assert
-        EventVersioningErrorCodes.DuplicateUpcaster.Should().Be("event.versioning.duplicate_upcaster");
+        EventVersioningErrorCodes.DuplicateUpcaster.ShouldBe("event.versioning.duplicate_upcaster");
     }
 
     [Fact]
     public void InvalidConfiguration_HasCorrectValue()
     {
         // Act & Assert
-        EventVersioningErrorCodes.InvalidConfiguration.Should().Be("event.versioning.invalid_configuration");
+        EventVersioningErrorCodes.InvalidConfiguration.ShouldBe("event.versioning.invalid_configuration");
     }
 
     [Fact]
@@ -55,7 +56,7 @@ public sealed class EventVersioningErrorCodesTests
         // Act & Assert
         foreach (var code in allCodes)
         {
-            code.Should().StartWith("event.versioning.");
+            code.ShouldStartWith("event.versioning.");
         }
     }
 
@@ -76,6 +77,6 @@ public sealed class EventVersioningErrorCodesTests
         var distinctCount = allCodes.Distinct().Count();
 
         // Assert
-        distinctCount.Should().Be(allCodes.Length);
+        distinctCount.ShouldBe(allCodes.Length);
     }
 }

@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Scheduling;
 using Encina.Messaging.Scheduling;
@@ -28,7 +28,7 @@ public sealed class ScheduledMessageStoreEFContractTests : IDisposable
     public void Contract_MustImplementIScheduledMessageStore()
     {
         // Assert
-        _store.Should().BeAssignableTo<IScheduledMessageStore>();
+        _store.ShouldBeAssignableTo<IScheduledMessageStore>();
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class ScheduledMessageStoreEFContractTests : IDisposable
         var act = async () => await _store.AddAsync(message);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class ScheduledMessageStoreEFContractTests : IDisposable
         var messages = await _store.GetDueMessagesAsync(10, 3);
 
         // Assert
-        messages.Should().AllBeAssignableTo<IScheduledMessage>();
+        messages.ShouldAllBe(x => x is IScheduledMessage);
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public sealed class ScheduledMessageStoreEFContractTests : IDisposable
         var act = async () => await _store.MarkAsProcessedAsync(messageId);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public sealed class ScheduledMessageStoreEFContractTests : IDisposable
             DateTime.UtcNow.AddMinutes(5));
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public sealed class ScheduledMessageStoreEFContractTests : IDisposable
             DateTime.UtcNow.AddDays(1));
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public sealed class ScheduledMessageStoreEFContractTests : IDisposable
         var act = async () => await _store.CancelAsync(messageId);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     [Fact]
@@ -210,7 +210,7 @@ public sealed class ScheduledMessageStoreEFContractTests : IDisposable
 
         // Assert
         var retrieved = await _store.GetDueMessagesAsync(100, 3);
-        retrieved.Should().NotBeEmpty();
+        retrieved.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -230,8 +230,8 @@ public sealed class ScheduledMessageStoreEFContractTests : IDisposable
         var act = async () => await _store.AddAsync(mockMessage);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*ScheduledMessage*");
+        var ex = await Should.ThrowAsync<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*ScheduledMessage*");
     }
 
     public void Dispose()

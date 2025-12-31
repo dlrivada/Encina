@@ -1,7 +1,8 @@
-﻿using LanguageExt;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Encina.Refit;
+using Shouldly;
 using System.Reflection;
 
 namespace Encina.Refit.ContractTests;
@@ -22,7 +23,7 @@ public class RestApiRequestHandlerContractTests
         var interfaces = handlerType.GetInterfaces();
 
         // Assert
-        interfaces.Should().Contain(t =>
+        interfaces.ShouldContain(t =>
             t.IsGenericType &&
             t.GetGenericTypeDefinition() == typeof(IRequestHandler<,>));
     }
@@ -35,9 +36,8 @@ public class RestApiRequestHandlerContractTests
         var handleMethod = handlerType.GetMethod("Handle");
 
         // Assert
-        handleMethod.Should().NotBeNull();
-        handleMethod!.ReturnType.Should().Be(typeof(Task<Either<EncinaError, string>>));
-        handleMethod.ReturnType.GetGenericTypeDefinition().Should().Be(typeof(Task<>));
+        handleMethod.ShouldNotBeNull();
+        handleMethod!.ReturnType.ShouldBe(typeof(Task<Either<EncinaError, string>>));
     }
 
     [Fact]
@@ -51,9 +51,9 @@ public class RestApiRequestHandlerContractTests
         var parameters = handleMethod!.GetParameters();
 
         // Assert
-        parameters.Should().HaveCount(2);
-        parameters[0].ParameterType.Should().Be(typeof(TestRequest));
-        parameters[1].ParameterType.Should().Be(typeof(CancellationToken));
+        parameters.Length.ShouldBe(2);
+        parameters[0].ParameterType.ShouldBe(typeof(TestRequest));
+        parameters[1].ParameterType.ShouldBe(typeof(CancellationToken));
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class RestApiRequestHandlerContractTests
         var attributes = apiClientTypeParameter.GenericParameterAttributes;
 
         // Assert
-        (attributes & GenericParameterAttributes.ReferenceTypeConstraint).Should().NotBe(0);
+        attributes.HasFlag(GenericParameterAttributes.ReferenceTypeConstraint).ShouldBeTrue();
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public class RestApiRequestHandlerContractTests
         var handlerType = typeof(RestApiRequestHandler<TestRequest, ITestApiClient, string>);
 
         // Assert
-        handlerType.IsSealed.Should().BeTrue("the handler should be sealed to prevent inheritance");
+        handlerType.IsSealed.ShouldBeTrue("the handler should be sealed to prevent inheritance");
     }
 
     [Fact]
@@ -91,11 +91,11 @@ public class RestApiRequestHandlerContractTests
         var constructor = handlerType.GetConstructors().FirstOrDefault();
 
         // Assert
-        constructor.Should().NotBeNull();
+        constructor.ShouldNotBeNull();
         var parameters = constructor!.GetParameters();
-        parameters.Should().HaveCount(2);
-        parameters[0].ParameterType.Should().Be(typeof(ITestApiClient));
-        parameters[1].ParameterType.Should().Be(typeof(ILogger<RestApiRequestHandler<TestRequest, ITestApiClient, string>>));
+        parameters.Count.ShouldBe(2);
+        parameters[0].ParameterType.ShouldBe(typeof(ITestApiClient));
+        parameters[1].ParameterType.ShouldBe(typeof(ILogger<RestApiRequestHandler<TestRequest, ITestApiClient, string>>));
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class RestApiRequestHandlerContractTests
         var constraints = requestTypeParameter.GetGenericParameterConstraints();
 
         // Assert
-        constraints.Should().Contain(t =>
+        constraints.ShouldContain(t =>
             t.IsGenericType &&
             t.GetGenericTypeDefinition() == typeof(IRestApiRequest<,>));
     }

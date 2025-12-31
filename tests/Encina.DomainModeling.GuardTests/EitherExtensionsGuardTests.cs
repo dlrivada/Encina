@@ -22,7 +22,8 @@ public class EitherExtensionsGuardTests
         var act = () => result.When(true, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("operation");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("operation");
     }
 
     #endregion
@@ -39,7 +40,8 @@ public class EitherExtensionsGuardTests
         var act = () => result.Ensure(null!, _ => new TestError("Error"));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("predicate");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("predicate");
     }
 
     [Fact]
@@ -52,7 +54,8 @@ public class EitherExtensionsGuardTests
         var act = () => result.Ensure(x => x > 0, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("errorFactory");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("errorFactory");
     }
 
     #endregion
@@ -69,7 +72,8 @@ public class EitherExtensionsGuardTests
         var act = () => result.OrElse(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("fallback");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("fallback");
     }
 
     #endregion
@@ -86,7 +90,8 @@ public class EitherExtensionsGuardTests
         var act = () => result.GetOrElse(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("defaultFactory");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("defaultFactory");
     }
 
     #endregion
@@ -103,7 +108,8 @@ public class EitherExtensionsGuardTests
         var act = () => result.Tap(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("action");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("action");
     }
 
     #endregion
@@ -120,7 +126,8 @@ public class EitherExtensionsGuardTests
         var act = () => result.TapError(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("action");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("action");
     }
 
     #endregion
@@ -137,7 +144,8 @@ public class EitherExtensionsGuardTests
         var act = () => option.ToEither<TestError, int>(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("errorFactory");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("errorFactory");
     }
 
     #endregion
@@ -154,7 +162,8 @@ public class EitherExtensionsGuardTests
         var act = () => result.GetOrThrow(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("exceptionFactory");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("exceptionFactory");
     }
 
     #endregion
@@ -171,7 +180,8 @@ public class EitherExtensionsGuardTests
         var act = async () => await task.BindAsync<TestError, int, int>(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("binder");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("binder");
     }
 
     [Fact]
@@ -185,7 +195,8 @@ public class EitherExtensionsGuardTests
             x => Task.FromResult(Right<TestError, int>(x * 2)));
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("task");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("task");
     }
 
     [Fact]
@@ -198,7 +209,8 @@ public class EitherExtensionsGuardTests
         var act = async () => await task.MapAsync<TestError, int, string>(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("mapper");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("mapper");
     }
 
     [Fact]
@@ -211,7 +223,8 @@ public class EitherExtensionsGuardTests
         var act = async () => await task.TapAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("action");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("action");
     }
 
     [Fact]
@@ -224,7 +237,8 @@ public class EitherExtensionsGuardTests
         var act = async () => await either.BindAsync<TestError, int, int>(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("binder");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("binder");
     }
 
     [Fact]
@@ -237,7 +251,8 @@ public class EitherExtensionsGuardTests
         var act = async () => await either.MapAsync<TestError, int, string>(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("mapper");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("mapper");
     }
 
     #endregion

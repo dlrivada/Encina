@@ -39,7 +39,7 @@ public class StronglyTypedIdGuardTests
         var result = OrderId.TryParse(null!);
 
         // Assert
-        result.IsNone.Should().BeTrue();
+        result.IsNone.ShouldBeTrue();
     }
 
     /// <summary>
@@ -52,7 +52,7 @@ public class StronglyTypedIdGuardTests
         var result = OrderId.TryParse(string.Empty);
 
         // Assert
-        result.IsNone.Should().BeTrue();
+        result.IsNone.ShouldBeTrue();
     }
 
     /// <summary>
@@ -65,7 +65,7 @@ public class StronglyTypedIdGuardTests
         var result = OrderId.TryParse("not-a-guid");
 
         // Assert
-        result.IsNone.Should().BeTrue();
+        result.IsNone.ShouldBeTrue();
     }
 
     /// <summary>
@@ -82,7 +82,7 @@ public class StronglyTypedIdGuardTests
         var result = id.CompareTo(nullId);
 
         // Assert
-        result.Should().BePositive();
+        result.ShouldBeGreaterThan(0);
     }
 
     /// <summary>
@@ -95,7 +95,7 @@ public class StronglyTypedIdGuardTests
         var id = OrderId.New();
 
         // Act & Assert
-        (id == null).Should().BeFalse();
+        (id == null).ShouldBeFalse();
     }
 
     /// <summary>
@@ -108,7 +108,7 @@ public class StronglyTypedIdGuardTests
         var empty = OrderId.Empty;
 
         // Assert
-        empty.Value.Should().Be(Guid.Empty);
+        empty.Value.ShouldBe(Guid.Empty);
     }
 
     #endregion
@@ -125,7 +125,7 @@ public class StronglyTypedIdGuardTests
         var result = UserId.TryParse(null!);
 
         // Assert
-        result.IsNone.Should().BeTrue();
+        result.IsNone.ShouldBeTrue();
     }
 
     /// <summary>
@@ -138,7 +138,7 @@ public class StronglyTypedIdGuardTests
         var result = UserId.TryParse(string.Empty);
 
         // Assert
-        result.IsNone.Should().BeTrue();
+        result.IsNone.ShouldBeTrue();
     }
 
     /// <summary>
@@ -151,7 +151,7 @@ public class StronglyTypedIdGuardTests
         var result = UserId.TryParse("not-an-int");
 
         // Assert
-        result.IsNone.Should().BeTrue();
+        result.IsNone.ShouldBeTrue();
     }
 
     /// <summary>
@@ -168,7 +168,7 @@ public class StronglyTypedIdGuardTests
         var result = id.CompareTo(nullId);
 
         // Assert
-        result.Should().BePositive();
+        result.ShouldBeGreaterThan(0);
     }
 
     #endregion
@@ -185,7 +185,7 @@ public class StronglyTypedIdGuardTests
         var result = TransactionId.TryParse(null!);
 
         // Assert
-        result.IsNone.Should().BeTrue();
+        result.IsNone.ShouldBeTrue();
     }
 
     /// <summary>
@@ -198,7 +198,7 @@ public class StronglyTypedIdGuardTests
         var result = TransactionId.TryParse(string.Empty);
 
         // Assert
-        result.IsNone.Should().BeTrue();
+        result.IsNone.ShouldBeTrue();
     }
 
     /// <summary>
@@ -211,7 +211,7 @@ public class StronglyTypedIdGuardTests
         var result = TransactionId.TryParse("not-a-long");
 
         // Assert
-        result.IsNone.Should().BeTrue();
+        result.IsNone.ShouldBeTrue();
     }
 
     #endregion
@@ -228,7 +228,8 @@ public class StronglyTypedIdGuardTests
         var act = () => new ProductSku(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("value");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("value");
     }
 
     /// <summary>
@@ -241,7 +242,8 @@ public class StronglyTypedIdGuardTests
         var act = () => new ProductSku(string.Empty);
 
         // Assert
-        act.Should().Throw<ArgumentException>().WithParameterName("value");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("value");
     }
 
     /// <summary>
@@ -254,7 +256,8 @@ public class StronglyTypedIdGuardTests
         var act = () => new ProductSku("   ");
 
         // Assert
-        act.Should().Throw<ArgumentException>().WithParameterName("value");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("value");
     }
 
     /// <summary>
@@ -267,8 +270,8 @@ public class StronglyTypedIdGuardTests
         var act = () => ProductSku.From(null!);
 
         // Assert
-        act.Should().Throw<TargetInvocationException>()
-            .WithInnerException<ArgumentNullException>();
+        var ex = Should.Throw<TargetInvocationException>(act);
+        ex.InnerException.ShouldBeOfType<ArgumentNullException>();
     }
 
     /// <summary>
@@ -281,8 +284,8 @@ public class StronglyTypedIdGuardTests
         var act = () => ProductSku.From(string.Empty);
 
         // Assert
-        act.Should().Throw<TargetInvocationException>()
-            .WithInnerException<ArgumentException>();
+        var ex = Should.Throw<TargetInvocationException>(act);
+        ex.InnerException.ShouldBeOfType<ArgumentException>();
     }
 
     #endregion

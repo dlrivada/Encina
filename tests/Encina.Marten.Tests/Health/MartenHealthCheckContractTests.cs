@@ -34,21 +34,21 @@ public sealed class MartenHealthCheckContractTests : IEncinaHealthCheckContractT
     [Fact]
     public void DefaultName_ShouldBeEncinaMarten()
     {
-        MartenHealthCheck.DefaultName.Should().Be("encina-marten");
+        MartenHealthCheck.DefaultName.ShouldBe("encina-marten");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainDatabaseTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("database");
+        healthCheck.Tags.ShouldContain("database");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainMartenTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("marten");
+        healthCheck.Tags.ShouldContain("marten");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

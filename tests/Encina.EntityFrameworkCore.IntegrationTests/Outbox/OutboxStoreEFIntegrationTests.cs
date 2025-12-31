@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Encina.EntityFrameworkCore.Outbox;
 using Xunit;
 
@@ -43,10 +43,10 @@ public sealed class OutboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var stored = await verifyContext.OutboxMessages.FindAsync(message.Id);
-        stored.Should().NotBeNull();
-        stored!.NotificationType.Should().Be("TestNotification");
-        stored.Content.Should().Be("{\"test\":\"data\"}");
-        stored.RetryCount.Should().Be(0);
+        stored.ShouldNotBeNull();
+        stored!.NotificationType.ShouldBe("TestNotification");
+        stored.Content.ShouldBe("{\"test\":\"data\"}");
+        stored.RetryCount.ShouldBe(0);
     }
 
     [Fact]
@@ -92,10 +92,10 @@ public sealed class OutboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
 
         // Assert
         var messageList = messages.ToList();
-        messageList.Should().HaveCount(2);
-        messageList.Should().Contain(m => m.Id == pending1.Id);
-        messageList.Should().Contain(m => m.Id == pending2.Id);
-        messageList.Should().NotContain(m => m.Id == processed.Id);
+        messageList.Count.ShouldBe(2);
+        messageList.ShouldContain(m => m.Id == pending1.Id);
+        messageList.ShouldContain(m => m.Id == pending2.Id);
+        messageList.ShouldNotContain(m => m.Id == processed.Id);
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public sealed class OutboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var messages = await store.GetPendingMessagesAsync(batchSize: 5, maxRetries: 3);
 
         // Assert
-        messages.Should().HaveCount(5);
+        messages.Count.ShouldBe(5);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public sealed class OutboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var messages = await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Should().BeEmpty();
+        messages.ShouldBeEmpty();
     }
 
     [Fact]
@@ -184,8 +184,8 @@ public sealed class OutboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var messages = (await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3)).ToList();
 
         // Assert
-        messages[0].Id.Should().Be(older.Id);
-        messages[1].Id.Should().Be(newer.Id);
+        messages[0].Id.ShouldBe(older.Id);
+        messages[1].Id.ShouldBe(newer.Id);
     }
 
     [Fact]
@@ -215,8 +215,8 @@ public sealed class OutboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var updated = await verifyContext.OutboxMessages.FindAsync(message.Id);
-        updated!.ProcessedAtUtc.Should().NotBeNull();
-        updated.ErrorMessage.Should().BeNull();
+        updated!.ProcessedAtUtc.ShouldNotBeNull();
+        updated.ErrorMessage.ShouldBeNull();
     }
 
     [Fact]
@@ -247,9 +247,9 @@ public sealed class OutboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var updated = await verifyContext.OutboxMessages.FindAsync(message.Id);
-        updated!.ErrorMessage.Should().Be("Test error");
-        updated.RetryCount.Should().Be(1);
-        updated.NextRetryAtUtc.Should().BeCloseTo(nextRetry, TimeSpan.FromSeconds(1));
+        updated!.ErrorMessage.ShouldBe("Test error");
+        updated.RetryCount.ShouldBe(1);
+        updated.NextRetryAtUtc.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
     [Fact]
@@ -276,7 +276,7 @@ public sealed class OutboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var messages = await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Should().BeEmpty();
+        messages.ShouldBeEmpty();
     }
 
     [Fact]
@@ -303,8 +303,8 @@ public sealed class OutboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var messages = await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Should().ContainSingle();
-        messages.First().Id.Should().Be(pastRetry.Id);
+        messages.ShouldHaveSingleItem();
+        messages.First().Id.ShouldBe(pastRetry.Id);
     }
 
     [Fact]
@@ -338,7 +338,7 @@ public sealed class OutboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         foreach (var id in messageIds)
         {
             var stored = await verifyContext.OutboxMessages.FindAsync(id);
-            stored.Should().NotBeNull();
+            stored.ShouldNotBeNull();
         }
     }
 }

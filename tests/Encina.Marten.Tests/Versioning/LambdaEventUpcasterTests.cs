@@ -1,4 +1,5 @@
 using Encina.Marten.Versioning;
+using Shouldly;
 
 namespace Encina.Marten.Tests.Versioning;
 
@@ -12,7 +13,7 @@ public sealed class LambdaEventUpcasterTests
             old => new OrderCreatedV2(old.OrderId, old.CustomerName, "test@example.com"));
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -22,7 +23,7 @@ public sealed class LambdaEventUpcasterTests
         var act = () => new LambdaEventUpcaster<OrderCreatedV1, OrderCreatedV2>(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -36,7 +37,7 @@ public sealed class LambdaEventUpcasterTests
         var name = upcaster.SourceEventTypeName;
 
         // Assert
-        name.Should().Be(nameof(OrderCreatedV1));
+        name.ShouldBe(nameof(OrderCreatedV1));
     }
 
     [Fact]
@@ -51,7 +52,7 @@ public sealed class LambdaEventUpcasterTests
         var name = upcaster.SourceEventTypeName;
 
         // Assert
-        name.Should().Be("MyCustomEventName");
+        name.ShouldBe("MyCustomEventName");
     }
 
     [Fact]
@@ -65,7 +66,7 @@ public sealed class LambdaEventUpcasterTests
         var type = upcaster.TargetEventType;
 
         // Assert
-        type.Should().Be(typeof(OrderCreatedV2));
+        type.ShouldBe(typeof(OrderCreatedV2));
     }
 
     [Fact]
@@ -79,7 +80,7 @@ public sealed class LambdaEventUpcasterTests
         var type = upcaster.SourceEventType;
 
         // Assert
-        type.Should().Be(typeof(OrderCreatedV1));
+        type.ShouldBe(typeof(OrderCreatedV1));
     }
 
     [Fact]
@@ -94,7 +95,7 @@ public sealed class LambdaEventUpcasterTests
         var sourceEventTypeName = upcaster.SourceEventTypeName;
 
         // Assert
-        eventTypeName.Should().Be(sourceEventTypeName);
+        eventTypeName.ShouldBe(sourceEventTypeName);
     }
 
     [Fact]
@@ -110,9 +111,9 @@ public sealed class LambdaEventUpcasterTests
         var newEvent = typedUpcaster.Upcast(oldEvent);
 
         // Assert
-        newEvent.OrderId.Should().Be(oldEvent.OrderId);
-        newEvent.CustomerName.Should().Be(oldEvent.CustomerName);
-        newEvent.Email.Should().Be("lambda@example.com");
+        newEvent.OrderId.ShouldBe(oldEvent.OrderId);
+        newEvent.CustomerName.ShouldBe(oldEvent.CustomerName);
+        newEvent.Email.ShouldBe("lambda@example.com");
     }
 
     [Fact]
@@ -127,7 +128,7 @@ public sealed class LambdaEventUpcasterTests
         var act = () => typedUpcaster.Upcast(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -138,8 +139,8 @@ public sealed class LambdaEventUpcasterTests
             old => new OrderCreatedV2(old.OrderId, old.CustomerName, "test@example.com"));
 
         // Act & Assert
-        upcaster.Should().BeAssignableTo<IEventUpcaster>();
-        upcaster.Should().BeAssignableTo<IEventUpcaster<OrderCreatedV1, OrderCreatedV2>>();
+        upcaster.ShouldBeAssignableTo<IEventUpcaster>();
+        upcaster.ShouldBeAssignableTo<IEventUpcaster<OrderCreatedV1, OrderCreatedV2>>();
     }
 
     [Fact]
@@ -156,7 +157,7 @@ public sealed class LambdaEventUpcasterTests
         var newEvent = typedUpcaster.Upcast(oldEvent);
 
         // Assert
-        newEvent.Email.Should().Be(defaultEmail);
+        newEvent.Email.ShouldBe(defaultEmail);
     }
 
     [Fact]
@@ -175,7 +176,7 @@ public sealed class LambdaEventUpcasterTests
         var newEvent = typedUpcaster.Upcast(oldEvent);
 
         // Assert
-        newEvent.CustomerName.Should().Be("JOHN DOE");
-        newEvent.Email.Should().Be("john.doe@example.com");
+        newEvent.CustomerName.ShouldBe("JOHN DOE");
+        newEvent.Email.ShouldBe("john.doe@example.com");
     }
 }

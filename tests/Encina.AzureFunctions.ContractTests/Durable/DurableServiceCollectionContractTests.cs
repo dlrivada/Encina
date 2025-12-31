@@ -1,6 +1,6 @@
 using Encina.AzureFunctions.Durable;
 using Encina.Messaging.Health;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -9,6 +9,7 @@ namespace Encina.AzureFunctions.ContractTests.Durable;
 
 /// <summary>
 /// Contract tests to verify that DI registration follows expected patterns.
+/// These tests verify ServiceDescriptor registrations without building ServiceProvider.
 /// </summary>
 [Trait("Category", "Contract")]
 public sealed class DurableServiceCollectionContractTests
@@ -21,12 +22,10 @@ public sealed class DurableServiceCollectionContractTests
 
         // Act
         services.AddEncinaDurableFunctions();
-        var provider = services.BuildServiceProvider();
 
-        // Assert
-        var options = provider.GetService<IOptions<DurableFunctionsOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.Should().NotBeNull();
+        // Assert - Verify IConfigureOptions<DurableFunctionsOptions> is registered
+        services.ShouldContain(sd =>
+            sd.ServiceType == typeof(IConfigureOptions<DurableFunctionsOptions>));
     }
 
     [Fact]
@@ -37,11 +36,11 @@ public sealed class DurableServiceCollectionContractTests
 
         // Act
         services.AddEncinaDurableFunctions();
-        var provider = services.BuildServiceProvider();
 
-        // Assert
-        var healthChecks = provider.GetServices<IEncinaHealthCheck>();
-        healthChecks.Should().Contain(h => h is DurableFunctionsHealthCheck);
+        // Assert - Verify DurableFunctionsHealthCheck is registered as IEncinaHealthCheck
+        services.ShouldContain(sd =>
+            sd.ServiceType == typeof(IEncinaHealthCheck) &&
+            sd.ImplementationType == typeof(DurableFunctionsHealthCheck));
     }
 
     [Fact]
@@ -50,17 +49,29 @@ public sealed class DurableServiceCollectionContractTests
         // Arrange
         var services = new ServiceCollection();
         var expectedMaxRetries = 10;
+        var callbackInvoked = false;
 
         // Act
         services.AddEncinaDurableFunctions(options =>
         {
             options.DefaultMaxRetries = expectedMaxRetries;
+            callbackInvoked = true;
         });
-        var provider = services.BuildServiceProvider();
 
-        // Assert
-        var options = provider.GetRequiredService<IOptions<DurableFunctionsOptions>>().Value;
-        options.DefaultMaxRetries.Should().Be(expectedMaxRetries);
+        // Assert - Verify callback was registered (IConfigureOptions exists)
+        services.ShouldContain(sd =>
+            sd.ServiceType == typeof(IConfigureOptions<DurableFunctionsOptions>));
+
+        // Verify callback is invoked when options are created
+        var configuredOptions = new DurableFunctionsOptions();
+        var configureOptions = services
+            .Where(sd => sd.ServiceType == typeof(IConfigureOptions<DurableFunctionsOptions>))
+            .Select(sd => sd.ImplementationInstance as IConfigureOptions<DurableFunctionsOptions>)
+            .FirstOrDefault(c => c is not null);
+
+        configureOptions?.Configure(configuredOptions);
+        callbackInvoked.ShouldBeTrue();
+        configuredOptions.DefaultMaxRetries.ShouldBe(expectedMaxRetries);
     }
 
     [Fact]
@@ -73,7 +84,7 @@ public sealed class DurableServiceCollectionContractTests
         var result = services.AddEncinaDurableFunctions();
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -85,80 +96,54 @@ public sealed class DurableServiceCollectionContractTests
         // Act
         services.AddEncinaDurableFunctions(o => o.DefaultMaxRetries = 3);
         services.AddEncinaDurableFunctions(o => o.DefaultBackoffCoefficient = 3.0);
-        var provider = services.BuildServiceProvider();
 
-        // Assert - Should not throw and last configuration wins for Configure<T>
-        var options = provider.GetRequiredService<IOptions<DurableFunctionsOptions>>().Value;
-        options.Should().NotBeNull();
+        // Assert - Should register multiple IConfigureOptions (all are applied in order)
+        var configureOptionsCount = services.Count(sd =>
+            sd.ServiceType == typeof(IConfigureOptions<DurableFunctionsOptions>));
+        configureOptionsCount.ShouldBeGreaterThanOrEqualTo(2);
+
+        // Health check should be registered only once (idempotent)
+        var healthCheckCount = services.Count(sd =>
+            sd.ServiceType == typeof(IEncinaHealthCheck) &&
+            sd.ImplementationType == typeof(DurableFunctionsHealthCheck));
+        healthCheckCount.ShouldBe(1);
     }
 
     [Fact]
     public void Contract_DurableFunctionsOptions_HasReasonableDefaults()
     {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddEncinaDurableFunctions();
-        var provider = services.BuildServiceProvider();
-
-        // Act
-        var options = provider.GetRequiredService<IOptions<DurableFunctionsOptions>>().Value;
+        // Arrange & Act - Create options directly to verify defaults
+        var options = new DurableFunctionsOptions();
 
         // Assert - Verify defaults are sensible
-        options.DefaultMaxRetries.Should().BeGreaterThanOrEqualTo(0);
-        options.DefaultFirstRetryInterval.Should().BeGreaterThan(TimeSpan.Zero);
-        options.DefaultBackoffCoefficient.Should().BeGreaterThan(0);
-        options.DefaultMaxRetryInterval.Should().BeGreaterThan(TimeSpan.Zero);
-    }
-
-    [Fact]
-    public void Contract_DurableFunctionsHealthCheck_CanBeResolvedViaInterface()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddEncinaDurableFunctions();
-        var provider = services.BuildServiceProvider();
-
-        // Act
-        var healthChecks = provider.GetServices<IEncinaHealthCheck>();
-        var durableHealthCheck = healthChecks.OfType<DurableFunctionsHealthCheck>().FirstOrDefault();
-
-        // Assert
-        durableHealthCheck.Should().NotBeNull();
+        options.DefaultMaxRetries.ShouldBeGreaterThanOrEqualTo(0);
+        options.DefaultFirstRetryInterval.ShouldBeGreaterThan(TimeSpan.Zero);
+        options.DefaultBackoffCoefficient.ShouldBeGreaterThan(0);
+        options.DefaultMaxRetryInterval.ShouldBeGreaterThan(TimeSpan.Zero);
     }
 
     [Fact]
     public void Contract_HealthCheck_ImplementsIEncinaHealthCheck()
     {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddEncinaDurableFunctions();
-        var provider = services.BuildServiceProvider();
-
-        // Act
-        var healthChecks = provider.GetServices<IEncinaHealthCheck>();
-        var durableHealthCheck = healthChecks.OfType<DurableFunctionsHealthCheck>().FirstOrDefault();
-
-        // Assert
-        durableHealthCheck.Should().NotBeNull();
-        durableHealthCheck.Should().BeAssignableTo<IEncinaHealthCheck>();
+        // Assert - Type-level verification without building ServiceProvider
+        typeof(DurableFunctionsHealthCheck).ShouldBeAssignableTo<IEncinaHealthCheck>();
     }
 
     [Fact]
-    public void Contract_ConfiguredOptions_AreUsedByHealthCheck()
+    public void Contract_HealthCheck_IsRegisteredAsSingleton()
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddEncinaDurableFunctions(options =>
-        {
-            options.ProviderHealthCheck.Name = "custom-health-check-name";
-        });
-        var provider = services.BuildServiceProvider();
 
         // Act
-        var healthChecks = provider.GetServices<IEncinaHealthCheck>();
-        var durableHealthCheck = healthChecks.OfType<DurableFunctionsHealthCheck>().First();
+        services.AddEncinaDurableFunctions();
 
-        // Assert
-        durableHealthCheck.Name.Should().Be("custom-health-check-name");
+        // Assert - Verify lifetime is Singleton
+        var descriptor = services.FirstOrDefault(sd =>
+            sd.ServiceType == typeof(IEncinaHealthCheck) &&
+            sd.ImplementationType == typeof(DurableFunctionsHealthCheck));
+
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 }

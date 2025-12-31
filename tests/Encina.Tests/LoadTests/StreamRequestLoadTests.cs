@@ -1,5 +1,5 @@
-﻿using System.Runtime.CompilerServices;
-using FluentAssertions;
+using System.Runtime.CompilerServices;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using NBomber.CSharp;
@@ -69,8 +69,8 @@ public sealed class StreamRequestLoadTests
         _output.WriteLine($"OK: {scen.Ok.Request.Count}, Fail: {scen.Fail.Request.Count}");
         _output.WriteLine($"RPS: {scen.Ok.Request.RPS}");
 
-        scen.Ok.Request.Count.Should().BeGreaterThan(450, "at least 90% success rate");
-        scen.Fail.Request.Count.Should().BeLessThan(50, "less than 10% failures");
+        scen.Ok.Request.Count.ShouldBeGreaterThan(450, "at least 90% success rate");
+        scen.Fail.Request.Count.ShouldBeLessThan(50, "less than 10% failures");
     }
 
     [Fact(Skip = SkipReason)]
@@ -112,7 +112,7 @@ public sealed class StreamRequestLoadTests
         _output.WriteLine($"OK: {scen.Ok.Request.Count}, Fail: {scen.Fail.Request.Count}");
         _output.WriteLine($"RPS: {scen.Ok.Request.RPS}");
 
-        scen.Ok.Request.Count.Should().BeGreaterThan(90, "at least 90% success rate");
+        scen.Ok.Request.Count.ShouldBeGreaterThan(90, "at least 90% success rate");
     }
 
     [Fact(Skip = SkipReason)]
@@ -156,7 +156,7 @@ public sealed class StreamRequestLoadTests
         _output.WriteLine($"Total pipeline executions: {scen.Ok.Request.Count + scen.Fail.Request.Count}");
         _output.WriteLine($"OK: {scen.Ok.Request.Count}, Fail: {scen.Fail.Request.Count}");
 
-        scen.Ok.Request.Count.Should().BeGreaterThan(900, "pipeline should handle high concurrency");
+        scen.Ok.Request.Count.ShouldBeGreaterThan(900, "pipeline should handle high concurrency");
     }
 
     [Fact(Skip = SkipReason)]
@@ -198,7 +198,7 @@ public sealed class StreamRequestLoadTests
         _output.WriteLine($"OK: {scen.Ok.Request.Count}, Fail: {scen.Fail.Request.Count}");
         _output.WriteLine($"RPS: {scen.Ok.Request.RPS}");
 
-        scen.Ok.Request.Count.Should().BeGreaterThan(0, "should complete at least some requests");
+        scen.Ok.Request.Count.ShouldBeGreaterThan(0, "should complete at least some requests");
     }
 
     [Fact(Skip = SkipReason)]
@@ -247,7 +247,7 @@ public sealed class StreamRequestLoadTests
         _output.WriteLine($"Total error streams: {scen.Ok.Request.Count + scen.Fail.Request.Count}");
         _output.WriteLine($"OK: {scen.Ok.Request.Count}, Fail: {scen.Fail.Request.Count}");
 
-        scen.Ok.Request.Count.Should().BeGreaterThan(450, "error handling should not impact throughput");
+        scen.Ok.Request.Count.ShouldBeGreaterThan(450, "error handling should not impact throughput");
     }
 
     [Fact(Skip = SkipReason)]
@@ -305,7 +305,7 @@ public sealed class StreamRequestLoadTests
         _output.WriteLine($"Total cancellation tests: {scen.Ok.Request.Count + scen.Fail.Request.Count}");
         _output.WriteLine($"OK: {scen.Ok.Request.Count}, Fail: {scen.Fail.Request.Count}");
 
-        scen.Ok.Request.Count.Should().BeGreaterThan(250, "cancellation should work reliably under load");
+        scen.Ok.Request.Count.ShouldBeGreaterThan(250, "cancellation should work reliably under load");
     }
 
     [Fact(Skip = SkipReason)]
@@ -347,7 +347,7 @@ public sealed class StreamRequestLoadTests
         _output.WriteLine($"OK: {scen.Ok.Request.Count}, Fail: {scen.Fail.Request.Count}");
         _output.WriteLine($"RPS: {scen.Ok.Request.RPS}");
 
-        scen.Ok.Request.Count.Should().BeGreaterThan(1800, "should handle many small streams efficiently");
+        scen.Ok.Request.Count.ShouldBeGreaterThan(1800, "should handle many small streams efficiently");
     }
 
     [Fact(Skip = SkipReason)]
@@ -391,7 +391,7 @@ public sealed class StreamRequestLoadTests
         _output.WriteLine($"Total burst requests: {scen.Ok.Request.Count + scen.Fail.Request.Count}");
         _output.WriteLine($"OK: {scen.Ok.Request.Count}, Fail: {scen.Fail.Request.Count}");
 
-        scen.Ok.Request.Count.Should().BeGreaterThan(400, "should handle burst load gracefully");
+        scen.Ok.Request.Count.ShouldBeGreaterThan(400, "should handle burst load gracefully");
     }
 
     #region Test Data

@@ -38,10 +38,10 @@ public class ValueObjectTests
         var address2 = new Address("123 Main St", "New York", "USA");
 
         // Act & Assert
-        address1.Should().Be(address2);
-        address1.Equals(address2).Should().BeTrue();
-        (address1 == address2).Should().BeTrue();
-        (address1 != address2).Should().BeFalse();
+        address1.ShouldBe(address2);
+        address1.Equals(address2).ShouldBeTrue();
+        (address1 == address2).ShouldBeTrue();
+        (address1 != address2).ShouldBeFalse();
     }
 
     [Fact]
@@ -52,10 +52,10 @@ public class ValueObjectTests
         var address2 = new Address("456 Oak Ave", "Los Angeles", "USA");
 
         // Act & Assert
-        address1.Should().NotBe(address2);
-        address1.Equals(address2).Should().BeFalse();
-        (address1 == address2).Should().BeFalse();
-        (address1 != address2).Should().BeTrue();
+        address1.ShouldNotBe(address2);
+        address1.Equals(address2).ShouldBeFalse();
+        (address1 == address2).ShouldBeFalse();
+        (address1 != address2).ShouldBeTrue();
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class ValueObjectTests
         var address2 = new Address("123 Main St", "Boston", "USA");
 
         // Act & Assert
-        address1.Should().NotBe(address2);
+        address1.ShouldNotBe(address2);
     }
 
     [Fact]
@@ -76,9 +76,9 @@ public class ValueObjectTests
         var address = new Address("123 Main St", "New York", "USA");
 
         // Act & Assert
-        address.Equals(null).Should().BeFalse();
-        (address == null).Should().BeFalse();
-        (address != null).Should().BeTrue();
+        address.Equals(null).ShouldBeFalse();
+        (address == null).ShouldBeFalse();
+        (address != null).ShouldBeTrue();
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class ValueObjectTests
         var address = new Address("123 Main St", "New York", "USA");
 
         // Act & Assert
-        address.Equals(address).Should().BeTrue();
+        address.Equals(address).ShouldBeTrue();
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class ValueObjectTests
         var address2 = new Address("123 Main St", "New York", "USA");
 
         // Act & Assert
-        address1.GetHashCode().Should().Be(address2.GetHashCode());
+        address1.GetHashCode().ShouldBe(address2.GetHashCode());
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class ValueObjectTests
         var address2 = new Address("456 Oak Ave", "Los Angeles", "USA");
 
         // Act & Assert
-        address1.GetHashCode().Should().NotBe(address2.GetHashCode());
+        address1.GetHashCode().ShouldNotBe(address2.GetHashCode());
     }
 
     [Fact]
@@ -121,8 +121,8 @@ public class ValueObjectTests
         var email2 = new Email("test@example.com");
 
         // Act & Assert
-        email1.Should().Be(email2);
-        email1.Equals(email2).Should().BeTrue();
+        email1.ShouldBe(email2);
+        email1.Equals(email2).ShouldBeTrue();
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public class ValueObjectTests
         var email2 = new Email("other@example.com");
 
         // Act & Assert
-        email1.Should().NotBe(email2);
+        email1.ShouldNotBe(email2);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class ValueObjectTests
         var email = new Email("test@example.com");
 
         // Act & Assert
-        email.Value.Should().Be("test@example.com");
+        email.Value.ShouldBe("test@example.com");
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class ValueObjectTests
         var email = new Email("test@example.com");
 
         // Act & Assert
-        email.ToString().Should().Be("test@example.com");
+        email.ToString().ShouldBe("test@example.com");
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class ValueObjectTests
         string value = email;
 
         // Assert
-        value.Should().Be("test@example.com");
+        value.ShouldBe("test@example.com");
     }
 
     [Fact]
@@ -178,9 +178,9 @@ public class ValueObjectTests
         var email3 = new Email("a@example.com");
 
         // Act & Assert
-        email1.CompareTo(email2).Should().BeLessThan(0);
-        email2.CompareTo(email1).Should().BeGreaterThan(0);
-        email1.CompareTo(email3).Should().Be(0);
+        email1.CompareTo(email2).ShouldBeLessThan(0);
+        email2.CompareTo(email1).ShouldBeGreaterThan(0);
+        email1.CompareTo(email3).ShouldBe(0);
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public class ValueObjectTests
         var email = new Email("test@example.com");
 
         // Act & Assert
-        email.CompareTo(null).Should().BeGreaterThan(0);
+        email.CompareTo(null).ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public class ValueObjectTests
         Address? address2 = null;
 
         // Act & Assert
-        (address1 == address2).Should().BeTrue();
-        (address1 != address2).Should().BeFalse();
+        (address1 == address2).ShouldBeTrue();
+        (address1 != address2).ShouldBeFalse();
     }
 }

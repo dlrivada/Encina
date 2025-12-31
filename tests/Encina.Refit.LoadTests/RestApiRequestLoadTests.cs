@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NBomber.CSharp;
 using Refit;
@@ -30,14 +30,14 @@ public class RestApiRequestLoadTests
         });
 
         var serviceProvider = services.BuildServiceProvider();
-        var Encina = serviceProvider.GetRequiredService<IEncina>();
+        var encina = serviceProvider.GetRequiredService<IEncina>();
 
         // Act
         var scenario = Scenario.Create("parallel_api_calls", async context =>
         {
             var todoId = Random.Shared.Next(1, 200);
             var request = new GetTodoRequest(todoId);
-            var result = await Encina.Send(request);
+            var result = await encina.Send(request);
 
             return result.IsRight
                 ? Response.Ok()
@@ -54,8 +54,8 @@ public class RestApiRequestLoadTests
 
         // Assert
         var scnStats = stats.ScenarioStats[0];
-        scnStats.Ok.Request.Count.Should().BeGreaterThan(0);
-        scnStats.Fail.Request.Count.Should().Be(0);
+        scnStats.Ok.Request.Count.ShouldBeGreaterThan(0);
+        scnStats.Fail.Request.Count.ShouldBe(0);
     }
 
     [Fact]
@@ -75,14 +75,14 @@ public class RestApiRequestLoadTests
         });
 
         var serviceProvider = services.BuildServiceProvider();
-        var Encina = serviceProvider.GetRequiredService<IEncina>();
+        var encina = serviceProvider.GetRequiredService<IEncina>();
 
         // Act - Mix of valid and invalid IDs
         var scenario = Scenario.Create("mixed_load", async context =>
         {
             var todoId = Random.Shared.Next(1, 300); // Some will be 404
             var request = new GetTodoRequest(todoId);
-            var result = await Encina.Send(request);
+            var result = await encina.Send(request);
 
             // Both success and failure are acceptable
             return Response.Ok();
@@ -98,7 +98,7 @@ public class RestApiRequestLoadTests
 
         // Assert - Should complete without deadlock
         var scnStats = stats.ScenarioStats[0];
-        scnStats.Ok.Request.Count.Should().BeGreaterThan(0);
+        scnStats.Ok.Request.Count.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -119,14 +119,14 @@ public class RestApiRequestLoadTests
         .SetHandlerLifetime(TimeSpan.FromMinutes(5)); // Increase handler lifetime
 
         var serviceProvider = services.BuildServiceProvider();
-        var Encina = serviceProvider.GetRequiredService<IEncina>();
+        var encina = serviceProvider.GetRequiredService<IEncina>();
 
         // Act - High throughput scenario
         var scenario = Scenario.Create("high_throughput", async context =>
         {
             var todoId = Random.Shared.Next(1, 100);
             var request = new GetTodoRequest(todoId);
-            var result = await Encina.Send(request);
+            var result = await encina.Send(request);
 
             return result.IsRight
                 ? Response.Ok()
@@ -143,8 +143,8 @@ public class RestApiRequestLoadTests
 
         // Assert
         var scnStats = stats.ScenarioStats[0];
-        scnStats.Ok.Request.Count.Should().BeGreaterThan(0);
-        scnStats.Ok.Request.RPS.Should().BeGreaterThan(0);
+        scnStats.Ok.Request.Count.ShouldBeGreaterThan(0);
+        scnStats.Ok.Request.RPS.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public class RestApiRequestLoadTests
         });
 
         var serviceProvider = services.BuildServiceProvider();
-        var Encina = serviceProvider.GetRequiredService<IEncina>();
+        var encina = serviceProvider.GetRequiredService<IEncina>();
 
         var successCount = 0;
         var failureCount = 0;
@@ -175,7 +175,7 @@ public class RestApiRequestLoadTests
         {
             var todoId = Random.Shared.Next(1, 50);
             var request = new GetTodoRequest(todoId);
-            var result = await Encina.Send(request);
+            var result = await encina.Send(request);
 
             lock (lockObj)
             {
@@ -201,8 +201,8 @@ public class RestApiRequestLoadTests
         // Assert
         var scnStats = stats.ScenarioStats[0];
         var totalRequests = successCount + failureCount;
-        totalRequests.Should().BeGreaterThan(0);
-        scnStats.Ok.Request.Count.Should().Be(successCount);
+        totalRequests.ShouldBeGreaterThan(0);
+        scnStats.Ok.Request.Count.ShouldBe(successCount);
     }
 
     // Test API

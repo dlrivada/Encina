@@ -1,5 +1,5 @@
-﻿using System.Runtime.CompilerServices;
-using FluentAssertions;
+using System.Runtime.CompilerServices;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
@@ -24,7 +24,7 @@ public sealed class StreamRequestTests
             for (var i = 1; i <= request.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await Task.Delay(1, cancellationToken); // Simulate async work
+                await Task.Yield();
                 yield return Right<EncinaError, int>(i);
             }
         }
@@ -40,6 +40,7 @@ public sealed class StreamRequestTests
         {
             for (var i = 1; i <= request.TotalCount; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (i % request.ErrorEveryN == 0)
                 {
                     yield return Left<EncinaError, int>(
@@ -47,7 +48,7 @@ public sealed class StreamRequestTests
                 }
                 else
                 {
-                    await Task.Delay(1, cancellationToken);
+                    await Task.Yield();
                     yield return Right<EncinaError, int>(i);
                 }
             }
@@ -75,11 +76,11 @@ public sealed class StreamRequestTests
         }
 
         // Assert
-        results.Should().HaveCount(5);
-        results.Should().AllSatisfy(r => r.ShouldBeSuccess());
+        results.Count.ShouldBe(5);
+        results.ShouldAllBe(r => r.IsRight);
 
         var values = results.Select(r => r.Match(Left: _ => 0, Right: v => v)).ToList();
-        values.Should().Equal(1, 2, 3, 4, 5);
+        values.ShouldBe([1, 2, 3, 4, 5]);
     }
 
     [Fact]
@@ -101,12 +102,12 @@ public sealed class StreamRequestTests
         }
 
         // Assert
-        results.Should().HaveCount(1);
+        results.Count.ShouldBe(1);
         results[0].ShouldBeError();
         _ = results[0].Match(
             Left: error =>
             {
-                error.GetEncinaCode().Should().Be(EncinaErrorCodes.RequestNull);
+                error.GetEncinaCode().ShouldBe(EncinaErrorCodes.RequestNull);
                 return Unit.Default;
             },
             Right: _ => Unit.Default);
@@ -131,13 +132,13 @@ public sealed class StreamRequestTests
         }
 
         // Assert
-        results.Should().HaveCount(10);
+        results.Count.ShouldBe(10);
 
         var successCount = results.Count(r => r.IsRight);
         var errorCount = results.Count(r => r.IsLeft);
 
-        successCount.Should().Be(7); // Items 1, 2, 4, 5, 7, 8, 10
-        errorCount.Should().Be(3);   // Items 3, 6, 9
+        successCount.ShouldBe(7); // Items 1, 2, 4, 5, 7, 8, 10
+        errorCount.ShouldBe(3);   // Items 3, 6, 9
     }
 
     [Fact]
@@ -173,8 +174,8 @@ public sealed class StreamRequestTests
         }
 
         // Assert
-        results.Should().HaveCountLessThan(100);
-        results.Should().HaveCountGreaterThanOrEqualTo(5);
+        results.Count.ShouldBeLessThan(100);
+        results.Count.ShouldBeGreaterThanOrEqualTo(5);
     }
 
     [Fact]
@@ -196,13 +197,13 @@ public sealed class StreamRequestTests
         }
 
         // Assert
-        results.Should().HaveCount(1);
+        results.Count.ShouldBe(1);
         results[0].ShouldBeError();
         _ = results[0].Match(
             Left: error =>
             {
-                error.GetEncinaCode().Should().Be(EncinaErrorCodes.HandlerMissing);
-                error.Message.Should().Contain("No handler registered");
+                error.GetEncinaCode().ShouldBe(EncinaErrorCodes.HandlerMissing);
+                error.Message.ShouldContain("No handler registered");
                 return Unit.Default;
             },
             Right: _ => Unit.Default);
@@ -233,7 +234,7 @@ public sealed class StreamRequestTests
         }
 
         // Assert
-        results.Should().HaveCount(3);
-        results.Should().AllSatisfy(r => r.ShouldBeSuccess());
+        results.Count.ShouldBe(3);
+        results.ShouldAllBe(r => r.IsRight);
     }
 }

@@ -1,5 +1,5 @@
 using Encina.Cli.Services;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.Cli.Tests.Services;
@@ -39,21 +39,21 @@ public class CodeGeneratorTests : IDisposable
         var result = await CodeGenerator.GenerateCommandHandlerAsync(options);
 
         // Assert
-        result.Success.Should().BeTrue();
-        result.GeneratedFiles.Should().HaveCount(2);
+        result.Success.ShouldBeTrue();
+        result.GeneratedFiles.Count.ShouldBe(2);
 
         var commandFile = Path.Combine(_tempDir, "CreateOrder.cs");
         var handlerFile = Path.Combine(_tempDir, "CreateOrderHandler.cs");
 
-        File.Exists(commandFile).Should().BeTrue();
-        File.Exists(handlerFile).Should().BeTrue();
+        File.Exists(commandFile).ShouldBeTrue();
+        File.Exists(handlerFile).ShouldBeTrue();
 
         var commandContent = await File.ReadAllTextAsync(commandFile);
-        commandContent.Should().Contain("namespace MyApp.Commands;");
-        commandContent.Should().Contain("public sealed record CreateOrder : ICommand");
+        commandContent.ShouldContain("namespace MyApp.Commands;");
+        commandContent.ShouldContain("public sealed record CreateOrder : ICommand");
 
         var handlerContent = await File.ReadAllTextAsync(handlerFile);
-        handlerContent.Should().Contain("public sealed class CreateOrderHandler : ICommandHandler<CreateOrder>");
+        handlerContent.ShouldContain("public sealed class CreateOrderHandler : ICommandHandler<CreateOrder>");
     }
 
     [Fact]
@@ -72,17 +72,17 @@ public class CodeGeneratorTests : IDisposable
         var result = await CodeGenerator.GenerateCommandHandlerAsync(options);
 
         // Assert
-        result.Success.Should().BeTrue();
+        result.Success.ShouldBeTrue();
 
         var commandFile = Path.Combine(_tempDir, "CreateOrder.cs");
         var handlerFile = Path.Combine(_tempDir, "CreateOrderHandler.cs");
 
         var commandContent = await File.ReadAllTextAsync(commandFile);
-        commandContent.Should().Contain("ICommand<OrderId>");
+        commandContent.ShouldContain("ICommand<OrderId>");
 
         var handlerContent = await File.ReadAllTextAsync(handlerFile);
-        handlerContent.Should().Contain("ICommandHandler<CreateOrder, OrderId>");
-        handlerContent.Should().Contain("Either<EncinaError, OrderId>");
+        handlerContent.ShouldContain("ICommandHandler<CreateOrder, OrderId>");
+        handlerContent.ShouldContain("Either<EncinaError, OrderId>");
     }
 
     [Fact]
@@ -101,20 +101,20 @@ public class CodeGeneratorTests : IDisposable
         var result = await CodeGenerator.GenerateQueryHandlerAsync(options);
 
         // Assert
-        result.Success.Should().BeTrue();
-        result.GeneratedFiles.Should().HaveCount(2);
+        result.Success.ShouldBeTrue();
+        result.GeneratedFiles.Count.ShouldBe(2);
 
         var queryFile = Path.Combine(_tempDir, "GetOrderById.cs");
         var handlerFile = Path.Combine(_tempDir, "GetOrderByIdHandler.cs");
 
-        File.Exists(queryFile).Should().BeTrue();
-        File.Exists(handlerFile).Should().BeTrue();
+        File.Exists(queryFile).ShouldBeTrue();
+        File.Exists(handlerFile).ShouldBeTrue();
 
         var queryContent = await File.ReadAllTextAsync(queryFile);
-        queryContent.Should().Contain("IQuery<OrderDto>");
+        queryContent.ShouldContain("IQuery<OrderDto>");
 
         var handlerContent = await File.ReadAllTextAsync(handlerFile);
-        handlerContent.Should().Contain("IQueryHandler<GetOrderById, OrderDto>");
+        handlerContent.ShouldContain("IQueryHandler<GetOrderById, OrderDto>");
     }
 
     [Fact]
@@ -133,19 +133,19 @@ public class CodeGeneratorTests : IDisposable
         var result = await CodeGenerator.GenerateSagaAsync(options);
 
         // Assert
-        result.Success.Should().BeTrue();
-        result.GeneratedFiles.Should().HaveCount(2);
+        result.Success.ShouldBeTrue();
+        result.GeneratedFiles.Count.ShouldBe(2);
 
         var dataFile = Path.Combine(_tempDir, "OrderProcessingData.cs");
         var sagaFile = Path.Combine(_tempDir, "OrderProcessingSaga.cs");
 
-        File.Exists(dataFile).Should().BeTrue();
-        File.Exists(sagaFile).Should().BeTrue();
+        File.Exists(dataFile).ShouldBeTrue();
+        File.Exists(sagaFile).ShouldBeTrue();
 
         var sagaContent = await File.ReadAllTextAsync(sagaFile);
-        sagaContent.Should().Contain(".Step(\"ValidateOrder\")");
-        sagaContent.Should().Contain(".Step(\"ProcessPayment\")");
-        sagaContent.Should().Contain(".Step(\"ShipOrder\")");
+        sagaContent.ShouldContain(".Step(\"ValidateOrder\")");
+        sagaContent.ShouldContain(".Step(\"ProcessPayment\")");
+        sagaContent.ShouldContain(".Step(\"ShipOrder\")");
     }
 
     [Fact]
@@ -164,8 +164,8 @@ public class CodeGeneratorTests : IDisposable
         var result = await CodeGenerator.GenerateSagaAsync(options);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("At least one step is required");
+        result.Success.ShouldBeFalse();
+        result.ErrorMessage.ShouldContain("At least one step is required");
     }
 
     [Fact]
@@ -183,28 +183,27 @@ public class CodeGeneratorTests : IDisposable
         var result = await CodeGenerator.GenerateNotificationAsync(options);
 
         // Assert
-        result.Success.Should().BeTrue();
-        result.GeneratedFiles.Should().HaveCount(2);
+        result.Success.ShouldBeTrue();
+        result.GeneratedFiles.Count.ShouldBe(2);
 
         var notificationFile = Path.Combine(_tempDir, "OrderCreated.cs");
         var handlerFile = Path.Combine(_tempDir, "OrderCreatedHandler.cs");
 
-        File.Exists(notificationFile).Should().BeTrue();
-        File.Exists(handlerFile).Should().BeTrue();
+        File.Exists(notificationFile).ShouldBeTrue();
+        File.Exists(handlerFile).ShouldBeTrue();
 
         var notificationContent = await File.ReadAllTextAsync(notificationFile);
-        notificationContent.Should().Contain("INotification");
+        notificationContent.ShouldContain("INotification");
 
         var handlerContent = await File.ReadAllTextAsync(handlerFile);
-        handlerContent.Should().Contain("INotificationHandler<OrderCreated>");
+        handlerContent.ShouldContain("INotificationHandler<OrderCreated>");
     }
 
     [Fact]
-    public void GenerateCommandHandlerAsync_WithNullOptions_ThrowsArgumentNullException()
+    public async Task GenerateCommandHandlerAsync_WithNullOptions_ThrowsArgumentNullException()
     {
         // Act & Assert
-        var act = async () => await CodeGenerator.GenerateCommandHandlerAsync(null!);
-        act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(() => CodeGenerator.GenerateCommandHandlerAsync(null!));
     }
 
     [Theory]
@@ -220,7 +219,6 @@ public class CodeGeneratorTests : IDisposable
         };
 
         // Act & Assert
-        var act = async () => await CodeGenerator.GenerateCommandHandlerAsync(options);
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(() => CodeGenerator.GenerateCommandHandlerAsync(options));
     }
 }

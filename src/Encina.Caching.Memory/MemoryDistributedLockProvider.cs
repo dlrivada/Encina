@@ -22,15 +22,28 @@ public sealed partial class MemoryDistributedLockProvider : IDistributedLockProv
 {
     private readonly ConcurrentDictionary<string, LockEntry> _locks = new();
     private readonly ILogger<MemoryDistributedLockProvider> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MemoryDistributedLockProvider"/> class.
     /// </summary>
     /// <param name="logger">The logger.</param>
     public MemoryDistributedLockProvider(ILogger<MemoryDistributedLockProvider> logger)
+        : this(logger, TimeProvider.System)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MemoryDistributedLockProvider"/> class with a custom time provider.
+    /// </summary>
+    /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The time provider for controlling time in tests.</param>
+    public MemoryDistributedLockProvider(ILogger<MemoryDistributedLockProvider> logger, TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         _logger = logger;
+        _timeProvider = timeProvider;
     }
 
     /// <inheritdoc/>
@@ -44,15 +57,15 @@ public sealed partial class MemoryDistributedLockProvider : IDistributedLockProv
         ArgumentNullException.ThrowIfNull(resource);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var deadline = DateTime.UtcNow.Add(wait);
+        var deadline = _timeProvider.GetUtcNow().UtcDateTime.Add(wait);
         var lockId = Guid.NewGuid().ToString();
 
-        while (DateTime.UtcNow < deadline)
+        while (_timeProvider.GetUtcNow().UtcDateTime < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             // Try to acquire the lock
-            var now = DateTime.UtcNow;
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
             var expiresAt = now.Add(expiry);
 
             var newEntry = new LockEntry(lockId, expiresAt);
@@ -105,7 +118,7 @@ public sealed partial class MemoryDistributedLockProvider : IDistributedLockProv
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var now = DateTime.UtcNow;
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
             var expiresAt = now.Add(expiry);
             var newEntry = new LockEntry(lockId, expiresAt);
 
@@ -146,7 +159,7 @@ public sealed partial class MemoryDistributedLockProvider : IDistributedLockProv
         if (_locks.TryGetValue(resource, out var entry))
         {
             // Check if the lock has expired
-            return Task.FromResult(entry.ExpiresAt > DateTime.UtcNow);
+            return Task.FromResult(entry.ExpiresAt > _timeProvider.GetUtcNow().UtcDateTime);
         }
 
         return Task.FromResult(false);
@@ -160,7 +173,7 @@ public sealed partial class MemoryDistributedLockProvider : IDistributedLockProv
 
         if (_locks.TryGetValue(resource, out var entry))
         {
-            var now = DateTime.UtcNow;
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
             if (entry.ExpiresAt > now)
             {
                 var newExpiry = now.Add(extension);

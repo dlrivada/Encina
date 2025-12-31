@@ -1,19 +1,18 @@
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
 
 namespace Encina.Testing.Tests;
 
-public sealed class EncinaFixtureTests : IDisposable
+public sealed class EncinaFixtureTests
 {
-    private readonly EncinaFixture _fixture = new();
-
     [Fact]
     public async Task CreateEncina_ShouldReturnWorkingInstance()
     {
         // Arrange
-        var encina = _fixture.CreateEncina(config =>
+        var fixture = new EncinaFixture();
+        var encina = fixture.CreateEncina(config =>
         {
             config.RegisterServicesFromAssemblyContaining<TestRequest>();
         });
@@ -23,14 +22,16 @@ public sealed class EncinaFixtureTests : IDisposable
 
         // Assert
         result.ShouldBeSuccess();
-        result.IfRight(value => value.Should().Be("HELLO"));
+        var value = ExtractRight(result);
+        value.ShouldBe("HELLO");
     }
 
     [Fact]
     public async Task CreateEncina_WithServices_ShouldRegisterCustomServices()
     {
         // Arrange
-        var encina = _fixture.CreateEncina(
+        var fixture = new EncinaFixture();
+        var encina = fixture.CreateEncina(
             config =>
             {
                 config.RegisterServicesFromAssemblyContaining<TestRequest>();
@@ -45,103 +46,126 @@ public sealed class EncinaFixtureTests : IDisposable
 
         // Assert
         result.ShouldBeSuccess();
-        result.IfRight(value => value.Should().Be("Service: test"));
+        var value = ExtractRight(result);
+        value.ShouldBe("Service: test");
     }
 
     [Fact]
     public void GetRequiredService_ShouldReturnRegisteredService()
     {
         // Arrange
-        _fixture.CreateEncina(
+        var fixture = new EncinaFixture();
+        fixture.CreateEncina(
             config => config.RegisterServicesFromAssemblyContaining<TestRequest>(),
             services => services.AddSingleton<ITestService, TestService>());
 
         // Act
-        var service = _fixture.GetRequiredService<ITestService>();
+        var service = fixture.GetRequiredService<ITestService>();
 
         // Assert
-        service.Should().NotBeNull();
-        service.Should().BeOfType<TestService>();
+        service.ShouldNotBeNull();
+        service.ShouldBeOfType<TestService>();
     }
 
     [Fact]
     public void GetService_ShouldReturnNullForUnregisteredService()
     {
         // Arrange
-        _fixture.CreateEncina(config =>
+        var fixture = new EncinaFixture();
+        fixture.CreateEncina(config =>
             config.RegisterServicesFromAssemblyContaining<TestRequest>());
 
         // Act
-        var service = _fixture.GetService<ITestService>();
+        var service = fixture.GetService<ITestService>();
 
         // Assert
-        service.Should().BeNull();
+        service.ShouldBeNull();
     }
 
     [Fact]
     public void GetRequiredService_BeforeCreateEncina_ShouldThrow()
     {
+        // Arrange
+        var fixture = new EncinaFixture();
+
         // Act & Assert
-        var act = () => _fixture.GetRequiredService<IEncina>();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*CreateEncina*");
+        var act = () => fixture.GetRequiredService<IEncina>();
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*CreateEncina*");
     }
 
     [Fact]
     public void ServiceProvider_BeforeCreateEncina_ShouldBeNull()
     {
+        // Arrange
+        var fixture = new EncinaFixture();
+
         // Assert
-        _fixture.ServiceProvider.Should().BeNull();
+        fixture.ServiceProvider.ShouldBeNull();
     }
 
     [Fact]
     public void ServiceProvider_AfterCreateEncina_ShouldNotBeNull()
     {
         // Arrange
-        _fixture.CreateEncina(config =>
+        var fixture = new EncinaFixture();
+        fixture.CreateEncina(config =>
             config.RegisterServicesFromAssemblyContaining<TestRequest>());
 
         // Assert
-        _fixture.ServiceProvider.Should().NotBeNull();
+        fixture.ServiceProvider.ShouldNotBeNull();
     }
 
     [Fact]
     public void CreateScope_ShouldReturnNewScope()
     {
         // Arrange
-        _fixture.CreateEncina(config =>
+        var fixture = new EncinaFixture();
+        fixture.CreateEncina(config =>
             config.RegisterServicesFromAssemblyContaining<TestRequest>());
 
         // Act
-        using var scope = _fixture.CreateScope();
+        using var scope = fixture.CreateScope();
 
         // Assert
-        scope.Should().NotBeNull();
-        scope.ServiceProvider.Should().NotBeNull();
+        scope.ShouldNotBeNull();
+        scope.ServiceProvider.ShouldNotBeNull();
     }
 
     [Fact]
     public void CreateScope_BeforeCreateEncina_ShouldThrow()
     {
+        // Arrange
+        var fixture = new EncinaFixture();
+
         // Act & Assert
-        var act = () => _fixture.CreateScope();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*CreateEncina*");
+        var act = () => fixture.CreateScope();
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*CreateEncina*");
     }
 
     [Fact]
     public void CreateEncinaFromAssemblyContaining_ShouldWork()
     {
+        // Arrange
+        var fixture = new EncinaFixture();
+
         // Act
-        var encina = _fixture.CreateEncinaFromAssemblyContaining<TestRequest>();
+        var encina = fixture.CreateEncinaFromAssemblyContaining<TestRequest>();
 
         // Assert
-        encina.Should().NotBeNull();
+        encina.ShouldNotBeNull();
     }
 
-    public void Dispose() => _fixture.Dispose();
-
     #region Test Types
+
+    private static T ExtractRight<T>(Either<EncinaError, T> either)
+    {
+        return either.Match(
+            Right: v => v,
+            Left: error => throw new InvalidOperationException($"Expected Right but got Left with error: {error}")
+        );
+    }
 
     private sealed record TestRequest(string Value) : IRequest<string>;
 

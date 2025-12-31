@@ -58,7 +58,7 @@ public class RedisDistributedLockIntegrationTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        lockHandle.Should().NotBeNull();
+        lockHandle.ShouldNotBeNull();
         await lockHandle!.DisposeAsync();
     }
 
@@ -84,8 +84,8 @@ public class RedisDistributedLockIntegrationTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        firstLock.Should().NotBeNull();
-        secondLock.Should().BeNull();
+        firstLock.ShouldNotBeNull();
+        secondLock.ShouldBeNull();
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class RedisDistributedLockIntegrationTests : IAsyncLifetime
         var isLocked = await _provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeTrue();
+        isLocked.ShouldBeTrue();
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class RedisDistributedLockIntegrationTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        secondLock.Should().NotBeNull();
+        secondLock.ShouldNotBeNull();
         await secondLock!.DisposeAsync();
     }
 
@@ -157,7 +157,7 @@ public class RedisDistributedLockIntegrationTests : IAsyncLifetime
 
         // Assert
         var successCount = results.Count(r => r is not null);
-        successCount.Should().Be(1);
+        successCount.ShouldBe(1);
 
         // Clean up
         foreach (var result in results.Where(r => r is not null))
@@ -183,7 +183,7 @@ public class RedisDistributedLockIntegrationTests : IAsyncLifetime
         var extended = await lockHandle!.ExtendAsync(TimeSpan.FromMinutes(5));
 
         // Assert
-        extended.Should().BeTrue();
+        extended.ShouldBeTrue();
 
         await lockHandle.DisposeAsync();
     }

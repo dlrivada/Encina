@@ -1,4 +1,5 @@
 using Encina.Messaging.DeadLetter;
+using Shouldly;
 
 namespace Encina.Messaging.ContractTests.DeadLetter;
 
@@ -27,8 +28,8 @@ public abstract class IDeadLetterStoreContractTests
 
         // Assert
         var retrieved = await store.GetAsync(message.Id);
-        retrieved.Should().NotBeNull();
-        retrieved!.Id.Should().Be(message.Id);
+        retrieved.ShouldNotBeNull();
+        retrieved!.Id.ShouldBe(message.Id);
 
         // Cleanup
         await CleanupAsync();
@@ -48,10 +49,10 @@ public abstract class IDeadLetterStoreContractTests
 
         // Assert
         var retrieved = await store.GetAsync(id);
-        retrieved.Should().NotBeNull();
-        retrieved!.RequestType.Should().Be(message.RequestType);
-        retrieved.SourcePattern.Should().Be(message.SourcePattern);
-        retrieved.ErrorMessage.Should().Be(message.ErrorMessage);
+        retrieved.ShouldNotBeNull();
+        retrieved!.RequestType.ShouldBe(message.RequestType);
+        retrieved.SourcePattern.ShouldBe(message.SourcePattern);
+        retrieved.ErrorMessage.ShouldBe(message.ErrorMessage);
 
         // Cleanup
         await CleanupAsync();
@@ -75,8 +76,8 @@ public abstract class IDeadLetterStoreContractTests
         var retrieved = await store.GetAsync(id);
 
         // Assert
-        retrieved.Should().NotBeNull();
-        retrieved!.Id.Should().Be(id);
+        retrieved.ShouldNotBeNull();
+        retrieved!.Id.ShouldBe(id);
 
         // Cleanup
         await CleanupAsync();
@@ -93,7 +94,7 @@ public abstract class IDeadLetterStoreContractTests
         var retrieved = await store.GetAsync(nonExistentId);
 
         // Assert
-        retrieved.Should().BeNull();
+        retrieved.ShouldBeNull();
     }
 
     #endregion
@@ -113,7 +114,7 @@ public abstract class IDeadLetterStoreContractTests
         var messages = await store.GetMessagesAsync();
 
         // Assert
-        messages.Should().HaveCount(2);
+        messages.Count().ShouldBe(2);
 
         // Cleanup
         await CleanupAsync();
@@ -135,8 +136,8 @@ public abstract class IDeadLetterStoreContractTests
         var messages = await store.GetMessagesAsync(filter);
 
         // Assert
-        messages.Should().HaveCount(2);
-        messages.Should().AllSatisfy(m => m.SourcePattern.Should().Be(DeadLetterSourcePatterns.Recoverability));
+        messages.Count().ShouldBe(2);
+        messages.ShouldAllBe(m => m.SourcePattern == DeadLetterSourcePatterns.Recoverability);
 
         // Cleanup
         await CleanupAsync();
@@ -158,8 +159,8 @@ public abstract class IDeadLetterStoreContractTests
         var page2 = await store.GetMessagesAsync(skip: 5, take: 5);
 
         // Assert
-        page1.Should().HaveCount(5);
-        page2.Should().HaveCount(5);
+        page1.Count().ShouldBe(5);
+        page2.Count().ShouldBe(5);
 
         // Cleanup
         await CleanupAsync();
@@ -183,7 +184,7 @@ public abstract class IDeadLetterStoreContractTests
         var count = await store.GetCountAsync();
 
         // Assert
-        count.Should().Be(3);
+        count.ShouldBe(3);
 
         // Cleanup
         await CleanupAsync();
@@ -205,7 +206,7 @@ public abstract class IDeadLetterStoreContractTests
         var count = await store.GetCountAsync(filter);
 
         // Assert
-        count.Should().Be(2);
+        count.ShouldBe(2);
 
         // Cleanup
         await CleanupAsync();
@@ -229,9 +230,9 @@ public abstract class IDeadLetterStoreContractTests
         await store.SaveChangesAsync();
 
         // Assert
-        deleted.Should().BeTrue();
+        deleted.ShouldBeTrue();
         var retrieved = await store.GetAsync(id);
-        retrieved.Should().BeNull();
+        retrieved.ShouldBeNull();
     }
 
     [Fact]
@@ -245,7 +246,7 @@ public abstract class IDeadLetterStoreContractTests
         var deleted = await store.DeleteAsync(nonExistentId);
 
         // Assert
-        deleted.Should().BeFalse();
+        deleted.ShouldBeFalse();
     }
 
     #endregion
@@ -268,10 +269,10 @@ public abstract class IDeadLetterStoreContractTests
 
         // Assert
         var retrieved = await store.GetAsync(id);
-        retrieved.Should().NotBeNull();
-        retrieved!.IsReplayed.Should().BeTrue();
-        retrieved.ReplayResult.Should().Be("Success");
-        retrieved.ReplayedAtUtc.Should().NotBeNull();
+        retrieved.ShouldNotBeNull();
+        retrieved!.IsReplayed.ShouldBeTrue();
+        retrieved.ReplayResult.ShouldBe("Success");
+        retrieved.ReplayedAtUtc.ShouldNotBeNull();
 
         // Cleanup
         await CleanupAsync();
@@ -406,9 +407,13 @@ internal sealed class InMemoryDeadLetterMessageForContract : IDeadLetterMessage
 /// </summary>
 public sealed class InMemoryDeadLetterStoreContractTests : IDeadLetterStoreContractTests
 {
-    private readonly InMemoryDeadLetterStoreForContract _store = new();
+    private InMemoryDeadLetterStoreForContract? _currentStore;
 
-    protected override IDeadLetterStore CreateStore() => _store;
+    protected override IDeadLetterStore CreateStore()
+    {
+        _currentStore = new InMemoryDeadLetterStoreForContract();
+        return _currentStore;
+    }
 
     protected override IDeadLetterMessage CreateMessage(Guid id, string sourcePattern)
     {
@@ -427,7 +432,7 @@ public sealed class InMemoryDeadLetterStoreContractTests : IDeadLetterStoreContr
 
     protected override Task CleanupAsync()
     {
-        _store.Clear();
+        _currentStore?.Clear();
         return Task.CompletedTask;
     }
 }

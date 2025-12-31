@@ -61,7 +61,7 @@ public class QuartzRequestJobTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<JobExecutionException>(() => _job.Execute(_context));
-        exception.Message.Should().Be("Test error message");
+        exception.Message.ShouldBe("Test error message");
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public class QuartzRequestJobTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<JobExecutionException>(() => _job.Execute(_context));
-        exception.Message.Should().Contain("TestRequest");
-        exception.Message.Should().Contain("not found in JobDataMap");
+        exception.Message.ShouldContain("TestRequest");
+        exception.Message.ShouldContain("not found in JobDataMap");
     }
 
     [Fact]
@@ -90,8 +90,8 @@ public class QuartzRequestJobTests
         // Assert
         var logEntry = _logger.Collector.GetSnapshot()
             .FirstOrDefault(r => r.Message.Contains("Executing Quartz job"));
-        logEntry.Should().NotBeNull();
-        logEntry!.Level.Should().Be(LogLevel.Information);
+        logEntry.ShouldNotBeNull();
+        logEntry!.Level.ShouldBe(LogLevel.Information);
     }
 
     [Fact]
@@ -109,8 +109,8 @@ public class QuartzRequestJobTests
         // Assert
         var logEntry = _logger.Collector.GetSnapshot()
             .FirstOrDefault(r => r.Message.Contains("completed successfully"));
-        logEntry.Should().NotBeNull();
-        logEntry!.Level.Should().Be(LogLevel.Information);
+        logEntry.ShouldNotBeNull();
+        logEntry!.Level.ShouldBe(LogLevel.Information);
     }
 
     [Fact]
@@ -136,8 +136,8 @@ public class QuartzRequestJobTests
         // Assert
         var logEntry = _logger.Collector.GetSnapshot()
             .FirstOrDefault(r => r.Message.Contains("failed"));
-        logEntry.Should().NotBeNull();
-        logEntry!.Level.Should().Be(LogLevel.Error);
+        logEntry.ShouldNotBeNull();
+        logEntry!.Level.ShouldBe(LogLevel.Error);
     }
 
     [Fact]
@@ -152,13 +152,13 @@ public class QuartzRequestJobTests
 
         // Act & Assert
         var jobException = await Assert.ThrowsAsync<JobExecutionException>(() => _job.Execute(_context));
-        jobException.InnerException.Should().Be(exception);
+        jobException.InnerException.ShouldBe(exception);
 
         var logEntry = _logger.Collector.GetSnapshot()
             .FirstOrDefault(r => r.Message.Contains("Unhandled exception"));
-        logEntry.Should().NotBeNull();
-        logEntry!.Level.Should().Be(LogLevel.Error);
-        logEntry.Exception.Should().Be(exception);
+        logEntry.ShouldNotBeNull();
+        logEntry!.Level.ShouldBe(LogLevel.Error);
+        logEntry.Exception.ShouldBe(exception);
     }
 
     [Fact]

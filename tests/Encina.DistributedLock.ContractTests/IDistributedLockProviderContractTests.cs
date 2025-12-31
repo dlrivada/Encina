@@ -27,8 +27,8 @@ public abstract class IDistributedLockProviderContractTests
             CancellationToken.None);
 
         // Assert
-        lockHandle.Should().NotBeNull();
-        await lockHandle!.DisposeAsync();
+        lockHandle.ShouldNotBeNull();
+        await lockHandle.DisposeAsync();
     }
 
     [Fact]
@@ -54,8 +54,8 @@ public abstract class IDistributedLockProviderContractTests
             CancellationToken.None);
 
         // Assert
-        firstLock.Should().NotBeNull();
-        secondLock.Should().BeNull();
+        firstLock.ShouldNotBeNull();
+        secondLock.ShouldBeNull();
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public abstract class IDistributedLockProviderContractTests
             CancellationToken.None);
 
         // Assert
-        lockHandle.Should().NotBeNull();
+        lockHandle.ShouldNotBeNull();
         await lockHandle.DisposeAsync();
     }
 
@@ -94,7 +94,7 @@ public abstract class IDistributedLockProviderContractTests
         var isLocked = await provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeTrue();
+        isLocked.ShouldBeTrue();
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public abstract class IDistributedLockProviderContractTests
         var isLocked = await provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeFalse();
+        isLocked.ShouldBeFalse();
     }
 
     [Fact]
@@ -136,8 +136,8 @@ public abstract class IDistributedLockProviderContractTests
             TimeSpan.FromMilliseconds(50),
             CancellationToken.None);
 
-        secondLock.Should().NotBeNull();
-        await secondLock!.DisposeAsync();
+        secondLock.ShouldNotBeNull();
+        await secondLock.DisposeAsync();
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public abstract class IDistributedLockProviderContractTests
         }
 
         // Assert
-        locks.Should().AllSatisfy(l => l.Should().NotBeNull());
+        locks.ShouldAllBe(l => l != null);
 
         foreach (var lockHandle in locks)
         {

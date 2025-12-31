@@ -1,5 +1,5 @@
 using Encina.Messaging.RoutingSlip;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -19,27 +19,24 @@ public sealed class RoutingSlipGuardsTests
     public void RoutingSlipBuilder_Create_WithNullSlipType_ThrowsArgumentException()
     {
         // Act & Assert
-        FluentActions.Invoking(() => RoutingSlipBuilder.Create<TestData>(null!))
-            .Should().Throw<ArgumentException>()
-            .WithParameterName("slipType");
+        var ex = Should.Throw<ArgumentException>(() => RoutingSlipBuilder.Create<TestData>(null!));
+        ex.ParamName.ShouldBe("slipType");
     }
 
     [Fact]
     public void RoutingSlipBuilder_Create_WithEmptySlipType_ThrowsArgumentException()
     {
         // Act & Assert
-        FluentActions.Invoking(() => RoutingSlipBuilder.Create<TestData>(""))
-            .Should().Throw<ArgumentException>()
-            .WithParameterName("slipType");
+        var ex = Should.Throw<ArgumentException>(() => RoutingSlipBuilder.Create<TestData>(""));
+        ex.ParamName.ShouldBe("slipType");
     }
 
     [Fact]
     public void RoutingSlipBuilder_Create_WithWhitespaceSlipType_ThrowsArgumentException()
     {
         // Act & Assert
-        FluentActions.Invoking(() => RoutingSlipBuilder.Create<TestData>("   "))
-            .Should().Throw<ArgumentException>()
-            .WithParameterName("slipType");
+        var ex = Should.Throw<ArgumentException>(() => RoutingSlipBuilder.Create<TestData>("   "));
+        ex.ParamName.ShouldBe("slipType");
     }
 
     [Fact]
@@ -49,10 +46,9 @@ public sealed class RoutingSlipGuardsTests
         var builder = RoutingSlipBuilder.Create<TestData>("TestSlip");
 
         // Act & Assert
-        FluentActions.Invoking(() =>
-            builder.OnCompletion((Func<TestData, RoutingSlipContext<TestData>, CancellationToken, Task>)null!))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("onCompletion");
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            builder.OnCompletion((Func<TestData, RoutingSlipContext<TestData>, CancellationToken, Task>)null!));
+        ex.ParamName.ShouldBe("onCompletion");
     }
 
     [Fact]
@@ -62,10 +58,9 @@ public sealed class RoutingSlipGuardsTests
         var builder = RoutingSlipBuilder.Create<TestData>("TestSlip");
 
         // Act & Assert
-        FluentActions.Invoking(() =>
-            builder.OnCompletion((Func<TestData, CancellationToken, Task>)null!))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("onCompletion");
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            builder.OnCompletion((Func<TestData, CancellationToken, Task>)null!));
+        ex.ParamName.ShouldBe("onCompletion");
     }
 
     [Fact]
@@ -75,9 +70,8 @@ public sealed class RoutingSlipGuardsTests
         var builder = RoutingSlipBuilder.Create<TestData>("TestSlip");
 
         // Act & Assert
-        FluentActions.Invoking(() => builder.WithTimeout(TimeSpan.Zero))
-            .Should().Throw<ArgumentOutOfRangeException>()
-            .WithParameterName("timeout");
+        var ex = Should.Throw<ArgumentOutOfRangeException>(() => builder.WithTimeout(TimeSpan.Zero));
+        ex.ParamName.ShouldBe("timeout");
     }
 
     [Fact]
@@ -87,9 +81,8 @@ public sealed class RoutingSlipGuardsTests
         var builder = RoutingSlipBuilder.Create<TestData>("TestSlip");
 
         // Act & Assert
-        FluentActions.Invoking(() => builder.WithTimeout(TimeSpan.FromMinutes(-1)))
-            .Should().Throw<ArgumentOutOfRangeException>()
-            .WithParameterName("timeout");
+        var ex = Should.Throw<ArgumentOutOfRangeException>(() => builder.WithTimeout(TimeSpan.FromMinutes(-1)));
+        ex.ParamName.ShouldBe("timeout");
     }
 
     [Fact]
@@ -99,8 +92,7 @@ public sealed class RoutingSlipGuardsTests
         var builder = RoutingSlipBuilder.Create<TestData>("TestSlip");
 
         // Act & Assert
-        FluentActions.Invoking(() => builder.Build())
-            .Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(() => builder.Build());
     }
 
     #endregion
@@ -114,10 +106,9 @@ public sealed class RoutingSlipGuardsTests
         var stepBuilder = RoutingSlipBuilder.Create<TestData>("TestSlip").Step("Step1");
 
         // Act & Assert
-        FluentActions.Invoking(() =>
-            stepBuilder.Execute((Func<TestData, RoutingSlipContext<TestData>, CancellationToken, ValueTask<Either<EncinaError, TestData>>>)null!))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("execute");
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            stepBuilder.Execute((Func<TestData, RoutingSlipContext<TestData>, CancellationToken, ValueTask<Either<EncinaError, TestData>>>)null!));
+        ex.ParamName.ShouldBe("execute");
     }
 
     [Fact]
@@ -127,10 +118,9 @@ public sealed class RoutingSlipGuardsTests
         var stepBuilder = RoutingSlipBuilder.Create<TestData>("TestSlip").Step("Step1");
 
         // Act & Assert
-        FluentActions.Invoking(() =>
-            stepBuilder.Execute((Func<TestData, CancellationToken, ValueTask<Either<EncinaError, TestData>>>)null!))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("execute");
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            stepBuilder.Execute((Func<TestData, CancellationToken, ValueTask<Either<EncinaError, TestData>>>)null!));
+        ex.ParamName.ShouldBe("execute");
     }
 
     [Fact]
@@ -140,10 +130,9 @@ public sealed class RoutingSlipGuardsTests
         var stepBuilder = RoutingSlipBuilder.Create<TestData>("TestSlip").Step("Step1");
 
         // Act & Assert
-        FluentActions.Invoking(() =>
-            stepBuilder.Execute((Func<TestData, Either<EncinaError, TestData>>)null!))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("execute");
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            stepBuilder.Execute((Func<TestData, Either<EncinaError, TestData>>)null!));
+        ex.ParamName.ShouldBe("execute");
     }
 
     [Fact]
@@ -155,10 +144,9 @@ public sealed class RoutingSlipGuardsTests
             .Execute((data, ct) => ValueTask.FromResult(Right<EncinaError, TestData>(data)));
 
         // Act & Assert
-        FluentActions.Invoking(() =>
-            stepBuilder.Compensate((Func<TestData, RoutingSlipContext<TestData>, CancellationToken, Task>)null!))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("compensate");
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            stepBuilder.Compensate((Func<TestData, RoutingSlipContext<TestData>, CancellationToken, Task>)null!));
+        ex.ParamName.ShouldBe("compensate");
     }
 
     [Fact]
@@ -170,10 +158,9 @@ public sealed class RoutingSlipGuardsTests
             .Execute((data, ct) => ValueTask.FromResult(Right<EncinaError, TestData>(data)));
 
         // Act & Assert
-        FluentActions.Invoking(() =>
-            stepBuilder.Compensate((Func<TestData, CancellationToken, Task>)null!))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("compensate");
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            stepBuilder.Compensate((Func<TestData, CancellationToken, Task>)null!));
+        ex.ParamName.ShouldBe("compensate");
     }
 
     [Fact]
@@ -185,10 +172,9 @@ public sealed class RoutingSlipGuardsTests
             .Execute((data, ct) => ValueTask.FromResult(Right<EncinaError, TestData>(data)));
 
         // Act & Assert
-        FluentActions.Invoking(() =>
-            stepBuilder.Compensate((Action<TestData>)null!))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("compensate");
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            stepBuilder.Compensate((Action<TestData>)null!));
+        ex.ParamName.ShouldBe("compensate");
     }
 
     [Fact]
@@ -200,9 +186,8 @@ public sealed class RoutingSlipGuardsTests
             .Execute((data, ct) => ValueTask.FromResult(Right<EncinaError, TestData>(data)));
 
         // Act & Assert
-        FluentActions.Invoking(() => stepBuilder.WithMetadata(null!, "value"))
-            .Should().Throw<ArgumentException>()
-            .WithParameterName("key");
+        var ex = Should.Throw<ArgumentException>(() => stepBuilder.WithMetadata(null!, "value"));
+        ex.ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -214,9 +199,8 @@ public sealed class RoutingSlipGuardsTests
             .Execute((data, ct) => ValueTask.FromResult(Right<EncinaError, TestData>(data)));
 
         // Act & Assert
-        FluentActions.Invoking(() => stepBuilder.WithMetadata("", "value"))
-            .Should().Throw<ArgumentException>()
-            .WithParameterName("key");
+        var ex = Should.Throw<ArgumentException>(() => stepBuilder.WithMetadata("", "value"));
+        ex.ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -226,8 +210,7 @@ public sealed class RoutingSlipGuardsTests
         var stepBuilder = RoutingSlipBuilder.Create<TestData>("TestSlip").Step("Step1");
 
         // Act & Assert
-        FluentActions.Invoking(() => stepBuilder.Build())
-            .Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(() => stepBuilder.Build());
     }
 
     #endregion
@@ -242,9 +225,8 @@ public sealed class RoutingSlipGuardsTests
         var logger = Substitute.For<ILogger<RoutingSlipRunner>>();
 
         // Act & Assert
-        FluentActions.Invoking(() => new RoutingSlipRunner(null!, options, logger))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("requestContext");
+        var ex = Should.Throw<ArgumentNullException>(() => new RoutingSlipRunner(null!, options, logger));
+        ex.ParamName.ShouldBe("requestContext");
     }
 
     [Fact]
@@ -255,9 +237,8 @@ public sealed class RoutingSlipGuardsTests
         var logger = Substitute.For<ILogger<RoutingSlipRunner>>();
 
         // Act & Assert
-        FluentActions.Invoking(() => new RoutingSlipRunner(requestContext, null!, logger))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(() => new RoutingSlipRunner(requestContext, null!, logger));
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -268,9 +249,8 @@ public sealed class RoutingSlipGuardsTests
         var options = new RoutingSlipOptions();
 
         // Act & Assert
-        FluentActions.Invoking(() => new RoutingSlipRunner(requestContext, options, null!))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(() => new RoutingSlipRunner(requestContext, options, null!));
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -283,10 +263,8 @@ public sealed class RoutingSlipGuardsTests
         var runner = new RoutingSlipRunner(requestContext, options, logger);
 
         // Act & Assert
-        await FluentActions.Invoking(async () =>
-            await runner.RunAsync<TestData>(null!))
-            .Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("definition");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await runner.RunAsync<TestData>(null!));
+        ex.ParamName.ShouldBe("definition");
     }
 
     [Fact]
@@ -304,10 +282,8 @@ public sealed class RoutingSlipGuardsTests
             .Build();
 
         // Act & Assert
-        await FluentActions.Invoking(async () =>
-            await runner.RunAsync(definition, null!))
-            .Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("initialData");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await runner.RunAsync(definition, null!));
+        ex.ParamName.ShouldBe("initialData");
     }
 
     #endregion
@@ -318,34 +294,31 @@ public sealed class RoutingSlipGuardsTests
     public void RoutingSlipStepDefinition_Constructor_WithNullName_ThrowsArgumentException()
     {
         // Act & Assert
-        FluentActions.Invoking(() =>
+        var ex = Should.Throw<ArgumentException>(() =>
             new RoutingSlipStepDefinition<TestData>(
                 null!,
-                (data, ctx, ct) => ValueTask.FromResult(Right<EncinaError, TestData>(data))))
-            .Should().Throw<ArgumentException>()
-            .WithParameterName("name");
+                (data, ctx, ct) => ValueTask.FromResult(Right<EncinaError, TestData>(data))));
+        ex.ParamName.ShouldBe("name");
     }
 
     [Fact]
     public void RoutingSlipStepDefinition_Constructor_WithEmptyName_ThrowsArgumentException()
     {
         // Act & Assert
-        FluentActions.Invoking(() =>
+        var ex = Should.Throw<ArgumentException>(() =>
             new RoutingSlipStepDefinition<TestData>(
                 "",
-                (data, ctx, ct) => ValueTask.FromResult(Right<EncinaError, TestData>(data))))
-            .Should().Throw<ArgumentException>()
-            .WithParameterName("name");
+                (data, ctx, ct) => ValueTask.FromResult(Right<EncinaError, TestData>(data))));
+        ex.ParamName.ShouldBe("name");
     }
 
     [Fact]
     public void RoutingSlipStepDefinition_Constructor_WithNullExecute_ThrowsArgumentNullException()
     {
         // Act & Assert
-        FluentActions.Invoking(() =>
-            new RoutingSlipStepDefinition<TestData>("Step1", null!))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("execute");
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            new RoutingSlipStepDefinition<TestData>("Step1", null!));
+        ex.ParamName.ShouldBe("execute");
     }
 
     #endregion
@@ -356,30 +329,27 @@ public sealed class RoutingSlipGuardsTests
     public void RoutingSlipActivityEntry_Constructor_WithNullStepName_ThrowsArgumentException()
     {
         // Act & Assert
-        FluentActions.Invoking(() =>
-            new RoutingSlipActivityEntry<TestData>(null!, new TestData(), null, DateTime.UtcNow))
-            .Should().Throw<ArgumentException>()
-            .WithParameterName("stepName");
+        var ex = Should.Throw<ArgumentException>(() =>
+            new RoutingSlipActivityEntry<TestData>(null!, new TestData(), null, DateTime.UtcNow));
+        ex.ParamName.ShouldBe("stepName");
     }
 
     [Fact]
     public void RoutingSlipActivityEntry_Constructor_WithEmptyStepName_ThrowsArgumentException()
     {
         // Act & Assert
-        FluentActions.Invoking(() =>
-            new RoutingSlipActivityEntry<TestData>("", new TestData(), null, DateTime.UtcNow))
-            .Should().Throw<ArgumentException>()
-            .WithParameterName("stepName");
+        var ex = Should.Throw<ArgumentException>(() =>
+            new RoutingSlipActivityEntry<TestData>("", new TestData(), null, DateTime.UtcNow));
+        ex.ParamName.ShouldBe("stepName");
     }
 
     [Fact]
     public void RoutingSlipActivityEntry_Constructor_WithNullData_ThrowsArgumentNullException()
     {
         // Act & Assert
-        FluentActions.Invoking(() =>
-            new RoutingSlipActivityEntry<TestData>("Step1", null!, null, DateTime.UtcNow))
-            .Should().Throw<ArgumentNullException>()
-            .WithParameterName("dataAfterExecution");
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            new RoutingSlipActivityEntry<TestData>("Step1", null!, null, DateTime.UtcNow));
+        ex.ParamName.ShouldBe("dataAfterExecution");
     }
 
     #endregion

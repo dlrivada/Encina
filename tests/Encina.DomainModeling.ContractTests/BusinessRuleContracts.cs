@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.DomainModeling.ContractTests;
 
@@ -20,31 +20,31 @@ public sealed class BusinessRuleContracts
     [Fact]
     public void IBusinessRule_MustBeInterface()
     {
-        _interfaceType.IsInterface.Should().BeTrue();
+        _interfaceType.IsInterface.ShouldBeTrue();
     }
 
     [Fact]
     public void IBusinessRule_MustHaveErrorCodeProperty()
     {
         var property = _interfaceType.GetProperty("ErrorCode");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
     public void IBusinessRule_MustHaveErrorMessageProperty()
     {
         var property = _interfaceType.GetProperty("ErrorMessage");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
     public void IBusinessRule_MustHaveIsSatisfiedMethod()
     {
         var method = _interfaceType.GetMethod("IsSatisfied");
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be<bool>();
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(bool));
     }
 
     #endregion
@@ -54,37 +54,37 @@ public sealed class BusinessRuleContracts
     [Fact]
     public void BusinessRule_MustBeAbstract()
     {
-        _abstractType.IsAbstract.Should().BeTrue();
+        _abstractType.IsAbstract.ShouldBeTrue();
     }
 
     [Fact]
     public void BusinessRule_MustImplementIBusinessRule()
     {
-        _abstractType.GetInterfaces().Should().Contain(_interfaceType);
+        _abstractType.GetInterfaces().ShouldContain(_interfaceType);
     }
 
     [Fact]
     public void BusinessRule_MustHaveAbstractErrorCodeProperty()
     {
         var property = _abstractType.GetProperty("ErrorCode");
-        property.Should().NotBeNull();
-        property!.GetMethod!.IsAbstract.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.GetMethod!.IsAbstract.ShouldBeTrue();
     }
 
     [Fact]
     public void BusinessRule_MustHaveAbstractErrorMessageProperty()
     {
         var property = _abstractType.GetProperty("ErrorMessage");
-        property.Should().NotBeNull();
-        property!.GetMethod!.IsAbstract.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.GetMethod!.IsAbstract.ShouldBeTrue();
     }
 
     [Fact]
     public void BusinessRule_MustHaveAbstractIsSatisfiedMethod()
     {
         var method = _abstractType.GetMethod("IsSatisfied");
-        method.Should().NotBeNull();
-        method!.IsAbstract.Should().BeTrue();
+        method.ShouldNotBeNull();
+        method!.IsAbstract.ShouldBeTrue();
     }
 
     #endregion
@@ -94,29 +94,29 @@ public sealed class BusinessRuleContracts
     [Fact]
     public void BusinessRuleViolationException_MustExtendException()
     {
-        _exceptionType.BaseType.Should().Be<Exception>();
+        _exceptionType.BaseType.ShouldBe(typeof(Exception));
     }
 
     [Fact]
     public void BusinessRuleViolationException_MustHaveBrokenRuleProperty()
     {
         var property = _exceptionType.GetProperty("BrokenRule");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<IBusinessRule>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(IBusinessRule));
     }
 
     [Fact]
     public void BusinessRuleViolationException_MustHaveConstructorWithRule()
     {
         var ctor = _exceptionType.GetConstructor([_interfaceType]);
-        ctor.Should().NotBeNull();
+        ctor.ShouldNotBeNull();
     }
 
     [Fact]
     public void BusinessRuleViolationException_MustHaveConstructorWithRuleAndInner()
     {
         var ctor = _exceptionType.GetConstructor([_interfaceType, typeof(Exception)]);
-        ctor.Should().NotBeNull();
+        ctor.ShouldNotBeNull();
     }
 
     #endregion
@@ -128,31 +128,31 @@ public sealed class BusinessRuleContracts
     {
         // Records implement IEquatable<T>
         _errorType.GetInterfaces()
-            .Should().Contain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEquatable<>));
+            .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEquatable<>));
     }
 
     [Fact]
     public void BusinessRuleError_MustHaveErrorCodeProperty()
     {
         var property = _errorType.GetProperty("ErrorCode");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
     public void BusinessRuleError_MustHaveErrorMessageProperty()
     {
         var property = _errorType.GetProperty("ErrorMessage");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
     public void BusinessRuleError_MustHaveFromFactoryMethod()
     {
         var method = _errorType.GetMethod("From", BindingFlags.Static | BindingFlags.Public);
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be<BusinessRuleError>();
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(BusinessRuleError));
     }
 
     #endregion
@@ -163,32 +163,32 @@ public sealed class BusinessRuleContracts
     public void AggregateBusinessRuleError_MustBeRecord()
     {
         _aggregateErrorType.GetInterfaces()
-            .Should().Contain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEquatable<>));
+            .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEquatable<>));
     }
 
     [Fact]
     public void AggregateBusinessRuleError_MustHaveErrorsProperty()
     {
         var property = _aggregateErrorType.GetProperty("Errors");
-        property.Should().NotBeNull();
+        property.ShouldNotBeNull();
     }
 
     [Fact]
     public void AggregateBusinessRuleError_MustHaveFromRulesFactoryMethod()
     {
         var method = _aggregateErrorType.GetMethod("FromRules", BindingFlags.Static | BindingFlags.Public);
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be<AggregateBusinessRuleError>();
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(AggregateBusinessRuleError));
     }
 
     [Fact]
     public void AggregateBusinessRuleError_MustHaveErrorsCollectionOfCorrectType()
     {
         var property = _aggregateErrorType.GetProperty("Errors");
-        property.Should().NotBeNull();
+        property.ShouldNotBeNull();
         // Errors should be a collection of BusinessRuleError
         var returnType = property!.PropertyType;
-        returnType.IsAssignableTo(typeof(System.Collections.IEnumerable)).Should().BeTrue();
+        returnType.IsAssignableTo(typeof(System.Collections.IEnumerable)).ShouldBeTrue();
     }
 
     #endregion
@@ -199,44 +199,44 @@ public sealed class BusinessRuleContracts
     public void BusinessRuleExtensions_MustExist()
     {
         var extensionsType = typeof(BusinessRuleExtensions);
-        extensionsType.Should().NotBeNull();
-        extensionsType.IsAbstract.Should().BeTrue();
-        extensionsType.IsSealed.Should().BeTrue();
+        extensionsType.ShouldNotBeNull();
+        extensionsType.IsAbstract.ShouldBeTrue();
+        extensionsType.IsSealed.ShouldBeTrue();
     }
 
     [Fact]
     public void BusinessRuleExtensions_MustHaveCheckMethod()
     {
         var method = typeof(BusinessRuleExtensions).GetMethod("Check");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void BusinessRuleExtensions_MustHaveCheckFirstMethod()
     {
         var method = typeof(BusinessRuleExtensions).GetMethod("CheckFirst");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void BusinessRuleExtensions_MustHaveCheckAllMethod()
     {
         var method = typeof(BusinessRuleExtensions).GetMethod("CheckAll");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void BusinessRuleExtensions_MustHaveThrowIfNotSatisfiedMethod()
     {
         var method = typeof(BusinessRuleExtensions).GetMethod("ThrowIfNotSatisfied");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void BusinessRuleExtensions_MustHaveThrowIfAnyNotSatisfiedMethod()
     {
         var method = typeof(BusinessRuleExtensions).GetMethod("ThrowIfAnyNotSatisfied");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     #endregion

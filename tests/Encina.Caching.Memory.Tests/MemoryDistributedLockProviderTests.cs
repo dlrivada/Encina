@@ -1,4 +1,4 @@
-﻿namespace Encina.Caching.Memory.Tests;
+namespace Encina.Caching.Memory.Tests;
 
 /// <summary>
 /// Unit tests for <see cref="MemoryDistributedLockProvider"/>.
@@ -58,7 +58,7 @@ public sealed class MemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        lockHandle.Should().NotBeNull();
+        lockHandle.ShouldNotBeNull();
 
         // Cleanup
         if (lockHandle != null)
@@ -87,8 +87,8 @@ public sealed class MemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        firstLock.Should().NotBeNull();
-        secondLock.Should().BeNull();
+        firstLock.ShouldNotBeNull();
+        secondLock.ShouldBeNull();
 
         // Cleanup
         if (firstLock != null)
@@ -100,19 +100,22 @@ public sealed class MemoryDistributedLockProviderTests
     [Fact]
     public async Task TryAcquireAsync_WithExpiredLock_AcquiresLock()
     {
-        // Arrange - acquire lock that will expire quickly
-        _ = await _sut.TryAcquireAsync(
+        // Arrange - use FakeTimeProvider for deterministic time control
+        var timeProvider = new FakeTimeProvider();
+        var sut = new MemoryDistributedLockProvider(NullLogger<MemoryDistributedLockProvider>.Instance, timeProvider);
+
+        _ = await sut.TryAcquireAsync(
             "expiring-resource",
-            TimeSpan.FromMilliseconds(100), // Short expiry
+            TimeSpan.FromMinutes(5),
             TimeSpan.FromSeconds(1),
             TimeSpan.FromMilliseconds(50),
             CancellationToken.None);
 
-        // Wait for lock to expire
-        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        // Advance time past lock expiry
+        timeProvider.Advance(TimeSpan.FromMinutes(6));
 
         // Act
-        var secondLock = await _sut.TryAcquireAsync(
+        var secondLock = await sut.TryAcquireAsync(
             "expiring-resource",
             TimeSpan.FromMinutes(5),
             TimeSpan.FromSeconds(1),
@@ -120,7 +123,7 @@ public sealed class MemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        secondLock.Should().NotBeNull();
+        secondLock.ShouldNotBeNull();
 
         // Cleanup
         if (secondLock != null)
@@ -152,7 +155,7 @@ public sealed class MemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        secondLock.Should().NotBeNull();
+        secondLock.ShouldNotBeNull();
 
         // Cleanup
         if (secondLock != null)
@@ -195,7 +198,7 @@ public sealed class MemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        lockHandle.Should().NotBeNull();
+        lockHandle.ShouldNotBeNull();
 
         // Cleanup
         await lockHandle.DisposeAsync();
@@ -218,16 +221,17 @@ public sealed class MemoryDistributedLockProviderTests
                 CancellationToken.None);
         });
 
-        // Wait a bit to ensure second acquire is waiting
-        await Task.Delay(TimeSpan.FromMilliseconds(200));
-        acquireTask.IsCompleted.Should().BeFalse();
+        // Note: This delay is intentional for concurrency testing - gives the second task
+        // time to start its wait loop. This is a behavioral test, not a time-dependent one.
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        acquireTask.IsCompleted.ShouldBeFalse();
 
         // Act - Release the first lock
         await firstLock.DisposeAsync();
 
         // Assert - Second acquire should complete
         var secondLock = await acquireTask;
-        secondLock.Should().NotBeNull();
+        secondLock.ShouldNotBeNull();
 
         // Cleanup
         await secondLock.DisposeAsync();
@@ -264,7 +268,7 @@ public sealed class MemoryDistributedLockProviderTests
         var isLocked = await _sut.IsLockedAsync("is-unlocked", CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeFalse();
+        isLocked.ShouldBeFalse();
     }
 
     [Fact]
@@ -280,7 +284,7 @@ public sealed class MemoryDistributedLockProviderTests
         var isLocked = await _sut.IsLockedAsync("is-locked", CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeTrue();
+        isLocked.ShouldBeTrue();
 
         // Cleanup
         await lockHandle.DisposeAsync();
@@ -289,20 +293,23 @@ public sealed class MemoryDistributedLockProviderTests
     [Fact]
     public async Task IsLockedAsync_WithExpiredLock_ReturnsFalse()
     {
-        // Arrange
-        await _sut.AcquireAsync(
+        // Arrange - use FakeTimeProvider for deterministic time control
+        var timeProvider = new FakeTimeProvider();
+        var sut = new MemoryDistributedLockProvider(NullLogger<MemoryDistributedLockProvider>.Instance, timeProvider);
+
+        await sut.AcquireAsync(
             "is-expired",
-            TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromMinutes(5),
             CancellationToken.None);
 
-        // Wait for lock to expire
-        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        // Advance time past lock expiry
+        timeProvider.Advance(TimeSpan.FromMinutes(6));
 
         // Act
-        var isLocked = await _sut.IsLockedAsync("is-expired", CancellationToken.None);
+        var isLocked = await sut.IsLockedAsync("is-expired", CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeFalse();
+        isLocked.ShouldBeFalse();
     }
 
     [Fact]
@@ -320,7 +327,7 @@ public sealed class MemoryDistributedLockProviderTests
         var isLocked = await _sut.IsLockedAsync("is-released", CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeFalse();
+        isLocked.ShouldBeFalse();
     }
 
     #endregion
@@ -354,7 +361,7 @@ public sealed class MemoryDistributedLockProviderTests
         var extended = await _sut.ExtendAsync("extend-unlocked", TimeSpan.FromSeconds(30), CancellationToken.None);
 
         // Assert
-        extended.Should().BeFalse();
+        extended.ShouldBeFalse();
     }
 
     [Fact]
@@ -370,7 +377,7 @@ public sealed class MemoryDistributedLockProviderTests
         var extended = await _sut.ExtendAsync("extend-locked", TimeSpan.FromSeconds(30), CancellationToken.None);
 
         // Assert
-        extended.Should().BeTrue();
+        extended.ShouldBeTrue();
 
         // Cleanup
         await lockHandle.DisposeAsync();
@@ -379,42 +386,48 @@ public sealed class MemoryDistributedLockProviderTests
     [Fact]
     public async Task ExtendAsync_WithExpiredLock_ReturnsFalse()
     {
-        // Arrange
-        await _sut.AcquireAsync(
+        // Arrange - use FakeTimeProvider for deterministic time control
+        var timeProvider = new FakeTimeProvider();
+        var sut = new MemoryDistributedLockProvider(NullLogger<MemoryDistributedLockProvider>.Instance, timeProvider);
+
+        await sut.AcquireAsync(
             "extend-expired",
-            TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromMinutes(5),
             CancellationToken.None);
 
-        // Wait for lock to expire
-        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        // Advance time past lock expiry
+        timeProvider.Advance(TimeSpan.FromMinutes(6));
 
         // Act
-        var extended = await _sut.ExtendAsync("extend-expired", TimeSpan.FromSeconds(30), CancellationToken.None);
+        var extended = await sut.ExtendAsync("extend-expired", TimeSpan.FromSeconds(30), CancellationToken.None);
 
         // Assert
-        extended.Should().BeFalse();
+        extended.ShouldBeFalse();
     }
 
     [Fact]
     public async Task ExtendAsync_ExtendsLockDuration()
     {
-        // Arrange
-        var lockHandle = await _sut.AcquireAsync(
+        // Arrange - use FakeTimeProvider for deterministic time control
+        var timeProvider = new FakeTimeProvider();
+        var sut = new MemoryDistributedLockProvider(NullLogger<MemoryDistributedLockProvider>.Instance, timeProvider);
+
+        var lockHandle = await sut.AcquireAsync(
             "extend-duration",
-            TimeSpan.FromMilliseconds(200),
+            TimeSpan.FromMinutes(5),
             CancellationToken.None);
 
-        // Act - Extend before expiry
-        await Task.Delay(TimeSpan.FromMilliseconds(100));
-        var extended = await _sut.ExtendAsync("extend-duration", TimeSpan.FromSeconds(30), CancellationToken.None);
+        // Act - Advance time partially, then extend before expiry
+        timeProvider.Advance(TimeSpan.FromMinutes(3));
+        var extended = await sut.ExtendAsync("extend-duration", TimeSpan.FromMinutes(10), CancellationToken.None);
 
-        // Wait past original expiry
-        await Task.Delay(TimeSpan.FromMilliseconds(150));
+        // Advance past original expiry time (5 min total from start)
+        timeProvider.Advance(TimeSpan.FromMinutes(3));
 
-        // Assert - Lock should still be held
-        var isLocked = await _sut.IsLockedAsync("extend-duration", CancellationToken.None);
-        extended.Should().BeTrue();
-        isLocked.Should().BeTrue();
+        // Assert - Lock should still be held due to extension
+        var isLocked = await sut.IsLockedAsync("extend-duration", CancellationToken.None);
+        extended.ShouldBeTrue();
+        isLocked.ShouldBeTrue();
 
         // Cleanup
         await lockHandle.DisposeAsync();
@@ -456,7 +469,7 @@ public sealed class MemoryDistributedLockProviderTests
         handles.AddRange(await Task.WhenAll(tasks));
 
         // Assert
-        acquiredCount.Should().Be(1);
+        acquiredCount.ShouldBe(1);
 
         // Cleanup
         foreach (var handle in handles.Where(h => h != null))
@@ -474,10 +487,9 @@ public sealed class MemoryDistributedLockProviderTests
             TimeSpan.FromMinutes(5),
             CancellationToken.None);
 
-        // Act & Assert
+        // Act & Assert - double dispose should not throw
         await lockHandle.DisposeAsync();
-        await lockHandle.Invoking(h => h.DisposeAsync().AsTask())
-            .Should().NotThrowAsync();
+        await lockHandle.DisposeAsync(); // Should complete without exception
     }
 
     #endregion

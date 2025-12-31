@@ -34,21 +34,21 @@ public sealed class AmazonSQSHealthCheckContractTests : IEncinaHealthCheckContra
     [Fact]
     public void DefaultName_ShouldBeEncinaAmazonSqs()
     {
-        AmazonSQSHealthCheck.DefaultName.Should().Be("encina-amazon-sqs");
+        AmazonSQSHealthCheck.DefaultName.ShouldBe("encina-amazon-sqs");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainMessagingTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("messaging");
+        healthCheck.Tags.ShouldContain("messaging");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainAmazonSqsTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("amazon-sqs");
+        healthCheck.Tags.ShouldContain("amazon-sqs");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

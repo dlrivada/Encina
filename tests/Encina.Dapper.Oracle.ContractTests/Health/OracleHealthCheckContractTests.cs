@@ -35,21 +35,21 @@ public sealed class OracleHealthCheckContractTests : IEncinaHealthCheckContractT
     [Fact]
     public void DefaultName_ShouldBeEncinaOracle()
     {
-        OracleHealthCheck.DefaultName.Should().Be("encina-oracle");
+        OracleHealthCheck.DefaultName.ShouldBe("encina-oracle");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainDatabaseTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("database");
+        healthCheck.Tags.ShouldContain("database");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainOracleTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("oracle");
+        healthCheck.Tags.ShouldContain("oracle");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

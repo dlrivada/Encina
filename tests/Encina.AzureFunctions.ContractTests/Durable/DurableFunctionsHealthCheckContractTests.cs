@@ -1,6 +1,6 @@
 using Encina.AzureFunctions.Durable;
 using Encina.Messaging.Health;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -22,7 +22,7 @@ public sealed class DurableFunctionsHealthCheckContractTests
         var healthCheck = new DurableFunctionsHealthCheck(options);
 
         // Assert
-        healthCheck.Should().BeAssignableTo<IEncinaHealthCheck>();
+        healthCheck.ShouldBeAssignableTo<IEncinaHealthCheck>();
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class DurableFunctionsHealthCheckContractTests
         var name = healthCheck.Name;
 
         // Assert
-        name.Should().NotBeNullOrEmpty();
+        name.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class DurableFunctionsHealthCheckContractTests
         var name = healthCheck.Name;
 
         // Assert
-        name.Should().Be("encina-durable-functions");
+        name.ShouldBe("encina-durable-functions");
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class DurableFunctionsHealthCheckContractTests
         var name = healthCheck.Name;
 
         // Assert
-        name.Should().Be("custom-durable-check");
+        name.ShouldBe("custom-durable-check");
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class DurableFunctionsHealthCheckContractTests
         var tags = healthCheck.Tags;
 
         // Assert
-        tags.Should().NotBeNull();
+        tags.ShouldNotBeNull();
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class DurableFunctionsHealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().BeOneOf(HealthStatus.Healthy, HealthStatus.Degraded, HealthStatus.Unhealthy);
+        result.Status.ShouldBeOneOf(HealthStatus.Healthy, HealthStatus.Degraded, HealthStatus.Unhealthy);
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public sealed class DurableFunctionsHealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Data.Should().NotBeNull();
+        result.Data.ShouldNotBeNull();
     }
 
     [Fact]
@@ -127,8 +127,8 @@ public sealed class DurableFunctionsHealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Data.Should().ContainKey("defaultMaxRetries");
-        result.Data.Should().ContainKey("defaultBackoffCoefficient");
+        result.Data.ShouldContainKey("defaultMaxRetries");
+        result.Data.ShouldContainKey("defaultBackoffCoefficient");
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public sealed class DurableFunctionsHealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync(cts.Token);
 
         // Assert
-        result.Status.Should().NotBe(default(HealthStatus));
+        result.Status.ShouldNotBe(default(HealthStatus));
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public sealed class DurableFunctionsHealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [Fact]
@@ -180,6 +180,6 @@ public sealed class DurableFunctionsHealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 }

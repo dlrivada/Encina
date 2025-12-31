@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using System.Reflection;
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.DomainModeling.ContractTests;
 
@@ -19,22 +19,22 @@ public sealed class SpecificationContracts
     [Fact]
     public void Specification_MustBeAbstract()
     {
-        _specType.IsAbstract.Should().BeTrue();
+        _specType.IsAbstract.ShouldBeTrue();
     }
 
     [Fact]
     public void Specification_MustHaveToExpressionMethod()
     {
         var method = _specType.GetMethod("ToExpression");
-        method.Should().NotBeNull();
-        method!.IsAbstract.Should().BeTrue();
+        method.ShouldNotBeNull();
+        method!.IsAbstract.ShouldBeTrue();
     }
 
     [Fact]
     public void Specification_MustHaveIsSatisfiedByMethod()
     {
         var method = _specType.GetMethod("IsSatisfiedBy");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         // IsSatisfiedBy is a concrete method, not virtual
     }
 
@@ -42,21 +42,21 @@ public sealed class SpecificationContracts
     public void Specification_MustHaveAndMethod()
     {
         var method = _specType.GetMethod("And");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void Specification_MustHaveOrMethod()
     {
         var method = _specType.GetMethod("Or");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void Specification_MustHaveNotMethod()
     {
         var method = _specType.GetMethod("Not");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
@@ -64,14 +64,14 @@ public sealed class SpecificationContracts
     {
         var implicitOp = _specType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "op_Implicit");
-        implicitOp.Should().NotBeNull("implicit conversion to Expression should exist");
+        implicitOp.ShouldNotBeNull("implicit conversion to Expression should exist");
     }
 
     [Fact]
     public void Specification_MustHaveToFuncMethod()
     {
         var method = _specType.GetMethod("ToFunc");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     #endregion
@@ -81,8 +81,8 @@ public sealed class SpecificationContracts
     [Fact]
     public void QuerySpecification_MustExtendSpecification()
     {
-        _querySpecType.BaseType.Should().NotBeNull();
-        _querySpecType.BaseType!.GetGenericTypeDefinition().Should().Be(_specType);
+        _querySpecType.BaseType.ShouldNotBeNull();
+        _querySpecType.BaseType!.GetGenericTypeDefinition().ShouldBe(_specType);
     }
 
     [Fact]
@@ -90,86 +90,86 @@ public sealed class SpecificationContracts
     {
         // Criteria is protected, so we need NonPublic binding
         var property = _querySpecType.GetProperty("Criteria", BindingFlags.Instance | BindingFlags.NonPublic);
-        property.Should().NotBeNull();
-        property!.CanRead.Should().BeTrue();
-        property.CanWrite.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.CanRead.ShouldBeTrue();
+        property.CanWrite.ShouldBeTrue();
     }
 
     [Fact]
     public void QuerySpecification_MustHaveIncludesProperty()
     {
         var property = _querySpecType.GetProperty("Includes");
-        property.Should().NotBeNull();
-        property!.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.CanRead.ShouldBeTrue();
     }
 
     [Fact]
     public void QuerySpecification_MustHaveIncludeStringsProperty()
     {
         var property = _querySpecType.GetProperty("IncludeStrings");
-        property.Should().NotBeNull();
-        property!.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.CanRead.ShouldBeTrue();
     }
 
     [Fact]
     public void QuerySpecification_MustHaveOrderByProperty()
     {
         var property = _querySpecType.GetProperty("OrderBy");
-        property.Should().NotBeNull();
-        property!.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.CanRead.ShouldBeTrue();
     }
 
     [Fact]
     public void QuerySpecification_MustHaveOrderByDescendingProperty()
     {
         var property = _querySpecType.GetProperty("OrderByDescending");
-        property.Should().NotBeNull();
-        property!.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.CanRead.ShouldBeTrue();
     }
 
     [Fact]
     public void QuerySpecification_MustHavePagingProperties()
     {
         var skipProp = _querySpecType.GetProperty("Skip");
-        skipProp.Should().NotBeNull();
+        skipProp.ShouldNotBeNull();
 
         var takeProp = _querySpecType.GetProperty("Take");
-        takeProp.Should().NotBeNull();
+        takeProp.ShouldNotBeNull();
 
         var isPagingProp = _querySpecType.GetProperty("IsPagingEnabled");
-        isPagingProp.Should().NotBeNull();
+        isPagingProp.ShouldNotBeNull();
     }
 
     [Fact]
     public void QuerySpecification_MustHaveTrackingOptions()
     {
         var noTrackingProp = _querySpecType.GetProperty("AsNoTracking");
-        noTrackingProp.Should().NotBeNull();
+        noTrackingProp.ShouldNotBeNull();
 
         var splitQueryProp = _querySpecType.GetProperty("AsSplitQuery");
-        splitQueryProp.Should().NotBeNull();
+        splitQueryProp.ShouldNotBeNull();
     }
 
     [Fact]
     public void QuerySpecification_MustHaveProtectedAddIncludeMethod()
     {
         var methods = _querySpecType.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic);
-        methods.Should().Contain(m => m.Name == "AddInclude" && m.IsFamily);
+        methods.ShouldContain(m => m.Name == "AddInclude" && m.IsFamily);
     }
 
     [Fact]
     public void QuerySpecification_MustHaveProtectedApplyPagingMethod()
     {
         var methods = _querySpecType.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic);
-        methods.Should().Contain(m => m.Name == "ApplyPaging" && m.IsFamily);
+        methods.ShouldContain(m => m.Name == "ApplyPaging" && m.IsFamily);
     }
 
     [Fact]
     public void QuerySpecification_MustHaveProtectedOrderingMethods()
     {
         var methods = _querySpecType.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic);
-        methods.Should().Contain(m => m.Name == "ApplyOrderBy" && m.IsFamily);
-        methods.Should().Contain(m => m.Name == "ApplyOrderByDescending" && m.IsFamily);
+        methods.ShouldContain(m => m.Name == "ApplyOrderBy" && m.IsFamily);
+        methods.ShouldContain(m => m.Name == "ApplyOrderByDescending" && m.IsFamily);
     }
 
     #endregion
@@ -179,8 +179,8 @@ public sealed class SpecificationContracts
     [Fact]
     public void QuerySpecificationWithResult_MustExtendQuerySpecification()
     {
-        _querySpecWithResultType.BaseType.Should().NotBeNull();
-        _querySpecWithResultType.BaseType!.GetGenericTypeDefinition().Should().Be(_querySpecType);
+        _querySpecWithResultType.BaseType.ShouldNotBeNull();
+        _querySpecWithResultType.BaseType!.GetGenericTypeDefinition().ShouldBe(_querySpecType);
     }
 
     [Fact]
@@ -188,8 +188,8 @@ public sealed class SpecificationContracts
     {
         // Selector has public getter, protected setter
         var property = _querySpecWithResultType.GetProperty("Selector");
-        property.Should().NotBeNull();
-        property!.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.CanRead.ShouldBeTrue();
         // Setter is protected, but property exists with public getter
     }
 

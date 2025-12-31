@@ -34,21 +34,21 @@ public sealed class RedisHealthCheckContractTests : IEncinaHealthCheckContractTe
     [Fact]
     public void DefaultName_ShouldBeEncinaRedis()
     {
-        RedisHealthCheck.DefaultName.Should().Be("encina-redis");
+        RedisHealthCheck.DefaultName.ShouldBe("encina-redis");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainCachingTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("caching");
+        healthCheck.Tags.ShouldContain("caching");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainRedisTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("redis");
+        healthCheck.Tags.ShouldContain("redis");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

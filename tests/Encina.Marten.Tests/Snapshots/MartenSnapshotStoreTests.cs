@@ -3,6 +3,7 @@ using Marten;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Shouldly;
 
 namespace Encina.Marten.Tests.Snapshots;
 
@@ -28,8 +29,8 @@ public sealed class MartenSnapshotStoreTests
             _logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("session");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("session");
     }
 
     [Fact]
@@ -41,19 +42,19 @@ public sealed class MartenSnapshotStoreTests
             null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
     public async Task SaveAsync_NullSnapshot_ThrowsArgumentNullException()
     {
         // Act
-        var act = async () => await _sut.SaveAsync(null!);
+        Func<Task> act = () => _sut.SaveAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("snapshot");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("snapshot");
     }
 
     [Fact]
@@ -68,7 +69,7 @@ public sealed class MartenSnapshotStoreTests
         var result = await _sut.SaveAsync(snapshot);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _session.Received(1).Store(Arg.Any<SnapshotEnvelope<TestSnapshotableAggregate>>());
         await _session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -88,17 +89,17 @@ public sealed class MartenSnapshotStoreTests
         var result = await _sut.SaveAsync(snapshot);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.LeftToSeq().First().Message.Should().Contain("Failed to save snapshot");
+        result.IsLeft.ShouldBeTrue();
+        result.LeftToSeq().First().Message.ShouldContain("Failed to save snapshot");
     }
 
     [Fact]
     public async Task PruneAsync_NegativeKeepCount_ThrowsArgumentOutOfRangeException()
     {
         // Act
-        var act = async () => await _sut.PruneAsync(Guid.NewGuid(), -1);
+        Func<Task> act = () => _sut.PruneAsync(Guid.NewGuid(), -1);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(act);
     }
 }

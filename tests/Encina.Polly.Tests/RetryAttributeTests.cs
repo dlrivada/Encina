@@ -1,4 +1,4 @@
-﻿namespace Encina.Polly.Tests;
+namespace Encina.Polly.Tests;
 
 /// <summary>
 /// Unit tests for <see cref="RetryAttribute"/>.
@@ -13,61 +13,11 @@ public class RetryAttributeTests
         var attribute = new RetryAttribute();
 
         // Assert
-        attribute.MaxAttempts.Should().Be(3);
-        attribute.BackoffType.Should().Be(BackoffType.Exponential);
-        attribute.BaseDelayMs.Should().Be(1000);
-        attribute.MaxDelayMs.Should().Be(30000);
-        attribute.RetryOnAllExceptions.Should().BeFalse();
-    }
-
-    [Fact]
-    public void MaxAttempts_ShouldDefault3()
-    {
-        // Act
-        var attribute = new RetryAttribute();
-
-        // Assert
-        attribute.MaxAttempts.Should().Be(3, "default should be 3 attempts (1 initial + 2 retries)");
-    }
-
-    [Fact]
-    public void BackoffType_ShouldDefaultExponential()
-    {
-        // Act
-        var attribute = new RetryAttribute();
-
-        // Assert
-        attribute.BackoffType.Should().Be(BackoffType.Exponential, "exponential backoff is recommended default");
-    }
-
-    [Fact]
-    public void BaseDelayMs_ShouldDefault1000()
-    {
-        // Act
-        var attribute = new RetryAttribute();
-
-        // Assert
-        attribute.BaseDelayMs.Should().Be(1000, "default should be 1 second (1000ms)");
-    }
-
-    [Fact]
-    public void MaxDelayMs_ShouldDefault30000()
-    {
-        // Act
-        var attribute = new RetryAttribute();
-
-        // Assert
-        attribute.MaxDelayMs.Should().Be(30000, "default should be 30 seconds (30000ms)");
-    }
-
-    [Fact]
-    public void RetryOnAllExceptions_ShouldDefaultFalse()
-    {
-        // Act
-        var attribute = new RetryAttribute();
-
-        // Assert
-        attribute.RetryOnAllExceptions.Should().BeFalse("default should only retry transient exceptions");
+        attribute.MaxAttempts.ShouldBe(3);
+        attribute.BackoffType.ShouldBe(BackoffType.Exponential);
+        attribute.BaseDelayMs.ShouldBe(1000);
+        attribute.MaxDelayMs.ShouldBe(30000);
+        attribute.RetryOnAllExceptions.ShouldBeFalse();
     }
 
     [Fact]
@@ -84,11 +34,11 @@ public class RetryAttributeTests
         };
 
         // Assert
-        attribute.MaxAttempts.Should().Be(5);
-        attribute.BackoffType.Should().Be(BackoffType.Linear);
-        attribute.BaseDelayMs.Should().Be(2000);
-        attribute.MaxDelayMs.Should().Be(60000);
-        attribute.RetryOnAllExceptions.Should().BeTrue();
+        attribute.MaxAttempts.ShouldBe(5);
+        attribute.BackoffType.ShouldBe(BackoffType.Linear);
+        attribute.BaseDelayMs.ShouldBe(2000);
+        attribute.MaxDelayMs.ShouldBe(60000);
+        attribute.RetryOnAllExceptions.ShouldBeTrue();
     }
 
     [Fact]
@@ -101,9 +51,9 @@ public class RetryAttributeTests
         var attribute = requestType.GetCustomAttributes(typeof(RetryAttribute), false).FirstOrDefault() as RetryAttribute;
 
         // Assert
-        attribute.Should().NotBeNull("RetryAttribute should be applicable to classes");
-        attribute!.MaxAttempts.Should().Be(5);
-        attribute.BackoffType.Should().Be(BackoffType.Constant);
+        attribute.ShouldNotBeNull("RetryAttribute should be applicable to classes");
+        attribute!.MaxAttempts.ShouldBe(5);
+        attribute.BackoffType.ShouldBe(BackoffType.Constant);
     }
 
     [Fact]
@@ -115,8 +65,8 @@ public class RetryAttributeTests
             .FirstOrDefault() as AttributeUsageAttribute;
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.AllowMultiple.Should().BeFalse("only one RetryAttribute should be allowed per class");
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.AllowMultiple.ShouldBeFalse("only one RetryAttribute should be allowed per class");
     }
 
     [Fact]
@@ -128,8 +78,8 @@ public class RetryAttributeTests
             .FirstOrDefault() as AttributeUsageAttribute;
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.Inherited.Should().BeTrue("RetryAttribute should be inherited by derived classes");
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.Inherited.ShouldBeTrue("RetryAttribute should be inherited by derived classes");
     }
 
     [RetryAttribute(MaxAttempts = 5, BackoffType = BackoffType.Constant)]

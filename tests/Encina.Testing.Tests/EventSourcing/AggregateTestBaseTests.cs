@@ -1,6 +1,6 @@
 using Encina.DomainModeling;
 using Encina.Testing.EventSourcing;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.Testing.Tests.EventSourcing;
 
@@ -22,7 +22,7 @@ public class AggregateTestBaseTests
 
         // Assert
         test.ExecuteWhenAndGetAggregate(order => { })
-            .Should().Match<TestOrderAggregate>(o =>
+            .ShouldBeOfType<TestOrderAggregate>().ShouldSatisfy(o =>
                 o.CustomerId == "Customer1" &&
                 o.Items.Count == 1 &&
                 o.Items["Product1"] == 2);
@@ -39,7 +39,7 @@ public class AggregateTestBaseTests
         var aggregate = test.ExecuteWhenAndGetAggregate(order => { });
 
         // Assert - uncommitted should be empty since Given events are historical
-        aggregate.UncommittedEvents.Should().BeEmpty();
+        aggregate.UncommittedEvents.ShouldBeEmpty();
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class AggregateTestBaseTests
         var aggregate = test.ExecuteWhenAndGetAggregate(order => { });
 
         // Assert - version should reflect applied events
-        aggregate.Version.Should().Be(3);
+        aggregate.Version.ShouldBe(3);
     }
 
     [Fact]
@@ -70,8 +70,8 @@ public class AggregateTestBaseTests
         var act = () => test.TestGiven(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("events");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("events");
     }
 
     #endregion
@@ -89,9 +89,9 @@ public class AggregateTestBaseTests
         var aggregate = test.ExecuteWhenAndGetAggregate(order => { });
 
         // Assert
-        aggregate.Version.Should().Be(0);
-        aggregate.UncommittedEvents.Should().BeEmpty();
-        aggregate.CustomerId.Should().BeNull();
+        aggregate.Version.ShouldBe(0);
+        aggregate.UncommittedEvents.ShouldBeEmpty();
+        aggregate.CustomerId.ShouldBeNull();
     }
 
     #endregion
@@ -109,8 +109,8 @@ public class AggregateTestBaseTests
         test.TestWhen(order => order.Create(Guid.NewGuid(), "TestCustomer"));
 
         // Assert
-        test.GetTestUncommittedEvents().Should().ContainSingle()
-            .Which.Should().BeOfType<OrderCreated>();
+        test.GetTestUncommittedEvents().ShouldHaveSingleItem()
+            .Which.ShouldBeOfType<OrderCreated>();
     }
 
     [Fact]
@@ -123,8 +123,8 @@ public class AggregateTestBaseTests
         var act = () => test.TestWhen(order => order.Submit());
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Given()*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*Given()*");
     }
 
     [Fact]
@@ -138,8 +138,8 @@ public class AggregateTestBaseTests
         var act = () => test.TestWhen(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("action");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("action");
     }
 
     [Fact]
@@ -173,13 +173,13 @@ public class AggregateTestBaseTests
         // Act
         await test.TestWhenAsync(async order =>
         {
-            await Task.Delay(1); // Simulate async work
+            await Task.CompletedTask;
             order.Submit();
         });
 
         // Assert
-        test.GetTestUncommittedEvents().Should().ContainSingle()
-            .Which.Should().BeOfType<OrderSubmitted>();
+        test.GetTestUncommittedEvents().ShouldHaveSingleItem()
+            .Which.ShouldBeOfType<OrderSubmitted>();
     }
 
     [Fact]
@@ -192,13 +192,13 @@ public class AggregateTestBaseTests
         // Act
         await test.TestWhenAsync(async order =>
         {
-            await Task.Delay(1);
+            await Task.CompletedTask;
             throw new InvalidOperationException("Async error");
         });
 
         // Assert
         test.TestThenThrows<InvalidOperationException>(ex =>
-            ex.Message.Should().Contain("Async error"));
+            ex.Message.ShouldContain("Async error"));
     }
 
     #endregion
@@ -218,8 +218,8 @@ public class AggregateTestBaseTests
 
         // Assert
         var @event = test.TestThen<OrderCreated>();
-        @event.OrderId.Should().Be(orderId);
-        @event.CustomerId.Should().Be("Customer1");
+        @event.OrderId.ShouldBe(orderId);
+        @event.CustomerId.ShouldBe("Customer1");
     }
 
     [Fact]
@@ -234,8 +234,8 @@ public class AggregateTestBaseTests
 
         // Assert
         var act = () => test.TestThen<OrderSubmitted>();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*OrderSubmitted*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*OrderSubmitted*");
     }
 
     [Fact]
@@ -249,8 +249,8 @@ public class AggregateTestBaseTests
         var act = () => test.TestThen<OrderCreated>();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*When()*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*When()*");
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public class AggregateTestBaseTests
         // Assert
         test.TestThen<OrderCreated>(@event =>
         {
-            @event.CustomerId.Should().Be("ValidatedCustomer");
+            @event.CustomerId.ShouldBe("ValidatedCustomer");
         });
     }
 
@@ -282,8 +282,8 @@ public class AggregateTestBaseTests
 
         // Assert
         var act = () => test.TestThen<OrderSubmitted>();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*exception was thrown*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*exception was thrown*");
     }
 
     #endregion
@@ -324,8 +324,8 @@ public class AggregateTestBaseTests
 
         // Assert
         var act = () => test.TestThenEvents(typeof(ItemAdded), typeof(OrderCreated));
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*position 0*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*position 0*");
     }
 
     [Fact]
@@ -340,8 +340,8 @@ public class AggregateTestBaseTests
 
         // Assert
         var act = () => test.TestThenEvents(typeof(OrderCreated), typeof(ItemAdded));
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Expected 2 events but got 1*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*Expected 2 events but got 1*");
     }
 
     #endregion
@@ -377,8 +377,8 @@ public class AggregateTestBaseTests
 
         // Assert
         var act = () => test.TestThenNoEvents();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Expected no events but found*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*Expected no events but found*");
     }
 
     #endregion
@@ -398,9 +398,9 @@ public class AggregateTestBaseTests
         // Assert
         test.TestThenState(order =>
         {
-            order.CustomerId.Should().Be("Customer1");
-            order.Items.Should().ContainKey("Product1");
-            order.Items["Product1"].Should().Be(5);
+            order.CustomerId.ShouldBe("Customer1");
+            order.Items.ShouldContainKey("Product1");
+            order.Items["Product1"].ShouldBe(5);
         });
     }
 
@@ -416,8 +416,8 @@ public class AggregateTestBaseTests
         var act = () => test.TestThenState(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("stateValidator");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("stateValidator");
     }
 
     #endregion
@@ -436,7 +436,7 @@ public class AggregateTestBaseTests
 
         // Assert
         var exception = test.TestThenThrows<InvalidOperationException>();
-        exception.Message.Should().Contain("Cannot submit");
+        exception.Message.ShouldContain("Cannot submit");
     }
 
     [Fact]
@@ -454,8 +454,8 @@ public class AggregateTestBaseTests
 
         // Assert
         var act = () => test.TestThenThrows<InvalidOperationException>();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*no exception was thrown*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*no exception was thrown*");
     }
 
     [Fact]
@@ -470,8 +470,8 @@ public class AggregateTestBaseTests
 
         // Assert
         var act = () => test.TestThenThrows<ArgumentException>();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*ArgumentException*InvalidOperationException*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*ArgumentException*InvalidOperationException*");
     }
 
     [Fact]
@@ -487,7 +487,7 @@ public class AggregateTestBaseTests
         // Assert
         test.TestThenThrows<InvalidOperationException>(ex =>
         {
-            ex.Message.Should().Contain("no items");
+            ex.Message.ShouldContain("no items");
         });
     }
 
@@ -512,7 +512,7 @@ public class AggregateTestBaseTests
 
         // Assert
         var events = test.GetTestUncommittedEvents();
-        events.Should().HaveCount(3);
+        events.Count.ShouldBe(3);
     }
 
     [Fact]
@@ -532,7 +532,7 @@ public class AggregateTestBaseTests
 
         // Assert
         var itemEvents = test.GetTestUncommittedEvents<ItemAdded>();
-        itemEvents.Should().HaveCount(2);
+        itemEvents.Count.ShouldBe(2);
     }
 
     #endregion
@@ -550,8 +550,8 @@ public class AggregateTestBaseTests
         var act = () => _ = test.GetTestAggregate();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*When()*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*When()*");
     }
 
     #endregion

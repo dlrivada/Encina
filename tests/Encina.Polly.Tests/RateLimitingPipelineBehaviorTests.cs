@@ -42,7 +42,7 @@ public class RateLimitingPipelineBehaviorTests
         // Assert
         result.ShouldBeSuccess();
         _ = result.Match(
-            Right: value => value.Should().Be(expectedResponse),
+            Right: value => value.ShouldBe(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
         );
     }
@@ -87,7 +87,7 @@ public class RateLimitingPipelineBehaviorTests
         // Assert
         result.ShouldBeSuccess();
         _ = result.Match(
-            Right: value => value.Should().Be(expectedResponse),
+            Right: value => value.ShouldBe(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
         );
     }
@@ -114,7 +114,7 @@ public class RateLimitingPipelineBehaviorTests
         result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should be Left"),
-            Left: error => error.Message.Should().Contain("Rate limit exceeded")
+            Left: error => error.Message.ShouldContain("Rate limit exceeded")
         );
     }
 
@@ -142,7 +142,7 @@ public class RateLimitingPipelineBehaviorTests
         await _behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        nextCalled.Should().BeFalse("next step should not be called when rate limit is exceeded");
+        nextCalled.ShouldBeFalse("next step should not be called when rate limit is exceeded");
     }
 
     #endregion
@@ -228,8 +228,8 @@ public class RateLimitingPipelineBehaviorTests
             Right: _ => throw new InvalidOperationException("Should be Left"),
             Left: error =>
             {
-                error.Message.Should().Contain("Throttled");
-                error.Message.Should().Contain("10/10");
+                error.Message.ShouldContain("Throttled");
+                error.Message.ShouldContain("10/10");
                 return Unit.Default;
             }
         );

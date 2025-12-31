@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -53,7 +53,7 @@ public class StandardResilienceLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert - All should complete (some may be rate limited)
-        results.Should().AllSatisfy(r => r.Should().BeTrue());
+        results.ShouldAllBe(r => r == true);
     }
 
     [Fact]
@@ -122,8 +122,8 @@ public class StandardResilienceLoadTests
         var failureCount = results.Count(r => !r.IsSuccess);
 
         _output.WriteLine($"Successes: {successCount}, Failures: {failureCount}");
-        successCount.Should().BeGreaterThan(50);
-        failureCount.Should().BeGreaterThan(0);
+        successCount.ShouldBeGreaterThan(50);
+        failureCount.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class StandardResilienceLoadTests
         _output.WriteLine($"Fail Count: {scnStats.Fail.Request.Count}");
         _output.WriteLine($"RPS: {scnStats.Ok.Request.RPS}");
 
-        scnStats.Ok.Request.Count.Should().BeGreaterThan(400);
+        scnStats.Ok.Request.Count.ShouldBeGreaterThan(400);
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public class StandardResilienceLoadTests
         _output.WriteLine($"OK Count: {scnStats.Ok.Request.Count}");
         _output.WriteLine($"Fail Count: {scnStats.Fail.Request.Count}");
 
-        scnStats.Ok.Request.Count.Should().BeGreaterThan(200);
+        scnStats.Ok.Request.Count.ShouldBeGreaterThan(200);
     }
 
     // Test request/response types

@@ -37,7 +37,7 @@ public class InMemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        lockHandle.Should().NotBeNull();
+        lockHandle.ShouldNotBeNull();
         await lockHandle!.DisposeAsync();
     }
 
@@ -45,27 +45,29 @@ public class InMemoryDistributedLockProviderTests
     public async Task TryAcquireAsync_WhenResourceAlreadyLocked_ShouldReturnNull()
     {
         // Arrange
-        var provider = CreateProvider();
+        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var provider = CreateProvider(fakeTime);
         var resource = "test-resource";
 
         await using var firstLock = await provider.TryAcquireAsync(
             resource,
             TimeSpan.FromMinutes(1),
-            TimeSpan.FromSeconds(5),
-            TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromMilliseconds(50),
+            TimeSpan.FromMilliseconds(10),
             CancellationToken.None);
 
-        // Act
+        // Act - second attempt will fail because resource is already locked
+        // Use very short timeouts since Task.Delay still uses real time
         var secondLock = await provider.TryAcquireAsync(
             resource,
             TimeSpan.FromMinutes(1),
-            TimeSpan.FromMilliseconds(100), // Short wait
             TimeSpan.FromMilliseconds(50),
+            TimeSpan.FromMilliseconds(10),
             CancellationToken.None);
 
         // Assert
-        firstLock.Should().NotBeNull();
-        secondLock.Should().BeNull();
+        firstLock.ShouldNotBeNull();
+        secondLock.ShouldBeNull();
     }
 
     [Fact]
@@ -78,8 +80,8 @@ public class InMemoryDistributedLockProviderTests
         var firstLock = await provider.TryAcquireAsync(
             resource,
             TimeSpan.FromMinutes(1),
-            TimeSpan.FromSeconds(5),
             TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromMilliseconds(50),
             CancellationToken.None);
 
         await firstLock!.DisposeAsync();
@@ -93,7 +95,7 @@ public class InMemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        secondLock.Should().NotBeNull();
+        secondLock.ShouldNotBeNull();
         await secondLock!.DisposeAsync();
     }
 
@@ -111,7 +113,7 @@ public class InMemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        lockHandle.Should().NotBeNull();
+        lockHandle.ShouldNotBeNull();
         await lockHandle.DisposeAsync();
     }
 
@@ -125,15 +127,15 @@ public class InMemoryDistributedLockProviderTests
         await using var lockHandle = await provider.TryAcquireAsync(
             resource,
             TimeSpan.FromMinutes(1),
-            TimeSpan.FromSeconds(5),
             TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromMilliseconds(50),
             CancellationToken.None);
 
         // Act
         var isLocked = await provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeTrue();
+        isLocked.ShouldBeTrue();
     }
 
     [Fact]
@@ -147,7 +149,7 @@ public class InMemoryDistributedLockProviderTests
         var isLocked = await provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeFalse();
+        isLocked.ShouldBeFalse();
     }
 
     [Fact]
@@ -170,7 +172,7 @@ public class InMemoryDistributedLockProviderTests
         var isLocked = await provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeFalse();
+        isLocked.ShouldBeFalse();
     }
 
     [Fact]
@@ -194,7 +196,7 @@ public class InMemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        extended.Should().BeTrue();
+        extended.ShouldBeTrue();
     }
 
     [Fact]
@@ -211,7 +213,7 @@ public class InMemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        extended.Should().BeFalse();
+        extended.ShouldBeFalse();
     }
 
     [Fact]
@@ -231,7 +233,7 @@ public class InMemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        lockHandle.Should().NotBeNull();
+        lockHandle.ShouldNotBeNull();
         await lockHandle!.DisposeAsync();
     }
 
@@ -260,7 +262,7 @@ public class InMemoryDistributedLockProviderTests
             cts.Token);
 
         // Assert
-        await act.Should().ThrowAsync<OperationCanceledException>();
+        await Should.ThrowAsync<OperationCanceledException>(async () => await act());
     }
 
     [Fact]
@@ -292,9 +294,9 @@ public class InMemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        lock1.Should().NotBeNull();
-        lock2.Should().NotBeNull();
-        lock3.Should().NotBeNull();
+        lock1.ShouldNotBeNull();
+        lock2.ShouldNotBeNull();
+        lock3.ShouldNotBeNull();
 
         await lock1!.DisposeAsync();
         await lock2!.DisposeAsync();
@@ -320,7 +322,7 @@ public class InMemoryDistributedLockProviderTests
         var act = async () => await lockHandle.DisposeAsync();
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(async () => await act());
     }
 
     [Fact]
@@ -339,14 +341,14 @@ public class InMemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        lockHandle.Should().BeAssignableTo<ILockHandle>();
+        lockHandle.ShouldBeAssignableTo<ILockHandle>();
         var typedHandle = lockHandle as ILockHandle;
-        typedHandle!.Resource.Should().Be(resource);
-        typedHandle.LockId.Should().NotBeNullOrEmpty();
-        typedHandle.IsReleased.Should().BeFalse();
+        typedHandle!.Resource.ShouldBe(resource);
+        typedHandle.LockId.ShouldNotBeNullOrEmpty();
+        typedHandle.IsReleased.ShouldBeFalse();
 
         await lockHandle!.DisposeAsync();
-        typedHandle.IsReleased.Should().BeTrue();
+        typedHandle.IsReleased.ShouldBeTrue();
     }
 
     [Fact]
@@ -369,8 +371,8 @@ public class InMemoryDistributedLockProviderTests
         var extended = await lockHandle.ExtendAsync(TimeSpan.FromMinutes(10));
 
         // Assert
-        extended.Should().BeTrue();
-        lockHandle.ExpiresAtUtc.Should().BeAfter(originalExpiry);
+        extended.ShouldBeTrue();
+        lockHandle.ExpiresAtUtc.ShouldBeGreaterThan(originalExpiry);
 
         await lockHandle.DisposeAsync();
     }

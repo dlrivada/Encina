@@ -1,6 +1,6 @@
 using Encina.DomainModeling;
 using Encina.Testing.EventSourcing;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.Testing.Tests.EventSourcing;
 
@@ -29,8 +29,8 @@ public sealed class AggregateTestBaseContractTests
         var secondAggregate = test.GetTestAggregate();
 
         // Assert - they should have different customer IDs
-        firstAggregate.CustomerId.Should().Be("Customer1");
-        secondAggregate.CustomerId.Should().Be("Customer2");
+        firstAggregate.CustomerId.ShouldBe("Customer1");
+        secondAggregate.CustomerId.ShouldBe("Customer2");
     }
 
     [Fact]
@@ -50,10 +50,10 @@ public sealed class AggregateTestBaseContractTests
 
         test.TestThenState(order =>
         {
-            order.Id.Should().Be(orderId);
-            order.Items.Should().HaveCount(2);
-            order.Items["Product1"].Should().Be(1);
-            order.Items["Product2"].Should().Be(2);
+            order.Id.ShouldBe(orderId);
+            order.Items.Count.ShouldBe(2);
+            order.Items["Product1"].ShouldBe(1);
+            order.Items["Product2"].ShouldBe(2);
         });
     }
 
@@ -74,7 +74,7 @@ public sealed class AggregateTestBaseContractTests
             throw new InvalidOperationException("Test exception");
         });
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class AggregateTestBaseContractTests
         test.TestWhen(order => order.AddItem("Product1", 1));
 
         // Can check results
-        test.GetTestUncommittedEvents().Should().HaveCount(1);
+        test.GetTestUncommittedEvents().Count.ShouldBe(1);
     }
 
     #endregion
@@ -109,7 +109,7 @@ public sealed class AggregateTestBaseContractTests
         });
 
         var firstEvent = test.TestThen<ItemAdded>();
-        firstEvent.ProductId.Should().Be("First");
+        firstEvent.ProductId.ShouldBe("First");
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public sealed class AggregateTestBaseContractTests
         test.TestWhen(order => { }); // No action that raises events
 
         var act = () => test.TestThenNoEvents();
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -158,8 +158,8 @@ public sealed class AggregateTestBaseContractTests
 
         test.TestThenState(order =>
         {
-            order.Id.Should().Be(orderId);
-            order.Items["Product"].Should().Be(5);
+            order.Id.ShouldBe(orderId);
+            order.Items["Product"].ShouldBe(5);
         });
     }
 
@@ -180,8 +180,8 @@ public sealed class AggregateTestBaseContractTests
         });
 
         var exception = test.TestThenThrows<ArgumentException>();
-        exception.Message.Should().Contain("Test message");
-        exception.ParamName.Should().Be("testParam");
+        exception.Message.ShouldContain("Test message");
+        exception.ParamName.ShouldBe("testParam");
     }
 
     #endregion
@@ -198,8 +198,8 @@ public sealed class AggregateTestBaseContractTests
         test.TestWhen(order => throw new InvalidOperationException());
 
         var act = () => test.TestThen<OrderCreated>();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*exception*ThenThrows*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*exception*ThenThrows*");
     }
 
     [Fact]
@@ -209,8 +209,8 @@ public sealed class AggregateTestBaseContractTests
         var test = new ContractTestOrderAggregate();
 
         var act = () => test.TestWhen(order => { });
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Given*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*Given*");
     }
 
     [Fact]
@@ -221,8 +221,8 @@ public sealed class AggregateTestBaseContractTests
         test.TestGivenEmpty();
 
         var act = () => test.TestThen<OrderCreated>();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*When*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*When*");
     }
 
     #endregion
@@ -238,8 +238,8 @@ public sealed class AggregateTestBaseContractTests
         test.TestWhen(order => order.Create(Guid.NewGuid(), "Customer"));
 
         var aggregate = test.GetTestAggregate();
-        aggregate.Should().NotBeNull();
-        aggregate.CustomerId.Should().Be("Customer");
+        aggregate.ShouldNotBeNull();
+        aggregate.CustomerId.ShouldBe("Customer");
     }
 
     #endregion
@@ -256,7 +256,7 @@ public sealed class AggregateTestBaseContractTests
 
         var events = test.GetTestUncommittedEvents();
 
-        events.Should().BeAssignableTo<IReadOnlyList<object>>();
+        events.ShouldBeAssignableTo<IReadOnlyList<object>>();
     }
 
     [Fact]
@@ -274,8 +274,8 @@ public sealed class AggregateTestBaseContractTests
         });
 
         var itemEvents = test.GetTestUncommittedEvents<ItemAdded>();
-        itemEvents.Should().HaveCount(2);
-        itemEvents.Should().AllBeOfType<ItemAdded>();
+        itemEvents.Count.ShouldBe(2);
+        itemEvents.ShouldAllBe(x => x is ItemAdded);
     }
 
     #endregion

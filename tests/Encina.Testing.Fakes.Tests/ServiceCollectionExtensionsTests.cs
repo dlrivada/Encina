@@ -22,18 +22,18 @@ public sealed class ServiceCollectionExtensionsTests
         // Assert
         using (var provider = services.BuildServiceProvider())
         {
-            provider.GetService<FakeEncina>().Should().NotBeNull();
-            provider.GetService<IEncina>().Should().NotBeNull();
-            provider.GetService<FakeOutboxStore>().Should().NotBeNull();
-            provider.GetService<IOutboxStore>().Should().NotBeNull();
-            provider.GetService<FakeInboxStore>().Should().NotBeNull();
-            provider.GetService<IInboxStore>().Should().NotBeNull();
-            provider.GetService<FakeSagaStore>().Should().NotBeNull();
-            provider.GetService<ISagaStore>().Should().NotBeNull();
-            provider.GetService<FakeScheduledMessageStore>().Should().NotBeNull();
-            provider.GetService<IScheduledMessageStore>().Should().NotBeNull();
-            provider.GetService<FakeDeadLetterStore>().Should().NotBeNull();
-            provider.GetService<IDeadLetterStore>().Should().NotBeNull();
+            provider.GetService<FakeEncina>().ShouldNotBeNull();
+            provider.GetService<IEncina>().ShouldNotBeNull();
+            provider.GetService<FakeOutboxStore>().ShouldNotBeNull();
+            provider.GetService<IOutboxStore>().ShouldNotBeNull();
+            provider.GetService<FakeInboxStore>().ShouldNotBeNull();
+            provider.GetService<IInboxStore>().ShouldNotBeNull();
+            provider.GetService<FakeSagaStore>().ShouldNotBeNull();
+            provider.GetService<ISagaStore>().ShouldNotBeNull();
+            provider.GetService<FakeScheduledMessageStore>().ShouldNotBeNull();
+            provider.GetService<IScheduledMessageStore>().ShouldNotBeNull();
+            provider.GetService<FakeDeadLetterStore>().ShouldNotBeNull();
+            provider.GetService<IDeadLetterStore>().ShouldNotBeNull();
         }
     }
 
@@ -51,7 +51,7 @@ public sealed class ServiceCollectionExtensionsTests
             var encina = provider.GetRequiredService<IEncina>();
 
             // Same instance
-            fakeEncina.Should().BeSameAs(encina);
+            fakeEncina.ShouldBeSameAs(encina);
         }
     }
 
@@ -68,7 +68,7 @@ public sealed class ServiceCollectionExtensionsTests
             var fake1 = provider.GetRequiredService<FakeEncina>();
             var fake2 = provider.GetRequiredService<FakeEncina>();
 
-            fake1.Should().BeSameAs(fake2);
+            fake1.ShouldBeSameAs(fake2);
         }
     }
 
@@ -84,9 +84,9 @@ public sealed class ServiceCollectionExtensionsTests
         // Assert
         using (var provider = services.BuildServiceProvider())
         {
-            provider.GetService<FakeEncina>().Should().NotBeNull();
-            provider.GetService<IEncina>().Should().NotBeNull();
-            provider.GetService<IOutboxStore>().Should().BeNull();
+            provider.GetService<FakeEncina>().ShouldNotBeNull();
+            provider.GetService<IEncina>().ShouldNotBeNull();
+            provider.GetService<IOutboxStore>().ShouldBeNull();
         }
     }
 
@@ -107,7 +107,7 @@ public sealed class ServiceCollectionExtensionsTests
             var encina = provider.GetRequiredService<IEncina>();
 
             // Should be the same instance (replaced, not duplicated)
-            fakeEncina.Should().BeSameAs(encina);
+            fakeEncina.ShouldBeSameAs(encina);
         }
     }
 
@@ -123,9 +123,9 @@ public sealed class ServiceCollectionExtensionsTests
         // Assert
         using (var provider = services.BuildServiceProvider())
         {
-            provider.GetService<FakeOutboxStore>().Should().NotBeNull();
-            provider.GetService<IOutboxStore>().Should().NotBeNull();
-            provider.GetService<FakeInboxStore>().Should().BeNull();
+            provider.GetService<FakeOutboxStore>().ShouldNotBeNull();
+            provider.GetService<IOutboxStore>().ShouldNotBeNull();
+            provider.GetService<FakeInboxStore>().ShouldBeNull();
         }
     }
 }

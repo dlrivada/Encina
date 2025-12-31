@@ -13,9 +13,9 @@ public class BulkheadAttributeTests
         var attribute = new BulkheadAttribute();
 
         // Assert
-        attribute.MaxConcurrency.Should().Be(10);
-        attribute.MaxQueuedActions.Should().Be(20);
-        attribute.QueueTimeoutMs.Should().Be(30000);
+        attribute.MaxConcurrency.ShouldBe(10);
+        attribute.MaxQueuedActions.ShouldBe(20);
+        attribute.QueueTimeoutMs.ShouldBe(30000);
     }
 
     [Fact]
@@ -30,9 +30,9 @@ public class BulkheadAttributeTests
         };
 
         // Assert
-        attribute.MaxConcurrency.Should().Be(5);
-        attribute.MaxQueuedActions.Should().Be(10);
-        attribute.QueueTimeoutMs.Should().Be(5000);
+        attribute.MaxConcurrency.ShouldBe(5);
+        attribute.MaxQueuedActions.ShouldBe(10);
+        attribute.QueueTimeoutMs.ShouldBe(5000);
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public class BulkheadAttributeTests
         };
 
         // Assert
-        attribute.MaxQueuedActions.Should().Be(0);
+        attribute.MaxQueuedActions.ShouldBe(0);
     }
 
     [Fact]
@@ -59,9 +59,9 @@ public class BulkheadAttributeTests
             .FirstOrDefault();
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.ValidOn.Should().Be(AttributeTargets.Class);
-        attributeUsage.AllowMultiple.Should().BeFalse();
-        attributeUsage.Inherited.Should().BeTrue();
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.ValidOn.ShouldBe(AttributeTargets.Class);
+        attributeUsage.AllowMultiple.ShouldBeFalse();
+        attributeUsage.Inherited.ShouldBeTrue();
     }
 }

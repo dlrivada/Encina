@@ -1,6 +1,8 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.Messaging.Outbox;
+using NSubstitute;
+using Shouldly;
 
 namespace Encina.EntityFrameworkCore.GuardTests;
 
@@ -22,7 +24,8 @@ public class OutboxProcessorGuardsTests
 
         // Act & Assert
         var act = () => new OutboxProcessor(serviceProvider, options, logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("serviceProvider");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("serviceProvider");
     }
 
     /// <summary>
@@ -38,7 +41,8 @@ public class OutboxProcessorGuardsTests
 
         // Act & Assert
         var act = () => new OutboxProcessor(serviceProvider, options, logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     /// <summary>
@@ -54,6 +58,7 @@ public class OutboxProcessorGuardsTests
 
         // Act & Assert
         var act = () => new OutboxProcessor(serviceProvider, options, logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 }

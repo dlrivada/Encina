@@ -1,6 +1,6 @@
 using Encina.AzureFunctions.Health;
 using Encina.Messaging.Health;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -25,7 +25,7 @@ public class AzureFunctionsHealthCheckTests
         var name = healthCheck.Name;
 
         // Assert
-        name.Should().Be("custom-health-check");
+        name.ShouldBe("custom-health-check");
     }
 
     [Fact]
@@ -45,14 +45,14 @@ public class AzureFunctionsHealthCheckTests
         var name = healthCheck.Name;
 
         // Assert
-        name.Should().Be("encina-azure-functions");
+        name.ShouldBe("encina-azure-functions");
     }
 
     [Fact]
     public void Tags_ReturnsConfiguredTags()
     {
         // Arrange
-        var expectedTags = new[] { "custom", "tag" };
+        string[] expectedTags = ["custom", "tag"];
         var options = Options.Create(new EncinaAzureFunctionsOptions
         {
             ProviderHealthCheck = new ProviderHealthCheckOptions
@@ -66,7 +66,7 @@ public class AzureFunctionsHealthCheckTests
         var tags = healthCheck.Tags;
 
         // Assert
-        tags.Should().BeEquivalentTo(expectedTags);
+        tags.ShouldBe(expectedTags);
     }
 
     [Fact]
@@ -80,8 +80,8 @@ public class AzureFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("properly configured");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("properly configured");
     }
 
     [Fact]
@@ -100,12 +100,12 @@ public class AzureFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Data.Should().ContainKey("requestContextEnrichment");
-        result.Data["requestContextEnrichment"].Should().Be(true);
-        result.Data.Should().ContainKey("correlationIdHeader");
-        result.Data["correlationIdHeader"].Should().Be("X-Custom-Correlation");
-        result.Data.Should().ContainKey("tenantIdHeader");
-        result.Data["tenantIdHeader"].Should().Be("X-Custom-Tenant");
+        result.Data.ShouldContainKey("requestContextEnrichment");
+        result.Data["requestContextEnrichment"].ShouldBe(true);
+        result.Data.ShouldContainKey("correlationIdHeader");
+        result.Data["correlationIdHeader"].ShouldBe("X-Custom-Correlation");
+        result.Data.ShouldContainKey("tenantIdHeader");
+        result.Data["tenantIdHeader"].ShouldBe("X-Custom-Tenant");
     }
 
     [Fact]
@@ -122,8 +122,8 @@ public class AzureFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("incomplete configuration");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description.ShouldContain("incomplete configuration");
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class AzureFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class AzureFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public class AzureFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public class AzureFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(cts.Token);
 
         // Assert - Should complete without throwing
-        result.Status.Should().Be(HealthStatus.Healthy);
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public class AzureFunctionsHealthCheckTests
         var action = () => new AzureFunctionsHealthCheck(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("options");
     }
 }

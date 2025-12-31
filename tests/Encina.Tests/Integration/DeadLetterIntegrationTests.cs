@@ -2,7 +2,7 @@ using Encina.Messaging;
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Health;
 using Encina.Messaging.Recoverability;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -82,16 +82,16 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
             correlationId: "test-correlation");
 
         // Assert
-        message.Should().NotBeNull();
-        message.RequestType.Should().Contain(nameof(FailingRequest));
-        message.ErrorMessage.Should().Be("[test] Test error");
-        message.SourcePattern.Should().Be(DeadLetterSourcePatterns.Recoverability);
-        message.TotalRetryAttempts.Should().Be(3);
-        message.CorrelationId.Should().Be("test-correlation");
+        message.ShouldNotBeNull();
+        message.RequestType.ShouldContain(nameof(FailingRequest));
+        message.ErrorMessage.ShouldBe("[test] Test error");
+        message.SourcePattern.ShouldBe(DeadLetterSourcePatterns.Recoverability);
+        message.TotalRetryAttempts.ShouldBe(3);
+        message.CorrelationId.ShouldBe("test-correlation");
 
         // Verify callback was invoked
-        _deadLetteredMessages.Should().ContainSingle();
-        _deadLetteredMessages[0].Id.Should().Be(message.Id);
+        _deadLetteredMessages.ShouldHaveSingleItem();
+        _deadLetteredMessages[0].Id.ShouldBe(message.Id);
     }
 
     [Fact]
@@ -113,9 +113,9 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
             firstFailedAtUtc: DateTime.UtcNow);
 
         // Assert
-        message.ExceptionType.Should().Be("System.InvalidOperationException");
-        message.ExceptionMessage.Should().Be("Test exception message");
-        message.ExceptionStackTrace.Should().BeNull(); // No stack trace when exception is created inline
+        message.ExceptionType.ShouldBe("System.InvalidOperationException");
+        message.ExceptionMessage.ShouldBe("Test exception message");
+        message.ExceptionStackTrace.ShouldBeNull(); // No stack trace when exception is created inline
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var count = await orchestrator.GetPendingCountAsync();
 
         // Assert
-        count.Should().Be(2);
+        count.ShouldBe(2);
     }
 
     [Fact]
@@ -161,12 +161,12 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var stats = await orchestrator.GetStatisticsAsync();
 
         // Assert
-        stats.TotalCount.Should().Be(3);
-        stats.PendingCount.Should().Be(3);
-        stats.CountBySource.Should().ContainKey(DeadLetterSourcePatterns.Recoverability);
-        stats.CountBySource[DeadLetterSourcePatterns.Recoverability].Should().Be(2);
-        stats.CountBySource.Should().ContainKey(DeadLetterSourcePatterns.Outbox);
-        stats.CountBySource[DeadLetterSourcePatterns.Outbox].Should().Be(1);
+        stats.TotalCount.ShouldBe(3);
+        stats.PendingCount.ShouldBe(3);
+        stats.CountBySource.ShouldContainKey(DeadLetterSourcePatterns.Recoverability);
+        stats.CountBySource[DeadLetterSourcePatterns.Recoverability].ShouldBe(2);
+        stats.CountBySource.ShouldContainKey(DeadLetterSourcePatterns.Outbox);
+        stats.CountBySource[DeadLetterSourcePatterns.Outbox].ShouldBe(1);
     }
 
     #endregion
@@ -194,9 +194,9 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
             DeadLetterFilter.FromSource(DeadLetterSourcePatterns.Recoverability));
 
         // Assert
-        allMessages.Count().Should().Be(2);
-        recoverabilityMessages.Count().Should().Be(1);
-        recoverabilityMessages.First().SourcePattern.Should().Be(DeadLetterSourcePatterns.Recoverability);
+        allMessages.Count().ShouldBe(2);
+        recoverabilityMessages.Count().ShouldBe(1);
+        recoverabilityMessages.First().SourcePattern.ShouldBe(DeadLetterSourcePatterns.Recoverability);
     }
 
     [Fact]
@@ -216,8 +216,8 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var retrieved = await manager.GetMessageAsync(message.Id);
 
         // Assert
-        deleted.Should().BeTrue();
-        retrieved.Should().BeNull();
+        deleted.ShouldBeTrue();
+        retrieved.ShouldBeNull();
     }
 
     [Fact]
@@ -241,8 +241,8 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var remainingCount = await manager.GetCountAsync();
 
         // Assert
-        deletedCount.Should().Be(1);
-        remainingCount.Should().Be(1);
+        deletedCount.ShouldBe(1);
+        remainingCount.ShouldBe(1);
     }
 
     #endregion
@@ -259,8 +259,9 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("empty");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldNotBeNull();
+        result.Description.ShouldContain("empty");
     }
 
     [Fact]
@@ -284,8 +285,9 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("5");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldNotBeNull();
+        result.Description.ShouldContain("5");
     }
 
     [Fact]
@@ -309,8 +311,9 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("15");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description.ShouldNotBeNull();
+        result.Description.ShouldContain("15");
     }
 
     [Fact]
@@ -334,8 +337,9 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("150");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldNotBeNull();
+        result.Description.ShouldContain("150");
     }
 
     #endregion

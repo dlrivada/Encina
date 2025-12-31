@@ -3,6 +3,7 @@ using Encina.Messaging.Health;
 using Encina.MQTT.Health;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.MQTT.Tests.Health;
 
@@ -34,21 +35,21 @@ public sealed class MQTTHealthCheckContractTests : IEncinaHealthCheckContractTes
     [Fact]
     public void DefaultName_ShouldBeEncinaMqtt()
     {
-        MQTTHealthCheck.DefaultName.Should().Be("encina-mqtt");
+        MQTTHealthCheck.DefaultName.ShouldBe("encina-mqtt");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainMessagingTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("messaging");
+        healthCheck.Tags.ShouldContain("messaging");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainMqttTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("mqtt");
+        healthCheck.Tags.ShouldContain("mqtt");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

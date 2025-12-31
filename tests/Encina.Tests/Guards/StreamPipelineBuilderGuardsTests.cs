@@ -1,5 +1,5 @@
-﻿using System.Runtime.CompilerServices;
-using FluentAssertions;
+using System.Runtime.CompilerServices;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
@@ -31,8 +31,8 @@ public sealed class StreamPipelineBuilderGuardsTests
             cancellationToken);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("request");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -52,8 +52,8 @@ public sealed class StreamPipelineBuilderGuardsTests
             cancellationToken);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("handler");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -73,8 +73,8 @@ public sealed class StreamPipelineBuilderGuardsTests
             cancellationToken);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class StreamPipelineBuilderGuardsTests
             cancellationToken);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class StreamPipelineBuilderGuardsTests
             cancellationToken);
 
         // Assert - cancellation is allowed at construction time
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -140,8 +140,8 @@ public sealed class StreamPipelineBuilderGuardsTests
         var act = () => builder.Build(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serviceProvider");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("serviceProvider");
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public sealed class StreamPipelineBuilderGuardsTests
         var act = () => builder.Build(provider);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public sealed class StreamPipelineBuilderGuardsTests
         var pipeline = builder.Build(provider);
 
         // Assert
-        pipeline.Should().NotBeNull();
+        pipeline.ShouldNotBeNull();
     }
 
     [Fact]
@@ -217,7 +217,7 @@ public sealed class StreamPipelineBuilderGuardsTests
         var pipeline = builder.Build(provider);
 
         // Assert
-        pipeline.Should().NotBeNull();
+        pipeline.ShouldNotBeNull();
     }
 
     #endregion

@@ -34,8 +34,8 @@ public sealed class GrpcHealthCheckIntegrationTests : IDisposable
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("configured and ready");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("configured and ready");
     }
 
     [Fact]
@@ -49,8 +49,8 @@ public sealed class GrpcHealthCheckIntegrationTests : IDisposable
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        healthCheck.Name.Should().Be("my-custom-grpc");
-        result.Status.Should().Be(HealthStatus.Healthy);
+        healthCheck.Name.ShouldBe("my-custom-grpc");
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [Fact]
@@ -65,8 +65,8 @@ public sealed class GrpcHealthCheckIntegrationTests : IDisposable
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("not configured");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("not configured");
     }
 
     [Fact]
@@ -76,16 +76,16 @@ public sealed class GrpcHealthCheckIntegrationTests : IDisposable
         var healthCheck = new GrpcHealthCheck(_serviceProvider, null);
 
         // Assert
-        healthCheck.Tags.Should().Contain("encina");
-        healthCheck.Tags.Should().Contain("messaging");
-        healthCheck.Tags.Should().Contain("grpc");
-        healthCheck.Tags.Should().Contain("ready");
+        healthCheck.Tags.ShouldContain("encina");
+        healthCheck.Tags.ShouldContain("messaging");
+        healthCheck.Tags.ShouldContain("grpc");
+        healthCheck.Tags.ShouldContain("ready");
     }
 
     [Fact]
     public void DefaultName_ShouldBeEncinaGrpc()
     {
-        GrpcHealthCheck.DefaultName.Should().Be("encina-grpc");
+        GrpcHealthCheck.DefaultName.ShouldBe("encina-grpc");
     }
 
     public void Dispose()

@@ -1,4 +1,4 @@
-﻿namespace Encina.Caching.GuardTests;
+namespace Encina.Caching.GuardTests;
 
 /// <summary>
 /// Guard tests for <see cref="CacheInvalidationPipelineBehavior{TRequest, TResponse}"/> to verify null parameter handling.
@@ -31,7 +31,8 @@ public class CacheInvalidationPipelineBehaviorGuardTests
             _keyGenerator,
             options,
             _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("cacheProvider");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("cacheProvider");
     }
 
     /// <summary>
@@ -49,7 +50,8 @@ public class CacheInvalidationPipelineBehaviorGuardTests
             null!,
             options,
             _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("keyGenerator");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("keyGenerator");
     }
 
     /// <summary>
@@ -64,7 +66,8 @@ public class CacheInvalidationPipelineBehaviorGuardTests
             _keyGenerator,
             null!,
             _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     /// <summary>
@@ -82,7 +85,8 @@ public class CacheInvalidationPipelineBehaviorGuardTests
             _keyGenerator,
             options,
             null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     /// <summary>
@@ -102,12 +106,12 @@ public class CacheInvalidationPipelineBehaviorGuardTests
         TestInvalidatingCommand request = null!;
 
         // Act & Assert
-        var act = async () => await behavior.Handle(
+        var act = () => behavior.Handle(
             request,
             context,
             () => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("result")),
-            CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("request");
+            CancellationToken.None).AsTask();
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe(nameof(request));
     }
 
     /// <summary>
@@ -127,12 +131,12 @@ public class CacheInvalidationPipelineBehaviorGuardTests
         IRequestContext context = null!;
 
         // Act & Assert
-        var act = async () => await behavior.Handle(
+        var act = () => behavior.Handle(
             request,
             context,
             () => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("result")),
-            CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
+            CancellationToken.None).AsTask();
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe(nameof(context));
     }
 
     /// <summary>
@@ -152,12 +156,12 @@ public class CacheInvalidationPipelineBehaviorGuardTests
         var context = CreateContext();
 
         // Act & Assert
-        var act = async () => await behavior.Handle(
+        var act = () => behavior.Handle(
             request,
             context,
             null!,
-            CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("nextStep");
+            CancellationToken.None).AsTask();
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("nextStep");
     }
 
     private static IRequestContext CreateContext()

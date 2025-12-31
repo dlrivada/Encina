@@ -1,5 +1,6 @@
-﻿using FsCheck;
+using FsCheck;
 using FsCheck.Xunit;
+using Shouldly;
 using Xunit;
 
 namespace Encina.Polly.PropertyTests;
@@ -17,7 +18,7 @@ public class AttributePropertyTests
         var attribute = new RetryAttribute { MaxAttempts = 5 };
 
         // Assert
-        attribute.MaxAttempts.Should().BeGreaterThan(0);
+        attribute.MaxAttempts.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -27,7 +28,7 @@ public class AttributePropertyTests
         var attribute = new RetryAttribute { BaseDelayMs = 1000 };
 
         // Assert
-        attribute.BaseDelayMs.Should().BeGreaterThan(0);
+        attribute.BaseDelayMs.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -37,7 +38,7 @@ public class AttributePropertyTests
         var attribute = new CircuitBreakerAttribute { FailureRateThreshold = 0.5 };
 
         // Assert
-        attribute.FailureRateThreshold.Should().BeInRange(0, 1);
+        attribute.FailureRateThreshold.ShouldBeInRange(0, 1);
     }
 
     [Fact]
@@ -47,7 +48,7 @@ public class AttributePropertyTests
         var attribute = new CircuitBreakerAttribute { MinimumThroughput = 10 };
 
         // Assert
-        attribute.MinimumThroughput.Should().BeGreaterThan(0);
+        attribute.MinimumThroughput.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -57,7 +58,7 @@ public class AttributePropertyTests
         var attribute = new RateLimitAttribute { MaxRequestsPerWindow = 100 };
 
         // Assert
-        attribute.MaxRequestsPerWindow.Should().BeGreaterThan(0);
+        attribute.MaxRequestsPerWindow.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -67,7 +68,7 @@ public class AttributePropertyTests
         var attribute = new RateLimitAttribute { WindowSizeSeconds = 60 };
 
         // Assert
-        attribute.WindowSizeSeconds.Should().BeGreaterThan(0);
+        attribute.WindowSizeSeconds.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -77,7 +78,7 @@ public class AttributePropertyTests
         var attribute = new RateLimitAttribute { ErrorThresholdPercent = 50 };
 
         // Assert
-        attribute.ErrorThresholdPercent.Should().BeInRange(0, 100);
+        attribute.ErrorThresholdPercent.ShouldBeInRange(0, 100);
     }
 
     [Fact]
@@ -87,7 +88,7 @@ public class AttributePropertyTests
         var attribute = new RateLimitAttribute { RampUpFactor = 1.5 };
 
         // Assert
-        attribute.RampUpFactor.Should().BeGreaterThan(0);
+        attribute.RampUpFactor.ShouldBeGreaterThan(0);
     }
 
     #region Bulkhead Attribute Properties
@@ -99,7 +100,7 @@ public class AttributePropertyTests
         var attribute = new BulkheadAttribute { MaxConcurrency = 10 };
 
         // Assert
-        attribute.MaxConcurrency.Should().BeGreaterThan(0);
+        attribute.MaxConcurrency.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -109,7 +110,7 @@ public class AttributePropertyTests
         var attribute = new BulkheadAttribute { MaxQueuedActions = 20 };
 
         // Assert
-        attribute.MaxQueuedActions.Should().BeGreaterThanOrEqualTo(0);
+        attribute.MaxQueuedActions.ShouldBeGreaterThanOrEqualTo(0);
     }
 
     [Fact]
@@ -119,7 +120,7 @@ public class AttributePropertyTests
         var attribute = new BulkheadAttribute { QueueTimeoutMs = 5000 };
 
         // Assert
-        attribute.QueueTimeoutMs.Should().BeGreaterThan(0);
+        attribute.QueueTimeoutMs.ShouldBeGreaterThan(0);
     }
 
     [Property]

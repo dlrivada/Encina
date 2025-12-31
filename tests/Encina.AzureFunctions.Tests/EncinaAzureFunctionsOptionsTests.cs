@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using Encina.Messaging.Health;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AzureFunctions.Tests;
@@ -14,12 +14,12 @@ public class EncinaAzureFunctionsOptionsTests
         var options = new EncinaAzureFunctionsOptions();
 
         // Assert
-        options.EnableRequestContextEnrichment.Should().BeTrue();
-        options.CorrelationIdHeader.Should().Be("X-Correlation-ID");
-        options.TenantIdHeader.Should().Be("X-Tenant-ID");
-        options.UserIdClaimType.Should().Be(ClaimTypes.NameIdentifier);
-        options.TenantIdClaimType.Should().Be("tenant_id");
-        options.IncludeExceptionDetailsInResponse.Should().BeFalse();
+        options.EnableRequestContextEnrichment.ShouldBeTrue();
+        options.CorrelationIdHeader.ShouldBe("X-Correlation-ID");
+        options.TenantIdHeader.ShouldBe("X-Tenant-ID");
+        options.UserIdClaimType.ShouldBe(ClaimTypes.NameIdentifier);
+        options.TenantIdClaimType.ShouldBe("tenant_id");
+        options.IncludeExceptionDetailsInResponse.ShouldBeFalse();
     }
 
     [Fact]
@@ -29,12 +29,12 @@ public class EncinaAzureFunctionsOptionsTests
         var options = new EncinaAzureFunctionsOptions();
 
         // Assert
-        options.ProviderHealthCheck.Should().NotBeNull();
-        options.ProviderHealthCheck.Enabled.Should().BeTrue();
-        options.ProviderHealthCheck.Name.Should().Be("encina-azure-functions");
-        options.ProviderHealthCheck.Tags.Should().Contain("encina");
-        options.ProviderHealthCheck.Tags.Should().Contain("azure-functions");
-        options.ProviderHealthCheck.Tags.Should().Contain("ready");
+        options.ProviderHealthCheck.ShouldNotBeNull();
+        options.ProviderHealthCheck.Enabled.ShouldBeTrue();
+        options.ProviderHealthCheck.Name.ShouldBe("encina-azure-functions");
+        options.ProviderHealthCheck.Tags.ShouldContain("encina");
+        options.ProviderHealthCheck.Tags.ShouldContain("azure-functions");
+        options.ProviderHealthCheck.Tags.ShouldContain("ready");
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class EncinaAzureFunctionsOptionsTests
         options.EnableRequestContextEnrichment = false;
 
         // Assert
-        options.EnableRequestContextEnrichment.Should().BeFalse();
+        options.EnableRequestContextEnrichment.ShouldBeFalse();
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class EncinaAzureFunctionsOptionsTests
         options.CorrelationIdHeader = "X-Request-ID";
 
         // Assert
-        options.CorrelationIdHeader.Should().Be("X-Request-ID");
+        options.CorrelationIdHeader.ShouldBe("X-Request-ID");
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class EncinaAzureFunctionsOptionsTests
         options.TenantIdHeader = "X-Organization-ID";
 
         // Assert
-        options.TenantIdHeader.Should().Be("X-Organization-ID");
+        options.TenantIdHeader.ShouldBe("X-Organization-ID");
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public class EncinaAzureFunctionsOptionsTests
         options.UserIdClaimType = "sub";
 
         // Assert
-        options.UserIdClaimType.Should().Be("sub");
+        options.UserIdClaimType.ShouldBe("sub");
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class EncinaAzureFunctionsOptionsTests
         options.TenantIdClaimType = "tid";
 
         // Assert
-        options.TenantIdClaimType.Should().Be("tid");
+        options.TenantIdClaimType.ShouldBe("tid");
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class EncinaAzureFunctionsOptionsTests
         options.IncludeExceptionDetailsInResponse = true;
 
         // Assert
-        options.IncludeExceptionDetailsInResponse.Should().BeTrue();
+        options.IncludeExceptionDetailsInResponse.ShouldBeTrue();
     }
 
     [Fact]
@@ -131,8 +131,8 @@ public class EncinaAzureFunctionsOptionsTests
         options.ProviderHealthCheck = customHealthCheck;
 
         // Assert
-        options.ProviderHealthCheck.Should().BeSameAs(customHealthCheck);
-        options.ProviderHealthCheck.Enabled.Should().BeFalse();
-        options.ProviderHealthCheck.Name.Should().Be("custom-check");
+        options.ProviderHealthCheck.ShouldBeSameAs(customHealthCheck);
+        options.ProviderHealthCheck.Enabled.ShouldBeFalse();
+        options.ProviderHealthCheck.Name.ShouldBe("custom-check");
     }
 }

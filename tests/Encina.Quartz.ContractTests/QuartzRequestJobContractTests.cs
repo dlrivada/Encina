@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Quartz;
 using static LanguageExt.Prelude;
 
@@ -30,7 +30,7 @@ public sealed class QuartzRequestJobContractTests
 
         // Assert
         await Encina.Received(1).Send(request, Arg.Any<CancellationToken>());
-        context.Result.Should().Be(expectedResponse);
+        context.Result.ShouldBe(expectedResponse);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class QuartzRequestJobContractTests
         var exception = await Assert.ThrowsAsync<JobExecutionException>(() =>
             job.Execute(context));
 
-        exception.Message.Should().Contain(error.Message);
+        exception.Message.ShouldContain(error.Message);
     }
 
 
@@ -70,7 +70,7 @@ public sealed class QuartzRequestJobContractTests
         var exception = await Assert.ThrowsAsync<JobExecutionException>(() =>
             job.Execute(context));
 
-        exception.Message.Should().Contain("not found in JobDataMap");
+        exception.Message.ShouldContain("not found in JobDataMap");
     }
 
     // Helper methods

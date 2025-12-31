@@ -1,5 +1,6 @@
-﻿using System.Data;
+using System.Data;
 using Encina.Dapper.Oracle;
+using Shouldly;
 
 namespace Encina.Dapper.Oracle.GuardTests;
 
@@ -19,7 +20,8 @@ public class TransactionPipelineBehaviorGuardsTests
 
         // Act & Assert
         var act = () => new TransactionPipelineBehavior<TestRequest, TestResponse>(connection);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connection");
     }
 
     // Test request/response types

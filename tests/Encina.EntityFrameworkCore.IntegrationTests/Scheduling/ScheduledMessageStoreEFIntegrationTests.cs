@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Encina.EntityFrameworkCore.Scheduling;
 using Xunit;
 
@@ -42,8 +42,8 @@ public sealed class ScheduledMessageStoreEFIntegrationTests : IClassFixture<EFCo
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var stored = await verifyContext.ScheduledMessages.FindAsync(message.Id);
-        stored.Should().NotBeNull();
-        stored!.RequestType.Should().Be("TestRequest");
+        stored.ShouldNotBeNull();
+        stored!.RequestType.ShouldBe("TestRequest");
     }
 
     [Fact]
@@ -88,10 +88,10 @@ public sealed class ScheduledMessageStoreEFIntegrationTests : IClassFixture<EFCo
 
         // Assert
         var messageList = messages.ToList();
-        messageList.Should().HaveCount(2);
-        messageList.Should().Contain(m => m.Id == dueNow.Id);
-        messageList.Should().Contain(m => m.Id == dueSoon.Id);
-        messageList.Should().NotContain(m => m.Id == futureMessage.Id);
+        messageList.Count.ShouldBe(2);
+        messageList.ShouldContain(m => m.Id == dueNow.Id);
+        messageList.ShouldContain(m => m.Id == dueSoon.Id);
+        messageList.ShouldNotContain(m => m.Id == futureMessage.Id);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public sealed class ScheduledMessageStoreEFIntegrationTests : IClassFixture<EFCo
         var messages = await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Should().BeEmpty();
+        messages.ShouldBeEmpty();
     }
 
     [Fact]
@@ -147,8 +147,8 @@ public sealed class ScheduledMessageStoreEFIntegrationTests : IClassFixture<EFCo
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var updated = await verifyContext.ScheduledMessages.FindAsync(message.Id);
-        updated!.ProcessedAtUtc.Should().NotBeNull();
-        updated.ErrorMessage.Should().BeNull();
+        updated!.ProcessedAtUtc.ShouldNotBeNull();
+        updated.ErrorMessage.ShouldBeNull();
     }
 
     [Fact]
@@ -179,9 +179,9 @@ public sealed class ScheduledMessageStoreEFIntegrationTests : IClassFixture<EFCo
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var updated = await verifyContext.ScheduledMessages.FindAsync(message.Id);
-        updated!.ErrorMessage.Should().Be("Test error");
-        updated.RetryCount.Should().Be(1);
-        updated.NextRetryAtUtc.Should().BeCloseTo(nextRetry, TimeSpan.FromSeconds(1));
+        updated!.ErrorMessage.ShouldBe("Test error");
+        updated.RetryCount.ShouldBe(1);
+        updated.NextRetryAtUtc.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
     [Fact]
@@ -215,9 +215,9 @@ public sealed class ScheduledMessageStoreEFIntegrationTests : IClassFixture<EFCo
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var updated = await verifyContext.ScheduledMessages.FindAsync(recurring.Id);
-        updated!.ScheduledAtUtc.Should().BeCloseTo(nextScheduledTime, TimeSpan.FromSeconds(1));
-        updated.ProcessedAtUtc.Should().BeNull();
-        updated.RetryCount.Should().Be(0);
+        updated!.ScheduledAtUtc.ShouldBe(nextScheduledTime, TimeSpan.FromSeconds(1));
+        updated.ProcessedAtUtc.ShouldBeNull();
+        updated.RetryCount.ShouldBe(0);
     }
 
     [Fact]
@@ -251,7 +251,7 @@ public sealed class ScheduledMessageStoreEFIntegrationTests : IClassFixture<EFCo
         foreach (var id in messageIds)
         {
             var stored = await verifyContext.ScheduledMessages.FindAsync(id);
-            stored.Should().NotBeNull();
+            stored.ShouldNotBeNull();
         }
     }
 }

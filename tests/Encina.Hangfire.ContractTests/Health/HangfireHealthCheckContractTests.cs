@@ -3,6 +3,7 @@ using Encina.Messaging.ContractTests.Health;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.Hangfire.ContractTests.Health;
 
@@ -34,21 +35,21 @@ public sealed class HangfireHealthCheckContractTests : IEncinaHealthCheckContrac
     [Fact]
     public void DefaultName_ShouldBeEncinaHangfire()
     {
-        HangfireHealthCheck.DefaultName.Should().Be("encina-hangfire");
+        HangfireHealthCheck.DefaultName.ShouldBe("encina-hangfire");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainSchedulingTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("scheduling");
+        healthCheck.Tags.ShouldContain("scheduling");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainHangfireTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("hangfire");
+        healthCheck.Tags.ShouldContain("hangfire");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

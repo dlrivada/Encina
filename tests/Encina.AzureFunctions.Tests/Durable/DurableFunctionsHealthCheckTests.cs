@@ -1,6 +1,6 @@
 using Encina.AzureFunctions.Durable;
 using Encina.Messaging.Health;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -18,7 +18,7 @@ public class DurableFunctionsHealthCheckTests
         var healthCheck = new DurableFunctionsHealthCheck(options);
 
         // Assert
-        healthCheck.Should().NotBeNull();
+        healthCheck.ShouldNotBeNull();
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public class DurableFunctionsHealthCheckTests
         var healthCheck = new DurableFunctionsHealthCheck(options);
 
         // Act & Assert
-        healthCheck.Name.Should().Be("custom-durable-check");
+        healthCheck.Name.ShouldBe("custom-durable-check");
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class DurableFunctionsHealthCheckTests
         var healthCheck = new DurableFunctionsHealthCheck(options);
 
         // Act & Assert
-        healthCheck.Name.Should().Be("encina-durable-functions");
+        healthCheck.Name.ShouldBe("encina-durable-functions");
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class DurableFunctionsHealthCheckTests
         var healthCheck = new DurableFunctionsHealthCheck(options);
 
         // Act & Assert
-        healthCheck.Tags.Should().BeEquivalentTo(expectedTags);
+        healthCheck.Tags.ShouldBe(expectedTags);
     }
 
     [Fact]
@@ -84,8 +84,8 @@ public class DurableFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("configured and ready");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("configured and ready");
     }
 
     [Fact]
@@ -103,9 +103,9 @@ public class DurableFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Data.Should().ContainKey("defaultMaxRetries");
-        result.Data["defaultMaxRetries"].Should().Be(5);
-        result.Data["defaultBackoffCoefficient"].Should().Be(2.5);
+        result.Data.ShouldContainKey("defaultMaxRetries");
+        result.Data["defaultMaxRetries"].ShouldBe(5);
+        result.Data["defaultBackoffCoefficient"].ShouldBe(2.5);
     }
 
     [Fact]
@@ -122,8 +122,8 @@ public class DurableFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("DefaultMaxRetries cannot be negative");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description.ShouldContain("DefaultMaxRetries cannot be negative");
     }
 
     [Fact]
@@ -140,8 +140,8 @@ public class DurableFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("DefaultFirstRetryInterval must be positive");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description.ShouldContain("DefaultFirstRetryInterval must be positive");
     }
 
     [Fact]
@@ -158,8 +158,8 @@ public class DurableFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("DefaultBackoffCoefficient must be positive");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description.ShouldContain("DefaultBackoffCoefficient must be positive");
     }
 
     [Fact]
@@ -176,8 +176,8 @@ public class DurableFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("DefaultSagaTimeout must be positive");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description.ShouldContain("DefaultSagaTimeout must be positive");
     }
 
     [Fact]
@@ -195,9 +195,9 @@ public class DurableFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("DefaultMaxRetries cannot be negative");
-        result.Description.Should().Contain("DefaultBackoffCoefficient must be positive");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description.ShouldContain("DefaultMaxRetries cannot be negative");
+        result.Description.ShouldContain("DefaultBackoffCoefficient must be positive");
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public class DurableFunctionsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Data.Should().ContainKey("defaultSagaTimeout");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldContainKey("defaultSagaTimeout");
     }
 }

@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
+using Shouldly;
 
 namespace Encina.Polly.GuardTests;
 
@@ -16,7 +17,8 @@ public class RetryPipelineBehaviorGuardsTests
 
         // Act & Assert
         var act = () => new RetryPipelineBehavior<TestRequest, string>(logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Retry]

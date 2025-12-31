@@ -30,7 +30,7 @@ public class EndToEndIntegrationTests
         var result = await Encina.Send(request);
 
         // Assert
-        result.ShouldBeSuccess().Should().Be("Success after retry");
+        result.ShouldBeSuccess().ShouldBe("Success after retry");
     }
 
     [Fact]
@@ -76,13 +76,24 @@ public class EndToEndIntegrationTests
             await Encina.Send(request);
         }
 
-        await Task.Delay(100); // Give circuit breaker time to evaluate
+        // Poll for circuit breaker to open with short timeout
+        Either<EncinaError, string> result = default!;
+        var timeout = TimeSpan.FromMilliseconds(500);
+        var startTime = DateTime.UtcNow;
 
-        var result = await Encina.Send(request);
+        while (DateTime.UtcNow - startTime < timeout)
+        {
+            result = await Encina.Send(request);
+            if (result.IsLeft && result.Match(Right: _ => "", Left: e => e.Message).Contains("Circuit breaker is open"))
+            {
+                break;
+            }
+            await Task.Yield();
+        }
 
         // Assert
         result.ShouldBeError(error =>
-            error.Message.Should().Contain("Circuit breaker is open", "circuit should be open after repeated failures"));
+            error.Message.ShouldContain("Circuit breaker is open", "circuit should be open after repeated failures"));
     }
 
     [Fact]
@@ -113,7 +124,7 @@ public class EndToEndIntegrationTests
 
     private sealed class TestRetryRequestHandler : IRequestHandler<TestRetryRequest, string>
     {
-        private static int _attemptCount;
+        private int _attemptCount = 0;
 
         public Task<Either<EncinaError, string>> Handle(TestRetryRequest request, CancellationToken cancellationToken)
         {
@@ -152,7 +163,7 @@ public class EndToEndIntegrationTests
 
     private sealed class TestCombinedRequestHandler : IRequestHandler<TestCombinedRequest, string>
     {
-        private static int _attemptCount;
+        private int _attemptCount = 0;
 
         public Task<Either<EncinaError, string>> Handle(TestCombinedRequest request, CancellationToken cancellationToken)
         {
@@ -187,26 +198,26 @@ public class EndToEndIntegrationTests
         var maxConcurrent = 0;
         var lockObj = new object();
 
-        TestBulkheadRequestHandler.OnExecute = async () =>
+        var onExecute = async () =>
         {
             var current = Interlocked.Increment(ref concurrentCount);
             lock (lockObj)
             {
                 if (current > maxConcurrent) maxConcurrent = current;
             }
-            await Task.Delay(50); // Simulate work
+            await Task.Delay(15); // Simulate brief work
             Interlocked.Decrement(ref concurrentCount);
         };
 
         // Act - Start many concurrent requests
         var tasks = Enumerable.Range(0, 10)
-            .Select(_ => encina.Send(new TestBulkheadRequest()).AsTask())
+            .Select(_ => encina.Send(new TestBulkheadRequest(onExecute)).AsTask())
             .ToList();
 
         await Task.WhenAll(tasks);
 
         // Assert - Max concurrent should not exceed bulkhead limit (2)
-        maxConcurrent.Should().BeLessThanOrEqualTo(2, "bulkhead should limit concurrent executions");
+        maxConcurrent.ShouldBeLessThanOrEqualTo(2, "bulkhead should limit concurrent executions");
     }
 
     [Fact]
@@ -222,24 +233,31 @@ public class EndToEndIntegrationTests
         var serviceProvider = services.BuildServiceProvider();
         var encina = serviceProvider.GetRequiredService<IEncina>();
 
-        var tasksStarted = new TaskCompletionSource();
+        var permitAcquired1 = new TaskCompletionSource();
+        var permitAcquired2 = new TaskCompletionSource();
         var releaseSignal = new TaskCompletionSource();
 
-        TestBulkheadNoQueueRequestHandler.OnExecute = async () =>
+        var onExecute1 = async () =>
         {
-            tasksStarted.TrySetResult();
+            permitAcquired1.TrySetResult();
+            await releaseSignal.Task; // Wait until signaled to complete
+        };
+
+        var onExecute2 = async () =>
+        {
+            permitAcquired2.TrySetResult();
             await releaseSignal.Task; // Wait until signaled to complete
         };
 
         // Start 2 requests that will hold the bulkhead (limit is 2, queue is 0)
-        var holdingTask1 = encina.Send(new TestBulkheadNoQueueRequest());
-        var holdingTask2 = encina.Send(new TestBulkheadNoQueueRequest());
+        var holdingTask1 = encina.Send(new TestBulkheadNoQueueRequest(onExecute1));
+        var holdingTask2 = encina.Send(new TestBulkheadNoQueueRequest(onExecute2));
 
-        // Wait a bit for requests to acquire permits
-        await Task.Delay(50);
+        // Wait for both requests to acquire their permits
+        await Task.WhenAll(permitAcquired1.Task, permitAcquired2.Task);
 
         // Act - Try to send one more request (should be rejected immediately)
-        var result = await encina.Send(new TestBulkheadNoQueueRequest());
+        var result = await encina.Send(new TestBulkheadNoQueueRequest(null));
 
         // Release the holding tasks
         releaseSignal.SetResult();
@@ -247,7 +265,7 @@ public class EndToEndIntegrationTests
 
         // Assert
         result.ShouldBeError(error =>
-            error.Message.Should().Contain("Bulkhead full", "request should be rejected when bulkhead is full"));
+            error.Message.ShouldContain("Bulkhead full", "request should be rejected when bulkhead is full"));
     }
 
     [Fact]
@@ -263,8 +281,6 @@ public class EndToEndIntegrationTests
         var serviceProvider = services.BuildServiceProvider();
         var encina = serviceProvider.GetRequiredService<IEncina>();
 
-        TestBulkheadWithRetryRequestHandler.AttemptCount = 0;
-
         // Act
         var result = await encina.Send(new TestBulkheadWithRetryRequest(FailCount: 1));
 
@@ -274,34 +290,30 @@ public class EndToEndIntegrationTests
 
     // Bulkhead test request types and handlers
     [Bulkhead(MaxConcurrency = 2, MaxQueuedActions = 10, QueueTimeoutMs = 5000)]
-    private sealed record TestBulkheadRequest : IRequest<string>;
+    private sealed record TestBulkheadRequest(Func<Task>? OnExecute = null) : IRequest<string>;
 
     private sealed class TestBulkheadRequestHandler : IRequestHandler<TestBulkheadRequest, string>
     {
-        public static Func<Task>? OnExecute { get; set; }
-
         public async Task<Either<EncinaError, string>> Handle(TestBulkheadRequest request, CancellationToken cancellationToken)
         {
-            if (OnExecute != null)
+            if (request.OnExecute != null)
             {
-                await OnExecute();
+                await request.OnExecute();
             }
             return Right<EncinaError, string>("Success");
         }
     }
 
     [Bulkhead(MaxConcurrency = 2, MaxQueuedActions = 0, QueueTimeoutMs = 100)]
-    private sealed record TestBulkheadNoQueueRequest : IRequest<string>;
+    private sealed record TestBulkheadNoQueueRequest(Func<Task>? OnExecute = null) : IRequest<string>;
 
     private sealed class TestBulkheadNoQueueRequestHandler : IRequestHandler<TestBulkheadNoQueueRequest, string>
     {
-        public static Func<Task>? OnExecute { get; set; }
-
         public async Task<Either<EncinaError, string>> Handle(TestBulkheadNoQueueRequest request, CancellationToken cancellationToken)
         {
-            if (OnExecute != null)
+            if (request.OnExecute != null)
             {
-                await OnExecute();
+                await request.OnExecute();
             }
             return Right<EncinaError, string>("Success");
         }
@@ -313,13 +325,13 @@ public class EndToEndIntegrationTests
 
     private sealed class TestBulkheadWithRetryRequestHandler : IRequestHandler<TestBulkheadWithRetryRequest, string>
     {
-        public static int AttemptCount;
+        private int _attemptCount = 0;
 
         public Task<Either<EncinaError, string>> Handle(TestBulkheadWithRetryRequest request, CancellationToken cancellationToken)
         {
-            var attempt = Interlocked.Increment(ref AttemptCount);
+            _attemptCount++;
 
-            if (attempt <= request.FailCount)
+            if (_attemptCount <= request.FailCount)
             {
                 return Task.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.error", "Simulated failure")));
             }

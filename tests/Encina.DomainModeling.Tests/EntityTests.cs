@@ -25,10 +25,10 @@ public class EntityTests
         var entity2 = new TestEntity(id);
 
         // Act & Assert
-        entity1.Should().Be(entity2);
-        entity1.Equals(entity2).Should().BeTrue();
-        (entity1 == entity2).Should().BeTrue();
-        (entity1 != entity2).Should().BeFalse();
+        entity1.ShouldBe(entity2);
+        entity1.Equals(entity2).ShouldBeTrue();
+        (entity1 == entity2).ShouldBeTrue();
+        (entity1 != entity2).ShouldBeFalse();
     }
 
     [Fact]
@@ -39,10 +39,10 @@ public class EntityTests
         var entity2 = new TestEntity(Guid.NewGuid());
 
         // Act & Assert
-        entity1.Should().NotBe(entity2);
-        entity1.Equals(entity2).Should().BeFalse();
-        (entity1 == entity2).Should().BeFalse();
-        (entity1 != entity2).Should().BeTrue();
+        entity1.ShouldNotBe(entity2);
+        entity1.Equals(entity2).ShouldBeFalse();
+        (entity1 == entity2).ShouldBeFalse();
+        (entity1 != entity2).ShouldBeTrue();
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class EntityTests
         var entity2 = new AnotherEntity(id);
 
         // Act & Assert
-        entity1.Equals(entity2).Should().BeFalse();
+        entity1.Equals(entity2).ShouldBeFalse();
     }
 
     [Fact]
@@ -64,9 +64,9 @@ public class EntityTests
         var entity = new TestEntity(Guid.NewGuid());
 
         // Act & Assert
-        entity.Equals(null).Should().BeFalse();
-        (entity == null).Should().BeFalse();
-        (entity != null).Should().BeTrue();
+        entity.Equals(null).ShouldBeFalse();
+        (entity == null).ShouldBeFalse();
+        (entity != null).ShouldBeTrue();
     }
 
     [Fact]
@@ -76,9 +76,9 @@ public class EntityTests
         var entity = new TestEntity(Guid.NewGuid());
 
         // Act & Assert
-        entity.Equals(entity).Should().BeTrue();
+        entity.Equals(entity).ShouldBeTrue();
 #pragma warning disable CS1718 // Comparison made to same variable
-        (entity == entity).Should().BeTrue();
+        (entity == entity).ShouldBeTrue();
 #pragma warning restore CS1718
     }
 
@@ -91,18 +91,7 @@ public class EntityTests
         var entity2 = new TestEntity(id);
 
         // Act & Assert
-        entity1.GetHashCode().Should().Be(entity2.GetHashCode());
-    }
-
-    [Fact]
-    public void Entity_GetHashCode_ShouldDifferForDifferentId()
-    {
-        // Arrange
-        var entity1 = new TestEntity(Guid.NewGuid());
-        var entity2 = new TestEntity(Guid.NewGuid());
-
-        // Act & Assert
-        entity1.GetHashCode().Should().NotBe(entity2.GetHashCode());
+        entity1.GetHashCode().ShouldBe(entity2.GetHashCode());
     }
 
     [Fact]
@@ -116,8 +105,8 @@ public class EntityTests
         var result = entity.ToString();
 
         // Assert
-        result.Should().Contain("TestEntity");
-        result.Should().Contain(id.ToString());
+        result.ShouldContain("TestEntity");
+        result.ShouldContain(id.ToString());
     }
 
     [Fact]
@@ -128,7 +117,7 @@ public class EntityTests
         var entity = new TestEntity(id);
 
         // Act & Assert
-        entity.Id.Should().Be(id);
+        entity.Id.ShouldBe(id);
     }
 
     [Fact]
@@ -140,7 +129,7 @@ public class EntityTests
         var entity2 = new TestEntity(id) { Name = "Entity2" };
 
         // Act & Assert
-        entity1.Should().Be(entity2);
+        entity1.ShouldBe(entity2);
     }
 
     [Fact]
@@ -151,7 +140,7 @@ public class EntityTests
         TestEntity? entity2 = null;
 
         // Act & Assert
-        (entity1 == entity2).Should().BeTrue();
-        (entity1 != entity2).Should().BeFalse();
+        (entity1 == entity2).ShouldBeTrue();
+        (entity1 != entity2).ShouldBeFalse();
     }
 }

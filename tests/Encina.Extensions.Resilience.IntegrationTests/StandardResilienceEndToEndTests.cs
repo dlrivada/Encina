@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -68,7 +68,7 @@ public class StandardResilienceEndToEndTests
         // Assert - Should eventually succeed after retries
         result.ShouldBeSuccess();
         var handler = provider.GetRequiredService<FailingThenSucceedingHandler>();
-        handler.AttemptCount.Should().BeGreaterThan(1);
+        handler.AttemptCount.ShouldBeGreaterThan(1);
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class StandardResilienceEndToEndTests
         var result = await Encina.Send(new LongRunningRequest());
 
         // Assert - Should timeout
-        result.ShouldBeError(error => error.Message.Should().Contain("timed out"));
+        result.ShouldBeError(error => error.Message.ShouldContain("timed out"));
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class StandardResilienceEndToEndTests
         // Assert
         result.ShouldBeSuccess();
         result.Match(
-            Right: response => response.Message.Should().Be("Processed: success"),
+            Right: response => response.Message.ShouldBe("Processed: success"),
             Left: _ => throw new InvalidOperationException("Should not fail")
         );
     }

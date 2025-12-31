@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Encina.Dapper.Oracle.Sagas;
 using Encina.Messaging.Sagas;
 
@@ -20,7 +20,8 @@ public class SagaStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new SagaStoreDapper(connection);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connection");
     }
 
     /// <summary>
@@ -35,7 +36,8 @@ public class SagaStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new SagaStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -50,8 +52,8 @@ public class SagaStoreDapperGuardsTests
         ISagaState sagaState = null!;
 
         // Act & Assert
-        var act = async () => await store.AddAsync(sagaState);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("sagaState");
+        var act = () => store.AddAsync(sagaState);
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe(nameof(sagaState));
     }
 
     /// <summary>
@@ -66,7 +68,7 @@ public class SagaStoreDapperGuardsTests
         ISagaState sagaState = null!;
 
         // Act & Assert
-        var act = async () => await store.UpdateAsync(sagaState);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("sagaState");
+        var act = () => store.UpdateAsync(sagaState);
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe(nameof(sagaState));
     }
 }

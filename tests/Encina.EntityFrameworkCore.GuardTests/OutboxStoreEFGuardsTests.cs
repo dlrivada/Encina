@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.Messaging.Outbox;
 
@@ -20,7 +20,8 @@ public class OutboxStoreEFGuardsTests
 
         // Act & Assert
         var act = () => new OutboxStoreEF(dbContext);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("dbContext");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("dbContext");
     }
 
     /// <summary>
@@ -38,8 +39,9 @@ public class OutboxStoreEFGuardsTests
         IOutboxMessage message = null!;
 
         // Act & Assert
-        var act = async () => await store.AddAsync(message);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("message");
+        Func<Task> act = () => store.AddAsync(message);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("message");
     }
 
     /// <summary>
@@ -58,8 +60,9 @@ public class OutboxStoreEFGuardsTests
         string errorMessage = null!;
 
         // Act & Assert
-        var act = async () => await store.MarkAsFailedAsync(messageId, errorMessage, null);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("errorMessage");
+        Func<Task> act = () => store.MarkAsFailedAsync(messageId, errorMessage, null);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("errorMessage");
     }
 
     /// <summary>

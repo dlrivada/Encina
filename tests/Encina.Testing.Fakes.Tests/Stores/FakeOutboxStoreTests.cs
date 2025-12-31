@@ -22,9 +22,9 @@ public sealed class FakeOutboxStoreTests
         await _sut.AddAsync(message);
 
         // Assert
-        _sut.Messages.Should().HaveCount(1);
-        _sut.AddedMessages.Should().HaveCount(1);
-        _sut.GetMessage(message.Id).Should().NotBeNull();
+        _sut.Messages.Count.ShouldBe(1);
+        _sut.AddedMessages.Count.ShouldBe(1);
+        _sut.GetMessage(message.Id).ShouldNotBeNull();
     }
 
     [Fact]
@@ -54,8 +54,8 @@ public sealed class FakeOutboxStoreTests
         var pending = await _sut.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        pending.Should().HaveCount(1);
-        pending.First().Id.Should().Be(pendingMessage.Id);
+        pending.Count.ShouldBe(1);
+        pending.First().Id.ShouldBe(pendingMessage.Id);
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public sealed class FakeOutboxStoreTests
         var pending = await _sut.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        pending.Should().BeEmpty();
+        pending.ShouldBeEmpty();
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class FakeOutboxStoreTests
         var pending = await _sut.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        pending.Should().BeEmpty();
+        pending.ShouldBeEmpty();
     }
 
     [Fact]
@@ -117,9 +117,9 @@ public sealed class FakeOutboxStoreTests
 
         // Assert
         var updated = _sut.GetMessage(message.Id);
-        updated!.IsProcessed.Should().BeTrue();
-        updated.ProcessedAtUtc.Should().NotBeNull();
-        _sut.ProcessedMessageIds.Should().Contain(message.Id);
+        updated!.IsProcessed.ShouldBeTrue();
+        updated.ProcessedAtUtc.ShouldNotBeNull();
+        _sut.ProcessedMessageIds.ShouldContain(message.Id);
     }
 
     [Fact]
@@ -140,10 +140,10 @@ public sealed class FakeOutboxStoreTests
 
         // Assert
         var updated = _sut.GetMessage(message.Id);
-        updated!.ErrorMessage.Should().Be("Test error");
-        updated.RetryCount.Should().Be(1);
-        updated.NextRetryAtUtc.Should().Be(nextRetry);
-        _sut.FailedMessageIds.Should().Contain(message.Id);
+        updated!.ErrorMessage.ShouldBe("Test error");
+        updated.RetryCount.ShouldBe(1);
+        updated.NextRetryAtUtc.ShouldBe(nextRetry);
+        _sut.FailedMessageIds.ShouldContain(message.Id);
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public sealed class FakeOutboxStoreTests
         await _sut.SaveChangesAsync();
 
         // Assert
-        _sut.SaveChangesCallCount.Should().Be(2);
+        _sut.SaveChangesCallCount.ShouldBe(2);
     }
 
     [Fact]
@@ -174,11 +174,11 @@ public sealed class FakeOutboxStoreTests
         _sut.Clear();
 
         // Assert
-        _sut.Messages.Should().BeEmpty();
-        _sut.AddedMessages.Should().BeEmpty();
-        _sut.ProcessedMessageIds.Should().BeEmpty();
-        _sut.FailedMessageIds.Should().BeEmpty();
-        _sut.SaveChangesCallCount.Should().Be(0);
+        _sut.Messages.ShouldBeEmpty();
+        _sut.AddedMessages.ShouldBeEmpty();
+        _sut.ProcessedMessageIds.ShouldBeEmpty();
+        _sut.FailedMessageIds.ShouldBeEmpty();
+        _sut.SaveChangesCallCount.ShouldBe(0);
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public sealed class FakeOutboxStoreTests
         await _sut.AddAsync(message);
 
         // Assert
-        _sut.WasMessageAdded("MyApp.OrderCreatedNotification").Should().BeTrue();
-        _sut.WasMessageAdded("NonExistent").Should().BeFalse();
+        _sut.WasMessageAdded("MyApp.OrderCreatedNotification").ShouldBeTrue();
+        _sut.WasMessageAdded("NonExistent").ShouldBeFalse();
     }
 }

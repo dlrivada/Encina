@@ -1,4 +1,4 @@
-﻿namespace Encina.Polly.Tests;
+namespace Encina.Polly.Tests;
 
 /// <summary>
 /// Unit tests for <see cref="CircuitBreakerAttribute"/>.
@@ -13,11 +13,11 @@ public class CircuitBreakerAttributeTests
         var attribute = new CircuitBreakerAttribute();
 
         // Assert
-        attribute.FailureThreshold.Should().Be(5);
-        attribute.SamplingDurationSeconds.Should().Be(60);
-        attribute.MinimumThroughput.Should().Be(10);
-        attribute.DurationOfBreakSeconds.Should().Be(30);
-        attribute.FailureRateThreshold.Should().Be(0.5);
+        attribute.FailureThreshold.ShouldBe(5);
+        attribute.SamplingDurationSeconds.ShouldBe(60);
+        attribute.MinimumThroughput.ShouldBe(10);
+        attribute.DurationOfBreakSeconds.ShouldBe(30);
+        attribute.FailureRateThreshold.ShouldBe(0.5);
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class CircuitBreakerAttributeTests
         var attribute = new CircuitBreakerAttribute();
 
         // Assert
-        attribute.FailureThreshold.Should().Be(5, "default should be 5 consecutive failures");
+        attribute.FailureThreshold.ShouldBe(5, "default should be 5 consecutive failures");
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class CircuitBreakerAttributeTests
         var attribute = new CircuitBreakerAttribute();
 
         // Assert
-        attribute.SamplingDurationSeconds.Should().Be(60, "default should be 60 seconds sampling window");
+        attribute.SamplingDurationSeconds.ShouldBe(60, "default should be 60 seconds sampling window");
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class CircuitBreakerAttributeTests
         var attribute = new CircuitBreakerAttribute();
 
         // Assert
-        attribute.MinimumThroughput.Should().Be(10, "default should be 10 requests minimum");
+        attribute.MinimumThroughput.ShouldBe(10, "default should be 10 requests minimum");
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class CircuitBreakerAttributeTests
         var attribute = new CircuitBreakerAttribute();
 
         // Assert
-        attribute.DurationOfBreakSeconds.Should().Be(30, "default should be 30 seconds break duration");
+        attribute.DurationOfBreakSeconds.ShouldBe(30, "default should be 30 seconds break duration");
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class CircuitBreakerAttributeTests
         var attribute = new CircuitBreakerAttribute();
 
         // Assert
-        attribute.FailureRateThreshold.Should().Be(0.5, "default should be 50% failure rate (0.5)");
+        attribute.FailureRateThreshold.ShouldBe(0.5, "default should be 50% failure rate (0.5)");
     }
 
     [Fact]
@@ -84,11 +84,11 @@ public class CircuitBreakerAttributeTests
         };
 
         // Assert
-        attribute.FailureThreshold.Should().Be(10);
-        attribute.SamplingDurationSeconds.Should().Be(120);
-        attribute.MinimumThroughput.Should().Be(20);
-        attribute.DurationOfBreakSeconds.Should().Be(60);
-        attribute.FailureRateThreshold.Should().Be(0.75);
+        attribute.FailureThreshold.ShouldBe(10);
+        attribute.SamplingDurationSeconds.ShouldBe(120);
+        attribute.MinimumThroughput.ShouldBe(20);
+        attribute.DurationOfBreakSeconds.ShouldBe(60);
+        attribute.FailureRateThreshold.ShouldBe(0.75);
     }
 
     [Fact]
@@ -102,9 +102,9 @@ public class CircuitBreakerAttributeTests
             .FirstOrDefault() as CircuitBreakerAttribute;
 
         // Assert
-        attribute.Should().NotBeNull("CircuitBreakerAttribute should be applicable to classes");
-        attribute!.FailureThreshold.Should().Be(3);
-        attribute.DurationOfBreakSeconds.Should().Be(15);
+        attribute.ShouldNotBeNull("CircuitBreakerAttribute should be applicable to classes");
+        attribute!.FailureThreshold.ShouldBe(3);
+        attribute.DurationOfBreakSeconds.ShouldBe(15);
     }
 
     [Fact]
@@ -116,8 +116,8 @@ public class CircuitBreakerAttributeTests
             .FirstOrDefault() as AttributeUsageAttribute;
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.AllowMultiple.Should().BeFalse("only one CircuitBreakerAttribute should be allowed per class");
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.AllowMultiple.ShouldBeFalse("only one CircuitBreakerAttribute should be allowed per class");
     }
 
     [Fact]
@@ -129,8 +129,8 @@ public class CircuitBreakerAttributeTests
             .FirstOrDefault() as AttributeUsageAttribute;
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.Inherited.Should().BeTrue("CircuitBreakerAttribute should be inherited by derived classes");
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.Inherited.ShouldBeTrue("CircuitBreakerAttribute should be inherited by derived classes");
     }
 
     [Fact]
@@ -142,8 +142,8 @@ public class CircuitBreakerAttributeTests
             .FirstOrDefault() as AttributeUsageAttribute;
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.ValidOn.Should().Be(AttributeTargets.Class, "should only be applicable to classes");
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.ValidOn.ShouldBe(AttributeTargets.Class, "should only be applicable to classes");
     }
 
     [CircuitBreakerAttribute(FailureThreshold = 3, DurationOfBreakSeconds = 15)]

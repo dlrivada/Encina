@@ -1,5 +1,5 @@
 using System.Net;
-using FluentAssertions;
+using Shouldly;
 using FsCheck;
 using FsCheck.Xunit;
 using Xunit;
@@ -100,7 +100,7 @@ public class ErrorCodeMappingProperties
         foreach (var code in testCases)
         {
             var statusCode = MapErrorCodeToStatusCode(code);
-            statusCode.Should().Be(HttpStatusCode.BadRequest);
+            statusCode.ShouldBe(HttpStatusCode.BadRequest);
         }
     }
 

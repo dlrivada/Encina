@@ -4,6 +4,7 @@ using LanguageExt;
 using Marten;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.Marten.Tests.Snapshots;
 
@@ -28,8 +29,8 @@ public sealed class SnapshotContractTests
         var method = typeof(ISnapshotStore<TestSnapshotableAggregate>)
             .GetMethod(nameof(ISnapshotStore<TestSnapshotableAggregate>.GetLatestAsync));
 
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().BeAssignableTo(
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBeAssignableTo(
             typeof(Task<Either<EncinaError, Snapshot<TestSnapshotableAggregate>?>>));
     }
 
@@ -43,8 +44,8 @@ public sealed class SnapshotContractTests
         var method = typeof(ISnapshotStore<TestSnapshotableAggregate>)
             .GetMethod(nameof(ISnapshotStore<TestSnapshotableAggregate>.SaveAsync));
 
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().BeAssignableTo(
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBeAssignableTo(
             typeof(Task<Either<EncinaError, Unit>>));
     }
 
@@ -58,8 +59,8 @@ public sealed class SnapshotContractTests
         var method = typeof(ISnapshotStore<TestSnapshotableAggregate>)
             .GetMethod(nameof(ISnapshotStore<TestSnapshotableAggregate>.PruneAsync));
 
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().BeAssignableTo(
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBeAssignableTo(
             typeof(Task<Either<EncinaError, int>>));
     }
 
@@ -74,11 +75,11 @@ public sealed class SnapshotContractTests
 
         // Assert
         interfaceType.GetProperty(nameof(ISnapshot<TestSnapshotableAggregate>.AggregateId))
-            .Should().NotBeNull();
+            .ShouldNotBeNull();
         interfaceType.GetProperty(nameof(ISnapshot<TestSnapshotableAggregate>.Version))
-            .Should().NotBeNull();
+            .ShouldNotBeNull();
         interfaceType.GetProperty(nameof(ISnapshot<TestSnapshotableAggregate>.CreatedAtUtc))
-            .Should().NotBeNull();
+            .ShouldNotBeNull();
     }
 
     /// <summary>
@@ -89,7 +90,7 @@ public sealed class SnapshotContractTests
     {
         // Assert
         typeof(Snapshot<TestSnapshotableAggregate>)
-            .Should().Implement<ISnapshot<TestSnapshotableAggregate>>();
+            .GetInterfaces().ShouldContain(typeof(ISnapshot<TestSnapshotableAggregate>));
     }
 
     /// <summary>
@@ -104,10 +105,10 @@ public sealed class SnapshotContractTests
         // Assert
         interfaceType.GetMethods()
             .Where(m => !m.IsSpecialName)
-            .Should().BeEmpty("ISnapshotable should be a marker interface");
+            .ShouldBeEmpty("ISnapshotable should be a marker interface");
 
         interfaceType.GetProperties()
-            .Should().BeEmpty("ISnapshotable should have no properties");
+            .ShouldBeEmpty("ISnapshotable should have no properties");
     }
 
     /// <summary>
@@ -118,9 +119,9 @@ public sealed class SnapshotContractTests
     {
         // Assert
         typeof(TestSnapshotableAggregate)
-            .Should().Implement<IAggregate>();
+            .GetInterfaces().ShouldContain(typeof(IAggregate));
         typeof(TestSnapshotableAggregate)
-            .Should().Implement<ISnapshotable<TestSnapshotableAggregate>>();
+            .GetInterfaces().ShouldContain(typeof(ISnapshotable<TestSnapshotableAggregate>));
     }
 
     /// <summary>
@@ -136,7 +137,7 @@ public sealed class SnapshotContractTests
         var result = options.ConfigureAggregate<TestSnapshotableAggregate>(snapshotEvery: 50);
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     /// <summary>
@@ -147,7 +148,7 @@ public sealed class SnapshotContractTests
     {
         // Assert
         typeof(MartenSnapshotStore<TestSnapshotableAggregate>)
-            .Should().Implement<ISnapshotStore<TestSnapshotableAggregate>>();
+            .GetInterfaces().ShouldContain(typeof(ISnapshotStore<TestSnapshotableAggregate>));
     }
 
     /// <summary>
@@ -158,7 +159,7 @@ public sealed class SnapshotContractTests
     {
         // Assert
         typeof(SnapshotAwareAggregateRepository<TestSnapshotableAggregate>)
-            .Should().Implement<IAggregateRepository<TestSnapshotableAggregate>>();
+            .GetInterfaces().ShouldContain(typeof(IAggregateRepository<TestSnapshotableAggregate>));
     }
 
     /// <summary>
@@ -171,11 +172,11 @@ public sealed class SnapshotContractTests
         var factoryType = typeof(SnapshotEnvelope);
 
         // Assert
-        factoryType.IsAbstract.Should().BeTrue("static class should be abstract");
-        factoryType.IsSealed.Should().BeTrue("static class should be sealed");
+        factoryType.IsAbstract.ShouldBeTrue("static class should be abstract");
+        factoryType.IsSealed.ShouldBeTrue("static class should be sealed");
 
         var createMethod = factoryType.GetMethod("Create");
-        createMethod.Should().NotBeNull();
-        createMethod!.IsGenericMethod.Should().BeTrue();
+        createMethod.ShouldNotBeNull();
+        createMethod!.IsGenericMethod.ShouldBeTrue();
     }
 }

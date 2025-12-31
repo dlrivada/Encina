@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.Messaging.Sagas;
 using Xunit;
@@ -47,9 +47,9 @@ public sealed class SagaStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var stored = await verifyContext.SagaStates.FindAsync(saga.SagaId);
-        stored.Should().NotBeNull();
-        stored!.SagaType.Should().Be("TestSaga");
-        stored.CurrentStep.Should().Be(0);
+        stored.ShouldNotBeNull();
+        stored!.SagaType.ShouldBe("TestSaga");
+        stored.CurrentStep.ShouldBe(0);
     }
 
     [Fact]
@@ -77,8 +77,8 @@ public sealed class SagaStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var retrieved = await store.GetAsync(saga.SagaId);
 
         // Assert
-        retrieved.Should().NotBeNull();
-        retrieved!.SagaId.Should().Be(saga.SagaId);
+        retrieved.ShouldNotBeNull();
+        retrieved!.SagaId.ShouldBe(saga.SagaId);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class SagaStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var retrieved = await store.GetAsync(Guid.NewGuid());
 
         // Assert
-        retrieved.Should().BeNull();
+        retrieved.ShouldBeNull();
     }
 
     [Fact]
@@ -126,8 +126,8 @@ public sealed class SagaStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var updated = await verifyContext.SagaStates.FindAsync(saga.SagaId);
-        updated!.CurrentStep.Should().Be(1);
-        updated.Data.Should().Be("{\"counter\":2}");
+        updated!.CurrentStep.ShouldBe(1);
+        updated.Data.ShouldBe("{\"counter\":2}");
     }
 
     [Fact]
@@ -160,8 +160,8 @@ public sealed class SagaStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var updated = await verifyContext.SagaStates.FindAsync(saga.SagaId);
-        updated!.Status.Should().Be(SagaStatus.Completed);
-        updated.CompletedAtUtc.Should().NotBeNull();
+        updated!.Status.ShouldBe(SagaStatus.Completed);
+        updated.CompletedAtUtc.ShouldNotBeNull();
     }
 
     [Fact]
@@ -194,8 +194,8 @@ public sealed class SagaStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var updated = await verifyContext.SagaStates.FindAsync(saga.SagaId);
-        updated!.Status.Should().Be(SagaStatus.Failed);
-        updated.ErrorMessage.Should().Be("Test error occurred");
+        updated!.Status.ShouldBe(SagaStatus.Failed);
+        updated.ErrorMessage.ShouldBe("Test error occurred");
     }
 
     [Fact]
@@ -247,9 +247,9 @@ public sealed class SagaStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
 
         // Assert
         var sagaList = stuckSagas.ToList();
-        sagaList.Should().HaveCount(2);
-        sagaList.Should().Contain(s => s.SagaId == stuck1.SagaId);
-        sagaList.Should().Contain(s => s.SagaId == stuck2.SagaId);
+        sagaList.Count.ShouldBe(2);
+        sagaList.ShouldContain(s => s.SagaId == stuck1.SagaId);
+        sagaList.ShouldContain(s => s.SagaId == stuck2.SagaId);
     }
 
     [Fact]
@@ -285,7 +285,7 @@ public sealed class SagaStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         foreach (var id in sagaIds)
         {
             var stored = await verifyContext.SagaStates.FindAsync(id);
-            stored.Should().NotBeNull();
+            stored.ShouldNotBeNull();
         }
     }
 }

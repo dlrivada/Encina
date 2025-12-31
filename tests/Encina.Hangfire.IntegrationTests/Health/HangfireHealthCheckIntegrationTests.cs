@@ -44,8 +44,8 @@ public sealed class HangfireHealthCheckIntegrationTests : IDisposable
         var result = healthCheck.CheckHealthAsync().GetAwaiter().GetResult();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("operational");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("operational");
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public sealed class HangfireHealthCheckIntegrationTests : IDisposable
         var result = healthCheck.CheckHealthAsync().GetAwaiter().GetResult();
 
         // Assert
-        healthCheck.Name.Should().Be("my-custom-hangfire");
-        result.Status.Should().Be(HealthStatus.Healthy);
+        healthCheck.Name.ShouldBe("my-custom-hangfire");
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [Fact]
@@ -73,11 +73,11 @@ public sealed class HangfireHealthCheckIntegrationTests : IDisposable
         var result = healthCheck.CheckHealthAsync().GetAwaiter().GetResult();
 
         // Assert
-        result.Data.Should().NotBeNull();
-        result.Data.Should().ContainKey("servers");
-        result.Data.Should().ContainKey("queues");
-        result.Data.Should().ContainKey("scheduled");
-        result.Data.Should().ContainKey("enqueued");
+        result.Data.ShouldNotBeNull();
+        result.Data.ShouldContainKey("servers");
+        result.Data.ShouldContainKey("queues");
+        result.Data.ShouldContainKey("scheduled");
+        result.Data.ShouldContainKey("enqueued");
     }
 
     [Fact]
@@ -87,16 +87,16 @@ public sealed class HangfireHealthCheckIntegrationTests : IDisposable
         var healthCheck = new HangfireHealthCheck(_serviceProvider, null);
 
         // Assert
-        healthCheck.Tags.Should().Contain("encina");
-        healthCheck.Tags.Should().Contain("scheduling");
-        healthCheck.Tags.Should().Contain("hangfire");
-        healthCheck.Tags.Should().Contain("ready");
+        healthCheck.Tags.ShouldContain("encina");
+        healthCheck.Tags.ShouldContain("scheduling");
+        healthCheck.Tags.ShouldContain("hangfire");
+        healthCheck.Tags.ShouldContain("ready");
     }
 
     [Fact]
     public void DefaultName_ShouldBeEncinaHangfire()
     {
-        HangfireHealthCheck.DefaultName.Should().Be("encina-hangfire");
+        HangfireHealthCheck.DefaultName.ShouldBe("encina-hangfire");
     }
 
     public void Dispose()

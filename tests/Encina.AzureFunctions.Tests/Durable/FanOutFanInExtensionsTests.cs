@@ -1,5 +1,5 @@
 using Encina.AzureFunctions.Durable;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Xunit;
 
@@ -25,9 +25,8 @@ public class FanOutFanInExtensionsTests
         var (successes, failures) = FanOut.Partition(results);
 
         // Assert
-        successes.Should().HaveCount(3);
-        successes.Should().BeEquivalentTo([1, 2, 3]);
-        failures.Should().BeEmpty();
+        successes.ShouldBe([1, 2, 3]);
+        failures.ShouldBeEmpty();
     }
 
     [Fact]
@@ -46,8 +45,8 @@ public class FanOutFanInExtensionsTests
         var (successes, failures) = FanOut.Partition(results);
 
         // Assert
-        successes.Should().BeEmpty();
-        failures.Should().HaveCount(2);
+        successes.ShouldBeEmpty();
+        failures.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -67,9 +66,8 @@ public class FanOutFanInExtensionsTests
         var (successes, failures) = FanOut.Partition(results);
 
         // Assert
-        successes.Should().HaveCount(2);
-        successes.Should().BeEquivalentTo([1, 3]);
-        failures.Should().HaveCount(2);
+        successes.ShouldBe([1, 3]);
+        failures.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -82,8 +80,8 @@ public class FanOutFanInExtensionsTests
         var (successes, failures) = FanOut.Partition(results);
 
         // Assert
-        successes.Should().BeEmpty();
-        failures.Should().BeEmpty();
+        successes.ShouldBeEmpty();
+        failures.ShouldBeEmpty();
     }
 
     [Fact]
@@ -103,7 +101,7 @@ public class FanOutFanInExtensionsTests
         var (successes, _) = FanOut.Partition(results);
 
         // Assert
-        successes.Should().BeEquivalentTo([10, 20, 30], options => options.WithStrictOrdering());
+        successes.ShouldBe([10, 20, 30]);
     }
 
     [Fact]
@@ -122,10 +120,8 @@ public class FanOutFanInExtensionsTests
         var (successes, failures) = FanOut.Partition(results);
 
         // Assert
-        successes.Should().HaveCount(2);
-        successes.Should().Contain("hello");
-        successes.Should().Contain("world");
-        failures.Should().HaveCount(1);
+        successes.ShouldBe(["hello", "world"], ignoreOrder: true);
+        failures.ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -146,10 +142,8 @@ public class FanOutFanInExtensionsTests
         var (successes, failures) = FanOut.Partition(results);
 
         // Assert
-        successes.Should().HaveCount(2);
-        successes.Select(x => x.Id).Should().Contain(1);
-        successes.Select(x => x.Id).Should().Contain(2);
-        failures.Should().HaveCount(1);
+        successes.Select(x => x.Id).ShouldBe([1, 2], ignoreOrder: true);
+        failures.ShouldHaveSingleItem();
     }
 
     private sealed class TestItem

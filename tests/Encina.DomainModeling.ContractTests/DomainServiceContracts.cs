@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.DomainModeling.ContractTests;
 
@@ -14,13 +14,13 @@ public sealed class DomainServiceContracts
     [Fact]
     public void IDomainService_MustBeInterface()
     {
-        _interfaceType.IsInterface.Should().BeTrue();
+        _interfaceType.IsInterface.ShouldBeTrue();
     }
 
     [Fact]
     public void IDomainService_MustBePublic()
     {
-        _interfaceType.IsPublic.Should().BeTrue();
+        _interfaceType.IsPublic.ShouldBeTrue();
     }
 
     [Fact]
@@ -28,14 +28,14 @@ public sealed class DomainServiceContracts
     {
         // Marker interface should have no methods or properties
         var members = _interfaceType.GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-        members.Should().BeEmpty("marker interface should have no members");
+        members.ShouldBeEmpty("marker interface should have no members");
     }
 
     [Fact]
     public void IDomainService_MustNotExtendOtherInterfaces()
     {
         // Marker interface should not inherit from other interfaces
-        _interfaceType.GetInterfaces().Should().BeEmpty();
+        _interfaceType.GetInterfaces().ShouldBeEmpty();
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public sealed class DomainServiceContracts
     {
         // Verify the interface can be implemented
         var testService = new TestDomainService();
-        testService.Should().BeAssignableTo<IDomainService>();
+        testService.ShouldBeAssignableTo<IDomainService>();
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class DomainServiceContracts
     {
         // Verify we can use it as a type parameter for generic constraints
         var method = typeof(DomainServiceContracts).GetMethod(nameof(GenericConstraintTest), BindingFlags.NonPublic | BindingFlags.Static);
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     private static void GenericConstraintTest<T>() where T : IDomainService

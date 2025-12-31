@@ -3,6 +3,7 @@ using Encina.Messaging.Health;
 using Encina.TestInfrastructure.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 using Xunit.Sdk;
 
 namespace Encina.EntityFrameworkCore.IntegrationTests.Health;
@@ -25,15 +26,15 @@ public sealed class EntityFrameworkCoreHealthCheckIntegrationTests : IClassFixtu
     public async Task CheckHealthAsync_WhenDatabaseIsRunning_ReturnsHealthy()
     {
         // Arrange
-        var serviceProvider = CreateServiceProvider();
+        using var serviceProvider = CreateServiceProvider();
         var healthCheck = new EntityFrameworkCoreHealthCheck(serviceProvider, null);
 
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("reachable");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("reachable");
     }
 
     [Fact]
@@ -41,35 +42,35 @@ public sealed class EntityFrameworkCoreHealthCheckIntegrationTests : IClassFixtu
     {
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-efcore" };
-        var serviceProvider = CreateServiceProvider();
+        using var serviceProvider = CreateServiceProvider();
         var healthCheck = new EntityFrameworkCoreHealthCheck(serviceProvider, options);
 
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        healthCheck.Name.Should().Be("my-custom-efcore");
-        result.Status.Should().Be(HealthStatus.Healthy);
+        healthCheck.Name.ShouldBe("my-custom-efcore");
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [Fact]
     public void Tags_ContainsExpectedValues()
     {
         // Arrange
-        var serviceProvider = CreateServiceProvider();
+        using var serviceProvider = CreateServiceProvider();
         var healthCheck = new EntityFrameworkCoreHealthCheck(serviceProvider, null);
 
         // Assert
-        healthCheck.Tags.Should().Contain("encina");
-        healthCheck.Tags.Should().Contain("database");
-        healthCheck.Tags.Should().Contain("efcore");
-        healthCheck.Tags.Should().Contain("ready");
+        healthCheck.Tags.ShouldContain("encina");
+        healthCheck.Tags.ShouldContain("database");
+        healthCheck.Tags.ShouldContain("efcore");
+        healthCheck.Tags.ShouldContain("ready");
     }
 
     [Fact]
     public void DefaultName_ShouldBeEncinaEfcore()
     {
-        EntityFrameworkCoreHealthCheck.DefaultName.Should().Be("encina-efcore");
+        EntityFrameworkCoreHealthCheck.DefaultName.ShouldBe("encina-efcore");
     }
 
     private ServiceProvider CreateServiceProvider()

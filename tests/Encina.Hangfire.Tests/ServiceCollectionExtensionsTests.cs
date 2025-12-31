@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 
 namespace Encina.Hangfire.Tests;
 
@@ -14,11 +15,11 @@ public class ServiceCollectionExtensionsTests
         services.AddEncinaHangfire();
 
         // Assert - Verify the generic type registrations exist
-        services.Should().Contain(sd =>
+        services.ShouldContain(sd =>
             sd.ServiceType.IsGenericType &&
             sd.ServiceType.GetGenericTypeDefinition() == typeof(HangfireRequestJobAdapter<,>));
 
-        services.Should().Contain(sd =>
+        services.ShouldContain(sd =>
             sd.ServiceType.IsGenericType &&
             sd.ServiceType.GetGenericTypeDefinition() == typeof(HangfireNotificationJobAdapter<>));
     }
@@ -41,11 +42,11 @@ public class ServiceCollectionExtensionsTests
             sd.ServiceType.IsGenericType &&
             sd.ServiceType.GetGenericTypeDefinition() == typeof(HangfireNotificationJobAdapter<>));
 
-        requestAdapterDescriptor.Should().NotBeNull();
-        requestAdapterDescriptor!.Lifetime.Should().Be(ServiceLifetime.Transient);
+        requestAdapterDescriptor.ShouldNotBeNull();
+        requestAdapterDescriptor!.Lifetime.ShouldBe(ServiceLifetime.Transient);
 
-        notificationAdapterDescriptor.Should().NotBeNull();
-        notificationAdapterDescriptor!.Lifetime.Should().Be(ServiceLifetime.Transient);
+        notificationAdapterDescriptor.ShouldNotBeNull();
+        notificationAdapterDescriptor!.Lifetime.ShouldBe(ServiceLifetime.Transient);
     }
 
     [Fact]
@@ -59,7 +60,7 @@ public class ServiceCollectionExtensionsTests
         services.AddEncinaHangfire(); // Should not throw
 
         // Assert
-        services.Should().NotBeEmpty();
+        services.ShouldNotBeEmpty();
     }
 
     // Extension methods tests (EnqueueRequest, ScheduleRequest, etc.) require Hangfire infrastructure

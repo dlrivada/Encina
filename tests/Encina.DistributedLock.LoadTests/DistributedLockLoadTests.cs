@@ -45,10 +45,10 @@ public class DistributedLockLoadTests
 
         // Assert
         var successCount = results.Count(r => r is not null);
-        successCount.Should().Be(numLocks);
+        successCount.ShouldBe(numLocks);
 
         // Performance assertion - should complete in reasonable time
-        stopwatch.ElapsedMilliseconds.Should().BeLessThan(10000); // 10 seconds max
+        stopwatch.ElapsedMilliseconds.ShouldBeLessThan(10000); // 10 seconds max
 
         // Clean up
         foreach (var result in results.Where(r => r is not null))
@@ -82,10 +82,10 @@ public class DistributedLockLoadTests
 
         // Assert
         var successCount = results.Count(r => r is not null);
-        successCount.Should().Be(1);
+        successCount.ShouldBe(1);
 
         // Performance assertion
-        stopwatch.ElapsedMilliseconds.Should().BeLessThan(5000);
+        stopwatch.ElapsedMilliseconds.ShouldBeLessThan(5000);
 
         // Clean up
         foreach (var result in results.Where(r => r is not null))
@@ -113,14 +113,14 @@ public class DistributedLockLoadTests
                 TimeSpan.FromMilliseconds(50),
                 CancellationToken.None);
 
-            lockHandle.Should().NotBeNull();
+            lockHandle.ShouldNotBeNull();
             await lockHandle!.DisposeAsync();
         }
 
         stopwatch.Stop();
 
         // Assert - should complete all iterations
-        stopwatch.ElapsedMilliseconds.Should().BeLessThan(10000);
+        stopwatch.ElapsedMilliseconds.ShouldBeLessThan(10000);
     }
 
     [Fact]
@@ -156,8 +156,8 @@ public class DistributedLockLoadTests
         var extendResults = await Task.WhenAll(extendTasks);
 
         // Assert
-        isLockedResults.Should().AllBeEquivalentTo(true);
-        extendResults.Should().AllBeEquivalentTo(true);
+        isLockedResults.ShouldAllBe(x => x);
+        extendResults.ShouldAllBe(x => x);
 
         // Clean up
         foreach (var lockHandle in locks)

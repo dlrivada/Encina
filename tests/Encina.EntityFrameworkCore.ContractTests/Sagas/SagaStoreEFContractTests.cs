@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.Messaging.Sagas;
@@ -29,7 +29,7 @@ public sealed class SagaStoreEFContractTests : IDisposable
     public void Contract_MustImplementISagaStore()
     {
         // Assert
-        _store.Should().BeAssignableTo<ISagaStore>();
+        _store.ShouldBeAssignableTo<ISagaStore>();
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class SagaStoreEFContractTests : IDisposable
         var act = async () => await _store.AddAsync(saga);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(async () => await act());
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class SagaStoreEFContractTests : IDisposable
         var retrieved = await _store.GetAsync(sagaId);
 
         // Assert
-        retrieved.Should().BeAssignableTo<ISagaState>();
+        retrieved.ShouldBeAssignableTo<ISagaState>();
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public sealed class SagaStoreEFContractTests : IDisposable
         var act = async () => await _store.UpdateAsync(saga);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(async () => await act());
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class SagaStoreEFContractTests : IDisposable
         var sagas = await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10);
 
         // Assert
-        sagas.Should().AllBeAssignableTo<ISagaState>();
+        sagas.ShouldAllBe(x => x is ISagaState);
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public sealed class SagaStoreEFContractTests : IDisposable
 
         // Assert
         var retrieved = await _store.GetAsync(sagaId);
-        retrieved.Should().NotBeNull();
+        retrieved.ShouldNotBeNull();
     }
 
     [Fact]
@@ -180,8 +180,8 @@ public sealed class SagaStoreEFContractTests : IDisposable
         var act = async () => await _store.AddAsync(mockSaga);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*SagaState*");
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () => await act());
+        ex.Message.ShouldMatch("*SagaState*");
     }
 
     public void Dispose()

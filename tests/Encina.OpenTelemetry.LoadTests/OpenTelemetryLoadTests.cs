@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using NBomber.CSharp;
@@ -61,8 +61,8 @@ public sealed class OpenTelemetryLoadTests
         _output.WriteLine($"OK: {scen.Ok.Request.Count}, Fail: {scen.Fail.Request.Count}");
         _output.WriteLine($"RPS: {scen.Ok.Request.RPS}");
 
-        scen.Ok.Request.Count.Should().BeGreaterThan(900); // At least 90% success rate
-        scen.Fail.Request.Count.Should().BeLessThan(100); // Less than 10% failures
+        scen.Ok.Request.Count.ShouldBeGreaterThan(900); // At least 90% success rate
+        scen.Fail.Request.Count.ShouldBeLessThan(100); // Less than 10% failures
     }
 
     [Fact(Skip = "Load test - requires proper DI scoping setup")]
@@ -102,7 +102,7 @@ public sealed class OpenTelemetryLoadTests
         _output.WriteLine($"Total notifications: {scen.Ok.Request.Count + scen.Fail.Request.Count}");
         _output.WriteLine($"OK: {scen.Ok.Request.Count}, Fail: {scen.Fail.Request.Count}");
 
-        scen.Ok.Request.Count.Should().BeGreaterThan(450); // At least 90% success rate
+        scen.Ok.Request.Count.ShouldBeGreaterThan(450); // At least 90% success rate
     }
 
     #region Test Helpers

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.Caching.Hybrid.Tests;
 
@@ -39,9 +39,8 @@ public sealed class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var cacheProvider = provider.GetService<ICacheProvider>();
-        cacheProvider.Should().NotBeNull();
-        cacheProvider.Should().BeOfType<HybridCacheProvider>();
+        var cacheProvider = provider.GetRequiredService<ICacheProvider>();
+        cacheProvider.ShouldBeOfType<HybridCacheProvider>();
     }
 
     [Fact]
@@ -55,8 +54,8 @@ public sealed class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var hybridCache = provider.GetService<HybridCache>();
-        hybridCache.Should().NotBeNull();
+        var hybridCache = provider.GetRequiredService<HybridCache>();
+        hybridCache.ShouldNotBeNull();
     }
 
     [Fact]
@@ -74,9 +73,8 @@ public sealed class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var options = provider.GetService<IOptions<HybridCacheProviderOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.DefaultExpiration.Should().Be(expectedExpiration);
+        var options = provider.GetRequiredService<IOptions<HybridCacheProviderOptions>>();
+        options.Value.DefaultExpiration.ShouldBe(expectedExpiration);
     }
 
     [Fact]
@@ -90,9 +88,8 @@ public sealed class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var options = provider.GetService<IOptions<HybridCacheProviderOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.DefaultExpiration.Should().Be(TimeSpan.FromMinutes(5));
+        var options = provider.GetRequiredService<IOptions<HybridCacheProviderOptions>>();
+        options.Value.DefaultExpiration.ShouldBe(TimeSpan.FromMinutes(5));
     }
 
     [Fact]
@@ -108,7 +105,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         // Assert
         var cacheProviders = provider.GetServices<ICacheProvider>().ToList();
-        cacheProviders.Should().HaveCount(1);
+        cacheProviders.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -121,7 +118,7 @@ public sealed class ServiceCollectionExtensionsTests
         var result = services.AddEncinaHybridCache();
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -137,7 +134,7 @@ public sealed class ServiceCollectionExtensionsTests
         // Assert
         var cacheProvider1 = provider.GetRequiredService<ICacheProvider>();
         var cacheProvider2 = provider.GetRequiredService<ICacheProvider>();
-        cacheProvider1.Should().BeSameAs(cacheProvider2);
+        cacheProvider1.ShouldBeSameAs(cacheProvider2);
     }
 
     [Fact]
@@ -155,9 +152,8 @@ public sealed class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var options = provider.GetService<IOptions<HybridCacheProviderOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.LocalCacheExpiration.Should().Be(localExpiration);
+        var options = provider.GetRequiredService<IOptions<HybridCacheProviderOptions>>();
+        options.Value.LocalCacheExpiration.ShouldBe(localExpiration);
     }
 
     #endregion
@@ -200,9 +196,8 @@ public sealed class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var cacheProvider = provider.GetService<ICacheProvider>();
-        cacheProvider.Should().NotBeNull();
-        cacheProvider.Should().BeOfType<HybridCacheProvider>();
+        var cacheProvider = provider.GetRequiredService<ICacheProvider>();
+        cacheProvider.ShouldBeOfType<HybridCacheProvider>();
     }
 
     [Fact]
@@ -225,12 +220,11 @@ public sealed class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var options = provider.GetService<IOptions<HybridCacheProviderOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.DefaultExpiration.Should().Be(expectedExpiration);
+        var options = provider.GetRequiredService<IOptions<HybridCacheProviderOptions>>();
+        options.Value.DefaultExpiration.ShouldBe(expectedExpiration);
 
-        var cacheProvider = provider.GetService<ICacheProvider>();
-        cacheProvider.Should().NotBeNull();
+        var cacheProvider = provider.GetRequiredService<ICacheProvider>();
+        cacheProvider.ShouldBeOfType<HybridCacheProvider>();
     }
 
     [Fact]
@@ -243,7 +237,7 @@ public sealed class ServiceCollectionExtensionsTests
         var result = services.AddEncinaHybridCacheWithOptions(_ => { });
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     #endregion

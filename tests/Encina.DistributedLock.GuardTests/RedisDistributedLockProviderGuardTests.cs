@@ -22,8 +22,8 @@ public class RedisDistributedLockProviderGuardTests
         var act = () => new RedisDistributedLockProvider(connection!, options, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connection");
     }
 
     [Fact]
@@ -38,8 +38,8 @@ public class RedisDistributedLockProviderGuardTests
         var act = () => new RedisDistributedLockProvider(connection, options!, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class RedisDistributedLockProviderGuardTests
         var act = () => new RedisDistributedLockProvider(connection, options, logger!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 }

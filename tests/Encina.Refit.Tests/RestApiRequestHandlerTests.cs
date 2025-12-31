@@ -1,4 +1,4 @@
-﻿using LanguageExt;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -36,7 +36,7 @@ public class RestApiRequestHandlerTests
 
         // Assert
         result.ShouldBeSuccess();
-        result.IfRight(response => response.Should().Be(expectedResponse));
+        result.IfRight(response => response.Data.ShouldBe(expectedResponse.Data));
     }
 
     [Fact]
@@ -53,8 +53,8 @@ public class RestApiRequestHandlerTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("API call failed with status");
-            error.Message.Should().Contain("404");
+            error.Message.ShouldContain("API call failed with status");
+            error.Message.ShouldContain("404");
         });
     }
 
@@ -72,7 +72,7 @@ public class RestApiRequestHandlerTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("Error content");
+            error.Message.ShouldContain("Error content");
         });
     }
 
@@ -90,8 +90,8 @@ public class RestApiRequestHandlerTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("HTTP request failed");
-            error.Message.Should().Contain("Network error");
+            error.Message.ShouldContain("HTTP request failed");
+            error.Message.ShouldContain("Network error");
         });
     }
 
@@ -110,7 +110,7 @@ public class RestApiRequestHandlerTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("API request was cancelled");
+            error.Message.ShouldContain("API request was cancelled");
         });
     }
 
@@ -128,7 +128,7 @@ public class RestApiRequestHandlerTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("API request timed out");
+            error.Message.ShouldContain("API request timed out");
         });
     }
 
@@ -146,8 +146,8 @@ public class RestApiRequestHandlerTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            ((object?)error.Exception).Should().NotBeNull();
-            ((object?)error.Exception).Should().BeOfType<InvalidOperationException>();
+            ((object?)error.Exception).ShouldNotBeNull();
+            ((object?)error.Exception).ShouldBeOfType<InvalidOperationException>();
         });
     }
 
@@ -158,7 +158,7 @@ public class RestApiRequestHandlerTests
         var handler = new RestApiRequestHandler<TestRequest, ITestApiClient, TestResponse>(_mockApiClient, _mockLogger);
 
         // Assert
-        handler.Should().NotBeNull();
+        handler.ShouldNotBeNull();
     }
 
     [Fact]

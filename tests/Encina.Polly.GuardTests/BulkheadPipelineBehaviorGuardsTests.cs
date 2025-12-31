@@ -18,7 +18,8 @@ public class BulkheadPipelineBehaviorGuardsTests
 
         // Act & Assert
         var act = () => new BulkheadPipelineBehavior<TestBulkheadRequest, string>(logger, bulkheadManager);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -30,7 +31,8 @@ public class BulkheadPipelineBehaviorGuardsTests
 
         // Act & Assert
         var act = () => new BulkheadPipelineBehavior<TestBulkheadRequest, string>(logger, bulkheadManager);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("bulkheadManager");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("bulkheadManager");
     }
 }
 

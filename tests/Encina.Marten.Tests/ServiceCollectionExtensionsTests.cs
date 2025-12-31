@@ -1,6 +1,7 @@
 using Encina.DomainModeling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.Marten.Tests;
 
@@ -18,8 +19,8 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var options = provider.GetService<IOptions<EncinaMartenOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.Should().NotBeNull();
+        options.ShouldNotBeNull();
+        options!.Value.ShouldNotBeNull();
     }
 
     [Fact]
@@ -40,10 +41,10 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var options = provider.GetRequiredService<IOptions<EncinaMartenOptions>>();
-        options.Value.AutoPublishDomainEvents.Should().BeFalse();
-        options.Value.UseOptimisticConcurrency.Should().BeFalse();
-        options.Value.ThrowOnConcurrencyConflict.Should().BeTrue();
-        options.Value.StreamPrefix.Should().Be("test-prefix");
+        options.Value.AutoPublishDomainEvents.ShouldBeFalse();
+        options.Value.UseOptimisticConcurrency.ShouldBeFalse();
+        options.Value.ThrowOnConcurrencyConflict.ShouldBeTrue();
+        options.Value.StreamPrefix.ShouldBe("test-prefix");
     }
 
     [Fact]
@@ -58,9 +59,9 @@ public class ServiceCollectionExtensionsTests
             d.ServiceType == typeof(IAggregateRepository<>));
 
         // Assert
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationType.Should().Be(typeof(MartenAggregateRepository<>));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationType.ShouldBe(typeof(MartenAggregateRepository<>));
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -73,15 +74,19 @@ public class ServiceCollectionExtensionsTests
         var result = services.AddEncinaMarten();
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
     public void AddEncinaMarten_WithNullServices_ThrowsArgumentNullException()
     {
-        // Act & Assert
-        Assert.Throws<ArgumentNullException>(() =>
-            ((IServiceCollection)null!).AddEncinaMarten());
+        // Arrange
+
+        // Act
+        var act = () => ((IServiceCollection)null!).AddEncinaMarten();
+
+        // Assert
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -90,9 +95,11 @@ public class ServiceCollectionExtensionsTests
         // Arrange
         var services = new ServiceCollection();
 
-        // Act & Assert
-        Assert.Throws<ArgumentNullException>(() =>
-            services.AddEncinaMarten(null!));
+        // Act
+        var act = () => services.AddEncinaMarten(null!);
+
+        // Assert
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -102,10 +109,10 @@ public class ServiceCollectionExtensionsTests
         var options = new EncinaMartenOptions();
 
         // Assert
-        options.AutoPublishDomainEvents.Should().BeTrue();
-        options.UseOptimisticConcurrency.Should().BeTrue();
-        options.ThrowOnConcurrencyConflict.Should().BeFalse();
-        options.StreamPrefix.Should().BeEmpty();
+        options.AutoPublishDomainEvents.ShouldBeTrue();
+        options.UseOptimisticConcurrency.ShouldBeTrue();
+        options.ThrowOnConcurrencyConflict.ShouldBeFalse();
+        options.StreamPrefix.ShouldBeEmpty();
     }
 
     [Fact]
@@ -120,9 +127,9 @@ public class ServiceCollectionExtensionsTests
             d.ServiceType == typeof(IAggregateRepository<TestAggregate>));
 
         // Assert
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationType.Should().Be(typeof(MartenAggregateRepository<TestAggregate>));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationType.ShouldBe(typeof(MartenAggregateRepository<TestAggregate>));
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     // Test aggregate for registration tests

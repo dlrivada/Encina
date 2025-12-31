@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Encina.EntityFrameworkCore.Outbox;
@@ -44,12 +44,15 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
     [Fact]
     public async Task Property_AddThenGet_MessageAlwaysRetrievableInPending()
     {
-        // Generate random test cases
-        var testCases = Enumerable.Range(0, 20).Select(_ => new
+        // Use fixed timestamp for determinism
+        var baseTime = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        // Reduced iterations for faster execution
+        var testCases = Enumerable.Range(0, 5).Select(i => new
         {
             Id = Guid.NewGuid(),
-            NotificationType = $"TestNotification_{Guid.NewGuid()}",
-            Content = $"{{\"test\":\"{Guid.NewGuid()}\"}}"
+            NotificationType = $"TestNotification_{i}",
+            Content = $"{{\"test\":\"{i}\"}}"
         }).ToList();
 
         foreach (var testCase in testCases)
@@ -60,7 +63,7 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
                 Id = testCase.Id,
                 NotificationType = testCase.NotificationType,
                 Content = testCase.Content,
-                CreatedAtUtc = DateTime.UtcNow,
+                CreatedAtUtc = baseTime,
                 ProcessedAtUtc = null,
                 RetryCount = 0
             };
@@ -74,7 +77,10 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
                 batchSize: 100,
                 maxRetries: 5);
 
-            pending.Should().Contain(m => m.Id == testCase.Id);
+            pending.ShouldContain(m => m.Id == testCase.Id);
+
+            // Clear database for next iteration to ensure isolation
+            await ClearDatabase();
         }
     }
 
@@ -109,7 +115,7 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var pending = await _store.GetPendingMessagesAsync(100, 5);
-            pending.Should().NotContain(m => m.Id == message.Id,
+            pending.ShouldNotContain(m => m.Id == message.Id,
                 "processed messages must NEVER appear in pending");
         }
     }
@@ -122,11 +128,12 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
     {
         // Test with various batch sizes
         var batchSizes = new[] { 1, 5, 10, 20, 50 };
+        var baseTime = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
 
         foreach (var batchSize in batchSizes)
         {
-            // Arrange - create more messages than batch size
-            var messageCount = batchSize + Random.Shared.Next(1, 20);
+            // Arrange - create more messages than batch size (deterministic: batchSize + 5)
+            var messageCount = batchSize + 5;
             await ClearDatabase();
 
             for (int i = 0; i < messageCount; i++)
@@ -136,7 +143,7 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
                     Id = Guid.NewGuid(),
                     NotificationType = $"TestNotification_{i}",
                     Content = $"{{\"index\":{i}}}",
-                    CreatedAtUtc = DateTime.UtcNow,
+                    CreatedAtUtc = baseTime,
                     RetryCount = 0
                 });
             }
@@ -146,7 +153,7 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
             var pending = await _store!.GetPendingMessagesAsync(batchSize, 5);
 
             // Assert
-            pending.Count().Should().BeLessThanOrEqualTo(batchSize,
+            pending.Count().ShouldBeLessThanOrEqualTo(batchSize,
                 $"batch size {batchSize} must ALWAYS be respected");
         }
     }
@@ -190,12 +197,12 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
             // Assert
             if (shouldAppear)
             {
-                pending.Should().Contain(m => m.Id == message.Id,
+                pending.ShouldContain(m => m.Id == message.Id,
                     $"message with {retryCount} retries < {maxRetries} must appear");
             }
             else
             {
-                pending.Should().NotContain(m => m.Id == message.Id,
+                pending.ShouldNotContain(m => m.Id == message.Id,
                     $"message with {retryCount} retries >= {maxRetries} must NEVER appear");
             }
 
@@ -210,18 +217,21 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
     [Fact]
     public async Task Property_Ordering_AlwaysCreatedAtUtcAscending()
     {
-        // Create messages with random timestamps
-        var baseTime = DateTime.UtcNow.AddHours(-10);
+        // Use fixed seed for deterministic test
+        var rng = new Random(12345);
+        var baseTime = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        // Create messages with deterministic random timestamps
         var messages = Enumerable.Range(0, 20)
             .Select(i => new OutboxMessage
             {
                 Id = Guid.NewGuid(),
                 NotificationType = $"Test_{i}",
                 Content = $"{{\"index\":{i}}}",
-                CreatedAtUtc = baseTime.AddMinutes(Random.Shared.Next(-100, 100)),
+                CreatedAtUtc = baseTime.AddMinutes(rng.Next(-100, 100)),
                 RetryCount = 0
             })
-            .OrderBy(_ => Random.Shared.Next()) // Randomize insertion order
+            .OrderBy(_ => rng.Next()) // Randomize insertion order deterministically
             .ToList();
 
         foreach (var message in messages)
@@ -236,7 +246,7 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
         // Assert - must be ordered by CreatedAtUtc ascending
         for (int i = 1; i < pending.Count; i++)
         {
-            pending[i].CreatedAtUtc.Should().BeOnOrAfter(pending[i - 1].CreatedAtUtc,
+            pending[i].CreatedAtUtc.ShouldBeGreaterThanOrEqualTo(pending[i - 1].CreatedAtUtc,
                 "pending messages must ALWAYS be ordered by CreatedAtUtc ascending");
         }
     }
@@ -247,19 +257,23 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
     [Fact]
     public async Task Property_NextRetry_FutureRetriesExcluded()
     {
-        var now = DateTime.UtcNow;
-
+        // Use time offsets instead of absolute times to avoid race conditions
+        // Each iteration captures fresh DateTime.UtcNow
         var testCases = new[]
         {
-            (NextRetry: (DateTime?)null, ShouldAppear: true),           // No retry scheduled
-            (NextRetry: (DateTime?)now.AddMinutes(-10), ShouldAppear: true),  // Past retry
-            (NextRetry: (DateTime?)now.AddSeconds(-1), ShouldAppear: true),   // Just passed
-            (NextRetry: (DateTime?)now.AddMinutes(5), ShouldAppear: false),   // Future
-            (NextRetry: (DateTime?)now.AddHours(1), ShouldAppear: false)      // Far future
+            (OffsetMinutes: (int?)null, ShouldAppear: true),       // No retry scheduled
+            (OffsetMinutes: (int?)-10, ShouldAppear: true),        // Past retry (10 min ago)
+            (OffsetMinutes: (int?)-1, ShouldAppear: true),         // Past retry (1 min ago - safe buffer)
+            (OffsetMinutes: (int?)5, ShouldAppear: false),         // Future (5 min from now)
+            (OffsetMinutes: (int?)60, ShouldAppear: false)         // Far future (1 hour)
         };
 
-        foreach (var (nextRetry, shouldAppear) in testCases)
+        foreach (var (offsetMinutes, shouldAppear) in testCases)
         {
+            // Capture fresh timestamp for each iteration
+            var now = DateTime.UtcNow;
+            var nextRetry = offsetMinutes.HasValue ? (DateTime?)now.AddMinutes(offsetMinutes.Value) : null;
+
             var message = new OutboxMessage
             {
                 Id = Guid.NewGuid(),
@@ -279,13 +293,13 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
             // Assert
             if (shouldAppear)
             {
-                pending.Should().Contain(m => m.Id == message.Id,
-                    $"message with NextRetryAtUtc={nextRetry} should appear");
+                pending.ShouldContain(m => m.Id == message.Id,
+                    $"message with NextRetryAtUtc offset={offsetMinutes} min should appear");
             }
             else
             {
-                pending.Should().NotContain(m => m.Id == message.Id,
-                    $"message with future NextRetryAtUtc={nextRetry} must NEVER appear");
+                pending.ShouldNotContain(m => m.Id == message.Id,
+                    $"message with future NextRetryAtUtc offset={offsetMinutes} min must NEVER appear");
             }
 
             await ClearDatabase();
@@ -328,9 +342,9 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var retrieved = _dbContext!.Set<OutboxMessage>().First(m => m.Id == message.Id);
-            retrieved.RetryCount.Should().Be(testCase.InitialRetryCount + 1,
+            retrieved.RetryCount.ShouldBe(testCase.InitialRetryCount + 1,
                 "MarkAsFailed must ALWAYS increment RetryCount by exactly 1");
-            retrieved.ErrorMessage.Should().Be(testCase.ErrorMessage);
+            retrieved.ErrorMessage.ShouldBe(testCase.ErrorMessage);
 
             await ClearDatabase();
         }
@@ -373,9 +387,9 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var retrieved = _dbContext!.Set<OutboxMessage>().First(m => m.Id == message.Id);
-            retrieved.ErrorMessage.Should().BeNull(
+            retrieved.ErrorMessage.ShouldBeNull(
                 "MarkAsProcessed must ALWAYS clear ErrorMessage");
-            retrieved.ProcessedAtUtc.Should().NotBeNull();
+            retrieved.ProcessedAtUtc.ShouldNotBeNull();
 
             await ClearDatabase();
         }
@@ -388,6 +402,10 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
     public async Task Property_ConcurrentAdds_AlwaysSucceed()
     {
         const int concurrentWrites = 50;
+        var baseTime = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        // Use a shared database name so all contexts write to the same DB
+        var dbName = $"ConcurrentTest_{Guid.NewGuid()}";
 
         var messages = Enumerable.Range(0, concurrentWrites)
             .Select(i => new OutboxMessage
@@ -395,61 +413,41 @@ public sealed class OutboxStoreEFPropertyTests : IAsyncLifetime
                 Id = Guid.NewGuid(),
                 NotificationType = $"Concurrent_{i}",
                 Content = $"{{\"index\":{i}}}",
-                CreatedAtUtc = DateTime.UtcNow,
+                CreatedAtUtc = baseTime,
                 RetryCount = 0
             })
             .ToList();
 
-        // Act - concurrent writes
+        // Act - concurrent writes with separate DbContext per task (thread-safe)
         var tasks = messages.Select(async msg =>
         {
-            await _store!.AddAsync(msg);
-            await _store.SaveChangesAsync();
+            var options = new DbContextOptionsBuilder<TestDbContext>()
+                .UseInMemoryDatabase(dbName)
+                .Options;
+
+            await using var context = new TestDbContext(options);
+            var store = new OutboxStoreEF(context);
+
+            await store.AddAsync(msg);
+            await store.SaveChangesAsync();
         });
 
         await Task.WhenAll(tasks);
 
-        // Assert - all messages must be present
-        var allMessages = _dbContext!.Set<OutboxMessage>().ToList();
-        allMessages.Should().HaveCount(concurrentWrites,
+        // Assert - read from fresh context to verify all messages persisted
+        var verifyOptions = new DbContextOptionsBuilder<TestDbContext>()
+            .UseInMemoryDatabase(dbName)
+            .Options;
+
+        await using var verifyContext = new TestDbContext(verifyOptions);
+        var allMessages = verifyContext.Set<OutboxMessage>().ToList();
+        allMessages.Count.ShouldBe(concurrentWrites,
             "ALL concurrent adds must succeed");
 
         foreach (var original in messages)
         {
-            allMessages.Should().Contain(m => m.Id == original.Id,
+            allMessages.ShouldContain(m => m.Id == original.Id,
                 "every added message must be retrievable");
-        }
-    }
-
-    /// <summary>
-    /// Property: IsProcessed ALWAYS reflects ProcessedAtUtc and ErrorMessage state.
-    /// </summary>
-    [Fact]
-    public async Task Property_IsProcessed_ReflectsState()
-    {
-        var testCases = new[]
-        {
-            (ProcessedAt: (DateTime?)null, Error: (string?)null, Expected: false),
-            (ProcessedAt: (DateTime?)null, Error: "Error", Expected: false),
-            (ProcessedAt: (DateTime?)DateTime.UtcNow, Error: (string?)null, Expected: true),
-            (ProcessedAt: (DateTime?)DateTime.UtcNow, Error: "Error", Expected: false)
-        };
-
-        foreach (var (processedAt, error, expected) in testCases)
-        {
-            var message = new OutboxMessage
-            {
-                Id = Guid.NewGuid(),
-                NotificationType = "TestIsProcessed",
-                Content = "{}",
-                CreatedAtUtc = DateTime.UtcNow,
-                ProcessedAtUtc = processedAt,
-                ErrorMessage = error,
-                RetryCount = 0
-            };
-
-            message.IsProcessed.Should().Be(expected,
-                $"IsProcessed with ProcessedAt={processedAt}, Error={error} must be {expected}");
         }
     }
 

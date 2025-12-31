@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Quartz;
 
 namespace Encina.Quartz.Tests;
@@ -14,10 +15,9 @@ public class ServiceCollectionExtensionsTests
         // Act
         services.AddEncinaQuartz();
 
-        // Assert - Verify Quartz services are registered
-        var provider = services.BuildServiceProvider();
-        var schedulerFactory = provider.GetService<ISchedulerFactory>();
-        schedulerFactory.Should().NotBeNull();
+        // Assert - Verify Quartz services are registered via descriptor inspection
+        var schedulerFactoryDescriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(ISchedulerFactory));
+        schedulerFactoryDescriptor.ShouldNotBeNull("ISchedulerFactory should be registered");
     }
 
     [Fact]
@@ -29,9 +29,12 @@ public class ServiceCollectionExtensionsTests
         // Act
         services.AddEncinaQuartz();
 
-        // Assert - Verify hosted service is registered
-        services.Should().Contain(sd =>
-            sd.ServiceType.Name.Contains("IHostedService"));
+        // Assert - Verify Quartz hosted service is registered
+        services.ShouldContain(sd =>
+            sd.ServiceType == typeof(IHostedService) &&
+            sd.ImplementationType != null &&
+            typeof(IHostedService).IsAssignableFrom(sd.ImplementationType),
+            "A valid IHostedService implementation should be registered");
     }
 
     [Fact]
@@ -50,7 +53,7 @@ public class ServiceCollectionExtensionsTests
         });
 
         // Assert
-        configurationCalled.Should().BeTrue();
+        configurationCalled.ShouldBeTrue();
     }
 
     [Fact]
@@ -61,10 +64,23 @@ public class ServiceCollectionExtensionsTests
 
         // Act
         services.AddEncinaQuartz();
-        services.AddEncinaQuartz(); // Should not throw
+        var countAfterFirst = services.Count;
 
-        // Assert
-        services.Should().NotBeEmpty();
+        services.AddEncinaQuartz(); // Should not throw
+        var countAfterSecond = services.Count;
+
+        // Assert - Verify no duplicate registrations were added
+        countAfterSecond.ShouldBe(countAfterFirst,
+            "Calling AddEncinaQuartz twice should not add duplicate registrations");
+
+        // Additionally verify no duplicate service descriptors exist
+        var duplicates = services
+            .GroupBy(sd => (sd.ServiceType, sd.ImplementationType, sd.Lifetime))
+            .Where(g => g.Count() > 1)
+            .ToList();
+
+        duplicates.ShouldBeEmpty(
+            "No service descriptors should be duplicated");
     }
 
     // Note: ScheduleRequest, ScheduleNotification, AddRequestJob, and AddNotificationJob

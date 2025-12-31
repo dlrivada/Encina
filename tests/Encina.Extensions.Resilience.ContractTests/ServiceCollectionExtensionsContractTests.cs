@@ -1,6 +1,4 @@
-﻿using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
-using Shouldly;
 using Encina.Extensions.Resilience;
 using System.Reflection;
 using Xunit;
@@ -23,8 +21,8 @@ public class ServiceCollectionExtensionsContractTests
             new[] { typeof(IServiceCollection) });
 
         // Assert
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be<IServiceCollection>();
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(IServiceCollection));
     }
 
     [Fact]
@@ -37,8 +35,8 @@ public class ServiceCollectionExtensionsContractTests
             new[] { typeof(IServiceCollection), typeof(Action<StandardResilienceOptions>) });
 
         // Assert
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be<IServiceCollection>();
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(IServiceCollection));
     }
 
     [Fact]
@@ -50,8 +48,8 @@ public class ServiceCollectionExtensionsContractTests
             .FirstOrDefault(m => m.Name == "AddEncinaStandardResilienceFor" && m.IsGenericMethodDefinition);
 
         // Assert
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be<IServiceCollection>();
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(IServiceCollection));
     }
 
     [Fact]
@@ -64,10 +62,10 @@ public class ServiceCollectionExtensionsContractTests
             new[] { typeof(IServiceCollection) });
 
         // Assert
-        method.Should().NotBeNull();
-        method!.IsStatic.Should().BeTrue();
+        method.ShouldNotBeNull();
+        method!.IsStatic.ShouldBeTrue();
         method.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue("Method should be an extension method");
+            .ShouldBeTrue("Method should be an extension method");
     }
 
     [Fact]
@@ -79,10 +77,10 @@ public class ServiceCollectionExtensionsContractTests
             .FirstOrDefault(m => m.Name == "AddEncinaStandardResilienceFor" && m.IsGenericMethodDefinition);
 
         // Assert
-        method.Should().NotBeNull();
-        method!.IsStatic.Should().BeTrue();
+        method.ShouldNotBeNull();
+        method!.IsStatic.ShouldBeTrue();
         method.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue("Method should be an extension method");
+            .ShouldBeTrue("Method should be an extension method");
     }
 
     [Fact]
@@ -92,8 +90,8 @@ public class ServiceCollectionExtensionsContractTests
         var extensionsType = typeof(ServiceCollectionExtensions);
 
         // Assert
-        extensionsType.IsAbstract.Should().BeTrue();
-        extensionsType.IsSealed.Should().BeTrue();
+        extensionsType.IsAbstract.ShouldBeTrue();
+        extensionsType.IsSealed.ShouldBeTrue();
     }
 
     [Fact]
@@ -109,7 +107,7 @@ public class ServiceCollectionExtensionsContractTests
         var firstParameter = method!.GetParameters()[0];
 
         // Assert
-        firstParameter.ParameterType.Should().Be<IServiceCollection>();
+        firstParameter.ParameterType.ShouldBe(typeof(IServiceCollection));
     }
 
     [Fact]
@@ -124,13 +122,13 @@ public class ServiceCollectionExtensionsContractTests
         var genericArguments = method!.GetGenericArguments();
 
         // Assert
-        genericArguments.Should().HaveCount(2);
-        genericArguments[0].Name.Should().Be("TRequest");
-        genericArguments[1].Name.Should().Be("TResponse");
+        genericArguments.Count.ShouldBe(2);
+        genericArguments[0].Name.ShouldBe("TRequest");
+        genericArguments[1].Name.ShouldBe("TResponse");
 
         // TRequest must implement IRequest<TResponse>
         var requestConstraints = genericArguments[0].GetGenericParameterConstraints();
-        requestConstraints.Should().ContainSingle(c =>
+        requestConstraints.ShouldContain(c =>
             c.IsGenericType &&
             c.GetGenericTypeDefinition() == typeof(IRequest<>));
     }
@@ -146,7 +144,7 @@ public class ServiceCollectionExtensionsContractTests
         foreach (var method in methods)
         {
             // XML documentation is checked by the compiler, just verify methods are public
-            method.IsPublic.Should().BeTrue($"Extension method {method.Name} should be public");
+            method.IsPublic.ShouldBeTrue($"Extension method {method.Name} should be public");
         }
     }
 
@@ -160,7 +158,7 @@ public class ServiceCollectionExtensionsContractTests
         var act = () => services.AddEncinaStandardResilience();
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -175,7 +173,7 @@ public class ServiceCollectionExtensionsContractTests
             .AddEncinaStandardResilienceFor<TestRequest, TestResponse>(_ => { });
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     // Test helper classes

@@ -1,6 +1,6 @@
 using Encina.AwsLambda.Health;
 using Encina.Messaging.Health;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -19,7 +19,7 @@ public class AwsLambdaHealthCheckTests
         var name = healthCheck.Name;
 
         // Assert
-        name.Should().Be("aws-lambda");
+        name.ShouldBe("aws-lambda");
     }
 
     [Fact]
@@ -33,9 +33,9 @@ public class AwsLambdaHealthCheckTests
         var tags = healthCheck.Tags;
 
         // Assert
-        tags.Should().Contain("serverless");
-        tags.Should().Contain("aws");
-        tags.Should().Contain("lambda");
+        tags.ShouldContain("serverless");
+        tags.ShouldContain("aws");
+        tags.ShouldContain("lambda");
     }
 
     [Fact]
@@ -49,8 +49,8 @@ public class AwsLambdaHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("configured and ready");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("configured and ready");
     }
 
     [Fact]
@@ -70,14 +70,14 @@ public class AwsLambdaHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Data.Should().ContainKey("enableRequestContextEnrichment");
-        result.Data["enableRequestContextEnrichment"].Should().Be(true);
-        result.Data.Should().ContainKey("useApiGatewayV2Format");
-        result.Data["useApiGatewayV2Format"].Should().Be(false);
-        result.Data.Should().ContainKey("enableSqsBatchItemFailures");
-        result.Data["enableSqsBatchItemFailures"].Should().Be(true);
-        result.Data.Should().ContainKey("correlationIdHeader");
-        result.Data["correlationIdHeader"].Should().Be("X-Correlation-ID");
+        result.Data.ShouldContainKey("enableRequestContextEnrichment");
+        result.Data["enableRequestContextEnrichment"].ShouldBe(true);
+        result.Data.ShouldContainKey("useApiGatewayV2Format");
+        result.Data["useApiGatewayV2Format"].ShouldBe(false);
+        result.Data.ShouldContainKey("enableSqsBatchItemFailures");
+        result.Data["enableSqsBatchItemFailures"].ShouldBe(true);
+        result.Data.ShouldContainKey("correlationIdHeader");
+        result.Data["correlationIdHeader"].ShouldBe("X-Correlation-ID");
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class AwsLambdaHealthCheckTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Data.Should().ContainKey("isInLambdaEnvironment");
+        result.Data.ShouldContainKey("isInLambdaEnvironment");
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class AwsLambdaHealthCheckTests
         var action = () => new AwsLambdaHealthCheck(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("options");
     }
 }

@@ -1,5 +1,5 @@
 using Encina.AzureFunctions.Durable;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -23,8 +23,8 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => services.AddEncinaDurableFunctions();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("services");
     }
 
     #endregion
@@ -38,8 +38,8 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => new DurableFunctionsHealthCheck(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("options");
     }
 
     #endregion
@@ -56,7 +56,7 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => builder.Step(null!);
 
         // Assert
-        action.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(action).ParamName.ShouldBe("stepName");
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => builder.Step(string.Empty);
 
         // Assert
-        action.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(action).ParamName.ShouldBe("stepName");
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => stepBuilder.Execute(null!);
 
         // Assert
-        action.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(action).ParamName.ShouldBe("activityName");
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => stepBuilder.Execute(string.Empty);
 
         // Assert
-        action.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(action).ParamName.ShouldBe("activityName");
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => stepBuilder.Compensate(null!);
 
         // Assert
-        action.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(action).ParamName.ShouldBe("compensationActivityName");
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => stepBuilder.Compensate(string.Empty);
 
         // Assert
-        action.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(action).ParamName.ShouldBe("compensationActivityName");
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => builder.WithTimeout(TimeSpan.Zero);
 
         // Assert
-        action.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(action).ParamName.ShouldBe("timeout");
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => builder.WithTimeout(TimeSpan.FromSeconds(-1));
 
         // Assert
-        action.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(action).ParamName.ShouldBe("timeout");
     }
 
     [Fact]
@@ -164,8 +164,8 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => builder.Build();
 
         // Assert
-        action.Should().Throw<InvalidOperationException>()
-            .WithMessage("*at least one step*");
+        var ex = Should.Throw<InvalidOperationException>(action);
+        ex.Message.ShouldMatch("*at least one step*");
     }
 
     [Fact]
@@ -179,8 +179,8 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => stepBuilder.Build();
 
         // Assert
-        action.Should().Throw<InvalidOperationException>()
-            .WithMessage("*must have an Execute*");
+        var ex = Should.Throw<InvalidOperationException>(action);
+        ex.Message.ShouldMatch("*must have an Execute*");
     }
 
     #endregion

@@ -1,5 +1,5 @@
-﻿using System.Security.Claims;
-using FluentAssertions;
+using System.Security.Claims;
+using Shouldly;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
 using Xunit;
@@ -28,7 +28,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
@@ -51,9 +51,9 @@ public class AuthorizationPipelineBehaviorTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("requires authentication");
+            error.Message.ShouldContain("requires authentication");
             error.GetCode().Match(
-                Some: code => code.Should().Be("authorization.unauthenticated"),
+                Some: code => code.ShouldBe("authorization.unauthenticated"),
                 None: () => Assert.Fail("Expected error code"));
         });
     }
@@ -78,7 +78,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
@@ -102,7 +102,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
@@ -125,10 +125,10 @@ public class AuthorizationPipelineBehaviorTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("does not have any of the required roles");
-            error.Message.Should().Contain("Admin");
+            error.Message.ShouldContain("does not have any of the required roles");
+            error.Message.ShouldContain("Admin");
             error.GetCode().Match(
-                Some: code => code.Should().Be("authorization.insufficient_roles"),
+                Some: code => code.ShouldBe("authorization.insufficient_roles"),
                 None: () => Assert.Fail("Expected error code"));
         });
     }
@@ -153,7 +153,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
@@ -178,7 +178,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
@@ -202,10 +202,10 @@ public class AuthorizationPipelineBehaviorTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("does not satisfy policy");
-            error.Message.Should().Contain("RequireElevation");
+            error.Message.ShouldContain("does not satisfy policy");
+            error.Message.ShouldContain("RequireElevation");
             error.GetCode().Match(
-                Some: code => code.Should().Be("authorization.policy_failed"),
+                Some: code => code.ShouldBe("authorization.policy_failed"),
                 None: () => Assert.Fail("Expected error code"));
         });
     }
@@ -231,7 +231,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
@@ -255,7 +255,7 @@ public class AuthorizationPipelineBehaviorTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("does not satisfy policy");
+            error.Message.ShouldContain("does not satisfy policy");
         });
     }
 
@@ -277,9 +277,9 @@ public class AuthorizationPipelineBehaviorTests
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            error.Message.Should().Contain("Authorization requires HTTP context");
+            error.Message.ShouldContain("Authorization requires HTTP context");
             error.GetCode().Match(
-                Some: code => code.Should().Be("authorization.no_http_context"),
+                Some: code => code.ShouldBe("authorization.no_http_context"),
                 None: () => Assert.Fail("Expected error code"));
         });
     }
@@ -303,7 +303,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
@@ -326,7 +326,7 @@ public class AuthorizationPipelineBehaviorTests
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
@@ -350,9 +350,9 @@ public class AuthorizationPipelineBehaviorTests
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        capturedResource.Should().NotBeNull();
-        capturedResource.Should().BeOfType<PolicyProtectedRequest>();
-        capturedResource.Should().BeSameAs(request);
+        capturedResource.ShouldNotBeNull();
+        capturedResource.ShouldBeOfType<PolicyProtectedRequest>();
+        capturedResource.ShouldBeSameAs(request);
     }
 
     // Test request types

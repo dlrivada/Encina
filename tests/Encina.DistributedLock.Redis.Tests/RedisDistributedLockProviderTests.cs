@@ -25,8 +25,8 @@ public class RedisDistributedLockProviderTests
         var act = () => new RedisDistributedLockProvider(connection!, _options, _logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connection");
     }
 
     [Fact]
@@ -40,8 +40,8 @@ public class RedisDistributedLockProviderTests
         var act = () => new RedisDistributedLockProvider(connection, options!, _logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -55,8 +55,8 @@ public class RedisDistributedLockProviderTests
         var act = () => new RedisDistributedLockProvider(connection, _options, logger!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -72,11 +72,11 @@ public class RedisDistributedLockProviderTests
             TimeSpan.FromMinutes(1),
             TimeSpan.FromSeconds(5),
             TimeSpan.FromMilliseconds(100),
-            CancellationToken.None);
+            CancellationToken.None).AsTask();
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("resource");
     }
 
     [Fact]
@@ -90,11 +90,11 @@ public class RedisDistributedLockProviderTests
         var act = () => provider.AcquireAsync(
             null!,
             TimeSpan.FromMinutes(1),
-            CancellationToken.None);
+            CancellationToken.None).AsTask();
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("resource");
     }
 
     [Fact]
@@ -105,11 +105,11 @@ public class RedisDistributedLockProviderTests
         var provider = new RedisDistributedLockProvider(connection, _options, _logger);
 
         // Act
-        var act = () => provider.IsLockedAsync(null!, CancellationToken.None);
+        var act = () => provider.IsLockedAsync(null!, CancellationToken.None).AsTask();
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("resource");
     }
 
     [Fact]
@@ -123,11 +123,11 @@ public class RedisDistributedLockProviderTests
         var act = () => provider.ExtendAsync(
             null!,
             TimeSpan.FromMinutes(5),
-            CancellationToken.None);
+            CancellationToken.None).AsTask();
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("resource");
     }
 
     [Fact]
@@ -145,9 +145,9 @@ public class RedisDistributedLockProviderTests
             TimeSpan.FromMinutes(1),
             TimeSpan.FromSeconds(5),
             TimeSpan.FromMilliseconds(100),
-            cts.Token);
+            cts.Token).AsTask();
 
         // Assert
-        await act.Should().ThrowAsync<OperationCanceledException>();
+        await Should.ThrowAsync<OperationCanceledException>(act);
     }
 }

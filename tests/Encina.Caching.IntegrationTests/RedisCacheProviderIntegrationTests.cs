@@ -1,4 +1,5 @@
-﻿using Encina.Caching.IntegrationTests.Fixtures;
+using Encina.Caching.IntegrationTests.Fixtures;
+using Shouldly;
 
 namespace Encina.Caching.IntegrationTests;
 
@@ -58,10 +59,10 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         var retrieved = await _provider.GetAsync<TestData>(key, CancellationToken.None);
 
         // Assert
-        retrieved.Should().NotBeNull();
-        retrieved!.Id.Should().Be(value.Id);
-        retrieved.Name.Should().Be(value.Name);
-        retrieved.Value.Should().Be(value.Value);
+        retrieved.ShouldNotBeNull();
+        retrieved!.Id.ShouldBe(value.Id);
+        retrieved.Name.ShouldBe(value.Name);
+        retrieved.Value.ShouldBe(value.Value);
     }
 
     [SkippableFact]
@@ -76,7 +77,7 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         var result = await _provider!.GetAsync<TestData>(key, CancellationToken.None);
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [SkippableFact]
@@ -93,7 +94,7 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         var exists = await _provider.ExistsAsync(key, CancellationToken.None);
 
         // Assert
-        exists.Should().BeTrue();
+        exists.ShouldBeTrue();
     }
 
     [SkippableFact]
@@ -108,7 +109,7 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         var exists = await _provider!.ExistsAsync(key, CancellationToken.None);
 
         // Assert
-        exists.Should().BeFalse();
+        exists.ShouldBeFalse();
     }
 
     [SkippableFact]
@@ -126,7 +127,7 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         var exists = await _provider.ExistsAsync(key, CancellationToken.None);
 
         // Assert
-        exists.Should().BeFalse();
+        exists.ShouldBeFalse();
     }
 
     [SkippableFact]
@@ -153,9 +154,9 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         var cached = await _provider.GetAsync<string>(key, CancellationToken.None);
 
         // Assert
-        factoryCalled.Should().BeTrue();
-        result.Should().Be(expectedValue);
-        cached.Should().Be(expectedValue);
+        factoryCalled.ShouldBeTrue();
+        result.ShouldBe(expectedValue);
+        cached.ShouldBe(expectedValue);
     }
 
     [SkippableFact]
@@ -182,8 +183,8 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        factoryCalled.Should().BeFalse();
-        result.Should().Be(cachedValue);
+        factoryCalled.ShouldBeFalse();
+        result.ShouldBe(cachedValue);
     }
 
     [SkippableFact]
@@ -205,8 +206,8 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         var existsAfterExpiration = await _provider.ExistsAsync(key, CancellationToken.None);
 
         // Assert
-        existsImmediately.Should().BeTrue();
-        existsAfterExpiration.Should().BeFalse();
+        existsImmediately.ShouldBeTrue();
+        existsAfterExpiration.ShouldBeFalse();
     }
 
     [SkippableFact]
@@ -230,10 +231,10 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         await _provider.RemoveByPatternAsync($"{prefix}:*", CancellationToken.None);
 
         // Assert
-        (await _provider.ExistsAsync(key1, CancellationToken.None)).Should().BeFalse();
-        (await _provider.ExistsAsync(key2, CancellationToken.None)).Should().BeFalse();
-        (await _provider.ExistsAsync(key3, CancellationToken.None)).Should().BeFalse();
-        (await _provider.ExistsAsync(otherKey, CancellationToken.None)).Should().BeTrue();
+        (await _provider.ExistsAsync(key1, CancellationToken.None)).ShouldBeFalse();
+        (await _provider.ExistsAsync(key2, CancellationToken.None)).ShouldBeFalse();
+        (await _provider.ExistsAsync(key3, CancellationToken.None)).ShouldBeFalse();
+        (await _provider.ExistsAsync(otherKey, CancellationToken.None)).ShouldBeTrue();
     }
 
     [SkippableFact]
@@ -264,7 +265,7 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         var existsAfterRefresh = await _provider.ExistsAsync(key, CancellationToken.None);
 
         // Assert
-        existsAfterRefresh.Should().BeTrue();
+        existsAfterRefresh.ShouldBeTrue();
     }
 
     private sealed record TestData(Guid Id, string Name, int Value);

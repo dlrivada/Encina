@@ -35,8 +35,8 @@ public sealed class FakeEncinaTests
         var result = await _sut.Send(new GetUserQuery(1));
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(r => r.Should().Be(expectedResponse));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(r => r.ShouldBe(expectedResponse));
     }
 
     [Fact]
@@ -49,11 +49,11 @@ public sealed class FakeEncinaTests
         var result = await _sut.Send(new GetUserQuery(42));
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(r =>
         {
-            r.Id.Should().Be(42);
-            r.Name.Should().Be("User 42");
+            r.Id.ShouldBe(42);
+            r.Name.ShouldBe("User 42");
         });
     }
 
@@ -68,8 +68,8 @@ public sealed class FakeEncinaTests
         var result = await _sut.Send(new GetUserQuery(999));
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.Should().Be(error));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.ShouldBe(error));
     }
 
     [Fact]
@@ -79,8 +79,8 @@ public sealed class FakeEncinaTests
         var result = await _sut.Send(new GetUserQuery(1));
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfSome(c => c.Should().Be(EncinaErrorCodes.HandlerMissing)));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe(EncinaErrorCodes.HandlerMissing)));
     }
 
     [Fact]
@@ -94,9 +94,9 @@ public sealed class FakeEncinaTests
         await _sut.Send(new GetUserQuery(2));
 
         // Assert
-        _sut.SentRequests.Should().HaveCount(2);
-        _sut.WasSent<GetUserQuery>().Should().BeTrue();
-        _sut.GetSentCount<GetUserQuery>().Should().Be(2);
+        _sut.SentRequests.Count.ShouldBe(2);
+        _sut.WasSent<GetUserQuery>().ShouldBeTrue();
+        _sut.GetSentCount<GetUserQuery>().ShouldBe(2);
     }
 
     [Fact]
@@ -110,9 +110,9 @@ public sealed class FakeEncinaTests
         await _sut.Send(new GetUserQuery(10));
 
         // Assert
-        _sut.WasSent<GetUserQuery>(q => q.UserId == 5).Should().BeTrue();
-        _sut.WasSent<GetUserQuery>(q => q.UserId == 10).Should().BeTrue();
-        _sut.WasSent<GetUserQuery>(q => q.UserId == 99).Should().BeFalse();
+        _sut.WasSent<GetUserQuery>(q => q.UserId == 5).ShouldBeTrue();
+        _sut.WasSent<GetUserQuery>(q => q.UserId == 10).ShouldBeTrue();
+        _sut.WasSent<GetUserQuery>(q => q.UserId == 99).ShouldBeFalse();
     }
 
     [Fact]
@@ -129,9 +129,9 @@ public sealed class FakeEncinaTests
 
         // Assert
         var userQueries = _sut.GetSentRequests<GetUserQuery>();
-        userQueries.Should().HaveCount(2);
-        userQueries[0].UserId.Should().Be(1);
-        userQueries[1].UserId.Should().Be(2);
+        userQueries.Count.ShouldBe(2);
+        userQueries[0].UserId.ShouldBe(1);
+        userQueries[1].UserId.ShouldBe(2);
     }
 
     #endregion
@@ -146,8 +146,8 @@ public sealed class FakeEncinaTests
         await _sut.Publish(notification);
 
         // Assert
-        _sut.PublishedNotifications.Should().HaveCount(1);
-        _sut.WasPublished<OrderCreatedNotification>().Should().BeTrue();
+        _sut.PublishedNotifications.Count.ShouldBe(1);
+        _sut.WasPublished<OrderCreatedNotification>().ShouldBeTrue();
     }
 
     [Fact]
@@ -161,8 +161,8 @@ public sealed class FakeEncinaTests
         var result = await _sut.Publish(new OrderCreatedNotification(Guid.NewGuid()));
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.Should().Be(error));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.ShouldBe(error));
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public sealed class FakeEncinaTests
         var result = await _sut.Publish(new OrderCreatedNotification(Guid.NewGuid()));
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -186,8 +186,8 @@ public sealed class FakeEncinaTests
         await _sut.Publish(new OrderCreatedNotification(Guid.NewGuid()));
 
         // Assert
-        _sut.WasPublished<OrderCreatedNotification>(n => n.OrderId == orderId).Should().BeTrue();
-        _sut.WasPublished<OrderCreatedNotification>(n => n.OrderId == Guid.Empty).Should().BeFalse();
+        _sut.WasPublished<OrderCreatedNotification>(n => n.OrderId == orderId).ShouldBeTrue();
+        _sut.WasPublished<OrderCreatedNotification>(n => n.OrderId == Guid.Empty).ShouldBeFalse();
     }
 
     [Fact]
@@ -203,8 +203,10 @@ public sealed class FakeEncinaTests
 
         // Assert
         var notifications = _sut.GetPublishedNotifications<OrderCreatedNotification>();
-        notifications.Should().HaveCount(2);
-        notifications.Select(n => n.OrderId).Should().Contain([orderId1, orderId2]);
+        notifications.Count.ShouldBe(2);
+        var orderIds = notifications.Select(n => n.OrderId).ToList();
+        orderIds.ShouldContain(orderId1);
+        orderIds.ShouldContain(orderId2);
     }
 
     #endregion
@@ -231,9 +233,9 @@ public sealed class FakeEncinaTests
         }
 
         // Assert
-        results.Should().HaveCount(3);
-        results.Should().BeEquivalentTo(products);
-        _sut.WasStreamed<StreamProductsQuery>().Should().BeTrue();
+        results.Count.ShouldBe(3);
+        results.ShouldBe(products);
+        _sut.WasStreamed<StreamProductsQuery>().ShouldBeTrue();
     }
 
     [Fact]
@@ -260,8 +262,8 @@ public sealed class FakeEncinaTests
         }
 
         // Assert
-        successCount.Should().Be(2);
-        errorCount.Should().Be(1);
+        successCount.ShouldBe(2);
+        errorCount.ShouldBe(1);
     }
 
     [Fact]
@@ -275,8 +277,8 @@ public sealed class FakeEncinaTests
         }
 
         // Assert
-        count.Should().Be(0);
-        _sut.WasStreamed<StreamProductsQuery>().Should().BeTrue();
+        count.ShouldBe(0);
+        _sut.WasStreamed<StreamProductsQuery>().ShouldBeTrue();
     }
 
     #endregion
@@ -295,12 +297,12 @@ public sealed class FakeEncinaTests
         _sut.Clear();
 
         // Assert
-        _sut.SentRequests.Should().BeEmpty();
-        _sut.PublishedNotifications.Should().BeEmpty();
+        _sut.SentRequests.ShouldBeEmpty();
+        _sut.PublishedNotifications.ShouldBeEmpty();
 
         // Setup should also be cleared
         var result = await _sut.Send(new GetUserQuery(1));
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -315,12 +317,12 @@ public sealed class FakeEncinaTests
         _sut.ClearRecordedCalls();
 
         // Assert
-        _sut.SentRequests.Should().BeEmpty();
-        _sut.PublishedNotifications.Should().BeEmpty();
+        _sut.SentRequests.ShouldBeEmpty();
+        _sut.PublishedNotifications.ShouldBeEmpty();
 
         // Setup should still work
         var result = await _sut.Send(new GetUserQuery(1));
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -328,28 +330,48 @@ public sealed class FakeEncinaTests
     #region Fluent API Tests
 
     [Fact]
-    public async Task Setup_SupportsFluentChaining()
+    public async Task SetupResponse_SupportsFluentChaining_ReturnsConfiguredResponse()
     {
+        // Arrange
         var expectedUser = new UserDto(1, "Test");
+
+        // Act
+        var chain = _sut.SetupResponse<GetUserQuery, UserDto>(expectedUser);
+        var userResult = await chain.Send(new GetUserQuery(1));
+
+        // Assert
+        userResult.IsRight.ShouldBeTrue();
+        userResult.IfRight(r => r.ShouldBe(expectedUser));
+    }
+
+    [Fact]
+    public async Task SetupError_SupportsFluentChaining_ReturnsConfiguredError()
+    {
+        // Arrange
         var expectedValidationError = EncinaErrors.Create("test.validation_failed", "Invalid");
+
+        // Act
+        var chain = _sut.SetupError<CreateOrderCommand, OrderResult>(expectedValidationError);
+        var orderResult = await chain.Send(new CreateOrderCommand("Widget"));
+
+        // Assert
+        orderResult.IsLeft.ShouldBeTrue();
+        orderResult.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe("test.validation_failed")));
+    }
+
+    [Fact]
+    public async Task SetupPublishError_SupportsFluentChaining_ReturnsConfiguredError()
+    {
+        // Arrange
         var expectedPublishError = EncinaErrors.Create("test.internal_error", "Failed");
 
-        var chain = _sut
-            .SetupResponse<GetUserQuery, UserDto>(expectedUser)
-            .SetupError<CreateOrderCommand, OrderResult>(expectedValidationError)
-            .SetupPublishError<OrderCreatedNotification>(expectedPublishError);
-
-        var userResult = await chain.Send(new GetUserQuery(1));
-        userResult.IsRight.Should().BeTrue();
-        userResult.IfRight(r => r.Should().Be(expectedUser));
-
-        var orderResult = await chain.Send(new CreateOrderCommand("Widget"));
-        orderResult.IsLeft.Should().BeTrue();
-        orderResult.IfLeft(e => e.GetCode().IfSome(c => c.Should().Be("test.validation_failed")));
-
+        // Act
+        var chain = _sut.SetupPublishError<OrderCreatedNotification>(expectedPublishError);
         var publishResult = await chain.Publish(new OrderCreatedNotification(Guid.NewGuid()));
-        publishResult.IsLeft.Should().BeTrue();
-        _ = publishResult.IfLeft(e => e.GetCode().IfSome(c => c.Should().Be("test.internal_error")));
+
+        // Assert
+        publishResult.IsLeft.ShouldBeTrue();
+        publishResult.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe("test.internal_error")));
     }
 
     #endregion

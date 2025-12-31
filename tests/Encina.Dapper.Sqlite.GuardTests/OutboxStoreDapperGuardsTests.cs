@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Encina.Dapper.Sqlite.Outbox;
 using Encina.Messaging.Outbox;
 
@@ -20,7 +20,8 @@ public class OutboxStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new OutboxStoreDapper(connection);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connection");
     }
 
     /// <summary>
@@ -35,7 +36,8 @@ public class OutboxStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new OutboxStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -50,7 +52,8 @@ public class OutboxStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new OutboxStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -65,7 +68,8 @@ public class OutboxStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new OutboxStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -80,8 +84,9 @@ public class OutboxStoreDapperGuardsTests
         IOutboxMessage message = null!;
 
         // Act & Assert
-        var act = async () => await store.AddAsync(message);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("message");
+        var act = () => store.AddAsync(message);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("message");
     }
 
     /// <summary>
@@ -97,8 +102,9 @@ public class OutboxStoreDapperGuardsTests
         var maxRetries = 3;
 
         // Act & Assert
-        var act = async () => await store.GetPendingMessagesAsync(batchSize, maxRetries);
-        await act.Should().ThrowAsync<ArgumentOutOfRangeException>().WithParameterName("batchSize");
+        var act = () => store.GetPendingMessagesAsync(batchSize, maxRetries);
+        var ex = await Should.ThrowAsync<ArgumentOutOfRangeException>(act);
+        ex.ParamName.ShouldBe("batchSize");
     }
 
     /// <summary>
@@ -114,8 +120,9 @@ public class OutboxStoreDapperGuardsTests
         var maxRetries = 3;
 
         // Act & Assert
-        var act = async () => await store.GetPendingMessagesAsync(batchSize, maxRetries);
-        await act.Should().ThrowAsync<ArgumentOutOfRangeException>().WithParameterName("batchSize");
+        var act = () => store.GetPendingMessagesAsync(batchSize, maxRetries);
+        var ex = await Should.ThrowAsync<ArgumentOutOfRangeException>(act);
+        ex.ParamName.ShouldBe("batchSize");
     }
 
     /// <summary>
@@ -131,8 +138,9 @@ public class OutboxStoreDapperGuardsTests
         var maxRetries = -1;
 
         // Act & Assert
-        var act = async () => await store.GetPendingMessagesAsync(batchSize, maxRetries);
-        await act.Should().ThrowAsync<ArgumentOutOfRangeException>().WithParameterName("maxRetries");
+        var act = () => store.GetPendingMessagesAsync(batchSize, maxRetries);
+        var ex = await Should.ThrowAsync<ArgumentOutOfRangeException>(act);
+        ex.ParamName.ShouldBe("maxRetries");
     }
 
     /// <summary>
@@ -147,8 +155,9 @@ public class OutboxStoreDapperGuardsTests
         var messageId = Guid.Empty;
 
         // Act & Assert
-        var act = async () => await store.MarkAsProcessedAsync(messageId);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("messageId");
+        var act = () => store.MarkAsProcessedAsync(messageId);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -164,8 +173,9 @@ public class OutboxStoreDapperGuardsTests
         var errorMessage = "test error";
 
         // Act & Assert
-        var act = async () => await store.MarkAsFailedAsync(messageId, errorMessage, null);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("messageId");
+        var act = () => store.MarkAsFailedAsync(messageId, errorMessage, null);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -181,8 +191,9 @@ public class OutboxStoreDapperGuardsTests
         string errorMessage = null!;
 
         // Act & Assert
-        var act = async () => await store.MarkAsFailedAsync(messageId, errorMessage, null);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("errorMessage");
+        var act = () => store.MarkAsFailedAsync(messageId, errorMessage, null);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("errorMessage");
     }
 
     /// <summary>
@@ -198,8 +209,9 @@ public class OutboxStoreDapperGuardsTests
         var errorMessage = string.Empty;
 
         // Act & Assert
-        var act = async () => await store.MarkAsFailedAsync(messageId, errorMessage, null);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("errorMessage");
+        var act = () => store.MarkAsFailedAsync(messageId, errorMessage, null);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("errorMessage");
     }
 
     /// <summary>
@@ -215,7 +227,8 @@ public class OutboxStoreDapperGuardsTests
         var errorMessage = "   ";
 
         // Act & Assert
-        var act = async () => await store.MarkAsFailedAsync(messageId, errorMessage, null);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("errorMessage");
+        var act = () => store.MarkAsFailedAsync(messageId, errorMessage, null);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("errorMessage");
     }
 }

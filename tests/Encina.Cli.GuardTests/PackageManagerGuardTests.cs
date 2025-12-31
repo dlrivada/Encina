@@ -1,5 +1,5 @@
 using Encina.Cli.Services;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.Cli.GuardTests;
@@ -12,12 +12,9 @@ public class PackageManagerGuardTests
     [Fact]
     public async Task AddPackagesAsync_NullPackageNames_ThrowsArgumentNullException()
     {
-        // Act
+        // Act & Assert
         var act = () => PackageManager.AddPackagesAsync(null!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("packageNames");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("packageNames");
     }
 
     [Theory]
@@ -27,11 +24,9 @@ public class PackageManagerGuardTests
     [InlineData("\t")]
     public async Task AddPackageAsync_InvalidPackageName_ThrowsArgumentException(string? packageName)
     {
-        // Act
+        // Act & Assert
         var act = () => PackageManager.AddPackageAsync(packageName!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("packageName");
     }
 
     [Theory]
@@ -40,10 +35,8 @@ public class PackageManagerGuardTests
     [InlineData("   ")]
     public async Task RemovePackageAsync_InvalidPackageName_ThrowsArgumentException(string? packageName)
     {
-        // Act
+        // Act & Assert
         var act = () => PackageManager.RemovePackageAsync(packageName!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("packageName");
     }
 }

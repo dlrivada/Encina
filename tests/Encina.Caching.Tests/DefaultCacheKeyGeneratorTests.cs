@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Caching.Tests;
 
@@ -21,7 +21,8 @@ public class DefaultCacheKeyGeneratorTests
     {
         // Act & Assert
         var act = () => new DefaultCacheKeyGenerator(null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -32,7 +33,8 @@ public class DefaultCacheKeyGeneratorTests
 
         // Act & Assert
         var act = () => _sut.GenerateKey<TestQuery, string>(null!, context);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("request");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -43,7 +45,8 @@ public class DefaultCacheKeyGeneratorTests
 
         // Act & Assert
         var act = () => _sut.GenerateKey<TestQuery, string>(request, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -57,8 +60,8 @@ public class DefaultCacheKeyGeneratorTests
         var key = _sut.GenerateKey<TestQuery, string>(request, context);
 
         // Assert
-        key.Should().StartWith("cache:");
-        key.Should().Contain("t:tenant123");
+        key.ShouldStartWith("cache:");
+        key.ShouldContain("t:tenant123");
     }
 
     [Fact]
@@ -72,8 +75,8 @@ public class DefaultCacheKeyGeneratorTests
         var key = _sut.GenerateKey<TestQuery, string>(request, context);
 
         // Assert
-        key.Should().StartWith("cache:");
-        key.Should().NotContain("t:");
+        key.ShouldStartWith("cache:");
+        key.ShouldNotContain("t:");
     }
 
     [Fact]
@@ -89,7 +92,7 @@ public class DefaultCacheKeyGeneratorTests
         var key2 = _sut.GenerateKey<TestQuery, string>(request2, context);
 
         // Assert
-        key1.Should().Be(key2);
+        key1.ShouldBe(key2);
     }
 
     [Fact]
@@ -105,7 +108,7 @@ public class DefaultCacheKeyGeneratorTests
         var key2 = _sut.GenerateKey<TestQuery, string>(request2, context);
 
         // Assert
-        key1.Should().NotBe(key2);
+        key1.ShouldNotBe(key2);
     }
 
     [Fact]
@@ -120,8 +123,8 @@ public class DefaultCacheKeyGeneratorTests
         var key = _sut.GenerateKey<CachedQueryWithTemplate, string>(request, context);
 
         // Assert
-        key.Should().Contain("product:");
-        key.Should().Contain(productId.ToString("N"));
+        key.ShouldContain("product:");
+        key.ShouldContain(productId.ToString("N"));
     }
 
     [Fact]
@@ -135,7 +138,7 @@ public class DefaultCacheKeyGeneratorTests
         var key = _sut.GenerateKey<CachedQueryVaryByUser, string>(request, context);
 
         // Assert
-        key.Should().Contain("u:user123");
+        key.ShouldContain("u:user123");
     }
 
     [Fact]
@@ -143,7 +146,8 @@ public class DefaultCacheKeyGeneratorTests
     {
         // Act & Assert
         var act = () => _sut.GeneratePattern<TestQuery>(null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -156,8 +160,8 @@ public class DefaultCacheKeyGeneratorTests
         var pattern = _sut.GeneratePattern<TestQuery>(context);
 
         // Assert
-        pattern.Should().Contain("t:tenant1");
-        pattern.Should().EndWith("*");
+        pattern.ShouldContain("t:tenant1");
+        pattern.ShouldEndWith("*");
     }
 
     [Fact]
@@ -170,7 +174,7 @@ public class DefaultCacheKeyGeneratorTests
         var pattern = _sut.GeneratePattern<TestQuery>(context);
 
         // Assert
-        pattern.Should().Contain("t:*");
+        pattern.ShouldContain("t:*");
     }
 
     [Fact]
@@ -181,7 +185,8 @@ public class DefaultCacheKeyGeneratorTests
 
         // Act & Assert
         var act = () => _sut.GeneratePatternFromTemplate<TestQuery>(null!, null!, context);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("keyTemplate");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("keyTemplate");
     }
 
     [Fact]
@@ -189,7 +194,8 @@ public class DefaultCacheKeyGeneratorTests
     {
         // Act & Assert
         var act = () => _sut.GeneratePatternFromTemplate<TestQuery>("template", null!, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -203,9 +209,9 @@ public class DefaultCacheKeyGeneratorTests
         var pattern = _sut.GeneratePatternFromTemplate("products:*", request, context);
 
         // Assert
-        pattern.Should().StartWith("cache:");
-        pattern.Should().Contain("t:tenant1");
-        pattern.Should().Contain("products:*");
+        pattern.ShouldStartWith("cache:");
+        pattern.ShouldContain("t:tenant1");
+        pattern.ShouldContain("products:*");
     }
 
     [Fact]
@@ -221,7 +227,7 @@ public class DefaultCacheKeyGeneratorTests
         var key2 = _sut.GenerateKey<TestQuery, string>(request, context2);
 
         // Assert
-        key1.Should().NotBe(key2);
+        key1.ShouldNotBe(key2);
     }
 
     [Fact]
@@ -239,7 +245,7 @@ public class DefaultCacheKeyGeneratorTests
         var key2 = _sut.GenerateKey<ComplexQuery, string>(request, context);
 
         // Assert
-        key1.Should().Be(key2);
+        key1.ShouldBe(key2);
     }
 
     private static IRequestContext CreateContext(

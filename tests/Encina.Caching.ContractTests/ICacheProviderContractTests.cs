@@ -1,4 +1,4 @@
-﻿using MemoryProviderOptions = Encina.Caching.Memory.MemoryCacheOptions;
+using MemoryProviderOptions = Encina.Caching.Memory.MemoryCacheOptions;
 
 namespace Encina.Caching.ContractTests;
 
@@ -28,7 +28,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         var result = await Provider.GetAsync<string>("nonexistent-key", CancellationToken.None);
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         var result = await Provider.GetAsync<string>(key, CancellationToken.None);
 
         // Assert
-        result.Should().Be(expectedValue);
+        result.ShouldBe(expectedValue);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         var result = await Provider.GetAsync<TestEntity>(key, CancellationToken.None);
 
         // Assert
-        result.Should().BeEquivalentTo(expectedValue);
+        result.ShouldBe(expectedValue);
     }
 
     #endregion
@@ -117,7 +117,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         var retrieved = await Provider.GetAsync<string>(key, CancellationToken.None);
 
         // Assert
-        retrieved.Should().Be(value);
+        retrieved.ShouldBe(value);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         var result = await Provider.GetAsync<string>(key, CancellationToken.None);
 
         // Assert
-        result.Should().Be("updated");
+        result.ShouldBe("updated");
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         var exists = await Provider.ExistsAsync(key, CancellationToken.None);
 
         // Assert
-        exists.Should().BeTrue();
+        exists.ShouldBeTrue();
     }
 
     #endregion
@@ -185,15 +185,14 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         var exists = await Provider.ExistsAsync(key, CancellationToken.None);
 
         // Assert
-        exists.Should().BeFalse();
+        exists.ShouldBeFalse();
     }
 
     [Fact]
     public async Task RemoveAsync_WhenKeyDoesNotExist_DoesNotThrow()
     {
         // Act & Assert
-        await Provider.Invoking(p => p.RemoveAsync("nonexistent", CancellationToken.None))
-            .Should().NotThrowAsync();
+        await Should.NotThrowAsync(() => Provider.RemoveAsync("nonexistent", CancellationToken.None));
     }
 
     #endregion
@@ -233,9 +232,9 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         await Provider.RemoveByPatternAsync($"{prefix}:*", CancellationToken.None);
 
         // Assert
-        (await Provider.ExistsAsync($"{prefix}:a", CancellationToken.None)).Should().BeFalse();
-        (await Provider.ExistsAsync($"{prefix}:b", CancellationToken.None)).Should().BeFalse();
-        (await Provider.ExistsAsync("other:c", CancellationToken.None)).Should().BeTrue();
+        (await Provider.ExistsAsync($"{prefix}:a", CancellationToken.None)).ShouldBeFalse();
+        (await Provider.ExistsAsync($"{prefix}:b", CancellationToken.None)).ShouldBeFalse();
+        (await Provider.ExistsAsync("other:c", CancellationToken.None)).ShouldBeTrue();
     }
 
     #endregion
@@ -273,7 +272,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         var exists = await Provider.ExistsAsync(key, CancellationToken.None);
 
         // Assert
-        exists.Should().BeTrue();
+        exists.ShouldBeTrue();
     }
 
     [Fact]
@@ -283,7 +282,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         var exists = await Provider.ExistsAsync("nonexistent", CancellationToken.None);
 
         // Assert
-        exists.Should().BeFalse();
+        exists.ShouldBeFalse();
     }
 
     #endregion
@@ -339,8 +338,8 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        result.Should().Be(existingValue);
-        factoryCalled.Should().BeFalse();
+        result.ShouldBe(existingValue);
+        factoryCalled.ShouldBeFalse();
     }
 
     [Fact]
@@ -363,12 +362,12 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        result.Should().Be(newValue);
-        factoryCalled.Should().BeTrue();
+        result.ShouldBe(newValue);
+        factoryCalled.ShouldBeTrue();
 
         // Verify storage
         var stored = await Provider.GetAsync<string>(key, CancellationToken.None);
-        stored.Should().Be(newValue);
+        stored.ShouldBe(newValue);
     }
 
     #endregion
@@ -407,7 +406,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         var result = await Provider.GetAsync<string>(key, CancellationToken.None);
 
         // Assert
-        result.Should().Be(value);
+        result.ShouldBe(value);
     }
 
     #endregion
@@ -445,7 +444,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         var result = await Provider.RefreshAsync(key, CancellationToken.None);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -455,7 +454,7 @@ public abstract class ICacheProviderContractTests : IAsyncLifetime
         var result = await Provider.RefreshAsync("nonexistent", CancellationToken.None);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     #endregion

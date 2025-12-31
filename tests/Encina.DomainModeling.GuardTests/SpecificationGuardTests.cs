@@ -49,7 +49,8 @@ public class SpecificationGuardTests
         var act = () => spec.IsSatisfiedBy(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("entity");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("entity");
     }
 
     [Fact]
@@ -62,7 +63,8 @@ public class SpecificationGuardTests
         var act = () => spec.And(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("other");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("other");
     }
 
     [Fact]
@@ -75,7 +77,8 @@ public class SpecificationGuardTests
         var act = () => spec.Or(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("other");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("other");
     }
 
     #endregion
@@ -92,7 +95,8 @@ public class SpecificationGuardTests
         var act = () => spec.TestAddInclude(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("includeExpression");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("includeExpression");
     }
 
     [Theory]
@@ -108,7 +112,8 @@ public class SpecificationGuardTests
         var act = () => spec.TestAddIncludeString(includeString!);
 
         // Assert
-        act.Should().Throw<ArgumentException>().WithParameterName(nameof(includeString));
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("includeString");
     }
 
     [Fact]
@@ -121,7 +126,8 @@ public class SpecificationGuardTests
         var act = () => spec.TestApplyPaging(-1, 10);
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("skip");
+        var ex = Should.Throw<ArgumentOutOfRangeException>(act);
+        ex.ParamName.ShouldBe("skip");
     }
 
     [Theory]
@@ -136,7 +142,8 @@ public class SpecificationGuardTests
         var act = () => spec.TestApplyPaging(0, take);
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(take));
+        var ex = Should.Throw<ArgumentOutOfRangeException>(act);
+        ex.ParamName.ShouldBe("take");
     }
 
     [Fact]
@@ -149,7 +156,8 @@ public class SpecificationGuardTests
         var act = () => spec.TestApplyOrderBy(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("orderByExpression");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("orderByExpression");
     }
 
     [Fact]
@@ -162,7 +170,8 @@ public class SpecificationGuardTests
         var act = () => spec.TestApplyOrderByDescending(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("orderByDescendingExpression");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("orderByDescendingExpression");
     }
 
     #endregion

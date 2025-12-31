@@ -3,6 +3,7 @@ using Encina.Marten.Snapshots;
 using Marten;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.Marten.IntegrationTests.Snapshots;
 
@@ -51,11 +52,11 @@ public sealed class MartenSnapshotStoreIntegrationTests
             .Where(e => e.AggregateId == aggregateId)
             .ToListAsync();
 
-        envelopes.Should().HaveCount(1);
-        envelopes[0].Version.Should().Be(2);
-        envelopes[0].State.Should().NotBeNull();
-        envelopes[0].State!.Name.Should().Be("Test Order");
-        envelopes[0].State!.Total.Should().Be(300m);
+        envelopes.Count.ShouldBe(1);
+        envelopes[0].Version.ShouldBe(2);
+        envelopes[0].State.ShouldNotBeNull();
+        envelopes[0].State!.Name.ShouldBe("Test Order");
+        envelopes[0].State!.Total.ShouldBe(300m);
     }
 
     [SkippableFact]
@@ -88,12 +89,12 @@ public sealed class MartenSnapshotStoreIntegrationTests
         var result = await store.GetLatestAsync(aggregateId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(snapshot =>
         {
-            snapshot.Should().NotBeNull();
-            snapshot!.Version.Should().Be(3);
-            snapshot.State.Total.Should().Be(60m); // 10 + 20 + 30
+            snapshot.ShouldNotBeNull();
+            snapshot!.Version.ShouldBe(3);
+            snapshot.State.Total.ShouldBe(60m); // 10 + 20 + 30
         });
     }
 
@@ -112,8 +113,8 @@ public sealed class MartenSnapshotStoreIntegrationTests
         var result = await store.GetLatestAsync(Guid.NewGuid());
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(snapshot => snapshot.Should().BeNull());
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(snapshot => snapshot.ShouldBeNull());
     }
 
     [SkippableFact]
@@ -153,9 +154,9 @@ public sealed class MartenSnapshotStoreIntegrationTests
             .OrderByDescending(e => e.Version)
             .ToListAsync();
 
-        envelopes.Should().HaveCount(2);
-        envelopes[0].Version.Should().Be(5);
-        envelopes[1].Version.Should().Be(4);
+        envelopes.Count.ShouldBe(2);
+        envelopes[0].Version.ShouldBe(5);
+        envelopes[1].Version.ShouldBe(4);
     }
 
     [SkippableFact]
@@ -186,16 +187,16 @@ public sealed class MartenSnapshotStoreIntegrationTests
         var result = await store.GetLatestAsync(aggregateId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(restored =>
         {
-            restored.Should().NotBeNull();
-            restored!.AggregateId.Should().Be(aggregateId);
-            restored.Version.Should().Be(3);
-            restored.State.Name.Should().Be("Round Trip Test");
-            restored.State.Total.Should().Be(150.50m);
-            restored.State.ItemCount.Should().Be(2);
-            restored.State.Status.Should().Be("Completed");
+            restored.ShouldNotBeNull();
+            restored!.AggregateId.ShouldBe(aggregateId);
+            restored.Version.ShouldBe(3);
+            restored.State.Name.ShouldBe("Round Trip Test");
+            restored.State.Total.ShouldBe(150.50m);
+            restored.State.ItemCount.ShouldBe(2);
+            restored.State.Status.ShouldBe("Completed");
         });
     }
 
@@ -229,13 +230,13 @@ public sealed class MartenSnapshotStoreIntegrationTests
         var result2 = await store.GetLatestAsync(aggregateId2);
 
         // Assert
-        result1.IsRight.Should().BeTrue();
-        result2.IsRight.Should().BeTrue();
+        result1.IsRight.ShouldBeTrue();
+        result2.IsRight.ShouldBeTrue();
 
-        result1.IfRight(s => s!.State.Name.Should().Be("Aggregate 1"));
-        result1.IfRight(s => s!.State.Total.Should().Be(100m));
+        result1.IfRight(s => s!.State.Name.ShouldBe("Aggregate 1"));
+        result1.IfRight(s => s!.State.Total.ShouldBe(100m));
 
-        result2.IfRight(s => s!.State.Name.Should().Be("Aggregate 2"));
-        result2.IfRight(s => s!.State.Total.Should().Be(200m));
+        result2.IfRight(s => s!.State.Name.ShouldBe("Aggregate 2"));
+        result2.IfRight(s => s!.State.Total.ShouldBe(200m));
     }
 }

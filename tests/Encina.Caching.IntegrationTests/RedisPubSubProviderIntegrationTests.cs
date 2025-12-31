@@ -1,4 +1,4 @@
-﻿using Encina.Caching.IntegrationTests.Fixtures;
+using Encina.Caching.IntegrationTests.Fixtures;
 
 namespace Encina.Caching.IntegrationTests;
 
@@ -70,8 +70,8 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
         await _provider.UnsubscribeAsync(channel, CancellationToken.None);
 
         // Assert
-        received.Should().BeTrue("Message should be received within timeout");
-        receivedMessage.Should().Be(expectedMessage);
+        received.ShouldBeTrue("Message should be received within timeout");
+        receivedMessage.ShouldBe(expectedMessage);
     }
 
     [SkippableFact]
@@ -123,8 +123,8 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
         }
 
         // Assert
-        received.Should().BeTrue("All subscribers should receive the message");
-        receivedCount.Should().Be(expectedSubscribers);
+        received.ShouldBeTrue("All subscribers should receive the message");
+        receivedCount.ShouldBe(expectedSubscribers);
     }
 
     [SkippableFact]
@@ -164,8 +164,8 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
         await Task.Delay(500);
 
         // Assert
-        countAfterFirst.Should().Be(1);
-        receiveCount.Should().Be(1, "Should not receive messages after unsubscribe");
+        countAfterFirst.ShouldBe(1);
+        receiveCount.ShouldBe(1, "Should not receive messages after unsubscribe");
     }
 
     [SkippableFact]
@@ -208,7 +208,7 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
         await _provider.UnsubscribeAsync(channel2, CancellationToken.None);
 
         // Assert
-        channel1Received.Should().BeTrue();
-        channel2Received.Should().BeFalse();
+        channel1Received.ShouldBeTrue();
+        channel2Received.ShouldBeFalse();
     }
 }

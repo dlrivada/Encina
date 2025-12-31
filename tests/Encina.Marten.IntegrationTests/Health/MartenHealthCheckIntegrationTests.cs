@@ -27,15 +27,15 @@ public sealed class MartenHealthCheckIntegrationTests : IClassFixture<MartenFixt
         Skip.IfNot(_fixture.IsAvailable, "PostgreSQL/Marten container not available");
 
         // Arrange
-        var serviceProvider = CreateServiceProvider();
+        using var serviceProvider = CreateServiceProvider();
         var healthCheck = new MartenHealthCheck(serviceProvider, null);
 
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("connected");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("connected");
     }
 
     [SkippableFact]
@@ -45,15 +45,15 @@ public sealed class MartenHealthCheckIntegrationTests : IClassFixture<MartenFixt
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-marten" };
-        var serviceProvider = CreateServiceProvider();
+        using var serviceProvider = CreateServiceProvider();
         var healthCheck = new MartenHealthCheck(serviceProvider, options);
 
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        healthCheck.Name.Should().Be("my-custom-marten");
-        result.Status.Should().Be(HealthStatus.Healthy);
+        healthCheck.Name.ShouldBe("my-custom-marten");
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [SkippableFact]
@@ -62,15 +62,18 @@ public sealed class MartenHealthCheckIntegrationTests : IClassFixture<MartenFixt
         Skip.IfNot(_fixture.IsAvailable, "PostgreSQL/Marten container not available");
 
         // Arrange
-        var serviceProvider = CreateServiceProvider();
+        using var serviceProvider = CreateServiceProvider();
         var healthCheck = new MartenHealthCheck(serviceProvider, null);
 
+        // Act
+        var tags = healthCheck.Tags;
+
         // Assert
-        healthCheck.Tags.Should().Contain("encina");
-        healthCheck.Tags.Should().Contain("eventsourcing");
-        healthCheck.Tags.Should().Contain("marten");
-        healthCheck.Tags.Should().Contain("postgresql");
-        healthCheck.Tags.Should().Contain("ready");
+        tags.ShouldContain("encina");
+        tags.ShouldContain("eventsourcing");
+        tags.ShouldContain("marten");
+        tags.ShouldContain("postgresql");
+        tags.ShouldContain("ready");
     }
 
     private ServiceProvider CreateServiceProvider()

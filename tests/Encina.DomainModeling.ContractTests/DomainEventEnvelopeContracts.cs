@@ -1,5 +1,5 @@
 using System.Reflection;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.DomainModeling.ContractTests;
 
@@ -19,51 +19,51 @@ public class DomainEventEnvelopeContracts
     [Fact]
     public void IDomainEventMetadata_MustBeInterface()
     {
-        _metadataInterfaceType.IsInterface.Should().BeTrue();
+        _metadataInterfaceType.IsInterface.ShouldBeTrue();
     }
 
     [Fact]
     public void IDomainEventMetadata_MustHaveCorrelationIdProperty()
     {
         var property = _metadataInterfaceType.GetProperty("CorrelationId");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
-        property.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
+        property.CanRead.ShouldBeTrue();
     }
 
     [Fact]
     public void IDomainEventMetadata_MustHaveCausationIdProperty()
     {
         var property = _metadataInterfaceType.GetProperty("CausationId");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
-        property.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
+        property.CanRead.ShouldBeTrue();
     }
 
     [Fact]
     public void IDomainEventMetadata_MustHaveUserIdProperty()
     {
         var property = _metadataInterfaceType.GetProperty("UserId");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
-        property.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
+        property.CanRead.ShouldBeTrue();
     }
 
     [Fact]
     public void IDomainEventMetadata_MustHaveTenantIdProperty()
     {
         var property = _metadataInterfaceType.GetProperty("TenantId");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
-        property.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
+        property.CanRead.ShouldBeTrue();
     }
 
     [Fact]
     public void IDomainEventMetadata_MustHaveAdditionalMetadataProperty()
     {
         var property = _metadataInterfaceType.GetProperty("AdditionalMetadata");
-        property.Should().NotBeNull();
-        property!.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.CanRead.ShouldBeTrue();
     }
 
     // === DomainEventMetadata Contract ===
@@ -71,38 +71,38 @@ public class DomainEventEnvelopeContracts
     [Fact]
     public void DomainEventMetadata_MustImplementIDomainEventMetadata()
     {
-        _metadataType.Should().Implement<IDomainEventMetadata>();
+        _metadataType.GetInterfaces().ShouldContain(typeof(IDomainEventMetadata));
     }
 
     [Fact]
     public void DomainEventMetadata_MustBeRecord()
     {
         // Records have a special <Clone>$ method
-        _metadataType.GetMethod("<Clone>$").Should().NotBeNull();
+        _metadataType.GetMethod("<Clone>$").ShouldNotBeNull();
     }
 
     [Fact]
     public void DomainEventMetadata_MustHaveEmptyStaticProperty()
     {
         var property = _metadataType.GetProperty("Empty", BindingFlags.Static | BindingFlags.Public);
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<DomainEventMetadata>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(DomainEventMetadata));
     }
 
     [Fact]
     public void DomainEventMetadata_MustHaveWithCorrelationFactory()
     {
         var method = _metadataType.GetMethod("WithCorrelation", BindingFlags.Static | BindingFlags.Public);
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be<DomainEventMetadata>();
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(DomainEventMetadata));
     }
 
     [Fact]
     public void DomainEventMetadata_MustHaveWithCausationFactory()
     {
         var method = _metadataType.GetMethod("WithCausation", BindingFlags.Static | BindingFlags.Public);
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be<DomainEventMetadata>();
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(DomainEventMetadata));
     }
 
     // === DomainEventEnvelope<T> Contract ===
@@ -110,8 +110,8 @@ public class DomainEventEnvelopeContracts
     [Fact]
     public void DomainEventEnvelope_MustBeGeneric()
     {
-        _envelopeType.IsGenericTypeDefinition.Should().BeTrue();
-        _envelopeType.GetGenericArguments().Should().HaveCount(1);
+        _envelopeType.IsGenericTypeDefinition.ShouldBeTrue();
+        _envelopeType.GetGenericArguments().Length.ShouldBe(1);
     }
 
     [Fact]
@@ -119,39 +119,39 @@ public class DomainEventEnvelopeContracts
     {
         var typeParam = _envelopeType.GetGenericArguments()[0];
         var constraints = typeParam.GetGenericParameterConstraints();
-        constraints.Should().Contain(typeof(IDomainEvent));
+        constraints.ShouldContain(typeof(IDomainEvent));
     }
 
     [Fact]
     public void DomainEventEnvelope_MustHaveEventProperty()
     {
         var property = _envelopeType.GetProperty("Event");
-        property.Should().NotBeNull();
-        property!.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.CanRead.ShouldBeTrue();
     }
 
     [Fact]
     public void DomainEventEnvelope_MustHaveMetadataProperty()
     {
         var property = _envelopeType.GetProperty("Metadata");
-        property.Should().NotBeNull();
-        property!.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.CanRead.ShouldBeTrue();
     }
 
     [Fact]
     public void DomainEventEnvelope_MustHaveEnvelopeIdProperty()
     {
         var property = _envelopeType.GetProperty("EnvelopeId");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<Guid>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(Guid));
     }
 
     [Fact]
     public void DomainEventEnvelope_MustHaveEnvelopeCreatedAtUtcProperty()
     {
         var property = _envelopeType.GetProperty("EnvelopeCreatedAtUtc");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<DateTime>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(DateTime));
     }
 
     // === Static DomainEventEnvelope Factory ===
@@ -163,7 +163,7 @@ public class DomainEventEnvelopeContracts
             .Where(m => m.Name == "Create")
             .ToList();
 
-        methods.Should().HaveCountGreaterThanOrEqualTo(2);
+        methods.Count.ShouldBeGreaterThanOrEqualTo(2);
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public class DomainEventEnvelopeContracts
         var method = _staticEnvelopeType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "WithCorrelation");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     // === DomainEventExtensions Contract ===
@@ -180,8 +180,8 @@ public class DomainEventEnvelopeContracts
     [Fact]
     public void DomainEventExtensions_MustBeStaticClass()
     {
-        _extensionsType.IsAbstract.Should().BeTrue();
-        _extensionsType.IsSealed.Should().BeTrue();
+        _extensionsType.IsAbstract.ShouldBeTrue();
+        _extensionsType.IsSealed.ShouldBeTrue();
     }
 
     [Fact]
@@ -190,9 +190,9 @@ public class DomainEventEnvelopeContracts
         var method = _extensionsType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "ToEnvelope");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         method!.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue();
+            .ShouldBeTrue();
     }
 
     [Fact]
@@ -201,9 +201,9 @@ public class DomainEventEnvelopeContracts
         var method = _extensionsType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "WithMetadata");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         method!.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue();
+            .ShouldBeTrue();
     }
 
     [Fact]
@@ -212,9 +212,9 @@ public class DomainEventEnvelopeContracts
         var method = _extensionsType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "WithCorrelation");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         method!.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue();
+            .ShouldBeTrue();
     }
 
     [Fact]
@@ -223,8 +223,8 @@ public class DomainEventEnvelopeContracts
         var method = _extensionsType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "Map");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         method!.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue();
+            .ShouldBeTrue();
     }
 }

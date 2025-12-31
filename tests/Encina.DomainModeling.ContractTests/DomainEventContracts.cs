@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.DomainModeling.ContractTests;
 
@@ -19,16 +19,16 @@ public sealed class DomainEventContracts
     public void IDomainEvent_MustHaveEventIdProperty()
     {
         var property = typeof(IDomainEvent).GetProperty("EventId");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<Guid>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(Guid));
     }
 
     [Fact]
     public void IDomainEvent_MustHaveOccurredAtUtcProperty()
     {
         var property = typeof(IDomainEvent).GetProperty("OccurredAtUtc");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<DateTime>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(DateTime));
     }
 
     #endregion
@@ -39,36 +39,36 @@ public sealed class DomainEventContracts
     public void DomainEvent_MustImplementIDomainEvent()
     {
         _domainEventType.GetInterfaces()
-            .Should().Contain(typeof(IDomainEvent));
+            .ShouldContain(typeof(IDomainEvent));
     }
 
     [Fact]
     public void DomainEvent_MustBeRecord()
     {
         _domainEventType.GetMethod("<Clone>$", BindingFlags.Instance | BindingFlags.Public)
-            .Should().NotBeNull();
+            .ShouldNotBeNull();
     }
 
     [Fact]
     public void DomainEvent_MustBeAbstract()
     {
-        _domainEventType.IsAbstract.Should().BeTrue();
+        _domainEventType.IsAbstract.ShouldBeTrue();
     }
 
     [Fact]
     public void DomainEvent_MustHaveEventIdProperty()
     {
         var property = _domainEventType.GetProperty("EventId");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<Guid>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(Guid));
     }
 
     [Fact]
     public void DomainEvent_MustHaveOccurredAtUtcProperty()
     {
         var property = _domainEventType.GetProperty("OccurredAtUtc");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<DateTime>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(DateTime));
     }
 
     #endregion
@@ -78,45 +78,45 @@ public sealed class DomainEventContracts
     [Fact]
     public void RichDomainEvent_MustInheritFromDomainEvent()
     {
-        _richDomainEventType.BaseType.Should().Be(_domainEventType);
+        _richDomainEventType.BaseType.ShouldBe(_domainEventType);
     }
 
     [Fact]
     public void RichDomainEvent_MustHaveCorrelationIdProperty()
     {
         var property = _richDomainEventType.GetProperty("CorrelationId");
-        property.Should().NotBeNull();
+        property.ShouldNotBeNull();
     }
 
     [Fact]
     public void RichDomainEvent_MustHaveCausationIdProperty()
     {
         var property = _richDomainEventType.GetProperty("CausationId");
-        property.Should().NotBeNull();
+        property.ShouldNotBeNull();
     }
 
     [Fact]
     public void RichDomainEvent_MustHaveAggregateIdProperty()
     {
         var property = _richDomainEventType.GetProperty("AggregateId");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<Guid>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(Guid));
     }
 
     [Fact]
     public void RichDomainEvent_MustHaveAggregateVersionProperty()
     {
         var property = _richDomainEventType.GetProperty("AggregateVersion");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<long>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(long));
     }
 
     [Fact]
     public void RichDomainEvent_MustHaveEventVersionProperty()
     {
         var property = _richDomainEventType.GetProperty("EventVersion");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<int>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(int));
     }
 
     #endregion
@@ -127,31 +127,31 @@ public sealed class DomainEventContracts
     public void IIntegrationEvent_MustHaveEventIdProperty()
     {
         var property = typeof(IIntegrationEvent).GetProperty("EventId");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<Guid>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(Guid));
     }
 
     [Fact]
     public void IIntegrationEvent_MustHaveOccurredAtUtcProperty()
     {
         var property = typeof(IIntegrationEvent).GetProperty("OccurredAtUtc");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<DateTime>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(DateTime));
     }
 
     [Fact]
     public void IIntegrationEvent_MustHaveCorrelationIdProperty()
     {
         var property = typeof(IIntegrationEvent).GetProperty("CorrelationId");
-        property.Should().NotBeNull();
+        property.ShouldNotBeNull();
     }
 
     [Fact]
     public void IIntegrationEvent_MustHaveEventVersionProperty()
     {
         var property = typeof(IIntegrationEvent).GetProperty("EventVersion");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<int>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(int));
     }
 
     #endregion
@@ -162,20 +162,20 @@ public sealed class DomainEventContracts
     public void IntegrationEvent_MustImplementIIntegrationEvent()
     {
         _integrationEventType.GetInterfaces()
-            .Should().Contain(typeof(IIntegrationEvent));
+            .ShouldContain(typeof(IIntegrationEvent));
     }
 
     [Fact]
     public void IntegrationEvent_MustBeRecord()
     {
         _integrationEventType.GetMethod("<Clone>$", BindingFlags.Instance | BindingFlags.Public)
-            .Should().NotBeNull();
+            .ShouldNotBeNull();
     }
 
     [Fact]
     public void IntegrationEvent_MustBeAbstract()
     {
-        _integrationEventType.IsAbstract.Should().BeTrue();
+        _integrationEventType.IsAbstract.ShouldBeTrue();
     }
 
     #endregion
@@ -187,7 +187,7 @@ public sealed class DomainEventContracts
     {
         var mapperType = typeof(IDomainEventToIntegrationEventMapper<,>);
         var method = mapperType.GetMethod("Map");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     #endregion

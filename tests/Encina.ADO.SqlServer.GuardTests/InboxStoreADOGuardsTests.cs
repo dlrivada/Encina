@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Encina.ADO.SqlServer.Inbox;
 using Encina.Messaging.Inbox;
 
@@ -20,7 +20,8 @@ public class InboxStoreADOGuardsTests
 
         // Act & Assert
         var act = () => new InboxStoreADO(connection);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connection");
     }
 
     /// <summary>
@@ -35,7 +36,8 @@ public class InboxStoreADOGuardsTests
 
         // Act & Assert
         var act = () => new InboxStoreADO(connection, tableName);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -51,7 +53,8 @@ public class InboxStoreADOGuardsTests
 
         // Act & Assert
         var act = async () => await store.GetMessageAsync(messageId);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("messageId");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -67,7 +70,8 @@ public class InboxStoreADOGuardsTests
 
         // Act & Assert
         var act = async () => await store.AddAsync(message);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("message");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("message");
     }
 
     /// <summary>
@@ -84,7 +88,8 @@ public class InboxStoreADOGuardsTests
 
         // Act & Assert
         var act = async () => await store.MarkAsProcessedAsync(messageId, response);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("messageId");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -101,7 +106,8 @@ public class InboxStoreADOGuardsTests
 
         // Act & Assert
         var act = async () => await store.MarkAsFailedAsync(messageId, errorMessage, null);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("messageId");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -118,7 +124,8 @@ public class InboxStoreADOGuardsTests
 
         // Act & Assert
         var act = async () => await store.MarkAsFailedAsync(messageId, errorMessage, null);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("errorMessage");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("errorMessage");
     }
 
     /// <summary>
@@ -134,6 +141,7 @@ public class InboxStoreADOGuardsTests
 
         // Act & Assert
         var act = async () => await store.RemoveExpiredMessagesAsync(messageIds);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("messageIds");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("messageIds");
     }
 }

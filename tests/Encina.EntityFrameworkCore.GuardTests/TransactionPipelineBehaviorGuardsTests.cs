@@ -1,4 +1,4 @@
-﻿using LanguageExt;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Encina.EntityFrameworkCore;
@@ -22,7 +22,8 @@ public class TransactionPipelineBehaviorGuardsTests
 
         // Act & Assert
         var act = () => new TransactionPipelineBehavior<TestRequest, string>(dbContext, logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("dbContext");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("dbContext");
     }
 
     /// <summary>
@@ -40,7 +41,8 @@ public class TransactionPipelineBehaviorGuardsTests
 
         // Act & Assert
         var act = () => new TransactionPipelineBehavior<TestRequest, string>(dbContext, logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     /// <summary>
@@ -63,7 +65,8 @@ public class TransactionPipelineBehaviorGuardsTests
 
         // Act & Assert
         var act = async () => await behavior.Handle(request, context, nextStep, CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("request");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("request");
     }
 
     /// <summary>
@@ -86,7 +89,8 @@ public class TransactionPipelineBehaviorGuardsTests
 
         // Act & Assert
         var act = async () => await behavior.Handle(request, context, nextStep, CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("context");
     }
 
     /// <summary>
@@ -109,7 +113,8 @@ public class TransactionPipelineBehaviorGuardsTests
 
         // Act & Assert
         var act = async () => await behavior.Handle(request, context, nextStep, CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("nextStep");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("nextStep");
     }
 
     /// <summary>

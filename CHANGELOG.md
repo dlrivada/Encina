@@ -3480,6 +3480,19 @@
 
 ### Changed
 
+- **Test Framework Migration from FluentAssertions to Shouldly** (Issue #495):
+  - **BREAKING**: Replaced FluentAssertions with Shouldly across all 114 test projects
+  - Motivation: FluentAssertions adopted commercial licensing ($130/developer/year) in January 2025
+  - Shouldly remains MIT-licensed and is a mature, actively maintained library
+  - All assertion syntax migrated:
+    - `.Should().Be(x)` → `.ShouldBe(x)`
+    - `.Should().BeTrue()` → `.ShouldBeTrue()`
+    - `.Should().Throw<T>()` → `Should.Throw<T>(action)`
+    - `.Should().HaveCount(n)` → `.Count.ShouldBe(n)` or `.ShouldHaveCount(n)`
+    - `FluentActions.Invoking(...).Should().Throw<T>()` → `Should.Throw<T>(() => ...)`
+  - Custom `Encina.Testing.Shouldly` package provides `Either<TLeft, TRight>` assertion extensions
+  - Tests verified: 1000+ tests passing across core projects
+
 - **Validation Architecture Consolidation** (Issue #229) - Remove duplicate validation behaviors:
   - **BREAKING**: Removed `Encina.FluentValidation.ValidationPipelineBehavior<TRequest, TResponse>` (use centralized `Encina.Validation.ValidationPipelineBehavior<,>`)
   - **BREAKING**: Removed `Encina.DataAnnotations.DataAnnotationsValidationBehavior<TRequest, TResponse>` (use centralized behavior)

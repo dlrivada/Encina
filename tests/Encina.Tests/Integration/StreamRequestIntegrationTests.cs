@@ -1,5 +1,5 @@
-﻿using System.Runtime.CompilerServices;
-using FluentAssertions;
+using System.Runtime.CompilerServices;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
@@ -25,20 +25,20 @@ public sealed class StreamRequestIntegrationTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
         var provider = services.BuildServiceProvider();
-        var Encina = provider.GetRequiredService<IEncina>();
+        var encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 10);
 
         // Act
         var results = new List<int>();
-        await foreach (var item in Encina.Stream(request))
+        await foreach (var item in encina.Stream(request))
         {
             item.IfRight(results.Add);
         }
 
         // Assert
-        results.Should().HaveCount(10);
-        results.Should().Equal(new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+        results.Count.ShouldBe(10);
+        results.ShouldBe(new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
     }
 
     [Fact]
@@ -50,19 +50,19 @@ public sealed class StreamRequestIntegrationTests
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
         services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, DoubleValueBehavior>();
         var provider = services.BuildServiceProvider();
-        var Encina = provider.GetRequiredService<IEncina>();
+        var encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 5);
 
         // Act
         var results = new List<int>();
-        await foreach (var item in Encina.Stream(request))
+        await foreach (var item in encina.Stream(request))
         {
             item.IfRight(results.Add);
         }
 
         // Assert
-        results.Should().Equal(new[] { 2, 4, 6, 8, 10 }, "behavior should double each value");
+        results.ShouldBe([2, 4, 6, 8, 10]);  // behavior should double each value
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class StreamRequestIntegrationTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
 
-        // Register behaviors in order: DoubleValue → AddFive
+        // Register behaviors in order: DoubleValue ? AddFive
         services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, DoubleValueBehavior>();
         services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, AddFiveBehavior>();
 
@@ -89,12 +89,11 @@ public sealed class StreamRequestIntegrationTests
             item.IfRight(results.Add);
         }
 
-        // Assert - Behaviors execute as: Handler → AddFive → DoubleValue
+        // Assert - Behaviors execute as: Handler ? AddFive ? DoubleValue
         // Handler: 1, 2, 3
         // After AddFive: 6, 7, 8
         // After DoubleValue: 12, 14, 16
-        results.Should().Equal(new[] { 12, 14, 16 },
-            "behaviors should apply in registration order");
+        results.ShouldBe([12, 14, 16]);  // behaviors should apply in registration order
     }
 
     [Fact]
@@ -106,20 +105,19 @@ public sealed class StreamRequestIntegrationTests
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
         services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, GreaterThanFiveBehavior>();
         var provider = services.BuildServiceProvider();
-        var Encina = provider.GetRequiredService<IEncina>();
+        var encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 10);
 
         // Act
         var results = new List<int>();
-        await foreach (var item in Encina.Stream(request))
+        await foreach (var item in encina.Stream(request))
         {
             item.IfRight(results.Add);
         }
 
         // Assert - Only values > 5
-        results.Should().Equal(new[] { 6, 7, 8, 9, 10 },
-            "behavior should filter values <= 5");
+        results.ShouldBe([6, 7, 8, 9, 10]);  // behavior should filter values <= 5
     }
 
     #endregion
@@ -134,26 +132,26 @@ public sealed class StreamRequestIntegrationTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<ErrorStreamRequest, int>, ErrorStreamHandler>();
         var provider = services.BuildServiceProvider();
-        var Encina = provider.GetRequiredService<IEncina>();
+        var encina = provider.GetRequiredService<IEncina>();
 
         var request = new ErrorStreamRequest(TotalItems: 10, ErrorAtPosition: 5);
 
         // Act
         var results = new List<Either<EncinaError, int>>();
-        await foreach (var item in Encina.Stream(request))
+        await foreach (var item in encina.Stream(request))
         {
             results.Add(item);
         }
 
         // Assert
-        results.Should().HaveCount(10);
+        results.Count.ShouldBe(10);
         results[4].ShouldBeError("error should be at position 5");
 
         var errorCode = results[4].Match(
             Left: error => error.GetEncinaCode(),
             Right: _ => throw new InvalidOperationException("Expected Left"));
 
-        errorCode.Should().Be("STREAM_ERROR");
+        errorCode.ShouldBe("STREAM_ERROR");
     }
 
     [Fact]
@@ -165,13 +163,13 @@ public sealed class StreamRequestIntegrationTests
         services.AddTransient<IStreamRequestHandler<ErrorStreamRequest, int>, ErrorStreamHandler>();
         services.AddTransient<IStreamPipelineBehavior<ErrorStreamRequest, int>, ErrorRecoveryBehavior>();
         var provider = services.BuildServiceProvider();
-        var Encina = provider.GetRequiredService<IEncina>();
+        var encina = provider.GetRequiredService<IEncina>();
 
         var request = new ErrorStreamRequest(TotalItems: 5, ErrorAtPosition: 3);
 
         // Act
         var results = new List<Either<EncinaError, int>>();
-        await foreach (var item in Encina.Stream(request))
+        await foreach (var item in encina.Stream(request))
         {
             results.Add(item);
         }
@@ -192,7 +190,7 @@ public sealed class StreamRequestIntegrationTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
         var provider = services.BuildServiceProvider();
-        var Encina = provider.GetRequiredService<IEncina>();
+        var encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 100);
         using var cts = new CancellationTokenSource();
@@ -201,7 +199,7 @@ public sealed class StreamRequestIntegrationTests
         var count = 0;
         try
         {
-            await foreach (var item in Encina.Stream(request, cts.Token))
+            await foreach (var item in encina.Stream(request, cts.Token))
             {
                 item.IfRight(_ => count++);
 
@@ -217,8 +215,8 @@ public sealed class StreamRequestIntegrationTests
         }
 
         // Assert
-        count.Should().BeLessThan(100, "cancellation should stop enumeration");
-        count.Should().BeGreaterThanOrEqualTo(10, "should process at least 10 items before cancellation");
+        count.ShouldBeLessThan(100, "cancellation should stop enumeration");
+        count.ShouldBeGreaterThanOrEqualTo(10, "should process at least 10 items before cancellation");
     }
 
     #endregion
@@ -233,7 +231,7 @@ public sealed class StreamRequestIntegrationTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, FastNumberStreamHandler>();
         var provider = services.BuildServiceProvider();
-        var Encina = provider.GetRequiredService<IEncina>();
+        var encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 10_000);
 
@@ -241,7 +239,7 @@ public sealed class StreamRequestIntegrationTests
         var count = 0;
         var startTime = DateTime.UtcNow;
 
-        await foreach (var item in Encina.Stream(request))
+        await foreach (var item in encina.Stream(request))
         {
             item.IfRight(_ => count++);
         }
@@ -249,8 +247,8 @@ public sealed class StreamRequestIntegrationTests
         var duration = DateTime.UtcNow - startTime;
 
         // Assert
-        count.Should().Be(10_000, "should process all 10,000 items");
-        duration.Should().BeLessThan(TimeSpan.FromSeconds(5),
+        count.ShouldBe(10_000, "should process all 10,000 items");
+        duration.ShouldBeLessThan(TimeSpan.FromSeconds(5),
             "should process 10,000 items efficiently");
     }
 
@@ -262,7 +260,7 @@ public sealed class StreamRequestIntegrationTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
         var provider = services.BuildServiceProvider();
-        var Encina = provider.GetRequiredService<IEncina>();
+        var encina = provider.GetRequiredService<IEncina>();
 
         var request1 = new NumberStreamRequest(Start: 1, Count: 50);
         var request2 = new NumberStreamRequest(Start: 100, Count: 50);
@@ -272,7 +270,7 @@ public sealed class StreamRequestIntegrationTests
         var task1 = Task.Run(async () =>
         {
             var results = new List<int>();
-            await foreach (var item in Encina.Stream(request1))
+            await foreach (var item in encina.Stream(request1))
             {
                 item.IfRight(value => results.Add(value));
             }
@@ -282,7 +280,7 @@ public sealed class StreamRequestIntegrationTests
         var task2 = Task.Run(async () =>
         {
             var results = new List<int>();
-            await foreach (var item in Encina.Stream(request2))
+            await foreach (var item in encina.Stream(request2))
             {
                 item.IfRight(value => results.Add(value));
             }
@@ -292,7 +290,7 @@ public sealed class StreamRequestIntegrationTests
         var task3 = Task.Run(async () =>
         {
             var results = new List<int>();
-            await foreach (var item in Encina.Stream(request3))
+            await foreach (var item in encina.Stream(request3))
             {
                 item.IfRight(value => results.Add(value));
             }
@@ -302,12 +300,12 @@ public sealed class StreamRequestIntegrationTests
         var allResults = await Task.WhenAll(task1, task2, task3);
 
         // Assert - Each stream should have completed independently
-        allResults[0].Should().HaveCount(50);
-        allResults[0][0].Should().Be(1, "first stream should start at 1");
-        allResults[1].Should().HaveCount(50);
-        allResults[1][0].Should().Be(100, "second stream should start at 100");
-        allResults[2].Should().HaveCount(50);
-        allResults[2][0].Should().Be(200, "third stream should start at 200");
+        allResults[0].Count.ShouldBe(50);
+        allResults[0][0].ShouldBe(1, "first stream should start at 1");
+        allResults[1].Count.ShouldBe(50);
+        allResults[1][0].ShouldBe(100, "second stream should start at 100");
+        allResults[2].Count.ShouldBe(50);
+        allResults[2][0].ShouldBe(200, "third stream should start at 200");
     }
 
     #endregion
@@ -324,20 +322,20 @@ public sealed class StreamRequestIntegrationTests
         services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
         services.AddSingleton<IStreamPipelineBehavior<NumberStreamRequest, int>>(loggingBehavior);
         var provider = services.BuildServiceProvider();
-        var Encina = provider.GetRequiredService<IEncina>();
+        var encina = provider.GetRequiredService<IEncina>();
 
         var request = new NumberStreamRequest(Start: 1, Count: 20);
 
         // Act
         var results = new List<int>();
-        await foreach (var item in Encina.Stream(request))
+        await foreach (var item in encina.Stream(request))
         {
             item.IfRight(results.Add);
         }
 
         // Assert
-        results.Should().HaveCount(20);
-        loggingBehavior.ProcessedCount.Should().Be(20, "behavior should log all processed items");
+        results.Count.ShouldBe(20);
+        loggingBehavior.ProcessedCount.ShouldBe(20, "behavior should log all processed items");
     }
 
     #endregion
@@ -375,8 +373,6 @@ public sealed class StreamRequestIntegrationTests
                 // No delay for performance testing
                 yield return Right<EncinaError, int>(request.Start + i);
             }
-
-            await Task.CompletedTask;
         }
     }
 

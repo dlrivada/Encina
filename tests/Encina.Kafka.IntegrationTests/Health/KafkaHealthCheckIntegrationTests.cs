@@ -26,15 +26,15 @@ public sealed class KafkaHealthCheckIntegrationTests : IClassFixture<KafkaFixtur
         Skip.IfNot(_fixture.IsAvailable, "Kafka container not available");
 
         // Arrange
-        var serviceProvider = CreateServiceProvider();
+        using var serviceProvider = CreateServiceProvider();
         var healthCheck = new KafkaHealthCheck(serviceProvider, null);
 
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("connected");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("connected");
     }
 
     [SkippableFact]
@@ -44,15 +44,15 @@ public sealed class KafkaHealthCheckIntegrationTests : IClassFixture<KafkaFixtur
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-kafka" };
-        var serviceProvider = CreateServiceProvider();
+        using var serviceProvider = CreateServiceProvider();
         var healthCheck = new KafkaHealthCheck(serviceProvider, options);
 
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        healthCheck.Name.Should().Be("my-custom-kafka");
-        result.Status.Should().Be(HealthStatus.Healthy);
+        healthCheck.Name.ShouldBe("my-custom-kafka");
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [SkippableFact]
@@ -61,14 +61,17 @@ public sealed class KafkaHealthCheckIntegrationTests : IClassFixture<KafkaFixtur
         Skip.IfNot(_fixture.IsAvailable, "Kafka container not available");
 
         // Arrange
-        var serviceProvider = CreateServiceProvider();
+        using var serviceProvider = CreateServiceProvider();
         var healthCheck = new KafkaHealthCheck(serviceProvider, null);
 
+        // Act
+        var tags = healthCheck.Tags;
+
         // Assert
-        healthCheck.Tags.Should().Contain("encina");
-        healthCheck.Tags.Should().Contain("messaging");
-        healthCheck.Tags.Should().Contain("kafka");
-        healthCheck.Tags.Should().Contain("ready");
+        tags.ShouldContain("encina");
+        tags.ShouldContain("messaging");
+        tags.ShouldContain("kafka");
+        tags.ShouldContain("ready");
     }
 
     private ServiceProvider CreateServiceProvider()

@@ -1,6 +1,6 @@
-﻿using System.Net;
+using System.Net;
 using System.Text.Json;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
 using Xunit;
@@ -23,10 +23,10 @@ public class ProblemDetailsExtensionsTests
         var (statusCode, problemDetails) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.BadRequest);
-        problemDetails.Status.Should().Be(400);
-        problemDetails.Title.Should().Be("Bad Request");
-        problemDetails.Detail.Should().Be("The input is invalid");
+        statusCode.ShouldBe(HttpStatusCode.BadRequest);
+        problemDetails.Status.ShouldBe(400);
+        problemDetails.Title.ShouldBe("Bad Request");
+        problemDetails.Detail.ShouldBe("The input is invalid");
     }
 
     [Fact]
@@ -41,9 +41,9 @@ public class ProblemDetailsExtensionsTests
         var (statusCode, problemDetails) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.Unauthorized);
-        problemDetails.Status.Should().Be(401);
-        problemDetails.Title.Should().Be("Unauthorized");
+        statusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        problemDetails.Status.ShouldBe(401);
+        problemDetails.Title.ShouldBe("Unauthorized");
     }
 
     [Fact]
@@ -58,9 +58,9 @@ public class ProblemDetailsExtensionsTests
         var (statusCode, problemDetails) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.Forbidden);
-        problemDetails.Status.Should().Be(403);
-        problemDetails.Title.Should().Be("Forbidden");
+        statusCode.ShouldBe(HttpStatusCode.Forbidden);
+        problemDetails.Status.ShouldBe(403);
+        problemDetails.Title.ShouldBe("Forbidden");
     }
 
     [Fact]
@@ -75,9 +75,9 @@ public class ProblemDetailsExtensionsTests
         var (statusCode, problemDetails) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.NotFound);
-        problemDetails.Status.Should().Be(404);
-        problemDetails.Title.Should().Be("Not Found");
+        statusCode.ShouldBe(HttpStatusCode.NotFound);
+        problemDetails.Status.ShouldBe(404);
+        problemDetails.Title.ShouldBe("Not Found");
     }
 
     [Fact]
@@ -92,8 +92,8 @@ public class ProblemDetailsExtensionsTests
         var (statusCode, problemDetails) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.NotFound);
-        problemDetails.Status.Should().Be(404);
+        statusCode.ShouldBe(HttpStatusCode.NotFound);
+        problemDetails.Status.ShouldBe(404);
     }
 
     [Fact]
@@ -108,9 +108,9 @@ public class ProblemDetailsExtensionsTests
         var (statusCode, problemDetails) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.Conflict);
-        problemDetails.Status.Should().Be(409);
-        problemDetails.Title.Should().Be("Conflict");
+        statusCode.ShouldBe(HttpStatusCode.Conflict);
+        problemDetails.Status.ShouldBe(409);
+        problemDetails.Title.ShouldBe("Conflict");
     }
 
     [Fact]
@@ -125,9 +125,9 @@ public class ProblemDetailsExtensionsTests
         var (statusCode, problemDetails) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.InternalServerError);
-        problemDetails.Status.Should().Be(500);
-        problemDetails.Title.Should().Be("Internal Server Error");
+        statusCode.ShouldBe(HttpStatusCode.InternalServerError);
+        problemDetails.Status.ShouldBe(500);
+        problemDetails.Title.ShouldBe("Internal Server Error");
     }
 
     [Fact]
@@ -142,8 +142,8 @@ public class ProblemDetailsExtensionsTests
         var (_, problemDetails) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        problemDetails.Extensions.Should().ContainKey("traceId");
-        problemDetails.Extensions["traceId"].Should().NotBeNull();
+        problemDetails.Extensions.ShouldContainKey("traceId");
+        problemDetails.Extensions["traceId"].ShouldNotBeNull();
     }
 
     [Fact]
@@ -164,8 +164,8 @@ public class ProblemDetailsExtensionsTests
             });
 
         // Assert
-        problemDetails.Extensions.Should().ContainKey("correlationId");
-        problemDetails.Extensions["correlationId"]!.ToString().Should().Be(correlationId);
+        problemDetails.Extensions.ShouldContainKey("correlationId");
+        problemDetails.Extensions["correlationId"]!.ToString().ShouldBe(correlationId);
     }
 
     [Fact]
@@ -180,8 +180,8 @@ public class ProblemDetailsExtensionsTests
         var (_, problemDetails) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        problemDetails.Extensions.Should().ContainKey("errorCode");
-        problemDetails.Extensions["errorCode"]!.ToString().Should().Be("validation.invalid_email");
+        problemDetails.Extensions.ShouldContainKey("errorCode");
+        problemDetails.Extensions["errorCode"]!.ToString().ShouldBe("validation.invalid_email");
     }
 
     [Fact]
@@ -198,8 +198,8 @@ public class ProblemDetailsExtensionsTests
             customStatusCode: 410); // Gone instead of Not Found
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.Gone);
-        problemDetails.Status.Should().Be(410);
+        statusCode.ShouldBe(HttpStatusCode.Gone);
+        problemDetails.Status.ShouldBe(410);
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public class ProblemDetailsExtensionsTests
             });
 
         // Assert
-        problemDetails.Instance.Should().NotBeNullOrEmpty();
+        problemDetails.Instance.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -237,7 +237,7 @@ public class ProblemDetailsExtensionsTests
         var (_, problemDetails) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        problemDetails.Instance.Should().BeNullOrEmpty();
+        problemDetails.Instance.ShouldBeNullOrEmpty();
     }
 
     [Theory]
@@ -254,7 +254,7 @@ public class ProblemDetailsExtensionsTests
         var (statusCode, _) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.BadRequest);
+        statusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Theory]
@@ -272,7 +272,7 @@ public class ProblemDetailsExtensionsTests
         var (statusCode, _) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.Conflict);
+        statusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 
     [Theory]
@@ -290,7 +290,7 @@ public class ProblemDetailsExtensionsTests
         var (statusCode, _) = await ExecuteAndCaptureProblemDetails(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.NotFound);
+        statusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     private static async Task<(HttpStatusCode StatusCode, ProblemDetails ProblemDetails)> ExecuteAndCaptureProblemDetails(

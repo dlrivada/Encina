@@ -14,8 +14,8 @@ public class ServiceCollectionExtensionsTests
         var act = () => services!.AddEncinaDistributedLockSqlServer("Server=.;Database=Test;");
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public class ServiceCollectionExtensionsTests
         var act = () => services.AddEncinaDistributedLockSqlServer(null!);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("connectionString");
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class ServiceCollectionExtensionsTests
         var act = () => services.AddEncinaDistributedLockSqlServer(string.Empty);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("connectionString");
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var serviceProvider = services.BuildServiceProvider();
         var provider = serviceProvider.GetService<IDistributedLockProvider>();
-        provider.Should().NotBeNull();
-        provider.Should().BeOfType<SqlServerDistributedLockProvider>();
+        provider.ShouldNotBeNull();
+        provider.ShouldBeOfType<SqlServerDistributedLockProvider>();
     }
 
     [Fact]
@@ -79,6 +79,7 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var serviceProvider = services.BuildServiceProvider();
         var provider = serviceProvider.GetService<IDistributedLockProvider>();
-        provider.Should().NotBeNull();
+        provider.ShouldNotBeNull();
+        provider.ShouldBeOfType<SqlServerDistributedLockProvider>();
     }
 }

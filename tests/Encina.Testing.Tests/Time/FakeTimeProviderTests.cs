@@ -1,5 +1,5 @@
 using Encina.Testing.Time;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.Testing.Tests.Time;
@@ -22,8 +22,8 @@ public sealed class FakeTimeProviderTests
 
         // Assert
         var after = DateTimeOffset.UtcNow;
-        provider.GetUtcNow().Should().BeOnOrAfter(before);
-        provider.GetUtcNow().Should().BeOnOrBefore(after);
+        provider.GetUtcNow().ShouldBeGreaterThanOrEqualTo(before);
+        provider.GetUtcNow().ShouldBeLessThanOrEqualTo(after);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class FakeTimeProviderTests
         var provider = new FakeTimeProvider(startTime);
 
         // Assert
-        provider.GetUtcNow().Should().Be(startTime);
+        provider.GetUtcNow().ShouldBe(startTime);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class FakeTimeProviderTests
         var provider = new FakeTimeProvider(startTime, timeZone);
 
         // Assert
-        provider.LocalTimeZone.Should().Be(timeZone);
+        provider.LocalTimeZone.ShouldBe(timeZone);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class FakeTimeProviderTests
         var provider = new FakeTimeProvider();
 
         // Assert
-        provider.LocalTimeZone.Should().Be(TimeZoneInfo.Utc);
+        provider.LocalTimeZone.ShouldBe(TimeZoneInfo.Utc);
     }
 
     #endregion
@@ -79,7 +79,7 @@ public sealed class FakeTimeProviderTests
         provider.SetUtcNow(newTime);
 
         // Assert
-        provider.GetUtcNow().Should().Be(newTime);
+        provider.GetUtcNow().ShouldBe(newTime);
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class FakeTimeProviderTests
         provider.SetUtcNow(startTime);
 
         // Assert
-        provider.GetUtcNow().Should().Be(startTime);
+        provider.GetUtcNow().ShouldBe(startTime);
     }
 
     [Fact]
@@ -108,9 +108,9 @@ public sealed class FakeTimeProviderTests
         var act = () => provider.SetUtcNow(pastTime);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("utcNow")
-            .WithMessage("Cannot move time backwards*");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("utcNow");
+        ex.Message.ShouldContain("Cannot move time backwards");
     }
 
     #endregion
@@ -129,7 +129,7 @@ public sealed class FakeTimeProviderTests
         provider.Advance(duration);
 
         // Assert
-        provider.GetUtcNow().Should().Be(startTime.Add(duration));
+        provider.GetUtcNow().ShouldBe(startTime.Add(duration));
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public sealed class FakeTimeProviderTests
         provider.Advance(TimeSpan.Zero);
 
         // Assert
-        provider.GetUtcNow().Should().Be(startTime);
+        provider.GetUtcNow().ShouldBe(startTime);
     }
 
     [Fact]
@@ -157,9 +157,9 @@ public sealed class FakeTimeProviderTests
         var act = () => provider.Advance(negativeDuration);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("duration")
-            .WithMessage("Duration must be non-negative*");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("duration");
+        ex.Message.ShouldContain("Duration must be non-negative");
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public sealed class FakeTimeProviderTests
             .AddHours(1)
             .AddMinutes(30)
             .AddSeconds(15);
-        provider.GetUtcNow().Should().Be(expected);
+        provider.GetUtcNow().ShouldBe(expected);
     }
 
     #endregion
@@ -197,7 +197,7 @@ public sealed class FakeTimeProviderTests
         provider.AdvanceToNextDay();
 
         // Assert
-        provider.GetUtcNow().Should().Be(startTime.AddDays(1));
+        provider.GetUtcNow().ShouldBe(startTime.AddDays(1));
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public sealed class FakeTimeProviderTests
         provider.AdvanceToNextHour();
 
         // Assert
-        provider.GetUtcNow().Should().Be(startTime.AddHours(1));
+        provider.GetUtcNow().ShouldBe(startTime.AddHours(1));
     }
 
     [Fact]
@@ -225,7 +225,7 @@ public sealed class FakeTimeProviderTests
         provider.AdvanceMinutes(45);
 
         // Assert
-        provider.GetUtcNow().Should().Be(startTime.AddMinutes(45));
+        provider.GetUtcNow().ShouldBe(startTime.AddMinutes(45));
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public sealed class FakeTimeProviderTests
         provider.AdvanceSeconds(90);
 
         // Assert
-        provider.GetUtcNow().Should().Be(startTime.AddSeconds(90));
+        provider.GetUtcNow().ShouldBe(startTime.AddSeconds(90));
     }
 
     [Fact]
@@ -253,7 +253,7 @@ public sealed class FakeTimeProviderTests
         provider.AdvanceMilliseconds(500);
 
         // Assert
-        provider.GetUtcNow().Should().Be(startTime.AddMilliseconds(500));
+        provider.GetUtcNow().ShouldBe(startTime.AddMilliseconds(500));
     }
 
     #endregion
@@ -271,11 +271,11 @@ public sealed class FakeTimeProviderTests
         using (provider.Freeze())
         {
             provider.Advance(TimeSpan.FromHours(5));
-            provider.GetUtcNow().Should().Be(startTime.AddHours(5));
+            provider.GetUtcNow().ShouldBe(startTime.AddHours(5));
         }
 
         // Assert
-        provider.GetUtcNow().Should().Be(startTime);
+        provider.GetUtcNow().ShouldBe(startTime);
     }
 
     [Fact]
@@ -290,20 +290,20 @@ public sealed class FakeTimeProviderTests
         {
             provider.Advance(TimeSpan.FromHours(2));
             var afterFirstAdvance = provider.GetUtcNow();
-            afterFirstAdvance.Should().Be(startTime.AddHours(2));
+            afterFirstAdvance.ShouldBe(startTime.AddHours(2));
 
             using (provider.Freeze())
             {
                 provider.Advance(TimeSpan.FromHours(3));
-                provider.GetUtcNow().Should().Be(startTime.AddHours(5));
+                provider.GetUtcNow().ShouldBe(startTime.AddHours(5));
             }
 
             // Inner scope restores to when it was created
-            provider.GetUtcNow().Should().Be(afterFirstAdvance);
+            provider.GetUtcNow().ShouldBe(afterFirstAdvance);
         }
 
         // Outer scope restores to start
-        provider.GetUtcNow().Should().Be(startTime);
+        provider.GetUtcNow().ShouldBe(startTime);
     }
 
     #endregion
@@ -323,7 +323,7 @@ public sealed class FakeTimeProviderTests
         provider.Reset(newTime);
 
         // Assert
-        provider.GetUtcNow().Should().Be(newTime);
+        provider.GetUtcNow().ShouldBe(newTime);
     }
 
     [Fact]
@@ -339,8 +339,8 @@ public sealed class FakeTimeProviderTests
 
         // Assert
         var after = DateTimeOffset.UtcNow;
-        provider.GetUtcNow().Should().BeOnOrAfter(before);
-        provider.GetUtcNow().Should().BeOnOrBefore(after);
+        provider.GetUtcNow().ShouldBeGreaterThanOrEqualTo(before);
+        provider.GetUtcNow().ShouldBeLessThanOrEqualTo(after);
     }
 
     [Fact]
@@ -350,13 +350,13 @@ public sealed class FakeTimeProviderTests
         var provider = new FakeTimeProvider();
         var callCount = 0;
         provider.CreateTimer(_ => callCount++, null, TimeSpan.FromSeconds(1), TimeSpan.Zero);
-        provider.ActiveTimerCount.Should().Be(1);
+        provider.ActiveTimerCount.ShouldBe(1);
 
         // Act
         provider.Reset(DateTimeOffset.UtcNow);
 
         // Assert
-        provider.ActiveTimerCount.Should().Be(0);
+        provider.ActiveTimerCount.ShouldBe(0);
     }
 
     #endregion
@@ -374,8 +374,8 @@ public sealed class FakeTimeProviderTests
         var timer = provider.CreateTimer(_ => callCount++, null, TimeSpan.FromSeconds(10), TimeSpan.Zero);
 
         // Assert
-        timer.Should().NotBeNull();
-        provider.ActiveTimerCount.Should().Be(1);
+        timer.ShouldNotBeNull();
+        provider.ActiveTimerCount.ShouldBe(1);
     }
 
     [Fact]
@@ -388,8 +388,8 @@ public sealed class FakeTimeProviderTests
         var act = () => provider.CreateTimer(null!, null, TimeSpan.FromSeconds(1), TimeSpan.Zero);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("callback");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("callback");
     }
 
     [Fact]
@@ -404,7 +404,7 @@ public sealed class FakeTimeProviderTests
         provider.Advance(TimeSpan.FromSeconds(6));
 
         // Assert
-        callCount.Should().Be(1);
+        callCount.ShouldBe(1);
     }
 
     [Fact]
@@ -419,7 +419,7 @@ public sealed class FakeTimeProviderTests
         provider.Advance(TimeSpan.FromSeconds(5));
 
         // Assert
-        callCount.Should().Be(0);
+        callCount.ShouldBe(0);
     }
 
     [Fact]
@@ -434,7 +434,7 @@ public sealed class FakeTimeProviderTests
         provider.Advance(TimeSpan.FromSeconds(17));
 
         // Assert - should fire at 5s, 10s, 15s = 3 times
-        callCount.Should().Be(3);
+        callCount.ShouldBe(3);
     }
 
     [Fact]
@@ -449,7 +449,7 @@ public sealed class FakeTimeProviderTests
         provider.Advance(TimeSpan.FromSeconds(100));
 
         // Assert
-        callCount.Should().Be(1);
+        callCount.ShouldBe(1);
     }
 
     [Fact]
@@ -465,7 +465,7 @@ public sealed class FakeTimeProviderTests
         provider.Advance(TimeSpan.FromSeconds(2));
 
         // Assert
-        callCount.Should().Be(1);
+        callCount.ShouldBe(1);
     }
 
     [Fact]
@@ -481,7 +481,7 @@ public sealed class FakeTimeProviderTests
         provider.Advance(TimeSpan.FromSeconds(100));
 
         // Assert
-        callCount.Should().Be(0);
+        callCount.ShouldBe(0);
     }
 
     [Fact]
@@ -497,8 +497,8 @@ public sealed class FakeTimeProviderTests
         provider.Advance(TimeSpan.FromSeconds(10));
 
         // Assert
-        callCount.Should().Be(0);
-        provider.ActiveTimerCount.Should().Be(0);
+        callCount.ShouldBe(0);
+        provider.ActiveTimerCount.ShouldBe(0);
     }
 
     [Fact]
@@ -514,7 +514,7 @@ public sealed class FakeTimeProviderTests
         provider.Advance(TimeSpan.FromSeconds(10));
 
         // Assert
-        callCount.Should().Be(0);
+        callCount.ShouldBe(0);
     }
 
     [Fact]
@@ -535,7 +535,7 @@ public sealed class FakeTimeProviderTests
         provider.Advance(TimeSpan.FromSeconds(2));
 
         // Assert
-        receivedState.Should().BeSameAs(expectedState);
+        receivedState.ShouldBeSameAs(expectedState);
     }
 
     [Fact]
@@ -550,13 +550,13 @@ public sealed class FakeTimeProviderTests
         provider.Advance(TimeSpan.FromDays(1));
 
         // Assert
-        callCount.Should().Be(0);
+        callCount.ShouldBe(0);
 
         // Now enable the timer - it will fire at 1s (initial), then at 2s and 3s (periodic)
         timer.Change(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
         provider.Advance(TimeSpan.FromSeconds(3));
 
-        callCount.Should().Be(3); // Fires at 1s, 2s, and 3s
+        callCount.ShouldBe(3); // Fires at 1s, 2s, and 3s
     }
 
     #endregion
@@ -564,6 +564,7 @@ public sealed class FakeTimeProviderTests
     #region Thread Safety Tests
 
     [Fact]
+    [Trait("Category", "Integration")]
     public void ConcurrentAdvance_ShouldBeThreadSafe()
     {
         // Arrange
@@ -579,10 +580,11 @@ public sealed class FakeTimeProviderTests
         Task.WaitAll(tasks);
 
         // Assert - all advances should have been applied
-        provider.GetUtcNow().Should().Be(new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero).AddMilliseconds(100));
+        provider.GetUtcNow().ShouldBe(new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero).AddMilliseconds(100));
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
     public void ConcurrentTimerCreation_ShouldBeThreadSafe()
     {
         // Arrange
@@ -603,7 +605,7 @@ public sealed class FakeTimeProviderTests
         provider.Advance(TimeSpan.FromSeconds(2));
 
         // Assert
-        callCount.Should().Be(50);
+        callCount.ShouldBe(50);
     }
 
     #endregion

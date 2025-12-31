@@ -4,6 +4,7 @@ using Encina.Messaging.Health;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.EntityFrameworkCore.ContractTests.Health;
 
@@ -35,7 +36,7 @@ public sealed class EntityFrameworkCoreHealthCheckContractTests : IEncinaHealthC
     [Fact]
     public void DefaultName_ShouldBeEncinaEfcore()
     {
-        EntityFrameworkCoreHealthCheck.DefaultName.Should().Be("encina-efcore");
+        EntityFrameworkCoreHealthCheck.DefaultName.ShouldBe("encina-efcore");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

@@ -1,5 +1,5 @@
 using System.Reflection;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 
 namespace Encina.DomainModeling.ContractTests;
@@ -22,14 +22,14 @@ public class RepositoryContracts
     [Fact]
     public void IReadOnlyRepository_MustBeInterface()
     {
-        _readOnlyRepoType.IsInterface.Should().BeTrue();
+        _readOnlyRepoType.IsInterface.ShouldBeTrue();
     }
 
     [Fact]
     public void IReadOnlyRepository_MustBeGenericWithTwoParameters()
     {
-        _readOnlyRepoType.IsGenericTypeDefinition.Should().BeTrue();
-        _readOnlyRepoType.GetGenericArguments().Should().HaveCount(2);
+        _readOnlyRepoType.IsGenericTypeDefinition.ShouldBeTrue();
+        _readOnlyRepoType.GetGenericArguments().Length.ShouldBe(2);
     }
 
     [Fact]
@@ -40,56 +40,56 @@ public class RepositoryContracts
 
         // Should have class constraint and IEntity<TId> constraint
         (typeParam.GenericParameterAttributes & GenericParameterAttributes.ReferenceTypeConstraint)
-            .Should().Be(GenericParameterAttributes.ReferenceTypeConstraint);
+            .ShouldBe(GenericParameterAttributes.ReferenceTypeConstraint);
     }
 
     [Fact]
     public void IReadOnlyRepository_MustHaveGetByIdAsyncMethod()
     {
         var method = _readOnlyRepoType.GetMethod("GetByIdAsync");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void IReadOnlyRepository_MustHaveGetAllAsyncMethod()
     {
         var method = _readOnlyRepoType.GetMethod("GetAllAsync");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void IReadOnlyRepository_MustHaveFindAsyncMethods()
     {
         var methods = _readOnlyRepoType.GetMethods().Where(m => m.Name == "FindAsync").ToList();
-        methods.Should().HaveCountGreaterThanOrEqualTo(2); // With Specification and Expression
+        methods.Count.ShouldBeGreaterThanOrEqualTo(2); // With Specification and Expression
     }
 
     [Fact]
     public void IReadOnlyRepository_MustHaveFindOneAsyncMethod()
     {
         var method = _readOnlyRepoType.GetMethod("FindOneAsync");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void IReadOnlyRepository_MustHaveAnyAsyncMethods()
     {
         var methods = _readOnlyRepoType.GetMethods().Where(m => m.Name == "AnyAsync").ToList();
-        methods.Should().HaveCountGreaterThanOrEqualTo(2);
+        methods.Count.ShouldBeGreaterThanOrEqualTo(2);
     }
 
     [Fact]
     public void IReadOnlyRepository_MustHaveCountAsyncMethods()
     {
         var methods = _readOnlyRepoType.GetMethods().Where(m => m.Name == "CountAsync").ToList();
-        methods.Should().HaveCountGreaterThanOrEqualTo(2);
+        methods.Count.ShouldBeGreaterThanOrEqualTo(2);
     }
 
     [Fact]
     public void IReadOnlyRepository_MustHaveGetPagedAsyncMethods()
     {
         var methods = _readOnlyRepoType.GetMethods().Where(m => m.Name == "GetPagedAsync").ToList();
-        methods.Should().HaveCountGreaterThanOrEqualTo(2);
+        methods.Count.ShouldBeGreaterThanOrEqualTo(2);
     }
 
     // === IRepository<TEntity, TId> Contract ===
@@ -97,14 +97,14 @@ public class RepositoryContracts
     [Fact]
     public void IRepository_MustBeInterface()
     {
-        _repoType.IsInterface.Should().BeTrue();
+        _repoType.IsInterface.ShouldBeTrue();
     }
 
     [Fact]
     public void IRepository_MustExtendIReadOnlyRepository()
     {
         var interfaces = _repoType.GetInterfaces();
-        interfaces.Should().Contain(i =>
+        interfaces.ShouldContain(i =>
             i.IsGenericType && i.GetGenericTypeDefinition() == _readOnlyRepoType);
     }
 
@@ -112,49 +112,49 @@ public class RepositoryContracts
     public void IRepository_MustHaveAddAsyncMethod()
     {
         var method = _repoType.GetMethod("AddAsync");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void IRepository_MustHaveAddRangeAsyncMethod()
     {
         var method = _repoType.GetMethod("AddRangeAsync");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void IRepository_MustHaveUpdateMethod()
     {
         var method = _repoType.GetMethod("Update");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void IRepository_MustHaveUpdateRangeMethod()
     {
         var method = _repoType.GetMethod("UpdateRange");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void IRepository_MustHaveRemoveMethod()
     {
         var method = _repoType.GetMethod("Remove");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void IRepository_MustHaveRemoveRangeMethod()
     {
         var method = _repoType.GetMethod("RemoveRange");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void IRepository_MustHaveRemoveByIdAsyncMethod()
     {
         var method = _repoType.GetMethod("RemoveByIdAsync");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     // === IAggregateRepository<TAggregate, TId> Contract ===
@@ -162,14 +162,14 @@ public class RepositoryContracts
     [Fact]
     public void IAggregateRepository_MustBeInterface()
     {
-        _aggregateRepoType.IsInterface.Should().BeTrue();
+        _aggregateRepoType.IsInterface.ShouldBeTrue();
     }
 
     [Fact]
     public void IAggregateRepository_MustExtendIRepository()
     {
         var interfaces = _aggregateRepoType.GetInterfaces();
-        interfaces.Should().Contain(i =>
+        interfaces.ShouldContain(i =>
             i.IsGenericType && i.GetGenericTypeDefinition() == _repoType);
     }
 
@@ -177,7 +177,7 @@ public class RepositoryContracts
     public void IAggregateRepository_MustHaveSaveAsyncMethod()
     {
         var method = _aggregateRepoType.GetMethod("SaveAsync");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     // === PagedResult<T> Contract ===
@@ -186,85 +186,85 @@ public class RepositoryContracts
     public void PagedResult_MustBeRecord()
     {
         // Records have a special <Clone>$ method
-        _pagedResultType.GetMethod("<Clone>$").Should().NotBeNull();
+        _pagedResultType.GetMethod("<Clone>$").ShouldNotBeNull();
     }
 
     [Fact]
     public void PagedResult_MustHaveItemsProperty()
     {
         var property = _pagedResultType.GetProperty("Items");
-        property.Should().NotBeNull();
-        property!.CanRead.Should().BeTrue();
+        property.ShouldNotBeNull();
+        property!.CanRead.ShouldBeTrue();
     }
 
     [Fact]
     public void PagedResult_MustHavePageNumberProperty()
     {
         var property = _pagedResultType.GetProperty("PageNumber");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<int>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(int));
     }
 
     [Fact]
     public void PagedResult_MustHavePageSizeProperty()
     {
         var property = _pagedResultType.GetProperty("PageSize");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<int>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(int));
     }
 
     [Fact]
     public void PagedResult_MustHaveTotalCountProperty()
     {
         var property = _pagedResultType.GetProperty("TotalCount");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<int>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(int));
     }
 
     [Fact]
     public void PagedResult_MustHaveTotalPagesProperty()
     {
         var property = _pagedResultType.GetProperty("TotalPages");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<int>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(int));
     }
 
     [Fact]
     public void PagedResult_MustHaveHasPreviousPageProperty()
     {
         var property = _pagedResultType.GetProperty("HasPreviousPage");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<bool>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(bool));
     }
 
     [Fact]
     public void PagedResult_MustHaveHasNextPageProperty()
     {
         var property = _pagedResultType.GetProperty("HasNextPage");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<bool>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(bool));
     }
 
     [Fact]
     public void PagedResult_MustHaveIsEmptyProperty()
     {
         var property = _pagedResultType.GetProperty("IsEmpty");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<bool>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(bool));
     }
 
     [Fact]
     public void PagedResult_MustHaveEmptyStaticMethod()
     {
         var method = _pagedResultType.GetMethod("Empty", BindingFlags.Static | BindingFlags.Public);
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void PagedResult_MustHaveMapMethod()
     {
         var method = _pagedResultType.GetMethod("Map");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     // === RepositoryError Contract ===
@@ -272,31 +272,31 @@ public class RepositoryContracts
     [Fact]
     public void RepositoryError_MustBeRecord()
     {
-        _repoErrorType.GetMethod("<Clone>$").Should().NotBeNull();
+        _repoErrorType.GetMethod("<Clone>$").ShouldNotBeNull();
     }
 
     [Fact]
     public void RepositoryError_MustHaveMessageProperty()
     {
         var property = _repoErrorType.GetProperty("Message");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
     public void RepositoryError_MustHaveErrorCodeProperty()
     {
         var property = _repoErrorType.GetProperty("ErrorCode");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
     public void RepositoryError_MustHaveEntityTypeProperty()
     {
         var property = _repoErrorType.GetProperty("EntityType");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<Type>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(Type));
     }
 
     [Fact]
@@ -307,11 +307,11 @@ public class RepositoryContracts
             .Select(m => m.Name)
             .ToList();
 
-        methods.Should().Contain("NotFound");
-        methods.Should().Contain("AlreadyExists");
-        methods.Should().Contain("ConcurrencyConflict");
-        methods.Should().Contain("OperationFailed");
-        methods.Should().Contain("InvalidPagination");
+        methods.ShouldContain("NotFound");
+        methods.ShouldContain("AlreadyExists");
+        methods.ShouldContain("ConcurrencyConflict");
+        methods.ShouldContain("OperationFailed");
+        methods.ShouldContain("InvalidPagination");
     }
 
     // === RepositoryExtensions Contract ===
@@ -319,8 +319,8 @@ public class RepositoryContracts
     [Fact]
     public void RepositoryExtensions_MustBeStaticClass()
     {
-        _repoExtensionsType.IsAbstract.Should().BeTrue();
-        _repoExtensionsType.IsSealed.Should().BeTrue();
+        _repoExtensionsType.IsAbstract.ShouldBeTrue();
+        _repoExtensionsType.IsSealed.ShouldBeTrue();
     }
 
     [Fact]
@@ -329,9 +329,9 @@ public class RepositoryContracts
         var method = _repoExtensionsType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "GetByIdOrErrorAsync");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         method!.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue();
+            .ShouldBeTrue();
     }
 
     [Fact]
@@ -340,9 +340,9 @@ public class RepositoryContracts
         var method = _repoExtensionsType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "GetByIdOrThrowAsync");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         method!.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue();
+            .ShouldBeTrue();
     }
 
     // === EntityNotFoundException Contract ===
@@ -350,36 +350,36 @@ public class RepositoryContracts
     [Fact]
     public void EntityNotFoundException_MustExtendException()
     {
-        _entityNotFoundType.Should().BeDerivedFrom<Exception>();
+        _entityNotFoundType.IsSubclassOf(typeof(Exception)).ShouldBeTrue();
     }
 
     [Fact]
     public void EntityNotFoundException_MustHaveEntityTypeProperty()
     {
         var property = _entityNotFoundType.GetProperty("EntityType");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<Type>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(Type));
     }
 
     [Fact]
     public void EntityNotFoundException_MustHaveEntityIdProperty()
     {
         var property = _entityNotFoundType.GetProperty("EntityId");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
     public void EntityNotFoundException_MustHaveConstructorWithTypeAndId()
     {
         var constructor = _entityNotFoundType.GetConstructor([typeof(Type), typeof(string)]);
-        constructor.Should().NotBeNull();
+        constructor.ShouldNotBeNull();
     }
 
     [Fact]
     public void EntityNotFoundException_MustHaveConstructorWithInnerException()
     {
         var constructor = _entityNotFoundType.GetConstructor([typeof(Type), typeof(string), typeof(Exception)]);
-        constructor.Should().NotBeNull();
+        constructor.ShouldNotBeNull();
     }
 }

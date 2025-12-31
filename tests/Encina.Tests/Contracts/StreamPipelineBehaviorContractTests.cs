@@ -1,5 +1,5 @@
-﻿using System.Runtime.CompilerServices;
-using FluentAssertions;
+using System.Runtime.CompilerServices;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
@@ -35,11 +35,11 @@ public sealed class StreamPipelineBehaviorContractTests
         }
 
         // Assert
-        results.Should().HaveCount(5, "behavior should yield all items from nextStep");
+        results.Count.ShouldBe(5, "behavior should yield all items from nextStep");
         results.AllShouldBeSuccess();
 
         var values = results.Select(r => r.Match(Left: _ => 0, Right: v => v)).ToList();
-        values.Should().Equal(new[] { 1, 2, 3, 4, 5 }, "items should preserve order");
+        values.ShouldBe([1, 2, 3, 4, 5]);  // items should preserve order
     }
 
     [Fact]
@@ -61,9 +61,9 @@ public sealed class StreamPipelineBehaviorContractTests
         }
 
         // Assert
-        results.Should().HaveCount(3);
+        results.Count.ShouldBe(3);
         var values = results.Select(r => r.Match(Left: _ => 0, Right: v => v)).ToList();
-        values.Should().Equal(new[] { 10, 20, 30 }, "behavior should transform each item");
+        values.ShouldBe([10, 20, 30]);  // behavior should transform each item
     }
 
     [Fact]
@@ -85,9 +85,9 @@ public sealed class StreamPipelineBehaviorContractTests
         }
 
         // Assert
-        results.Should().HaveCount(5, "behavior should filter out odd numbers");
+        results.Count.ShouldBe(5, "behavior should filter out odd numbers");
         var values = results.Select(r => r.Match(Left: _ => 0, Right: v => v)).ToList();
-        values.Should().Equal(new[] { 2, 4, 6, 8, 10 }, "only even numbers should be yielded");
+        values.ShouldBe([2, 4, 6, 8, 10]);  // only even numbers should be yielded
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public sealed class StreamPipelineBehaviorContractTests
         }
 
         // Assert
-        results.Should().HaveCount(3);
+        results.Count.ShouldBe(3);
         results[0].ShouldBeSuccess();
         results[1].ShouldBeError("behavior should preserve error from nextStep");
         results[2].ShouldBeSuccess();
@@ -118,7 +118,7 @@ public sealed class StreamPipelineBehaviorContractTests
             Left: e => e,
             Right: _ => throw new InvalidOperationException("Expected Left"));
 
-        error.GetEncinaCode().Should().Be("TEST_ERROR");
+        error.GetEncinaCode().ShouldBe("TEST_ERROR");
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public sealed class StreamPipelineBehaviorContractTests
         }
 
         // Assert
-        results.Should().HaveCountLessThan(100, "behavior should respect cancellation");
+        results.Count.ShouldBeLessThan(100, "behavior should respect cancellation");
     }
 
     [Fact]
@@ -174,8 +174,8 @@ public sealed class StreamPipelineBehaviorContractTests
         }
 
         // Assert
-        behavior.CapturedCorrelationId.Should().NotBeEmpty("behavior should have access to context");
-        behavior.CapturedCorrelationId.Should().Be(context.CorrelationId.ToString());
+        behavior.CapturedCorrelationId.ShouldNotBeEmpty("behavior should have access to context");
+        behavior.CapturedCorrelationId.ShouldBe(context.CorrelationId.ToString());
     }
 
     #endregion
@@ -203,9 +203,9 @@ public sealed class StreamPipelineBehaviorContractTests
         }
 
         // Assert
-        results.Should().HaveCount(3);
+        results.Count.ShouldBe(3);
         var values = results.Select(r => r.Match(Left: _ => 0, Right: v => v)).ToList();
-        values.Should().Equal(new[] { 10, 20, 30 }, "behavior should transform items");
+        values.ShouldBe([10, 20, 30]);  // behavior should transform items
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public sealed class StreamPipelineBehaviorContractTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<TestStreamRequest, int>, TestStreamHandler>();
 
-        // Register behaviors in order: Multiply → Filter
+        // Register behaviors in order: Multiply ? Filter
         services.AddTransient<IStreamPipelineBehavior<TestStreamRequest, int>, MultiplyByTenBehavior>();
         services.AddTransient<IStreamPipelineBehavior<TestStreamRequest, int>, EvenOnlyBehavior>();
 
@@ -233,13 +233,13 @@ public sealed class StreamPipelineBehaviorContractTests
         }
 
         // Assert
-        // Behaviors execute in registration order: Multiply → Filter
+        // Behaviors execute in registration order: Multiply ? Filter
         // Original: 1, 2, 3, 4, 5
         // After Filter (even only): 2, 4 (1, 3, 5 are odd, filtered out)
         // After Multiply: 20, 40
-        results.Should().HaveCount(2);
+        results.Count.ShouldBe(2);
         var values = results.Select(r => r.Match(Left: _ => 0, Right: v => v)).ToList();
-        values.Should().Equal(new[] { 20, 40 });
+        values.ShouldBe(new[] { 20, 40 });
     }
 
     #endregion
@@ -257,7 +257,6 @@ public sealed class StreamPipelineBehaviorContractTests
             for (var i = 1; i <= request.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await Task.Delay(1, cancellationToken);
                 yield return Right<EncinaError, int>(i);
             }
         }

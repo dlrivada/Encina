@@ -1,5 +1,5 @@
 using Encina.AzureFunctions.Durable;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Xunit;
 
@@ -23,11 +23,11 @@ public sealed class ActivityResultContractTests
         var roundTripped = activityResult.ToEither();
 
         // Assert
-        roundTripped.IsRight.Should().BeTrue();
+        roundTripped.IsRight.ShouldBeTrue();
         var value = roundTripped.Match(
             Right: v => v,
             Left: _ => throw new InvalidOperationException("Expected Right"));
-        value.Should().Be(originalValue);
+        value.ShouldBe(originalValue);
     }
 
     [Fact]
@@ -44,12 +44,12 @@ public sealed class ActivityResultContractTests
         var roundTripped = activityResult.ToEither();
 
         // Assert
-        roundTripped.IsLeft.Should().BeTrue();
+        roundTripped.IsLeft.ShouldBeTrue();
         var resultError = roundTripped.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: e => e);
-        resultError.Message.Should().Be(errorMessage);
-        resultError.GetCode().IfNone(string.Empty).Should().Be(errorCode);
+        resultError.Message.ShouldBe(errorMessage);
+        resultError.GetCode().IfNone(string.Empty).ShouldBe(errorCode);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class ActivityResultContractTests
         var roundTripped = activityResult.ToEither();
 
         // Assert
-        roundTripped.IsRight.Should().BeTrue();
+        roundTripped.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class ActivityResultContractTests
         var roundTripped = activityResult.ToEither();
 
         // Assert
-        roundTripped.IsLeft.Should().BeTrue();
+        roundTripped.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -88,10 +88,10 @@ public sealed class ActivityResultContractTests
         var result = ActivityResult<int>.Success(42);
 
         // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().Be(42);
-        result.ErrorCode.Should().BeNull();
-        result.ErrorMessage.Should().BeNull();
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(42);
+        result.ErrorCode.ShouldBeNull();
+        result.ErrorMessage.ShouldBeNull();
     }
 
     [Fact]
@@ -104,10 +104,10 @@ public sealed class ActivityResultContractTests
         var result = ActivityResult<int>.Failure(error);
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Value.Should().Be(default);
-        result.ErrorCode.Should().Be("code");
-        result.ErrorMessage.Should().Be("message");
+        result.IsSuccess.ShouldBeFalse();
+        result.Value.ShouldBe(default);
+        result.ErrorCode.ShouldBe("code");
+        result.ErrorMessage.ShouldBe("message");
     }
 
     [Fact]
@@ -117,9 +117,9 @@ public sealed class ActivityResultContractTests
         var result = ActivityResult<int>.Failure("error.code", "Error message");
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.ErrorCode.Should().Be("error.code");
-        result.ErrorMessage.Should().Be("Error message");
+        result.IsSuccess.ShouldBeFalse();
+        result.ErrorCode.ShouldBe("error.code");
+        result.ErrorMessage.ShouldBe("Error message");
     }
 
     [Fact]
@@ -132,8 +132,8 @@ public sealed class ActivityResultContractTests
         var either = result.ToEither();
 
         // Assert
-        either.IsRight.Should().BeTrue();
-        either.IfRight(v => v.Should().Be("test-data"));
+        either.IsRight.ShouldBeTrue();
+        either.IfRight(v => v.ShouldBe("test-data"));
     }
 
     [Fact]
@@ -146,11 +146,11 @@ public sealed class ActivityResultContractTests
         var either = result.ToEither();
 
         // Assert
-        either.IsLeft.Should().BeTrue();
+        either.IsLeft.ShouldBeTrue();
         either.IfLeft(e =>
         {
-            e.GetCode().IfNone(string.Empty).Should().Be("my.code");
-            e.Message.Should().Be("My message");
+            e.GetCode().IfNone(string.Empty).ShouldBe("my.code");
+            e.Message.ShouldBe("My message");
         });
     }
 
@@ -169,10 +169,10 @@ public sealed class ActivityResultContractTests
         var either = result.ToEither();
 
         // Assert
-        either.IsLeft.Should().BeTrue();
+        either.IsLeft.ShouldBeTrue();
         either.IfLeft(e =>
         {
-            e.GetCode().IfNone(string.Empty).Should().Be("durable.activity_failed");
+            e.GetCode().IfNone(string.Empty).ShouldBe("durable.activity_failed");
         });
     }
 
@@ -191,10 +191,10 @@ public sealed class ActivityResultContractTests
         var either = result.ToEither();
 
         // Assert
-        either.IsLeft.Should().BeTrue();
+        either.IsLeft.ShouldBeTrue();
         either.IfLeft(e =>
         {
-            e.Message.Should().Be("Activity failed");
+            e.Message.ShouldBe("Activity failed");
         });
     }
 
@@ -215,12 +215,12 @@ public sealed class ActivityResultContractTests
         var roundTripped = activityResult.ToEither();
 
         // Assert
-        roundTripped.IsRight.Should().BeTrue();
+        roundTripped.IsRight.ShouldBeTrue();
         roundTripped.IfRight(v =>
         {
-            v.Id.Should().Be(complexValue.Id);
-            v.Name.Should().Be(complexValue.Name);
-            v.CreatedAt.Should().Be(complexValue.CreatedAt);
+            v.Id.ShouldBe(complexValue.Id);
+            v.Name.ShouldBe(complexValue.Name);
+            v.CreatedAt.ShouldBe(complexValue.CreatedAt);
         });
     }
 

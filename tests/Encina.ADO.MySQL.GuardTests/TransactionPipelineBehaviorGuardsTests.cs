@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Encina.ADO.MySQL;
 
 namespace Encina.ADO.MySQL.GuardTests;
@@ -19,7 +19,8 @@ public class TransactionPipelineBehaviorGuardsTests
 
         // Act & Assert
         var act = () => new TransactionPipelineBehavior<TestRequest, string>(connection);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connection");
     }
 
     /// <summary>

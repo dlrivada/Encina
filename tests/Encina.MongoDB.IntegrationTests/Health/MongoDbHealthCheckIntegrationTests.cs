@@ -33,8 +33,8 @@ public sealed class MongoDbHealthCheckIntegrationTests : IClassFixture<MongoDbFi
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("reachable");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("reachable");
     }
 
     [SkippableFact]
@@ -51,8 +51,8 @@ public sealed class MongoDbHealthCheckIntegrationTests : IClassFixture<MongoDbFi
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        healthCheck.Name.Should().Be("my-custom-mongodb");
-        result.Status.Should().Be(HealthStatus.Healthy);
+        healthCheck.Name.ShouldBe("my-custom-mongodb");
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [SkippableFact]
@@ -65,10 +65,10 @@ public sealed class MongoDbHealthCheckIntegrationTests : IClassFixture<MongoDbFi
         var healthCheck = new MongoDbHealthCheck(serviceProvider, null);
 
         // Assert
-        healthCheck.Tags.Should().Contain("encina");
-        healthCheck.Tags.Should().Contain("database");
-        healthCheck.Tags.Should().Contain("mongodb");
-        healthCheck.Tags.Should().Contain("ready");
+        healthCheck.Tags.ShouldContain("encina");
+        healthCheck.Tags.ShouldContain("database");
+        healthCheck.Tags.ShouldContain("mongodb");
+        healthCheck.Tags.ShouldContain("ready");
     }
 
     private ServiceProvider CreateServiceProvider()

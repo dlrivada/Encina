@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 #pragma warning disable S2925 // "Thread.Sleep" should not be used in tests - Required for thread synchronization simulation in non-async threads
@@ -14,7 +14,7 @@ public class RequestContextAccessorTests
         var accessor = new RequestContextAccessor();
 
         // Act & Assert
-        accessor.RequestContext.Should().BeNull();
+        accessor.RequestContext.ShouldBeNull();
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public class RequestContextAccessorTests
         accessor.RequestContext = context;
 
         // Assert
-        accessor.RequestContext.Should().Be(context);
+        accessor.RequestContext.ShouldBe(context);
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class RequestContextAccessorTests
         accessor.RequestContext = null;
 
         // Assert
-        accessor.RequestContext.Should().BeNull();
+        accessor.RequestContext.ShouldBeNull();
     }
 
     [Fact]
@@ -75,8 +75,8 @@ public class RequestContextAccessorTests
         await Task.WhenAll(task1, task2);
 
         // Assert - Each flow should maintain its own context
-        capturedCorrelationId1.Should().Be("context-1");
-        capturedCorrelationId2.Should().Be("context-2");
+        capturedCorrelationId1.ShouldBe("context-1");
+        capturedCorrelationId2.ShouldBe("context-2");
     }
 
     [Fact]
@@ -96,9 +96,9 @@ public class RequestContextAccessorTests
         var afterSecondAwait = accessor.RequestContext;
 
         // Assert
-        afterFirstAwait.Should().Be(context);
-        afterSecondAwait.Should().Be(context);
-        afterSecondAwait?.UserId.Should().NotBeNull();
+        afterFirstAwait.ShouldBe(context);
+        afterSecondAwait.ShouldBe(context);
+        afterSecondAwait?.UserId.ShouldNotBeNull();
     }
 
     [Fact]
@@ -114,8 +114,8 @@ public class RequestContextAccessorTests
         await Task.Yield(); // Force async continuation
 
         // Assert - Both accessors should see the same AsyncLocal value
-        accessor2.RequestContext.Should().Be(context);
-        accessor2.RequestContext?.CorrelationId.Should().Be("shared-context");
+        accessor2.RequestContext.ShouldBe(context);
+        accessor2.RequestContext?.CorrelationId.ShouldBe("shared-context");
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public class RequestContextAccessorTests
         var result = await OuterAsyncMethod();
 
         // Assert
-        result.Should().Be("outer-user");
+        result.ShouldBe("outer-user");
     }
 
     [Fact]
@@ -165,11 +165,11 @@ public class RequestContextAccessorTests
         threads.ForEach(t => t.Join());
 
         // Assert - Each thread should have its own correlation ID
-        results.Should().HaveCount(5);
-        results.Should().Contain("thread-0");
-        results.Should().Contain("thread-1");
-        results.Should().Contain("thread-2");
-        results.Should().Contain("thread-3");
-        results.Should().Contain("thread-4");
+        results.Count.ShouldBe(5);
+        results.ShouldContain("thread-0");
+        results.ShouldContain("thread-1");
+        results.ShouldContain("thread-2");
+        results.ShouldContain("thread-3");
+        results.ShouldContain("thread-4");
     }
 }

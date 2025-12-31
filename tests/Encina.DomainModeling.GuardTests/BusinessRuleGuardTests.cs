@@ -31,7 +31,8 @@ public class BusinessRuleGuardTests
         var act = () => rule.Check();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rule");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rule");
     }
 
     [Fact]
@@ -44,7 +45,8 @@ public class BusinessRuleGuardTests
         var act = () => rules.CheckFirst();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rules");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rules");
     }
 
     [Fact]
@@ -57,7 +59,8 @@ public class BusinessRuleGuardTests
         var act = () => rules.CheckAll();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rules");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rules");
     }
 
     [Fact]
@@ -70,7 +73,8 @@ public class BusinessRuleGuardTests
         var act = () => rule.ThrowIfNotSatisfied();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rule");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rule");
     }
 
     [Fact]
@@ -83,7 +87,8 @@ public class BusinessRuleGuardTests
         var act = () => rules.ThrowIfAnyNotSatisfied();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rules");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rules");
     }
 
     #endregion
@@ -97,7 +102,8 @@ public class BusinessRuleGuardTests
         var act = () => BusinessRuleError.From(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rule");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rule");
     }
 
     #endregion
@@ -111,7 +117,8 @@ public class BusinessRuleGuardTests
         var act = () => AggregateBusinessRuleError.FromRules(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rules");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rules");
     }
 
     #endregion
@@ -125,7 +132,8 @@ public class BusinessRuleGuardTests
         var act = () => new BusinessRuleViolationException(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("brokenRule");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("brokenRule");
     }
 
     [Fact]
@@ -135,7 +143,8 @@ public class BusinessRuleGuardTests
         var act = () => new BusinessRuleViolationException(null!, new InvalidOperationException("inner"));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("brokenRule");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("brokenRule");
     }
 
     #endregion

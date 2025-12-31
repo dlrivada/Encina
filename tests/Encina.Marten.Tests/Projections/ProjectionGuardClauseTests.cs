@@ -1,5 +1,5 @@
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -24,8 +24,8 @@ public sealed class ProjectionGuardClauseTests
             Substitute.For<ILogger<MartenReadModelRepository<OrderSummary>>>());
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("session");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("session");
     }
 
     [Fact]
@@ -37,8 +37,8 @@ public sealed class ProjectionGuardClauseTests
             null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -47,12 +47,10 @@ public sealed class ProjectionGuardClauseTests
         // Arrange
         var repo = CreateMockRepository();
 
-        // Act
-        var act = async () => await repo.QueryAsync(null!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("predicate");
+        // Act & Assert
+        Func<Task> act = () => repo.QueryAsync(null!);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("predicate");
     }
 
     [Fact]
@@ -61,12 +59,10 @@ public sealed class ProjectionGuardClauseTests
         // Arrange
         var repo = CreateMockRepository();
 
-        // Act
-        var act = async () => await repo.StoreAsync(null!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("readModel");
+        // Act & Assert
+        Func<Task> act = () => repo.StoreAsync(null!);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("readModel");
     }
 
     [Fact]
@@ -75,12 +71,10 @@ public sealed class ProjectionGuardClauseTests
         // Arrange
         var repo = CreateMockRepository();
 
-        // Act
-        var act = async () => await repo.StoreManyAsync(null!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("readModels");
+        // Act & Assert
+        Func<Task> act = () => repo.StoreManyAsync(null!);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("readModels");
     }
 
     #endregion
@@ -98,8 +92,8 @@ public sealed class ProjectionGuardClauseTests
             new ProjectionRegistry());
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("store");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("store");
     }
 
     [Fact]
@@ -113,8 +107,8 @@ public sealed class ProjectionGuardClauseTests
             new ProjectionRegistry());
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("serviceProvider");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("serviceProvider");
     }
 
     [Fact]
@@ -128,8 +122,8 @@ public sealed class ProjectionGuardClauseTests
             new ProjectionRegistry());
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -143,8 +137,8 @@ public sealed class ProjectionGuardClauseTests
             null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("registry");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("registry");
     }
 
     #endregion
@@ -162,8 +156,8 @@ public sealed class ProjectionGuardClauseTests
             new ProjectionRegistry());
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("session");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("session");
     }
 
     [Fact]
@@ -177,8 +171,8 @@ public sealed class ProjectionGuardClauseTests
             new ProjectionRegistry());
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("serviceProvider");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("serviceProvider");
     }
 
     [Fact]
@@ -192,8 +186,8 @@ public sealed class ProjectionGuardClauseTests
             new ProjectionRegistry());
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -207,8 +201,8 @@ public sealed class ProjectionGuardClauseTests
             null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("registry");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("registry");
     }
 
     [Fact]
@@ -217,12 +211,10 @@ public sealed class ProjectionGuardClauseTests
         // Arrange
         var dispatcher = CreateMockDispatcher();
 
-        // Act
-        var act = async () => await dispatcher.DispatchAsync(null!, new ProjectionContext());
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("domainEvent");
+        // Act & Assert
+        Func<Task> act = () => dispatcher.DispatchAsync(null!, new ProjectionContext());
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("domainEvent");
     }
 
     [Fact]
@@ -231,12 +223,10 @@ public sealed class ProjectionGuardClauseTests
         // Arrange
         var dispatcher = CreateMockDispatcher();
 
-        // Act
-        var act = async () => await dispatcher.DispatchAsync(new OrderCreated("Test"), null!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        // Act & Assert
+        Func<Task> act = () => dispatcher.DispatchAsync(new OrderCreated("Test"), null!);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -245,12 +235,10 @@ public sealed class ProjectionGuardClauseTests
         // Arrange
         var dispatcher = CreateMockDispatcher();
 
-        // Act
-        var act = async () => await dispatcher.DispatchManyAsync(null!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("events");
+        // Act & Assert
+        Func<Task> act = () => dispatcher.DispatchManyAsync(null!);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("events");
     }
 
     #endregion
@@ -267,8 +255,8 @@ public sealed class ProjectionGuardClauseTests
         var act = () => registry.GetProjectionsForEvent(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("eventType");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("eventType");
     }
 
     #endregion

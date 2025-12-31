@@ -1,4 +1,4 @@
-﻿using LanguageExt;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using static LanguageExt.Prelude;
@@ -47,7 +47,7 @@ public sealed class QuartzNotificationJobContractTests
         var exception = await Assert.ThrowsAsync<JobExecutionException>(() =>
             job.Execute(context));
 
-        exception.Message.Should().Contain("not found in JobDataMap");
+        exception.Message.ShouldContain("not found in JobDataMap");
     }
 
     // Helper methods

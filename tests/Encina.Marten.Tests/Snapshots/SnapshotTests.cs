@@ -21,10 +21,10 @@ public sealed class SnapshotTests
             createdAt);
 
         // Assert
-        snapshot.AggregateId.Should().Be(aggregateId);
-        snapshot.Version.Should().Be(version);
-        snapshot.State.Should().Be(aggregate);
-        snapshot.CreatedAtUtc.Should().Be(createdAt);
+        snapshot.AggregateId.ShouldBe(aggregateId);
+        snapshot.Version.ShouldBe(version);
+        snapshot.State.ShouldBe(aggregate);
+        snapshot.CreatedAtUtc.ShouldBe(createdAt);
     }
 
     [Fact]
@@ -41,8 +41,8 @@ public sealed class SnapshotTests
             DateTime.UtcNow);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("state");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("state");
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class SnapshotTests
             DateTime.UtcNow);
 
         // Act & Assert
-        snapshot.AggregateId.Should().Be(aggregateId);
+        snapshot.AggregateId.ShouldBe(aggregateId);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class SnapshotTests
             DateTime.UtcNow);
 
         // Act & Assert
-        snapshot.Version.Should().Be(42);
+        snapshot.Version.ShouldBe(42);
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class SnapshotTests
             createdAt);
 
         // Act & Assert
-        snapshot.CreatedAtUtc.Should().Be(createdAt);
+        snapshot.CreatedAtUtc.ShouldBe(createdAt);
     }
 
     [Fact]
@@ -108,9 +108,9 @@ public sealed class SnapshotTests
             DateTime.UtcNow);
 
         // Assert
-        snapshot.State.Name.Should().Be("Test Order");
-        snapshot.State.Total.Should().Be(300m);
-        snapshot.State.ItemCount.Should().Be(2);
+        snapshot.State.Name.ShouldBe("Test Order");
+        snapshot.State.Total.ShouldBe(300m);
+        snapshot.State.ItemCount.ShouldBe(2);
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public sealed class SnapshotTests
         static int GetVersion(ISnapshot<TestSnapshotableAggregate> s) => s.Version;
 
         // Assert
-        snapshot.Should().NotBeNull();
-        GetVersion(snapshot).Should().Be(5);
+        snapshot.ShouldNotBeNull();
+        GetVersion(snapshot).ShouldBe(5);
     }
 }

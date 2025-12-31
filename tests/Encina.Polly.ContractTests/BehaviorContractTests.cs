@@ -1,4 +1,4 @@
-﻿namespace Encina.Polly.ContractTests;
+namespace Encina.Polly.ContractTests;
 
 /// <summary>
 /// Contract tests for Polly pipeline behaviors.
@@ -13,7 +13,7 @@ public class BehaviorContractTests
         var behaviorType = typeof(RetryPipelineBehavior<,>);
 
         // Assert
-        behaviorType.GetInterfaces().Should().Contain(i =>
+        behaviorType.GetInterfaces().ShouldContain(i =>
             i.IsGenericType &&
             i.GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>),
             "RetryPipelineBehavior must implement IPipelineBehavior<,>");
@@ -26,7 +26,7 @@ public class BehaviorContractTests
         var behaviorType = typeof(CircuitBreakerPipelineBehavior<,>);
 
         // Assert
-        behaviorType.GetInterfaces().Should().Contain(i =>
+        behaviorType.GetInterfaces().ShouldContain(i =>
             i.IsGenericType &&
             i.GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>),
             "CircuitBreakerPipelineBehavior must implement IPipelineBehavior<,>");
@@ -36,14 +36,14 @@ public class BehaviorContractTests
     public void RetryAttribute_MustInheritFromAttribute()
     {
         // Assert
-        typeof(RetryAttribute).Should().BeDerivedFrom<Attribute>("RetryAttribute must inherit from Attribute");
+        typeof(RetryAttribute).IsSubclassOf(typeof(Attribute)).ShouldBeTrue("RetryAttribute must inherit from Attribute");
     }
 
     [Fact]
     public void CircuitBreakerAttribute_MustInheritFromAttribute()
     {
         // Assert
-        typeof(CircuitBreakerAttribute).Should().BeDerivedFrom<Attribute>("CircuitBreakerAttribute must inherit from Attribute");
+        typeof(CircuitBreakerAttribute).IsSubclassOf(typeof(Attribute)).ShouldBeTrue("CircuitBreakerAttribute must inherit from Attribute");
     }
 
     [Fact]
@@ -55,8 +55,8 @@ public class BehaviorContractTests
             .FirstOrDefault() as AttributeUsageAttribute;
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.ValidOn.Should().Be(AttributeTargets.Class);
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.ValidOn.ShouldBe(AttributeTargets.Class);
     }
 
     [Fact]
@@ -68,8 +68,8 @@ public class BehaviorContractTests
             .FirstOrDefault() as AttributeUsageAttribute;
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.ValidOn.Should().Be(AttributeTargets.Class);
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.ValidOn.ShouldBe(AttributeTargets.Class);
     }
 
     [Fact]
@@ -80,9 +80,9 @@ public class BehaviorContractTests
         var handleMethod = behaviorType.GetMethod("Handle");
 
         // Assert
-        handleMethod.Should().NotBeNull("Handle method must exist");
-        handleMethod!.ReturnType.IsGenericType.Should().BeTrue();
-        handleMethod.ReturnType.GetGenericTypeDefinition().Should().Be(typeof(ValueTask<>));
+        handleMethod.ShouldNotBeNull("Handle method must exist");
+        handleMethod!.ReturnType.IsGenericType.ShouldBeTrue();
+        handleMethod.ReturnType.GetGenericTypeDefinition().ShouldBe(typeof(ValueTask<>));
     }
 
     [Fact]
@@ -93,9 +93,9 @@ public class BehaviorContractTests
         var handleMethod = behaviorType.GetMethod("Handle");
 
         // Assert
-        handleMethod.Should().NotBeNull("Handle method must exist");
-        handleMethod!.ReturnType.IsGenericType.Should().BeTrue();
-        handleMethod.ReturnType.GetGenericTypeDefinition().Should().Be(typeof(ValueTask<>));
+        handleMethod.ShouldNotBeNull("Handle method must exist");
+        handleMethod!.ReturnType.IsGenericType.ShouldBeTrue();
+        handleMethod.ReturnType.GetGenericTypeDefinition().ShouldBe(typeof(ValueTask<>));
     }
 
     #region RateLimiting Contract Tests
@@ -107,7 +107,7 @@ public class BehaviorContractTests
         var behaviorType = typeof(RateLimitingPipelineBehavior<,>);
 
         // Assert
-        behaviorType.GetInterfaces().Should().Contain(i =>
+        behaviorType.GetInterfaces().ShouldContain(i =>
             i.IsGenericType &&
             i.GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>),
             "RateLimitingPipelineBehavior must implement IPipelineBehavior<,>");
@@ -117,7 +117,7 @@ public class BehaviorContractTests
     public void RateLimitAttribute_MustInheritFromAttribute()
     {
         // Assert
-        typeof(RateLimitAttribute).Should().BeDerivedFrom<Attribute>("RateLimitAttribute must inherit from Attribute");
+        typeof(RateLimitAttribute).IsSubclassOf(typeof(Attribute)).ShouldBeTrue("RateLimitAttribute must inherit from Attribute");
     }
 
     [Fact]
@@ -129,8 +129,8 @@ public class BehaviorContractTests
             .FirstOrDefault() as AttributeUsageAttribute;
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.ValidOn.Should().Be(AttributeTargets.Class);
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.ValidOn.ShouldBe(AttributeTargets.Class);
     }
 
     [Fact]
@@ -141,9 +141,9 @@ public class BehaviorContractTests
         var handleMethod = behaviorType.GetMethod("Handle");
 
         // Assert
-        handleMethod.Should().NotBeNull("Handle method must exist");
-        handleMethod!.ReturnType.IsGenericType.Should().BeTrue();
-        handleMethod.ReturnType.GetGenericTypeDefinition().Should().Be(typeof(ValueTask<>));
+        handleMethod.ShouldNotBeNull("Handle method must exist");
+        handleMethod!.ReturnType.IsGenericType.ShouldBeTrue();
+        handleMethod.ReturnType.GetGenericTypeDefinition().ShouldBe(typeof(ValueTask<>));
     }
 
     [Fact]
@@ -154,8 +154,8 @@ public class BehaviorContractTests
         var acquireMethod = rateLimiterType.GetMethod("AcquireAsync");
 
         // Assert
-        acquireMethod.Should().NotBeNull("AcquireAsync method must exist on IRateLimiter");
-        acquireMethod!.ReturnType.Should().Be(typeof(ValueTask<RateLimitResult>));
+        acquireMethod.ShouldNotBeNull("AcquireAsync method must exist on IRateLimiter");
+        acquireMethod!.ReturnType.ShouldBe(typeof(ValueTask<RateLimitResult>));
     }
 
     [Fact]
@@ -166,8 +166,8 @@ public class BehaviorContractTests
         var method = rateLimiterType.GetMethod("RecordSuccess");
 
         // Assert
-        method.Should().NotBeNull("RecordSuccess method must exist on IRateLimiter");
-        method!.ReturnType.Should().Be(typeof(void));
+        method.ShouldNotBeNull("RecordSuccess method must exist on IRateLimiter");
+        method!.ReturnType.ShouldBe(typeof(void));
     }
 
     [Fact]
@@ -178,8 +178,8 @@ public class BehaviorContractTests
         var method = rateLimiterType.GetMethod("RecordFailure");
 
         // Assert
-        method.Should().NotBeNull("RecordFailure method must exist on IRateLimiter");
-        method!.ReturnType.Should().Be(typeof(void));
+        method.ShouldNotBeNull("RecordFailure method must exist on IRateLimiter");
+        method!.ReturnType.ShouldBe(typeof(void));
     }
 
     [Fact]
@@ -190,8 +190,8 @@ public class BehaviorContractTests
         var method = rateLimiterType.GetMethod("GetState");
 
         // Assert
-        method.Should().NotBeNull("GetState method must exist on IRateLimiter");
-        method!.ReturnType.Should().Be(typeof(RateLimitState?), "GetState returns nullable RateLimitState");
+        method.ShouldNotBeNull("GetState method must exist on IRateLimiter");
+        method!.ReturnType.ShouldBe(typeof(RateLimitState?), "GetState returns nullable RateLimitState");
     }
 
     [Fact]
@@ -202,15 +202,15 @@ public class BehaviorContractTests
         var method = rateLimiterType.GetMethod("Reset");
 
         // Assert
-        method.Should().NotBeNull("Reset method must exist on IRateLimiter");
-        method!.ReturnType.Should().Be(typeof(void));
+        method.ShouldNotBeNull("Reset method must exist on IRateLimiter");
+        method!.ReturnType.ShouldBe(typeof(void));
     }
 
     [Fact]
     public void AdaptiveRateLimiter_MustImplementIRateLimiter()
     {
         // Assert
-        typeof(AdaptiveRateLimiter).Should().Implement<IRateLimiter>("AdaptiveRateLimiter must implement IRateLimiter");
+        typeof(AdaptiveRateLimiter).GetInterfaces().ShouldContain(typeof(IRateLimiter), "AdaptiveRateLimiter must implement IRateLimiter");
     }
 
     [Fact]
@@ -220,21 +220,21 @@ public class BehaviorContractTests
         var values = Enum.GetValues<RateLimitState>();
 
         // Assert
-        values.Should().Contain(RateLimitState.Normal);
-        values.Should().Contain(RateLimitState.Throttled);
-        values.Should().Contain(RateLimitState.Recovering);
+        values.ShouldContain(RateLimitState.Normal);
+        values.ShouldContain(RateLimitState.Throttled);
+        values.ShouldContain(RateLimitState.Recovering);
     }
 
     [Fact]
     public void RateLimitResult_ShouldBeReadonlyRecordStruct()
     {
         // Assert
-        typeof(RateLimitResult).IsValueType.Should().BeTrue("RateLimitResult should be a value type");
+        typeof(RateLimitResult).IsValueType.ShouldBeTrue("RateLimitResult should be a value type");
         // Record structs don't have <Clone>$ method; check for PrintMembers or EqualityContract instead
         typeof(RateLimitResult)
             .GetMethods(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
             .Any(m => m.Name == "PrintMembers")
-            .Should().BeTrue("RateLimitResult should be a record struct (has PrintMembers)");
+            .ShouldBeTrue("RateLimitResult should be a record struct (has PrintMembers)");
     }
 
     [Fact]
@@ -244,12 +244,12 @@ public class BehaviorContractTests
         var type = typeof(RateLimitResult);
 
         // Assert
-        type.GetProperty("IsAllowed").Should().NotBeNull();
-        type.GetProperty("CurrentState").Should().NotBeNull();
-        type.GetProperty("RetryAfter").Should().NotBeNull();
-        type.GetProperty("CurrentCount").Should().NotBeNull();
-        type.GetProperty("CurrentLimit").Should().NotBeNull();
-        type.GetProperty("ErrorRate").Should().NotBeNull();
+        type.GetProperty("IsAllowed").ShouldNotBeNull();
+        type.GetProperty("CurrentState").ShouldNotBeNull();
+        type.GetProperty("RetryAfter").ShouldNotBeNull();
+        type.GetProperty("CurrentCount").ShouldNotBeNull();
+        type.GetProperty("CurrentLimit").ShouldNotBeNull();
+        type.GetProperty("ErrorRate").ShouldNotBeNull();
     }
 
     [Fact]
@@ -259,13 +259,13 @@ public class BehaviorContractTests
         var type = typeof(RateLimitAttribute);
 
         // Assert
-        type.GetProperty("MaxRequestsPerWindow").Should().NotBeNull();
-        type.GetProperty("WindowSizeSeconds").Should().NotBeNull();
-        type.GetProperty("ErrorThresholdPercent").Should().NotBeNull();
-        type.GetProperty("CooldownSeconds").Should().NotBeNull();
-        type.GetProperty("RampUpFactor").Should().NotBeNull();
-        type.GetProperty("EnableAdaptiveThrottling").Should().NotBeNull();
-        type.GetProperty("MinimumThroughputForThrottling").Should().NotBeNull();
+        type.GetProperty("MaxRequestsPerWindow").ShouldNotBeNull();
+        type.GetProperty("WindowSizeSeconds").ShouldNotBeNull();
+        type.GetProperty("ErrorThresholdPercent").ShouldNotBeNull();
+        type.GetProperty("CooldownSeconds").ShouldNotBeNull();
+        type.GetProperty("RampUpFactor").ShouldNotBeNull();
+        type.GetProperty("EnableAdaptiveThrottling").ShouldNotBeNull();
+        type.GetProperty("MinimumThroughputForThrottling").ShouldNotBeNull();
     }
 
     #endregion
@@ -279,7 +279,7 @@ public class BehaviorContractTests
         var behaviorType = typeof(BulkheadPipelineBehavior<,>);
 
         // Assert
-        behaviorType.GetInterfaces().Should().Contain(i =>
+        behaviorType.GetInterfaces().ShouldContain(i =>
             i.IsGenericType &&
             i.GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>),
             "BulkheadPipelineBehavior must implement IPipelineBehavior<,>");
@@ -289,7 +289,7 @@ public class BehaviorContractTests
     public void BulkheadAttribute_MustInheritFromAttribute()
     {
         // Assert
-        typeof(BulkheadAttribute).Should().BeDerivedFrom<Attribute>("BulkheadAttribute must inherit from Attribute");
+        typeof(BulkheadAttribute).IsSubclassOf(typeof(Attribute)).ShouldBeTrue("BulkheadAttribute must inherit from Attribute");
     }
 
     [Fact]
@@ -301,8 +301,8 @@ public class BehaviorContractTests
             .FirstOrDefault() as AttributeUsageAttribute;
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.ValidOn.Should().Be(AttributeTargets.Class);
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.ValidOn.ShouldBe(AttributeTargets.Class);
     }
 
     [Fact]
@@ -313,9 +313,9 @@ public class BehaviorContractTests
         var handleMethod = behaviorType.GetMethod("Handle");
 
         // Assert
-        handleMethod.Should().NotBeNull("Handle method must exist");
-        handleMethod!.ReturnType.IsGenericType.Should().BeTrue();
-        handleMethod.ReturnType.GetGenericTypeDefinition().Should().Be(typeof(ValueTask<>));
+        handleMethod.ShouldNotBeNull("Handle method must exist");
+        handleMethod!.ReturnType.IsGenericType.ShouldBeTrue();
+        handleMethod.ReturnType.GetGenericTypeDefinition().ShouldBe(typeof(ValueTask<>));
     }
 
     [Fact]
@@ -326,8 +326,8 @@ public class BehaviorContractTests
         var method = managerType.GetMethod("TryAcquireAsync");
 
         // Assert
-        method.Should().NotBeNull("TryAcquireAsync method must exist on IBulkheadManager");
-        method!.ReturnType.Should().Be(typeof(ValueTask<BulkheadAcquireResult>));
+        method.ShouldNotBeNull("TryAcquireAsync method must exist on IBulkheadManager");
+        method!.ReturnType.ShouldBe(typeof(ValueTask<BulkheadAcquireResult>));
     }
 
     [Fact]
@@ -338,8 +338,8 @@ public class BehaviorContractTests
         var method = managerType.GetMethod("GetMetrics");
 
         // Assert
-        method.Should().NotBeNull("GetMetrics method must exist on IBulkheadManager");
-        method!.ReturnType.Should().Be(typeof(BulkheadMetrics?));
+        method.ShouldNotBeNull("GetMetrics method must exist on IBulkheadManager");
+        method!.ReturnType.ShouldBe(typeof(BulkheadMetrics?));
     }
 
     [Fact]
@@ -350,22 +350,22 @@ public class BehaviorContractTests
         var method = managerType.GetMethod("Reset");
 
         // Assert
-        method.Should().NotBeNull("Reset method must exist on IBulkheadManager");
-        method!.ReturnType.Should().Be(typeof(void));
+        method.ShouldNotBeNull("Reset method must exist on IBulkheadManager");
+        method!.ReturnType.ShouldBe(typeof(void));
     }
 
     [Fact]
     public void BulkheadManager_MustImplementIBulkheadManager()
     {
         // Assert
-        typeof(BulkheadManager).Should().Implement<IBulkheadManager>("BulkheadManager must implement IBulkheadManager");
+        typeof(BulkheadManager).GetInterfaces().ShouldContain(typeof(IBulkheadManager), "BulkheadManager must implement IBulkheadManager");
     }
 
     [Fact]
     public void BulkheadManager_MustImplementIDisposable()
     {
         // Assert
-        typeof(BulkheadManager).Should().Implement<IDisposable>("BulkheadManager must implement IDisposable");
+        typeof(BulkheadManager).GetInterfaces().ShouldContain(typeof(IDisposable), "BulkheadManager must implement IDisposable");
     }
 
     [Fact]
@@ -375,21 +375,21 @@ public class BehaviorContractTests
         var values = Enum.GetValues<BulkheadRejectionReason>();
 
         // Assert
-        values.Should().Contain(BulkheadRejectionReason.None);
-        values.Should().Contain(BulkheadRejectionReason.BulkheadFull);
-        values.Should().Contain(BulkheadRejectionReason.QueueTimeout);
-        values.Should().Contain(BulkheadRejectionReason.Cancelled);
+        values.ShouldContain(BulkheadRejectionReason.None);
+        values.ShouldContain(BulkheadRejectionReason.BulkheadFull);
+        values.ShouldContain(BulkheadRejectionReason.QueueTimeout);
+        values.ShouldContain(BulkheadRejectionReason.Cancelled);
     }
 
     [Fact]
     public void BulkheadAcquireResult_ShouldBeReadonlyRecordStruct()
     {
         // Assert
-        typeof(BulkheadAcquireResult).IsValueType.Should().BeTrue("BulkheadAcquireResult should be a value type");
+        typeof(BulkheadAcquireResult).IsValueType.ShouldBeTrue("BulkheadAcquireResult should be a value type");
         typeof(BulkheadAcquireResult)
             .GetMethods(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
             .Any(m => m.Name == "PrintMembers")
-            .Should().BeTrue("BulkheadAcquireResult should be a record struct (has PrintMembers)");
+            .ShouldBeTrue("BulkheadAcquireResult should be a record struct (has PrintMembers)");
     }
 
     [Fact]
@@ -399,21 +399,21 @@ public class BehaviorContractTests
         var type = typeof(BulkheadAcquireResult);
 
         // Assert
-        type.GetProperty("IsAcquired").Should().NotBeNull();
-        type.GetProperty("RejectionReason").Should().NotBeNull();
-        type.GetProperty("Releaser").Should().NotBeNull();
-        type.GetProperty("Metrics").Should().NotBeNull();
+        type.GetProperty("IsAcquired").ShouldNotBeNull();
+        type.GetProperty("RejectionReason").ShouldNotBeNull();
+        type.GetProperty("Releaser").ShouldNotBeNull();
+        type.GetProperty("Metrics").ShouldNotBeNull();
     }
 
     [Fact]
     public void BulkheadMetrics_ShouldBeReadonlyRecordStruct()
     {
         // Assert
-        typeof(BulkheadMetrics).IsValueType.Should().BeTrue("BulkheadMetrics should be a value type");
+        typeof(BulkheadMetrics).IsValueType.ShouldBeTrue("BulkheadMetrics should be a value type");
         typeof(BulkheadMetrics)
             .GetMethods(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
             .Any(m => m.Name == "PrintMembers")
-            .Should().BeTrue("BulkheadMetrics should be a record struct (has PrintMembers)");
+            .ShouldBeTrue("BulkheadMetrics should be a record struct (has PrintMembers)");
     }
 
     [Fact]
@@ -423,15 +423,15 @@ public class BehaviorContractTests
         var type = typeof(BulkheadMetrics);
 
         // Assert
-        type.GetProperty("CurrentConcurrency").Should().NotBeNull();
-        type.GetProperty("CurrentQueuedCount").Should().NotBeNull();
-        type.GetProperty("MaxConcurrency").Should().NotBeNull();
-        type.GetProperty("MaxQueuedActions").Should().NotBeNull();
-        type.GetProperty("TotalAcquired").Should().NotBeNull();
-        type.GetProperty("TotalRejected").Should().NotBeNull();
-        type.GetProperty("ConcurrencyUtilization").Should().NotBeNull();
-        type.GetProperty("QueueUtilization").Should().NotBeNull();
-        type.GetProperty("RejectionRate").Should().NotBeNull();
+        type.GetProperty("CurrentConcurrency").ShouldNotBeNull();
+        type.GetProperty("CurrentQueuedCount").ShouldNotBeNull();
+        type.GetProperty("MaxConcurrency").ShouldNotBeNull();
+        type.GetProperty("MaxQueuedActions").ShouldNotBeNull();
+        type.GetProperty("TotalAcquired").ShouldNotBeNull();
+        type.GetProperty("TotalRejected").ShouldNotBeNull();
+        type.GetProperty("ConcurrencyUtilization").ShouldNotBeNull();
+        type.GetProperty("QueueUtilization").ShouldNotBeNull();
+        type.GetProperty("RejectionRate").ShouldNotBeNull();
     }
 
     [Fact]
@@ -441,9 +441,9 @@ public class BehaviorContractTests
         var type = typeof(BulkheadAttribute);
 
         // Assert
-        type.GetProperty("MaxConcurrency").Should().NotBeNull();
-        type.GetProperty("MaxQueuedActions").Should().NotBeNull();
-        type.GetProperty("QueueTimeoutMs").Should().NotBeNull();
+        type.GetProperty("MaxConcurrency").ShouldNotBeNull();
+        type.GetProperty("MaxQueuedActions").ShouldNotBeNull();
+        type.GetProperty("QueueTimeoutMs").ShouldNotBeNull();
     }
 
     #endregion

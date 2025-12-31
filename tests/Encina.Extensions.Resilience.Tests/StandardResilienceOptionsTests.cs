@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Polly;
 using Encina.Extensions.Resilience;
 using Xunit;
@@ -18,12 +18,12 @@ public class StandardResilienceOptionsTests
         var options = new StandardResilienceOptions();
 
         // Assert
-        options.Should().NotBeNull();
-        options.RateLimiter.Should().NotBeNull();
-        options.TotalRequestTimeout.Should().NotBeNull();
-        options.Retry.Should().NotBeNull();
-        options.CircuitBreaker.Should().NotBeNull();
-        options.AttemptTimeout.Should().NotBeNull();
+        options.ShouldNotBeNull();
+        options.RateLimiter.ShouldNotBeNull();
+        options.TotalRequestTimeout.ShouldNotBeNull();
+        options.Retry.ShouldNotBeNull();
+        options.CircuitBreaker.ShouldNotBeNull();
+        options.AttemptTimeout.ShouldNotBeNull();
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class StandardResilienceOptionsTests
         var options = new StandardResilienceOptions();
 
         // Assert
-        options.RateLimiter.Should().NotBeNull();
+        options.RateLimiter.ShouldNotBeNull();
         // RateLimiterStrategyOptions has internal properties, just verify it exists
     }
 
@@ -44,7 +44,7 @@ public class StandardResilienceOptionsTests
         var options = new StandardResilienceOptions();
 
         // Assert
-        options.TotalRequestTimeout.Timeout.Should().Be(TimeSpan.FromSeconds(30));
+        options.TotalRequestTimeout.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
     }
 
     [Fact]
@@ -54,10 +54,10 @@ public class StandardResilienceOptionsTests
         var options = new StandardResilienceOptions();
 
         // Assert
-        options.Retry.MaxRetryAttempts.Should().Be(3);
-        options.Retry.Delay.Should().Be(TimeSpan.FromSeconds(1));
-        options.Retry.BackoffType.Should().Be(DelayBackoffType.Exponential);
-        options.Retry.UseJitter.Should().BeTrue();
+        options.Retry.MaxRetryAttempts.ShouldBe(3);
+        options.Retry.Delay.ShouldBe(TimeSpan.FromSeconds(1));
+        options.Retry.BackoffType.ShouldBe(DelayBackoffType.Exponential);
+        options.Retry.UseJitter.ShouldBeTrue();
     }
 
     [Fact]
@@ -67,10 +67,10 @@ public class StandardResilienceOptionsTests
         var options = new StandardResilienceOptions();
 
         // Assert
-        options.CircuitBreaker.FailureRatio.Should().Be(0.1);
-        options.CircuitBreaker.MinimumThroughput.Should().Be(10);
-        options.CircuitBreaker.SamplingDuration.Should().Be(TimeSpan.FromSeconds(30));
-        options.CircuitBreaker.BreakDuration.Should().Be(TimeSpan.FromSeconds(5));
+        options.CircuitBreaker.FailureRatio.ShouldBe(0.1);
+        options.CircuitBreaker.MinimumThroughput.ShouldBe(10);
+        options.CircuitBreaker.SamplingDuration.ShouldBe(TimeSpan.FromSeconds(30));
+        options.CircuitBreaker.BreakDuration.ShouldBe(TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class StandardResilienceOptionsTests
         var options = new StandardResilienceOptions();
 
         // Assert
-        options.AttemptTimeout.Timeout.Should().Be(TimeSpan.FromSeconds(10));
+        options.AttemptTimeout.Timeout.ShouldBe(TimeSpan.FromSeconds(10));
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class StandardResilienceOptionsTests
         options.RateLimiter = newRateLimiter;
 
         // Assert
-        options.RateLimiter.Should().BeSameAs(newRateLimiter);
+        options.RateLimiter.ShouldBeSameAs(newRateLimiter);
     }
 
     [Fact]
@@ -108,8 +108,8 @@ public class StandardResilienceOptionsTests
         options.TotalRequestTimeout = newTimeout;
 
         // Assert
-        options.TotalRequestTimeout.Should().BeSameAs(newTimeout);
-        options.TotalRequestTimeout.Timeout.Should().Be(TimeSpan.FromSeconds(60));
+        options.TotalRequestTimeout.ShouldBeSameAs(newTimeout);
+        options.TotalRequestTimeout.Timeout.ShouldBe(TimeSpan.FromSeconds(60));
     }
 
     [Fact]
@@ -127,8 +127,8 @@ public class StandardResilienceOptionsTests
         options.Retry = newRetry;
 
         // Assert
-        options.Retry.Should().BeSameAs(newRetry);
-        options.Retry.MaxRetryAttempts.Should().Be(5);
+        options.Retry.ShouldBeSameAs(newRetry);
+        options.Retry.MaxRetryAttempts.ShouldBe(5);
     }
 
     [Fact]
@@ -145,8 +145,8 @@ public class StandardResilienceOptionsTests
         options.CircuitBreaker = newCircuitBreaker;
 
         // Assert
-        options.CircuitBreaker.Should().BeSameAs(newCircuitBreaker);
-        options.CircuitBreaker.FailureRatio.Should().Be(0.2);
+        options.CircuitBreaker.ShouldBeSameAs(newCircuitBreaker);
+        options.CircuitBreaker.FailureRatio.ShouldBe(0.2);
     }
 
     [Fact]
@@ -160,7 +160,66 @@ public class StandardResilienceOptionsTests
         options.AttemptTimeout = newTimeout;
 
         // Assert
-        options.AttemptTimeout.Should().BeSameAs(newTimeout);
-        options.AttemptTimeout.Timeout.Should().Be(TimeSpan.FromSeconds(15));
+        options.AttemptTimeout.ShouldBeSameAs(newTimeout);
+        options.AttemptTimeout.Timeout.ShouldBe(TimeSpan.FromSeconds(15));
     }
+
+    #region Null Safety Tests
+
+    [Fact]
+    public void RateLimiter_SetToNull_ShouldThrowArgumentNullException()
+    {
+        // Arrange
+        var options = new StandardResilienceOptions();
+
+        // Act & Assert
+        var ex = Should.Throw<ArgumentNullException>(() => options.RateLimiter = null!);
+        ex.ParamName.ShouldBe("value");
+    }
+
+    [Fact]
+    public void TotalRequestTimeout_SetToNull_ShouldThrowArgumentNullException()
+    {
+        // Arrange
+        var options = new StandardResilienceOptions();
+
+        // Act & Assert
+        var ex = Should.Throw<ArgumentNullException>(() => options.TotalRequestTimeout = null!);
+        ex.ParamName.ShouldBe("value");
+    }
+
+    [Fact]
+    public void Retry_SetToNull_ShouldThrowArgumentNullException()
+    {
+        // Arrange
+        var options = new StandardResilienceOptions();
+
+        // Act & Assert
+        var ex = Should.Throw<ArgumentNullException>(() => options.Retry = null!);
+        ex.ParamName.ShouldBe("value");
+    }
+
+    [Fact]
+    public void CircuitBreaker_SetToNull_ShouldThrowArgumentNullException()
+    {
+        // Arrange
+        var options = new StandardResilienceOptions();
+
+        // Act & Assert
+        var ex = Should.Throw<ArgumentNullException>(() => options.CircuitBreaker = null!);
+        ex.ParamName.ShouldBe("value");
+    }
+
+    [Fact]
+    public void AttemptTimeout_SetToNull_ShouldThrowArgumentNullException()
+    {
+        // Arrange
+        var options = new StandardResilienceOptions();
+
+        // Act & Assert
+        var ex = Should.Throw<ArgumentNullException>(() => options.AttemptTimeout = null!);
+        ex.ParamName.ShouldBe("value");
+    }
+
+    #endregion
 }

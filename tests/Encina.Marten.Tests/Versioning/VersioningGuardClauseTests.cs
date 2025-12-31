@@ -1,6 +1,7 @@
 using System.Reflection;
 
 using Encina.Marten.Versioning;
+using Shouldly;
 
 namespace Encina.Marten.Tests.Versioning;
 
@@ -22,8 +23,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => registry.Register(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("upcaster");
     }
 
     [Fact]
@@ -36,8 +37,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => registry.Register((Type)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("upcasterType");
     }
 
     [Fact]
@@ -47,11 +48,11 @@ public sealed class VersioningGuardClauseTests
         var registry = new EventUpcasterRegistry();
 
         // Act
-        var act = () => registry.TryRegister(null!);
+        Action act = () => _ = registry.TryRegister(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("upcaster");
     }
 
     [Fact]
@@ -64,8 +65,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => registry.GetUpcasterForEventType(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("eventTypeName");
     }
 
     [Fact]
@@ -75,11 +76,11 @@ public sealed class VersioningGuardClauseTests
         var registry = new EventUpcasterRegistry();
 
         // Act
-        var act = () => registry.HasUpcasterFor(null!);
+        Action act = () => _ = registry.HasUpcasterFor(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("eventTypeName");
     }
 
     [Fact]
@@ -89,11 +90,11 @@ public sealed class VersioningGuardClauseTests
         var registry = new EventUpcasterRegistry();
 
         // Act
-        var act = () => registry.ScanAndRegister(null!);
+        Action act = () => _ = registry.ScanAndRegister(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("assembly");
     }
 
     #endregion
@@ -110,8 +111,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => options.AddUpcaster((Type)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -124,8 +125,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => options.AddUpcaster((IEventUpcaster)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -138,8 +139,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => options.AddUpcaster<OrderCreatedV1, OrderCreatedV2>(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -152,8 +153,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => options.ScanAssembly(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -166,8 +167,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => options.ScanAssemblies(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -180,8 +181,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => options.ApplyTo(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldNotBeNullOrEmpty();
     }
 
     #endregion
@@ -195,8 +196,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => new LambdaEventUpcaster<OrderCreatedV1, OrderCreatedV2>(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -211,8 +212,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => typedUpcaster.Upcast(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldNotBeNullOrEmpty();
     }
 
     #endregion
@@ -230,8 +231,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => typedUpcaster.Upcast(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().NotBeNullOrEmpty();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldNotBeNullOrEmpty();
     }
 
     #endregion
@@ -248,8 +249,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => registry.Register(typeof(string));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithMessage("*does not implement IEventUpcaster*");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.Message.ShouldMatch("*does not implement IEventUpcaster*");
     }
 
     [Fact]
@@ -262,8 +263,8 @@ public sealed class VersioningGuardClauseTests
         var act = () => options.AddUpcaster(typeof(int));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithMessage("*does not implement IEventUpcaster*");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.Message.ShouldMatch("*does not implement IEventUpcaster*");
     }
 
     #endregion

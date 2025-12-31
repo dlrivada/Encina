@@ -96,6 +96,11 @@ public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot<TId>
 public abstract class AuditableAggregateRoot<TId> : AggregateRoot<TId>, IAuditable
     where TId : notnull
 {
+    /// <summary>
+    /// Gets the time provider used for setting audit timestamps.
+    /// </summary>
+    protected TimeProvider TimeProvider { get; }
+
     /// <inheritdoc />
     public DateTime CreatedAtUtc { get; private set; }
 
@@ -112,9 +117,11 @@ public abstract class AuditableAggregateRoot<TId> : AggregateRoot<TId>, IAuditab
     /// Initializes a new instance of the <see cref="AuditableAggregateRoot{TId}"/> class.
     /// </summary>
     /// <param name="id">The unique identifier for this aggregate root.</param>
-    protected AuditableAggregateRoot(TId id) : base(id)
+    /// <param name="timeProvider">Optional time provider for testing. Defaults to <see cref="System.TimeProvider.System"/>.</param>
+    protected AuditableAggregateRoot(TId id, TimeProvider? timeProvider = null) : base(id)
     {
-        CreatedAtUtc = DateTime.UtcNow;
+        TimeProvider = timeProvider ?? TimeProvider.System;
+        CreatedAtUtc = TimeProvider.GetUtcNow().UtcDateTime;
     }
 
     /// <summary>
@@ -124,7 +131,6 @@ public abstract class AuditableAggregateRoot<TId> : AggregateRoot<TId>, IAuditab
     public void SetCreatedBy(string createdBy)
     {
         CreatedBy = createdBy;
-        CreatedAtUtc = DateTime.UtcNow;
     }
 
     /// <summary>
@@ -134,7 +140,7 @@ public abstract class AuditableAggregateRoot<TId> : AggregateRoot<TId>, IAuditab
     public void SetModifiedBy(string modifiedBy)
     {
         ModifiedBy = modifiedBy;
-        ModifiedAtUtc = DateTime.UtcNow;
+        ModifiedAtUtc = TimeProvider.GetUtcNow().UtcDateTime;
     }
 }
 
@@ -158,7 +164,8 @@ public abstract class SoftDeletableAggregateRoot<TId> : AuditableAggregateRoot<T
     /// Initializes a new instance of the <see cref="SoftDeletableAggregateRoot{TId}"/> class.
     /// </summary>
     /// <param name="id">The unique identifier for this aggregate root.</param>
-    protected SoftDeletableAggregateRoot(TId id) : base(id)
+    /// <param name="timeProvider">Optional time provider for testing. Defaults to <see cref="System.TimeProvider.System"/>.</param>
+    protected SoftDeletableAggregateRoot(TId id, TimeProvider? timeProvider = null) : base(id, timeProvider)
     {
     }
 
@@ -169,7 +176,7 @@ public abstract class SoftDeletableAggregateRoot<TId> : AuditableAggregateRoot<T
     public virtual void Delete(string? deletedBy = null)
     {
         IsDeleted = true;
-        DeletedAtUtc = DateTime.UtcNow;
+        DeletedAtUtc = TimeProvider.GetUtcNow().UtcDateTime;
         DeletedBy = deletedBy;
     }
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Refit;
 using Encina.Refit;
 
@@ -12,8 +12,13 @@ namespace Encina.Refit.IntegrationTests;
 public class RefitClientIntegrationTests
 {
     [Fact]
+    [Trait("Category", "E2E")]
     public async Task EndToEnd_WithEncina_ShouldResolveClientAndExecute()
     {
+        // NOTE: This test makes real HTTP calls to jsonplaceholder.typicode.com
+        // It may fail if the external service is unavailable
+        // Consider using a mock HTTP server for more reliable tests
+
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
@@ -38,14 +43,18 @@ public class RefitClientIntegrationTests
         result.ShouldBeSuccess();
         result.IfRight(todo =>
         {
-            todo.Id.Should().Be(1);
-            todo.Title.Should().NotBeNullOrEmpty();
+            todo.Id.ShouldBe(1);
+            todo.Title.ShouldNotBeNullOrEmpty();
         });
     }
 
     [Fact]
+    [Trait("Category", "E2E")]
     public async Task EndToEnd_MultipleRequests_ShouldReuseHttpClient()
     {
+        // NOTE: This test makes real HTTP calls to jsonplaceholder.typicode.com
+        // It may fail if the external service is unavailable
+
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
@@ -69,17 +78,21 @@ public class RefitClientIntegrationTests
         );
 
         // Assert
-        results.Should().HaveCount(3);
+        results.Length.ShouldBe(3);
         results.AllShouldBeSuccess();
 
-        results[0].IfRight(todo => todo.Id.Should().Be(1));
-        results[1].IfRight(todo => todo.Id.Should().Be(2));
-        results[2].IfRight(todo => todo.Id.Should().Be(3));
+        results[0].IfRight(todo => todo.Id.ShouldBe(1));
+        results[1].IfRight(todo => todo.Id.ShouldBe(2));
+        results[2].IfRight(todo => todo.Id.ShouldBe(3));
     }
 
     [Fact]
+    [Trait("Category", "E2E")]
     public async Task EndToEnd_WithCustomHeaders_ShouldIncludeHeaders()
     {
+        // NOTE: This test makes real HTTP calls to httpbin.org
+        // It may fail if the external service is unavailable
+
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
@@ -105,8 +118,8 @@ public class RefitClientIntegrationTests
         result.ShouldBeSuccess();
         result.IfRight(response =>
         {
-            response.Headers.Should().ContainKey("X-Custom-Header");
-            response.Headers["X-Custom-Header"].Should().Be("TestValue");
+            response.Headers.ShouldContainKey("X-Custom-Header");
+            response.Headers["X-Custom-Header"].ShouldBe("TestValue");
         });
     }
 
@@ -137,8 +150,8 @@ public class RefitClientIntegrationTests
         result.ShouldBeSuccess();
         result.IfRight(todo =>
         {
-            todo.Title.Should().Be("New Todo");
-            todo.Completed.Should().BeFalse();
+            todo.Title.ShouldBe("New Todo");
+            todo.Completed.ShouldBeFalse();
         });
     }
 

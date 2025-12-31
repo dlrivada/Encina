@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.DomainModeling.ContractTests;
 
@@ -18,31 +18,31 @@ public sealed class ValueObjectContracts
     public void ValueObject_MustImplementIEquatable()
     {
         _valueObjectType.GetInterfaces()
-            .Should().Contain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEquatable<>));
+            .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEquatable<>));
     }
 
     [Fact]
     public void ValueObject_MustHaveAbstractGetEqualityComponents()
     {
         var method = _valueObjectType.GetMethod("GetEqualityComponents", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-        method.Should().NotBeNull();
-        method!.IsAbstract.Should().BeTrue();
+        method.ShouldNotBeNull();
+        method!.IsAbstract.ShouldBeTrue();
     }
 
     [Fact]
     public void ValueObject_MustOverrideEquals()
     {
         var equalsMethod = _valueObjectType.GetMethod("Equals", [typeof(object)]);
-        equalsMethod.Should().NotBeNull();
-        equalsMethod!.DeclaringType.Should().Be(_valueObjectType);
+        equalsMethod.ShouldNotBeNull();
+        equalsMethod!.DeclaringType.ShouldBe(_valueObjectType);
     }
 
     [Fact]
     public void ValueObject_MustOverrideGetHashCode()
     {
         var hashCodeMethod = _valueObjectType.GetMethod("GetHashCode");
-        hashCodeMethod.Should().NotBeNull();
-        hashCodeMethod!.DeclaringType.Should().Be(_valueObjectType);
+        hashCodeMethod.ShouldNotBeNull();
+        hashCodeMethod!.DeclaringType.ShouldBe(_valueObjectType);
     }
 
     [Fact]
@@ -50,17 +50,17 @@ public sealed class ValueObjectContracts
     {
         var equalityOp = _valueObjectType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "op_Equality");
-        equalityOp.Should().NotBeNull();
+        equalityOp.ShouldNotBeNull();
 
         var inequalityOp = _valueObjectType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "op_Inequality");
-        inequalityOp.Should().NotBeNull();
+        inequalityOp.ShouldNotBeNull();
     }
 
     [Fact]
     public void ValueObject_MustBeAbstract()
     {
-        _valueObjectType.IsAbstract.Should().BeTrue();
+        _valueObjectType.IsAbstract.ShouldBeTrue();
     }
 
     #endregion
@@ -70,22 +70,22 @@ public sealed class ValueObjectContracts
     [Fact]
     public void SingleValueObject_MustInheritFromValueObject()
     {
-        _singleValueObjectType.BaseType.Should().Be(_valueObjectType);
+        _singleValueObjectType.BaseType.ShouldBe(_valueObjectType);
     }
 
     [Fact]
     public void SingleValueObject_MustImplementIComparable()
     {
         _singleValueObjectType.GetInterfaces()
-            .Should().Contain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IComparable<>));
+            .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IComparable<>));
     }
 
     [Fact]
     public void SingleValueObject_MustHaveValueProperty()
     {
         var valueProperty = _singleValueObjectType.GetProperty("Value");
-        valueProperty.Should().NotBeNull();
-        valueProperty!.CanRead.Should().BeTrue();
+        valueProperty.ShouldNotBeNull();
+        valueProperty!.CanRead.ShouldBeTrue();
     }
 
     [Fact]
@@ -93,21 +93,21 @@ public sealed class ValueObjectContracts
     {
         var implicitOp = _singleValueObjectType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "op_Implicit");
-        implicitOp.Should().NotBeNull();
+        implicitOp.ShouldNotBeNull();
     }
 
     [Fact]
     public void SingleValueObject_MustOverrideToString()
     {
         var toStringMethod = _singleValueObjectType.GetMethod("ToString");
-        toStringMethod.Should().NotBeNull();
-        toStringMethod!.DeclaringType.Should().Be(_singleValueObjectType);
+        toStringMethod.ShouldNotBeNull();
+        toStringMethod!.DeclaringType.ShouldBe(_singleValueObjectType);
     }
 
     [Fact]
     public void SingleValueObject_MustBeAbstract()
     {
-        _singleValueObjectType.IsAbstract.Should().BeTrue();
+        _singleValueObjectType.IsAbstract.ShouldBeTrue();
     }
 
     #endregion

@@ -34,21 +34,16 @@ public sealed class AzureServiceBusHealthCheckContractTests : IEncinaHealthCheck
     [Fact]
     public void DefaultName_ShouldBeEncinaAzureServicebus()
     {
-        AzureServiceBusHealthCheck.DefaultName.Should().Be("encina-azure-servicebus");
+        AzureServiceBusHealthCheck.DefaultName.ShouldBe("encina-azure-servicebus");
     }
 
-    [Fact]
-    public void Tags_WithDefaultOptions_ShouldContainMessagingTag()
+    [Theory]
+    [InlineData("messaging")]
+    [InlineData("azure-servicebus")]
+    public void Tags_WithDefaultOptions_ShouldContainExpectedTag(string tag)
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("messaging");
-    }
-
-    [Fact]
-    public void Tags_WithDefaultOptions_ShouldContainAzureServicebusTag()
-    {
-        var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("azure-servicebus");
+        healthCheck.Tags.ShouldContain(tag);
     }
 
     private static IServiceProvider CreateMockServiceProvider()

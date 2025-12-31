@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 
 namespace Encina.Hangfire.Tests.Guards;
 
@@ -12,44 +12,44 @@ public class HangfireNotificationJobAdapterGuardsTests
     public void Constructor_WithNullEncina_ThrowsArgumentNullException()
     {
         // Arrange
-        IEncina Encina = null!;
+        IEncina encina = null!;
         var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<HangfireTestNotification>>>();
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new HangfireNotificationJobAdapter<HangfireTestNotification>(Encina, logger));
+            new HangfireNotificationJobAdapter<HangfireTestNotification>(encina, logger));
 
-        exception.ParamName.Should().Be("Encina");
+        exception.ParamName.ShouldBe(nameof(encina));
     }
 
     [Fact]
     public void Constructor_WithNullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var Encina = Substitute.For<IEncina>();
+        var encina = Substitute.For<IEncina>();
         ILogger<HangfireNotificationJobAdapter<HangfireTestNotification>> logger = null!;
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new HangfireNotificationJobAdapter<HangfireTestNotification>(Encina, logger));
+            new HangfireNotificationJobAdapter<HangfireTestNotification>(encina, logger));
 
-        exception.ParamName.Should().Be("logger");
+        exception.ParamName.ShouldBe(nameof(logger));
     }
 
     [Fact]
     public async Task PublishAsync_WithNullNotification_ThrowsArgumentNullException()
     {
         // Arrange
-        var Encina = Substitute.For<IEncina>();
+        var encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<HangfireTestNotification>>>();
-        var adapter = new HangfireNotificationJobAdapter<HangfireTestNotification>(Encina, logger);
+        var adapter = new HangfireNotificationJobAdapter<HangfireTestNotification>(encina, logger);
         HangfireTestNotification notification = null!;
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentNullException>(() =>
             adapter.PublishAsync(notification));
 
-        exception.ParamName.Should().Be("notification");
+        exception.ParamName.ShouldBe("notification");
     }
 
 }

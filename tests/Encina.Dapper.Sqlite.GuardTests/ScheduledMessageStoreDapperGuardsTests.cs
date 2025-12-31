@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Encina.Dapper.Sqlite.Scheduling;
 
 namespace Encina.Dapper.Sqlite.GuardTests;
@@ -19,7 +19,8 @@ public class ScheduledMessageStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new ScheduledMessageStoreDapper(connection);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connection");
     }
 
     /// <summary>
@@ -34,7 +35,8 @@ public class ScheduledMessageStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new ScheduledMessageStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -49,7 +51,8 @@ public class ScheduledMessageStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new ScheduledMessageStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -64,6 +67,7 @@ public class ScheduledMessageStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new ScheduledMessageStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 }

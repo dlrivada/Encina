@@ -21,16 +21,18 @@ public abstract class ISagaRunnerContractTests
     {
         // Arrange
         var runner = CreateSagaRunner();
+        var inputData = new TestData();
         var definition = SagaDefinition.Create<TestData>("TestSaga")
             .Step("Test")
             .Execute((data, ct) => ValueTask.FromResult(Right<EncinaError, TestData>(data)))
             .Build();
 
         // Act
-        var result = await runner.RunAsync(definition);
+        var result = await runner.RunAsync(definition, inputData);
 
         // Assert
-        result.Should().NotBeNull();
+        var sagaResult = result.ShouldBeRight();
+        sagaResult.Data.ShouldBe(inputData);
     }
 
     [Fact]
@@ -47,7 +49,7 @@ public abstract class ISagaRunnerContractTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -65,7 +67,7 @@ public abstract class ISagaRunnerContractTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -82,10 +84,8 @@ public abstract class ISagaRunnerContractTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.Match(
-            Right: r => r.SagaId.Should().NotBe(Guid.Empty),
-            Left: _ => Assert.Fail("Expected Right but got Left")
-        );
+        var sagaResult = result.ShouldBeRight();
+        sagaResult.SagaId.ShouldNotBe(Guid.Empty);
     }
 
     [Fact]
@@ -108,10 +108,8 @@ public abstract class ISagaRunnerContractTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.Match(
-            Right: r => r.StepsExecuted.Should().Be(3),
-            Left: _ => Assert.Fail("Expected Right but got Left")
-        );
+        var sagaResult = result.ShouldBeRight();
+        sagaResult.StepsExecuted.ShouldBe(3);
     }
 
     [Fact]
@@ -124,7 +122,7 @@ public abstract class ISagaRunnerContractTests
             .Execute((data, ct) =>
             {
                 // Data should be new instance with default values
-                data.Value.Should().Be(0);
+                data.Value.ShouldBe(0);
                 return ValueTask.FromResult(Right<EncinaError, TestData>(data));
             })
             .Build();
@@ -133,7 +131,7 @@ public abstract class ISagaRunnerContractTests
         var result = await runner.RunAsync(definition);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -156,7 +154,7 @@ public abstract class ISagaRunnerContractTests
             .Step("Verify Value")
             .Execute((data, ct) =>
             {
-                data.Value.Should().Be(42);
+                data.Value.ShouldBe(42);
                 data.Verified = true;
                 return ValueTask.FromResult(Right<EncinaError, TestData>(data));
             })
@@ -166,14 +164,9 @@ public abstract class ISagaRunnerContractTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.Match(
-            Right: r =>
-            {
-                r.Data.Value.Should().Be(42);
-                r.Data.Verified.Should().BeTrue();
-            },
-            Left: _ => Assert.Fail("Expected Right but got Left")
-        );
+        var sagaResult = result.ShouldBeRight();
+        sagaResult.Data.Value.ShouldBe(42);
+        sagaResult.Data.Verified.ShouldBeTrue();
     }
 
     [Fact]
@@ -195,10 +188,8 @@ public abstract class ISagaRunnerContractTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.Match(
-            Right: r => r.Data.Id.Should().Be(expectedGuid),
-            Left: _ => Assert.Fail("Expected Right but got Left")
-        );
+        var sagaResult = result.ShouldBeRight();
+        sagaResult.Data.Id.ShouldBe(expectedGuid);
     }
 
     #endregion

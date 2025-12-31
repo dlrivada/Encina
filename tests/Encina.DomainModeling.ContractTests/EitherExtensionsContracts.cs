@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.DomainModeling.ContractTests;
 
@@ -16,14 +16,14 @@ public sealed class EitherExtensionsContracts
     [Fact]
     public void EitherExtensions_MustBeStaticClass()
     {
-        _extensionsType.IsAbstract.Should().BeTrue();
-        _extensionsType.IsSealed.Should().BeTrue();
+        _extensionsType.IsAbstract.ShouldBeTrue();
+        _extensionsType.IsSealed.ShouldBeTrue();
     }
 
     [Fact]
     public void EitherExtensions_MustBePublic()
     {
-        _extensionsType.IsPublic.Should().BeTrue();
+        _extensionsType.IsPublic.ShouldBeTrue();
     }
 
     [Fact]
@@ -34,14 +34,14 @@ public sealed class EitherExtensionsContracts
             .Where(m => !m.IsSpecialName && m.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false))
             .ToList();
 
-        extensionMethods.Should().NotBeEmpty("EitherExtensions should have extension methods");
+        extensionMethods.ShouldNotBeEmpty("EitherExtensions should have extension methods");
 
         // Verify all public static methods are extension methods
         var allPublicStaticMethods = _extensionsType.GetMethods(BindingFlags.Public | BindingFlags.Static)
             .Where(m => !m.IsSpecialName)
             .ToList();
 
-        extensionMethods.Should().HaveCount(allPublicStaticMethods.Count, "all public static methods should be extension methods");
+        extensionMethods.Count.ShouldBe(allPublicStaticMethods.Count, "all public static methods should be extension methods");
     }
 
     #endregion
@@ -54,7 +54,7 @@ public sealed class EitherExtensionsContracts
         // Combine with 2 Either values returns tuple
         var method = _extensionsType.GetMethods()
             .FirstOrDefault(m => m.Name == "Combine" && m.GetParameters().Length == 2);
-        method.Should().NotBeNull("Combine(e1, e2) should exist");
+        method.ShouldNotBeNull("Combine(e1, e2) should exist");
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class EitherExtensionsContracts
         // Combine with 3 Either values returns tuple
         var method = _extensionsType.GetMethods()
             .FirstOrDefault(m => m.Name == "Combine" && m.GetParameters().Length == 3);
-        method.Should().NotBeNull("Combine(e1, e2, e3) should exist");
+        method.ShouldNotBeNull("Combine(e1, e2, e3) should exist");
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class EitherExtensionsContracts
         // Combine with 4 Either values returns tuple
         var method = _extensionsType.GetMethods()
             .FirstOrDefault(m => m.Name == "Combine" && m.GetParameters().Length == 4);
-        method.Should().NotBeNull("Combine(e1, e2, e3, e4) should exist");
+        method.ShouldNotBeNull("Combine(e1, e2, e3, e4) should exist");
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class EitherExtensionsContracts
         // Combine on IEnumerable<Either<TError, T>> returns Either<TError, IReadOnlyList<T>>
         var method = _extensionsType.GetMethods()
             .FirstOrDefault(m => m.Name == "Combine" && m.GetParameters().Length == 1);
-        method.Should().NotBeNull("Combine(IEnumerable<Either>) should exist");
+        method.ShouldNotBeNull("Combine(IEnumerable<Either>) should exist");
     }
 
     #endregion
@@ -92,35 +92,35 @@ public sealed class EitherExtensionsContracts
     public void EitherExtensions_MustHaveWhenMethod()
     {
         var method = _extensionsType.GetMethod("When");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void EitherExtensions_MustHaveEnsureMethod()
     {
         var method = _extensionsType.GetMethod("Ensure");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void EitherExtensions_MustHaveOrElseMethod()
     {
         var method = _extensionsType.GetMethod("OrElse");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void EitherExtensions_MustHaveGetOrDefaultMethod()
     {
         var method = _extensionsType.GetMethod("GetOrDefault");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void EitherExtensions_MustHaveGetOrElseMethod()
     {
         var method = _extensionsType.GetMethod("GetOrElse");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     #endregion
@@ -131,14 +131,14 @@ public sealed class EitherExtensionsContracts
     public void EitherExtensions_MustHaveTapMethod()
     {
         var method = _extensionsType.GetMethod("Tap");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void EitherExtensions_MustHaveTapErrorMethod()
     {
         var method = _extensionsType.GetMethod("TapError");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     #endregion
@@ -148,21 +148,21 @@ public sealed class EitherExtensionsContracts
     [Fact]
     public void EitherExtensions_MustHaveBindAsyncMethods()
     {
-        // BindAsync has multiple overloads (Task<Either> and Either extensions)
+        // BindAsync has exactly 2 overloads (Task<Either> and Either extensions)
         var methods = _extensionsType.GetMethods()
             .Where(m => m.Name == "BindAsync")
             .ToList();
-        methods.Should().HaveCountGreaterThanOrEqualTo(2, "BindAsync should have overloads for Task<Either> and Either");
+        methods.Count.ShouldBe(2, "BindAsync should have exactly 2 overloads for Task<Either> and Either");
     }
 
     [Fact]
     public void EitherExtensions_MustHaveMapAsyncMethods()
     {
-        // MapAsync has multiple overloads
+        // MapAsync has exactly 2 overloads
         var methods = _extensionsType.GetMethods()
             .Where(m => m.Name == "MapAsync")
             .ToList();
-        methods.Should().HaveCountGreaterThanOrEqualTo(2, "MapAsync should have overloads for Task<Either> and Either");
+        methods.Count.ShouldBe(2, "MapAsync should have exactly 2 overloads for Task<Either> and Either");
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public sealed class EitherExtensionsContracts
         var methods = _extensionsType.GetMethods()
             .Where(m => m.Name == "TapAsync")
             .ToList();
-        methods.Should().NotBeEmpty("TapAsync should exist");
+        methods.Count.ShouldBe(1, "TapAsync should have exactly 1 overload");
     }
 
     #endregion
@@ -182,21 +182,21 @@ public sealed class EitherExtensionsContracts
     public void EitherExtensions_MustHaveToOptionMethod()
     {
         var method = _extensionsType.GetMethod("ToOption");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void EitherExtensions_MustHaveToEitherMethod()
     {
         var method = _extensionsType.GetMethod("ToEither");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void EitherExtensions_MustHaveGetOrThrowMethod()
     {
         var method = _extensionsType.GetMethod("GetOrThrow");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     #endregion

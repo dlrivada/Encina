@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.DomainModeling.ContractTests;
 
@@ -21,29 +21,29 @@ public sealed class StronglyTypedIdContracts
     public void StronglyTypedId_MustImplementIStronglyTypedId()
     {
         _stronglyTypedIdType.GetInterfaces()
-            .Should().Contain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IStronglyTypedId<>));
+            .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IStronglyTypedId<>));
     }
 
     [Fact]
     public void StronglyTypedId_MustImplementIEquatable()
     {
         _stronglyTypedIdType.GetInterfaces()
-            .Should().Contain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEquatable<>));
+            .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEquatable<>));
     }
 
     [Fact]
     public void StronglyTypedId_MustImplementIComparable()
     {
         _stronglyTypedIdType.GetInterfaces()
-            .Should().Contain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IComparable<>));
+            .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IComparable<>));
     }
 
     [Fact]
     public void StronglyTypedId_MustHaveValueProperty()
     {
         var valueProperty = _stronglyTypedIdType.GetProperty("Value");
-        valueProperty.Should().NotBeNull();
-        valueProperty!.CanRead.Should().BeTrue();
+        valueProperty.ShouldNotBeNull();
+        valueProperty!.CanRead.ShouldBeTrue();
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class StronglyTypedIdContracts
     {
         var implicitOp = _stronglyTypedIdType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "op_Implicit");
-        implicitOp.Should().NotBeNull();
+        implicitOp.ShouldNotBeNull();
     }
 
     [Fact]
@@ -59,17 +59,17 @@ public sealed class StronglyTypedIdContracts
     {
         var equalityOp = _stronglyTypedIdType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "op_Equality");
-        equalityOp.Should().NotBeNull();
+        equalityOp.ShouldNotBeNull();
 
         var inequalityOp = _stronglyTypedIdType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "op_Inequality");
-        inequalityOp.Should().NotBeNull();
+        inequalityOp.ShouldNotBeNull();
     }
 
     [Fact]
     public void StronglyTypedId_MustBeAbstract()
     {
-        _stronglyTypedIdType.IsAbstract.Should().BeTrue();
+        _stronglyTypedIdType.IsAbstract.ShouldBeTrue();
     }
 
     #endregion
@@ -80,43 +80,43 @@ public sealed class StronglyTypedIdContracts
     public void GuidStronglyTypedId_MustInheritFromStronglyTypedId()
     {
         var baseType = _guidStronglyTypedIdType.BaseType;
-        baseType.Should().NotBeNull();
-        baseType!.IsGenericType.Should().BeTrue();
-        baseType.GetGenericTypeDefinition().Should().Be(_stronglyTypedIdType);
+        baseType.ShouldNotBeNull();
+        baseType!.IsGenericType.ShouldBeTrue();
+        baseType.GetGenericTypeDefinition().ShouldBe(_stronglyTypedIdType);
     }
 
     [Fact]
     public void GuidStronglyTypedId_MustHaveNewMethod()
     {
         var newMethod = _guidStronglyTypedIdType.GetMethod("New", BindingFlags.Static | BindingFlags.Public);
-        newMethod.Should().NotBeNull();
+        newMethod.ShouldNotBeNull();
     }
 
     [Fact]
     public void GuidStronglyTypedId_MustHaveFromMethod()
     {
         var fromMethod = _guidStronglyTypedIdType.GetMethod("From", BindingFlags.Static | BindingFlags.Public);
-        fromMethod.Should().NotBeNull();
+        fromMethod.ShouldNotBeNull();
     }
 
     [Fact]
     public void GuidStronglyTypedId_MustHaveTryParseMethod()
     {
         var tryParseMethod = _guidStronglyTypedIdType.GetMethod("TryParse", BindingFlags.Static | BindingFlags.Public);
-        tryParseMethod.Should().NotBeNull();
+        tryParseMethod.ShouldNotBeNull();
     }
 
     [Fact]
     public void GuidStronglyTypedId_MustHaveEmptyProperty()
     {
         var emptyProperty = _guidStronglyTypedIdType.GetProperty("Empty", BindingFlags.Static | BindingFlags.Public);
-        emptyProperty.Should().NotBeNull();
+        emptyProperty.ShouldNotBeNull();
     }
 
     [Fact]
     public void GuidStronglyTypedId_MustBeAbstract()
     {
-        _guidStronglyTypedIdType.IsAbstract.Should().BeTrue();
+        _guidStronglyTypedIdType.IsAbstract.ShouldBeTrue();
     }
 
     #endregion
@@ -127,29 +127,29 @@ public sealed class StronglyTypedIdContracts
     public void IntStronglyTypedId_MustInheritFromStronglyTypedId()
     {
         var baseType = _intStronglyTypedIdType.BaseType;
-        baseType.Should().NotBeNull();
-        baseType!.IsGenericType.Should().BeTrue();
-        baseType.GetGenericTypeDefinition().Should().Be(_stronglyTypedIdType);
+        baseType.ShouldNotBeNull();
+        baseType!.IsGenericType.ShouldBeTrue();
+        baseType.GetGenericTypeDefinition().ShouldBe(_stronglyTypedIdType);
     }
 
     [Fact]
     public void IntStronglyTypedId_MustHaveFromMethod()
     {
         var fromMethod = _intStronglyTypedIdType.GetMethod("From", BindingFlags.Static | BindingFlags.Public);
-        fromMethod.Should().NotBeNull();
+        fromMethod.ShouldNotBeNull();
     }
 
     [Fact]
     public void IntStronglyTypedId_MustHaveTryParseMethod()
     {
         var tryParseMethod = _intStronglyTypedIdType.GetMethod("TryParse", BindingFlags.Static | BindingFlags.Public);
-        tryParseMethod.Should().NotBeNull();
+        tryParseMethod.ShouldNotBeNull();
     }
 
     [Fact]
     public void IntStronglyTypedId_MustBeAbstract()
     {
-        _intStronglyTypedIdType.IsAbstract.Should().BeTrue();
+        _intStronglyTypedIdType.IsAbstract.ShouldBeTrue();
     }
 
     #endregion
@@ -160,29 +160,29 @@ public sealed class StronglyTypedIdContracts
     public void LongStronglyTypedId_MustInheritFromStronglyTypedId()
     {
         var baseType = _longStronglyTypedIdType.BaseType;
-        baseType.Should().NotBeNull();
-        baseType!.IsGenericType.Should().BeTrue();
-        baseType.GetGenericTypeDefinition().Should().Be(_stronglyTypedIdType);
+        baseType.ShouldNotBeNull();
+        baseType!.IsGenericType.ShouldBeTrue();
+        baseType.GetGenericTypeDefinition().ShouldBe(_stronglyTypedIdType);
     }
 
     [Fact]
     public void LongStronglyTypedId_MustHaveFromMethod()
     {
         var fromMethod = _longStronglyTypedIdType.GetMethod("From", BindingFlags.Static | BindingFlags.Public);
-        fromMethod.Should().NotBeNull();
+        fromMethod.ShouldNotBeNull();
     }
 
     [Fact]
     public void LongStronglyTypedId_MustHaveTryParseMethod()
     {
         var tryParseMethod = _longStronglyTypedIdType.GetMethod("TryParse", BindingFlags.Static | BindingFlags.Public);
-        tryParseMethod.Should().NotBeNull();
+        tryParseMethod.ShouldNotBeNull();
     }
 
     [Fact]
     public void LongStronglyTypedId_MustBeAbstract()
     {
-        _longStronglyTypedIdType.IsAbstract.Should().BeTrue();
+        _longStronglyTypedIdType.IsAbstract.ShouldBeTrue();
     }
 
     #endregion
@@ -193,22 +193,22 @@ public sealed class StronglyTypedIdContracts
     public void StringStronglyTypedId_MustInheritFromStronglyTypedId()
     {
         var baseType = _stringStronglyTypedIdType.BaseType;
-        baseType.Should().NotBeNull();
-        baseType!.IsGenericType.Should().BeTrue();
-        baseType.GetGenericTypeDefinition().Should().Be(_stronglyTypedIdType);
+        baseType.ShouldNotBeNull();
+        baseType!.IsGenericType.ShouldBeTrue();
+        baseType.GetGenericTypeDefinition().ShouldBe(_stronglyTypedIdType);
     }
 
     [Fact]
     public void StringStronglyTypedId_MustHaveFromMethod()
     {
         var fromMethod = _stringStronglyTypedIdType.GetMethod("From", BindingFlags.Static | BindingFlags.Public);
-        fromMethod.Should().NotBeNull();
+        fromMethod.ShouldNotBeNull();
     }
 
     [Fact]
     public void StringStronglyTypedId_MustBeAbstract()
     {
-        _stringStronglyTypedIdType.IsAbstract.Should().BeTrue();
+        _stringStronglyTypedIdType.IsAbstract.ShouldBeTrue();
     }
 
     #endregion

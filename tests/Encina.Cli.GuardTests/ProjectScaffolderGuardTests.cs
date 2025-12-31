@@ -1,5 +1,5 @@
 using Encina.Cli.Services;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.Cli.GuardTests;
@@ -16,8 +16,8 @@ public class ProjectScaffolderGuardTests
         var act = () => ProjectScaffolder.CreateProjectAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Theory]
@@ -39,7 +39,8 @@ public class ProjectScaffolderGuardTests
         var act = () => ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(options.Name));
     }
 
     [Theory]
@@ -60,7 +61,8 @@ public class ProjectScaffolderGuardTests
         var act = () => ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(options.Template));
     }
 
     [Theory]
@@ -81,7 +83,8 @@ public class ProjectScaffolderGuardTests
         var act = () => ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(options.OutputDirectory));
     }
 
     [Fact]
@@ -99,7 +102,8 @@ public class ProjectScaffolderGuardTests
         var result = await ProjectScaffolder.CreateProjectAsync(options);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("Unknown template");
+        result.Success.ShouldBeFalse();
+        result.ErrorMessage.ShouldNotBeNull();
+        result.ErrorMessage.ShouldContain("Unknown template");
     }
 }

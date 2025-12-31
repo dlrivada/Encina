@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Encina.EntityFrameworkCore.Scheduling;
@@ -76,12 +76,12 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
             // Assert
             if (shouldAppear)
             {
-                due.Should().Contain(m => m.Id == message.Id,
+                due.ShouldContain(m => m.Id == message.Id,
                     $"message scheduled at {scheduledAt} should be in due list");
             }
             else
             {
-                due.Should().NotContain(m => m.Id == message.Id,
+                due.ShouldNotContain(m => m.Id == message.Id,
                     $"message scheduled in future {scheduledAt} must NOT be in due list");
             }
 
@@ -120,7 +120,7 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
         var due = await _store!.GetDueMessagesAsync(100, 5);
 
         // Assert - NONE should be due yet
-        due.Should().BeEmpty("messages scheduled in the future must NEVER be returned early");
+        due.ShouldBeEmpty("messages scheduled in the future must NEVER be returned early");
     }
 
     /// <summary>
@@ -165,11 +165,11 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var rescheduled = _dbContext!.Set<ScheduledMessage>().First(m => m.Id == message.Id);
-            rescheduled.ScheduledAtUtc.Should().Be(testCase.NewSchedule,
+            rescheduled.ScheduledAtUtc.ShouldBe(testCase.NewSchedule,
                 "rescheduled message must ALWAYS have updated ScheduledAtUtc");
-            rescheduled.ProcessedAtUtc.Should().BeNull(
+            rescheduled.ProcessedAtUtc.ShouldBeNull(
                 "rescheduled message must have ProcessedAtUtc cleared");
-            rescheduled.RetryCount.Should().Be(0,
+            rescheduled.RetryCount.ShouldBe(0,
                 "rescheduled message must have RetryCount reset");
         }
     }
@@ -208,7 +208,7 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
             var due = await _store!.GetDueMessagesAsync(batchSize, 5);
 
             // Assert
-            due.Count().Should().BeLessThanOrEqualTo(batchSize,
+            due.Count().ShouldBeLessThanOrEqualTo(batchSize,
                 $"batch size {batchSize} must ALWAYS be respected");
         }
     }
@@ -247,7 +247,7 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
         // Assert - must be ordered by ScheduledAtUtc ascending
         for (int i = 1; i < due.Count; i++)
         {
-            due[i].ScheduledAtUtc.Should().BeOnOrAfter(due[i - 1].ScheduledAtUtc,
+            due[i].ScheduledAtUtc.ShouldBeGreaterThanOrEqualTo(due[i - 1].ScheduledAtUtc,
                 "due messages must ALWAYS be ordered by ScheduledAtUtc ascending");
         }
     }
@@ -292,12 +292,12 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
             // Assert
             if (shouldAppear)
             {
-                due.Should().Contain(m => m.Id == message.Id,
+                due.ShouldContain(m => m.Id == message.Id,
                     $"message with {retryCount} retries < {maxRetries} must appear");
             }
             else
             {
-                due.Should().NotContain(m => m.Id == message.Id,
+                due.ShouldNotContain(m => m.Id == message.Id,
                     $"message with {retryCount} retries >= {maxRetries} must NEVER appear");
             }
 
@@ -345,12 +345,12 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
             // Assert
             if (shouldAppear)
             {
-                due.Should().Contain(m => m.Id == message.Id,
+                due.ShouldContain(m => m.Id == message.Id,
                     $"message with NextRetryAtUtc={nextRetry} should appear");
             }
             else
             {
-                due.Should().NotContain(m => m.Id == message.Id,
+                due.ShouldNotContain(m => m.Id == message.Id,
                     $"message with future NextRetryAtUtc={nextRetry} must NOT appear");
             }
 
@@ -390,11 +390,11 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var processed = _dbContext!.Set<ScheduledMessage>().First(m => m.Id == messageId);
-            processed.ProcessedAtUtc.Should().NotBeNull(
+            processed.ProcessedAtUtc.ShouldNotBeNull(
                 "MarkAsProcessed must ALWAYS set ProcessedAtUtc");
-            processed.LastExecutedAtUtc.Should().NotBeNull(
+            processed.LastExecutedAtUtc.ShouldNotBeNull(
                 "MarkAsProcessed must ALWAYS set LastExecutedAtUtc");
-            processed.ErrorMessage.Should().BeNull(
+            processed.ErrorMessage.ShouldBeNull(
                 "MarkAsProcessed must ALWAYS clear ErrorMessage");
         }
     }
@@ -438,10 +438,10 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var failed = _dbContext!.Set<ScheduledMessage>().First(m => m.Id == message.Id);
-            failed.RetryCount.Should().Be(testCase.InitialRetryCount + 1,
+            failed.RetryCount.ShouldBe(testCase.InitialRetryCount + 1,
                 "MarkAsFailed must ALWAYS increment RetryCount by exactly 1");
-            failed.ErrorMessage.Should().Be(testCase.ErrorMessage);
-            failed.NextRetryAtUtc.Should().NotBeNull();
+            failed.ErrorMessage.ShouldBe(testCase.ErrorMessage);
+            failed.NextRetryAtUtc.ShouldNotBeNull();
         }
     }
 
@@ -475,7 +475,7 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
 
             // Verify it exists
             var exists = _dbContext!.Set<ScheduledMessage>().Any(m => m.Id == messageId);
-            exists.Should().BeTrue("message should exist before cancellation");
+            exists.ShouldBeTrue("message should exist before cancellation");
 
             // Act
             await _store.CancelAsync(messageId);
@@ -483,8 +483,7 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var stillExists = _dbContext.Set<ScheduledMessage>().Any(m => m.Id == messageId);
-            stillExists.Should().BeFalse(
-                "CancelAsync must ALWAYS remove the message completely");
+            stillExists.ShouldBeFalse(                "CancelAsync must ALWAYS remove the message completely");
         }
     }
 
@@ -518,7 +517,7 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
             };
 
             var isDue = message.IsDue();
-            isDue.Should().Be(expected,
+            isDue.ShouldBe(expected,
                 $"message with ScheduledAt={scheduledAt}, Processed={processed} should have IsDue={expected}");
         }
     }
@@ -554,7 +553,7 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
             };
 
             var isDeadLettered = message.IsDeadLettered(maxRetries);
-            isDeadLettered.Should().Be(expected,
+            isDeadLettered.ShouldBe(expected,
                 $"message with RetryCount={retryCount}, Processed={processed} should have IsDeadLettered={expected}");
         }
     }
@@ -585,16 +584,16 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
         await _store.SaveChangesAsync();
 
         var afterFail = _dbContext!.Set<ScheduledMessage>().First(m => m.Id == message.Id);
-        afterFail.IsRecurring.Should().BeTrue("IsRecurring must be preserved after MarkAsFailed");
-        afterFail.CronExpression.Should().Be("0 0 * * *");
+        afterFail.IsRecurring.ShouldBeTrue("IsRecurring must be preserved after MarkAsFailed");
+        afterFail.CronExpression.ShouldBe("0 0 * * *");
 
         // Reschedule
         await _store.RescheduleRecurringMessageAsync(message.Id, DateTime.UtcNow.AddHours(1));
         await _store.SaveChangesAsync();
 
         var afterReschedule = _dbContext.Set<ScheduledMessage>().First(m => m.Id == message.Id);
-        afterReschedule.IsRecurring.Should().BeTrue("IsRecurring must be preserved after reschedule");
-        afterReschedule.CronExpression.Should().Be("0 0 * * *");
+        afterReschedule.IsRecurring.ShouldBeTrue("IsRecurring must be preserved after reschedule");
+        afterReschedule.CronExpression.ShouldBe("0 0 * * *");
     }
 
     /// <summary>
@@ -624,7 +623,7 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
         await _store.SaveChangesAsync();
 
         var retrieved = _dbContext!.Set<ScheduledMessage>().First(m => m.Id == message.Id);
-        retrieved.CorrelationId.Should().Be(correlationId,
+        retrieved.CorrelationId.ShouldBe(correlationId,
             "CorrelationId must ALWAYS be preserved");
     }
 
@@ -660,12 +659,12 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
 
         // Assert - all messages must be present
         var allMessages = _dbContext!.Set<ScheduledMessage>().ToList();
-        allMessages.Should().HaveCount(concurrentWrites,
+        allMessages.Count.ShouldBe(concurrentWrites,
             "ALL concurrent adds must succeed");
 
         foreach (var original in messages)
         {
-            allMessages.Should().Contain(m => m.Id == original.Id,
+            allMessages.ShouldContain(m => m.Id == original.Id,
                 "every added message must be retrievable");
         }
     }

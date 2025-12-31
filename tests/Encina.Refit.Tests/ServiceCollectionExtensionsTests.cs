@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Refit;
 using Encina.Refit;
 using System.Text.Json;
@@ -22,7 +22,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var client = serviceProvider.GetService<ITestApi>();
-        client.Should().NotBeNull();
+        client.ShouldNotBeNull();
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
         var httpClient = httpClientFactory.CreateClient("ITestApi");
-        httpClient.BaseAddress.Should().Be(baseAddress);
-        httpClient.Timeout.Should().Be(TimeSpan.FromSeconds(30));
+        httpClient.BaseAddress.ShouldBe(baseAddress);
+        httpClient.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var client = serviceProvider.GetService<ITestApi>();
-        client.Should().NotBeNull();
+        client.ShouldNotBeNull();
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var client = serviceProvider.GetService<ITestApi>();
-        client.Should().NotBeNull();
+        client.ShouldNotBeNull();
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public class ServiceCollectionExtensionsTests
         var builder = services.AddEncinaRefitClient<ITestApi>();
 
         // Assert
-        builder.Should().NotBeNull();
-        builder.Should().BeAssignableTo<IHttpClientBuilder>();
+        builder.ShouldNotBeNull();
+        builder.ShouldBeAssignableTo<IHttpClientBuilder>();
     }
 
     [Fact]
@@ -118,11 +118,12 @@ public class ServiceCollectionExtensionsTests
             .SetHandlerLifetime(TimeSpan.FromMinutes(5));
 
         // Assert
-        builder.Should().NotBeNull();
+        builder.ShouldNotBeNull();
         var serviceProvider = services.BuildServiceProvider();
         var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
         var httpClient = httpClientFactory.CreateClient("ITestApi");
-        httpClient.DefaultRequestHeaders.Contains("X-Custom-Header").Should().BeTrue();
+        httpClient.DefaultRequestHeaders.Contains("X-Custom-Header").ShouldBeTrue();
+        httpClient.DefaultRequestHeaders.GetValues("X-Custom-Header").First().ShouldBe("TestValue");
     }
 
     [Fact]
@@ -137,11 +138,11 @@ public class ServiceCollectionExtensionsTests
             .ConfigureHttpClient(client => client.BaseAddress = new Uri("https://test.com"));
 
         // Assert
-        builder.Should().NotBeNull();
+        builder.ShouldNotBeNull();
         var serviceProvider = services.BuildServiceProvider();
         var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
         var httpClient = httpClientFactory.CreateClient("ITestApi");
-        httpClient.BaseAddress.Should().Be(new Uri("https://test.com"));
+        httpClient.BaseAddress.ShouldBe(new Uri("https://test.com"));
     }
 
     [Fact]
@@ -156,11 +157,11 @@ public class ServiceCollectionExtensionsTests
             .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(60));
 
         // Assert
-        builder.Should().NotBeNull();
+        builder.ShouldNotBeNull();
         var serviceProvider = services.BuildServiceProvider();
         var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
         var httpClient = httpClientFactory.CreateClient("ITestApi");
-        httpClient.Timeout.Should().Be(TimeSpan.FromSeconds(60));
+        httpClient.Timeout.ShouldBe(TimeSpan.FromSeconds(60));
     }
 
     // Test helper

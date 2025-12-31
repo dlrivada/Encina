@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using static LanguageExt.Prelude;
 
@@ -18,7 +18,7 @@ public sealed class EitherAssertionsTests
         var value = result.ShouldBeSuccess();
 
         // Assert
-        value.Should().Be(42);
+        value.ShouldBe(42);
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public sealed class EitherAssertionsTests
 
         // Act & Assert
         var act = () => result.ShouldBeSuccess();
-        act.Should().Throw<Xunit.Sdk.TrueException>();
+        Should.Throw<Xunit.Sdk.TrueException>(act);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class EitherAssertionsTests
 
         // Act & Assert
         var act = () => result.ShouldBeSuccess(99);
-        act.Should().Throw<Xunit.Sdk.EqualException>();
+        Should.Throw<Xunit.Sdk.EqualException>(act);
     }
 
     [Fact]
@@ -63,12 +63,12 @@ public sealed class EitherAssertionsTests
         // Act
         result.ShouldBeSuccess(value =>
         {
-            value.Should().Be(42);
+            value.ShouldBe(42);
             validated = true;
         });
 
         // Assert
-        validated.Should().BeTrue();
+        validated.ShouldBeTrue();
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class EitherAssertionsTests
         var value = result.ShouldBeRight();
 
         // Assert
-        value.Should().Be(42);
+        value.ShouldBe(42);
     }
 
     #endregion
@@ -98,7 +98,7 @@ public sealed class EitherAssertionsTests
         var error = result.ShouldBeError();
 
         // Assert
-        error.Should().Be("error message");
+        error.ShouldBe("error message");
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public sealed class EitherAssertionsTests
 
         // Act & Assert
         var act = () => result.ShouldBeError();
-        act.Should().Throw<Xunit.Sdk.TrueException>();
+        Should.Throw<Xunit.Sdk.TrueException>(act);
     }
 
     [Fact]
@@ -122,12 +122,12 @@ public sealed class EitherAssertionsTests
         // Act
         result.ShouldBeError(error =>
         {
-            error.Should().Be("error");
+            error.ShouldBe("error");
             validated = true;
         });
 
         // Assert
-        validated.Should().BeTrue();
+        validated.ShouldBeTrue();
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public sealed class EitherAssertionsTests
         var error = result.ShouldBeLeft();
 
         // Assert
-        error.Should().Be("error");
+        error.ShouldBe("error");
     }
 
     #endregion
@@ -157,7 +157,7 @@ public sealed class EitherAssertionsTests
         var error = result.ShouldBeErrorWithCode("test.code");
 
         // Assert
-        error.Message.Should().Be("Test error");
+        error.Message.ShouldBe("Test error");
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public sealed class EitherAssertionsTests
 
         // Act & Assert
         var act = () => result.ShouldBeErrorWithCode("wrong.code");
-        act.Should().Throw<Xunit.Sdk.EqualException>();
+        Should.Throw<Xunit.Sdk.EqualException>(act);
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public sealed class EitherAssertionsTests
         var error = result.ShouldBeErrorContaining("test error");
 
         // Assert
-        error.Should().NotBeNull();
+        error.ShouldNotBeNull();
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public sealed class EitherAssertionsTests
 
         // Act & Assert
         var act = () => result.ShouldBeErrorContaining("does not exist");
-        act.Should().Throw<Xunit.Sdk.ContainsException>();
+        Should.Throw<Xunit.Sdk.ContainsException>(act);
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public sealed class EitherAssertionsTests
         var error = result.ShouldBeValidationError();
 
         // Assert
-        error.Message.Should().Be("Field is required");
+        error.Message.ShouldBe("Field is required");
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public sealed class EitherAssertionsTests
 
         // Act & Assert
         var act = () => result.ShouldBeValidationError();
-        act.Should().Throw<Xunit.Sdk.StartsWithException>();
+        Should.Throw<Xunit.Sdk.StartsWithException>(act);
     }
 
     [Fact]
@@ -229,7 +229,7 @@ public sealed class EitherAssertionsTests
         var error = result.ShouldBeAuthorizationError();
 
         // Assert
-        error.Message.Should().Be("Access denied");
+        error.Message.ShouldBe("Access denied");
     }
 
     [Fact]
@@ -242,7 +242,7 @@ public sealed class EitherAssertionsTests
         var error = result.ShouldBeNotFoundError();
 
         // Assert
-        error.Message.Should().Be("Resource not found");
+        error.Message.ShouldBe("Resource not found");
     }
 
     #endregion
@@ -259,7 +259,7 @@ public sealed class EitherAssertionsTests
         var value = await resultTask.ShouldBeSuccessAsync();
 
         // Assert
-        value.Should().Be(42);
+        value.ShouldBe(42);
     }
 
     [Fact]
@@ -272,7 +272,7 @@ public sealed class EitherAssertionsTests
         var error = await resultTask.ShouldBeErrorAsync();
 
         // Assert
-        error.Should().Be("error");
+        error.ShouldBe("error");
     }
 
     [Fact]
@@ -286,7 +286,7 @@ public sealed class EitherAssertionsTests
         var error = await resultTask.ShouldBeErrorWithCodeAsync("async.code");
 
         // Assert
-        error.Message.Should().Be("Async error");
+        error.Message.ShouldBe("Async error");
     }
 
     [Fact]
@@ -300,7 +300,7 @@ public sealed class EitherAssertionsTests
         var error = await resultTask.ShouldBeValidationErrorAsync();
 
         // Assert
-        error.Message.Should().Be("Async validation error");
+        error.Message.ShouldBe("Async validation error");
     }
 
     #endregion

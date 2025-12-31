@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -16,8 +16,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => ServiceCollectionExtensions.AddEncinaOpenTelemetry(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => services.AddEncinaOpenTelemetry(null);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -40,8 +40,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => ServiceCollectionExtensions.WithEncina(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("builder");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("builder");
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => builder.WithEncina(null);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -65,8 +65,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => ServiceCollectionExtensions.AddEncinaInstrumentation((global::OpenTelemetry.Trace.TracerProviderBuilder)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("builder");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("builder");
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => ServiceCollectionExtensions.AddEncinaInstrumentation((global::OpenTelemetry.Metrics.MeterProviderBuilder)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("builder");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("builder");
     }
 }

@@ -11,9 +11,9 @@ public sealed class EventVersioningOptionsTests
         var options = new EventVersioningOptions();
 
         // Assert
-        options.Enabled.Should().BeFalse();
-        options.ThrowOnUpcastFailure.Should().BeTrue();
-        options.AssembliesToScan.Should().BeEmpty();
+        options.Enabled.ShouldBeFalse();
+        options.ThrowOnUpcastFailure.ShouldBeTrue();
+        options.AssembliesToScan.ShouldBeEmpty();
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class EventVersioningOptionsTests
         options.Enabled = true;
 
         // Assert
-        options.Enabled.Should().BeTrue();
+        options.Enabled.ShouldBeTrue();
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class EventVersioningOptionsTests
         options.ThrowOnUpcastFailure = false;
 
         // Assert
-        options.ThrowOnUpcastFailure.Should().BeFalse();
+        options.ThrowOnUpcastFailure.ShouldBeFalse();
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class EventVersioningOptionsTests
         var result = options.AddUpcaster<OrderCreatedV1ToV2Upcaster>();
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class EventVersioningOptionsTests
         var result = options.AddUpcaster(typeof(OrderCreatedV1ToV2Upcaster));
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class EventVersioningOptionsTests
         var act = () => options.AddUpcaster((Type)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -91,8 +91,8 @@ public sealed class EventVersioningOptionsTests
         var act = () => options.AddUpcaster(typeof(string));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithMessage("*does not implement IEventUpcaster*");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.Message.ShouldMatch("*does not implement IEventUpcaster*");
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class EventVersioningOptionsTests
         var result = options.AddUpcaster(upcaster);
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class EventVersioningOptionsTests
         var act = () => options.AddUpcaster((IEventUpcaster)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public sealed class EventVersioningOptionsTests
             old => new OrderCreatedV2(old.OrderId, old.CustomerName, "test@example.com"));
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public sealed class EventVersioningOptionsTests
         var act = () => options.AddUpcaster<OrderCreatedV1, OrderCreatedV2>(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public sealed class EventVersioningOptionsTests
             eventTypeName: "CustomEventName");
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public sealed class EventVersioningOptionsTests
         options.ScanAssembly(assembly);
 
         // Assert
-        options.AssembliesToScan.Should().Contain(assembly);
+        options.AssembliesToScan.ShouldContain(assembly);
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public sealed class EventVersioningOptionsTests
         var result = options.ScanAssembly(typeof(OrderCreatedV1ToV2Upcaster).Assembly);
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public sealed class EventVersioningOptionsTests
         var act = () => options.ScanAssembly(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -216,8 +216,8 @@ public sealed class EventVersioningOptionsTests
         options.ScanAssemblies(assembly1, assembly2);
 
         // Assert
-        options.AssembliesToScan.Should().Contain(assembly1);
-        options.AssembliesToScan.Should().Contain(assembly2);
+        options.AssembliesToScan.ShouldContain(assembly1);
+        options.AssembliesToScan.ShouldContain(assembly2);
     }
 
     [Fact]
@@ -230,7 +230,7 @@ public sealed class EventVersioningOptionsTests
         var act = () => options.ScanAssemblies(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -247,7 +247,7 @@ public sealed class EventVersioningOptionsTests
         options.ApplyTo(registry);
 
         // Assert
-        registry.Count.Should().Be(2);
+        registry.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -264,8 +264,8 @@ public sealed class EventVersioningOptionsTests
         options.ApplyTo(registry);
 
         // Assert
-        registry.Count.Should().Be(1);
-        registry.HasUpcasterFor(nameof(SimpleEventV1)).Should().BeTrue();
+        registry.Count.ShouldBe(1);
+        registry.HasUpcasterFor(nameof(SimpleEventV1)).ShouldBeTrue();
     }
 
     [Fact]
@@ -281,7 +281,7 @@ public sealed class EventVersioningOptionsTests
         options.ApplyTo(registry);
 
         // Assert
-        registry.Count.Should().BeGreaterThan(0);
+        registry.Count.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -294,7 +294,7 @@ public sealed class EventVersioningOptionsTests
         var act = () => options.ApplyTo(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -310,6 +310,6 @@ public sealed class EventVersioningOptionsTests
             .ScanAssembly(typeof(EventVersioningOptions).Assembly);
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 }

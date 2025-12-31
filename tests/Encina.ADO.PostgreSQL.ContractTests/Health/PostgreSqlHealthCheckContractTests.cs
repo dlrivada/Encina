@@ -35,21 +35,21 @@ public sealed class PostgreSqlHealthCheckContractTests : IEncinaHealthCheckContr
     [Fact]
     public void DefaultName_ShouldBeEncinaAdoPostgresql()
     {
-        PostgreSqlHealthCheck.DefaultName.Should().Be("encina-ado-postgresql");
+        PostgreSqlHealthCheck.DefaultName.ShouldBe("encina-ado-postgresql");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainDatabaseTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("database");
+        healthCheck.Tags.ShouldContain("database");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainPostgresqlTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("postgresql");
+        healthCheck.Tags.ShouldContain("postgresql");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

@@ -1,4 +1,5 @@
 using Encina.Marten.Snapshots;
+using Shouldly;
 
 namespace Encina.Marten.Tests.Snapshots;
 
@@ -7,7 +8,14 @@ public sealed class SnapshotErrorCodesTests
     [Fact]
     public void Prefix_IsSnapshot()
     {
-        SnapshotErrorCodes.Prefix.Should().Be("snapshot");
+        // Arrange
+        var expected = "snapshot";
+
+        // Act
+        var actual = SnapshotErrorCodes.Prefix;
+
+        // Assert
+        actual.ShouldBe(expected);
     }
 
     [Theory]
@@ -24,11 +32,10 @@ public sealed class SnapshotErrorCodesTests
         // Arrange
         var property = typeof(SnapshotErrorCodes).GetField(propertyName);
 
-        // Act
-        var actualValue = property?.GetValue(null) as string;
-
         // Assert
-        actualValue.Should().Be(expectedValue);
+        property.ShouldNotBeNull($"Field '{propertyName}' should exist on SnapshotErrorCodes");
+        var actualValue = property.GetValue(null) as string;
+        actualValue.ShouldBe(expectedValue);
     }
 
     [Fact]
@@ -43,8 +50,8 @@ public sealed class SnapshotErrorCodesTests
         foreach (var field in fields)
         {
             var value = field.GetValue(null) as string;
-            value.Should().StartWith(SnapshotErrorCodes.Prefix + ".",
-                $"{field.Name} should start with '{SnapshotErrorCodes.Prefix}.'");
+            value.ShouldNotBeNull($"Field '{field.Name}' should have a non-null string value");
+            value.ShouldStartWith(SnapshotErrorCodes.Prefix + ".");
         }
     }
 
@@ -59,6 +66,6 @@ public sealed class SnapshotErrorCodesTests
             .ToList();
 
         // Act & Assert
-        fields.Should().OnlyHaveUniqueItems();
+        fields.ShouldBeUnique();
     }
 }

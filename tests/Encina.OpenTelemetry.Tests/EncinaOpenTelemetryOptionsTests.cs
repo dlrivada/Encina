@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.OpenTelemetry.Tests;
@@ -11,12 +11,15 @@ public sealed class EncinaOpenTelemetryOptionsTests
     [Fact]
     public void Constructor_ShouldSetDefaultValues()
     {
+        // Arrange
+        // No setup required - testing default constructor
+
         // Act
         var options = new EncinaOpenTelemetryOptions();
 
         // Assert
-        options.ServiceName.Should().Be("Encina");
-        options.ServiceVersion.Should().Be("1.0.0");
+        options.ServiceName.ShouldBe("Encina");
+        options.ServiceVersion.ShouldBe("1.0.0");
     }
 
     [Fact]
@@ -30,7 +33,7 @@ public sealed class EncinaOpenTelemetryOptionsTests
         options.ServiceName = serviceName;
 
         // Assert
-        options.ServiceName.Should().Be(serviceName);
+        options.ServiceName.ShouldBe(serviceName);
     }
 
     [Fact]
@@ -44,6 +47,6 @@ public sealed class EncinaOpenTelemetryOptionsTests
         options.ServiceVersion = version;
 
         // Assert
-        options.ServiceVersion.Should().Be(version);
+        options.ServiceVersion.ShouldBe(version);
     }
 }

@@ -1,5 +1,5 @@
 using System.Net;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Xunit;
 using static LanguageExt.Prelude;
@@ -20,7 +20,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.BadRequest);
+        statusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.BadRequest);
+        statusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.Unauthorized);
+        statusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.Forbidden);
+        statusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.NotFound);
+        statusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.NotFound);
+        statusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.NotFound);
+        statusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.Conflict);
+        statusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.Conflict);
+        statusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.Conflict);
+        statusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.InternalServerError);
+        statusCode.ShouldBe(HttpStatusCode.InternalServerError);
     }
 
     [Theory]
@@ -186,7 +186,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.BadRequest);
+        statusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Theory]
@@ -201,7 +201,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.Forbidden);
+        statusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     [Theory]
@@ -217,7 +217,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.NotFound);
+        statusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Theory]
@@ -233,7 +233,7 @@ public class HttpResponseDataExtensionsTests
         var statusCode = GetStatusCodeForError(error);
 
         // Assert
-        statusCode.Should().Be(HttpStatusCode.Conflict);
+        statusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 
     [Fact]
@@ -243,7 +243,7 @@ public class HttpResponseDataExtensionsTests
         var title = GetTitleForStatusCode(400);
 
         // Assert
-        title.Should().Be("Bad Request");
+        title.ShouldBe("Bad Request");
     }
 
     [Fact]
@@ -253,7 +253,7 @@ public class HttpResponseDataExtensionsTests
         var title = GetTitleForStatusCode(401);
 
         // Assert
-        title.Should().Be("Unauthorized");
+        title.ShouldBe("Unauthorized");
     }
 
     [Fact]
@@ -263,7 +263,7 @@ public class HttpResponseDataExtensionsTests
         var title = GetTitleForStatusCode(403);
 
         // Assert
-        title.Should().Be("Forbidden");
+        title.ShouldBe("Forbidden");
     }
 
     [Fact]
@@ -273,7 +273,7 @@ public class HttpResponseDataExtensionsTests
         var title = GetTitleForStatusCode(404);
 
         // Assert
-        title.Should().Be("Not Found");
+        title.ShouldBe("Not Found");
     }
 
     [Fact]
@@ -283,7 +283,7 @@ public class HttpResponseDataExtensionsTests
         var title = GetTitleForStatusCode(409);
 
         // Assert
-        title.Should().Be("Conflict");
+        title.ShouldBe("Conflict");
     }
 
     [Fact]
@@ -293,7 +293,7 @@ public class HttpResponseDataExtensionsTests
         var title = GetTitleForStatusCode(500);
 
         // Assert
-        title.Should().Be("Internal Server Error");
+        title.ShouldBe("Internal Server Error");
     }
 
     [Fact]
@@ -303,7 +303,7 @@ public class HttpResponseDataExtensionsTests
         var title = GetTitleForStatusCode(418); // I'm a teapot
 
         // Assert
-        title.Should().Be("An error occurred");
+        title.ShouldBe("An error occurred");
     }
 
     // Helper method to simulate the error code to status code mapping

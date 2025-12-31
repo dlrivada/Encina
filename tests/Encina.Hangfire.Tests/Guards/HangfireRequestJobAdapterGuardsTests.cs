@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 
 namespace Encina.Hangfire.Tests.Guards;
 
@@ -12,44 +12,44 @@ public class HangfireRequestJobAdapterGuardsTests
     public void Constructor_WithNullEncina_ThrowsArgumentNullException()
     {
         // Arrange
-        IEncina Encina = null!;
+        IEncina encina = null!;
         var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>>>();
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>(Encina, logger));
+            new HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>(encina, logger));
 
-        exception.ParamName.Should().Be("Encina");
+        exception.ParamName.ShouldBe(nameof(encina));
     }
 
     [Fact]
     public void Constructor_WithNullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var Encina = Substitute.For<IEncina>();
+        var encina = Substitute.For<IEncina>();
         ILogger<HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>> logger = null!;
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>(Encina, logger));
+            new HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>(encina, logger));
 
-        exception.ParamName.Should().Be("logger");
+        exception.ParamName.ShouldBe(nameof(logger));
     }
 
     [Fact]
     public async Task ExecuteAsync_WithNullRequest_ThrowsArgumentNullException()
     {
         // Arrange
-        var Encina = Substitute.For<IEncina>();
+        var encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>>>();
-        var adapter = new HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>(Encina, logger);
+        var adapter = new HangfireRequestJobAdapter<HangfireTestRequest, HangfireTestResponse>(encina, logger);
         HangfireTestRequest request = null!;
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentNullException>(() =>
             adapter.ExecuteAsync(request));
 
-        exception.ParamName.Should().Be("request");
+        exception.ParamName.ShouldBe("request");
     }
 
 }

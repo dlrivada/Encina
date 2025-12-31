@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Encina.Dapper.PostgreSQL.Sagas;
 using Encina.Messaging.Sagas;
 
@@ -20,7 +20,8 @@ public class SagaStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new SagaStoreDapper(connection);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connection");
     }
 
     /// <summary>
@@ -35,7 +36,8 @@ public class SagaStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new SagaStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -50,7 +52,8 @@ public class SagaStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new SagaStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -65,7 +68,8 @@ public class SagaStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new SagaStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("tableName");
     }
 
     /// <summary>
@@ -80,8 +84,8 @@ public class SagaStoreDapperGuardsTests
         ISagaState sagaState = null!;
 
         // Act & Assert
-        var act = async () => await store.AddAsync(sagaState);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("sagaState");
+        var act = () => store.AddAsync(sagaState);
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe(nameof(sagaState));
     }
 
     /// <summary>
@@ -96,8 +100,8 @@ public class SagaStoreDapperGuardsTests
         ISagaState sagaState = null!;
 
         // Act & Assert
-        var act = async () => await store.UpdateAsync(sagaState);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("sagaState");
+        var act = () => store.UpdateAsync(sagaState);
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe(nameof(sagaState));
     }
 
     /// <summary>
@@ -112,8 +116,8 @@ public class SagaStoreDapperGuardsTests
         var sagaId = Guid.Empty;
 
         // Act & Assert
-        var act = async () => await store.GetAsync(sagaId);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("sagaId");
+        var act = () => store.GetAsync(sagaId);
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe(nameof(sagaId));
     }
 
     /// <summary>
@@ -131,8 +135,8 @@ public class SagaStoreDapperGuardsTests
         var olderThan = TimeSpan.FromSeconds(seconds);
 
         // Act & Assert
-        var act = async () => await store.GetStuckSagasAsync(olderThan, 10);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("olderThan");
+        var act = () => store.GetStuckSagasAsync(olderThan, 10);
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe(nameof(olderThan));
     }
 
     /// <summary>
@@ -150,7 +154,7 @@ public class SagaStoreDapperGuardsTests
         var olderThan = TimeSpan.FromMinutes(30);
 
         // Act & Assert
-        var act = async () => await store.GetStuckSagasAsync(olderThan, batchSize);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName(nameof(batchSize));
+        var act = () => store.GetStuckSagasAsync(olderThan, batchSize);
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe(nameof(batchSize));
     }
 }

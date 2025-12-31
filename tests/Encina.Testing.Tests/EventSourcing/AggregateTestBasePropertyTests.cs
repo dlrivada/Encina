@@ -1,6 +1,5 @@
 using Encina.DomainModeling;
 using Encina.Testing.EventSourcing;
-using FluentAssertions;
 using FsCheck;
 using FsCheck.Xunit;
 
@@ -50,7 +49,7 @@ public sealed class AggregateTestBasePropertyTests
     }
 
     [Property(MaxTest = 50)]
-    public bool GivenEmpty_VersionIsAlwaysZero(int seed)
+    public bool GivenEmpty_VersionIsAlwaysZero()
     {
         // Arrange
         var test = new PropertyTestOrderAggregate();
@@ -64,7 +63,7 @@ public sealed class AggregateTestBasePropertyTests
     }
 
     [Property(MaxTest = 50)]
-    public bool GivenEmpty_UncommittedEventsIsAlwaysEmpty(int seed)
+    public bool GivenEmpty_UncommittedEventsIsAlwaysEmpty()
     {
         // Arrange
         var test = new PropertyTestOrderAggregate();
@@ -93,15 +92,8 @@ public sealed class AggregateTestBasePropertyTests
         test.TestWhen(order => order.AddItem("TestProduct", qty));
 
         // Assert - Then should find the event
-        try
-        {
-            var @event = test.TestThen<ItemAddedEvent>();
-            return @event.Quantity == qty;
-        }
-        catch
-        {
-            return false;
-        }
+        var @event = test.TestThen<ItemAddedEvent>();
+        return @event.Quantity == qty;
     }
 
     [Property(MaxTest = 50)]
@@ -115,19 +107,12 @@ public sealed class AggregateTestBasePropertyTests
         test.TestWhen(order => order.ThrowError(errorMessage.Get));
 
         // Assert - ThenThrows should find it
-        try
-        {
-            var ex = test.TestThenThrows<InvalidOperationException>();
-            return ex.Message.Contains(errorMessage.Get);
-        }
-        catch
-        {
-            return false;
-        }
+        var ex = test.TestThenThrows<InvalidOperationException>();
+        return ex.Message.Contains(errorMessage.Get);
     }
 
     [Property(MaxTest = 100)]
-    public bool When_NoEventsRaised_ThenNoEventsAlwaysPasses(int seed)
+    public bool When_NoEventsRaised_ThenNoEventsAlwaysPasses()
     {
         // Arrange
         var test = new PropertyTestOrderAggregate();
@@ -137,15 +122,8 @@ public sealed class AggregateTestBasePropertyTests
         test.TestWhen(order => { });
 
         // Assert
-        try
-        {
-            test.TestThenNoEvents();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        test.TestThenNoEvents();
+        return true;
     }
 
     #endregion
@@ -180,7 +158,7 @@ public sealed class AggregateTestBasePropertyTests
     }
 
     [Property(MaxTest = 50)]
-    public bool Aggregate_AfterWhen_IsAlwaysAccessible(int seed)
+    public bool Aggregate_AfterWhen_IsAlwaysAccessible()
     {
         // Arrange
         var test = new PropertyTestOrderAggregate();
@@ -190,15 +168,8 @@ public sealed class AggregateTestBasePropertyTests
         test.TestWhen(order => { });
 
         // Assert
-        try
-        {
-            var aggregate = test.GetTestAggregate();
-            return aggregate is not null;
-        }
-        catch
-        {
-            return false;
-        }
+        var aggregate = test.GetTestAggregate();
+        return aggregate is not null;
     }
 
     #endregion
@@ -228,15 +199,8 @@ public sealed class AggregateTestBasePropertyTests
         expectedTypes.AddRange(Enumerable.Repeat(typeof(ItemAddedEvent), eventCount));
 
         // Assert
-        try
-        {
-            test.TestThenEvents([.. expectedTypes]);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        test.TestThenEvents([.. expectedTypes]);
+        return true;
     }
 
     #endregion

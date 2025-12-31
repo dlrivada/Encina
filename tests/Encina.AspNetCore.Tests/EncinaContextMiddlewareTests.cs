@@ -1,6 +1,6 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Security.Claims;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.AspNetCore.TestHost;
 using Xunit;
 
@@ -30,8 +30,8 @@ public class EncinaContextMiddlewareTests
         await client.SendAsync(request);
 
         // Assert
-        capturedContext.Should().NotBeNull();
-        capturedContext!.CorrelationId.Should().Be(correlationId);
+        capturedContext.ShouldNotBeNull();
+        capturedContext!.CorrelationId.ShouldBe(correlationId);
     }
 
     [Fact]
@@ -53,8 +53,8 @@ public class EncinaContextMiddlewareTests
         await client.GetAsync("/");
 
         // Assert
-        capturedContext.Should().NotBeNull();
-        capturedContext!.CorrelationId.Should().NotBeNullOrEmpty();
+        capturedContext.ShouldNotBeNull();
+        capturedContext!.CorrelationId.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -90,9 +90,9 @@ public class EncinaContextMiddlewareTests
         await client.SendAsync(request);
 
         // Assert
-        capturedContext.Should().NotBeNull();
-        capturedContext!.UserId.Should().NotBeNull();
-        capturedContext.UserId.Should().Be(userId);
+        capturedContext.ShouldNotBeNull();
+        capturedContext!.UserId.ShouldNotBeNull();
+        capturedContext.UserId.ShouldBe(userId);
     }
 
     [Fact]
@@ -129,9 +129,9 @@ public class EncinaContextMiddlewareTests
         await client.SendAsync(request);
 
         // Assert
-        capturedContext.Should().NotBeNull();
-        capturedContext!.TenantId.Should().NotBeNull();
-        capturedContext.TenantId.Should().Be(tenantId);
+        capturedContext.ShouldNotBeNull();
+        capturedContext!.TenantId.ShouldNotBeNull();
+        capturedContext.TenantId.ShouldBe(tenantId);
     }
 
     [Fact]
@@ -156,9 +156,9 @@ public class EncinaContextMiddlewareTests
         await client.SendAsync(request);
 
         // Assert
-        capturedContext.Should().NotBeNull();
-        capturedContext!.TenantId.Should().NotBeNull();
-        capturedContext.TenantId.Should().Be(tenantId);
+        capturedContext.ShouldNotBeNull();
+        capturedContext!.TenantId.ShouldNotBeNull();
+        capturedContext.TenantId.ShouldBe(tenantId);
     }
 
     [Fact]
@@ -183,9 +183,9 @@ public class EncinaContextMiddlewareTests
         await client.SendAsync(request);
 
         // Assert
-        capturedContext.Should().NotBeNull();
-        capturedContext!.IdempotencyKey.Should().NotBeNull();
-        capturedContext.IdempotencyKey.Should().Be(idempotencyKey);
+        capturedContext.ShouldNotBeNull();
+        capturedContext!.IdempotencyKey.ShouldNotBeNull();
+        capturedContext.IdempotencyKey.ShouldBe(idempotencyKey);
     }
 
     [Fact]
@@ -203,8 +203,8 @@ public class EncinaContextMiddlewareTests
         var response = await client.SendAsync(request);
 
         // Assert
-        response.Headers.Should().ContainKey("X-Correlation-ID");
-        response.Headers.GetValues("X-Correlation-ID").Should().ContainSingle(correlationId);
+        response.Headers.ShouldContainKey("X-Correlation-ID");
+        response.Headers.GetValues("X-Correlation-ID").ShouldContain(correlationId);
     }
 
     [Fact]
@@ -230,8 +230,8 @@ public class EncinaContextMiddlewareTests
             await client.GetAsync("/");
 
             // Assert
-            capturedContext.Should().NotBeNull();
-            capturedContext!.CorrelationId.Should().NotBeNullOrEmpty();
+            capturedContext.ShouldNotBeNull();
+            capturedContext!.CorrelationId.ShouldNotBeNullOrEmpty();
         }
         finally
         {
@@ -271,9 +271,9 @@ public class EncinaContextMiddlewareTests
         var response = await client.SendAsync(request);
 
         // Assert
-        capturedContext.Should().NotBeNull();
-        capturedContext!.CorrelationId.Should().Be(correlationId);
-        response.Headers.Should().ContainKey("X-Request-ID");
+        capturedContext.ShouldNotBeNull();
+        capturedContext!.CorrelationId.ShouldBe(correlationId);
+        response.Headers.ShouldContainKey("X-Request-ID");
     }
 
     private static async Task<IHost> CreateTestHost(

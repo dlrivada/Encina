@@ -20,8 +20,8 @@ public sealed class VersioningContractTests
         var name = upcaster.SourceEventTypeName;
 
         // Assert
-        name.Should().NotBeNull();
-        name.Should().NotBeEmpty();
+        name.ShouldNotBeNull();
+        name.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class VersioningContractTests
         var type = upcaster.TargetEventType;
 
         // Assert
-        type.Should().NotBeNull();
+        type.ShouldNotBeNull();
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public sealed class VersioningContractTests
         var type = upcaster.SourceEventType;
 
         // Assert
-        type.Should().NotBeNull();
+        type.ShouldNotBeNull();
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class VersioningContractTests
         var targetType = upcaster.TargetEventType;
 
         // Assert
-        sourceType.Should().NotBe(targetType);
+        sourceType.ShouldNotBe(targetType);
     }
 
     /// <summary>
@@ -85,8 +85,8 @@ public sealed class VersioningContractTests
         var newEvent = typedUpcaster.Upcast(oldEvent);
 
         // Assert
-        newEvent.Should().NotBeNull();
-        newEvent.Should().BeOfType<OrderCreatedV2>();
+        newEvent.ShouldNotBeNull();
+        newEvent.ShouldBeOfType<OrderCreatedV2>();
     }
 
     [Fact]
@@ -103,8 +103,8 @@ public sealed class VersioningContractTests
         var newEvent = typedUpcaster.Upcast(oldEvent);
 
         // Assert - Identity fields should be preserved
-        newEvent.OrderId.Should().Be(orderId);
-        newEvent.CustomerName.Should().Be(customerName);
+        newEvent.OrderId.ShouldBe(orderId);
+        newEvent.CustomerName.ShouldBe(customerName);
     }
 
     #endregion
@@ -118,7 +118,7 @@ public sealed class VersioningContractTests
         var upcaster = new OrderCreatedV1ToV2Upcaster();
 
         // Assert
-        upcaster.Should().BeAssignableTo<IEventUpcaster>();
+        upcaster.ShouldBeAssignableTo<IEventUpcaster>();
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public sealed class VersioningContractTests
         var upcaster = new OrderCreatedV1ToV2Upcaster();
 
         // Assert
-        upcaster.Should().BeAssignableTo<IEventUpcaster<OrderCreatedV1, OrderCreatedV2>>();
+        upcaster.ShouldBeAssignableTo<IEventUpcaster<OrderCreatedV1, OrderCreatedV2>>();
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed class VersioningContractTests
         var name = upcaster.SourceEventTypeName;
 
         // Assert - Default behavior is to use type name
-        name.Should().Be(nameof(OrderCreatedV1));
+        name.ShouldBe(nameof(OrderCreatedV1));
     }
 
     #endregion
@@ -156,7 +156,7 @@ public sealed class VersioningContractTests
             old => new SimpleEventV2(old.Value, 42));
 
         // Assert
-        upcaster.Should().BeAssignableTo<IEventUpcaster>();
+        upcaster.ShouldBeAssignableTo<IEventUpcaster>();
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public sealed class VersioningContractTests
             old => new SimpleEventV2(old.Value, 42));
 
         // Assert
-        upcaster.Should().BeAssignableTo<IEventUpcaster<SimpleEventV1, SimpleEventV2>>();
+        upcaster.ShouldBeAssignableTo<IEventUpcaster<SimpleEventV1, SimpleEventV2>>();
     }
 
     [Fact]
@@ -182,7 +182,7 @@ public sealed class VersioningContractTests
         var sourceEventTypeName = upcaster.SourceEventTypeName;
 
         // Assert
-        eventTypeName.Should().Be(sourceEventTypeName);
+        eventTypeName.ShouldBe(sourceEventTypeName);
     }
 
     #endregion
@@ -201,9 +201,9 @@ public sealed class VersioningContractTests
         var upcasters = registry.GetAllUpcasters();
 
         // Assert
-        upcasters.Should().HaveCount(2);
-        upcasters.Should().Contain(u => u is OrderCreatedV1ToV2Upcaster);
-        upcasters.Should().Contain(u => u is OrderCreatedV2ToV3Upcaster);
+        upcasters.Count.ShouldBe(2);
+        upcasters.ShouldContain(u => u is OrderCreatedV1ToV2Upcaster);
+        upcasters.ShouldContain(u => u is OrderCreatedV2ToV3Upcaster);
     }
 
     [Fact]
@@ -213,13 +213,13 @@ public sealed class VersioningContractTests
         var registry = new EventUpcasterRegistry();
 
         // Act & Assert
-        registry.Count.Should().Be(0);
+        registry.Count.ShouldBe(0);
 
         registry.Register<OrderCreatedV1ToV2Upcaster>();
-        registry.Count.Should().Be(1);
+        registry.Count.ShouldBe(1);
 
         registry.Register<OrderCreatedV2ToV3Upcaster>();
-        registry.Count.Should().Be(2);
+        registry.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -233,11 +233,11 @@ public sealed class VersioningContractTests
         var unregisteredType = "UnknownEvent";
 
         // Act & Assert
-        registry.HasUpcasterFor(registeredType).Should().BeTrue();
-        registry.GetUpcasterForEventType(registeredType).Should().NotBeNull();
+        registry.HasUpcasterFor(registeredType).ShouldBeTrue();
+        registry.GetUpcasterForEventType(registeredType).ShouldNotBeNull();
 
-        registry.HasUpcasterFor(unregisteredType).Should().BeFalse();
-        registry.GetUpcasterForEventType(unregisteredType).Should().BeNull();
+        registry.HasUpcasterFor(unregisteredType).ShouldBeFalse();
+        registry.GetUpcasterForEventType(unregisteredType).ShouldBeNull();
     }
 
     #endregion
@@ -251,9 +251,9 @@ public sealed class VersioningContractTests
         var options = new EventVersioningOptions();
 
         // Act & Assert
-        options.AddUpcaster<OrderCreatedV1ToV2Upcaster>().Should().BeSameAs(options);
-        options.AddUpcaster(typeof(OrderCreatedV2ToV3Upcaster)).Should().BeSameAs(options);
-        options.ScanAssembly(GetType().Assembly).Should().BeSameAs(options);
+        options.AddUpcaster<OrderCreatedV1ToV2Upcaster>().ShouldBeSameAs(options);
+        options.AddUpcaster(typeof(OrderCreatedV2ToV3Upcaster)).ShouldBeSameAs(options);
+        options.ScanAssembly(GetType().Assembly).ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -270,7 +270,7 @@ public sealed class VersioningContractTests
         options.ApplyTo(registry);
 
         // Assert
-        registry.Count.Should().Be(2);
+        registry.Count.ShouldBe(2);
     }
 
     #endregion

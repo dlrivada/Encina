@@ -34,21 +34,21 @@ public sealed class KafkaHealthCheckContractTests : IEncinaHealthCheckContractTe
     [Fact]
     public void DefaultName_ShouldBeEncinaKafka()
     {
-        KafkaHealthCheck.DefaultName.Should().Be("encina-kafka");
+        KafkaHealthCheck.DefaultName.ShouldBe("encina-kafka");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainMessagingTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("messaging");
+        healthCheck.Tags.ShouldContain("messaging");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainKafkaTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("kafka");
+        healthCheck.Tags.ShouldContain("kafka");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

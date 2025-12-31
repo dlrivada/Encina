@@ -33,10 +33,16 @@ public sealed class PostgreSqlHealthCheckContractTests : IEncinaHealthCheckContr
     }
 
     [Fact]
-    public void DefaultName_ShouldBeEncinaPostgresql()
+    public void DefaultName_ShouldBeEncinaHyphenPostgresql()
     {
+        // Arrange
+        var expected = "encina-postgresql";
+
+        // Act
+        var actual = PostgreSqlHealthCheck.DefaultName;
+
         // Assert
-        PostgreSqlHealthCheck.DefaultName.Should().Be("encina-postgresql");
+        actual.ShouldBe(expected);
     }
 
     [Fact]
@@ -45,8 +51,11 @@ public sealed class PostgreSqlHealthCheckContractTests : IEncinaHealthCheckContr
         // Arrange
         var healthCheck = CreateHealthCheck();
 
+        // Act
+        var tags = healthCheck.Tags;
+
         // Assert
-        healthCheck.Tags.Should().Contain("database");
+        tags.ShouldContain("database");
     }
 
     [Fact]
@@ -55,8 +64,11 @@ public sealed class PostgreSqlHealthCheckContractTests : IEncinaHealthCheckContr
         // Arrange
         var healthCheck = CreateHealthCheck();
 
+        // Act
+        var tags = healthCheck.Tags;
+
         // Assert
-        healthCheck.Tags.Should().Contain("postgresql");
+        tags.ShouldContain("postgresql");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

@@ -24,8 +24,8 @@ public sealed class SnapshotGuardClauseTests
             DateTime.UtcNow);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("state");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("state");
     }
 
     #endregion
@@ -39,8 +39,8 @@ public sealed class SnapshotGuardClauseTests
         var act = () => SnapshotEnvelope.Create<TestSnapshotableAggregate>(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("snapshot");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("snapshot");
     }
 
     #endregion
@@ -62,7 +62,7 @@ public sealed class SnapshotGuardClauseTests
             snapshotEvery: invalidValue);
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     [Theory]
@@ -80,7 +80,7 @@ public sealed class SnapshotGuardClauseTests
             keepSnapshots: invalidValue);
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
 
@@ -98,8 +98,8 @@ public sealed class SnapshotGuardClauseTests
         var act = () => new MartenSnapshotStore<TestSnapshotableAggregate>(null!, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("session");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("session");
     }
 
     [Fact]
@@ -112,8 +112,8 @@ public sealed class SnapshotGuardClauseTests
         var act = () => new MartenSnapshotStore<TestSnapshotableAggregate>(session, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -128,8 +128,8 @@ public sealed class SnapshotGuardClauseTests
         var act = async () => await store.SaveAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("snapshot");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("snapshot");
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class SnapshotGuardClauseTests
         var act = async () => await store.PruneAsync(Guid.NewGuid(), -1);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(async () => await act());
     }
 
     #endregion
@@ -167,8 +167,8 @@ public sealed class SnapshotGuardClauseTests
             options);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("session");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("session");
     }
 
     [Fact]
@@ -187,8 +187,8 @@ public sealed class SnapshotGuardClauseTests
             options);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("snapshotStore");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("snapshotStore");
     }
 
     [Fact]
@@ -207,8 +207,8 @@ public sealed class SnapshotGuardClauseTests
             options);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -227,8 +227,8 @@ public sealed class SnapshotGuardClauseTests
             null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -246,8 +246,8 @@ public sealed class SnapshotGuardClauseTests
         var act = async () => await repository.SaveAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("aggregate");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("aggregate");
     }
 
     [Fact]
@@ -265,8 +265,8 @@ public sealed class SnapshotGuardClauseTests
         var act = async () => await repository.CreateAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("aggregate");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("aggregate");
     }
 
     #endregion
@@ -283,8 +283,8 @@ public sealed class SnapshotGuardClauseTests
         var act = () => services.AddSnapshotableAggregate<TestSnapshotableAggregate>();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     #endregion

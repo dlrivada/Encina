@@ -1,5 +1,5 @@
-﻿using Encina.EntityFrameworkCore.Inbox;
-using FluentAssertions;
+using Encina.EntityFrameworkCore.Inbox;
+using Shouldly;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -41,8 +41,8 @@ public class InboxStoreEFTests : IDisposable
         var result = await _store.GetMessageAsync("test-message-id");
 
         // Assert
-        result.Should().NotBeNull();
-        result!.MessageId.Should().Be("test-message-id");
+        result.ShouldNotBeNull();
+        result!.MessageId.ShouldBe("test-message-id");
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class InboxStoreEFTests : IDisposable
         var result = await _store.GetMessageAsync("non-existent-id");
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class InboxStoreEFTests : IDisposable
 
         // Assert
         var stored = await _dbContext.InboxMessages.FindAsync("new-message-id");
-        stored.Should().NotBeNull();
+        stored.ShouldNotBeNull();
     }
 
     [Fact]
@@ -99,9 +99,9 @@ public class InboxStoreEFTests : IDisposable
 
         // Assert
         var updated = await _dbContext.InboxMessages.FindAsync("process-test-id");
-        updated!.Response.Should().Be("{\"result\":\"success\"}");
-        updated.ProcessedAtUtc.Should().NotBeNull();
-        updated.ErrorMessage.Should().BeNull();
+        updated!.Response.ShouldBe("{\"result\":\"success\"}");
+        updated.ProcessedAtUtc.ShouldNotBeNull();
+        updated.ErrorMessage.ShouldBeNull();
     }
 
     [Fact]
@@ -128,9 +128,9 @@ public class InboxStoreEFTests : IDisposable
 
         // Assert
         var updated = await _dbContext.InboxMessages.FindAsync("fail-test-id");
-        updated!.ErrorMessage.Should().Be("Test error");
-        updated.RetryCount.Should().Be(1);
-        updated.NextRetryAtUtc.Should().BeCloseTo(nextRetry, TimeSpan.FromSeconds(1));
+        updated!.ErrorMessage.ShouldBe("Test error");
+        updated.RetryCount.ShouldBe(1);
+        updated.NextRetryAtUtc.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
     [Fact]
@@ -163,8 +163,8 @@ public class InboxStoreEFTests : IDisposable
         var messages = await _store.GetExpiredMessagesAsync(batchSize: 10);
 
         // Assert
-        messages.Should().HaveCount(1);
-        messages.First().MessageId.Should().Be("expired-id");
+        messages.Count.ShouldBe(1);
+        messages.First().MessageId.ShouldBe("expired-id");
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class InboxStoreEFTests : IDisposable
 
         // Assert
         var remaining = await _dbContext.InboxMessages.ToListAsync();
-        remaining.Should().BeEmpty();
+        remaining.ShouldBeEmpty();
     }
 
     [Fact]
@@ -219,7 +219,7 @@ public class InboxStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act & Assert
-        message.IsProcessed.Should().BeTrue();
+        message.IsProcessed.ShouldBeTrue();
     }
 
     [Fact]
@@ -241,7 +241,7 @@ public class InboxStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act & Assert
-        message.IsProcessed.Should().BeFalse();
+        message.IsProcessed.ShouldBeFalse();
     }
 
     public void Dispose()

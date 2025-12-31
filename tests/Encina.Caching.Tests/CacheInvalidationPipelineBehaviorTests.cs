@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using static LanguageExt.Prelude;
@@ -40,7 +40,8 @@ public class CacheInvalidationPipelineBehaviorTests
             Options.Create(_options),
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("cacheProvider");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("cacheProvider");
     }
 
     [Fact]
@@ -53,7 +54,8 @@ public class CacheInvalidationPipelineBehaviorTests
             Options.Create(_options),
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("keyGenerator");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("keyGenerator");
     }
 
     [Fact]
@@ -66,7 +68,8 @@ public class CacheInvalidationPipelineBehaviorTests
             null!,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -79,7 +82,8 @@ public class CacheInvalidationPipelineBehaviorTests
             Options.Create(_options),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]

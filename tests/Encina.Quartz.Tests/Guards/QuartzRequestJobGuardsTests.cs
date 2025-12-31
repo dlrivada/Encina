@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Quartz;
 
 namespace Encina.Quartz.Tests.Guards;
@@ -20,7 +20,7 @@ public class QuartzRequestJobGuardsTests
         var exception = Assert.Throws<ArgumentNullException>(() =>
             new QuartzRequestJob<QuartzTestRequest, QuartzTestResponse>(Encina, logger));
 
-        exception.ParamName.Should().Be("Encina");
+        exception.ParamName.ShouldBe("Encina");
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class QuartzRequestJobGuardsTests
         var exception = Assert.Throws<ArgumentNullException>(() =>
             new QuartzRequestJob<QuartzTestRequest, QuartzTestResponse>(Encina, logger));
 
-        exception.ParamName.Should().Be("logger");
+        exception.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class QuartzRequestJobGuardsTests
         var exception = await Assert.ThrowsAsync<ArgumentNullException>(() =>
             job.Execute(context));
 
-        exception.ParamName.Should().Be("context");
+        exception.ParamName.ShouldBe("context");
     }
 
 }

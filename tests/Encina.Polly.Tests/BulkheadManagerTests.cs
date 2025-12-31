@@ -35,9 +35,9 @@ public class BulkheadManagerTests : IDisposable
         var result = await _manager.TryAcquireAsync("test", config);
 
         // Assert
-        result.IsAcquired.Should().BeTrue();
-        result.RejectionReason.Should().Be(BulkheadRejectionReason.None);
-        result.Releaser.Should().NotBeNull();
+        result.IsAcquired.ShouldBeTrue();
+        result.RejectionReason.ShouldBe(BulkheadRejectionReason.None);
+        result.Releaser.ShouldNotBeNull();
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class BulkheadManagerTests : IDisposable
         }
 
         // Assert
-        results.Should().AllSatisfy(r => r.IsAcquired.Should().BeTrue());
+        results.ShouldAllBe(r => r.IsAcquired);
     }
 
     [Fact]
@@ -76,10 +76,10 @@ public class BulkheadManagerTests : IDisposable
         var result = await _manager.TryAcquireAsync("test", config);
 
         // Assert
-        permit1.IsAcquired.Should().BeTrue();
-        permit2.IsAcquired.Should().BeTrue();
-        result.IsAcquired.Should().BeFalse();
-        result.RejectionReason.Should().Be(BulkheadRejectionReason.BulkheadFull);
+        permit1.IsAcquired.ShouldBeTrue();
+        permit2.IsAcquired.ShouldBeTrue();
+        result.IsAcquired.ShouldBeFalse();
+        result.RejectionReason.ShouldBe(BulkheadRejectionReason.BulkheadFull);
 
         // Cleanup
         permit1.Releaser?.Dispose();
@@ -104,7 +104,7 @@ public class BulkheadManagerTests : IDisposable
         var result = await _manager.TryAcquireAsync("test", config);
 
         // Assert
-        result.IsAcquired.Should().BeTrue();
+        result.IsAcquired.ShouldBeTrue();
         result.Releaser?.Dispose();
     }
 
@@ -122,7 +122,7 @@ public class BulkheadManagerTests : IDisposable
             permit.Releaser?.Dispose();
         };
 
-        action.Should().NotThrow();
+        Should.NotThrow(action);
     }
 
     #endregion
@@ -146,12 +146,12 @@ public class BulkheadManagerTests : IDisposable
         var metrics = _manager.GetMetrics("test");
 
         // Assert
-        metrics.Should().NotBeNull();
-        metrics!.Value.CurrentConcurrency.Should().Be(3);
-        metrics.Value.MaxConcurrency.Should().Be(10);
-        metrics.Value.TotalAcquired.Should().Be(3);
-        metrics.Value.TotalRejected.Should().Be(0);
-        metrics.Value.ConcurrencyUtilization.Should().Be(30.0);
+        metrics.ShouldNotBeNull();
+        metrics!.Value.CurrentConcurrency.ShouldBe(3);
+        metrics.Value.MaxConcurrency.ShouldBe(10);
+        metrics.Value.TotalAcquired.ShouldBe(3);
+        metrics.Value.TotalRejected.ShouldBe(0);
+        metrics.Value.ConcurrencyUtilization.ShouldBe(30.0);
 
         // Cleanup
         foreach (var permit in permits)
@@ -177,10 +177,10 @@ public class BulkheadManagerTests : IDisposable
         var metrics = _manager.GetMetrics("test");
 
         // Assert
-        metrics.Should().NotBeNull();
-        metrics!.Value.TotalAcquired.Should().Be(1);
-        metrics.Value.TotalRejected.Should().Be(2);
-        metrics.Value.RejectionRate.Should().BeApproximately(66.67, 0.1);
+        metrics.ShouldNotBeNull();
+        metrics!.Value.TotalAcquired.ShouldBe(1);
+        metrics.Value.TotalRejected.ShouldBe(2);
+        metrics.Value.RejectionRate.ShouldBe(66.67, 0.1);
 
         // Cleanup
         permit.Releaser?.Dispose();
@@ -193,7 +193,7 @@ public class BulkheadManagerTests : IDisposable
         var metrics = _manager.GetMetrics("nonexistent");
 
         // Assert
-        metrics.Should().BeNull();
+        metrics.ShouldBeNull();
     }
 
     #endregion
@@ -213,8 +213,8 @@ public class BulkheadManagerTests : IDisposable
         var result = await _manager.TryAcquireAsync("key2", config);
 
         // Assert
-        permit1.IsAcquired.Should().BeTrue();
-        result.IsAcquired.Should().BeTrue();
+        permit1.IsAcquired.ShouldBeTrue();
+        result.IsAcquired.ShouldBeTrue();
 
         // Cleanup
         permit1.Releaser?.Dispose();
@@ -237,7 +237,7 @@ public class BulkheadManagerTests : IDisposable
         var metrics = _manager.GetMetrics("test");
 
         // Assert
-        metrics.Should().BeNull();
+        metrics.ShouldBeNull();
     }
 
     [Fact]
@@ -245,7 +245,7 @@ public class BulkheadManagerTests : IDisposable
     {
         // Act & Assert
         var action = () => _manager.Reset("nonexistent");
-        action.Should().NotThrow();
+        Should.NotThrow(action);
     }
 
     #endregion
@@ -274,8 +274,8 @@ public class BulkheadManagerTests : IDisposable
         var result = await _manager.TryAcquireAsync("test", config, cts.Token);
 
         // Assert
-        result.IsAcquired.Should().BeFalse();
-        result.RejectionReason.Should().Be(BulkheadRejectionReason.Cancelled);
+        result.IsAcquired.ShouldBeFalse();
+        result.RejectionReason.ShouldBe(BulkheadRejectionReason.Cancelled);
 
         // Cleanup
         permit.Releaser?.Dispose();
@@ -296,8 +296,8 @@ public class BulkheadManagerTests : IDisposable
         manager.Dispose();
 
         // Assert
-        var action = async () => await manager.TryAcquireAsync("test", config);
-        await action.Should().ThrowAsync<ObjectDisposedException>();
+        Func<Task> action = () => manager.TryAcquireAsync("test", config);
+        await Should.ThrowAsync<ObjectDisposedException>(action);
     }
 
     [Fact]
@@ -313,7 +313,7 @@ public class BulkheadManagerTests : IDisposable
             manager.Dispose();
         };
 
-        action.Should().NotThrow();
+        Should.NotThrow(action);
     }
 
     #endregion
@@ -327,7 +327,7 @@ public class BulkheadManagerTests : IDisposable
         var metrics = new BulkheadMetrics(5, 0, 10, 20, 100, 10);
 
         // Act & Assert
-        metrics.ConcurrencyUtilization.Should().Be(50.0);
+        metrics.ConcurrencyUtilization.ShouldBe(50.0);
     }
 
     [Fact]
@@ -337,7 +337,7 @@ public class BulkheadManagerTests : IDisposable
         var metrics = new BulkheadMetrics(10, 5, 10, 20, 100, 10);
 
         // Act & Assert
-        metrics.QueueUtilization.Should().Be(25.0);
+        metrics.QueueUtilization.ShouldBe(25.0);
     }
 
     [Fact]
@@ -347,7 +347,7 @@ public class BulkheadManagerTests : IDisposable
         var metrics = new BulkheadMetrics(0, 0, 10, 20, 90, 10);
 
         // Act & Assert
-        metrics.RejectionRate.Should().Be(10.0);
+        metrics.RejectionRate.ShouldBe(10.0);
     }
 
     [Fact]
@@ -357,9 +357,9 @@ public class BulkheadManagerTests : IDisposable
         var metrics = new BulkheadMetrics(0, 0, 0, 0, 0, 0);
 
         // Act & Assert
-        metrics.ConcurrencyUtilization.Should().Be(0.0);
-        metrics.QueueUtilization.Should().Be(0.0);
-        metrics.RejectionRate.Should().Be(0.0);
+        metrics.ConcurrencyUtilization.ShouldBe(0.0);
+        metrics.QueueUtilization.ShouldBe(0.0);
+        metrics.RejectionRate.ShouldBe(0.0);
     }
 
     #endregion
@@ -377,9 +377,9 @@ public class BulkheadManagerTests : IDisposable
         var result = BulkheadAcquireResult.Acquired(releaser, metrics);
 
         // Assert
-        result.IsAcquired.Should().BeTrue();
-        result.RejectionReason.Should().Be(BulkheadRejectionReason.None);
-        result.Releaser.Should().Be(releaser);
+        result.IsAcquired.ShouldBeTrue();
+        result.RejectionReason.ShouldBe(BulkheadRejectionReason.None);
+        result.Releaser.ShouldBe(releaser);
     }
 
     [Fact]
@@ -392,9 +392,9 @@ public class BulkheadManagerTests : IDisposable
         var result = BulkheadAcquireResult.RejectedBulkheadFull(metrics);
 
         // Assert
-        result.IsAcquired.Should().BeFalse();
-        result.RejectionReason.Should().Be(BulkheadRejectionReason.BulkheadFull);
-        result.Releaser.Should().BeNull();
+        result.IsAcquired.ShouldBeFalse();
+        result.RejectionReason.ShouldBe(BulkheadRejectionReason.BulkheadFull);
+        result.Releaser.ShouldBeNull();
     }
 
     [Fact]
@@ -407,8 +407,8 @@ public class BulkheadManagerTests : IDisposable
         var result = BulkheadAcquireResult.RejectedQueueTimeout(metrics);
 
         // Assert
-        result.IsAcquired.Should().BeFalse();
-        result.RejectionReason.Should().Be(BulkheadRejectionReason.QueueTimeout);
+        result.IsAcquired.ShouldBeFalse();
+        result.RejectionReason.ShouldBe(BulkheadRejectionReason.QueueTimeout);
     }
 
     [Fact]
@@ -421,8 +421,8 @@ public class BulkheadManagerTests : IDisposable
         var result = BulkheadAcquireResult.RejectedCancelled(metrics);
 
         // Assert
-        result.IsAcquired.Should().BeFalse();
-        result.RejectionReason.Should().Be(BulkheadRejectionReason.Cancelled);
+        result.IsAcquired.ShouldBeFalse();
+        result.RejectionReason.ShouldBe(BulkheadRejectionReason.Cancelled);
     }
 
     #endregion

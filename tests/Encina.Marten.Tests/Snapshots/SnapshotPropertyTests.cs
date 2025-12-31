@@ -29,8 +29,8 @@ public sealed class SnapshotPropertyTests
             DateTime.UtcNow);
 
         // Assert
-        snapshot.Version.Should().BeGreaterThanOrEqualTo(0);
-        snapshot.Version.Should().Be(version);
+        snapshot.Version.ShouldBeGreaterThanOrEqualTo(0);
+        snapshot.Version.ShouldBe(version);
     }
 
     [Theory]
@@ -54,68 +54,53 @@ public sealed class SnapshotPropertyTests
         var restored = envelope.ToSnapshot();
 
         // Assert
-        restored.Version.Should().Be(original.Version);
+        restored.Version.ShouldBe(original.Version);
     }
 
-    [Fact]
-    public void SnapshotEnvelope_RoundTrip_PreservesAggregateId_ForVariousIds()
+    public static IEnumerable<object[]> AggregateIdTestCases()
     {
-        // Test with multiple random GUIDs
-        var aggregateIds = new[]
-        {
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.Empty,
-            Guid.Parse("12345678-1234-1234-1234-123456789012")
-        };
-
-        foreach (var aggregateId in aggregateIds)
-        {
-            // Arrange
-            var aggregate = new TestSnapshotableAggregate();
-            var original = new Snapshot<TestSnapshotableAggregate>(
-                aggregateId,
-                10,
-                aggregate,
-                DateTime.UtcNow);
-
-            // Act
-            var envelope = SnapshotEnvelope.Create(original);
-            var restored = envelope.ToSnapshot();
-
-            // Assert
-            restored.AggregateId.Should().Be(original.AggregateId);
-        }
+        yield return [Guid.Empty];
+        yield return [Guid.Parse("12345678-1234-1234-1234-123456789012")];
+        yield return [Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")];
     }
 
-    [Fact]
-    public void SnapshotEnvelope_Id_ContainsAggregateId()
+    [Theory]
+    [MemberData(nameof(AggregateIdTestCases))]
+    public void SnapshotEnvelope_RoundTrip_PreservesAggregateId(Guid aggregateId)
     {
-        // Test with multiple aggregate IDs
-        var aggregateIds = new[]
-        {
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
-        };
+        // Arrange
+        var aggregate = new TestSnapshotableAggregate();
+        var original = new Snapshot<TestSnapshotableAggregate>(
+            aggregateId,
+            10,
+            aggregate,
+            DateTime.UtcNow);
 
-        foreach (var aggregateId in aggregateIds)
-        {
-            // Arrange
-            var aggregate = new TestSnapshotableAggregate();
-            var snapshot = new Snapshot<TestSnapshotableAggregate>(
-                aggregateId,
-                10,
-                aggregate,
-                DateTime.UtcNow);
+        // Act
+        var envelope = SnapshotEnvelope.Create(original);
+        var restored = envelope.ToSnapshot();
 
-            // Act
-            var envelope = SnapshotEnvelope.Create(snapshot);
+        // Assert
+        restored.AggregateId.ShouldBe(original.AggregateId);
+    }
 
-            // Assert
-            envelope.Id.Should().Contain(aggregateId.ToString());
-        }
+    [Theory]
+    [MemberData(nameof(AggregateIdTestCases))]
+    public void SnapshotEnvelope_Id_ContainsAggregateId(Guid aggregateId)
+    {
+        // Arrange
+        var aggregate = new TestSnapshotableAggregate();
+        var snapshot = new Snapshot<TestSnapshotableAggregate>(
+            aggregateId,
+            10,
+            aggregate,
+            DateTime.UtcNow);
+
+        // Act
+        var envelope = SnapshotEnvelope.Create(snapshot);
+
+        // Assert
+        envelope.Id.ShouldContain(aggregateId.ToString());
     }
 
     [Theory]
@@ -138,7 +123,7 @@ public sealed class SnapshotPropertyTests
         var envelope = SnapshotEnvelope.Create(snapshot);
 
         // Assert
-        envelope.Id.Should().Contain(version.ToString(CultureInfo.InvariantCulture));
+        envelope.Id.ShouldContain(version.ToString(CultureInfo.InvariantCulture));
     }
 
     [Theory]
@@ -153,8 +138,8 @@ public sealed class SnapshotPropertyTests
         var options = new SnapshotOptions { SnapshotEvery = positiveValue };
 
         // Assert
-        options.SnapshotEvery.Should().Be(positiveValue);
-        options.SnapshotEvery.Should().BeGreaterThan(0);
+        options.SnapshotEvery.ShouldBe(positiveValue);
+        options.SnapshotEvery.ShouldBeGreaterThan(0);
     }
 
     [Theory]
@@ -169,8 +154,8 @@ public sealed class SnapshotPropertyTests
         var options = new SnapshotOptions { KeepSnapshots = nonNegativeValue };
 
         // Assert
-        options.KeepSnapshots.Should().Be(nonNegativeValue);
-        options.KeepSnapshots.Should().BeGreaterThanOrEqualTo(0);
+        options.KeepSnapshots.ShouldBe(nonNegativeValue);
+        options.KeepSnapshots.ShouldBeGreaterThanOrEqualTo(0);
     }
 
     [Theory]
@@ -191,7 +176,7 @@ public sealed class SnapshotPropertyTests
             keepSnapshots: keepSnapshots);
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -210,7 +195,7 @@ public sealed class SnapshotPropertyTests
         var envelope2 = SnapshotEnvelope.Create(snapshot2);
 
         // Assert
-        envelope1.Id.Should().NotBe(envelope2.Id);
+        envelope1.Id.ShouldNotBe(envelope2.Id);
     }
 
     [Theory]
@@ -231,7 +216,7 @@ public sealed class SnapshotPropertyTests
         var envelope2 = SnapshotEnvelope.Create(snapshot2);
 
         // Assert
-        envelope1.Id.Should().NotBe(envelope2.Id);
+        envelope1.Id.ShouldNotBe(envelope2.Id);
     }
 
     [Fact]
@@ -250,6 +235,6 @@ public sealed class SnapshotPropertyTests
         var envelope2 = SnapshotEnvelope.Create(snapshot2);
 
         // Assert
-        envelope1.Id.Should().Be(envelope2.Id);
+        envelope1.Id.ShouldBe(envelope2.Id);
     }
 }

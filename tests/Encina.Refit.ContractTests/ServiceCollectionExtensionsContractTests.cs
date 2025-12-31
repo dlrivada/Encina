@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
 using Refit;
 using Encina.Refit;
@@ -21,8 +21,8 @@ public class ServiceCollectionExtensionsContractTests
             new[] { typeof(IServiceCollection), typeof(Action<HttpClient>) });
 
         // Assert
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be(typeof(IHttpClientBuilder));
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(IHttpClientBuilder));
     }
 
     [Fact]
@@ -34,8 +34,8 @@ public class ServiceCollectionExtensionsContractTests
             new[] { typeof(IServiceCollection), typeof(RefitSettings), typeof(Action<HttpClient>) });
 
         // Assert
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be(typeof(IHttpClientBuilder));
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(IHttpClientBuilder));
     }
 
     [Fact]
@@ -47,8 +47,8 @@ public class ServiceCollectionExtensionsContractTests
             new[] { typeof(IServiceCollection), typeof(Func<IServiceProvider, RefitSettings>), typeof(Action<HttpClient>) });
 
         // Assert
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be(typeof(IHttpClientBuilder));
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(IHttpClientBuilder));
     }
 
     [Fact]
@@ -61,10 +61,10 @@ public class ServiceCollectionExtensionsContractTests
         // Assert
         foreach (var method in methods)
         {
-            method.IsStatic.Should().BeTrue();
-            method.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false).Should().BeTrue();
+            method.IsStatic.ShouldBeTrue();
+            method.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false).ShouldBeTrue();
             var parameters = method.GetParameters();
-            parameters[0].ParameterType.Should().Be(typeof(IServiceCollection));
+            parameters[0].ParameterType.ShouldBe(typeof(IServiceCollection));
         }
     }
 
@@ -78,10 +78,10 @@ public class ServiceCollectionExtensionsContractTests
         // Assert
         foreach (var method in methods)
         {
-            method.IsGenericMethod.Should().BeTrue();
+            method.IsGenericMethod.ShouldBeTrue();
             var genericArguments = method.GetGenericArguments();
-            genericArguments.Should().HaveCount(1);
-            genericArguments[0].Name.Should().Be("TApiClient");
+            genericArguments.Count.ShouldBe(1);
+            genericArguments[0].Name.ShouldBe("TApiClient");
         }
     }
 
@@ -97,7 +97,7 @@ public class ServiceCollectionExtensionsContractTests
         var attributes = genericParameter.GenericParameterAttributes;
 
         // Assert
-        (attributes & GenericParameterAttributes.ReferenceTypeConstraint).Should().NotBe(0);
+        (attributes & GenericParameterAttributes.ReferenceTypeConstraint).ShouldNotBe(0);
     }
 
     [Fact]
@@ -112,8 +112,8 @@ public class ServiceCollectionExtensionsContractTests
         var configureParameter = method!.GetParameters()[1];
 
         // Assert
-        configureParameter.IsOptional.Should().BeTrue();
-        configureParameter.DefaultValue.Should().BeNull();
+        configureParameter.IsOptional.ShouldBeTrue();
+        configureParameter.DefaultValue.ShouldBeNull();
     }
 
     [Fact]
@@ -124,10 +124,10 @@ public class ServiceCollectionExtensionsContractTests
             .Where(m => m.Name == "AddEncinaRefitClient");
 
         // Assert
-        methods.Should().NotBeEmpty();
+        methods.ShouldNotBeEmpty();
         foreach (var method in methods)
         {
-            method.IsPublic.Should().BeTrue();
+            method.IsPublic.ShouldBeTrue();
         }
     }
 
@@ -138,9 +138,9 @@ public class ServiceCollectionExtensionsContractTests
         var type = typeof(ServiceCollectionExtensions);
 
         // Assert
-        type.IsPublic.Should().BeTrue();
-        type.IsAbstract.Should().BeTrue();
-        type.IsSealed.Should().BeTrue();
+        type.IsPublic.ShouldBeTrue();
+        type.IsAbstract.ShouldBeTrue();
+        type.IsSealed.ShouldBeTrue();
     }
 
     [Fact]
@@ -152,20 +152,20 @@ public class ServiceCollectionExtensionsContractTests
             .ToList();
 
         // Assert
-        methods.Should().HaveCount(3, "there should be 3 overloads");
+        methods.Count.ShouldBe(3, "there should be 3 overloads");
 
         // Overload 1: Basic
-        methods.Should().Contain(m =>
+        methods.ShouldContain(m =>
             m.GetParameters().Length == 2 &&
             m.GetParameters()[1].ParameterType == typeof(Action<HttpClient>));
 
         // Overload 2: With RefitSettings
-        methods.Should().Contain(m =>
+        methods.ShouldContain(m =>
             m.GetParameters().Length == 3 &&
             m.GetParameters()[1].ParameterType == typeof(RefitSettings));
 
         // Overload 3: With settings provider
-        methods.Should().Contain(m =>
+        methods.ShouldContain(m =>
             m.GetParameters().Length == 3 &&
             m.GetParameters()[1].ParameterType == typeof(Func<IServiceProvider, RefitSettings>));
     }

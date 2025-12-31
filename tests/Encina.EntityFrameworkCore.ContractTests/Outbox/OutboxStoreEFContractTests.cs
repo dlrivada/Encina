@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.Messaging.Outbox;
@@ -28,7 +28,7 @@ public sealed class OutboxStoreEFContractTests : IDisposable
     public void Contract_MustImplementIOutboxStore()
     {
         // Assert
-        _store.Should().BeAssignableTo<IOutboxStore>();
+        _store.ShouldBeAssignableTo<IOutboxStore>();
     }
 
     [Fact]
@@ -45,10 +45,10 @@ public sealed class OutboxStoreEFContractTests : IDisposable
         };
 
         // Act
-        var act = async () => await _store.AddAsync(message);
+        Func<Task> act = () => _store.AddAsync(message);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class OutboxStoreEFContractTests : IDisposable
         var messages = await _store.GetPendingMessagesAsync(10, 3);
 
         // Assert
-        messages.Should().AllBeAssignableTo<IOutboxMessage>();
+        messages.ShouldAllBe(x => x is IOutboxMessage);
     }
 
     [Fact]
@@ -92,10 +92,10 @@ public sealed class OutboxStoreEFContractTests : IDisposable
         await _store.SaveChangesAsync();
 
         // Act
-        var act = async () => await _store.MarkAsProcessedAsync(messageId);
+        Func<Task> act = () => _store.MarkAsProcessedAsync(messageId);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     [Fact]
@@ -116,13 +116,13 @@ public sealed class OutboxStoreEFContractTests : IDisposable
         await _store.SaveChangesAsync();
 
         // Act
-        var act = async () => await _store.MarkAsFailedAsync(
+        Func<Task> act = () => _store.MarkAsFailedAsync(
             messageId,
             "Error message",
             DateTime.UtcNow.AddMinutes(5));
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public sealed class OutboxStoreEFContractTests : IDisposable
 
         // Assert
         var retrieved = await _store.GetPendingMessagesAsync(10, 3);
-        retrieved.Should().ContainSingle();
+        retrieved.ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -161,11 +161,11 @@ public sealed class OutboxStoreEFContractTests : IDisposable
         };
 
         // Act
-        var act = async () => await _store.AddAsync(mockMessage);
+        Func<Task> act = () => _store.AddAsync(mockMessage);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*OutboxMessage*");
+        var ex = await Should.ThrowAsync<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*OutboxMessage*");
     }
 
     public void Dispose()

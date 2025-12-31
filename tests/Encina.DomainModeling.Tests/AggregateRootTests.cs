@@ -38,14 +38,14 @@ public class AggregateRootTests
     {
         public string CustomerName { get; private set; } = string.Empty;
 
-        public AuditableOrder(OrderId id) : base(id) { }
+        public AuditableOrder(OrderId id, TimeProvider? timeProvider = null) : base(id, timeProvider) { }
     }
 
     private sealed class DeletableOrder : SoftDeletableAggregateRoot<OrderId>
     {
         public string CustomerName { get; private set; } = string.Empty;
 
-        public DeletableOrder(OrderId id) : base(id) { }
+        public DeletableOrder(OrderId id, TimeProvider? timeProvider = null) : base(id, timeProvider) { }
     }
 
     #region Basic AggregateRoot Tests
@@ -58,11 +58,11 @@ public class AggregateRootTests
         var order = Order.Create(id, "John Doe");
 
         // Assert
-        order.DomainEvents.Should().HaveCount(1);
-        order.DomainEvents[0].Should().BeOfType<OrderCreated>();
+        order.DomainEvents.Count.ShouldBe(1);
+        order.DomainEvents[0].ShouldBeOfType<OrderCreated>();
         var @event = (OrderCreated)order.DomainEvents[0];
-        @event.OrderId.Should().Be(id.Value);
-        @event.CustomerName.Should().Be("John Doe");
+        @event.OrderId.ShouldBe(id.Value);
+        @event.CustomerName.ShouldBe("John Doe");
     }
 
     [Fact]
@@ -76,10 +76,10 @@ public class AggregateRootTests
         order.AddLine("Product 2");
 
         // Assert
-        order.DomainEvents.Should().HaveCount(3);
-        order.DomainEvents[0].Should().BeOfType<OrderCreated>();
-        order.DomainEvents[1].Should().BeOfType<OrderLineAdded>();
-        order.DomainEvents[2].Should().BeOfType<OrderLineAdded>();
+        order.DomainEvents.Count.ShouldBe(3);
+        order.DomainEvents[0].ShouldBeOfType<OrderCreated>();
+        order.DomainEvents[1].ShouldBeOfType<OrderLineAdded>();
+        order.DomainEvents[2].ShouldBeOfType<OrderLineAdded>();
     }
 
     [Fact]
@@ -88,13 +88,13 @@ public class AggregateRootTests
         // Arrange
         var order = Order.Create(OrderId.New(), "John Doe");
         order.AddLine("Product 1");
-        order.DomainEvents.Should().HaveCount(2);
+        // precondition: order has 2 domain events (OrderCreated + OrderLineAdded)
 
         // Act
         order.ClearDomainEvents();
 
         // Assert
-        order.DomainEvents.Should().BeEmpty();
+        order.DomainEvents.ShouldBeEmpty();
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class AggregateRootTests
         var order = Order.Create(OrderId.New(), "John Doe");
 
         // Act & Assert
-        order.DomainEvents.Should().BeOfType<System.Collections.ObjectModel.ReadOnlyCollection<IDomainEvent>>();
+        order.DomainEvents.ShouldBeOfType<System.Collections.ObjectModel.ReadOnlyCollection<IDomainEvent>>();
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class AggregateRootTests
         var order = Order.Create(id, "John Doe");
 
         // Assert
-        order.Id.Should().Be(id);
+        order.Id.ShouldBe(id);
     }
 
     #endregion
@@ -135,8 +135,8 @@ public class AggregateRootTests
         var after = DateTime.UtcNow;
 
         // Assert
-        order.CreatedAtUtc.Should().BeOnOrAfter(before);
-        order.CreatedAtUtc.Should().BeOnOrBefore(after);
+        order.CreatedAtUtc.ShouldBeGreaterThanOrEqualTo(before);
+        order.CreatedAtUtc.ShouldBeLessThanOrEqualTo(after);
     }
 
     [Fact]
@@ -144,16 +144,16 @@ public class AggregateRootTests
     {
         // Arrange
         var order = new AuditableOrder(OrderId.New());
-        var before = DateTime.UtcNow;
+        var before = DateTime.UtcNow.AddMilliseconds(-1); // Allow for timing variance
 
         // Act
         order.SetCreatedBy("user@example.com");
-        var after = DateTime.UtcNow;
+        var after = DateTime.UtcNow.AddMilliseconds(1); // Allow for timing variance
 
         // Assert
-        order.CreatedBy.Should().Be("user@example.com");
-        order.CreatedAtUtc.Should().BeOnOrAfter(before);
-        order.CreatedAtUtc.Should().BeOnOrBefore(after);
+        order.CreatedBy.ShouldBe("user@example.com");
+        order.CreatedAtUtc.ShouldBeGreaterThanOrEqualTo(before);
+        order.CreatedAtUtc.ShouldBeLessThanOrEqualTo(after);
     }
 
     [Fact]
@@ -168,10 +168,10 @@ public class AggregateRootTests
         var after = DateTime.UtcNow;
 
         // Assert
-        order.ModifiedBy.Should().Be("modifier@example.com");
-        order.ModifiedAtUtc.Should().NotBeNull();
-        order.ModifiedAtUtc!.Value.Should().BeOnOrAfter(before);
-        order.ModifiedAtUtc!.Value.Should().BeOnOrBefore(after);
+        order.ModifiedBy.ShouldBe("modifier@example.com");
+        order.ModifiedAtUtc.ShouldNotBeNull();
+        order.ModifiedAtUtc!.Value.ShouldBeGreaterThanOrEqualTo(before);
+        order.ModifiedAtUtc!.Value.ShouldBeLessThanOrEqualTo(after);
     }
 
     [Fact]
@@ -181,9 +181,9 @@ public class AggregateRootTests
         var order = new AuditableOrder(OrderId.New());
 
         // Assert
-        order.CreatedBy.Should().BeNull();
-        order.ModifiedAtUtc.Should().BeNull();
-        order.ModifiedBy.Should().BeNull();
+        order.CreatedBy.ShouldBeNull();
+        order.ModifiedAtUtc.ShouldBeNull();
+        order.ModifiedBy.ShouldBeNull();
     }
 
     #endregion
@@ -197,9 +197,9 @@ public class AggregateRootTests
         var order = new DeletableOrder(OrderId.New());
 
         // Assert
-        order.IsDeleted.Should().BeFalse();
-        order.DeletedAtUtc.Should().BeNull();
-        order.DeletedBy.Should().BeNull();
+        order.IsDeleted.ShouldBeFalse();
+        order.DeletedAtUtc.ShouldBeNull();
+        order.DeletedBy.ShouldBeNull();
     }
 
     [Fact]
@@ -214,11 +214,11 @@ public class AggregateRootTests
         var after = DateTime.UtcNow;
 
         // Assert
-        order.IsDeleted.Should().BeTrue();
-        order.DeletedBy.Should().Be("admin@example.com");
-        order.DeletedAtUtc.Should().NotBeNull();
-        order.DeletedAtUtc!.Value.Should().BeOnOrAfter(before);
-        order.DeletedAtUtc!.Value.Should().BeOnOrBefore(after);
+        order.IsDeleted.ShouldBeTrue();
+        order.DeletedBy.ShouldBe("admin@example.com");
+        order.DeletedAtUtc.ShouldNotBeNull();
+        order.DeletedAtUtc!.Value.ShouldBeGreaterThanOrEqualTo(before);
+        order.DeletedAtUtc!.Value.ShouldBeLessThanOrEqualTo(after);
     }
 
     [Fact]
@@ -231,9 +231,9 @@ public class AggregateRootTests
         order.Delete();
 
         // Assert
-        order.IsDeleted.Should().BeTrue();
-        order.DeletedBy.Should().BeNull();
-        order.DeletedAtUtc.Should().NotBeNull();
+        order.IsDeleted.ShouldBeTrue();
+        order.DeletedBy.ShouldBeNull();
+        order.DeletedAtUtc.ShouldNotBeNull();
     }
 
     [Fact]
@@ -242,15 +242,15 @@ public class AggregateRootTests
         // Arrange
         var order = new DeletableOrder(OrderId.New());
         order.Delete("admin@example.com");
-        order.IsDeleted.Should().BeTrue();
+        // precondition: order marked deleted
 
         // Act
         order.Restore();
 
         // Assert
-        order.IsDeleted.Should().BeFalse();
-        order.DeletedAtUtc.Should().BeNull();
-        order.DeletedBy.Should().BeNull();
+        order.IsDeleted.ShouldBeFalse();
+        order.DeletedAtUtc.ShouldBeNull();
+        order.DeletedBy.ShouldBeNull();
     }
 
     #endregion

@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.Messaging.Inbox;
@@ -28,7 +28,7 @@ public sealed class InboxStoreEFContractTests : IDisposable
     public void Contract_MustImplementIInboxStore()
     {
         // Assert
-        _store.Should().BeAssignableTo<IInboxStore>();
+        _store.ShouldBeAssignableTo<IInboxStore>();
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class InboxStoreEFContractTests : IDisposable
         var act = async () => await _store.AddAsync(message);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(async () => await act());
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class InboxStoreEFContractTests : IDisposable
         var retrieved = await _store.GetMessageAsync(messageId);
 
         // Assert
-        retrieved.Should().BeAssignableTo<IInboxMessage>();
+        retrieved.ShouldBeAssignableTo<IInboxMessage>();
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class InboxStoreEFContractTests : IDisposable
         var act = async () => await _store.MarkAsProcessedAsync(messageId, "{\"success\":true}");
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(async () => await act());
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public sealed class InboxStoreEFContractTests : IDisposable
             DateTime.UtcNow.AddMinutes(5));
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(async () => await act());
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public sealed class InboxStoreEFContractTests : IDisposable
         var messages = await _store.GetExpiredMessagesAsync(10);
 
         // Assert
-        messages.Should().AllBeAssignableTo<IInboxMessage>();
+        messages.ShouldAllBe(x => x is IInboxMessage);
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public sealed class InboxStoreEFContractTests : IDisposable
         var act = async () => await _store.RemoveExpiredMessagesAsync(new[] { messageId });
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(async () => await act());
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public sealed class InboxStoreEFContractTests : IDisposable
 
         // Assert
         var retrieved = await _store.GetMessageAsync(messageId);
-        retrieved.Should().NotBeNull();
+        retrieved.ShouldNotBeNull();
     }
 
     [Fact]
@@ -213,8 +213,8 @@ public sealed class InboxStoreEFContractTests : IDisposable
         var act = async () => await _store.AddAsync(mockMessage);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*InboxMessage*");
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () => await act());
+        ex.Message.ShouldMatch("*InboxMessage*");
     }
 
     public void Dispose()

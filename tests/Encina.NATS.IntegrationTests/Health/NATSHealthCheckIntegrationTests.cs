@@ -33,8 +33,8 @@ public sealed class NATSHealthCheckIntegrationTests : IClassFixture<NatsFixture>
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("connected");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("connected");
     }
 
     [SkippableFact]
@@ -51,8 +51,8 @@ public sealed class NATSHealthCheckIntegrationTests : IClassFixture<NatsFixture>
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        healthCheck.Name.Should().Be("my-custom-nats");
-        result.Status.Should().Be(HealthStatus.Healthy);
+        healthCheck.Name.ShouldBe("my-custom-nats");
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [SkippableFact]
@@ -65,10 +65,10 @@ public sealed class NATSHealthCheckIntegrationTests : IClassFixture<NatsFixture>
         var healthCheck = new NATSHealthCheck(serviceProvider, null);
 
         // Assert
-        healthCheck.Tags.Should().Contain("encina");
-        healthCheck.Tags.Should().Contain("messaging");
-        healthCheck.Tags.Should().Contain("nats");
-        healthCheck.Tags.Should().Contain("ready");
+        healthCheck.Tags.ShouldContain("encina");
+        healthCheck.Tags.ShouldContain("messaging");
+        healthCheck.Tags.ShouldContain("nats");
+        healthCheck.Tags.ShouldContain("ready");
     }
 
     private ServiceProvider CreateServiceProvider()

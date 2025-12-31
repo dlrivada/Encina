@@ -1,4 +1,4 @@
-﻿namespace Encina.Caching.Memory.Tests;
+namespace Encina.Caching.Memory.Tests;
 
 /// <summary>
 /// Unit tests for <see cref="MemoryPubSubProvider"/>.
@@ -69,16 +69,14 @@ public sealed class MemoryPubSubProviderTests
         await _sut.PublishAsync("test-channel", "test-message", CancellationToken.None);
 
         // Assert
-        receivedMessages.Should().ContainSingle()
-            .Which.Should().Be("test-message");
+        receivedMessages.ShouldHaveSingleItem().ShouldBe("test-message");
     }
 
     [Fact]
     public async Task PublishAsync_WithNoSubscribers_DoesNotThrow()
     {
-        // Act & Assert
-        await _sut.Invoking(s => s.PublishAsync("no-subscribers", "message", CancellationToken.None))
-            .Should().NotThrowAsync();
+        // Act & Assert - should complete without exception
+        await _sut.PublishAsync("no-subscribers", "message", CancellationToken.None);
     }
 
     [Fact]
@@ -118,8 +116,7 @@ public sealed class MemoryPubSubProviderTests
         await _sut.PublishAsync("typed-channel", message, CancellationToken.None);
 
         // Assert
-        receivedMessages.Should().ContainSingle()
-            .Which.Should().Contain("\"content\":\"Hello\"");
+        receivedMessages.ShouldHaveSingleItem().ShouldContain("\"content\":\"Hello\"");
     }
 
     #endregion
@@ -161,8 +158,8 @@ public sealed class MemoryPubSubProviderTests
         var subscription = await _sut.SubscribeAsync("test", _ => Task.CompletedTask, CancellationToken.None);
 
         // Assert
-        subscription.Should().NotBeNull();
-        subscription.Should().BeAssignableTo<IAsyncDisposable>();
+        subscription.ShouldNotBeNull();
+        subscription.ShouldBeAssignableTo<IAsyncDisposable>();
     }
 
     [Fact]
@@ -188,8 +185,8 @@ public sealed class MemoryPubSubProviderTests
         await _sut.PublishAsync("multi-channel", "broadcast", CancellationToken.None);
 
         // Assert
-        received1.Should().ContainSingle().Which.Should().Be("broadcast");
-        received2.Should().ContainSingle().Which.Should().Be("broadcast");
+        received1.ShouldHaveSingleItem().ShouldBe("broadcast");
+        received2.ShouldHaveSingleItem().ShouldBe("broadcast");
     }
 
     [Fact]
@@ -209,7 +206,7 @@ public sealed class MemoryPubSubProviderTests
         await _sut.PublishAsync("dispose-channel", "after-dispose", CancellationToken.None);
 
         // Assert
-        received.Should().ContainSingle().Which.Should().Be("before-dispose");
+        received.ShouldHaveSingleItem().ShouldBe("before-dispose");
     }
 
     #endregion
@@ -249,8 +246,7 @@ public sealed class MemoryPubSubProviderTests
         await _sut.PublishAsync("typed-sub-channel", message, CancellationToken.None);
 
         // Assert
-        received.Should().ContainSingle()
-            .Which.Content.Should().Be("Hello Typed");
+        received.ShouldHaveSingleItem().Content.ShouldBe("Hello Typed");
     }
 
     #endregion
@@ -302,9 +298,9 @@ public sealed class MemoryPubSubProviderTests
         await _sut.PublishAsync("product:1:updated", "Product 1 updated", CancellationToken.None);
 
         // Assert
-        received.Should().HaveCount(2);
-        received.Should().Contain(x => x.Channel == "user:1:updated" && x.Message == "User 1 updated");
-        received.Should().Contain(x => x.Channel == "user:2:deleted" && x.Message == "User 2 deleted");
+        received.Count.ShouldBe(2);
+        received.ShouldContain(x => x.Channel == "user:1:updated" && x.Message == "User 1 updated");
+        received.ShouldContain(x => x.Channel == "user:2:deleted" && x.Message == "User 2 deleted");
     }
 
     [Fact]
@@ -324,8 +320,7 @@ public sealed class MemoryPubSubProviderTests
         await _sut.PublishAsync("orders:updated", "Order 1 updated", CancellationToken.None);
 
         // Assert
-        received.Should().ContainSingle()
-            .Which.Should().Be(("orders:created", "Order 1 created"));
+        received.ShouldHaveSingleItem().ShouldBe(("orders:created", "Order 1 created"));
     }
 
     #endregion
@@ -368,7 +363,7 @@ public sealed class MemoryPubSubProviderTests
         await _sut.PublishAsync("unsub-channel", "after-unsub", CancellationToken.None);
 
         // Assert
-        received.Should().BeEmpty();
+        received.ShouldBeEmpty();
     }
 
     #endregion
@@ -411,7 +406,7 @@ public sealed class MemoryPubSubProviderTests
         await _sut.PublishAsync("cache:invalidated", "Cache cleared", CancellationToken.None);
 
         // Assert
-        received.Should().BeEmpty();
+        received.ShouldBeEmpty();
     }
 
     #endregion
@@ -445,7 +440,7 @@ public sealed class MemoryPubSubProviderTests
         var count = await _sut.GetSubscriberCountAsync("no-subs", CancellationToken.None);
 
         // Assert
-        count.Should().Be(0);
+        count.ShouldBe(0);
     }
 
     [Fact]
@@ -459,7 +454,7 @@ public sealed class MemoryPubSubProviderTests
         var count = await _sut.GetSubscriberCountAsync("count-channel", CancellationToken.None);
 
         // Assert
-        count.Should().Be(2);
+        count.ShouldBe(2);
     }
 
     [Fact]
@@ -473,7 +468,7 @@ public sealed class MemoryPubSubProviderTests
         var count = await _sut.GetSubscriberCountAsync("events:user", CancellationToken.None);
 
         // Assert
-        count.Should().Be(2); // 1 channel + 1 pattern
+        count.ShouldBe(2); // 1 channel + 1 pattern
     }
 
     #endregion

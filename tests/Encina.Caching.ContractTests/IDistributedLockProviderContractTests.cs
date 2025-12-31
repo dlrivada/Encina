@@ -1,4 +1,4 @@
-﻿using Encina.DistributedLock;
+using Encina.DistributedLock;
 
 namespace Encina.Caching.ContractTests;
 
@@ -56,7 +56,7 @@ public abstract class IDistributedLockProviderContractTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        lockHandle.Should().NotBeNull();
+        lockHandle.ShouldNotBeNull();
 
         // Cleanup
         if (lockHandle != null)
@@ -86,8 +86,8 @@ public abstract class IDistributedLockProviderContractTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        firstLock.Should().NotBeNull();
-        secondLock.Should().BeNull();
+        firstLock.ShouldNotBeNull();
+        secondLock.ShouldBeNull();
 
         // Cleanup
         if (firstLock != null)
@@ -120,7 +120,7 @@ public abstract class IDistributedLockProviderContractTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        secondLock.Should().NotBeNull();
+        secondLock.ShouldNotBeNull();
 
         // Cleanup
         if (secondLock != null)
@@ -166,7 +166,7 @@ public abstract class IDistributedLockProviderContractTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        lockHandle.Should().NotBeNull();
+        lockHandle.ShouldNotBeNull();
 
         // Cleanup
         await lockHandle.DisposeAsync();
@@ -182,24 +182,30 @@ public abstract class IDistributedLockProviderContractTests : IAsyncLifetime
             TimeSpan.FromMinutes(5),
             CancellationToken.None);
 
+        var acquireStarted = new TaskCompletionSource();
         var acquireTask = Task.Run(async () =>
         {
+            acquireStarted.SetResult();
             return await Provider.AcquireAsync(
                 resource,
                 TimeSpan.FromMinutes(5),
                 CancellationToken.None);
         });
 
-        // Wait a bit to ensure second acquire is waiting
-        await Task.Delay(TimeSpan.FromMilliseconds(200));
-        acquireTask.IsCompleted.Should().BeFalse();
+        // Wait for second acquire to start attempting acquisition
+        await acquireStarted.Task;
+
+        // Verify second acquire is blocked (use WaitAsync with timeout)
+        var completedTask = await Task.WhenAny(acquireTask, Task.Delay(TimeSpan.FromMilliseconds(100)));
+        var completedInTime = completedTask == acquireTask;
+        completedInTime.ShouldBeFalse();
 
         // Act - Release the first lock
         await firstLock.DisposeAsync();
 
         // Assert - Second acquire should complete
         var secondLock = await acquireTask;
-        secondLock.Should().NotBeNull();
+        secondLock.ShouldNotBeNull();
 
         // Cleanup
         await secondLock.DisposeAsync();
@@ -239,7 +245,7 @@ public abstract class IDistributedLockProviderContractTests : IAsyncLifetime
         var isLocked = await Provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeFalse();
+        isLocked.ShouldBeFalse();
     }
 
     [Fact]
@@ -256,7 +262,7 @@ public abstract class IDistributedLockProviderContractTests : IAsyncLifetime
         var isLocked = await Provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeTrue();
+        isLocked.ShouldBeTrue();
 
         // Cleanup
         await lockHandle.DisposeAsync();
@@ -278,7 +284,7 @@ public abstract class IDistributedLockProviderContractTests : IAsyncLifetime
         var isLocked = await Provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeFalse();
+        isLocked.ShouldBeFalse();
     }
 
     #endregion
@@ -315,7 +321,7 @@ public abstract class IDistributedLockProviderContractTests : IAsyncLifetime
         var extended = await Provider.ExtendAsync(resource, TimeSpan.FromSeconds(30), CancellationToken.None);
 
         // Assert
-        extended.Should().BeFalse();
+        extended.ShouldBeFalse();
     }
 
     [Fact]
@@ -332,7 +338,7 @@ public abstract class IDistributedLockProviderContractTests : IAsyncLifetime
         var extended = await Provider.ExtendAsync(resource, TimeSpan.FromSeconds(30), CancellationToken.None);
 
         // Assert
-        extended.Should().BeTrue();
+        extended.ShouldBeTrue();
 
         // Cleanup
         await lockHandle.DisposeAsync();
@@ -374,7 +380,7 @@ public abstract class IDistributedLockProviderContractTests : IAsyncLifetime
         handles.AddRange(await Task.WhenAll(tasks));
 
         // Assert
-        acquiredCount.Should().Be(1);
+        acquiredCount.ShouldBe(1);
 
         // Cleanup
         foreach (var handle in handles.Where(h => h != null))

@@ -35,21 +35,21 @@ public sealed class SqliteHealthCheckContractTests : IEncinaHealthCheckContractT
     [Fact]
     public void DefaultName_ShouldBeEncinaAdoSqlite()
     {
-        SqliteHealthCheck.DefaultName.Should().Be("encina-ado-sqlite");
+        SqliteHealthCheck.DefaultName.ShouldBe("encina-ado-sqlite");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainDatabaseTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("database");
+        healthCheck.Tags.ShouldContain("database");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainSqliteTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("sqlite");
+        healthCheck.Tags.ShouldContain("sqlite");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

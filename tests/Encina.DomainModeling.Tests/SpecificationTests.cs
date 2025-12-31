@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Shouldly;
 
 namespace Encina.DomainModeling.Tests;
 
@@ -53,8 +54,8 @@ public class SpecificationTests
         var expression = spec.ToExpression();
 
         // Assert
-        expression.Should().NotBeNull();
-        expression.Should().BeAssignableTo<Expression<Func<Product, bool>>>();
+        expression.ShouldNotBeNull();
+        expression.ShouldBeAssignableTo<Expression<Func<Product, bool>>>();
     }
 
     [Fact]
@@ -74,8 +75,8 @@ public class SpecificationTests
         var result = products.Where(spec.ToExpression()).ToList();
 
         // Assert
-        result.Should().HaveCount(2);
-        result.All(p => p.IsActive).Should().BeTrue();
+        result.Count.ShouldBe(2);
+        result.All(p => p.IsActive).ShouldBeTrue();
     }
 
     #endregion
@@ -92,7 +93,7 @@ public class SpecificationTests
         var func = spec.ToFunc();
 
         // Assert
-        func.Should().NotBeNull();
+        func.ShouldNotBeNull();
     }
 
     [Fact]
@@ -105,8 +106,8 @@ public class SpecificationTests
         var inactiveProduct = new Product { IsActive = false };
 
         // Act & Assert
-        func(activeProduct).Should().BeTrue();
-        func(inactiveProduct).Should().BeFalse();
+        func(activeProduct).ShouldBeTrue();
+        func(inactiveProduct).ShouldBeFalse();
     }
 
     #endregion
@@ -124,7 +125,7 @@ public class SpecificationTests
         var result = spec.IsSatisfiedBy(product);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -138,7 +139,7 @@ public class SpecificationTests
         var result = spec.IsSatisfiedBy(product);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -148,10 +149,11 @@ public class SpecificationTests
         var spec = new ActiveProductsSpec();
 
         // Act
-        var act = () => spec.IsSatisfiedBy(null!);
+        Action act = () => _ = spec.IsSatisfiedBy(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("entity");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("entity");
     }
 
     #endregion
@@ -171,9 +173,9 @@ public class SpecificationTests
         var activeLowPrice = new Product { IsActive = true, Price = 50 };
 
         // Act & Assert
-        combinedSpec.IsSatisfiedBy(matchingProduct).Should().BeTrue();
-        combinedSpec.IsSatisfiedBy(inactiveHighPrice).Should().BeFalse();
-        combinedSpec.IsSatisfiedBy(activeLowPrice).Should().BeFalse();
+        combinedSpec.IsSatisfiedBy(matchingProduct).ShouldBeTrue();
+        combinedSpec.IsSatisfiedBy(inactiveHighPrice).ShouldBeFalse();
+        combinedSpec.IsSatisfiedBy(activeLowPrice).ShouldBeFalse();
     }
 
     [Fact]
@@ -186,7 +188,8 @@ public class SpecificationTests
         var act = () => spec.And(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("other");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("other");
     }
 
     [Fact]
@@ -201,8 +204,8 @@ public class SpecificationTests
         var nonMatching = new Product { IsActive = true, Price = 150, Name = "Widget" };
 
         // Act & Assert
-        spec.IsSatisfiedBy(matching).Should().BeTrue();
-        spec.IsSatisfiedBy(nonMatching).Should().BeFalse();
+        spec.IsSatisfiedBy(matching).ShouldBeTrue();
+        spec.IsSatisfiedBy(nonMatching).ShouldBeFalse();
     }
 
     #endregion
@@ -222,9 +225,9 @@ public class SpecificationTests
         var neither = new Product { IsActive = false, Price = 50 };
 
         // Act & Assert
-        combinedSpec.IsSatisfiedBy(activeOnly).Should().BeTrue();
-        combinedSpec.IsSatisfiedBy(highPriceOnly).Should().BeTrue();
-        combinedSpec.IsSatisfiedBy(neither).Should().BeFalse();
+        combinedSpec.IsSatisfiedBy(activeOnly).ShouldBeTrue();
+        combinedSpec.IsSatisfiedBy(highPriceOnly).ShouldBeTrue();
+        combinedSpec.IsSatisfiedBy(neither).ShouldBeFalse();
     }
 
     [Fact]
@@ -237,7 +240,8 @@ public class SpecificationTests
         var act = () => spec.Or(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("other");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("other");
     }
 
     #endregion
@@ -255,8 +259,8 @@ public class SpecificationTests
         var inactiveProduct = new Product { IsActive = false };
 
         // Act & Assert
-        notActiveSpec.IsSatisfiedBy(activeProduct).Should().BeFalse();
-        notActiveSpec.IsSatisfiedBy(inactiveProduct).Should().BeTrue();
+        notActiveSpec.IsSatisfiedBy(activeProduct).ShouldBeFalse();
+        notActiveSpec.IsSatisfiedBy(inactiveProduct).ShouldBeTrue();
     }
 
     [Fact]
@@ -270,8 +274,8 @@ public class SpecificationTests
         var inactiveProduct = new Product { IsActive = false };
 
         // Act & Assert
-        doubleNegation.IsSatisfiedBy(activeProduct).Should().Be(spec.IsSatisfiedBy(activeProduct));
-        doubleNegation.IsSatisfiedBy(inactiveProduct).Should().Be(spec.IsSatisfiedBy(inactiveProduct));
+        doubleNegation.IsSatisfiedBy(activeProduct).ShouldBe(spec.IsSatisfiedBy(activeProduct));
+        doubleNegation.IsSatisfiedBy(inactiveProduct).ShouldBe(spec.IsSatisfiedBy(inactiveProduct));
     }
 
     #endregion
@@ -288,7 +292,7 @@ public class SpecificationTests
         Expression<Func<Product, bool>> expression = spec;
 
         // Assert
-        expression.Should().NotBeNull();
+        expression.ShouldNotBeNull();
     }
 
     #endregion

@@ -15,8 +15,8 @@ public class AdaptiveRateLimiterGuardsTests
         string key = null!;
 
         // Act & Assert
-        var act = async () => await rateLimiter.AcquireAsync(key, attribute, CancellationToken.None);
-        act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("key");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => rateLimiter.AcquireAsync(key, attribute, CancellationToken.None));
+        ex.ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -27,8 +27,8 @@ public class AdaptiveRateLimiterGuardsTests
         RateLimitAttribute attribute = null!;
 
         // Act & Assert
-        var act = async () => await rateLimiter.AcquireAsync("test-key", attribute, CancellationToken.None);
-        act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("config");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => rateLimiter.AcquireAsync("test-key", attribute, CancellationToken.None));
+        ex.ParamName.ShouldBe("config");
     }
 
     [Fact]
@@ -40,7 +40,8 @@ public class AdaptiveRateLimiterGuardsTests
 
         // Act & Assert
         var act = () => rateLimiter.RecordSuccess(key);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("key");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -52,7 +53,8 @@ public class AdaptiveRateLimiterGuardsTests
 
         // Act & Assert
         var act = () => rateLimiter.RecordFailure(key);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("key");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -64,7 +66,8 @@ public class AdaptiveRateLimiterGuardsTests
 
         // Act & Assert
         var act = () => rateLimiter.GetState(key);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("key");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -76,6 +79,7 @@ public class AdaptiveRateLimiterGuardsTests
 
         // Act & Assert
         var act = () => rateLimiter.Reset(key);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("key");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("key");
     }
 }

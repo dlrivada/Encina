@@ -96,8 +96,8 @@ public class QuerySpecificationTests
         var result = products.Where(spec.ToExpression()).ToList();
 
         // Assert
-        result.Should().ContainSingle();
-        result[0].IsActive.Should().BeTrue();
+        result.ShouldHaveSingleItem();
+        result[0].IsActive.ShouldBeTrue();
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public class QuerySpecificationTests
         var result = products.Where(spec.ToExpression()).ToList();
 
         // Assert
-        result.Should().HaveCount(2);
+        result.Count.ShouldBe(2);
     }
 
     private sealed class EmptySpec : QuerySpecification<Product>
@@ -134,7 +134,7 @@ public class QuerySpecificationTests
         var spec = new ProductsWithCategorySpec();
 
         // Assert
-        spec.Includes.Should().ContainSingle();
+        spec.Includes.ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -144,8 +144,8 @@ public class QuerySpecificationTests
         var spec = new StringIncludeSpec();
 
         // Assert
-        spec.IncludeStrings.Should().ContainSingle();
-        spec.IncludeStrings[0].Should().Be("Category.SubCategories");
+        spec.IncludeStrings.ShouldHaveSingleItem();
+        spec.IncludeStrings[0].ShouldBe("Category.SubCategories");
     }
 
     [Fact]
@@ -158,7 +158,8 @@ public class QuerySpecificationTests
         var act = () => spec.TestAddInclude(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("includeExpression");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("includeExpression");
     }
 
     [Theory]
@@ -174,7 +175,8 @@ public class QuerySpecificationTests
         var act = () => spec.TestAddIncludeString(includeString!);
 
         // Assert
-        act.Should().Throw<ArgumentException>().WithParameterName(nameof(includeString));
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(includeString));
     }
 
     private sealed class TestSpec : QuerySpecification<Product>
@@ -206,9 +208,9 @@ public class QuerySpecificationTests
         var spec = new PaginatedProductsSpec(page: 2, pageSize: 10);
 
         // Assert
-        spec.Skip.Should().Be(10);
-        spec.Take.Should().Be(10);
-        spec.IsPagingEnabled.Should().BeTrue();
+        spec.Skip.ShouldBe(10);
+        spec.Take.ShouldBe(10);
+        spec.IsPagingEnabled.ShouldBeTrue();
     }
 
     [Fact]
@@ -221,7 +223,8 @@ public class QuerySpecificationTests
         var act = () => spec.TestApplyPaging(-1, 10);
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("skip");
+        var ex = Should.Throw<ArgumentOutOfRangeException>(act);
+        ex.ParamName.ShouldBe("skip");
     }
 
     [Theory]
@@ -236,7 +239,8 @@ public class QuerySpecificationTests
         var act = () => spec.TestApplyPaging(0, take);
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(take));
+        var ex = Should.Throw<ArgumentOutOfRangeException>(act);
+        ex.ParamName.ShouldBe(nameof(take));
     }
 
     [Fact]
@@ -246,7 +250,7 @@ public class QuerySpecificationTests
         var spec = new ActiveProductsQuerySpec();
 
         // Assert
-        spec.IsPagingEnabled.Should().BeFalse();
+        spec.IsPagingEnabled.ShouldBeFalse();
     }
 
     #endregion
@@ -260,8 +264,8 @@ public class QuerySpecificationTests
         var spec = new OrderedProductsSpec(descending: false);
 
         // Assert
-        spec.OrderBy.Should().NotBeNull();
-        spec.OrderByDescending.Should().BeNull();
+        spec.OrderBy.ShouldNotBeNull();
+        spec.OrderByDescending.ShouldBeNull();
     }
 
     [Fact]
@@ -271,8 +275,8 @@ public class QuerySpecificationTests
         var spec = new OrderedProductsSpec(descending: true);
 
         // Assert
-        spec.OrderBy.Should().BeNull();
-        spec.OrderByDescending.Should().NotBeNull();
+        spec.OrderBy.ShouldBeNull();
+        spec.OrderByDescending.ShouldNotBeNull();
     }
 
     [Fact]
@@ -285,7 +289,8 @@ public class QuerySpecificationTests
         var act = () => spec.TestApplyOrderBy(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("orderByExpression");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("orderByExpression");
     }
 
     [Fact]
@@ -298,7 +303,8 @@ public class QuerySpecificationTests
         var act = () => spec.TestApplyOrderByDescending(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("orderByDescendingExpression");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("orderByDescendingExpression");
     }
 
     #endregion
@@ -312,7 +318,7 @@ public class QuerySpecificationTests
         var spec = new ActiveProductsQuerySpec();
 
         // Assert
-        spec.AsNoTracking.Should().BeTrue();
+        spec.AsNoTracking.ShouldBeTrue();
     }
 
     [Fact]
@@ -322,7 +328,7 @@ public class QuerySpecificationTests
         var spec = new ActiveProductsQuerySpec();
 
         // Assert
-        spec.AsSplitQuery.Should().BeFalse();
+        spec.AsSplitQuery.ShouldBeFalse();
     }
 
     #endregion
@@ -336,7 +342,7 @@ public class QuerySpecificationTests
         var spec = new ProjectedProductsSpec();
 
         // Assert
-        spec.Selector.Should().NotBeNull();
+        spec.Selector.ShouldNotBeNull();
     }
 
     [Fact]
@@ -357,8 +363,8 @@ public class QuerySpecificationTests
             .ToList();
 
         // Assert
-        names.Should().Contain("Widget");
-        names.Should().Contain("Gadget");
+        names.ShouldContain("Widget");
+        names.ShouldContain("Gadget");
     }
 
     #endregion

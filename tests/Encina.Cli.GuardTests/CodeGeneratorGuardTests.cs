@@ -1,5 +1,5 @@
 using Encina.Cli.Services;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.Cli.GuardTests;
@@ -16,8 +16,8 @@ public class CodeGeneratorGuardTests
         var act = () => CodeGenerator.GenerateCommandHandlerAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Theory]
@@ -38,7 +38,8 @@ public class CodeGeneratorGuardTests
         var act = () => CodeGenerator.GenerateCommandHandlerAsync(options);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe("options.Name");
     }
 
     [Theory]
@@ -58,7 +59,7 @@ public class CodeGeneratorGuardTests
         var act = () => CodeGenerator.GenerateCommandHandlerAsync(options);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -68,8 +69,8 @@ public class CodeGeneratorGuardTests
         var act = () => CodeGenerator.GenerateQueryHandlerAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Theory]
@@ -90,7 +91,7 @@ public class CodeGeneratorGuardTests
         var act = () => CodeGenerator.GenerateQueryHandlerAsync(options);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Theory]
@@ -111,7 +112,7 @@ public class CodeGeneratorGuardTests
         var act = () => CodeGenerator.GenerateQueryHandlerAsync(options);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -121,8 +122,8 @@ public class CodeGeneratorGuardTests
         var act = () => CodeGenerator.GenerateSagaAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Theory]
@@ -143,7 +144,7 @@ public class CodeGeneratorGuardTests
         var act = () => CodeGenerator.GenerateSagaAsync(options);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -161,8 +162,8 @@ public class CodeGeneratorGuardTests
         var result = await CodeGenerator.GenerateSagaAsync(options);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("At least one step is required");
+        result.Success.ShouldBeFalse();
+        result.ErrorMessage.ShouldContain("At least one step is required");
     }
 
     [Fact]
@@ -172,8 +173,8 @@ public class CodeGeneratorGuardTests
         var act = () => CodeGenerator.GenerateNotificationAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Theory]
@@ -193,6 +194,6 @@ public class CodeGeneratorGuardTests
         var act = () => CodeGenerator.GenerateNotificationAsync(options);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 }

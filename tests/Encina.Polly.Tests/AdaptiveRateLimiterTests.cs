@@ -29,10 +29,10 @@ public class AdaptiveRateLimiterTests
         var result = await _rateLimiter.AcquireAsync("test", config);
 
         // Assert
-        result.IsAllowed.Should().BeTrue();
-        result.CurrentState.Should().Be(RateLimitState.Normal);
-        result.CurrentCount.Should().Be(1);
-        result.CurrentLimit.Should().Be(10);
+        result.IsAllowed.ShouldBeTrue();
+        result.CurrentState.ShouldBe(RateLimitState.Normal);
+        result.CurrentCount.ShouldBe(1);
+        result.CurrentLimit.ShouldBe(10);
     }
 
     [Fact]
@@ -50,9 +50,9 @@ public class AdaptiveRateLimiterTests
         var result = await _rateLimiter.AcquireAsync("test", config);
 
         // Assert
-        result.IsAllowed.Should().BeFalse();
-        result.CurrentCount.Should().Be(3);
-        result.RetryAfter.Should().NotBeNull();
+        result.IsAllowed.ShouldBeFalse();
+        result.CurrentCount.ShouldBe(3);
+        result.RetryAfter.ShouldNotBeNull();
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public class AdaptiveRateLimiterTests
         var result = await _rateLimiter.AcquireAsync("test", config);
 
         // Assert
-        result.IsAllowed.Should().BeTrue();
-        result.CurrentCount.Should().Be(1);
+        result.IsAllowed.ShouldBeTrue();
+        result.CurrentCount.ShouldBe(1);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class AdaptiveRateLimiterTests
 
         // Third request should be denied
         var deniedResult = await _rateLimiter.AcquireAsync("test", config);
-        deniedResult.IsAllowed.Should().BeFalse();
+        deniedResult.IsAllowed.ShouldBeFalse();
 
         // Advance 31 seconds (first request should expire at T=60)
         _timeProvider.Advance(TimeSpan.FromSeconds(31));
@@ -100,7 +100,7 @@ public class AdaptiveRateLimiterTests
         var result = await _rateLimiter.AcquireAsync("test", config);
 
         // Assert
-        result.IsAllowed.Should().BeTrue();
+        result.IsAllowed.ShouldBeTrue();
     }
 
     [Fact]
@@ -117,8 +117,8 @@ public class AdaptiveRateLimiterTests
         var key2Result = await _rateLimiter.AcquireAsync("key2", config);
 
         // Assert
-        key1Result.IsAllowed.Should().BeFalse();
-        key2Result.IsAllowed.Should().BeTrue();
+        key1Result.IsAllowed.ShouldBeFalse();
+        key2Result.IsAllowed.ShouldBeTrue();
     }
 
     #endregion
@@ -156,8 +156,8 @@ public class AdaptiveRateLimiterTests
         var result = await _rateLimiter.AcquireAsync("test", config);
 
         // Assert
-        result.CurrentState.Should().Be(RateLimitState.Throttled);
-        result.CurrentLimit.Should().BeLessThan(100, "capacity should be reduced in throttled state");
+        result.CurrentState.ShouldBe(RateLimitState.Throttled);
+        result.CurrentLimit.ShouldBeLessThan(100, "capacity should be reduced in throttled state");
     }
 
     [Fact]
@@ -191,8 +191,8 @@ public class AdaptiveRateLimiterTests
         var result = await _rateLimiter.AcquireAsync("test", config);
 
         // Assert
-        result.CurrentState.Should().Be(RateLimitState.Normal);
-        result.CurrentLimit.Should().Be(100);
+        result.CurrentState.ShouldBe(RateLimitState.Normal);
+        result.CurrentLimit.ShouldBe(100);
     }
 
     [Fact]
@@ -219,8 +219,8 @@ public class AdaptiveRateLimiterTests
         var result = await _rateLimiter.AcquireAsync("test", config);
 
         // Assert
-        result.CurrentState.Should().Be(RateLimitState.Normal, "adaptive throttling is disabled");
-        result.CurrentLimit.Should().Be(100);
+        result.CurrentState.ShouldBe(RateLimitState.Normal, "adaptive throttling is disabled");
+        result.CurrentLimit.ShouldBe(100);
     }
 
     [Fact]
@@ -247,7 +247,7 @@ public class AdaptiveRateLimiterTests
         var result = await _rateLimiter.AcquireAsync("test", config);
 
         // Assert
-        result.CurrentState.Should().Be(RateLimitState.Normal, "below minimum throughput for throttling");
+        result.CurrentState.ShouldBe(RateLimitState.Normal, "below minimum throughput for throttling");
     }
 
     #endregion
@@ -277,7 +277,7 @@ public class AdaptiveRateLimiterTests
 
         // Verify throttled
         var throttledResult = await _rateLimiter.AcquireAsync("test", config);
-        throttledResult.CurrentState.Should().Be(RateLimitState.Throttled);
+        throttledResult.CurrentState.ShouldBe(RateLimitState.Throttled);
 
         // Advance past cooldown
         _timeProvider.Advance(TimeSpan.FromSeconds(61));
@@ -286,7 +286,7 @@ public class AdaptiveRateLimiterTests
         var result = await _rateLimiter.AcquireAsync("test", config);
 
         // Assert
-        result.CurrentState.Should().Be(RateLimitState.Recovering);
+        result.CurrentState.ShouldBe(RateLimitState.Recovering);
     }
 
     [Fact]
@@ -325,7 +325,7 @@ public class AdaptiveRateLimiterTests
         var result = await _rateLimiter.AcquireAsync("test", config);
 
         // Assert
-        result.CurrentLimit.Should().BeGreaterThan(initialLimit, "capacity should increase during recovery");
+        result.CurrentLimit.ShouldBeGreaterThan(initialLimit, "capacity should increase during recovery");
     }
 
     [Fact]
@@ -365,7 +365,7 @@ public class AdaptiveRateLimiterTests
         var result = await _rateLimiter.AcquireAsync("test", config);
 
         // Assert
-        result.CurrentState.Should().Be(RateLimitState.Throttled, "should revert to throttled on errors during recovery");
+        result.CurrentState.ShouldBe(RateLimitState.Throttled, "should revert to throttled on errors during recovery");
     }
 
     #endregion
@@ -379,7 +379,7 @@ public class AdaptiveRateLimiterTests
         var state = _rateLimiter.GetState("unknown-key");
 
         // Assert
-        state.Should().BeNull();
+        state.ShouldBeNull();
     }
 
     [Fact]
@@ -393,7 +393,7 @@ public class AdaptiveRateLimiterTests
         var state = _rateLimiter.GetState("test");
 
         // Assert
-        state.Should().Be(RateLimitState.Normal);
+        state.ShouldBe(RateLimitState.Normal);
     }
 
     [Fact]
@@ -406,15 +406,15 @@ public class AdaptiveRateLimiterTests
 
         // Verify at limit
         var atLimitResult = await _rateLimiter.AcquireAsync("test", config);
-        atLimitResult.IsAllowed.Should().BeFalse();
+        atLimitResult.IsAllowed.ShouldBeFalse();
 
         // Act
         _rateLimiter.Reset("test");
         var afterResetResult = await _rateLimiter.AcquireAsync("test", config);
 
         // Assert
-        afterResetResult.IsAllowed.Should().BeTrue();
-        afterResetResult.CurrentCount.Should().Be(1);
+        afterResetResult.IsAllowed.ShouldBeTrue();
+        afterResetResult.CurrentCount.ShouldBe(1);
     }
 
     [Fact]
@@ -422,7 +422,7 @@ public class AdaptiveRateLimiterTests
     {
         // Act & Assert
         var action = () => _rateLimiter.RecordSuccess("unknown-key");
-        action.Should().NotThrow();
+        Should.NotThrow(action);
     }
 
     [Fact]
@@ -430,7 +430,7 @@ public class AdaptiveRateLimiterTests
     {
         // Act & Assert
         var action = () => _rateLimiter.RecordFailure("unknown-key");
-        action.Should().NotThrow();
+        Should.NotThrow(action);
     }
 
     #endregion
@@ -448,12 +448,12 @@ public class AdaptiveRateLimiterTests
             errorRate: 10.0);
 
         // Assert
-        result.IsAllowed.Should().BeTrue();
-        result.CurrentState.Should().Be(RateLimitState.Normal);
-        result.CurrentCount.Should().Be(5);
-        result.CurrentLimit.Should().Be(100);
-        result.ErrorRate.Should().Be(10.0);
-        result.RetryAfter.Should().BeNull();
+        result.IsAllowed.ShouldBeTrue();
+        result.CurrentState.ShouldBe(RateLimitState.Normal);
+        result.CurrentCount.ShouldBe(5);
+        result.CurrentLimit.ShouldBe(100);
+        result.ErrorRate.ShouldBe(10.0);
+        result.RetryAfter.ShouldBeNull();
     }
 
     [Fact]
@@ -468,12 +468,12 @@ public class AdaptiveRateLimiterTests
             errorRate: 60.0);
 
         // Assert
-        result.IsAllowed.Should().BeFalse();
-        result.CurrentState.Should().Be(RateLimitState.Throttled);
-        result.CurrentCount.Should().Be(10);
-        result.CurrentLimit.Should().Be(10);
-        result.ErrorRate.Should().Be(60.0);
-        result.RetryAfter.Should().Be(TimeSpan.FromSeconds(30));
+        result.IsAllowed.ShouldBeFalse();
+        result.CurrentState.ShouldBe(RateLimitState.Throttled);
+        result.CurrentCount.ShouldBe(10);
+        result.CurrentLimit.ShouldBe(10);
+        result.ErrorRate.ShouldBe(60.0);
+        result.RetryAfter.ShouldBe(TimeSpan.FromSeconds(30));
     }
 
     #endregion

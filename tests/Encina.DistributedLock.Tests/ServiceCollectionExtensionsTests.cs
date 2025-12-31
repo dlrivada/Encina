@@ -15,7 +15,7 @@ public class ServiceCollectionExtensionsTests
         var act = () => services.AddEncinaDistributedLock();
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -34,9 +34,9 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var serviceProvider = services.BuildServiceProvider();
         var options = serviceProvider.GetService<Microsoft.Extensions.Options.IOptions<DistributedLockOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.KeyPrefix.Should().Be("test");
-        options.Value.DefaultExpiry.Should().Be(TimeSpan.FromMinutes(5));
+        options.ShouldNotBeNull();
+        options.Value.KeyPrefix.ShouldBe("test");
+        options.Value.DefaultExpiry.ShouldBe(TimeSpan.FromMinutes(5));
     }
 
     [Fact]
@@ -52,8 +52,8 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var serviceProvider = services.BuildServiceProvider();
         var provider = serviceProvider.GetService<IDistributedLockProvider>();
-        provider.Should().NotBeNull();
-        provider.Should().BeOfType<InMemoryDistributedLockProvider>();
+        provider.ShouldNotBeNull();
+        provider.ShouldBeOfType<InMemoryDistributedLockProvider>();
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var serviceProvider = services.BuildServiceProvider();
         var provider = serviceProvider.GetService<IDistributedLockProvider>();
-        provider.Should().NotBeNull();
+        provider.ShouldNotBeNull();
     }
 
     [Fact]
@@ -86,8 +86,8 @@ public class ServiceCollectionExtensionsTests
         var act = () => services!.AddEncinaDistributedLock();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class ServiceCollectionExtensionsTests
         var act = () => services!.AddEncinaDistributedLockInMemory();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 }

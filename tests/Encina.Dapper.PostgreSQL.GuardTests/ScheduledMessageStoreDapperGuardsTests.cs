@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Encina.Dapper.PostgreSQL.Scheduling;
 using Encina.Messaging.Scheduling;
 
@@ -20,7 +20,8 @@ public class ScheduledMessageStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new ScheduledMessageStoreDapper(connection);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connection");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe(nameof(connection));
     }
 
     /// <summary>
@@ -35,7 +36,8 @@ public class ScheduledMessageStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new ScheduledMessageStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe(nameof(tableName));
     }
 
     /// <summary>
@@ -50,7 +52,8 @@ public class ScheduledMessageStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new ScheduledMessageStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(tableName));
     }
 
     /// <summary>
@@ -65,7 +68,8 @@ public class ScheduledMessageStoreDapperGuardsTests
 
         // Act & Assert
         var act = () => new ScheduledMessageStoreDapper(connection, tableName);
-        act.Should().Throw<ArgumentException>().WithParameterName("tableName");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(tableName));
     }
 
     /// <summary>
@@ -80,8 +84,9 @@ public class ScheduledMessageStoreDapperGuardsTests
         IScheduledMessage message = null!;
 
         // Act & Assert
-        var act = async () => await store.AddAsync(message);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("message");
+        var act = () => store.AddAsync(message);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe(nameof(message));
     }
 
     /// <summary>
@@ -96,8 +101,9 @@ public class ScheduledMessageStoreDapperGuardsTests
         var messageId = Guid.Empty;
 
         // Act & Assert
-        var act = async () => await store.MarkAsProcessedAsync(messageId);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("messageId");
+        var act = () => store.MarkAsProcessedAsync(messageId);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(messageId));
     }
 
     /// <summary>
@@ -112,8 +118,9 @@ public class ScheduledMessageStoreDapperGuardsTests
         var messageId = Guid.Empty;
 
         // Act & Assert
-        var act = async () => await store.MarkAsFailedAsync(messageId, "Error", null);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("messageId");
+        var act = () => store.MarkAsFailedAsync(messageId, "Error", null);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(messageId));
     }
 
     /// <summary>
@@ -129,8 +136,9 @@ public class ScheduledMessageStoreDapperGuardsTests
         string errorMessage = null!;
 
         // Act & Assert
-        var act = async () => await store.MarkAsFailedAsync(messageId, errorMessage, null);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("errorMessage");
+        var act = () => store.MarkAsFailedAsync(messageId, errorMessage, null);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe(nameof(errorMessage));
     }
 
     /// <summary>
@@ -146,8 +154,9 @@ public class ScheduledMessageStoreDapperGuardsTests
         var errorMessage = string.Empty;
 
         // Act & Assert
-        var act = async () => await store.MarkAsFailedAsync(messageId, errorMessage, null);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("errorMessage");
+        var act = () => store.MarkAsFailedAsync(messageId, errorMessage, null);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(errorMessage));
     }
 
     /// <summary>
@@ -163,8 +172,9 @@ public class ScheduledMessageStoreDapperGuardsTests
         var nextScheduledAt = DateTime.UtcNow.AddHours(1);
 
         // Act & Assert
-        var act = async () => await store.RescheduleRecurringMessageAsync(messageId, nextScheduledAt);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("messageId");
+        var act = () => store.RescheduleRecurringMessageAsync(messageId, nextScheduledAt);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(messageId));
     }
 
     /// <summary>
@@ -177,11 +187,12 @@ public class ScheduledMessageStoreDapperGuardsTests
         var connection = Substitute.For<IDbConnection>();
         var store = new ScheduledMessageStoreDapper(connection);
         var messageId = Guid.NewGuid();
-        var nextScheduledAt = DateTime.UtcNow.AddHours(-1);
+        var nextScheduledAtUtc = DateTime.UtcNow.AddHours(-1);
 
         // Act & Assert
-        var act = async () => await store.RescheduleRecurringMessageAsync(messageId, nextScheduledAt);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("nextScheduledAtUtc");
+        var act = () => store.RescheduleRecurringMessageAsync(messageId, nextScheduledAtUtc);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(nextScheduledAtUtc));
     }
 
     /// <summary>
@@ -196,8 +207,9 @@ public class ScheduledMessageStoreDapperGuardsTests
         var messageId = Guid.Empty;
 
         // Act & Assert
-        var act = async () => await store.CancelAsync(messageId);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("messageId");
+        var act = () => store.CancelAsync(messageId);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(messageId));
     }
 
     /// <summary>
@@ -214,8 +226,9 @@ public class ScheduledMessageStoreDapperGuardsTests
         var store = new ScheduledMessageStoreDapper(connection);
 
         // Act & Assert
-        var act = async () => await store.GetDueMessagesAsync(batchSize, 3);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName(nameof(batchSize));
+        var act = () => store.GetDueMessagesAsync(batchSize, 3);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(batchSize));
     }
 
     /// <summary>
@@ -231,7 +244,8 @@ public class ScheduledMessageStoreDapperGuardsTests
         var store = new ScheduledMessageStoreDapper(connection);
 
         // Act & Assert
-        var act = async () => await store.GetDueMessagesAsync(10, maxRetries);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName(nameof(maxRetries));
+        var act = () => store.GetDueMessagesAsync(10, maxRetries);
+        var ex = await Should.ThrowAsync<ArgumentException>(act);
+        ex.ParamName.ShouldBe(nameof(maxRetries));
     }
 }

@@ -1,10 +1,10 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.OpenTelemetry.Enrichers;
-using FluentAssertions;
+using Shouldly;
 using NSubstitute;
 using Xunit;
 
@@ -25,7 +25,7 @@ public sealed class MessagingActivityEnricherGuardTests
         var act = () => MessagingActivityEnricher.EnrichWithOutboxMessage(null, message);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public sealed class MessagingActivityEnricherGuardTests
         var act = () => MessagingActivityEnricher.EnrichWithOutboxMessage(activity, null!);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class MessagingActivityEnricherGuardTests
         var act = () => MessagingActivityEnricher.EnrichWithInboxMessage(null, message);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public sealed class MessagingActivityEnricherGuardTests
         var act = () => MessagingActivityEnricher.EnrichWithInboxMessage(activity, null!);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class MessagingActivityEnricherGuardTests
         var act = () => MessagingActivityEnricher.EnrichWithSagaState(null, sagaState);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class MessagingActivityEnricherGuardTests
         var act = () => MessagingActivityEnricher.EnrichWithSagaState(activity, null!);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class MessagingActivityEnricherGuardTests
         var act = () => MessagingActivityEnricher.EnrichWithScheduledMessage(null, message);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -116,6 +116,6 @@ public sealed class MessagingActivityEnricherGuardTests
         var act = () => MessagingActivityEnricher.EnrichWithScheduledMessage(activity, null!);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 }

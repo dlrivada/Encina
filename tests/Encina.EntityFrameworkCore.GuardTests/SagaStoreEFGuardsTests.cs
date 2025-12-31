@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.Messaging.Sagas;
 
@@ -20,7 +20,8 @@ public class SagaStoreEFGuardsTests
 
         // Act & Assert
         var act = () => new SagaStoreEF(dbContext);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("dbContext");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("dbContext");
     }
 
     /// <summary>
@@ -38,8 +39,9 @@ public class SagaStoreEFGuardsTests
         ISagaState saga = null!;
 
         // Act & Assert
-        var act = async () => await store.AddAsync(saga);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("saga");
+        Func<Task> act = () => store.AddAsync(saga);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("saga");
     }
 
     /// <summary>
@@ -57,8 +59,9 @@ public class SagaStoreEFGuardsTests
         ISagaState saga = null!;
 
         // Act & Assert
-        var act = async () => await store.UpdateAsync(saga);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("saga");
+        Func<Task> act = () => store.UpdateAsync(saga);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("saga");
     }
 
     /// <summary>

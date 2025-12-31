@@ -18,26 +18,17 @@ namespace Encina.Extensions.Resilience;
 /// </remarks>
 public sealed class StandardResilienceOptions
 {
-    /// <summary>
-    /// Gets or sets the rate limiter options.
-    /// </summary>
-    public RateLimiterStrategyOptions RateLimiter { get; set; } = new()
+    private RateLimiterStrategyOptions _rateLimiter = new()
     {
         // 1000 requests per 30 seconds
     };
 
-    /// <summary>
-    /// Gets or sets the total request timeout options.
-    /// </summary>
-    public TimeoutStrategyOptions TotalRequestTimeout { get; set; } = new()
+    private TimeoutStrategyOptions _totalRequestTimeout = new()
     {
         Timeout = TimeSpan.FromSeconds(30)
     };
 
-    /// <summary>
-    /// Gets or sets the retry strategy options.
-    /// </summary>
-    public RetryStrategyOptions Retry { get; set; } = new()
+    private RetryStrategyOptions _retry = new()
     {
         MaxRetryAttempts = 3,
         Delay = TimeSpan.FromSeconds(1),
@@ -45,10 +36,7 @@ public sealed class StandardResilienceOptions
         UseJitter = true
     };
 
-    /// <summary>
-    /// Gets or sets the circuit breaker options.
-    /// </summary>
-    public CircuitBreakerStrategyOptions CircuitBreaker { get; set; } = new()
+    private CircuitBreakerStrategyOptions _circuitBreaker = new()
     {
         FailureRatio = 0.1, // 10%
         MinimumThroughput = 10,
@@ -56,11 +44,58 @@ public sealed class StandardResilienceOptions
         BreakDuration = TimeSpan.FromSeconds(5)
     };
 
-    /// <summary>
-    /// Gets or sets the per-attempt timeout options.
-    /// </summary>
-    public TimeoutStrategyOptions AttemptTimeout { get; set; } = new()
+    private TimeoutStrategyOptions _attemptTimeout = new()
     {
         Timeout = TimeSpan.FromSeconds(10)
     };
+
+    /// <summary>
+    /// Gets or sets the rate limiter options.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Thrown when value is null.</exception>
+    public RateLimiterStrategyOptions RateLimiter
+    {
+        get => _rateLimiter;
+        set => _rateLimiter = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    /// <summary>
+    /// Gets or sets the total request timeout options.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Thrown when value is null.</exception>
+    public TimeoutStrategyOptions TotalRequestTimeout
+    {
+        get => _totalRequestTimeout;
+        set => _totalRequestTimeout = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    /// <summary>
+    /// Gets or sets the retry strategy options.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Thrown when value is null.</exception>
+    public RetryStrategyOptions Retry
+    {
+        get => _retry;
+        set => _retry = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    /// <summary>
+    /// Gets or sets the circuit breaker options.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Thrown when value is null.</exception>
+    public CircuitBreakerStrategyOptions CircuitBreaker
+    {
+        get => _circuitBreaker;
+        set => _circuitBreaker = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    /// <summary>
+    /// Gets or sets the per-attempt timeout options.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Thrown when value is null.</exception>
+    public TimeoutStrategyOptions AttemptTimeout
+    {
+        get => _attemptTimeout;
+        set => _attemptTimeout = value ?? throw new ArgumentNullException(nameof(value));
+    }
 }

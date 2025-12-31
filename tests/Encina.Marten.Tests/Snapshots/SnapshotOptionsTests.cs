@@ -11,10 +11,10 @@ public sealed class SnapshotOptionsTests
         var options = new SnapshotOptions();
 
         // Assert
-        options.Enabled.Should().BeFalse();
-        options.SnapshotEvery.Should().Be(100);
-        options.KeepSnapshots.Should().Be(3);
-        options.AsyncSnapshotCreation.Should().BeTrue();
+        options.Enabled.ShouldBeFalse();
+        options.SnapshotEvery.ShouldBe(100);
+        options.KeepSnapshots.ShouldBe(3);
+        options.AsyncSnapshotCreation.ShouldBeTrue();
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public sealed class SnapshotOptionsTests
         options.Enabled = true;
 
         // Assert
-        options.Enabled.Should().BeTrue();
+        options.Enabled.ShouldBeTrue();
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class SnapshotOptionsTests
         options.SnapshotEvery = 50;
 
         // Assert
-        options.SnapshotEvery.Should().Be(50);
+        options.SnapshotEvery.ShouldBe(50);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class SnapshotOptionsTests
         options.KeepSnapshots = 5;
 
         // Assert
-        options.KeepSnapshots.Should().Be(5);
+        options.KeepSnapshots.ShouldBe(5);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class SnapshotOptionsTests
         options.AsyncSnapshotCreation = false;
 
         // Assert
-        options.AsyncSnapshotCreation.Should().BeFalse();
+        options.AsyncSnapshotCreation.ShouldBeFalse();
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class SnapshotOptionsTests
             keepSnapshots: 10);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class SnapshotOptionsTests
         var act = () => options.ConfigureAggregate<TestSnapshotableAggregate>(snapshotEvery: 50);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public sealed class SnapshotOptionsTests
         var result = options.ConfigureAggregate<TestSnapshotableAggregate>(snapshotEvery: 50);
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public sealed class SnapshotOptionsTests
         var act = () => options.ConfigureAggregate<TestSnapshotableAggregate>(snapshotEvery: 0);
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public sealed class SnapshotOptionsTests
         var act = () => options.ConfigureAggregate<TestSnapshotableAggregate>(snapshotEvery: -5);
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public sealed class SnapshotOptionsTests
             keepSnapshots: -1);
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public sealed class SnapshotOptionsTests
             keepSnapshots: 0);
 
         // Assert - Zero means keep all, which is valid
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class SnapshotOptionsTests
         var act = () => options.ConfigureAggregate<TestSnapshotableAggregate>(snapshotEvery: 50);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public sealed class SnapshotOptionsTests
             .ConfigureAggregate<TestSnapshotableAggregate>(snapshotEvery: 25);
 
         // Assert
-        result.Should().NotBeNull();
-        result.Should().BeSameAs(options);
+        result.ShouldNotBeNull();
+        result.ShouldBeSameAs(options);
     }
 }

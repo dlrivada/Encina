@@ -1,5 +1,5 @@
 using System.Net;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Xunit;
 
@@ -20,11 +20,11 @@ public class ApiGatewayResponseContractTests
         var response = result.ToApiGatewayResponse();
 
         // Assert - Contract: Success returns 200 with JSON body
-        response.StatusCode.Should().Be((int)HttpStatusCode.OK);
-        response.Body.Should().Contain("\"id\":1");
-        response.Body.Should().Contain("\"name\":\"Test\"");
-        response.Headers.Should().ContainKey("Content-Type");
-        response.Headers["Content-Type"].Should().Be("application/json");
+        response.StatusCode.ShouldBe((int)HttpStatusCode.OK);
+        response.Body.ShouldContain("\"id\":1");
+        response.Body.ShouldContain("\"name\":\"Test\"");
+        response.Headers.ShouldContainKey("Content-Type");
+        response.Headers["Content-Type"].ShouldBe("application/json");
     }
 
     [Fact]
@@ -38,12 +38,12 @@ public class ApiGatewayResponseContractTests
         var response = result.ToApiGatewayResponse();
 
         // Assert - Contract: Errors return RFC 7807 Problem Details format
-        response.StatusCode.Should().Be((int)HttpStatusCode.BadRequest);
-        response.Body.Should().Contain("\"title\":");
-        response.Body.Should().Contain("\"status\":");
-        response.Body.Should().Contain("\"detail\":");
-        response.Headers.Should().ContainKey("Content-Type");
-        response.Headers["Content-Type"].Should().Be("application/problem+json");
+        response.StatusCode.ShouldBe((int)HttpStatusCode.BadRequest);
+        response.Body.ShouldContain("\"title\":");
+        response.Body.ShouldContain("\"status\":");
+        response.Body.ShouldContain("\"detail\":");
+        response.Headers.ShouldContainKey("Content-Type");
+        response.Headers["Content-Type"].ShouldBe("application/problem+json");
     }
 
     [Fact]
@@ -56,9 +56,9 @@ public class ApiGatewayResponseContractTests
         var response = result.ToCreatedResponse(r => $"/api/resources/{r.Id}");
 
         // Assert - Contract: Created returns 201 with Location header
-        response.StatusCode.Should().Be((int)HttpStatusCode.Created);
-        response.Headers.Should().ContainKey("Location");
-        response.Headers["Location"].Should().Be("/api/resources/42");
+        response.StatusCode.ShouldBe((int)HttpStatusCode.Created);
+        response.Headers.ShouldContainKey("Location");
+        response.Headers["Location"].ShouldBe("/api/resources/42");
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public class ApiGatewayResponseContractTests
         var response = result.ToNoContentResponse();
 
         // Assert - Contract: NoContent returns 204 with empty or null body
-        response.StatusCode.Should().Be((int)HttpStatusCode.NoContent);
-        response.Body.Should().BeNullOrEmpty();
+        response.StatusCode.ShouldBe((int)HttpStatusCode.NoContent);
+        response.Body.ShouldBeNullOrEmpty();
     }
 
     [Fact]
@@ -85,10 +85,10 @@ public class ApiGatewayResponseContractTests
         var response = result.ToHttpApiResponse();
 
         // Assert - Contract: HTTP API V2 returns proper response format
-        response.StatusCode.Should().Be((int)HttpStatusCode.OK);
-        response.Body.Should().Contain("\"id\":1");
-        response.Headers.Should().ContainKey("Content-Type");
-        response.Headers["Content-Type"].Should().Be("application/json");
+        response.StatusCode.ShouldBe((int)HttpStatusCode.OK);
+        response.Body.ShouldContain("\"id\":1");
+        response.Headers.ShouldContainKey("Content-Type");
+        response.Headers["Content-Type"].ShouldBe("application/json");
     }
 
     [Theory]
@@ -110,7 +110,7 @@ public class ApiGatewayResponseContractTests
         var response = result.ToApiGatewayResponse();
 
         // Assert - Contract: Error codes map to specific HTTP status codes
-        response.StatusCode.Should().Be((int)expectedStatus);
+        response.StatusCode.ShouldBe((int)expectedStatus);
     }
 
     private sealed class TestResult

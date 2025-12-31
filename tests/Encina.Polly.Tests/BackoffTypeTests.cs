@@ -1,4 +1,4 @@
-﻿namespace Encina.Polly.Tests;
+namespace Encina.Polly.Tests;
 
 /// <summary>
 /// Unit tests for <see cref="BackoffType"/> enum.
@@ -9,25 +9,31 @@ public class BackoffTypeTests
     [Fact]
     public void BackoffType_ShouldHaveConstantValue()
     {
+        // Act
+        var value = BackoffType.Constant;
+
         // Assert
-        BackoffType.Constant.Should().BeDefined();
-        ((int)BackoffType.Constant).Should().Be(0);
+        ((int)value).ShouldBe(0);
     }
 
     [Fact]
     public void BackoffType_ShouldHaveLinearValue()
     {
+        // Act
+        var value = BackoffType.Linear;
+
         // Assert
-        BackoffType.Linear.Should().BeDefined();
-        ((int)BackoffType.Linear).Should().Be(1);
+        ((int)value).ShouldBe(1);
     }
 
     [Fact]
     public void BackoffType_ShouldHaveExponentialValue()
     {
+        // Act
+        var value = BackoffType.Exponential;
+
         // Assert
-        BackoffType.Exponential.Should().BeDefined();
-        ((int)BackoffType.Exponential).Should().Be(2);
+        ((int)value).ShouldBe(2);
     }
 
     [Fact]
@@ -37,24 +43,24 @@ public class BackoffTypeTests
         var values = Enum.GetValues<BackoffType>();
 
         // Assert
-        values.Should().HaveCount(3, "should have exactly Constant, Linear, and Exponential");
+        values.Count.ShouldBe(3, "should have exactly Constant, Linear, and Exponential");
     }
 
     [Fact]
     public void BackoffType_ToString_ShouldReturnCorrectNames()
     {
         // Assert
-        BackoffType.Constant.ToString().Should().Be("Constant");
-        BackoffType.Linear.ToString().Should().Be("Linear");
-        BackoffType.Exponential.ToString().Should().Be("Exponential");
+        BackoffType.Constant.ToString().ShouldBe("Constant");
+        BackoffType.Linear.ToString().ShouldBe("Linear");
+        BackoffType.Exponential.ToString().ShouldBe("Exponential");
     }
 
     [Fact]
     public void BackoffType_Parse_ShouldWorkForAllValues()
     {
         // Assert
-        Enum.Parse<BackoffType>("Constant").Should().Be(BackoffType.Constant);
-        Enum.Parse<BackoffType>("Linear").Should().Be(BackoffType.Linear);
-        Enum.Parse<BackoffType>("Exponential").Should().Be(BackoffType.Exponential);
+        Enum.Parse<BackoffType>("Constant").ShouldBe(BackoffType.Constant);
+        Enum.Parse<BackoffType>("Linear").ShouldBe(BackoffType.Linear);
+        Enum.Parse<BackoffType>("Exponential").ShouldBe(BackoffType.Exponential);
     }
 }

@@ -1,5 +1,6 @@
 using Encina.Marten.Snapshots;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Marten.Tests.Snapshots;
 
@@ -20,8 +21,8 @@ public sealed class SnapshotServiceCollectionTests
         // Assert
         var descriptor = services.FirstOrDefault(
             d => d.ServiceType == typeof(ISnapshotStore<>));
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationType.Should().Be(typeof(MartenSnapshotStore<>));
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationType.ShouldBe(typeof(MartenSnapshotStore<>));
     }
 
     [Fact]
@@ -39,7 +40,7 @@ public sealed class SnapshotServiceCollectionTests
         // Assert
         var descriptor = services.FirstOrDefault(
             d => d.ServiceType == typeof(ISnapshotStore<>));
-        descriptor.Should().BeNull();
+        descriptor.ShouldBeNull();
     }
 
     [Fact]
@@ -58,8 +59,8 @@ public sealed class SnapshotServiceCollectionTests
         // Assert
         var descriptor = services.FirstOrDefault(
             d => d.ServiceType == typeof(ISnapshotStore<TestSnapshotableAggregate>));
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationType.Should().Be(typeof(MartenSnapshotStore<TestSnapshotableAggregate>));
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationType.ShouldBe(typeof(MartenSnapshotStore<TestSnapshotableAggregate>));
     }
 
     [Fact]
@@ -78,8 +79,8 @@ public sealed class SnapshotServiceCollectionTests
         // Assert
         var descriptor = services.FirstOrDefault(
             d => d.ServiceType == typeof(IAggregateRepository<TestSnapshotableAggregate>));
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationType.Should().Be(typeof(SnapshotAwareAggregateRepository<TestSnapshotableAggregate>));
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationType.ShouldBe(typeof(SnapshotAwareAggregateRepository<TestSnapshotableAggregate>));
     }
 
     [Fact]
@@ -92,8 +93,8 @@ public sealed class SnapshotServiceCollectionTests
         var act = () => services.AddSnapshotableAggregate<TestSnapshotableAggregate>();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -110,7 +111,7 @@ public sealed class SnapshotServiceCollectionTests
         var result = services.AddSnapshotableAggregate<TestSnapshotableAggregate>();
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -120,8 +121,8 @@ public sealed class SnapshotServiceCollectionTests
         var options = new EncinaMartenOptions();
 
         // Assert
-        options.Snapshots.Should().NotBeNull();
-        options.Snapshots.Should().BeOfType<SnapshotOptions>();
+        options.Snapshots.ShouldNotBeNull();
+        options.Snapshots.ShouldBeOfType<SnapshotOptions>();
     }
 
     [Fact]
@@ -138,9 +139,14 @@ public sealed class SnapshotServiceCollectionTests
             options.Snapshots.KeepSnapshots = 5;
             options.Snapshots.AsyncSnapshotCreation = false;
         });
+        using var serviceProvider = services.BuildServiceProvider();
+        var registeredOptions = serviceProvider.GetRequiredService<IOptions<EncinaMartenOptions>>();
 
-        // Assert - if no exception, configuration worked
-        services.Should().NotBeEmpty();
+        // Assert
+        registeredOptions.Value.Snapshots.Enabled.ShouldBeTrue();
+        registeredOptions.Value.Snapshots.SnapshotEvery.ShouldBe(50);
+        registeredOptions.Value.Snapshots.KeepSnapshots.ShouldBe(5);
+        registeredOptions.Value.Snapshots.AsyncSnapshotCreation.ShouldBeFalse();
     }
 
     [Fact]
@@ -158,8 +164,12 @@ public sealed class SnapshotServiceCollectionTests
                 snapshotEvery: 25,
                 keepSnapshots: 10);
         });
+        using var serviceProvider = services.BuildServiceProvider();
+        var registeredOptions = serviceProvider.GetRequiredService<IOptions<EncinaMartenOptions>>();
+        var aggregateConfig = registeredOptions.Value.Snapshots.GetConfigFor<TestSnapshotableAggregate>();
 
-        // Assert - if no exception, configuration worked
-        services.Should().NotBeEmpty();
+        // Assert
+        aggregateConfig.SnapshotEvery.ShouldBe(25);
+        aggregateConfig.KeepSnapshots.ShouldBe(10);
     }
 }

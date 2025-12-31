@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Polly;
 using Polly.Registry;
@@ -25,8 +25,8 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var pipelineProvider = provider.GetService<ResiliencePipelineProvider<string>>();
-        pipelineProvider.Should().NotBeNull();
-        pipelineProvider.Should().BeOfType<ResiliencePipelineRegistry<string>>();
+        pipelineProvider.ShouldNotBeNull();
+        pipelineProvider.ShouldBeOfType<ResiliencePipelineRegistry<string>>();
     }
 
     [Fact]
@@ -43,10 +43,11 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var behaviorDescriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IPipelineBehavior<,>) &&
-            d.ImplementationType?.Name.Contains("StandardResiliencePipelineBehavior") == true);
+            d.ImplementationType?.IsGenericType == true &&
+            d.ImplementationType.GetGenericTypeDefinition() == typeof(StandardResiliencePipelineBehavior<,>));
 
-        behaviorDescriptor.Should().NotBeNull();
-        behaviorDescriptor!.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        behaviorDescriptor.ShouldNotBeNull();
+        behaviorDescriptor!.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -66,7 +67,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var pipelineProvider = provider.GetService<ResiliencePipelineProvider<string>>();
-        pipelineProvider.Should().NotBeNull();
+        pipelineProvider.ShouldNotBeNull();
         // Configuration is applied internally, just verify provider exists
     }
 
@@ -80,7 +81,7 @@ public class ServiceCollectionExtensionsTests
         var result = services.AddEncinaStandardResilience();
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -95,7 +96,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var pipelineProvider = provider.GetService<ResiliencePipelineProvider<string>>();
-        pipelineProvider.Should().NotBeNull();
+        pipelineProvider.ShouldNotBeNull();
     }
 
     [Fact]
@@ -114,7 +115,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var pipelineProvider = provider.GetService<ResiliencePipelineProvider<string>>();
-        pipelineProvider.Should().NotBeNull();
+        pipelineProvider.ShouldNotBeNull();
     }
 
     [Fact]
@@ -130,7 +131,7 @@ public class ServiceCollectionExtensionsTests
         });
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -147,7 +148,7 @@ public class ServiceCollectionExtensionsTests
         };
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -171,7 +172,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var pipelineProvider = provider.GetService<ResiliencePipelineProvider<string>>();
-        pipelineProvider.Should().NotBeNull();
+        pipelineProvider.ShouldNotBeNull();
     }
 
     [Fact]
@@ -187,8 +188,8 @@ public class ServiceCollectionExtensionsTests
         var providerDescriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(ResiliencePipelineProvider<string>));
 
-        providerDescriptor.Should().NotBeNull();
-        providerDescriptor!.Lifetime.Should().Be(ServiceLifetime.Singleton);
+        providerDescriptor.ShouldNotBeNull();
+        providerDescriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
     // Test helper classes

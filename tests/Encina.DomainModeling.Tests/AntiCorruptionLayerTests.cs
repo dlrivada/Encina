@@ -102,11 +102,11 @@ public class AntiCorruptionLayerTests
         var result = acl.TranslateToInternal(webhook);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(payment =>
         {
-            payment.PaymentId.Should().Be(Guid.Parse("550e8400-e29b-41d4-a716-446655440000"));
-            payment.Amount.Should().Be(100m);
+            payment.PaymentId.ShouldBe(Guid.Parse("550e8400-e29b-41d4-a716-446655440000"));
+            payment.Amount.ShouldBe(100m);
         });
     }
 
@@ -124,11 +124,11 @@ public class AntiCorruptionLayerTests
         var result = acl.TranslateToInternal(webhook);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         result.IfLeft(error =>
         {
-            error.ErrorCode.Should().Be("ACL_UNSUPPORTED_TYPE");
-            error.ExternalSystemId.Should().Be("Stripe");
+            error.ErrorCode.ShouldBe("ACL_UNSUPPORTED_TYPE");
+            error.ExternalSystemId.ShouldBe("Stripe");
         });
     }
 
@@ -146,10 +146,10 @@ public class AntiCorruptionLayerTests
         var result = acl.TranslateToInternal(webhook);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         result.IfLeft(error =>
         {
-            error.ErrorCode.Should().Be("ACL_MISSING_FIELD");
+            error.ErrorCode.ShouldBe("ACL_MISSING_FIELD");
         });
     }
 
@@ -174,10 +174,10 @@ public class AntiCorruptionLayerTests
         var result = acl.TranslateToInternal(webhook);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         result.IfLeft(error =>
         {
-            error.ErrorCode.Should().Be("ACL_INVALID_FORMAT");
+            error.ErrorCode.ShouldBe("ACL_INVALID_FORMAT");
         });
     }
 
@@ -195,8 +195,8 @@ public class AntiCorruptionLayerTests
         var result = acl.TranslateToExternal(42);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(str => str.Should().Be("42"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(str => str.ShouldBe("42"));
     }
 
     [Fact]
@@ -210,7 +210,7 @@ public class AntiCorruptionLayerTests
         var result = acl.TranslateToExternal(payment);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -224,9 +224,9 @@ public class AntiCorruptionLayerTests
         var error = TranslationError.UnsupportedType("SomeType", "ExternalSystem");
 
         // Assert
-        error.ErrorCode.Should().Be("ACL_UNSUPPORTED_TYPE");
-        error.ErrorMessage.Should().Contain("SomeType");
-        error.ExternalSystemId.Should().Be("ExternalSystem");
+        error.ErrorCode.ShouldBe("ACL_UNSUPPORTED_TYPE");
+        error.ErrorMessage.ShouldContain("SomeType");
+        error.ExternalSystemId.ShouldBe("ExternalSystem");
     }
 
     [Fact]
@@ -236,8 +236,8 @@ public class AntiCorruptionLayerTests
         var error = TranslationError.MissingRequiredField("fieldName", "ExternalSystem");
 
         // Assert
-        error.ErrorCode.Should().Be("ACL_MISSING_FIELD");
-        error.ErrorMessage.Should().Contain("fieldName");
+        error.ErrorCode.ShouldBe("ACL_MISSING_FIELD");
+        error.ErrorMessage.ShouldContain("fieldName");
     }
 
     [Fact]
@@ -247,8 +247,8 @@ public class AntiCorruptionLayerTests
         var error = TranslationError.InvalidFormat("fieldName", "ExternalSystem");
 
         // Assert
-        error.ErrorCode.Should().Be("ACL_INVALID_FORMAT");
-        error.ErrorMessage.Should().Contain("fieldName");
+        error.ErrorCode.ShouldBe("ACL_INVALID_FORMAT");
+        error.ErrorMessage.ShouldContain("fieldName");
     }
 
     #endregion
@@ -265,9 +265,9 @@ public class AntiCorruptionLayerTests
         var error = acl.TestError("ERR001", "Test error");
 
         // Assert
-        error.ErrorCode.Should().Be("ERR001");
-        error.ErrorMessage.Should().Be("Test error");
-        error.ExternalSystemId.Should().Be("TestSystem");
+        error.ErrorCode.ShouldBe("ERR001");
+        error.ErrorMessage.ShouldBe("Test error");
+        error.ExternalSystemId.ShouldBe("TestSystem");
     }
 
     private sealed class TestACL : AntiCorruptionLayerBase<string, int>

@@ -1,5 +1,6 @@
 using System.Reflection;
 using Encina.DomainModeling;
+using Shouldly;
 
 namespace Encina.DomainModeling.Tests;
 
@@ -41,10 +42,10 @@ public class StronglyTypedIdTests
         var id2 = new OrderId(guid);
 
         // Act & Assert
-        id1.Should().Be(id2);
-        id1.Equals(id2).Should().BeTrue();
-        (id1 == id2).Should().BeTrue();
-        (id1 != id2).Should().BeFalse();
+        id1.ShouldBe(id2);
+        id1.Equals(id2).ShouldBeTrue();
+        (id1 == id2).ShouldBeTrue();
+        (id1 != id2).ShouldBeFalse();
     }
 
     [Fact]
@@ -55,8 +56,8 @@ public class StronglyTypedIdTests
         var id2 = OrderId.New();
 
         // Act & Assert
-        id1.Should().NotBe(id2);
-        (id1 == id2).Should().BeFalse();
+        id1.ShouldNotBe(id2);
+        (id1 == id2).ShouldBeFalse();
     }
 
     [Fact]
@@ -68,7 +69,7 @@ public class StronglyTypedIdTests
         var customerId = new CustomerId(guid);
 
         // Act & Assert
-        orderId.Equals(customerId).Should().BeFalse();
+        orderId.Equals(customerId).ShouldBeFalse();
     }
 
     [Fact]
@@ -79,9 +80,9 @@ public class StronglyTypedIdTests
         var id2 = OrderId.New();
 
         // Assert
-        id1.Should().NotBe(id2);
-        id1.Value.Should().NotBe(Guid.Empty);
-        id2.Value.Should().NotBe(Guid.Empty);
+        id1.ShouldNotBe(id2);
+        id1.Value.ShouldNotBe(Guid.Empty);
+        id2.Value.ShouldNotBe(Guid.Empty);
     }
 
     [Fact]
@@ -94,7 +95,7 @@ public class StronglyTypedIdTests
         var id = OrderId.From(guid);
 
         // Assert
-        id.Value.Should().Be(guid);
+        id.Value.ShouldBe(guid);
     }
 
     [Fact]
@@ -104,7 +105,7 @@ public class StronglyTypedIdTests
         var id = OrderId.Empty;
 
         // Assert
-        id.Value.Should().Be(Guid.Empty);
+        id.Value.ShouldBe(Guid.Empty);
     }
 
     [Fact]
@@ -118,8 +119,8 @@ public class StronglyTypedIdTests
         var result = OrderId.TryParse(guidString);
 
         // Assert
-        result.IsSome.Should().BeTrue();
-        result.IfSome(id => id.Value.Should().Be(guid));
+        result.IsSome.ShouldBeTrue();
+        result.IfSome(id => id.Value.ShouldBe(guid));
     }
 
     [Fact]
@@ -129,7 +130,7 @@ public class StronglyTypedIdTests
         var result = OrderId.TryParse("not-a-guid");
 
         // Assert
-        result.IsNone.Should().BeTrue();
+        result.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -143,7 +144,7 @@ public class StronglyTypedIdTests
         Guid converted = id;
 
         // Assert
-        converted.Should().Be(guid);
+        converted.ShouldBe(guid);
     }
 
     [Fact]
@@ -154,7 +155,7 @@ public class StronglyTypedIdTests
         var id = new OrderId(guid);
 
         // Act & Assert
-        id.ToString().Should().Be(guid.ToString());
+        id.ToString().ShouldBe(guid.ToString());
     }
 
     [Fact]
@@ -166,7 +167,7 @@ public class StronglyTypedIdTests
         var customerId = new CustomerId(guid);
 
         // Act & Assert - Different types should have different hash codes even with same value
-        orderId.GetHashCode().Should().NotBe(customerId.GetHashCode());
+        orderId.GetHashCode().ShouldNotBe(customerId.GetHashCode());
     }
 
     #endregion
@@ -181,7 +182,7 @@ public class StronglyTypedIdTests
         var id2 = UserId.From(42);
 
         // Act & Assert
-        id1.Should().Be(id2);
+        id1.ShouldBe(id2);
     }
 
     [Fact]
@@ -191,8 +192,8 @@ public class StronglyTypedIdTests
         var result = UserId.TryParse("42");
 
         // Assert
-        result.IsSome.Should().BeTrue();
-        result.IfSome(id => id.Value.Should().Be(42));
+        result.IsSome.ShouldBeTrue();
+        result.IfSome(id => id.Value.ShouldBe(42));
     }
 
     [Fact]
@@ -202,7 +203,7 @@ public class StronglyTypedIdTests
         var result = UserId.TryParse("not-a-number");
 
         // Assert
-        result.IsNone.Should().BeTrue();
+        result.IsNone.ShouldBeTrue();
     }
 
     #endregion
@@ -217,7 +218,7 @@ public class StronglyTypedIdTests
         var id2 = TransactionId.From(123456789L);
 
         // Act & Assert
-        id1.Should().Be(id2);
+        id1.ShouldBe(id2);
     }
 
     [Fact]
@@ -227,8 +228,8 @@ public class StronglyTypedIdTests
         var result = TransactionId.TryParse("123456789");
 
         // Assert
-        result.IsSome.Should().BeTrue();
-        result.IfSome(id => id.Value.Should().Be(123456789L));
+        result.IsSome.ShouldBeTrue();
+        result.IfSome(id => id.Value.ShouldBe(123456789L));
     }
 
     #endregion
@@ -243,7 +244,7 @@ public class StronglyTypedIdTests
         var id2 = ProductSku.From("SKU-001");
 
         // Act & Assert
-        id1.Should().Be(id2);
+        id1.ShouldBe(id2);
     }
 
     [Fact]
@@ -254,29 +255,21 @@ public class StronglyTypedIdTests
         var id2 = ProductSku.From("SKU-002");
 
         // Act & Assert
-        id1.Should().NotBe(id2);
+        id1.ShouldNotBe(id2);
     }
 
     [Fact]
     public void StringId_FromEmptyString_ShouldThrow()
     {
-        // Act
-        var act = () => ProductSku.From("");
-
-        // Assert - TargetInvocationException wraps the ArgumentException due to reflection
-        act.Should().Throw<TargetInvocationException>()
-            .WithInnerException<ArgumentException>();
+        // Act & Assert
+        Should.Throw<ArgumentException>(() => new ProductSku(""));
     }
 
     [Fact]
     public void StringId_FromWhitespace_ShouldThrow()
     {
-        // Act
-        var act = () => ProductSku.From("   ");
-
-        // Assert - TargetInvocationException wraps the ArgumentException due to reflection
-        act.Should().Throw<TargetInvocationException>()
-            .WithInnerException<ArgumentException>();
+        // Act & Assert
+        Should.Throw<ArgumentException>(() => new ProductSku("   "));
     }
 
     #endregion
@@ -292,9 +285,9 @@ public class StronglyTypedIdTests
         var id3 = UserId.From(1);
 
         // Act & Assert
-        id1.CompareTo(id2).Should().BeLessThan(0);
-        id2.CompareTo(id1).Should().BeGreaterThan(0);
-        id1.CompareTo(id3).Should().Be(0);
+        id1.CompareTo(id2).ShouldBeLessThan(0);
+        id2.CompareTo(id1).ShouldBeGreaterThan(0);
+        id1.CompareTo(id3).ShouldBe(0);
     }
 
     [Fact]
@@ -304,7 +297,7 @@ public class StronglyTypedIdTests
         var id = UserId.From(1);
 
         // Act & Assert
-        id.CompareTo(null).Should().BeGreaterThan(0);
+        id.CompareTo(null).ShouldBeGreaterThan(0);
     }
 
     #endregion

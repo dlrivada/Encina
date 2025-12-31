@@ -34,21 +34,21 @@ public sealed class NATSHealthCheckContractTests : IEncinaHealthCheckContractTes
     [Fact]
     public void DefaultName_ShouldBeEncinaNats()
     {
-        NATSHealthCheck.DefaultName.Should().Be("encina-nats");
+        NATSHealthCheck.DefaultName.ShouldBe("encina-nats");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainMessagingTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("messaging");
+        healthCheck.Tags.ShouldContain("messaging");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainNatsTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("nats");
+        healthCheck.Tags.ShouldContain("nats");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

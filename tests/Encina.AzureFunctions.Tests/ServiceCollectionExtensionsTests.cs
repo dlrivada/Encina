@@ -1,6 +1,6 @@
 using Encina.AzureFunctions.Health;
 using Encina.Messaging.Health;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -21,8 +21,8 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var options = provider.GetService<IOptions<EncinaAzureFunctionsOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.Should().NotBeNull();
+        options.ShouldNotBeNull();
+        options!.Value.ShouldNotBeNull();
     }
 
     [Fact]
@@ -41,8 +41,8 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var options = provider.GetRequiredService<IOptions<EncinaAzureFunctionsOptions>>();
-        options.Value.CorrelationIdHeader.Should().Be("X-Request-ID");
-        options.Value.EnableRequestContextEnrichment.Should().BeFalse();
+        options.Value.CorrelationIdHeader.ShouldBe("X-Request-ID");
+        options.Value.EnableRequestContextEnrichment.ShouldBeFalse();
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var middleware = provider.GetService<EncinaFunctionMiddleware>();
-        middleware.Should().NotBeNull();
+        middleware.ShouldNotBeNull();
     }
 
     [Fact]
@@ -77,8 +77,8 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var healthCheck = provider.GetService<IEncinaHealthCheck>();
-        healthCheck.Should().NotBeNull();
-        healthCheck.Should().BeOfType<AzureFunctionsHealthCheck>();
+        healthCheck.ShouldNotBeNull();
+        healthCheck.ShouldBeOfType<AzureFunctionsHealthCheck>();
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var healthCheck = provider.GetService<IEncinaHealthCheck>();
-        healthCheck.Should().BeNull();
+        healthCheck.ShouldBeNull();
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var middlewares = provider.GetServices<EncinaFunctionMiddleware>().ToList();
-        middlewares.Should().HaveCount(1);
+        middlewares.ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public class ServiceCollectionExtensionsTests
         var result = services.AddEncinaAzureFunctions();
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -140,8 +140,8 @@ public class ServiceCollectionExtensionsTests
         var action = () => services.AddEncinaAzureFunctions();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public class ServiceCollectionExtensionsTests
         var action = () => services.AddEncinaAzureFunctions(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configureOptions");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("configureOptions");
     }
 }

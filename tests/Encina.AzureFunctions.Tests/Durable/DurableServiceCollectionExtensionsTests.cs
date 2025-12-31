@@ -1,6 +1,6 @@
 using Encina.AzureFunctions.Durable;
 using Encina.Messaging.Health;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -17,12 +17,12 @@ public class DurableServiceCollectionExtensionsTests
 
         // Act
         services.AddEncinaDurableFunctions();
-        var provider = services.BuildServiceProvider();
+        using var provider = services.BuildServiceProvider();
 
         // Assert
         var options = provider.GetService<IOptions<DurableFunctionsOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.Should().NotBeNull();
+        options.ShouldNotBeNull();
+        options!.Value.ShouldNotBeNull();
     }
 
     [Fact]
@@ -37,12 +37,12 @@ public class DurableServiceCollectionExtensionsTests
             options.DefaultMaxRetries = 10;
             options.DefaultFirstRetryInterval = TimeSpan.FromSeconds(30);
         });
-        var provider = services.BuildServiceProvider();
+        using var provider = services.BuildServiceProvider();
 
         // Assert
         var options = provider.GetRequiredService<IOptions<DurableFunctionsOptions>>();
-        options.Value.DefaultMaxRetries.Should().Be(10);
-        options.Value.DefaultFirstRetryInterval.Should().Be(TimeSpan.FromSeconds(30));
+        options.Value.DefaultMaxRetries.ShouldBe(10);
+        options.Value.DefaultFirstRetryInterval.ShouldBe(TimeSpan.FromSeconds(30));
     }
 
     [Fact]
@@ -53,11 +53,11 @@ public class DurableServiceCollectionExtensionsTests
 
         // Act
         services.AddEncinaDurableFunctions();
-        var provider = services.BuildServiceProvider();
+        using var provider = services.BuildServiceProvider();
 
         // Assert
         var healthChecks = provider.GetServices<IEncinaHealthCheck>();
-        healthChecks.Should().ContainSingle(hc => hc is DurableFunctionsHealthCheck);
+        healthChecks.ShouldContain(hc => hc is DurableFunctionsHealthCheck);
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class DurableServiceCollectionExtensionsTests
         var result = services.AddEncinaDurableFunctions();
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -82,13 +82,13 @@ public class DurableServiceCollectionExtensionsTests
         // Act
         services.AddEncinaDurableFunctions();
         services.AddEncinaDurableFunctions();
-        var provider = services.BuildServiceProvider();
+        using var provider = services.BuildServiceProvider();
 
         // Assert
         var healthChecks = provider.GetServices<IEncinaHealthCheck>()
             .OfType<DurableFunctionsHealthCheck>()
             .ToList();
-        healthChecks.Should().HaveCount(1);
+        healthChecks.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class DurableServiceCollectionExtensionsTests
 
         // Act & Assert
         var action = () => services.AddEncinaDurableFunctions(null);
-        action.Should().NotThrow();
+        Should.NotThrow(action);
     }
 
     [Fact]
@@ -108,8 +108,11 @@ public class DurableServiceCollectionExtensionsTests
         // Arrange
         IServiceCollection? services = null;
 
-        // Act & Assert
+        // Act
         var action = () => services!.AddEncinaDurableFunctions();
-        action.Should().Throw<ArgumentNullException>();
+
+        // Assert
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("services");
     }
 }

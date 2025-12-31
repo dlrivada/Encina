@@ -11,7 +11,7 @@ public class AggregateBaseTests
         var aggregate = new TestAggregate();
 
         // Assert
-        aggregate.Version.Should().Be(0);
+        aggregate.Version.ShouldBe(0);
     }
 
     [Fact]
@@ -21,7 +21,7 @@ public class AggregateBaseTests
         var aggregate = new TestAggregate();
 
         // Assert
-        aggregate.UncommittedEvents.Should().BeEmpty();
+        aggregate.UncommittedEvents.ShouldBeEmpty();
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class AggregateBaseTests
         aggregate.DoSomething("test");
 
         // Assert
-        aggregate.Version.Should().Be(1);
+        aggregate.Version.ShouldBe(1);
     }
 
     [Fact]
@@ -47,8 +47,8 @@ public class AggregateBaseTests
         aggregate.DoSomething("test");
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(1);
-        aggregate.UncommittedEvents[0].Should().BeOfType<TestEvent>();
+        aggregate.UncommittedEvents.Count.ShouldBe(1);
+        aggregate.UncommittedEvents[0].ShouldBeOfType<TestEvent>();
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class AggregateBaseTests
         aggregate.DoSomething("test-value");
 
         // Assert
-        aggregate.CurrentValue.Should().Be("test-value");
+        aggregate.CurrentValue.ShouldBe("test-value");
     }
 
     [Fact]
@@ -76,8 +76,8 @@ public class AggregateBaseTests
         aggregate.DoSomething("third");
 
         // Assert
-        aggregate.Version.Should().Be(3);
-        aggregate.UncommittedEvents.Should().HaveCount(3);
+        aggregate.Version.ShouldBe(3);
+        aggregate.UncommittedEvents.Count.ShouldBe(3);
     }
 
     [Fact]
@@ -92,8 +92,8 @@ public class AggregateBaseTests
         aggregate.ClearUncommittedEvents();
 
         // Assert
-        aggregate.UncommittedEvents.Should().BeEmpty();
-        aggregate.Version.Should().Be(2); // Version should remain unchanged
+        aggregate.UncommittedEvents.ShouldBeEmpty();
+        aggregate.Version.ShouldBe(2); // Version should remain unchanged
     }
 
     [Fact]
@@ -106,8 +106,7 @@ public class AggregateBaseTests
         var aggregate = new TestAggregateWithId(id);
 
         // Assert
-        aggregate.Id.Should().Be(id);
-        aggregate.Id.Should().Be(id);
+        aggregate.Id.ShouldBe(id);
     }
 
     // Test aggregate implementation

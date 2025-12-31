@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Encina.Refit;
@@ -21,8 +21,8 @@ public class RestApiRequestHandlerGuardsTests
         Action act = () => _ = new RestApiRequestHandler<TestRequest, ITestApiClient, string>(nullApiClient!, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("apiClient");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("apiClient");
     }
 
     [Fact]
@@ -36,8 +36,8 @@ public class RestApiRequestHandlerGuardsTests
         Action act = () => _ = new RestApiRequestHandler<TestRequest, ITestApiClient, string>(apiClient, nullLogger!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -51,7 +51,8 @@ public class RestApiRequestHandlerGuardsTests
         Action act = () => _ = new RestApiRequestHandler<TestRequest, ITestApiClient, string>(nullApiClient!, nullLogger!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("apiClient"); // First parameter is validated first
     }
 
     // Test helpers

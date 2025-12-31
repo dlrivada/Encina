@@ -1,4 +1,4 @@
-﻿namespace Encina.Caching.GuardTests;
+namespace Encina.Caching.GuardTests;
 
 /// <summary>
 /// Guard tests for <see cref="MemoryPubSubProvider"/> to verify null parameter handling.
@@ -13,7 +13,8 @@ public class MemoryPubSubProviderGuardTests
     {
         // Act & Assert
         var act = () => new MemoryPubSubProvider(null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     /// <summary>
@@ -27,11 +28,11 @@ public class MemoryPubSubProviderGuardTests
         string channel = null!;
 
         // Act & Assert
-        var act = async () => await provider.SubscribeAsync(
+        var act = () => provider.SubscribeAsync(
             channel,
             _ => Task.CompletedTask,
             CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("channel");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe(nameof(channel));
     }
 
     /// <summary>
@@ -45,11 +46,11 @@ public class MemoryPubSubProviderGuardTests
         Func<string, Task> handler = null!;
 
         // Act & Assert
-        var act = async () => await provider.SubscribeAsync(
+        var act = () => provider.SubscribeAsync(
             "channel",
             handler,
             CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("handler");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe(nameof(handler));
     }
 
     /// <summary>
@@ -63,8 +64,8 @@ public class MemoryPubSubProviderGuardTests
         string channel = null!;
 
         // Act & Assert
-        var act = async () => await provider.UnsubscribeAsync(channel, CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("channel");
+        var act = () => provider.UnsubscribeAsync(channel, CancellationToken.None);
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe(nameof(channel));
     }
 
     /// <summary>
@@ -78,8 +79,8 @@ public class MemoryPubSubProviderGuardTests
         string channel = null!;
 
         // Act & Assert
-        var act = async () => await provider.PublishAsync(channel, "message", CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("channel");
+        var act = () => provider.PublishAsync(channel, "message", CancellationToken.None);
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe(nameof(channel));
     }
 
     /// <summary>
@@ -93,8 +94,8 @@ public class MemoryPubSubProviderGuardTests
         string message = null!;
 
         // Act & Assert
-        var act = async () => await provider.PublishAsync("channel", message, CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("message");
+        var act = () => provider.PublishAsync("channel", message, CancellationToken.None);
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe(nameof(message));
     }
 
     private static MemoryPubSubProvider CreateProvider()

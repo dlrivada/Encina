@@ -41,7 +41,7 @@ public class ValueObjectGuardTests
         Address? nullAddress = null;
 
         // Act & Assert
-        address.Equals(nullAddress).Should().BeFalse();
+        address.Equals(nullAddress).ShouldBeFalse();
     }
 
     /// <summary>
@@ -55,7 +55,7 @@ public class ValueObjectGuardTests
         object? nullObject = null;
 
         // Act & Assert
-        address.Equals(nullObject).Should().BeFalse();
+        address.Equals(nullObject).ShouldBeFalse();
     }
 
     /// <summary>
@@ -68,7 +68,7 @@ public class ValueObjectGuardTests
         var address = new Address("Main St", "NYC");
 
         // Act & Assert
-        (address == null).Should().BeFalse();
+        (address == null).ShouldBeFalse();
     }
 
     /// <summary>
@@ -81,7 +81,7 @@ public class ValueObjectGuardTests
         var address = new Address("Main St", "NYC");
 
         // Act & Assert
-        (null == address).Should().BeFalse();
+        (null == address).ShouldBeFalse();
     }
 
     /// <summary>
@@ -94,7 +94,7 @@ public class ValueObjectGuardTests
         var address = new Address("Main St", "NYC");
 
         // Act & Assert
-        (address != null).Should().BeTrue();
+        (address != null).ShouldBeTrue();
     }
 
     /// <summary>
@@ -108,7 +108,7 @@ public class ValueObjectGuardTests
         Address? address2 = null;
 
         // Act & Assert
-        (address1 == address2).Should().BeTrue();
+        (address1 == address2).ShouldBeTrue();
     }
 
     /// <summary>
@@ -122,7 +122,7 @@ public class ValueObjectGuardTests
         var address2 = new Address("Main St", null!);
 
         // Act & Assert - should handle null components
-        address1.Should().Be(address2);
+        address1.ShouldBe(address2);
     }
 
     #endregion
@@ -143,7 +143,7 @@ public class ValueObjectGuardTests
         var result = money.CompareTo(nullMoney);
 
         // Assert
-        result.Should().BePositive();
+        result.ShouldBeGreaterThan(0);
     }
 
     /// <summary>
@@ -159,7 +159,7 @@ public class ValueObjectGuardTests
         decimal value = money;
 
         // Assert
-        value.Should().Be(100m);
+        value.ShouldBe(100m);
     }
 
     #endregion

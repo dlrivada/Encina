@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -17,42 +17,31 @@ namespace Encina.Extensions.Resilience.Tests;
 /// </summary>
 public class StandardResiliencePipelineBehaviorTests
 {
-    private readonly ResiliencePipelineProvider<string> _pipelineProvider;
-    private readonly ILogger<StandardResiliencePipelineBehavior<TestRequest, TestResponse>> _logger;
-    private readonly StandardResiliencePipelineBehavior<TestRequest, TestResponse> _behavior;
-    private readonly IRequestContext _context;
-
-    public StandardResiliencePipelineBehaviorTests()
+    [Fact]
+    public async Task Handle_WithoutFailure_ShouldSucceed()
     {
-        // Create a real resilience pipeline with minimal configuration
+        // Arrange
         var registry = new ResiliencePipelineRegistry<string>();
         registry.TryAddBuilder("TestRequest", (builder, _) =>
         {
             builder.AddTimeout(TimeSpan.FromSeconds(10));
         });
+        var logger = Substitute.For<ILogger<StandardResiliencePipelineBehavior<TestRequest, TestResponse>>>();
+        var behavior = new StandardResiliencePipelineBehavior<TestRequest, TestResponse>(registry, logger);
+        var context = Substitute.For<IRequestContext>();
+        context.CorrelationId.Returns("test-correlation-id");
 
-        _pipelineProvider = registry;
-        _logger = Substitute.For<ILogger<StandardResiliencePipelineBehavior<TestRequest, TestResponse>>>();
-        _behavior = new StandardResiliencePipelineBehavior<TestRequest, TestResponse>(_pipelineProvider, _logger);
-        _context = Substitute.For<IRequestContext>();
-        _context.CorrelationId.Returns("test-correlation-id");
-    }
-
-    [Fact]
-    public async Task Handle_WithoutFailure_ShouldSucceed()
-    {
-        // Arrange
         var request = new TestRequest();
         var expectedResponse = new TestResponse { Value = "Success" };
         RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<EncinaError, TestResponse>>(expectedResponse);
 
         // Act
-        var result = await _behavior.Handle(request, _context, nextStep, CancellationToken.None);
+        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
         result.ShouldBeSuccess();
         _ = result.Match(
-            Right: response => response.Should().Be(expectedResponse),
+            Right: response => response.ShouldBe(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
         );
     }
@@ -61,18 +50,28 @@ public class StandardResiliencePipelineBehaviorTests
     public async Task Handle_WithEncinaError_ShouldReturnError()
     {
         // Arrange
+        var registry = new ResiliencePipelineRegistry<string>();
+        registry.TryAddBuilder("TestRequest", (builder, _) =>
+        {
+            builder.AddTimeout(TimeSpan.FromSeconds(10));
+        });
+        var logger = Substitute.For<ILogger<StandardResiliencePipelineBehavior<TestRequest, TestResponse>>>();
+        var behavior = new StandardResiliencePipelineBehavior<TestRequest, TestResponse>(registry, logger);
+        var context = Substitute.For<IRequestContext>();
+        context.CorrelationId.Returns("test-correlation-id");
+
         var request = new TestRequest();
         var error = EncinaError.New("Test error");
         RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<EncinaError, TestResponse>>(error);
 
         // Act
-        var result = await _behavior.Handle(request, _context, nextStep, CancellationToken.None);
+        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
         result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should not be Right"),
-            Left: e => e.Message.Should().Be("Test error")
+            Left: e => e.Message.ShouldBe("Test error")
         );
     }
 
@@ -80,24 +79,22 @@ public class StandardResiliencePipelineBehaviorTests
     public async Task Handle_WithBrokenCircuitException_ShouldReturnCircuitBreakerError()
     {
         // Arrange
-        var request = new TestRequest();
         var brokenCircuitEx = new BrokenCircuitException("Circuit is open");
-
-        // Create a pipeline that always throws BrokenCircuitException
         var registry = new ResiliencePipelineRegistry<string>();
         registry.TryAddBuilder("TestRequest", (builder, _) =>
         {
             builder.AddStrategy(_ => new ThrowExceptionStrategy(brokenCircuitEx));
         });
+        var logger = Substitute.For<ILogger<StandardResiliencePipelineBehavior<TestRequest, TestResponse>>>();
+        var behavior = new StandardResiliencePipelineBehavior<TestRequest, TestResponse>(registry, logger);
+        var context = Substitute.For<IRequestContext>();
+        context.CorrelationId.Returns("test-correlation-id");
 
-        var behavior = new StandardResiliencePipelineBehavior<TestRequest, TestResponse>(
-            registry,
-            _logger);
-
+        var request = new TestRequest();
         RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<EncinaError, TestResponse>>(new TestResponse());
 
         // Act
-        var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);
+        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
         result.ShouldBeError();
@@ -105,10 +102,10 @@ public class StandardResiliencePipelineBehaviorTests
             Right: _ => throw new InvalidOperationException("Should not be Right"),
             Left: e =>
             {
-                e.Message.Should().Contain("Circuit breaker is open");
-                e.Message.Should().Contain("TestRequest");
+                e.Message.ShouldContain("Circuit breaker is open");
+                e.Message.ShouldContain("TestRequest");
                 _ = e.Exception.Match(
-                    Some: ex => ex.Should().BeOfType<BrokenCircuitException>(),
+                    Some: ex => ex.ShouldBeOfType<BrokenCircuitException>(),
                     None: () => throw new InvalidOperationException("Exception should be present")
                 );
                 return true;
@@ -120,24 +117,22 @@ public class StandardResiliencePipelineBehaviorTests
     public async Task Handle_WithTimeoutRejectedException_ShouldReturnTimeoutError()
     {
         // Arrange
-        var request = new TestRequest();
         var timeoutEx = new TimeoutRejectedException("Request timed out");
-
-        // Create a pipeline that always throws TimeoutRejectedException
         var registry = new ResiliencePipelineRegistry<string>();
         registry.TryAddBuilder("TestRequest", (builder, _) =>
         {
             builder.AddStrategy(_ => new ThrowExceptionStrategy(timeoutEx));
         });
+        var logger = Substitute.For<ILogger<StandardResiliencePipelineBehavior<TestRequest, TestResponse>>>();
+        var behavior = new StandardResiliencePipelineBehavior<TestRequest, TestResponse>(registry, logger);
+        var context = Substitute.For<IRequestContext>();
+        context.CorrelationId.Returns("test-correlation-id");
 
-        var behavior = new StandardResiliencePipelineBehavior<TestRequest, TestResponse>(
-            registry,
-            _logger);
-
+        var request = new TestRequest();
         RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<EncinaError, TestResponse>>(new TestResponse());
 
         // Act
-        var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);
+        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
         result.ShouldBeError();
@@ -145,10 +140,10 @@ public class StandardResiliencePipelineBehaviorTests
             Right: _ => throw new InvalidOperationException("Should not be Right"),
             Left: e =>
             {
-                e.Message.Should().Contain("timed out");
-                e.Message.Should().Contain("TestRequest");
+                e.Message.ShouldContain("timed out");
+                e.Message.ShouldContain("TestRequest");
                 _ = e.Exception.Match(
-                    Some: ex => ex.Should().BeOfType<TimeoutRejectedException>(),
+                    Some: ex => ex.ShouldBeOfType<TimeoutRejectedException>(),
                     None: () => throw new InvalidOperationException("Exception should be present")
                 );
                 return true;
@@ -160,24 +155,22 @@ public class StandardResiliencePipelineBehaviorTests
     public async Task Handle_WithUnexpectedException_ShouldReturnEncinaError()
     {
         // Arrange
-        var request = new TestRequest();
         var unexpectedException = new InvalidOperationException("Unexpected error");
-
-        // Create a pipeline that always throws an unexpected exception
         var registry = new ResiliencePipelineRegistry<string>();
         registry.TryAddBuilder("TestRequest", (builder, _) =>
         {
             builder.AddStrategy(_ => new ThrowExceptionStrategy(unexpectedException));
         });
+        var logger = Substitute.For<ILogger<StandardResiliencePipelineBehavior<TestRequest, TestResponse>>>();
+        var behavior = new StandardResiliencePipelineBehavior<TestRequest, TestResponse>(registry, logger);
+        var context = Substitute.For<IRequestContext>();
+        context.CorrelationId.Returns("test-correlation-id");
 
-        var behavior = new StandardResiliencePipelineBehavior<TestRequest, TestResponse>(
-            registry,
-            _logger);
-
+        var request = new TestRequest();
         RequestHandlerCallback<TestResponse> nextStep = () => ValueTask.FromResult<Either<EncinaError, TestResponse>>(new TestResponse());
 
         // Act
-        var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);
+        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
         result.ShouldBeError();
@@ -185,9 +178,9 @@ public class StandardResiliencePipelineBehaviorTests
             Right: _ => throw new InvalidOperationException("Should not be Right"),
             Left: e =>
             {
-                e.Message.Should().Be("Unexpected error");
+                e.Message.ShouldBe("Unexpected error");
                 _ = e.Exception.Match(
-                    Some: ex => ex.Should().BeOfType<InvalidOperationException>(),
+                    Some: ex => ex.ShouldBeOfType<InvalidOperationException>(),
                     None: () => throw new InvalidOperationException("Exception should be present")
                 );
                 return true;
@@ -199,6 +192,16 @@ public class StandardResiliencePipelineBehaviorTests
     public async Task Handle_WithCancellation_ShouldPropagateCancellation()
     {
         // Arrange
+        var registry = new ResiliencePipelineRegistry<string>();
+        registry.TryAddBuilder("TestRequest", (builder, _) =>
+        {
+            builder.AddTimeout(TimeSpan.FromSeconds(10));
+        });
+        var logger = Substitute.For<ILogger<StandardResiliencePipelineBehavior<TestRequest, TestResponse>>>();
+        var behavior = new StandardResiliencePipelineBehavior<TestRequest, TestResponse>(registry, logger);
+        var context = Substitute.For<IRequestContext>();
+        context.CorrelationId.Returns("test-correlation-id");
+
         var request = new TestRequest();
         var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -210,7 +213,7 @@ public class StandardResiliencePipelineBehaviorTests
         };
 
         // Act
-        var result = await _behavior.Handle(request, _context, nextStep, cts.Token);
+        var result = await behavior.Handle(request, context, nextStep, cts.Token);
 
         // Assert
         result.ShouldBeError();
@@ -219,7 +222,7 @@ public class StandardResiliencePipelineBehaviorTests
             Left: e =>
             {
                 _ = e.Exception.Match(
-                    Some: ex => ex.Should().BeOfType<TaskCanceledException>(),
+                    Some: ex => ex.ShouldBeOfType<TaskCanceledException>(),
                     None: () => throw new InvalidOperationException("Exception should be present")
                 );
                 return true;

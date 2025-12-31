@@ -14,8 +14,8 @@ public sealed class EventUpcasterRegistryTests
         registry.Register<OrderCreatedV1ToV2Upcaster>();
 
         // Assert
-        registry.Count.Should().Be(1);
-        registry.HasUpcasterFor(nameof(OrderCreatedV1)).Should().BeTrue();
+        registry.Count.ShouldBe(1);
+        registry.HasUpcasterFor(nameof(OrderCreatedV1)).ShouldBeTrue();
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public sealed class EventUpcasterRegistryTests
         registry.Register(upcaster);
 
         // Assert
-        registry.Count.Should().Be(1);
+        registry.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class EventUpcasterRegistryTests
         var act = () => registry.Register(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -56,8 +56,8 @@ public sealed class EventUpcasterRegistryTests
         var act = () => registry.Register<OrderCreatedV1ToV2Upcaster>();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*already registered*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*already registered*");
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class EventUpcasterRegistryTests
         registry.Register(typeof(OrderCreatedV1ToV2Upcaster));
 
         // Assert
-        registry.Count.Should().Be(1);
+        registry.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class EventUpcasterRegistryTests
         var act = () => registry.Register((Type)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -96,8 +96,8 @@ public sealed class EventUpcasterRegistryTests
         var act = () => registry.Register(typeof(string));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithMessage("*does not implement IEventUpcaster*");
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.Message.ShouldMatch("*does not implement IEventUpcaster*");
     }
 
     [Fact]
@@ -111,8 +111,8 @@ public sealed class EventUpcasterRegistryTests
         var result = registry.TryRegister(upcaster);
 
         // Assert
-        result.Should().BeTrue();
-        registry.Count.Should().Be(1);
+        result.ShouldBeTrue();
+        registry.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -126,8 +126,8 @@ public sealed class EventUpcasterRegistryTests
         var result = registry.TryRegister(new OrderCreatedV1ToV2Upcaster());
 
         // Assert
-        result.Should().BeFalse();
-        registry.Count.Should().Be(1);
+        result.ShouldBeFalse();
+        registry.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -137,10 +137,10 @@ public sealed class EventUpcasterRegistryTests
         var registry = new EventUpcasterRegistry();
 
         // Act
-        var act = () => registry.TryRegister(null!);
+        Action act = () => _ = registry.TryRegister(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -154,8 +154,8 @@ public sealed class EventUpcasterRegistryTests
         var upcaster = registry.GetUpcasterForEventType(nameof(OrderCreatedV1));
 
         // Assert
-        upcaster.Should().NotBeNull();
-        upcaster.Should().BeOfType<OrderCreatedV1ToV2Upcaster>();
+        upcaster.ShouldNotBeNull();
+        upcaster.ShouldBeOfType<OrderCreatedV1ToV2Upcaster>();
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public sealed class EventUpcasterRegistryTests
         var upcaster = registry.GetUpcasterForEventType("UnknownEvent");
 
         // Assert
-        upcaster.Should().BeNull();
+        upcaster.ShouldBeNull();
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public sealed class EventUpcasterRegistryTests
         var act = () => registry.GetUpcasterForEventType(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -196,7 +196,7 @@ public sealed class EventUpcasterRegistryTests
         var upcasters = registry.GetAllUpcasters();
 
         // Assert
-        upcasters.Should().HaveCount(2);
+        upcasters.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public sealed class EventUpcasterRegistryTests
         var upcasters = registry.GetAllUpcasters();
 
         // Assert
-        upcasters.Should().BeEmpty();
+        upcasters.ShouldBeEmpty();
     }
 
     [Fact]
@@ -223,7 +223,7 @@ public sealed class EventUpcasterRegistryTests
         var result = registry.HasUpcasterFor(nameof(OrderCreatedV1));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -236,7 +236,7 @@ public sealed class EventUpcasterRegistryTests
         var result = registry.HasUpcasterFor(nameof(OrderCreatedV1));
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -246,10 +246,10 @@ public sealed class EventUpcasterRegistryTests
         var registry = new EventUpcasterRegistry();
 
         // Act
-        var act = () => registry.HasUpcasterFor(null!);
+        Action act = () => _ = registry.HasUpcasterFor(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public sealed class EventUpcasterRegistryTests
         var count = registry.Count;
 
         // Assert
-        count.Should().Be(0);
+        count.ShouldBe(0);
     }
 
     [Fact]
@@ -277,7 +277,7 @@ public sealed class EventUpcasterRegistryTests
         var count = registry.Count;
 
         // Assert
-        count.Should().Be(2);
+        count.ShouldBe(2);
     }
 
     [Fact]
@@ -290,8 +290,8 @@ public sealed class EventUpcasterRegistryTests
         var count = registry.ScanAndRegister(typeof(OrderCreatedV1ToV2Upcaster).Assembly);
 
         // Assert
-        count.Should().BeGreaterThan(0);
-        registry.Count.Should().BeGreaterThan(0);
+        count.ShouldBeGreaterThan(0);
+        registry.Count.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -301,10 +301,10 @@ public sealed class EventUpcasterRegistryTests
         var registry = new EventUpcasterRegistry();
 
         // Act
-        var act = () => registry.ScanAndRegister(null!);
+        Action act = () => _ = registry.ScanAndRegister(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -318,6 +318,6 @@ public sealed class EventUpcasterRegistryTests
         var count = registry.ScanAndRegister(typeof(OrderCreatedV1ToV2Upcaster).Assembly);
 
         // Assert - should not throw, but count might be lower
-        count.Should().BeGreaterThanOrEqualTo(0);
+        count.ShouldBeGreaterThanOrEqualTo(0);
     }
 }

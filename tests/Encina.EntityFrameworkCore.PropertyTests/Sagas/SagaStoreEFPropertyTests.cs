@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Encina.EntityFrameworkCore.Sagas;
@@ -74,10 +74,10 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var retrieved = await _store.GetAsync(testCase.SagaId);
-            retrieved.Should().NotBeNull("added saga must ALWAYS be retrievable");
-            retrieved!.SagaId.Should().Be(testCase.SagaId);
-            retrieved.SagaType.Should().Be(testCase.SagaType);
-            retrieved.Data.Should().Be(testCase.Data);
+            retrieved.ShouldNotBeNull("added saga must ALWAYS be retrievable");
+            retrieved!.SagaId.ShouldBe(testCase.SagaId);
+            retrieved.SagaType.ShouldBe(testCase.SagaType);
+            retrieved.Data.ShouldBe(testCase.Data);
         }
     }
 
@@ -97,8 +97,8 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
         {
             await ClearDatabase();
 
-            // Arrange
-            var originalTime = DateTime.UtcNow.AddMinutes(-10);
+            // Arrange - set original time in the past to ensure clear difference
+            var originalTime = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
             var saga = new SagaState
             {
                 SagaId = Guid.NewGuid(),
@@ -113,10 +113,7 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
             await _store!.AddAsync(saga);
             await _store.SaveChangesAsync();
 
-            // Small delay to ensure timestamp difference
-            await Task.Delay(100);
-
-            // Act
+            // Act - no delay needed, just update
             saga.Data = testCase.NewData;
             saga.CurrentStep = testCase.NewStep;
             await _store.UpdateAsync(saga);
@@ -124,11 +121,11 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var updated = await _store.GetAsync(saga.SagaId);
-            updated.Should().NotBeNull();
-            updated!.LastUpdatedAtUtc.Should().BeAfter(originalTime,
-                "UpdateAsync must ALWAYS update LastUpdatedAtUtc");
-            updated.Data.Should().Be(testCase.NewData);
-            updated.CurrentStep.Should().Be(testCase.NewStep);
+            updated.ShouldNotBeNull();
+            updated!.LastUpdatedAtUtc.ShouldBeGreaterThan(originalTime,
+                "UpdateAsync must update LastUpdatedAtUtc to a time after originalTime");
+            updated.Data.ShouldBe(testCase.NewData);
+            updated.CurrentStep.ShouldBe(testCase.NewStep);
         }
     }
 
@@ -177,12 +174,12 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
             // Assert
             if (shouldAppear)
             {
-                stuck.Should().Contain(s => s.SagaId == saga.SagaId,
+                stuck.ShouldContain(s => s.SagaId == saga.SagaId,
                     $"saga with status={status} and LastUpdated={lastUpdated} should be stuck");
             }
             else
             {
-                stuck.Should().NotContain(s => s.SagaId == saga.SagaId,
+                stuck.ShouldNotContain(s => s.SagaId == saga.SagaId,
                     $"saga with status={status} and LastUpdated={lastUpdated} should NOT be stuck");
             }
 
@@ -236,8 +233,8 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var updated = await _store.GetAsync(saga.SagaId);
-            updated.Should().NotBeNull();
-            updated!.Status.ToString().Should().Be(targetStatus.ToString(),
+            updated.ShouldNotBeNull();
+            updated!.Status.ToString().ShouldBe(targetStatus.ToString(),
                 $"status transition to {targetStatus} must ALWAYS be preserved");
         }
     }
@@ -277,7 +274,7 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
             var stuck = await _store!.GetStuckSagasAsync(TimeSpan.FromMinutes(30), batchSize);
 
             // Assert
-            stuck.Count().Should().BeLessThanOrEqualTo(batchSize,
+            stuck.Count().ShouldBeLessThanOrEqualTo(batchSize,
                 $"batch size {batchSize} must ALWAYS be respected");
         }
     }
@@ -322,7 +319,7 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
         // Assert - must be ordered by LastUpdatedAtUtc ascending
         for (int i = 1; i < stuck.Count; i++)
         {
-            stuck[i].LastUpdatedAtUtc.Should().BeOnOrAfter(stuck[i - 1].LastUpdatedAtUtc,
+            stuck[i].LastUpdatedAtUtc.ShouldBeGreaterThanOrEqualTo(stuck[i - 1].LastUpdatedAtUtc,
                 "stuck sagas must ALWAYS be ordered by LastUpdatedAtUtc ascending");
         }
     }
@@ -367,8 +364,8 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
 
                 // Assert
                 var updated = await _store.GetAsync(saga.SagaId);
-                updated.Should().NotBeNull();
-                ((SagaState)updated!).CorrelationId.Should().Be(correlationId,
+                updated.ShouldNotBeNull();
+                ((SagaState)updated!).CorrelationId.ShouldBe(correlationId,
                     "CorrelationId must ALWAYS be preserved across updates");
             }
         }
@@ -414,8 +411,8 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var updated = await _store.GetAsync(saga.SagaId);
-            updated.Should().NotBeNull();
-            ((SagaState)updated!).TimeoutAtUtc.Should().Be(timeout,
+            updated.ShouldNotBeNull();
+            ((SagaState)updated!).TimeoutAtUtc.ShouldBe(timeout,
                 "TimeoutAtUtc must ALWAYS be preserved across updates");
         }
     }
@@ -448,8 +445,8 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
             await _store.SaveChangesAsync();
 
             var retrieved = await _store.GetAsync(saga.SagaId);
-            retrieved.Should().NotBeNull();
-            retrieved!.CurrentStep.Should().Be(step,
+            retrieved.ShouldNotBeNull();
+            retrieved!.CurrentStep.ShouldBe(step,
                 $"CurrentStep must ALWAYS reflect latest update (step {step})");
         }
     }
@@ -493,10 +490,10 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var completed = await _store.GetAsync(saga.SagaId);
-            completed.Should().NotBeNull();
-            completed!.CompletedAtUtc.Should().NotBeNull(
+            completed.ShouldNotBeNull();
+            completed!.CompletedAtUtc.ShouldNotBeNull(
                 $"CompletedAtUtc should be set when status is {terminalStatus}");
-            completed.Status.ToString().Should().Be(terminalStatus.ToString());
+            completed.Status.ToString().ShouldBe(terminalStatus.ToString());
         }
     }
 
@@ -543,10 +540,10 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
         foreach (var saga in sagas)
         {
             var retrieved = await _store!.GetAsync(saga.SagaId);
-            retrieved.Should().NotBeNull();
-            retrieved!.CurrentStep.Should().Be(1,
+            retrieved.ShouldNotBeNull();
+            retrieved!.CurrentStep.ShouldBe(1,
                 "concurrent updates to different sagas must ALL succeed");
-            retrieved.Data.Should().Be("{\"updated\":true}");
+            retrieved.Data.ShouldBe("{\"updated\":true}");
         }
     }
 
@@ -590,8 +587,8 @@ public sealed class SagaStoreEFPropertyTests : IAsyncLifetime
                 await _store.SaveChangesAsync();
 
                 var retrieved = await _store.GetAsync(saga.SagaId);
-                retrieved.Should().NotBeNull();
-                ((SagaState)retrieved!).Metadata.Should().Be(metadata,
+                retrieved.ShouldNotBeNull();
+                ((SagaState)retrieved!).Metadata.ShouldBe(metadata,
                     "Metadata must ALWAYS be preserved across updates");
             }
         }

@@ -54,7 +54,7 @@ public class BusinessRuleTests
         var result = rule.IsSatisfied();
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class BusinessRuleTests
         var result = rule.IsSatisfied();
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     #endregion
@@ -87,7 +87,7 @@ public class BusinessRuleTests
         var result = rule.Check();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -101,11 +101,11 @@ public class BusinessRuleTests
         var result = rule.Check();
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         result.IfLeft(error =>
         {
-            error.ErrorCode.Should().Be("ORDER_NO_ITEMS");
-            error.ErrorMessage.Should().Be("Order must have at least one item");
+            error.ErrorCode.ShouldBe("ORDER_NO_ITEMS");
+            error.ErrorMessage.ShouldBe("Order must have at least one item");
         });
     }
 
@@ -116,10 +116,11 @@ public class BusinessRuleTests
         IBusinessRule rule = null!;
 
         // Act
-        var act = () => rule.Check();
+        Action act = () => _ = rule.Check();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rule");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rule");
     }
 
     #endregion
@@ -142,7 +143,7 @@ public class BusinessRuleTests
         var result = rules.CheckFirst();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -160,10 +161,10 @@ public class BusinessRuleTests
         var result = rules.CheckFirst();
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         result.IfLeft(error =>
         {
-            error.ErrorCode.Should().Be("ORDER_NO_ITEMS");
+            error.ErrorCode.ShouldBe("ORDER_NO_ITEMS");
         });
     }
 
@@ -177,7 +178,7 @@ public class BusinessRuleTests
         var result = rules.CheckFirst();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -187,10 +188,11 @@ public class BusinessRuleTests
         IEnumerable<IBusinessRule> rules = null!;
 
         // Act
-        var act = () => rules.CheckFirst();
+        Action act = () => _ = rules.CheckFirst();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rules");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rules");
     }
 
     #endregion
@@ -213,7 +215,7 @@ public class BusinessRuleTests
         var result = rules.CheckAll();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -231,12 +233,12 @@ public class BusinessRuleTests
         var result = rules.CheckAll();
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         result.IfLeft(aggregate =>
         {
-            aggregate.Errors.Should().HaveCount(2);
-            aggregate.Errors.Should().Contain(e => e.ErrorCode == "ORDER_NO_ITEMS");
-            aggregate.Errors.Should().Contain(e => e.ErrorCode == "ORDER_INVALID_TOTAL");
+            aggregate.Errors.Count.ShouldBe(2);
+            aggregate.Errors.ShouldContain(e => e.ErrorCode == "ORDER_NO_ITEMS");
+            aggregate.Errors.ShouldContain(e => e.ErrorCode == "ORDER_INVALID_TOTAL");
         });
     }
 
@@ -247,10 +249,11 @@ public class BusinessRuleTests
         IEnumerable<IBusinessRule> rules = null!;
 
         // Act
-        var act = () => rules.CheckAll();
+        Action act = () => _ = rules.CheckAll();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rules");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rules");
     }
 
     #endregion
@@ -269,7 +272,7 @@ public class BusinessRuleTests
         var act = () => rule.ThrowIfNotSatisfied();
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -283,9 +286,9 @@ public class BusinessRuleTests
         var act = () => rule.ThrowIfNotSatisfied();
 
         // Assert
-        act.Should().Throw<BusinessRuleViolationException>()
-            .Where(ex => ex.ErrorCode == "ORDER_NO_ITEMS")
-            .Where(ex => ex.BrokenRule == rule);
+        var ex = Should.Throw<BusinessRuleViolationException>(act);
+        ex.ErrorCode.ShouldBe("ORDER_NO_ITEMS");
+        ex.BrokenRule.ShouldBe(rule);
     }
 
     [Fact]
@@ -298,7 +301,8 @@ public class BusinessRuleTests
         var act = () => rule.ThrowIfNotSatisfied();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rule");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rule");
     }
 
     #endregion
@@ -321,7 +325,7 @@ public class BusinessRuleTests
         var act = () => rules.ThrowIfAnyNotSatisfied();
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -339,8 +343,8 @@ public class BusinessRuleTests
         var act = () => rules.ThrowIfAnyNotSatisfied();
 
         // Assert
-        act.Should().Throw<BusinessRuleViolationException>()
-            .Where(ex => ex.ErrorCode == "ORDER_NO_ITEMS");
+        var ex = Should.Throw<BusinessRuleViolationException>(act);
+        ex.ErrorCode.ShouldBe("ORDER_NO_ITEMS");
     }
 
     [Fact]
@@ -353,7 +357,8 @@ public class BusinessRuleTests
         var act = () => rules.ThrowIfAnyNotSatisfied();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rules");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rules");
     }
 
     #endregion
@@ -371,8 +376,8 @@ public class BusinessRuleTests
         var error = BusinessRuleError.From(rule);
 
         // Assert
-        error.ErrorCode.Should().Be("ORDER_NO_ITEMS");
-        error.ErrorMessage.Should().Be("Order must have at least one item");
+        error.ErrorCode.ShouldBe("ORDER_NO_ITEMS");
+        error.ErrorMessage.ShouldBe("Order must have at least one item");
     }
 
     [Fact]
@@ -382,7 +387,8 @@ public class BusinessRuleTests
         var act = () => BusinessRuleError.From(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("rule");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("rule");
     }
 
     #endregion
@@ -404,7 +410,7 @@ public class BusinessRuleTests
         var aggregate = AggregateBusinessRuleError.FromRules(rules);
 
         // Assert
-        aggregate.Errors.Should().HaveCount(2);
+        aggregate.Errors.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -418,7 +424,7 @@ public class BusinessRuleTests
         var aggregate = AggregateBusinessRuleError.From(error1, error2);
 
         // Assert
-        aggregate.Errors.Should().HaveCount(2);
+        aggregate.Errors.Count.ShouldBe(2);
     }
 
     #endregion
@@ -436,9 +442,9 @@ public class BusinessRuleTests
         var exception = new BusinessRuleViolationException(rule);
 
         // Assert
-        exception.BrokenRule.Should().Be(rule);
-        exception.ErrorCode.Should().Be("ORDER_NO_ITEMS");
-        exception.Message.Should().Be("Order must have at least one item");
+        exception.BrokenRule.ShouldBe(rule);
+        exception.ErrorCode.ShouldBe("ORDER_NO_ITEMS");
+        exception.Message.ShouldBe("Order must have at least one item");
     }
 
     [Fact]
@@ -448,7 +454,8 @@ public class BusinessRuleTests
         var act = () => new BusinessRuleViolationException(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("brokenRule");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("brokenRule");
     }
 
     [Fact]
@@ -463,7 +470,7 @@ public class BusinessRuleTests
         var exception = new BusinessRuleViolationException(rule, inner);
 
         // Assert
-        exception.InnerException.Should().Be(inner);
+        exception.InnerException.ShouldBe(inner);
     }
 
     #endregion

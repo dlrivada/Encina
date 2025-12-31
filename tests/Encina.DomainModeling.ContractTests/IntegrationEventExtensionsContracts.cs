@@ -1,5 +1,5 @@
 using System.Reflection;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.DomainModeling.ContractTests;
 
@@ -21,14 +21,14 @@ public class IntegrationEventExtensionsContracts
     [Fact]
     public void IAsyncDomainEventToIntegrationEventMapper_MustBeInterface()
     {
-        _asyncMapperType.IsInterface.Should().BeTrue();
+        _asyncMapperType.IsInterface.ShouldBeTrue();
     }
 
     [Fact]
     public void IAsyncDomainEventToIntegrationEventMapper_MustBeGenericWithTwoParameters()
     {
-        _asyncMapperType.IsGenericTypeDefinition.Should().BeTrue();
-        _asyncMapperType.GetGenericArguments().Should().HaveCount(2);
+        _asyncMapperType.IsGenericTypeDefinition.ShouldBeTrue();
+        _asyncMapperType.GetGenericArguments().Length.ShouldBe(2);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class IntegrationEventExtensionsContracts
     {
         var typeParam = _asyncMapperType.GetGenericArguments()[0];
         var constraints = typeParam.GetGenericParameterConstraints();
-        constraints.Should().Contain(typeof(IDomainEvent));
+        constraints.ShouldContain(typeof(IDomainEvent));
     }
 
     [Fact]
@@ -44,14 +44,14 @@ public class IntegrationEventExtensionsContracts
     {
         var typeParam = _asyncMapperType.GetGenericArguments()[1];
         var constraints = typeParam.GetGenericParameterConstraints();
-        constraints.Should().Contain(typeof(IIntegrationEvent));
+        constraints.ShouldContain(typeof(IIntegrationEvent));
     }
 
     [Fact]
     public void IAsyncDomainEventToIntegrationEventMapper_MustHaveMapAsyncMethod()
     {
         var method = _asyncMapperType.GetMethod("MapAsync");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     // === IFallibleDomainEventToIntegrationEventMapper<TDomainEvent, TIntegrationEvent, TError> ===
@@ -59,21 +59,21 @@ public class IntegrationEventExtensionsContracts
     [Fact]
     public void IFallibleDomainEventToIntegrationEventMapper_MustBeInterface()
     {
-        _fallibleMapperType.IsInterface.Should().BeTrue();
+        _fallibleMapperType.IsInterface.ShouldBeTrue();
     }
 
     [Fact]
     public void IFallibleDomainEventToIntegrationEventMapper_MustBeGenericWithThreeParameters()
     {
-        _fallibleMapperType.IsGenericTypeDefinition.Should().BeTrue();
-        _fallibleMapperType.GetGenericArguments().Should().HaveCount(3);
+        _fallibleMapperType.IsGenericTypeDefinition.ShouldBeTrue();
+        _fallibleMapperType.GetGenericArguments().Length.ShouldBe(3);
     }
 
     [Fact]
     public void IFallibleDomainEventToIntegrationEventMapper_MustHaveMapAsyncMethod()
     {
         var method = _fallibleMapperType.GetMethod("MapAsync");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     // === IIntegrationEventPublisher ===
@@ -81,21 +81,21 @@ public class IntegrationEventExtensionsContracts
     [Fact]
     public void IIntegrationEventPublisher_MustBeInterface()
     {
-        _publisherType.IsInterface.Should().BeTrue();
+        _publisherType.IsInterface.ShouldBeTrue();
     }
 
     [Fact]
     public void IIntegrationEventPublisher_MustHavePublishAsyncMethod()
     {
         var method = _publisherType.GetMethod("PublishAsync");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     [Fact]
     public void IIntegrationEventPublisher_MustHavePublishManyAsyncMethod()
     {
         var method = _publisherType.GetMethod("PublishManyAsync");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     // === IFallibleIntegrationEventPublisher<TError> ===
@@ -103,21 +103,21 @@ public class IntegrationEventExtensionsContracts
     [Fact]
     public void IFallibleIntegrationEventPublisher_MustBeInterface()
     {
-        _falliblePublisherType.IsInterface.Should().BeTrue();
+        _falliblePublisherType.IsInterface.ShouldBeTrue();
     }
 
     [Fact]
     public void IFallibleIntegrationEventPublisher_MustBeGenericWithOneParameter()
     {
-        _falliblePublisherType.IsGenericTypeDefinition.Should().BeTrue();
-        _falliblePublisherType.GetGenericArguments().Should().HaveCount(1);
+        _falliblePublisherType.IsGenericTypeDefinition.ShouldBeTrue();
+        _falliblePublisherType.GetGenericArguments().Length.ShouldBe(1);
     }
 
     [Fact]
     public void IFallibleIntegrationEventPublisher_MustHavePublishAsyncMethod()
     {
         var method = _falliblePublisherType.GetMethod("PublishAsync");
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
     }
 
     // === IntegrationEventMappingError ===
@@ -125,39 +125,39 @@ public class IntegrationEventExtensionsContracts
     [Fact]
     public void IntegrationEventMappingError_MustBeRecord()
     {
-        _mappingErrorType.GetMethod("<Clone>$").Should().NotBeNull();
+        _mappingErrorType.GetMethod("<Clone>$").ShouldNotBeNull();
     }
 
     [Fact]
     public void IntegrationEventMappingError_MustHaveMessageProperty()
     {
         var property = _mappingErrorType.GetProperty("Message");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
     public void IntegrationEventMappingError_MustHaveErrorCodeProperty()
     {
         var property = _mappingErrorType.GetProperty("ErrorCode");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
     public void IntegrationEventMappingError_MustHaveDomainEventTypeProperty()
     {
         var property = _mappingErrorType.GetProperty("DomainEventType");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<Type>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(Type));
     }
 
     [Fact]
     public void IntegrationEventMappingError_MustHaveIntegrationEventTypeProperty()
     {
         var property = _mappingErrorType.GetProperty("IntegrationEventType");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<Type>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(Type));
     }
 
     [Fact]
@@ -168,9 +168,9 @@ public class IntegrationEventExtensionsContracts
             .Select(m => m.Name)
             .ToList();
 
-        methods.Should().Contain("MissingField");
-        methods.Should().Contain("ValidationFailed");
-        methods.Should().Contain("LookupFailed");
+        methods.ShouldContain("MissingField");
+        methods.ShouldContain("ValidationFailed");
+        methods.ShouldContain("LookupFailed");
     }
 
     // === IntegrationEventPublishError ===
@@ -178,39 +178,39 @@ public class IntegrationEventExtensionsContracts
     [Fact]
     public void IntegrationEventPublishError_MustBeRecord()
     {
-        _publishErrorType.GetMethod("<Clone>$").Should().NotBeNull();
+        _publishErrorType.GetMethod("<Clone>$").ShouldNotBeNull();
     }
 
     [Fact]
     public void IntegrationEventPublishError_MustHaveMessageProperty()
     {
         var property = _publishErrorType.GetProperty("Message");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
     public void IntegrationEventPublishError_MustHaveErrorCodeProperty()
     {
         var property = _publishErrorType.GetProperty("ErrorCode");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<string>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
     public void IntegrationEventPublishError_MustHaveEventTypeProperty()
     {
         var property = _publishErrorType.GetProperty("EventType");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<Type>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(Type));
     }
 
     [Fact]
     public void IntegrationEventPublishError_MustHaveEventIdProperty()
     {
         var property = _publishErrorType.GetProperty("EventId");
-        property.Should().NotBeNull();
-        property!.PropertyType.Should().Be<Guid>();
+        property.ShouldNotBeNull();
+        property!.PropertyType.ShouldBe(typeof(Guid));
     }
 
     [Fact]
@@ -221,9 +221,9 @@ public class IntegrationEventExtensionsContracts
             .Select(m => m.Name)
             .ToList();
 
-        methods.Should().Contain("SerializationFailed");
-        methods.Should().Contain("OutboxStoreFailed");
-        methods.Should().Contain("BrokerFailed");
+        methods.ShouldContain("SerializationFailed");
+        methods.ShouldContain("OutboxStoreFailed");
+        methods.ShouldContain("BrokerFailed");
     }
 
     // === IntegrationEventMappingExtensions ===
@@ -231,8 +231,8 @@ public class IntegrationEventExtensionsContracts
     [Fact]
     public void IntegrationEventMappingExtensions_MustBeStaticClass()
     {
-        _extensionsType.IsAbstract.Should().BeTrue();
-        _extensionsType.IsSealed.Should().BeTrue();
+        _extensionsType.IsAbstract.ShouldBeTrue();
+        _extensionsType.IsSealed.ShouldBeTrue();
     }
 
     [Fact]
@@ -241,9 +241,9 @@ public class IntegrationEventExtensionsContracts
         var method = _extensionsType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "MapTo");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         method!.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue();
+            .ShouldBeTrue();
     }
 
     [Fact]
@@ -252,9 +252,9 @@ public class IntegrationEventExtensionsContracts
         var method = _extensionsType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "MapToAsync");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         method!.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue();
+            .ShouldBeTrue();
     }
 
     [Fact]
@@ -263,9 +263,9 @@ public class IntegrationEventExtensionsContracts
         var method = _extensionsType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "MapAll");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         method!.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue();
+            .ShouldBeTrue();
     }
 
     [Fact]
@@ -274,9 +274,9 @@ public class IntegrationEventExtensionsContracts
         var method = _extensionsType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "MapAllAsync");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         method!.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue();
+            .ShouldBeTrue();
     }
 
     [Fact]
@@ -285,9 +285,9 @@ public class IntegrationEventExtensionsContracts
         var method = _extensionsType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "TryMapTo");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         method!.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue();
+            .ShouldBeTrue();
     }
 
     [Fact]
@@ -296,8 +296,8 @@ public class IntegrationEventExtensionsContracts
         var method = _extensionsType.GetMethods(BindingFlags.Static | BindingFlags.Public)
             .FirstOrDefault(m => m.Name == "Compose");
 
-        method.Should().NotBeNull();
+        method.ShouldNotBeNull();
         method!.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false)
-            .Should().BeTrue();
+            .ShouldBeTrue();
     }
 }

@@ -1,5 +1,5 @@
 using Encina.AzureFunctions.Durable;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Xunit;
 
@@ -14,10 +14,10 @@ public class ActivityResultTests
         var result = ActivityResult<int>.Success(42);
 
         // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().Be(42);
-        result.ErrorCode.Should().BeNull();
-        result.ErrorMessage.Should().BeNull();
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(42);
+        result.ErrorCode.ShouldBeNull();
+        result.ErrorMessage.ShouldBeNull();
     }
 
     [Fact]
@@ -30,10 +30,10 @@ public class ActivityResultTests
         var result = ActivityResult<int>.Failure(error);
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Value.Should().Be(default);
-        result.ErrorCode.Should().Be("test.error");
-        result.ErrorMessage.Should().Be("Test error message");
+        result.IsSuccess.ShouldBeFalse();
+        result.Value.ShouldBe(default);
+        result.ErrorCode.ShouldBe("test.error");
+        result.ErrorMessage.ShouldBe("Test error message");
     }
 
     [Fact]
@@ -43,10 +43,10 @@ public class ActivityResultTests
         var result = ActivityResult<string>.Failure("custom.error", "Custom error");
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Value.Should().BeNull();
-        result.ErrorCode.Should().Be("custom.error");
-        result.ErrorMessage.Should().Be("Custom error");
+        result.IsSuccess.ShouldBeFalse();
+        result.Value.ShouldBeNull();
+        result.ErrorCode.ShouldBe("custom.error");
+        result.ErrorMessage.ShouldBe("Custom error");
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public class ActivityResultTests
         var either = result.ToEither();
 
         // Assert
-        either.IsRight.Should().BeTrue();
-        either.IfRight(v => v.Should().Be(42));
+        either.IsRight.ShouldBeTrue();
+        either.IfRight(v => v.ShouldBe(42));
     }
 
     [Fact]
@@ -73,12 +73,11 @@ public class ActivityResultTests
         var either = result.ToEither();
 
         // Assert
-        either.IsLeft.Should().BeTrue();
-        either.IfLeft(e =>
-        {
-            e.Message.Should().Be("Test error");
-            e.GetCode().IfSome(c => c.Should().Be("test.error"));
-        });
+        either.IsLeft.ShouldBeTrue();
+        var error = either.LeftToSeq().Single();
+        error.Message.ShouldBe("Test error");
+        error.GetCode().IsSome.ShouldBeTrue();
+        error.GetCode().IfSome(c => c.ShouldBe("test.error"));
     }
 
     [Fact]
@@ -91,8 +90,8 @@ public class ActivityResultTests
         var result = either.ToActivityResult();
 
         // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().Be(42);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(42);
     }
 
     [Fact]
@@ -106,9 +105,9 @@ public class ActivityResultTests
         var result = either.ToActivityResult();
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.ErrorCode.Should().Be("test.error");
-        result.ErrorMessage.Should().Be("Test error");
+        result.IsSuccess.ShouldBeFalse();
+        result.ErrorCode.ShouldBe("test.error");
+        result.ErrorMessage.ShouldBe("Test error");
     }
 
     [Fact]
@@ -121,8 +120,8 @@ public class ActivityResultTests
         var result = either.ToActivityResult();
 
         // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().Be(Unit.Default);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(Unit.Default);
     }
 
     [Fact]
@@ -136,8 +135,8 @@ public class ActivityResultTests
         var result = either.ToActivityResult();
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.ErrorCode.Should().Be("unit.error");
+        result.IsSuccess.ShouldBeFalse();
+        result.ErrorCode.ShouldBe("unit.error");
     }
 
     [Fact]
@@ -151,8 +150,8 @@ public class ActivityResultTests
         var roundtripped = activityResult.ToEither();
 
         // Assert
-        roundtripped.IsRight.Should().BeTrue();
-        roundtripped.IfRight(v => v.Should().Be("test value"));
+        roundtripped.IsRight.ShouldBeTrue();
+        roundtripped.IfRight(v => v.ShouldBe("test value"));
     }
 
     [Fact]
@@ -167,11 +166,10 @@ public class ActivityResultTests
         var roundtripped = activityResult.ToEither();
 
         // Assert
-        roundtripped.IsLeft.Should().BeTrue();
-        roundtripped.IfLeft(e =>
-        {
-            e.GetCode().IfSome(c => c.Should().Be("roundtrip.error"));
-            e.Message.Should().Be("Roundtrip error message");
-        });
+        roundtripped.IsLeft.ShouldBeTrue();
+        var err = roundtripped.LeftToSeq().Single();
+        err.GetCode().IsSome.ShouldBeTrue();
+        err.GetCode().IfSome(c => c.ShouldBe("roundtrip.error"));
+        err.Message.ShouldBe("Roundtrip error message");
     }
 }

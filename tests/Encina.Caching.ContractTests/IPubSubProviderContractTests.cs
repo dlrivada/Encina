@@ -1,4 +1,4 @@
-﻿namespace Encina.Caching.ContractTests;
+namespace Encina.Caching.ContractTests;
 
 /// <summary>
 /// Contract tests that verify all IPubSubProvider implementations follow the same behavioral contract.
@@ -63,15 +63,14 @@ public abstract class IPubSubProviderContractTests : IAsyncLifetime
         await Provider.PublishAsync(channel, "test-message", CancellationToken.None);
 
         // Assert
-        receivedMessages.Should().ContainSingle().Which.Should().Be("test-message");
+        receivedMessages.ShouldHaveSingleItem().ShouldBe("test-message");
     }
 
     [Fact]
     public async Task PublishAsync_WithNoSubscribers_DoesNotThrow()
     {
-        // Act & Assert
-        await Provider.Invoking(p => p.PublishAsync("no-subscribers", "message", CancellationToken.None))
-            .Should().NotThrowAsync();
+        // Act & Assert - should not throw when no subscribers
+        await Provider.PublishAsync("no-subscribers", "message", CancellationToken.None);
     }
 
     #endregion
@@ -137,8 +136,8 @@ public abstract class IPubSubProviderContractTests : IAsyncLifetime
         var subscription = await Provider.SubscribeAsync("test", _ => Task.CompletedTask, CancellationToken.None);
 
         // Assert
-        subscription.Should().NotBeNull();
-        subscription.Should().BeAssignableTo<IAsyncDisposable>();
+        subscription.ShouldNotBeNull();
+        subscription.ShouldBeAssignableTo<IAsyncDisposable>();
 
         // Cleanup
         await subscription.DisposeAsync();
@@ -168,8 +167,8 @@ public abstract class IPubSubProviderContractTests : IAsyncLifetime
         await Provider.PublishAsync(channel, "broadcast", CancellationToken.None);
 
         // Assert
-        received1.Should().ContainSingle().Which.Should().Be("broadcast");
-        received2.Should().ContainSingle().Which.Should().Be("broadcast");
+        received1.ShouldHaveSingleItem().ShouldBe("broadcast");
+        received2.ShouldHaveSingleItem().ShouldBe("broadcast");
     }
 
     [Fact]
@@ -190,7 +189,7 @@ public abstract class IPubSubProviderContractTests : IAsyncLifetime
         await Provider.PublishAsync(channel, "after-dispose", CancellationToken.None);
 
         // Assert
-        received.Should().ContainSingle().Which.Should().Be("before-dispose");
+        received.ShouldHaveSingleItem().ShouldBe("before-dispose");
     }
 
     #endregion
@@ -243,9 +242,9 @@ public abstract class IPubSubProviderContractTests : IAsyncLifetime
         await Provider.PublishAsync("other:c", "Message C", CancellationToken.None);
 
         // Assert
-        received.Should().HaveCount(2);
-        received.Should().Contain(x => x.Channel == $"{prefix}:a" && x.Message == "Message A");
-        received.Should().Contain(x => x.Channel == $"{prefix}:b" && x.Message == "Message B");
+        received.Count.ShouldBe(2);
+        received.ShouldContain(x => x.Channel == $"{prefix}:a" && x.Message == "Message A");
+        received.ShouldContain(x => x.Channel == $"{prefix}:b" && x.Message == "Message B");
     }
 
     #endregion
@@ -289,7 +288,7 @@ public abstract class IPubSubProviderContractTests : IAsyncLifetime
         await Provider.PublishAsync(channel, "after-unsub", CancellationToken.None);
 
         // Assert
-        received.Should().BeEmpty();
+        received.ShouldBeEmpty();
     }
 
     #endregion
@@ -347,7 +346,7 @@ public abstract class IPubSubProviderContractTests : IAsyncLifetime
         var count = await Provider.GetSubscriberCountAsync($"no-subs-{Guid.NewGuid():N}", CancellationToken.None);
 
         // Assert
-        count.Should().Be(0);
+        count.ShouldBe(0);
     }
 
     [Fact]
@@ -362,7 +361,7 @@ public abstract class IPubSubProviderContractTests : IAsyncLifetime
         var count = await Provider.GetSubscriberCountAsync(channel, CancellationToken.None);
 
         // Assert
-        count.Should().Be(2);
+        count.ShouldBe(2);
     }
 
     #endregion

@@ -1,6 +1,6 @@
 using Amazon.Lambda.APIGatewayEvents;
 using Amazon.Lambda.Core;
-using FluentAssertions;
+using Shouldly;
 using NSubstitute;
 using Xunit;
 
@@ -34,7 +34,7 @@ public class LambdaContextExtensionsTests
         var correlationId = _context.GetCorrelationId(request);
 
         // Assert
-        correlationId.Should().Be("correlation-from-header");
+        correlationId.ShouldBe("correlation-from-header");
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class LambdaContextExtensionsTests
         var correlationId = _context.GetCorrelationId(request, options);
 
         // Assert
-        correlationId.Should().Be("custom-correlation-id");
+        correlationId.ShouldBe("custom-correlation-id");
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class LambdaContextExtensionsTests
         var correlationId = _context.GetCorrelationId();
 
         // Assert
-        correlationId.Should().Be("aws-request-123");
+        correlationId.ShouldBe("aws-request-123");
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class LambdaContextExtensionsTests
         var correlationId = _context.GetCorrelationId(request);
 
         // Assert
-        correlationId.Should().Be("aws-request-123");
+        correlationId.ShouldBe("aws-request-123");
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class LambdaContextExtensionsTests
         var correlationId = _context.GetCorrelationId(request);
 
         // Assert
-        correlationId.Should().Be("aws-request-123");
+        correlationId.ShouldBe("aws-request-123");
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public class LambdaContextExtensionsTests
         var correlationId = _context.GetCorrelationId(request);
 
         // Assert
-        correlationId.Should().Be("v2-correlation-id");
+        correlationId.ShouldBe("v2-correlation-id");
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public class LambdaContextExtensionsTests
         var tenantId = _context.GetTenantId(request);
 
         // Assert
-        tenantId.Should().Be("tenant-123");
+        tenantId.ShouldBe("tenant-123");
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public class LambdaContextExtensionsTests
         var tenantId = _context.GetTenantId(request, options);
 
         // Assert
-        tenantId.Should().Be("org-456");
+        tenantId.ShouldBe("org-456");
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public class LambdaContextExtensionsTests
         var tenantId = _context.GetTenantId(request);
 
         // Assert
-        tenantId.Should().BeNull();
+        tenantId.ShouldBeNull();
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public class LambdaContextExtensionsTests
         var tenantId = _context.GetTenantId(null);
 
         // Assert
-        tenantId.Should().BeNull();
+        tenantId.ShouldBeNull();
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public class LambdaContextExtensionsTests
         var tenantId = _context.GetTenantId(request);
 
         // Assert
-        tenantId.Should().BeNull();
+        tenantId.ShouldBeNull();
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public class LambdaContextExtensionsTests
         var userId = _context.GetUserId(request);
 
         // Assert
-        userId.Should().BeNull();
+        userId.ShouldBeNull();
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public class LambdaContextExtensionsTests
         var userId = _context.GetUserId(request);
 
         // Assert
-        userId.Should().BeNull();
+        userId.ShouldBeNull();
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public class LambdaContextExtensionsTests
         var userId = _context.GetUserId(request, options);
 
         // Assert
-        userId.Should().BeNull();
+        userId.ShouldBeNull();
     }
 
     [Fact]
@@ -259,7 +259,7 @@ public class LambdaContextExtensionsTests
         var userId = _context.GetUserId(null);
 
         // Assert
-        userId.Should().BeNull();
+        userId.ShouldBeNull();
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public class LambdaContextExtensionsTests
         var requestId = _context.GetAwsRequestId();
 
         // Assert
-        requestId.Should().Be("aws-request-123");
+        requestId.ShouldBe("aws-request-123");
     }
 
     [Fact]
@@ -279,7 +279,7 @@ public class LambdaContextExtensionsTests
         var functionName = _context.GetFunctionName();
 
         // Assert
-        functionName.Should().Be("test-function");
+        functionName.ShouldBe("test-function");
     }
 
     [Fact]
@@ -289,7 +289,7 @@ public class LambdaContextExtensionsTests
         var remainingMs = _context.GetRemainingTimeMs();
 
         // Assert
-        remainingMs.Should().Be(30000);
+        remainingMs.ShouldBe(30000);
     }
 
     [Fact]
@@ -302,8 +302,8 @@ public class LambdaContextExtensionsTests
         var action = () => nullContext.GetCorrelationId();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -316,8 +316,8 @@ public class LambdaContextExtensionsTests
         var action = () => nullContext.GetTenantId();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -330,8 +330,8 @@ public class LambdaContextExtensionsTests
         var action = () => nullContext.GetUserId();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -344,8 +344,8 @@ public class LambdaContextExtensionsTests
         var action = () => nullContext.GetAwsRequestId();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -358,8 +358,8 @@ public class LambdaContextExtensionsTests
         var action = () => nullContext.GetFunctionName();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -372,7 +372,7 @@ public class LambdaContextExtensionsTests
         var action = () => nullContext.GetRemainingTimeMs();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("context");
     }
 }

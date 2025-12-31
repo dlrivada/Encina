@@ -1,4 +1,4 @@
-﻿using LanguageExt;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
 
@@ -34,7 +34,7 @@ public class ResilienceLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        results.Should().AllSatisfy(result => result.ShouldBeSuccess());
+        results.ShouldAllBe(result => result.IsRight);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class ResilienceLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        results.Should().NotBeNull("all requests should complete without crashing");
+        results.ShouldNotBeNull("all requests should complete without crashing");
     }
 
     // Test types
@@ -111,7 +111,7 @@ public class ResilienceLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        results.Should().NotBeNull("all requests should complete without crashing");
+        results.ShouldNotBeNull("all requests should complete without crashing");
     }
 
     [Fact]
@@ -141,8 +141,8 @@ public class ResilienceLoadTests
         var successes = results.Count(r => r.IsRight);
         var failures = results.Count(r => r.IsLeft);
 
-        successes.Should().BeGreaterThan(0, "some requests should succeed");
-        failures.Should().BeGreaterThan(0, "some requests should be rate limited");
+        successes.ShouldBeGreaterThan(0, "some requests should succeed");
+        failures.ShouldBeGreaterThan(0, "some requests should be rate limited");
     }
 
     [Fact]
@@ -165,8 +165,7 @@ public class ResilienceLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        results.Should().HaveCount(500, "all acquire attempts should complete");
-        results.All(r => r.IsAllowed || !r.IsAllowed).Should().BeTrue("all results should be valid");
+        results.Length.ShouldBe(500, "all acquire attempts should complete");
     }
 
     [Fact]
@@ -200,7 +199,7 @@ public class ResilienceLoadTests
 
         // Assert
         var state = rateLimiter.GetState("concurrent-key");
-        state.Should().NotBeNull("state should be retrievable after concurrent operations");
+        state.ShouldNotBeNull("state should be retrievable after concurrent operations");
     }
 
     [RateLimit(MaxRequestsPerWindow = 1000, WindowSizeSeconds = 60)]
@@ -252,7 +251,7 @@ public class ResilienceLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        results.Should().NotBeNull("all requests should complete without crashing");
+        results.ShouldNotBeNull("all requests should complete without crashing");
     }
 
     [Fact]
@@ -294,7 +293,7 @@ public class ResilienceLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        maxConcurrent.Should().BeLessOrEqualTo(5, "concurrent executions should not exceed bulkhead limit");
+        maxConcurrent.ShouldBeLessThanOrEqualTo(5, "concurrent executions should not exceed bulkhead limit");
     }
 
     [Fact]
@@ -324,7 +323,7 @@ public class ResilienceLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        results.Should().HaveCount(500, "all acquire attempts should complete");
+        results.Count.ShouldBe(500, "all acquire attempts should complete");
     }
 
     [Fact]
@@ -351,8 +350,8 @@ public class ResilienceLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        results.Should().HaveCount(100);
-        results.Should().AllSatisfy(m => m.Should().NotBeNull());
+        results.Length.ShouldBe(100);
+        results.ShouldAllBe(m => m != null);
 
         // Cleanup
         foreach (var permit in permits)
@@ -391,7 +390,7 @@ public class ResilienceLoadTests
 
         // Assert
         var rejectedCount = results.Count(r => !r.IsAcquired && r.RejectionReason == BulkheadRejectionReason.BulkheadFull);
-        rejectedCount.Should().Be(100, "all requests should be rejected when bulkhead is full with no queue");
+        rejectedCount.ShouldBe(100, "all requests should be rejected when bulkhead is full with no queue");
 
         // Cleanup
         foreach (var permit in permits)

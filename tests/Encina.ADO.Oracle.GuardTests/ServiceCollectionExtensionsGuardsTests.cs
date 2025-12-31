@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Encina.Messaging;
 
@@ -21,7 +21,8 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => ServiceCollectionExtensions.AddEncinaADO(services, configure);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     /// <summary>
@@ -36,7 +37,8 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => ServiceCollectionExtensions.AddEncinaADO(services, configure);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("configure");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("configure");
     }
 
     /// <summary>
@@ -52,7 +54,8 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => ServiceCollectionExtensions.AddEncinaADO(services, connectionString, configure);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     /// <summary>
@@ -68,7 +71,8 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => ServiceCollectionExtensions.AddEncinaADO(services, connectionString, configure);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connectionString");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connectionString");
     }
 
     /// <summary>
@@ -84,7 +88,8 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => ServiceCollectionExtensions.AddEncinaADO(services, connectionString, configure);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("configure");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("configure");
     }
 
     /// <summary>
@@ -100,7 +105,8 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => ServiceCollectionExtensions.AddEncinaADO(services, factory, configure);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     /// <summary>
@@ -116,7 +122,8 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => ServiceCollectionExtensions.AddEncinaADO(services, factory, configure);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connectionFactory");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connectionFactory");
     }
 
     /// <summary>
@@ -132,6 +139,7 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => ServiceCollectionExtensions.AddEncinaADO(services, factory, configure);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("configure");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("configure");
     }
 }

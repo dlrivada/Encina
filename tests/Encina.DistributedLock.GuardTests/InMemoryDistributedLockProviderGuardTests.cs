@@ -20,8 +20,8 @@ public class InMemoryDistributedLockProviderGuardTests
         var act = () => new InMemoryDistributedLockProvider(options!, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -35,8 +35,8 @@ public class InMemoryDistributedLockProviderGuardTests
         var act = () => new InMemoryDistributedLockProvider(options, logger!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -54,8 +54,8 @@ public class InMemoryDistributedLockProviderGuardTests
             CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("resource");
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public class InMemoryDistributedLockProviderGuardTests
             CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("resource");
     }
 
     [Fact]
@@ -85,8 +85,8 @@ public class InMemoryDistributedLockProviderGuardTests
         var act = () => provider.IsLockedAsync(null!, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("resource");
     }
 
     [Fact]
@@ -102,8 +102,8 @@ public class InMemoryDistributedLockProviderGuardTests
             CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
+        ex.ParamName.ShouldBe("resource");
     }
 
     private static InMemoryDistributedLockProvider CreateProvider()

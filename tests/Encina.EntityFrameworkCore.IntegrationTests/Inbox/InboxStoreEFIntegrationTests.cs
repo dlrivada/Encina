@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using Encina.EntityFrameworkCore.Inbox;
 using Xunit;
 
@@ -42,8 +42,8 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var stored = await verifyContext.InboxMessages.FindAsync(message.MessageId);
-        stored.Should().NotBeNull();
-        stored!.RequestType.Should().Be("TestRequest");
+        stored.ShouldNotBeNull();
+        stored!.RequestType.ShouldBe("TestRequest");
     }
 
     [Fact]
@@ -69,8 +69,8 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var retrieved = await store.GetMessageAsync(message.MessageId);
 
         // Assert
-        retrieved.Should().NotBeNull();
-        retrieved!.MessageId.Should().Be("existing-message");
+        retrieved.ShouldNotBeNull();
+        retrieved!.MessageId.ShouldBe("existing-message");
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var retrieved = await store.GetMessageAsync("non-existent-message");
 
         // Assert
-        retrieved.Should().BeNull();
+        retrieved.ShouldBeNull();
     }
 
     [Fact]
@@ -129,9 +129,9 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
 
         // Assert
         var messageList = messages.ToList();
-        messageList.Should().HaveCount(2);
-        messageList.Should().Contain(m => m.MessageId == expired1.MessageId);
-        messageList.Should().Contain(m => m.MessageId == expired2.MessageId);
+        messageList.Count.ShouldBe(2);
+        messageList.ShouldContain(m => m.MessageId == expired1.MessageId);
+        messageList.ShouldContain(m => m.MessageId == expired2.MessageId);
     }
 
     [Fact]
@@ -160,8 +160,8 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var updated = await verifyContext.InboxMessages.FindAsync(message.MessageId);
-        updated!.ProcessedAtUtc.Should().NotBeNull();
-        updated.Response.Should().Be("{\"result\":\"success\"}");
+        updated!.ProcessedAtUtc.ShouldNotBeNull();
+        updated.Response.ShouldBe("{\"result\":\"success\"}");
     }
 
     [Fact]
@@ -192,9 +192,9 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var updated = await verifyContext.InboxMessages.FindAsync(message.MessageId);
-        updated!.ErrorMessage.Should().Be("Test error");
-        updated.RetryCount.Should().Be(1);
-        updated.NextRetryAtUtc.Should().BeCloseTo(nextRetry, TimeSpan.FromSeconds(1));
+        updated!.ErrorMessage.ShouldBe("Test error");
+        updated.RetryCount.ShouldBe(1);
+        updated.NextRetryAtUtc.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
     [Fact]
@@ -232,10 +232,10 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         // Assert
         using var verifyContext = _fixture.CreateDbContext();
         var remaining = await verifyContext.InboxMessages.FindAsync(valid.MessageId);
-        remaining.Should().NotBeNull();
+        remaining.ShouldNotBeNull();
 
         var deleted = await verifyContext.InboxMessages.FindAsync(expired.MessageId);
-        deleted.Should().BeNull();
+        deleted.ShouldBeNull();
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         foreach (var id in messageIds)
         {
             var stored = await verifyContext.InboxMessages.FindAsync(id);
-            stored.Should().NotBeNull();
+            stored.ShouldNotBeNull();
         }
     }
 }

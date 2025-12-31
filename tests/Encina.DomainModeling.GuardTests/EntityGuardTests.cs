@@ -10,11 +10,6 @@ public class EntityGuardTests
         public TestEntity(Guid id) : base(id) { }
     }
 
-    private sealed class StringEntity : Entity<string>
-    {
-        public StringEntity(string id) : base(id) { }
-    }
-
     /// <summary>
     /// Verifies that constructor properly sets the Id (reference types can't be null due to where TId : notnull constraint).
     /// </summary>
@@ -28,7 +23,7 @@ public class EntityGuardTests
         var entity = new TestEntity(id);
 
         // Assert
-        entity.Id.Should().Be(id);
+        entity.Id.ShouldBe(id);
     }
 
     /// <summary>
@@ -42,7 +37,7 @@ public class EntityGuardTests
         TestEntity? nullEntity = null;
 
         // Act & Assert
-        entity.Equals(nullEntity).Should().BeFalse();
+        entity.Equals(nullEntity).ShouldBeFalse();
     }
 
     /// <summary>
@@ -56,7 +51,7 @@ public class EntityGuardTests
         object? nullObject = null;
 
         // Act & Assert
-        entity.Equals(nullObject).Should().BeFalse();
+        entity.Equals(nullObject).ShouldBeFalse();
     }
 
     /// <summary>
@@ -69,7 +64,7 @@ public class EntityGuardTests
         var entity = new TestEntity(Guid.NewGuid());
 
         // Act & Assert
-        (entity == null).Should().BeFalse();
+        (entity == null).ShouldBeFalse();
     }
 
     /// <summary>
@@ -82,7 +77,7 @@ public class EntityGuardTests
         var entity = new TestEntity(Guid.NewGuid());
 
         // Act & Assert
-        (null == entity).Should().BeFalse();
+        (null == entity).ShouldBeFalse();
     }
 
     /// <summary>
@@ -95,7 +90,7 @@ public class EntityGuardTests
         var entity = new TestEntity(Guid.NewGuid());
 
         // Act & Assert
-        (entity != null).Should().BeTrue();
+        (entity != null).ShouldBeTrue();
     }
 
     /// <summary>
@@ -109,6 +104,6 @@ public class EntityGuardTests
         TestEntity? entity2 = null;
 
         // Act & Assert
-        (entity1 == entity2).Should().BeTrue();
+        (entity1 == entity2).ShouldBeTrue();
     }
 }

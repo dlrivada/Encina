@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.Messaging.Inbox;
 
@@ -20,7 +20,8 @@ public class InboxStoreEFGuardsTests
 
         // Act & Assert
         var act = () => new InboxStoreEF(dbContext);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("dbContext");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("dbContext");
     }
 
     /// <summary>
@@ -38,8 +39,9 @@ public class InboxStoreEFGuardsTests
         string messageId = null!;
 
         // Act & Assert
-        var act = async () => await store.GetMessageAsync(messageId);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("messageId");
+        Func<Task> act = () => store.GetMessageAsync(messageId);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -57,8 +59,9 @@ public class InboxStoreEFGuardsTests
         IInboxMessage message = null!;
 
         // Act & Assert
-        var act = async () => await store.AddAsync(message);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("message");
+        Func<Task> act = () => store.AddAsync(message);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("message");
     }
 
     /// <summary>
@@ -77,8 +80,9 @@ public class InboxStoreEFGuardsTests
         var response = "test response";
 
         // Act & Assert
-        var act = async () => await store.MarkAsProcessedAsync(messageId, response);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("messageId");
+        Func<Task> act = () => store.MarkAsProcessedAsync(messageId, response);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -97,8 +101,9 @@ public class InboxStoreEFGuardsTests
         string response = null!;
 
         // Act & Assert
-        var act = async () => await store.MarkAsProcessedAsync(messageId, response);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("response");
+        Func<Task> act = () => store.MarkAsProcessedAsync(messageId, response);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("response");
     }
 
     /// <summary>
@@ -117,8 +122,9 @@ public class InboxStoreEFGuardsTests
         var errorMessage = "test error";
 
         // Act & Assert
-        var act = async () => await store.MarkAsFailedAsync(messageId, errorMessage, null);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("messageId");
+        Func<Task> act = () => store.MarkAsFailedAsync(messageId, errorMessage, null);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("messageId");
     }
 
     /// <summary>
@@ -137,8 +143,9 @@ public class InboxStoreEFGuardsTests
         string errorMessage = null!;
 
         // Act & Assert
-        var act = async () => await store.MarkAsFailedAsync(messageId, errorMessage, null);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("errorMessage");
+        Func<Task> act = () => store.MarkAsFailedAsync(messageId, errorMessage, null);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("errorMessage");
     }
 
     /// <summary>
@@ -156,8 +163,9 @@ public class InboxStoreEFGuardsTests
         IEnumerable<string> messageIds = null!;
 
         // Act & Assert
-        var act = async () => await store.RemoveExpiredMessagesAsync(messageIds);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("messageIds");
+        Func<Task> act = () => store.RemoveExpiredMessagesAsync(messageIds);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("messageIds");
     }
 
     /// <summary>

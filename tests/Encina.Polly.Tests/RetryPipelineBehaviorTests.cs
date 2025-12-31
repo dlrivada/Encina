@@ -1,4 +1,4 @@
-﻿using LanguageExt;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Polly;
 using static LanguageExt.Prelude;
@@ -38,7 +38,7 @@ public class RetryPipelineBehaviorTests
         // Assert
         result.ShouldBeSuccess();
         _ = result.Match(
-            Right: value => value.Should().Be(expectedResponse),
+            Right: value => value.ShouldBe(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
         );
     }
@@ -63,10 +63,10 @@ public class RetryPipelineBehaviorTests
         // Assert
         result.ShouldBeSuccess();
         _ = result.Match(
-            Right: value => value.Should().Be(expectedResponse),
+            Right: value => value.ShouldBe(expectedResponse),
             Left: _ => throw new InvalidOperationException("Should not be Left")
         );
-        callCount.Should().Be(1, "should only call handler once on success");
+        callCount.ShouldBe(1, "should only call handler once on success");
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class RetryPipelineBehaviorTests
 
         // Assert
         result.ShouldBeSuccess();
-        callCount.Should().Be(2, "should retry once and succeed on second attempt");
+        callCount.ShouldBe(2, "should retry once and succeed on second attempt");
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class RetryPipelineBehaviorTests
 
         // Assert
         result.ShouldBeError();
-        callCount.Should().Be(3, "should try initial + 2 retries (MaxAttempts = 3)");
+        callCount.ShouldBe(3, "should try initial + 2 retries (MaxAttempts = 3)");
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public class RetryPipelineBehaviorTests
 
         // Assert
         result.ShouldBeSuccess();
-        callCount.Should().Be(2, "should retry after TimeoutException");
+        callCount.ShouldBe(2, "should retry after TimeoutException");
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public class RetryPipelineBehaviorTests
 
         // Assert
         result.ShouldBeSuccess();
-        callCount.Should().Be(2, "should retry after HttpRequestException");
+        callCount.ShouldBe(2, "should retry after HttpRequestException");
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public class RetryPipelineBehaviorTests
 
         // Assert
         result.ShouldBeSuccess();
-        callCount.Should().Be(2, "should retry after IOException");
+        callCount.ShouldBe(2, "should retry after IOException");
     }
 
     [Fact]
@@ -200,7 +200,7 @@ public class RetryPipelineBehaviorTests
 
         // Assert - Polly catches exception and returns EncinaError without retry
         result.ShouldBeError(); // non-transient exception should be caught and converted to EncinaError
-        callCount.Should().Be(1, "should not retry non-transient exceptions when RetryOnAllExceptions = false");
+        callCount.ShouldBe(1, "should not retry non-transient exceptions when RetryOnAllExceptions = false");
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public class RetryPipelineBehaviorTests
 
         // Assert
         result.ShouldBeSuccess();
-        callCount.Should().Be(3, "should retry all exceptions when RetryOnAllExceptions = true");
+        callCount.ShouldBe(3, "should retry all exceptions when RetryOnAllExceptions = true");
     }
 
     [Fact]
@@ -254,7 +254,7 @@ public class RetryPipelineBehaviorTests
 
         // Assert
         result.ShouldBeSuccess();
-        callCount.Should().Be(3, "should attempt 3 times with exponential backoff");
+        callCount.ShouldBe(3, "should attempt 3 times with exponential backoff");
     }
 
     [Fact]
@@ -280,7 +280,7 @@ public class RetryPipelineBehaviorTests
 
         // Assert
         result.ShouldBeSuccess();
-        callCount.Should().Be(3, "should attempt 3 times with constant backoff");
+        callCount.ShouldBe(3, "should attempt 3 times with constant backoff");
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public class RetryPipelineBehaviorTests
 
         // Assert
         result.ShouldBeSuccess();
-        callCount.Should().Be(3, "should attempt 3 times with linear backoff");
+        callCount.ShouldBe(3, "should attempt 3 times with linear backoff");
     }
 
     [Fact]
@@ -324,7 +324,7 @@ public class RetryPipelineBehaviorTests
         result.ShouldBeError();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Should be Left"),
-            Left: error => error.Message.Should().Contain("Persistent timeout")
+            Left: error => error.Message.ShouldContain("Persistent timeout")
         );
     }
 

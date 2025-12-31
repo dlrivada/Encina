@@ -1,4 +1,5 @@
-﻿using Encina.Refit;
+using Encina.Refit;
+using Shouldly;
 using System.Reflection;
 
 namespace Encina.Refit.Tests;
@@ -18,7 +19,7 @@ public class IRestApiRequestTests
         var baseInterfaces = interfaceType.GetInterfaces();
 
         // Assert
-        baseInterfaces.Should().Contain(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IRequest<>));
+        baseInterfaces.ShouldContain(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IRequest<>));
     }
 
     [Fact]
@@ -31,11 +32,11 @@ public class IRestApiRequestTests
         var method = interfaceType.GetMethod("ExecuteAsync");
 
         // Assert
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be<Task<string>>();
-        method.GetParameters().Should().HaveCount(2);
-        method.GetParameters()[0].ParameterType.Should().Be<ITestApiClient>();
-        method.GetParameters()[1].ParameterType.Should().Be<CancellationToken>();
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(Task<string>));
+        method.GetParameters().Length.ShouldBe(2);
+        method.GetParameters()[0].ParameterType.ShouldBe(typeof(ITestApiClient));
+        method.GetParameters()[1].ParameterType.ShouldBe(typeof(CancellationToken));
     }
 
     [Fact]
@@ -50,7 +51,7 @@ public class IRestApiRequestTests
         var attributes = apiClientTypeParameter.GenericParameterAttributes;
 
         // Assert
-        (attributes & GenericParameterAttributes.ReferenceTypeConstraint).Should().NotBe(0);
+        attributes.HasFlag(GenericParameterAttributes.ReferenceTypeConstraint).ShouldBeTrue();
     }
 
     // Test helper

@@ -1,4 +1,4 @@
-﻿using Encina.Caching.IntegrationTests.Fixtures;
+using Encina.Caching.IntegrationTests.Fixtures;
 
 namespace Encina.Caching.IntegrationTests;
 
@@ -60,8 +60,8 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         var isLocked = await _provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        handle.Should().NotBeNull();
-        isLocked.Should().BeTrue();
+        handle.ShouldNotBeNull();
+        isLocked.ShouldBeTrue();
     }
 
     [SkippableFact]
@@ -85,8 +85,8 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         var lockedAfterRelease = await _provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        lockedWhileHeld.Should().BeTrue();
-        lockedAfterRelease.Should().BeFalse();
+        lockedWhileHeld.ShouldBeTrue();
+        lockedAfterRelease.ShouldBeFalse();
     }
 
     [SkippableFact]
@@ -112,8 +112,8 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        firstHandle.Should().NotBeNull();
-        secondHandle.Should().BeNull();
+        firstHandle.ShouldNotBeNull();
+        secondHandle.ShouldBeNull();
     }
 
     [SkippableFact]
@@ -140,7 +140,7 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        secondHandle.Should().NotBeNull();
+        secondHandle.ShouldNotBeNull();
     }
 
     [SkippableFact]
@@ -163,7 +163,7 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        extended.Should().BeTrue();
+        extended.ShouldBeTrue();
     }
 
     [SkippableFact]
@@ -181,7 +181,7 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
             CancellationToken.None);
 
         // Assert
-        extended.Should().BeFalse();
+        extended.ShouldBeFalse();
     }
 
     [SkippableFact]
@@ -196,7 +196,7 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         var isLocked = await _provider!.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        isLocked.Should().BeFalse();
+        isLocked.ShouldBeFalse();
     }
 
     [SkippableFact]
@@ -222,8 +222,8 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         var lockedAfterExpiry = await _provider.IsLockedAsync(resource, CancellationToken.None);
 
         // Assert
-        lockedImmediately.Should().BeTrue();
-        lockedAfterExpiry.Should().BeFalse();
+        lockedImmediately.ShouldBeTrue();
+        lockedAfterExpiry.ShouldBeFalse();
 
         // Clean up the handle anyway
         await handle.DisposeAsync();
@@ -253,9 +253,9 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         var resource2Locked = await _provider.IsLockedAsync(resource2, CancellationToken.None);
 
         // Assert
-        handle1.Should().NotBeNull();
-        handle2.Should().NotBeNull();
-        resource1Locked.Should().BeTrue();
-        resource2Locked.Should().BeTrue();
+        handle1.ShouldNotBeNull();
+        handle2.ShouldNotBeNull();
+        resource1Locked.ShouldBeTrue();
+        resource2Locked.ShouldBeTrue();
     }
 }

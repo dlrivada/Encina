@@ -34,21 +34,21 @@ public sealed class QuartzHealthCheckContractTests : IEncinaHealthCheckContractT
     [Fact]
     public void DefaultName_ShouldBeEncinaQuartz()
     {
-        QuartzHealthCheck.DefaultName.Should().Be("encina-quartz");
+        QuartzHealthCheck.DefaultName.ShouldBe("encina-quartz");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainSchedulingTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("scheduling");
+        healthCheck.Tags.ShouldContain("scheduling");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainQuartzTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("quartz");
+        healthCheck.Tags.ShouldContain("quartz");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

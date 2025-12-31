@@ -1,4 +1,4 @@
-﻿using Encina.Refit;
+using Encina.Refit;
 using System.Reflection;
 
 namespace Encina.Refit.ContractTests;
@@ -19,7 +19,7 @@ public class IRestApiRequestContractTests
         var baseInterfaces = interfaceType.GetInterfaces();
 
         // Assert
-        baseInterfaces.Should().Contain(t =>
+        baseInterfaces.ShouldContain(t =>
             t.IsGenericType &&
             t.GetGenericTypeDefinition() == typeof(IRequest<>));
     }
@@ -34,8 +34,8 @@ public class IRestApiRequestContractTests
         var executeMethod = interfaceType.GetMethod("ExecuteAsync");
 
         // Assert
-        executeMethod.Should().NotBeNull();
-        executeMethod!.ReturnType.Should().Be(typeof(Task<string>));
+        executeMethod.ShouldNotBeNull();
+        executeMethod!.ReturnType.ShouldBe(typeof(Task<string>));
     }
 
     [Fact]
@@ -46,14 +46,15 @@ public class IRestApiRequestContractTests
 
         // Act
         var executeMethod = interfaceType.GetMethod("ExecuteAsync");
-        var parameters = executeMethod!.GetParameters();
 
         // Assert
-        parameters.Should().HaveCount(2);
-        parameters[0].ParameterType.Should().Be(typeof(ITestApiClient));
-        parameters[0].Name.Should().Be("apiClient");
-        parameters[1].ParameterType.Should().Be(typeof(CancellationToken));
-        parameters[1].Name.Should().Be("cancellationToken");
+        executeMethod.ShouldNotBeNull();
+        var parameters = executeMethod!.GetParameters();
+        parameters.Length.ShouldBe(2);
+        parameters[0].ParameterType.ShouldBe(typeof(ITestApiClient));
+        parameters[0].Name.ShouldBe("apiClient");
+        parameters[1].ParameterType.ShouldBe(typeof(CancellationToken));
+        parameters[1].Name.ShouldBe("cancellationToken");
     }
 
     [Fact]
@@ -67,7 +68,7 @@ public class IRestApiRequestContractTests
         var attributes = apiClientTypeParameter.GenericParameterAttributes;
 
         // Assert
-        (attributes & GenericParameterAttributes.ReferenceTypeConstraint).Should().NotBe(0,
+        (attributes & GenericParameterAttributes.ReferenceTypeConstraint).ShouldNotBe(0,
             "TApiClient must have a class constraint");
     }
 
@@ -78,8 +79,8 @@ public class IRestApiRequestContractTests
         var interfaceType = typeof(IRestApiRequest<,>);
 
         // Assert
-        interfaceType.IsPublic.Should().BeTrue();
-        interfaceType.IsInterface.Should().BeTrue();
+        interfaceType.IsPublic.ShouldBeTrue();
+        interfaceType.IsInterface.ShouldBeTrue();
     }
 
     [Fact]
@@ -92,9 +93,9 @@ public class IRestApiRequestContractTests
         var genericArguments = interfaceType.GetGenericArguments();
 
         // Assert
-        genericArguments.Should().HaveCount(2);
-        genericArguments[0].Name.Should().Be("TApiClient");
-        genericArguments[1].Name.Should().Be("TResponse");
+        genericArguments.Length.ShouldBe(2);
+        genericArguments[0].Name.ShouldBe("TApiClient");
+        genericArguments[1].Name.ShouldBe("TResponse");
     }
 
     // Test helper

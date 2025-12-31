@@ -1,5 +1,5 @@
 using System.Net;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Xunit;
 
@@ -17,11 +17,11 @@ public class ApiGatewayResponseExtensionsTests
         var response = result.ToApiGatewayResponse();
 
         // Assert
-        response.StatusCode.Should().Be(200);
-        response.Headers.Should().ContainKey("Content-Type");
-        response.Headers["Content-Type"].Should().Be("application/json");
-        response.Body.Should().Contain("\"id\":\"123\"");
-        response.Body.Should().Contain("\"name\":\"Test\"");
+        response.StatusCode.ShouldBe(200);
+        response.Headers.ShouldContainKey("Content-Type");
+        response.Headers["Content-Type"].ShouldBe("application/json");
+        response.Body.ShouldContain("\"id\":\"123\"");
+        response.Body.ShouldContain("\"name\":\"Test\"");
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class ApiGatewayResponseExtensionsTests
         var response = result.ToApiGatewayResponse(successStatusCode: 202);
 
         // Assert
-        response.StatusCode.Should().Be(202);
+        response.StatusCode.ShouldBe(202);
     }
 
     [Fact]
@@ -48,11 +48,11 @@ public class ApiGatewayResponseExtensionsTests
         var response = result.ToApiGatewayResponse();
 
         // Assert
-        response.StatusCode.Should().Be(400);
-        response.Headers["Content-Type"].Should().Be("application/problem+json");
-        response.Body.Should().Contain("\"status\":400");
-        response.Body.Should().Contain("\"title\":\"Bad Request\"");
-        response.Body.Should().Contain("Invalid input provided");
+        response.StatusCode.ShouldBe(400);
+        response.Headers["Content-Type"].ShouldBe("application/problem+json");
+        response.Body.ShouldContain("\"status\":400");
+        response.Body.ShouldContain("\"title\":\"Bad Request\"");
+        response.Body.ShouldContain("Invalid input provided");
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class ApiGatewayResponseExtensionsTests
         var response = error.ToProblemDetailsResponse();
 
         // Assert
-        response.StatusCode.Should().Be((int)HttpStatusCode.BadRequest);
+        response.StatusCode.ShouldBe((int)HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public class ApiGatewayResponseExtensionsTests
         var response = error.ToProblemDetailsResponse();
 
         // Assert
-        response.StatusCode.Should().Be((int)HttpStatusCode.Unauthorized);
+        response.StatusCode.ShouldBe((int)HttpStatusCode.Unauthorized);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class ApiGatewayResponseExtensionsTests
         var response = error.ToProblemDetailsResponse();
 
         // Assert
-        response.StatusCode.Should().Be((int)HttpStatusCode.Forbidden);
+        response.StatusCode.ShouldBe((int)HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class ApiGatewayResponseExtensionsTests
         var response = error.ToProblemDetailsResponse();
 
         // Assert
-        response.StatusCode.Should().Be((int)HttpStatusCode.NotFound);
+        response.StatusCode.ShouldBe((int)HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class ApiGatewayResponseExtensionsTests
         var response = error.ToProblemDetailsResponse();
 
         // Assert
-        response.StatusCode.Should().Be((int)HttpStatusCode.Conflict);
+        response.StatusCode.ShouldBe((int)HttpStatusCode.Conflict);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class ApiGatewayResponseExtensionsTests
         var response = error.ToProblemDetailsResponse();
 
         // Assert
-        response.StatusCode.Should().Be((int)HttpStatusCode.InternalServerError);
+        response.StatusCode.ShouldBe((int)HttpStatusCode.InternalServerError);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class ApiGatewayResponseExtensionsTests
         var response = error.ToProblemDetailsResponse(statusCode: 422);
 
         // Assert
-        response.StatusCode.Should().Be(422);
+        response.StatusCode.ShouldBe(422);
     }
 
     [Fact]
@@ -157,10 +157,10 @@ public class ApiGatewayResponseExtensionsTests
         var response = result.ToCreatedResponse(o => $"/orders/{o.Id}");
 
         // Assert
-        response.StatusCode.Should().Be((int)HttpStatusCode.Created);
-        response.Headers.Should().ContainKey("Location");
-        response.Headers["Location"].Should().Be("/orders/123");
-        response.Headers["Content-Type"].Should().Be("application/json");
+        response.StatusCode.ShouldBe((int)HttpStatusCode.Created);
+        response.Headers.ShouldContainKey("Location");
+        response.Headers["Location"].ShouldBe("/orders/123");
+        response.Headers["Content-Type"].ShouldBe("application/json");
     }
 
     [Fact]
@@ -174,8 +174,8 @@ public class ApiGatewayResponseExtensionsTests
         var response = result.ToCreatedResponse(o => $"/orders/{o.Id}");
 
         // Assert
-        response.StatusCode.Should().Be((int)HttpStatusCode.BadRequest);
-        response.Headers["Content-Type"].Should().Be("application/problem+json");
+        response.StatusCode.ShouldBe((int)HttpStatusCode.BadRequest);
+        response.Headers["Content-Type"].ShouldBe("application/problem+json");
     }
 
     [Fact]
@@ -188,8 +188,8 @@ public class ApiGatewayResponseExtensionsTests
         var response = result.ToNoContentResponse();
 
         // Assert
-        response.StatusCode.Should().Be((int)HttpStatusCode.NoContent);
-        response.Body.Should().BeNullOrEmpty();
+        response.StatusCode.ShouldBe((int)HttpStatusCode.NoContent);
+        response.Body.ShouldBeNullOrEmpty();
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class ApiGatewayResponseExtensionsTests
         var response = result.ToNoContentResponse();
 
         // Assert
-        response.StatusCode.Should().Be((int)HttpStatusCode.NotFound);
+        response.StatusCode.ShouldBe((int)HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -216,9 +216,9 @@ public class ApiGatewayResponseExtensionsTests
         var response = result.ToHttpApiResponse();
 
         // Assert
-        response.StatusCode.Should().Be(200);
-        response.Headers.Should().ContainKey("Content-Type");
-        response.Headers["Content-Type"].Should().Be("application/json");
+        response.StatusCode.ShouldBe(200);
+        response.Headers.ShouldContainKey("Content-Type");
+        response.Headers["Content-Type"].ShouldBe("application/json");
     }
 
     [Fact]
@@ -232,8 +232,8 @@ public class ApiGatewayResponseExtensionsTests
         var response = result.ToHttpApiResponse();
 
         // Assert
-        response.StatusCode.Should().Be(400);
-        response.Headers["Content-Type"].Should().Be("application/problem+json");
+        response.StatusCode.ShouldBe(400);
+        response.Headers["Content-Type"].ShouldBe("application/problem+json");
     }
 
     [Theory]
@@ -258,7 +258,7 @@ public class ApiGatewayResponseExtensionsTests
         var response = result.ToApiGatewayResponse();
 
         // Assert
-        response.StatusCode.Should().Be(expectedStatus);
+        response.StatusCode.ShouldBe(expectedStatus);
     }
 
     private sealed class TestOrder

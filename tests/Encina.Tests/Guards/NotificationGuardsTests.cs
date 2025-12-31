@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 
 namespace Encina.Tests.Guards;
@@ -21,7 +21,7 @@ public sealed class NotificationGuardsTests
         var result = EncinaRequestGuards.TryValidateNotification(notification, out var error);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
         error.ShouldBeBottom(); // Default Either is neither Left nor Right
     }
 
@@ -35,37 +35,58 @@ public sealed class NotificationGuardsTests
         var result = EncinaRequestGuards.TryValidateNotification(notification, out var error);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
         error.ShouldBeError();
 
         var encinaError = error.Match(
             Left: e => e,
             Right: _ => throw new InvalidOperationException("Expected Left but got Right"));
 
-        encinaError.GetEncinaCode().Should().Be(EncinaErrorCodes.NotificationNull);
-        encinaError.Message.Should().Contain("notification");
-        encinaError.Message.Should().Contain("cannot be null");
+        encinaError.GetEncinaCode().ShouldBe(EncinaErrorCodes.NotificationNull);
+        encinaError.Message.ShouldContain("notification");
+        encinaError.Message.ShouldContain("cannot be null");
     }
 
     [Fact]
-    public void TryValidateNotification_WithDifferentNotificationTypes_ShouldHandleCorrectly()
+    public void TryValidateNotification_NullNotification_ReturnsFalseAndSetsError()
     {
         // Arrange
         TestNotification? nullNotification = null;
+
+        // Act
+        var result = EncinaRequestGuards.TryValidateNotification(nullNotification, out var error);
+
+        // Assert
+        result.ShouldBeFalse();
+        error.ShouldBeError();
+    }
+
+    [Fact]
+    public void TryValidateNotification_TestNotification_ReturnsTrue()
+    {
+        // Arrange
         var validNotification = new TestNotification("valid");
+
+        // Act
+        var result = EncinaRequestGuards.TryValidateNotification(validNotification, out var error);
+
+        // Assert
+        result.ShouldBeTrue();
+        error.ShouldBeBottom();
+    }
+
+    [Fact]
+    public void TryValidateNotification_AnotherNotification_ReturnsTrue()
+    {
+        // Arrange
         var anotherValidNotification = new AnotherNotification(42);
 
         // Act
-        var result1 = EncinaRequestGuards.TryValidateNotification(nullNotification, out var error1);
-        var result2 = EncinaRequestGuards.TryValidateNotification(validNotification, out _);
-        var result3 = EncinaRequestGuards.TryValidateNotification(anotherValidNotification, out _);
+        var result = EncinaRequestGuards.TryValidateNotification(anotherValidNotification, out var error);
 
         // Assert
-        result1.Should().BeFalse();
-        result2.Should().BeTrue();
-        result3.Should().BeTrue();
-
-        error1.ShouldBeError();
+        result.ShouldBeTrue();
+        error.ShouldBeBottom();
     }
 
     [Fact]
@@ -82,8 +103,8 @@ public sealed class NotificationGuardsTests
             Left: e => e,
             Right: _ => throw new InvalidOperationException("Expected Left"));
 
-        encinaError.Message.Should().Be("The notification cannot be null.");
-        encinaError.GetEncinaCode().Should().Be(EncinaErrorCodes.NotificationNull);
+        encinaError.Message.ShouldBe("The notification cannot be null.");
+        encinaError.GetEncinaCode().ShouldBe(EncinaErrorCodes.NotificationNull);
     }
 
     [Fact]
@@ -96,14 +117,14 @@ public sealed class NotificationGuardsTests
         var result = EncinaRequestGuards.TryValidateNotification(notification, out var error);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
 
         // Verify the error is Either<EncinaError, Unit>
         error.Match(
             Left: e =>
             {
-                e.Should().NotBeNull();
-                e.GetEncinaCode().Should().Be(EncinaErrorCodes.NotificationNull);
+                // EncinaError is a struct, so it's never null
+                e.GetEncinaCode().ShouldBe(EncinaErrorCodes.NotificationNull);
             },
             Right: _ => throw new InvalidOperationException("Expected Left"));
     }

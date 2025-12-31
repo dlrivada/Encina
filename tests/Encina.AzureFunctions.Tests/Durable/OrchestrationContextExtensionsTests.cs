@@ -1,5 +1,5 @@
 using Encina.AzureFunctions.Durable;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AzureFunctions.Tests.Durable;
@@ -17,7 +17,7 @@ public class OrchestrationContextExtensionsTests
             maxRetryInterval: TimeSpan.FromMinutes(1));
 
         // Assert
-        options.Should().NotBeNull();
+        options.ShouldNotBeNull();
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class OrchestrationContextExtensionsTests
             firstRetryInterval: TimeSpan.FromSeconds(5));
 
         // Assert
-        options.Should().NotBeNull();
+        options.ShouldNotBeNull();
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class OrchestrationContextExtensionsTests
             firstRetryInterval: TimeSpan.FromSeconds(1));
 
         // Assert
-        options.Should().NotBeNull();
+        options.ShouldNotBeNull();
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class OrchestrationContextExtensionsTests
             maxRetries: -1,
             firstRetryInterval: TimeSpan.FromSeconds(5));
 
-        action.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(action);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class OrchestrationContextExtensionsTests
             maxRetries: 3,
             firstRetryInterval: TimeSpan.Zero);
 
-        action.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(action);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class OrchestrationContextExtensionsTests
             maxRetries: 3,
             firstRetryInterval: TimeSpan.FromSeconds(-5));
 
-        action.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(action);
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public class OrchestrationContextExtensionsTests
             firstRetryInterval: TimeSpan.FromSeconds(5),
             backoffCoefficient: 0);
 
-        action.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(action);
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class OrchestrationContextExtensionsTests
             firstRetryInterval: TimeSpan.FromSeconds(5),
             backoffCoefficient: -1.0);
 
-        action.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(action);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class OrchestrationContextExtensionsTests
             firstRetryInterval: TimeSpan.FromMilliseconds(100));
 
         // Assert
-        options.Should().NotBeNull();
+        options.ShouldNotBeNull();
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class OrchestrationContextExtensionsTests
             firstRetryInterval: TimeSpan.FromMilliseconds(1));
 
         // Assert
-        options.Should().NotBeNull();
+        options.ShouldNotBeNull();
     }
 
     [Fact]
@@ -135,6 +135,6 @@ public class OrchestrationContextExtensionsTests
             maxRetryInterval: TimeSpan.FromHours(24));
 
         // Assert
-        options.Should().NotBeNull();
+        options.ShouldNotBeNull();
     }
 }

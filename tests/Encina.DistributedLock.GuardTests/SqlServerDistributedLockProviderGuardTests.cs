@@ -20,8 +20,8 @@ public class SqlServerDistributedLockProviderGuardTests
         var act = () => new SqlServerDistributedLockProvider(options!, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -38,8 +38,8 @@ public class SqlServerDistributedLockProviderGuardTests
         var act = () => new SqlServerDistributedLockProvider(options, logger!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -56,6 +56,6 @@ public class SqlServerDistributedLockProviderGuardTests
         var act = () => new SqlServerDistributedLockProvider(options, logger);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("ConnectionString");
     }
 }

@@ -1,11 +1,17 @@
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
+using Shouldly;
 
 namespace Encina.Testing.Fakes.Tests.Stores;
 
 public sealed class FakeSagaStoreTests
 {
-    private readonly FakeSagaStore _sut = new();
+    private readonly FakeSagaStore _sut;
+
+    public FakeSagaStoreTests()
+    {
+        _sut = new FakeSagaStore();
+    }
 
     [Fact]
     public async Task AddAsync_StoresSaga()
@@ -23,9 +29,9 @@ public sealed class FakeSagaStoreTests
         await _sut.AddAsync(saga);
 
         // Assert
-        _sut.Sagas.Should().HaveCount(1);
-        _sut.AddedSagas.Should().HaveCount(1);
-        _sut.GetSaga(saga.SagaId).Should().NotBeNull();
+        _sut.Sagas.Count.ShouldBe(1);
+        _sut.AddedSagas.Count.ShouldBe(1);
+        _sut.GetSaga(saga.SagaId).ShouldNotBeNull();
     }
 
     [Fact]
@@ -45,8 +51,8 @@ public sealed class FakeSagaStoreTests
         var result = await _sut.GetAsync(saga.SagaId);
 
         // Assert
-        result.Should().NotBeNull();
-        result!.SagaId.Should().Be(saga.SagaId);
+        result.ShouldNotBeNull();
+        result!.SagaId.ShouldBe(saga.SagaId);
     }
 
     [Fact]
@@ -56,7 +62,7 @@ public sealed class FakeSagaStoreTests
         var result = await _sut.GetAsync(Guid.NewGuid());
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -81,10 +87,10 @@ public sealed class FakeSagaStoreTests
 
         // Assert
         var updated = _sut.GetSaga(saga.SagaId);
-        updated!.Status.Should().Be("Completed");
-        updated.CurrentStep.Should().Be(3);
-        updated.CompletedAtUtc.Should().NotBeNull();
-        _sut.UpdatedSagas.Should().HaveCount(1);
+        updated!.Status.ShouldBe("Completed");
+        updated.CurrentStep.ShouldBe(3);
+        updated.CompletedAtUtc.ShouldNotBeNull();
+        _sut.UpdatedSagas.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -116,8 +122,8 @@ public sealed class FakeSagaStoreTests
         var stuck = await _sut.GetStuckSagasAsync(olderThan: TimeSpan.FromHours(1), batchSize: 10);
 
         // Assert
-        stuck.Should().HaveCount(1);
-        stuck.First().SagaId.Should().Be(stuckSaga.SagaId);
+        stuck.Count.ShouldBe(1);
+        stuck.First().SagaId.ShouldBe(stuckSaga.SagaId);
     }
 
     [Fact]
@@ -149,8 +155,8 @@ public sealed class FakeSagaStoreTests
         var expired = await _sut.GetExpiredSagasAsync(batchSize: 10);
 
         // Assert
-        expired.Should().HaveCount(1);
-        expired.First().SagaId.Should().Be(expiredSaga.SagaId);
+        expired.Count.ShouldBe(1);
+        expired.First().SagaId.ShouldBe(expiredSaga.SagaId);
     }
 
     [Fact]
@@ -181,8 +187,8 @@ public sealed class FakeSagaStoreTests
         var completed = _sut.GetSagasByStatus("Completed");
 
         // Assert
-        running.Should().HaveCount(1);
-        completed.Should().HaveCount(1);
+        running.Count.ShouldBe(1);
+        completed.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -203,8 +209,8 @@ public sealed class FakeSagaStoreTests
         var wasNotStarted = _sut.WasSagaStarted("NonExistent");
 
         // Assert
-        wasStarted.Should().BeTrue();
-        wasNotStarted.Should().BeFalse();
+        wasStarted.ShouldBeTrue();
+        wasNotStarted.ShouldBeFalse();
     }
 
     [Fact]
@@ -226,9 +232,9 @@ public sealed class FakeSagaStoreTests
         _sut.Clear();
 
         // Assert
-        _sut.Sagas.Should().BeEmpty();
-        _sut.AddedSagas.Should().BeEmpty();
-        _sut.UpdatedSagas.Should().BeEmpty();
-        _sut.SaveChangesCallCount.Should().Be(0);
+        _sut.Sagas.ShouldBeEmpty();
+        _sut.AddedSagas.ShouldBeEmpty();
+        _sut.UpdatedSagas.ShouldBeEmpty();
+        _sut.SaveChangesCallCount.ShouldBe(0);
     }
 }

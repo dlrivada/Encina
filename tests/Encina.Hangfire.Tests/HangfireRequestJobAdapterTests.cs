@@ -1,4 +1,4 @@
-﻿using LanguageExt;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
 
@@ -30,7 +30,7 @@ public class HangfireRequestJobAdapterTests
         var result = await _adapter.ExecuteAsync(request);
 
         // Assert
-        result.ShouldBeSuccess().Should().Be(expectedResponse);
+        result.ShouldBeSuccess().ShouldBe(expectedResponse);
 
         await _Encina.Received(1).Send(
             Arg.Is<TestRequest>(r => r.Data == "test-data"),
@@ -50,7 +50,7 @@ public class HangfireRequestJobAdapterTests
         var result = await _adapter.ExecuteAsync(request);
 
         // Assert
-        result.ShouldBeError(e => e.Message.Should().Be("Test error message"));
+        result.ShouldBeError(e => e.Message.ShouldBe("Test error message"));
     }
 
     [Fact(Skip = "Issue #6: LoggerMessage delegates incompatible with NSubstitute.Received()")]

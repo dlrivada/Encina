@@ -22,7 +22,8 @@ public class BulkheadManagerGuardsTests : IDisposable
 
         // Act & Assert
         var act = () => new BulkheadManager(timeProvider);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -33,8 +34,9 @@ public class BulkheadManagerGuardsTests : IDisposable
         var config = new BulkheadAttribute();
 
         // Act & Assert
-        var act = async () => await _manager.TryAcquireAsync(key, config);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("key");
+        Func<Task> act = () => _manager.TryAcquireAsync(key, config);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -45,8 +47,9 @@ public class BulkheadManagerGuardsTests : IDisposable
         BulkheadAttribute config = null!;
 
         // Act & Assert
-        var act = async () => await _manager.TryAcquireAsync(key, config);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("config");
+        Func<Task> act = () => _manager.TryAcquireAsync(key, config);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("config");
     }
 
     [Fact]
@@ -57,7 +60,8 @@ public class BulkheadManagerGuardsTests : IDisposable
 
         // Act & Assert
         var act = () => _manager.GetMetrics(key);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("key");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -68,6 +72,7 @@ public class BulkheadManagerGuardsTests : IDisposable
 
         // Act & Assert
         var act = () => _manager.Reset(key);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("key");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("key");
     }
 }

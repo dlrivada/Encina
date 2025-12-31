@@ -23,8 +23,8 @@ public class SqlServerDistributedLockProviderTests
         var act = () => new SqlServerDistributedLockProvider(options!, _logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -41,8 +41,8 @@ public class SqlServerDistributedLockProviderTests
         var act = () => new SqlServerDistributedLockProvider(options, logger!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -58,7 +58,8 @@ public class SqlServerDistributedLockProviderTests
         var act = () => new SqlServerDistributedLockProvider(options, _logger);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        var ex = Should.Throw<ArgumentException>(act);
+        ex.ParamName.ShouldBe("ConnectionString");
     }
 
     [Fact]
@@ -80,8 +81,8 @@ public class SqlServerDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("resource");
     }
 
     [Fact]
@@ -101,8 +102,8 @@ public class SqlServerDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("resource");
     }
 
     [Fact]
@@ -119,8 +120,8 @@ public class SqlServerDistributedLockProviderTests
         var act = () => provider.IsLockedAsync(null!, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("resource");
     }
 
     [Fact]
@@ -140,7 +141,7 @@ public class SqlServerDistributedLockProviderTests
             CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("resource");
     }
 }

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 using Amazon.Lambda.SQSEvents;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Xunit;
 
@@ -26,7 +26,7 @@ public class SqsHandlerContractTests
             _ => Task.FromResult(Either<EncinaError, int>.Right(1)));
 
         // Assert - Contract: All success = empty failures list
-        result.BatchItemFailures.Should().BeEmpty();
+        result.BatchItemFailures.ShouldBeEmpty();
     }
 
     [Fact]
@@ -52,11 +52,11 @@ public class SqsHandlerContractTests
             });
 
         // Assert - Contract: Only failed message IDs are returned
-        result.BatchItemFailures.Should().HaveCount(1);
-        result.BatchItemFailures.First().ItemIdentifier.Should().Be("msg-2");
+        result.BatchItemFailures.Count.ShouldBe(1);
+        result.BatchItemFailures.First().ItemIdentifier.ShouldBe("msg-2");
 
         // Contract: All messages are processed (not stopped at first failure)
-        processedIds.Should().HaveCount(3);
+        processedIds.Count.ShouldBe(3);
     }
 
     [Fact]
@@ -73,9 +73,9 @@ public class SqsHandlerContractTests
             _ => Task.FromResult(Either<EncinaError, int>.Left(EncinaErrors.Create("error", "Failed"))));
 
         // Assert - Contract: All failed = all message IDs returned
-        result.BatchItemFailures.Should().HaveCount(2);
+        result.BatchItemFailures.Count.ShouldBe(2);
         result.BatchItemFailures.Select(f => f.ItemIdentifier)
-            .Should().BeEquivalentTo(["msg-1", "msg-2"]);
+            .ShouldBe(["msg-1", "msg-2"]);
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public class SqsHandlerContractTests
             });
 
         // Assert - Contract: ProcessAllAsync stops at first error
-        result.IsLeft.Should().BeTrue();
-        processedCount.Should().Be(1);
+        result.IsLeft.ShouldBeTrue();
+        processedCount.ShouldBe(1);
     }
 
     [Fact]
@@ -124,8 +124,8 @@ public class SqsHandlerContractTests
             });
 
         // Assert - Contract: All success = Unit returned, all processed
-        result.IsRight.Should().BeTrue();
-        processedCount.Should().Be(3);
+        result.IsRight.ShouldBeTrue();
+        processedCount.ShouldBe(3);
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class SqsHandlerContractTests
             });
 
         // Assert - Contract: Each message is deserialized correctly
-        receivedValues.Should().BeEquivalentTo([10, 20, 30]);
+        receivedValues.ShouldBe([10, 20, 30]);
     }
 
     [Fact]
@@ -162,8 +162,9 @@ public class SqsHandlerContractTests
         var result = SqsMessageHandler.DeserializeMessage<TestMessage>(record);
 
         // Assert - Contract: Valid JSON = Right with deserialized object
-        result.IsRight.Should().BeTrue();
-        result.IfRight(msg => msg.Value.Should().Be(42));
+        result.IsRight.ShouldBeTrue();
+        var msg = (TestMessage)result;
+        msg.Value.ShouldBe(42);
     }
 
     [Fact]
@@ -176,8 +177,9 @@ public class SqsHandlerContractTests
         var result = SqsMessageHandler.DeserializeMessage<TestMessage>(record);
 
         // Assert - Contract: Invalid JSON = Left with specific error code
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(error => error.GetCode().IfSome(code => code.Should().Be("sqs.deserialization_failed")));
+        result.IsLeft.ShouldBeTrue();
+        var error = (EncinaError)result;
+        error.GetCode().IfSome(code => code.ShouldBe("sqs.deserialization_failed"));
     }
 
     private static SQSEvent CreateSqsEvent(params SQSEvent.SQSMessage[] messages)

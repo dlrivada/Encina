@@ -1,5 +1,5 @@
 using System.Net;
-using FluentAssertions;
+using Shouldly;
 using FsCheck;
 using FsCheck.Xunit;
 using Xunit;
@@ -12,71 +12,111 @@ namespace Encina.AwsLambda.PropertyTests;
 public class ErrorCodeMappingProperties
 {
     [Property]
-    public bool ValidationErrors_AlwaysReturn400(NonEmptyString suffix)
+    public void ValidationErrors_AlwaysReturn400(NonEmptyString suffix)
     {
+        // Arrange
         var code = $"validation.{suffix.Get}";
+
+        // Act
         var statusCode = MapErrorCodeToStatusCode(code);
-        return statusCode == HttpStatusCode.BadRequest;
+
+        // Assert
+        statusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Theory]
+    [InlineData("admin", HttpStatusCode.Forbidden)]
+    [InlineData("forbidden", HttpStatusCode.Forbidden)]
+    [InlineData("access_denied", HttpStatusCode.Forbidden)]
+    [InlineData("unauthorized", HttpStatusCode.Forbidden)]
+    [InlineData("permission_denied", HttpStatusCode.Forbidden)]
+    [InlineData("unauthenticated", HttpStatusCode.Unauthorized)]
+    public void AuthorizationErrors_ReturnExpectedStatusCode(string suffix, HttpStatusCode expectedStatusCode)
+    {
+        // Arrange
+        var code = $"authorization.{suffix}";
+
+        // Act
+        var statusCode = MapErrorCodeToStatusCode(code);
+
+        // Assert
+        statusCode.ShouldBe(expectedStatusCode);
     }
 
     [Property]
-    public bool AuthorizationErrors_AlwaysReturn403_ExceptUnauthenticated(NonEmptyString suffix)
+    public void NotFoundErrors_AlwaysReturn404(NonEmptyString prefix)
     {
-        var code = $"authorization.{suffix.Get}";
-        if (code == "authorization.unauthenticated")
-        {
-            return true; // Skip unauthenticated, tested separately
-        }
-        var statusCode = MapErrorCodeToStatusCode(code);
-        return statusCode == HttpStatusCode.Forbidden;
-    }
-
-    [Property]
-    public bool NotFoundErrors_AlwaysReturn404(NonEmptyString prefix)
-    {
+        // Arrange
         var code = $"{prefix.Get}.not_found";
+
+        // Act
         var statusCode = MapErrorCodeToStatusCode(code);
-        return statusCode == HttpStatusCode.NotFound;
+
+        // Assert
+        statusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Property]
-    public bool MissingErrors_AlwaysReturn404(NonEmptyString prefix)
+    public void MissingErrors_AlwaysReturn404(NonEmptyString prefix)
     {
+        // Arrange
         var code = $"{prefix.Get}.missing";
+
+        // Act
         var statusCode = MapErrorCodeToStatusCode(code);
-        return statusCode == HttpStatusCode.NotFound;
+
+        // Assert
+        statusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Property]
-    public bool ConflictErrors_AlwaysReturn409(NonEmptyString prefix)
+    public void ConflictErrors_AlwaysReturn409(NonEmptyString prefix)
     {
+        // Arrange
         var code = $"{prefix.Get}.conflict";
+
+        // Act
         var statusCode = MapErrorCodeToStatusCode(code);
-        return statusCode == HttpStatusCode.Conflict;
+
+        // Assert
+        statusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 
     [Property]
-    public bool AlreadyExistsErrors_AlwaysReturn409(NonEmptyString prefix)
+    public void AlreadyExistsErrors_AlwaysReturn409(NonEmptyString prefix)
     {
+        // Arrange
         var code = $"{prefix.Get}.already_exists";
+
+        // Act
         var statusCode = MapErrorCodeToStatusCode(code);
-        return statusCode == HttpStatusCode.Conflict;
+
+        // Assert
+        statusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 
     [Property]
-    public bool DuplicateErrors_AlwaysReturn409(NonEmptyString prefix)
+    public void DuplicateErrors_AlwaysReturn409(NonEmptyString prefix)
     {
+        // Arrange
         var code = $"{prefix.Get}.duplicate";
+
+        // Act
         var statusCode = MapErrorCodeToStatusCode(code);
-        return statusCode == HttpStatusCode.Conflict;
+
+        // Assert
+        statusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 
     [Property]
-    public bool UnknownErrors_AlwaysReturn500(NonEmptyString codeInput)
+    public Property UnknownErrors_AlwaysReturn500(NonEmptyString codeInput)
     {
+        // Arrange
         var errorCode = codeInput.Get;
-        // Skip known patterns
-        if (errorCode.StartsWith("validation.", StringComparison.OrdinalIgnoreCase) ||
+
+        // Precondition: Skip known patterns
+        var isKnownPattern =
+            errorCode.StartsWith("validation.", StringComparison.OrdinalIgnoreCase) ||
             errorCode.StartsWith("authorization.", StringComparison.OrdinalIgnoreCase) ||
             errorCode.EndsWith(".not_found", StringComparison.OrdinalIgnoreCase) ||
             errorCode.EndsWith(".missing", StringComparison.OrdinalIgnoreCase) ||
@@ -84,13 +124,14 @@ public class ErrorCodeMappingProperties
             errorCode.EndsWith(".already_exists", StringComparison.OrdinalIgnoreCase) ||
             errorCode.EndsWith(".duplicate", StringComparison.OrdinalIgnoreCase) ||
             errorCode == "encina.guard.validation_failed" ||
-            errorCode == "encina.request.handler_missing")
-        {
-            return true; // Skip known patterns
-        }
+            errorCode == "encina.request.handler_missing";
 
+        // Act
         var statusCode = MapErrorCodeToStatusCode(errorCode);
-        return statusCode == HttpStatusCode.InternalServerError;
+
+        // Assert with precondition
+        return (statusCode == HttpStatusCode.InternalServerError).ToProperty()
+            .When(!isKnownPattern);
     }
 
     [Fact]
@@ -100,15 +141,18 @@ public class ErrorCodeMappingProperties
         foreach (var code in testCases)
         {
             var statusCode = MapErrorCodeToStatusCode(code);
-            statusCode.Should().Be(HttpStatusCode.BadRequest);
+            statusCode.ShouldBe(HttpStatusCode.BadRequest);
         }
     }
 
     [Property]
-    public bool StatusCodeMapping_AlwaysReturnsValidHttpStatusCode(NonEmptyString code)
+    public void StatusCodeMapping_AlwaysReturnsValidHttpStatusCode(NonEmptyString code)
     {
+        // Act
         var statusCode = MapErrorCodeToStatusCode(code.Get);
-        return Enum.IsDefined<HttpStatusCode>(statusCode);
+
+        // Assert
+        Enum.IsDefined<HttpStatusCode>(statusCode).ShouldBeTrue();
     }
 
     // Helper method that mirrors the actual implementation

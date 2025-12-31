@@ -1,5 +1,5 @@
-﻿using System.Runtime.CompilerServices;
-using FluentAssertions;
+using System.Runtime.CompilerServices;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
@@ -40,10 +40,10 @@ public sealed class StreamRequestPropertyTests
         }
 
         // Assert - Results are in ascending order
-        results.Should().HaveCount(itemCount);
+        results.Count.ShouldBe(itemCount);
         for (var i = 0; i < results.Count; i++)
         {
-            results[i].Should().Be(i + 1, $"item at index {i} should be {i + 1}");
+            results[i].ShouldBe(i + 1, $"item at index {i} should be {i + 1}");
         }
     }
 
@@ -76,7 +76,7 @@ public sealed class StreamRequestPropertyTests
         // Assert - All enumerations produce identical results
         for (var i = 1; i < allResults.Count; i++)
         {
-            allResults[i].Should().Equal(allResults[0],
+            allResults[i].ShouldBe(allResults[0],
                 $"enumeration {i} should match first enumeration");
         }
     }
@@ -109,12 +109,12 @@ public sealed class StreamRequestPropertyTests
         }
 
         // Assert
-        count.Should().Be(expectedCount, "stream should yield exactly {0} items", expectedCount);
+        count.ShouldBe(expectedCount);  // stream should yield exactly expectedCount items
     }
 
     /// <summary>
     /// Property: Empty stream (Count=0) always yields zero items.
-    /// Invariant: Count=0 ⇒ |stream| = 0
+    /// Invariant: Count=0 ? |stream| = 0
     /// </summary>
     [Theory]
     [InlineData(0)]
@@ -132,7 +132,7 @@ public sealed class StreamRequestPropertyTests
         }
 
         // Assert
-        results.Should().BeEmpty("empty stream should yield no items");
+        results.ShouldBeEmpty("empty stream should yield no items");
     }
 
     #endregion
@@ -174,9 +174,9 @@ public sealed class StreamRequestPropertyTests
         }
 
         // Assert
-        exceptionThrown.Should().BeFalse("errors should be yielded, not thrown");
-        leftCount.Should().Be(3, "should yield 3 error items");
-        rightCount.Should().Be(errorInterval * 3 - 3, "should yield success items");
+        exceptionThrown.ShouldBeFalse("errors should be yielded, not thrown");
+        leftCount.ShouldBe(3, "should yield 3 error items");
+        rightCount.ShouldBe(errorInterval * 3 - 3, "should yield success items");
     }
 
     /// <summary>
@@ -243,8 +243,8 @@ public sealed class StreamRequestPropertyTests
         }
 
         // Assert
-        count.Should().BeLessThan(totalItems, "cancellation should stop enumeration");
-        count.Should().BeGreaterThanOrEqualTo(cancelAfter,
+        count.ShouldBeLessThan(totalItems, "cancellation should stop enumeration");
+        count.ShouldBeGreaterThanOrEqualTo(cancelAfter,
             "should yield at least items before cancellation");
     }
 
@@ -254,7 +254,7 @@ public sealed class StreamRequestPropertyTests
 
     /// <summary>
     /// Property: Behaviors execute in registration order.
-    /// Invariant: Behavior A registered before B ⇒ A executes before B.
+    /// Invariant: Behavior A registered before B ? A executes before B.
     /// </summary>
     [Theory]
     [InlineData(1)]
@@ -267,7 +267,7 @@ public sealed class StreamRequestPropertyTests
         services.AddEncina();
         services.AddTransient<IStreamRequestHandler<TestStreamRequest, int>, SequentialStreamHandler>();
 
-        // Register behaviors in specific order: AddOne → MultiplyTwo
+        // Register behaviors in specific order: AddOne ? MultiplyTwo
         services.AddTransient<IStreamPipelineBehavior<TestStreamRequest, int>, AddOneBehavior>();
         services.AddTransient<IStreamPipelineBehavior<TestStreamRequest, int>, MultiplyTwoBehavior>();
 
@@ -283,21 +283,21 @@ public sealed class StreamRequestPropertyTests
             item.IfRight(results.Add);
         }
 
-        // Assert - Behaviors execute as: AddOne → MultiplyTwo → Handler
+        // Assert - Behaviors execute as: AddOne ? MultiplyTwo ? Handler
         // Handler produces: 1, 2, 3, ...
         // After MultiplyTwo: 2, 4, 6, ...
         // After AddOne: 3, 5, 7, ...
         for (var i = 0; i < results.Count; i++)
         {
             var expected = ((i + 1) * 2) + 1;
-            results[i].Should().Be(expected,
+            results[i].ShouldBe(expected,
                 $"behavior execution order affects result at index {i}");
         }
     }
 
     /// <summary>
     /// Property: Behavior transformation is consistent across all items.
-    /// Invariant: ∀ item, behavior applies same transformation.
+    /// Invariant: ? item, behavior applies same transformation.
     /// </summary>
     [Theory]
     [InlineData(5, 2)]   // 5 items, multiply by 2
@@ -323,7 +323,7 @@ public sealed class StreamRequestPropertyTests
         // Assert - Every item multiplied consistently
         for (var i = 0; i < results.Count; i++)
         {
-            results[i].Should().Be((i + 1) * multiplier,
+            results[i].ShouldBe((i + 1) * multiplier,
                 $"behavior should apply multiplier {multiplier} to item {i + 1}");
         }
     }
@@ -333,8 +333,8 @@ public sealed class StreamRequestPropertyTests
     /// Invariant: Filter removes items but preserves relative order.
     /// </summary>
     [Theory]
-    [InlineData(10)] // Filter evens from 1-10 → 2,4,6,8,10
-    [InlineData(20)] // Filter evens from 1-20 → 2,4,6,...,20
+    [InlineData(10)] // Filter evens from 1-10 ? 2,4,6,8,10
+    [InlineData(20)] // Filter evens from 1-20 ? 2,4,6,...,20
     [InlineData(50)] // Filter evens from 1-50
     public async Task FilterBehavior_PreservesOrder(int itemCount)
     {
@@ -355,11 +355,11 @@ public sealed class StreamRequestPropertyTests
 
         // Assert - Results are evens in ascending order
         var expectedCount = itemCount / 2;
-        results.Should().HaveCount(expectedCount);
+        results.Count.ShouldBe(expectedCount);
 
         for (var i = 0; i < results.Count; i++)
         {
-            results[i].Should().Be((i + 1) * 2, "filtered items should be evens in order");
+            results[i].ShouldBe((i + 1) * 2, "filtered items should be evens in order");
         }
     }
 
@@ -402,13 +402,12 @@ public sealed class StreamRequestPropertyTests
         }
 
         // Assert - Results are identical
-        EncinaResults.Should().Equal(handlerResults,
-            "Encina should delegate to handler and produce same results");
+        EncinaResults.ShouldBe(handlerResults);  // Encina should delegate to handler and produce same results
     }
 
     /// <summary>
     /// Property: Missing handler always yields single error.
-    /// Invariant: No registered handler ⇒ stream yields exactly one Left with HandlerMissing code.
+    /// Invariant: No registered handler ? stream yields exactly one Left with HandlerMissing code.
     /// </summary>
     [Fact]
     public async Task MissingHandler_YieldsSingleError()
@@ -429,14 +428,14 @@ public sealed class StreamRequestPropertyTests
         }
 
         // Assert
-        results.Should().HaveCount(1, "missing handler should yield single error");
+        results.Count.ShouldBe(1, "missing handler should yield single error");
         results[0].ShouldBeError("result should be error");
 
         var error = results[0].Match(
             Left: e => e,
             Right: _ => throw new InvalidOperationException("Expected Left"));
 
-        error.GetEncinaCode().Should().Be(EncinaErrorCodes.HandlerMissing);
+        error.GetEncinaCode().ShouldBe(EncinaErrorCodes.HandlerMissing);
     }
 
     #endregion
@@ -467,10 +466,10 @@ public sealed class StreamRequestPropertyTests
         }
 
         // Assert
-        behavior.CapturedContext.Should().NotBeNull("behavior should receive context");
-        behavior.CapturedContext!.CorrelationId.Should().NotBeNullOrEmpty(
+        behavior.CapturedContext.ShouldNotBeNull("behavior should receive context");
+        behavior.CapturedContext!.CorrelationId.ShouldNotBeNullOrEmpty(
             "context should have valid CorrelationId");
-        behavior.CapturedContext.CorrelationId.Should().Be(context.CorrelationId,
+        behavior.CapturedContext.CorrelationId.ShouldBe(context.CorrelationId,
             "behavior should receive same context instance");
     }
 
@@ -489,7 +488,7 @@ public sealed class StreamRequestPropertyTests
             for (var i = 1; i <= request.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await Task.Delay(1, cancellationToken);
+                await Task.Yield();
                 yield return Right<EncinaError, int>(i);
             }
         }
@@ -517,7 +516,8 @@ public sealed class StreamRequestPropertyTests
                 }
                 else
                 {
-                    await Task.Delay(1, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await Task.Yield();
                     yield return Right<EncinaError, int>(i);
                 }
             }
@@ -546,7 +546,8 @@ public sealed class StreamRequestPropertyTests
                 }
                 else
                 {
-                    await Task.Delay(1, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await Task.Yield();
                     yield return Right<EncinaError, int>(i);
                 }
             }

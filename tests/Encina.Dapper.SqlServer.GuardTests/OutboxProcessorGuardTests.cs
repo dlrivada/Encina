@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Encina.Dapper.SqlServer.Outbox;
 using Encina.Messaging.Outbox;
 
@@ -25,8 +25,8 @@ public sealed class OutboxProcessorGuardTests
         var act = () => new OutboxProcessor(serviceProvider, logger, options);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serviceProvider");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("serviceProvider");
     }
 
     /// <summary>
@@ -44,8 +44,8 @@ public sealed class OutboxProcessorGuardTests
         var act = () => new OutboxProcessor(serviceProvider, logger, options);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     /// <summary>
@@ -63,7 +63,7 @@ public sealed class OutboxProcessorGuardTests
         var act = () => new OutboxProcessor(serviceProvider, logger, options);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 }

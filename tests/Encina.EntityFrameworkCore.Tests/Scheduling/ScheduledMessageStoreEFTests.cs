@@ -1,5 +1,5 @@
-﻿using Encina.EntityFrameworkCore.Scheduling;
-using FluentAssertions;
+using Encina.EntityFrameworkCore.Scheduling;
+using Shouldly;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -24,13 +24,14 @@ public class ScheduledMessageStoreEFTests : IDisposable
     public async Task AddAsync_ShouldAddMessageToStore()
     {
         // Arrange
+        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
             RequestType = "TestCommand",
             Content = "{\"test\":\"data\"}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(1),
-            CreatedAtUtc = DateTime.UtcNow,
+            ScheduledAtUtc = now.AddHours(1),
+            CreatedAtUtc = now,
             RetryCount = 0,
             IsRecurring = false
         };
@@ -41,21 +42,22 @@ public class ScheduledMessageStoreEFTests : IDisposable
 
         // Assert
         var stored = await _dbContext.ScheduledMessages.FindAsync(message.Id);
-        stored.Should().NotBeNull();
-        stored!.RequestType.Should().Be("TestCommand");
+        stored.ShouldNotBeNull();
+        stored!.RequestType.ShouldBe("TestCommand");
     }
 
     [Fact]
     public async Task GetDueMessagesAsync_ShouldReturnDueMessages()
     {
         // Arrange
+        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var due1 = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
             RequestType = "DueCommand1",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddMinutes(-10),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+            ScheduledAtUtc = now.AddMinutes(-10),
+            CreatedAtUtc = now.AddHours(-1),
             RetryCount = 0,
             IsRecurring = false
         };
@@ -65,8 +67,8 @@ public class ScheduledMessageStoreEFTests : IDisposable
             Id = Guid.NewGuid(),
             RequestType = "DueCommand2",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddMinutes(-5),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+            ScheduledAtUtc = now.AddMinutes(-5),
+            CreatedAtUtc = now.AddHours(-1),
             RetryCount = 0,
             IsRecurring = false
         };
@@ -76,8 +78,8 @@ public class ScheduledMessageStoreEFTests : IDisposable
             Id = Guid.NewGuid(),
             RequestType = "FutureCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(1),
-            CreatedAtUtc = DateTime.UtcNow,
+            ScheduledAtUtc = now.AddHours(1),
+            CreatedAtUtc = now,
             RetryCount = 0,
             IsRecurring = false
         };
@@ -87,9 +89,9 @@ public class ScheduledMessageStoreEFTests : IDisposable
             Id = Guid.NewGuid(),
             RequestType = "ProcessedCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddMinutes(-15),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
-            ProcessedAtUtc = DateTime.UtcNow.AddMinutes(-10),
+            ScheduledAtUtc = now.AddMinutes(-15),
+            CreatedAtUtc = now.AddHours(-2),
+            ProcessedAtUtc = now.AddMinutes(-10),
             RetryCount = 0,
             IsRecurring = false
         };
@@ -101,15 +103,16 @@ public class ScheduledMessageStoreEFTests : IDisposable
         var messages = await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Should().HaveCount(2);
-        messages.Should().Contain(m => m.Id == due1.Id);
-        messages.Should().Contain(m => m.Id == due2.Id);
+        messages.Count.ShouldBe(2);
+        messages.ShouldContain(m => m.Id == due1.Id);
+        messages.ShouldContain(m => m.Id == due2.Id);
     }
 
     [Fact]
     public async Task GetDueMessagesAsync_ShouldRespectBatchSize()
     {
         // Arrange
+        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         for (var i = 0; i < 10; i++)
         {
             await _dbContext.ScheduledMessages.AddAsync(new ScheduledMessage
@@ -117,8 +120,8 @@ public class ScheduledMessageStoreEFTests : IDisposable
                 Id = Guid.NewGuid(),
                 RequestType = $"Command{i}",
                 Content = "{}",
-                ScheduledAtUtc = DateTime.UtcNow.AddMinutes(-i),
-                CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                ScheduledAtUtc = now.AddMinutes(-i),
+                CreatedAtUtc = now.AddHours(-1),
                 RetryCount = 0,
                 IsRecurring = false
             });
@@ -129,20 +132,21 @@ public class ScheduledMessageStoreEFTests : IDisposable
         var messages = await _store.GetDueMessagesAsync(batchSize: 5, maxRetries: 3);
 
         // Assert
-        messages.Should().HaveCount(5);
+        messages.Count.ShouldBe(5);
     }
 
     [Fact]
     public async Task GetDueMessagesAsync_ShouldExcludeMaxRetriedMessages()
     {
         // Arrange
+        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var maxRetried = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
             RequestType = "MaxRetriedCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddMinutes(-10),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+            ScheduledAtUtc = now.AddMinutes(-10),
+            CreatedAtUtc = now.AddHours(-1),
             RetryCount = 5,
             IsRecurring = false
         };
@@ -154,20 +158,21 @@ public class ScheduledMessageStoreEFTests : IDisposable
         var messages = await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Should().BeEmpty();
+        messages.ShouldBeEmpty();
     }
 
     [Fact]
     public async Task MarkAsProcessedAsync_ShouldUpdateMessage()
     {
         // Arrange
+        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
             RequestType = "TestCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddMinutes(-10),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+            ScheduledAtUtc = now.AddMinutes(-10),
+            CreatedAtUtc = now.AddHours(-1),
             RetryCount = 0,
             IsRecurring = false
         };
@@ -181,22 +186,23 @@ public class ScheduledMessageStoreEFTests : IDisposable
 
         // Assert
         var updated = await _dbContext.ScheduledMessages.FindAsync(message.Id);
-        updated!.ProcessedAtUtc.Should().NotBeNull();
-        updated.LastExecutedAtUtc.Should().NotBeNull();
-        updated.ErrorMessage.Should().BeNull();
+        updated!.ProcessedAtUtc.ShouldNotBeNull();
+        updated.LastExecutedAtUtc.ShouldNotBeNull();
+        updated.ErrorMessage.ShouldBeNull();
     }
 
     [Fact]
     public async Task MarkAsFailedAsync_ShouldUpdateMessageWithError()
     {
         // Arrange
+        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
             RequestType = "TestCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddMinutes(-10),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+            ScheduledAtUtc = now.AddMinutes(-10),
+            CreatedAtUtc = now.AddHours(-1),
             RetryCount = 0,
             IsRecurring = false
         };
@@ -204,7 +210,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
         await _dbContext.ScheduledMessages.AddAsync(message);
         await _dbContext.SaveChangesAsync();
 
-        var nextRetry = DateTime.UtcNow.AddMinutes(5);
+        var nextRetry = now.AddMinutes(5);
 
         // Act
         await _store.MarkAsFailedAsync(message.Id, "Test error", nextRetry);
@@ -212,23 +218,24 @@ public class ScheduledMessageStoreEFTests : IDisposable
 
         // Assert
         var updated = await _dbContext.ScheduledMessages.FindAsync(message.Id);
-        updated!.ErrorMessage.Should().Be("Test error");
-        updated.RetryCount.Should().Be(1);
-        updated.NextRetryAtUtc.Should().BeCloseTo(nextRetry, TimeSpan.FromSeconds(1));
+        updated!.ErrorMessage.ShouldBe("Test error");
+        updated.RetryCount.ShouldBe(1);
+        updated.NextRetryAtUtc.ShouldBe(nextRetry);
     }
 
     [Fact]
     public async Task RescheduleRecurringMessageAsync_ShouldResetMessage()
     {
         // Arrange
+        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
             RequestType = "RecurringCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddMinutes(-10),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
-            ProcessedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            ScheduledAtUtc = now.AddMinutes(-10),
+            CreatedAtUtc = now.AddHours(-1),
+            ProcessedAtUtc = now.AddMinutes(-5),
             RetryCount = 0,
             IsRecurring = true,
             CronExpression = "0 0 * * *"
@@ -237,7 +244,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
         await _dbContext.ScheduledMessages.AddAsync(message);
         await _dbContext.SaveChangesAsync();
 
-        var nextScheduled = DateTime.UtcNow.AddHours(24);
+        var nextScheduled = now.AddHours(24);
 
         // Act
         await _store.RescheduleRecurringMessageAsync(message.Id, nextScheduled);
@@ -245,23 +252,24 @@ public class ScheduledMessageStoreEFTests : IDisposable
 
         // Assert
         var updated = await _dbContext.ScheduledMessages.FindAsync(message.Id);
-        updated!.ScheduledAtUtc.Should().BeCloseTo(nextScheduled, TimeSpan.FromSeconds(1));
-        updated.ProcessedAtUtc.Should().BeNull();
-        updated.ErrorMessage.Should().BeNull();
-        updated.RetryCount.Should().Be(0);
+        updated!.ScheduledAtUtc.ShouldBe(nextScheduled);
+        updated.ProcessedAtUtc.ShouldBeNull();
+        updated.ErrorMessage.ShouldBeNull();
+        updated.RetryCount.ShouldBe(0);
     }
 
     [Fact]
     public async Task CancelAsync_ShouldRemoveMessage()
     {
         // Arrange
+        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
             RequestType = "CancelCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(1),
-            CreatedAtUtc = DateTime.UtcNow,
+            ScheduledAtUtc = now.AddHours(1),
+            CreatedAtUtc = now,
             RetryCount = 0,
             IsRecurring = false
         };
@@ -275,45 +283,47 @@ public class ScheduledMessageStoreEFTests : IDisposable
 
         // Assert
         var removed = await _dbContext.ScheduledMessages.FindAsync(message.Id);
-        removed.Should().BeNull();
+        removed.ShouldBeNull();
     }
 
     [Fact]
-    public async Task IsDue_ShouldReturnTrueForDueMessages()
+    public void IsDue_ShouldReturnTrueForDueMessages()
     {
         // Arrange
+        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
             RequestType = "DueCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddMinutes(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+            ScheduledAtUtc = now.AddMinutes(-1),
+            CreatedAtUtc = now.AddHours(-1),
             RetryCount = 0,
             IsRecurring = false
         };
 
         // Act & Assert
-        message.IsDue().Should().BeTrue();
+        message.IsDue().ShouldBeTrue();
     }
 
     [Fact]
-    public async Task IsDeadLettered_ShouldReturnTrueForMaxRetriedMessages()
+    public void IsDeadLettered_ShouldReturnTrueForMaxRetriedMessages()
     {
         // Arrange
+        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
             RequestType = "DeadLetteredCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddMinutes(-10),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+            ScheduledAtUtc = now.AddMinutes(-10),
+            CreatedAtUtc = now.AddHours(-1),
             RetryCount = 5,
             IsRecurring = false
         };
 
         // Act & Assert
-        message.IsDeadLettered(maxRetries: 3).Should().BeTrue();
+        message.IsDeadLettered(maxRetries: 3).ShouldBeTrue();
     }
 
     public void Dispose()

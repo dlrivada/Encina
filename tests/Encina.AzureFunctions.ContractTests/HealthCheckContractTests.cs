@@ -1,6 +1,6 @@
 using Encina.AzureFunctions.Health;
 using Encina.Messaging.Health;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -21,7 +21,7 @@ public class HealthCheckContractTests
         var healthCheck = new AzureFunctionsHealthCheck(options);
 
         // Assert
-        healthCheck.Should().BeAssignableTo<IEncinaHealthCheck>();
+        healthCheck.ShouldBeAssignableTo<IEncinaHealthCheck>();
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public class HealthCheckContractTests
         var name = healthCheck.Name;
 
         // Assert
-        name.Should().NotBeNullOrEmpty();
+        name.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class HealthCheckContractTests
         var tags = healthCheck.Tags;
 
         // Assert
-        tags.Should().NotBeNull();
+        tags.ShouldNotBeNull();
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class HealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().BeOneOf(HealthStatus.Healthy, HealthStatus.Degraded, HealthStatus.Unhealthy);
+        result.Status.ShouldBeOneOf(HealthStatus.Healthy, HealthStatus.Degraded, HealthStatus.Unhealthy);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class HealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Data.Should().NotBeNull();
+        result.Data.ShouldNotBeNull();
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class HealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync(cts.Token);
 
         // Assert
-        result.Status.Should().NotBe(default(HealthStatus));
+        result.Status.ShouldNotBe(default(HealthStatus));
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class HealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync(cts.Token);
 
         // Assert - should complete without throwing
-        result.Should().NotBe(default);
+        result.ShouldNotBe(default);
     }
 
     [Theory]
@@ -130,6 +130,6 @@ public class HealthCheckContractTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(expectedMinStatus);
+        result.Status.ShouldBe(expectedMinStatus);
     }
 }

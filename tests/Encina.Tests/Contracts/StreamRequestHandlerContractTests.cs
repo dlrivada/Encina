@@ -1,5 +1,5 @@
-﻿using System.Runtime.CompilerServices;
-using FluentAssertions;
+using System.Runtime.CompilerServices;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
@@ -31,11 +31,11 @@ public sealed class StreamRequestHandlerContractTests
         }
 
         // Assert
-        results.Should().HaveCount(5, "handler should yield all requested items");
+        results.Count.ShouldBe(5, "handler should yield all requested items");
         results.AllShouldBeSuccess("all items should be successful");
 
         var values = results.Select(r => r.Match(Left: _ => -1, Right: v => v)).ToList();
-        values.Should().Equal(new[] { 1, 2, 3, 4, 5 }, "items should be yielded in sequential order");
+        values.ShouldBe([1, 2, 3, 4, 5]);  // items should be yielded in sequential order
     }
 
     [Fact]
@@ -67,8 +67,8 @@ public sealed class StreamRequestHandlerContractTests
         }
 
         // Assert
-        results.Should().HaveCountLessThan(1000, "enumeration should stop when cancelled");
-        results.Should().HaveCountGreaterThanOrEqualTo(5, "should yield at least items before cancellation");
+        results.Count.ShouldBeLessThan(1000, "enumeration should stop when cancelled");
+        results.Count.ShouldBeGreaterThanOrEqualTo(5, "should yield at least items before cancellation");
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public sealed class StreamRequestHandlerContractTests
         }
 
         // Assert
-        results.Should().BeEmpty("handler should yield no items when count is zero");
+        results.ShouldBeEmpty("handler should yield no items when count is zero");
     }
 
     [Fact]
@@ -104,12 +104,12 @@ public sealed class StreamRequestHandlerContractTests
         }
 
         // Assert
-        results.Should().HaveCount(10);
+        results.Count.ShouldBe(10);
         results.ShouldContainError("some items should be errors");
         results.ShouldContainSuccess("some items should be successful");
 
         var errorCount = results.Count(r => r.IsLeft);
-        errorCount.Should().Be(3, "errors should occur at positions 3, 6, 9");
+        errorCount.ShouldBe(3, "errors should occur at positions 3, 6, 9");
     }
 
     [Fact]
@@ -133,13 +133,13 @@ public sealed class StreamRequestHandlerContractTests
         }
 
         // Assert
-        results1.Should().HaveCount(3);
-        results2.Should().HaveCount(3);
+        results1.Count.ShouldBe(3);
+        results2.Count.ShouldBe(3);
 
         var values1 = results1.Select(r => r.Match(Left: _ => -1, Right: v => v)).ToList();
         var values2 = results2.Select(r => r.Match(Left: _ => -1, Right: v => v)).ToList();
 
-        values1.Should().Equal(values2, "handler should yield same results when called multiple times");
+        values1.ShouldBe(values2, "handler should yield same results when called multiple times");
     }
 
     #endregion
@@ -166,7 +166,7 @@ public sealed class StreamRequestHandlerContractTests
         }
 
         // Assert
-        results.Should().HaveCount(3, "Encina should delegate to registered handler");
+        results.Count.ShouldBe(3, "Encina should delegate to registered handler");
         results.AllShouldBeSuccess();
     }
 
@@ -189,15 +189,15 @@ public sealed class StreamRequestHandlerContractTests
         }
 
         // Assert
-        results.Should().HaveCount(1, "should yield single error for missing handler");
+        results.Count.ShouldBe(1, "should yield single error for missing handler");
         results[0].ShouldBeError("result should be an error");
 
         var error = results[0].Match(
             Left: e => e,
             Right: _ => throw new InvalidOperationException("Expected Left"));
 
-        error.GetEncinaCode().Should().Be(EncinaErrorCodes.HandlerMissing);
-        error.Message.Should().Contain("No handler registered");
+        error.GetEncinaCode().ShouldBe(EncinaErrorCodes.HandlerMissing);
+        error.Message.ShouldContain("No handler registered");
     }
 
     [Fact]
@@ -233,7 +233,7 @@ public sealed class StreamRequestHandlerContractTests
         }
 
         // Assert
-        results.Should().HaveCountLessThan(100, "cancellation should stop enumeration");
+        results.Count.ShouldBeLessThan(100, "cancellation should stop enumeration");
     }
 
     #endregion

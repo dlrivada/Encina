@@ -1,6 +1,6 @@
 using Encina.DomainModeling;
 using Encina.Testing.EventSourcing;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.Testing.Tests.EventSourcing;
 
@@ -22,8 +22,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestGiven(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("events");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("events");
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestGiven([]);
 
         // Assert - Empty array is valid (creates aggregate with no history)
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -54,8 +54,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestWhen(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("action");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("action");
     }
 
     [Fact]
@@ -68,8 +68,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestWhen(order => { });
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Given()*GivenEmpty()*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*Given()*GivenEmpty()*");
     }
 
     #endregion
@@ -84,11 +84,11 @@ public sealed class AggregateTestBaseGuardClauseTests
         test.TestGivenEmpty();
 
         // Act
-        var act = async () => await test.TestWhenAsync(null!);
+        Func<Task> act = () => test.TestWhenAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("action");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("action");
     }
 
     [Fact]
@@ -98,11 +98,11 @@ public sealed class AggregateTestBaseGuardClauseTests
         var test = new GuardTestOrderAggregate();
 
         // Act
-        var act = async () => await test.TestWhenAsync(async order => await Task.CompletedTask);
+        Func<Task> act = () => test.TestWhenAsync(async order => await Task.CompletedTask);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Given()*");
+        var ex = await Should.ThrowAsync<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*Given()*");
     }
 
     #endregion
@@ -120,8 +120,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestThen<OrderCreated>();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*When()*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*When()*");
     }
 
     [Fact]
@@ -136,8 +136,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestThen<OrderCreated>(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("validator");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("validator");
     }
 
     #endregion
@@ -156,8 +156,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestThenEvents(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("expectedEventTypes");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("expectedEventTypes");
     }
 
     [Fact]
@@ -171,8 +171,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestThenEvents(typeof(OrderCreated));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*When()*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*When()*");
     }
 
     #endregion
@@ -190,8 +190,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestThenNoEvents();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*When()*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*When()*");
     }
 
     #endregion
@@ -210,8 +210,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestThenState(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("stateValidator");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("stateValidator");
     }
 
     [Fact]
@@ -225,8 +225,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestThenState(order => { });
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*When()*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*When()*");
     }
 
     #endregion
@@ -244,8 +244,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestThenThrows<Exception>();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*When()*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*When()*");
     }
 
     [Fact]
@@ -260,8 +260,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestThenThrows<Exception>();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*no exception was thrown*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*no exception was thrown*");
     }
 
     [Fact]
@@ -276,8 +276,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.TestThenThrows<InvalidOperationException>(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("validator");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("validator");
     }
 
     #endregion
@@ -295,8 +295,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => test.GetTestUncommittedEvents();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*When()*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*When()*");
     }
 
     #endregion
@@ -314,8 +314,8 @@ public sealed class AggregateTestBaseGuardClauseTests
         var act = () => _ = test.GetTestAggregate();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*When()*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*When()*");
     }
 
     #endregion

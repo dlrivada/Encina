@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 
 namespace Encina.Tests.Guards;
@@ -9,6 +9,15 @@ namespace Encina.Tests.Guards;
 /// </summary>
 public sealed class RequestGuardsTests
 {
+    #region Helper Methods
+
+    private static EncinaError ExtractLeftError<TRight>(Either<EncinaError, TRight> error, string message = "Expected Left but got Right")
+        => error.Match(
+            Left: e => e,
+            Right: _ => throw new InvalidOperationException(message));
+
+    #endregion
+
     #region TryValidateRequest Tests
 
     [Fact]
@@ -21,7 +30,7 @@ public sealed class RequestGuardsTests
         var result = EncinaRequestGuards.TryValidateRequest<string>(request, out var error);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
         error.ShouldBeBottom(); // Default Either is neither Left nor Right
     }
 
@@ -35,16 +44,14 @@ public sealed class RequestGuardsTests
         var result = EncinaRequestGuards.TryValidateRequest<string>(request, out var error);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
         error.ShouldBeError();
 
-        var encinaError = error.Match(
-            Left: e => e,
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"));
+        var encinaError = ExtractLeftError(error);
 
-        encinaError.GetEncinaCode().Should().Be(EncinaErrorCodes.RequestNull);
-        encinaError.Message.Should().Contain("request");
-        encinaError.Message.Should().Contain("cannot be null");
+        encinaError.GetEncinaCode().ShouldBe(EncinaErrorCodes.RequestNull);
+        encinaError.Message.ShouldContain("request");
+        encinaError.Message.ShouldContain("cannot be null");
     }
 
     [Fact]
@@ -61,9 +68,9 @@ public sealed class RequestGuardsTests
         var result3 = EncinaRequestGuards.TryValidateRequest<string>(validRequest, out _);
 
         // Assert
-        result1.Should().BeFalse();
-        result2.Should().BeFalse();
-        result3.Should().BeTrue();
+        result1.ShouldBeFalse();
+        result2.ShouldBeFalse();
+        result3.ShouldBeTrue();
 
         error1.ShouldBeError();
         error2.ShouldBeError();
@@ -87,7 +94,7 @@ public sealed class RequestGuardsTests
             out var error);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
         error.ShouldBeBottom();
     }
 
@@ -105,16 +112,14 @@ public sealed class RequestGuardsTests
             out var error);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
         error.ShouldBeError();
 
-        var encinaError = error.Match(
-            Left: e => e,
-            Right: _ => throw new InvalidOperationException("Expected Left but got Right"));
+        var encinaError = ExtractLeftError(error);
 
-        encinaError.GetEncinaCode().Should().Be(EncinaErrorCodes.RequestHandlerMissing);
-        encinaError.Message.Should().Contain("TestRequest");
-        encinaError.Message.Should().Contain("String");
+        encinaError.GetEncinaCode().ShouldBe(EncinaErrorCodes.RequestHandlerMissing);
+        encinaError.Message.ShouldContain("TestRequest");
+        encinaError.Message.ShouldContain("String");
     }
 
     [Fact]
@@ -131,16 +136,14 @@ public sealed class RequestGuardsTests
             out var error);
 
         // Assert
-        var encinaError = error.Match(
-            Left: e => e,
-            Right: _ => throw new InvalidOperationException("Expected Left"));
+        var encinaError = ExtractLeftError(error, "Expected Left");
 
         var metadata = encinaError.GetMetadata();
-        metadata.Should().NotBeNull();
-        metadata.Should().ContainKey("requestType");
-        metadata.Should().ContainKey("responseType");
-        metadata.Should().ContainKey("stage");
-        metadata["stage"].Should().Be("handler_resolution");
+        metadata.ShouldNotBeNull();
+        metadata.ShouldContainKey("requestType");
+        metadata.ShouldContainKey("responseType");
+        metadata.ShouldContainKey("stage");
+        metadata["stage"].ShouldBe("handler_resolution");
     }
 
     #endregion
@@ -162,7 +165,7 @@ public sealed class RequestGuardsTests
             out var error);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
         error.ShouldBeBottom();
     }
 
@@ -181,15 +184,13 @@ public sealed class RequestGuardsTests
             out var error);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
         error.ShouldBeError();
 
-        var encinaError = error.Match(
-            Left: e => e,
-            Right: _ => throw new InvalidOperationException("Expected Left"));
+        var encinaError = ExtractLeftError(error, "Expected Left");
 
-        encinaError.GetEncinaCode().Should().Be(EncinaErrorCodes.RequestHandlerTypeMismatch);
-        encinaError.Message.Should().Contain("does not implement");
+        encinaError.GetEncinaCode().ShouldBe(EncinaErrorCodes.RequestHandlerTypeMismatch);
+        encinaError.Message.ShouldContain("does not implement");
     }
 
     #endregion

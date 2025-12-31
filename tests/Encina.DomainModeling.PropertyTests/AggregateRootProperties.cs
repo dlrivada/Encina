@@ -40,14 +40,14 @@ public sealed class AggregateRootProperties
     {
         public string CustomerName { get; private set; } = string.Empty;
 
-        public AuditableOrder(OrderId id) : base(id) { }
+        public AuditableOrder(OrderId id, TimeProvider? timeProvider = null) : base(id, timeProvider) { }
     }
 
     private sealed class DeletableOrder : SoftDeletableAggregateRoot<OrderId>
     {
         public string CustomerName { get; private set; } = string.Empty;
 
-        public DeletableOrder(OrderId id) : base(id) { }
+        public DeletableOrder(OrderId id, TimeProvider? timeProvider = null) : base(id, timeProvider) { }
     }
 
     #region Domain Event Properties

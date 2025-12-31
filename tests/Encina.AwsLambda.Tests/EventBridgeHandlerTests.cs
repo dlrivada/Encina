@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 using Amazon.Lambda.CloudWatchEvents;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -30,8 +30,7 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(value => value.Should().Be("order-123"));
+        result.ShouldBeRight("order-123");
     }
 
     [Fact]
@@ -52,8 +51,11 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(error => error.GetCode().IfSome(code => code.Should().Be("eventbridge.detail_null")));
+        result.IsLeft.ShouldBeTrue();
+        var error = result.LeftToSeq().Single();
+        var code = error.GetCode();
+        code.IsSome.ShouldBeTrue();
+        code.IfSome(c => c.ShouldBe("eventbridge.detail_null"));
     }
 
     [Fact]
@@ -70,8 +72,11 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(error => error.GetCode().IfSome(code => code.Should().Be("order.failed")));
+        result.IsLeft.ShouldBeTrue();
+        var error = result.LeftToSeq().Single();
+        var code = error.GetCode();
+        code.IsSome.ShouldBeTrue();
+        code.IfSome(c => c.ShouldBe("order.failed"));
     }
 
     [Fact]
@@ -87,8 +92,11 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(error => error.GetCode().IfSome(code => code.Should().Be("eventbridge.processing_failed")));
+        result.IsLeft.ShouldBeTrue();
+        var error = result.LeftToSeq().Single();
+        var code = error.GetCode();
+        code.IsSome.ShouldBeTrue();
+        code.IfSome(c => c.ShouldBe("eventbridge.processing_failed"));
     }
 
     [Fact]
@@ -104,7 +112,7 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -130,8 +138,9 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(value => value.Should().Be("order-123"));
+        result.IsRight.ShouldBeTrue();
+        var value = result.RightToSeq().Single();
+        value.ShouldBe("order-123");
     }
 
     [Fact]
@@ -147,8 +156,8 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(error => error.GetCode().IfSome(code => code.Should().Be("eventbridge.deserialization_failed")));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfSome(code => code.ShouldBe("eventbridge.deserialization_failed")));
     }
 
     [Fact]
@@ -171,12 +180,12 @@ public class EventBridgeHandlerTests
         var metadata = EventBridgeHandler.GetMetadata(eventBridgeEvent);
 
         // Assert
-        metadata.Id.Should().Be("event-123");
-        metadata.Source.Should().Be("test.source");
-        metadata.DetailType.Should().Be("OrderCreated");
-        metadata.Account.Should().Be("123456789012");
-        metadata.Region.Should().Be("us-east-1");
-        metadata.Time.Should().Be(eventTime);
+        metadata.Id.ShouldBe("event-123");
+        metadata.Source.ShouldBe("test.source");
+        metadata.DetailType.ShouldBe("OrderCreated");
+        metadata.Account.ShouldBe("123456789012");
+        metadata.Region.ShouldBe("us-east-1");
+        metadata.Time.ShouldBe(eventTime);
     }
 
     [Fact]
@@ -188,8 +197,8 @@ public class EventBridgeHandlerTests
             _ => Task.FromResult(Either<EncinaError, string>.Right("ok")));
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("eventBridgeEvent");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("eventBridgeEvent");
     }
 
     [Fact]
@@ -204,8 +213,8 @@ public class EventBridgeHandlerTests
             null!);
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("processEvent");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("processEvent");
     }
 
     [Fact]
@@ -217,8 +226,8 @@ public class EventBridgeHandlerTests
             _ => Task.FromResult(Either<EncinaError, string>.Right("ok")));
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("eventJson");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("eventJson");
     }
 
     [Fact]
@@ -228,8 +237,8 @@ public class EventBridgeHandlerTests
         var action = () => EventBridgeHandler.GetMetadata<TestEvent>(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("eventBridgeEvent");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("eventBridgeEvent");
     }
 
     private static CloudWatchEvent<TDetail> CreateEvent<TDetail>(TDetail detail)

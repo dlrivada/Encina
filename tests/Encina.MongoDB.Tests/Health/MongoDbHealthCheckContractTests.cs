@@ -34,21 +34,21 @@ public sealed class MongoDbHealthCheckContractTests : IEncinaHealthCheckContract
     [Fact]
     public void DefaultName_ShouldBeEncinaMongodb()
     {
-        MongoDbHealthCheck.DefaultName.Should().Be("encina-mongodb");
+        MongoDbHealthCheck.DefaultName.ShouldBe("encina-mongodb");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainDatabaseTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("database");
+        healthCheck.Tags.ShouldContain("database");
     }
 
     [Fact]
     public void Tags_WithDefaultOptions_ShouldContainMongodbTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.Should().Contain("mongodb");
+        healthCheck.Tags.ShouldContain("mongodb");
     }
 
     private static IServiceProvider CreateMockServiceProvider()

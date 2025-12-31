@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using static LanguageExt.Prelude;
@@ -34,7 +34,8 @@ public class QueryCachingPipelineBehaviorTests
             Options.Create(options),
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("cacheProvider");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("cacheProvider");
     }
 
     [Fact]
@@ -50,7 +51,8 @@ public class QueryCachingPipelineBehaviorTests
             Options.Create(options),
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("keyGenerator");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("keyGenerator");
     }
 
     [Fact]
@@ -63,7 +65,8 @@ public class QueryCachingPipelineBehaviorTests
             null!,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -79,7 +82,8 @@ public class QueryCachingPipelineBehaviorTests
             Options.Create(options),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -148,7 +152,7 @@ public class QueryCachingPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.ShouldBeSuccess().Should().Be(expectedResult);
+        result.ShouldBeSuccess().ShouldBe(expectedResult);
 
         // Verify cache was not accessed
         await _cacheProvider.DidNotReceive().GetAsync<CacheEntry<string>>(Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -183,8 +187,8 @@ public class QueryCachingPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.ShouldBeSuccess().Should().Be(cachedValue);
-        nextStepCalled.Should().BeFalse();
+        result.ShouldBeSuccess().ShouldBe(cachedValue);
+        nextStepCalled.ShouldBeFalse();
     }
 
     [Fact]
@@ -210,7 +214,7 @@ public class QueryCachingPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.ShouldBeSuccess().Should().Be(freshResult);
+        result.ShouldBeSuccess().ShouldBe(freshResult);
 
         await _cacheProvider.Received(1).SetAsync(
             cacheKey,
@@ -274,7 +278,7 @@ public class QueryCachingPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.ShouldBeSuccess().Should().Be(freshResult);
+        result.ShouldBeSuccess().ShouldBe(freshResult);
     }
 
     [Fact]
@@ -327,7 +331,7 @@ public class QueryCachingPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.ShouldBeSuccess().Should().Be(expectedResult);
+        result.ShouldBeSuccess().ShouldBe(expectedResult);
 
         // Verify cache was not accessed (no [Cache] attribute)
         await cacheProvider.DidNotReceive().GetAsync<CacheEntry<string>>(Arg.Any<string>(), Arg.Any<CancellationToken>());

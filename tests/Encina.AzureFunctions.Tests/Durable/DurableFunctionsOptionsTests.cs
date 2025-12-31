@@ -1,5 +1,5 @@
 using Encina.AzureFunctions.Durable;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AzureFunctions.Tests.Durable;
@@ -13,13 +13,13 @@ public class DurableFunctionsOptionsTests
         var options = new DurableFunctionsOptions();
 
         // Assert
-        options.DefaultMaxRetries.Should().Be(3);
-        options.DefaultFirstRetryInterval.Should().Be(TimeSpan.FromSeconds(5));
-        options.DefaultBackoffCoefficient.Should().Be(2.0);
-        options.DefaultMaxRetryInterval.Should().Be(TimeSpan.FromMinutes(1));
-        options.ContinueCompensationOnError.Should().BeTrue();
-        options.DefaultSagaTimeout.Should().BeNull();
-        options.ProviderHealthCheck.Should().NotBeNull();
+        options.DefaultMaxRetries.ShouldBe(3);
+        options.DefaultFirstRetryInterval.ShouldBe(TimeSpan.FromSeconds(5));
+        options.DefaultBackoffCoefficient.ShouldBe(2.0);
+        options.DefaultMaxRetryInterval.ShouldBe(TimeSpan.FromMinutes(1));
+        options.ContinueCompensationOnError.ShouldBeTrue();
+        options.DefaultSagaTimeout.ShouldBeNull();
+        options.ProviderHealthCheck.ShouldNotBeNull();
     }
 
     [Fact]
@@ -29,10 +29,10 @@ public class DurableFunctionsOptionsTests
         var options = new DurableFunctionsOptions();
 
         // Assert
-        options.ProviderHealthCheck.Name.Should().Be("encina-durable-functions");
-        options.ProviderHealthCheck.Tags.Should().Contain("encina");
-        options.ProviderHealthCheck.Tags.Should().Contain("durable-functions");
-        options.ProviderHealthCheck.Tags.Should().Contain("ready");
+        options.ProviderHealthCheck.Name.ShouldBe("encina-durable-functions");
+        options.ProviderHealthCheck.Tags.ShouldContain("encina");
+        options.ProviderHealthCheck.Tags.ShouldContain("durable-functions");
+        options.ProviderHealthCheck.Tags.ShouldContain("ready");
     }
 
     [Fact]
@@ -50,11 +50,11 @@ public class DurableFunctionsOptionsTests
         options.DefaultSagaTimeout = TimeSpan.FromHours(1);
 
         // Assert
-        options.DefaultMaxRetries.Should().Be(5);
-        options.DefaultFirstRetryInterval.Should().Be(TimeSpan.FromSeconds(10));
-        options.DefaultBackoffCoefficient.Should().Be(3.0);
-        options.DefaultMaxRetryInterval.Should().Be(TimeSpan.FromMinutes(5));
-        options.ContinueCompensationOnError.Should().BeFalse();
-        options.DefaultSagaTimeout.Should().Be(TimeSpan.FromHours(1));
+        options.DefaultMaxRetries.ShouldBe(5);
+        options.DefaultFirstRetryInterval.ShouldBe(TimeSpan.FromSeconds(10));
+        options.DefaultBackoffCoefficient.ShouldBe(3.0);
+        options.DefaultMaxRetryInterval.ShouldBe(TimeSpan.FromMinutes(5));
+        options.ContinueCompensationOnError.ShouldBeFalse();
+        options.DefaultSagaTimeout.ShouldBe(TimeSpan.FromHours(1));
     }
 }

@@ -3,7 +3,7 @@ using Amazon.Lambda.CloudWatchEvents;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SQSEvents;
 using Encina.AwsLambda.Health;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -29,8 +29,8 @@ public class GuardClauseTests
         var action = () => services.AddEncinaAwsLambda();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public class GuardClauseTests
         var action = () => services.AddEncinaAwsLambda(_ => { });
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public class GuardClauseTests
         var action = () => services.AddEncinaAwsLambda(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configureOptions");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("configureOptions");
     }
 
     #endregion
@@ -72,8 +72,8 @@ public class GuardClauseTests
         var action = () => new AwsLambdaHealthCheck(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("options");
     }
 
     #endregion
@@ -90,8 +90,8 @@ public class GuardClauseTests
         var action = () => result.ToCreatedResponse<TestResult>(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("locationFactory");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("locationFactory");
     }
 
     #endregion
@@ -107,8 +107,8 @@ public class GuardClauseTests
             _ => Task.FromResult(Either<EncinaError, int>.Right(1)));
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("sqsEvent");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("sqsEvent");
     }
 
     [Fact]
@@ -123,8 +123,8 @@ public class GuardClauseTests
             null!);
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("processMessage");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("processMessage");
     }
 
     [Fact]
@@ -136,8 +136,8 @@ public class GuardClauseTests
             _ => Task.FromResult(Either<EncinaError, int>.Right(1)));
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("sqsEvent");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("sqsEvent");
     }
 
     [Fact]
@@ -152,8 +152,8 @@ public class GuardClauseTests
             null!);
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("processMessage");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("processMessage");
     }
 
     [Fact]
@@ -163,8 +163,8 @@ public class GuardClauseTests
         var action = () => SqsMessageHandler.DeserializeMessage<TestMessage>(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("record");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("record");
     }
 
     #endregion
@@ -180,8 +180,8 @@ public class GuardClauseTests
             _ => Task.FromResult(Either<EncinaError, int>.Right(1)));
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("eventBridgeEvent");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("eventBridgeEvent");
     }
 
     [Fact]
@@ -196,8 +196,8 @@ public class GuardClauseTests
             null!);
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("processEvent");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("processEvent");
     }
 
     [Fact]
@@ -209,8 +209,8 @@ public class GuardClauseTests
             _ => Task.FromResult(Either<EncinaError, int>.Right(1)));
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("eventJson");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("eventJson");
     }
 
     [Fact]
@@ -222,8 +222,8 @@ public class GuardClauseTests
             null!);
 
         // Assert
-        await action.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("processEvent");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("processEvent");
     }
 
     [Fact]
@@ -233,8 +233,8 @@ public class GuardClauseTests
         var action = () => EventBridgeHandler.GetMetadata<TestEvent>(null!);
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("eventBridgeEvent");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("eventBridgeEvent");
     }
 
     #endregion
@@ -251,8 +251,8 @@ public class GuardClauseTests
         var action = () => context.GetCorrelationId();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -265,8 +265,8 @@ public class GuardClauseTests
         var action = () => context.GetTenantId();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -279,8 +279,8 @@ public class GuardClauseTests
         var action = () => context.GetUserId();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -293,8 +293,8 @@ public class GuardClauseTests
         var action = () => context.GetAwsRequestId();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -307,8 +307,8 @@ public class GuardClauseTests
         var action = () => context.GetFunctionName();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -321,8 +321,8 @@ public class GuardClauseTests
         var action = () => context.GetRemainingTimeMs();
 
         // Assert
-        action.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var ex = Should.Throw<ArgumentNullException>(action);
+        ex.ParamName.ShouldBe("context");
     }
 
     #endregion

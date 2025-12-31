@@ -1,10 +1,10 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.OpenTelemetry.Behaviors;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using NSubstitute;
 using Xunit;
@@ -58,7 +58,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().Be(1, "nextStep should be called exactly once");
+        nextStepCalled.ShouldBe(1, "nextStep should be called exactly once");
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.ShouldBeSuccess().Should().Be("expected");
+        result.ShouldBeSuccess().ShouldBe("expected");
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.ShouldBeError(e => e.Message.Should().Be("Test error message"));
+        result.ShouldBeError(e => e.Message.ShouldBe("Test error message"));
     }
 
     [Fact]
@@ -113,10 +113,10 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         Activity.Current = null;
 
         // Act
-        var act = async () => await behavior.Handle(request, context, nextStep, CancellationToken.None);
+        Func<Task> act = () => behavior.Handle(request, context, nextStep, CancellationToken.None).AsTask();
 
         // Assert
-        await act.Should().NotThrowAsync("behavior should handle null Activity.Current gracefully");
+        await Should.NotThrowAsync(act, "behavior should handle null Activity.Current gracefully");
     }
 
     [Fact]
@@ -148,8 +148,8 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue("nextStep should be called even when enriching");
-        activity!.Tags.Should().Contain(tag => tag.Key == "messaging.system" && tag.Value == "encina.outbox",
+        nextStepCalled.ShouldBeTrue("nextStep should be called even when enriching");
+        activity!.Tags.ShouldContain(tag => tag.Key == "messaging.system" && tag.Value == "encina.outbox",
             "enricher should add messaging.system tag");
     }
 
@@ -178,7 +178,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        activity!.Tags.Should().Contain(tag => tag.Key == "messaging.system" && tag.Value == "encina.inbox",
+        activity!.Tags.ShouldContain(tag => tag.Key == "messaging.system" && tag.Value == "encina.inbox",
             "enricher should add messaging.system tag");
     }
 
@@ -207,7 +207,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        activity!.Tags.Should().Contain(tag => tag.Key == "saga.type" && tag.Value == "TestSaga",
+        activity!.Tags.ShouldContain(tag => tag.Key == "saga.type" && tag.Value == "TestSaga",
             "enricher should add saga.type tag");
     }
 
@@ -237,7 +237,7 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        activity!.Tags.Should().Contain(tag => tag.Key == "messaging.system" && tag.Value == "encina.scheduling",
+        activity!.Tags.ShouldContain(tag => tag.Key == "messaging.system" && tag.Value == "encina.scheduling",
             "enricher should add messaging.system tag");
     }
 
@@ -272,9 +272,9 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        activity!.Tags.Should().Contain(tag => tag.Key == "messaging.system" && tag.Value == "encina.outbox",
+        activity!.Tags.ShouldContain(tag => tag.Key == "messaging.system" && tag.Value == "encina.outbox",
             "enricher should add messaging.system tag for outbox");
-        activity.Tags.Should().Contain(tag => tag.Key.StartsWith("saga", StringComparison.Ordinal),
+        activity.Tags.ShouldContain(tag => tag.Key.StartsWith("saga", StringComparison.Ordinal),
             "enricher should add saga.* tags");
     }
 
@@ -300,8 +300,8 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         await behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue("nextStep should always be called");
-        activity!.Tags.Should().NotContain(tag => tag.Key == "Encina.messaging_enabled",
+        nextStepCalled.ShouldBeTrue("nextStep should always be called");
+        activity!.Tags.ShouldNotContain(tag => tag.Key == "Encina.messaging_enabled",
             "should not add messaging_enabled tag when no messaging context found");
     }
 
@@ -322,6 +322,6 @@ public sealed class MessagingEnricherBehaviorContractTests : IDisposable
         var act = async () => await behavior.Handle(request, context, nextStep, cts.Token);
 
         // Assert
-        await act.Should().ThrowAsync<OperationCanceledException>("behavior should propagate cancellation");
+        await Should.ThrowAsync<OperationCanceledException>(async () => await act());
     }
 }

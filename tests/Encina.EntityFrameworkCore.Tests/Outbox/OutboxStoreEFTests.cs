@@ -1,10 +1,15 @@
-﻿using Encina.EntityFrameworkCore.Outbox;
-using FluentAssertions;
+using Encina.EntityFrameworkCore.Outbox;
+using Shouldly;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.Tests.Outbox;
 
+/// <summary>
+/// Integration tests for <see cref="OutboxStoreEF"/> using EF Core InMemoryDatabase.
+/// These tests verify store behavior against a real (in-memory) database.
+/// </summary>
+[Trait("Category", "Integration")]
 public class OutboxStoreEFTests : IDisposable
 {
     private readonly TestDbContext _dbContext;
@@ -39,8 +44,8 @@ public class OutboxStoreEFTests : IDisposable
 
         // Assert
         var stored = await _dbContext.OutboxMessages.FindAsync(message.Id);
-        stored.Should().NotBeNull();
-        stored!.NotificationType.Should().Be("TestNotification");
+        stored.ShouldNotBeNull();
+        stored!.NotificationType.ShouldBe("TestNotification");
     }
 
     [Fact]
@@ -82,10 +87,10 @@ public class OutboxStoreEFTests : IDisposable
         var messages = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Should().HaveCount(2);
-        messages.Should().Contain(m => m.Id == pending1.Id);
-        messages.Should().Contain(m => m.Id == pending2.Id);
-        messages.Should().NotContain(m => m.Id == processed.Id);
+        messages.Count.ShouldBe(2);
+        messages.ShouldContain(m => m.Id == pending1.Id);
+        messages.ShouldContain(m => m.Id == pending2.Id);
+        messages.ShouldNotContain(m => m.Id == processed.Id);
     }
 
     [Fact]
@@ -109,7 +114,7 @@ public class OutboxStoreEFTests : IDisposable
         var messages = await _store.GetPendingMessagesAsync(batchSize: 5, maxRetries: 3);
 
         // Assert
-        messages.Should().HaveCount(5);
+        messages.Count.ShouldBe(5);
     }
 
     [Fact]
@@ -132,7 +137,7 @@ public class OutboxStoreEFTests : IDisposable
         var messages = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Should().BeEmpty();
+        messages.ShouldBeEmpty();
     }
 
     [Fact]
@@ -157,8 +162,9 @@ public class OutboxStoreEFTests : IDisposable
 
         // Assert
         var updated = await _dbContext.OutboxMessages.FindAsync(message.Id);
-        updated!.ProcessedAtUtc.Should().NotBeNull();
-        updated.ErrorMessage.Should().BeNull();
+        updated.ShouldNotBeNull();
+        updated.ProcessedAtUtc.ShouldNotBeNull();
+        updated.ErrorMessage.ShouldBeNull();
     }
 
     [Fact]
@@ -185,9 +191,10 @@ public class OutboxStoreEFTests : IDisposable
 
         // Assert
         var updated = await _dbContext.OutboxMessages.FindAsync(message.Id);
-        updated!.ErrorMessage.Should().Be("Test error");
-        updated.RetryCount.Should().Be(1);
-        updated.NextRetryAtUtc.Should().BeCloseTo(nextRetry, TimeSpan.FromSeconds(1));
+        updated.ShouldNotBeNull();
+        updated.ErrorMessage.ShouldBe("Test error");
+        updated.RetryCount.ShouldBe(1);
+        updated.NextRetryAtUtc.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
     [Fact]
@@ -219,8 +226,8 @@ public class OutboxStoreEFTests : IDisposable
         var messages = (await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3)).ToList();
 
         // Assert
-        messages[0].Id.Should().Be(older.Id);
-        messages[1].Id.Should().Be(newer.Id);
+        messages[0].Id.ShouldBe(older.Id);
+        messages[1].Id.ShouldBe(newer.Id);
     }
 
     public void Dispose()

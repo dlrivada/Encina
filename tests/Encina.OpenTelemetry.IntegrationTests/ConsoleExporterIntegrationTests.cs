@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Resources;
@@ -42,12 +42,12 @@ public class ConsoleExporterIntegrationTests
         _ = result.Match(
             Right: response =>
             {
-                response.Result.Should().Be(84);
+                response.Result.ShouldBe(84);
                 return true;
             },
             Left: error =>
             {
-                Assert.Fail($"Expected Right, got Left: {error.Message}");
+                error.Message.ShouldBeNull($"Expected Right, got Left: {error.Message}");
                 return false;
             }
         );

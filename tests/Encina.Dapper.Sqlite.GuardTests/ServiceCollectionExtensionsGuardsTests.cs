@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Encina.Messaging;
 
 namespace Encina.Dapper.Sqlite.GuardTests;
@@ -20,7 +20,7 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaDapper(configure);
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(services));
     }
 
     /// <summary>
@@ -35,7 +35,7 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaDapper(configure);
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(configure));
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaDapper(connectionFactory, configure);
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(services));
     }
 
     /// <summary>
@@ -67,7 +67,7 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaDapper(connectionFactory, configure);
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(connectionFactory));
     }
 
     /// <summary>
@@ -83,7 +83,7 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaDapper(connectionFactory, configure);
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(configure));
     }
 
     /// <summary>
@@ -99,7 +99,7 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaDapper(connectionString, configure);
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(services));
     }
 
     /// <summary>
@@ -115,7 +115,7 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaDapper(connectionString, configure);
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(connectionString));
     }
 
     /// <summary>
@@ -131,6 +131,6 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaDapper(connectionString, configure);
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(configure));
     }
 }

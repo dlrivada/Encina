@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using Shouldly;
 
 namespace Encina.Tests.Guards;
 
@@ -20,7 +20,7 @@ public sealed class StreamRequestGuardsTests
         var result = EncinaRequestGuards.TryValidateStreamRequest<int>(request, out var error);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
         error.ShouldBeBottom(); // Default Either is neither Left nor Right
     }
 
@@ -34,16 +34,16 @@ public sealed class StreamRequestGuardsTests
         var result = EncinaRequestGuards.TryValidateStreamRequest<int>(request, out var error);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
         error.ShouldBeError();
 
         var EncinaError = error.Match(
             Left: e => e,
             Right: _ => throw new InvalidOperationException("Expected Left but got Right"));
 
-        EncinaError.GetEncinaCode().Should().Be(EncinaErrorCodes.RequestNull);
-        EncinaError.Message.Should().Contain("stream request");
-        EncinaError.Message.Should().Contain("cannot be null");
+        EncinaError.GetEncinaCode().ShouldBe(EncinaErrorCodes.RequestNull);
+        EncinaError.Message.ShouldContain("stream request");
+        EncinaError.Message.ShouldContain("cannot be null");
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class StreamRequestGuardsTests
 
         // Assert - request is valid even though TItem type doesn't match
         // (type checking is done elsewhere in the pipeline)
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
         error.ShouldBeBottom(); // Default Either is neither Left nor Right
     }
 
@@ -73,8 +73,8 @@ public sealed class StreamRequestGuardsTests
         var result2 = EncinaRequestGuards.TryValidateStreamRequest<string>(request2, out var error2);
 
         // Assert
-        result1.Should().BeTrue();
-        result2.Should().BeFalse();
+        result1.ShouldBeTrue();
+        result2.ShouldBeFalse();
 
         error2.ShouldBeError();
     }
@@ -89,14 +89,14 @@ public sealed class StreamRequestGuardsTests
         var result = EncinaRequestGuards.TryValidateStreamRequest<int>(request, out var error);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
 
         var EncinaError = error.Match(
             Left: e => e,
             Right: _ => throw new InvalidOperationException("Expected Left"));
 
-        EncinaError.Message.Should().Be("The stream request cannot be null.");
-        EncinaError.GetEncinaCode().Should().Be(EncinaErrorCodes.RequestNull);
+        EncinaError.Message.ShouldBe("The stream request cannot be null.");
+        EncinaError.GetEncinaCode().ShouldBe(EncinaErrorCodes.RequestNull);
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public sealed class StreamRequestGuardsTests
         var result = EncinaRequestGuards.TryValidateStreamRequest<int>(complexRequest, out var error);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
         error.ShouldBeBottom(); // Default Either is neither Left nor Right
     }
 

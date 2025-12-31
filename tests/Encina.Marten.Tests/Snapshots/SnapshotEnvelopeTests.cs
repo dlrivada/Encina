@@ -18,11 +18,11 @@ public sealed class SnapshotEnvelopeTests
         var envelope = SnapshotEnvelope.Create(snapshot);
 
         // Assert
-        envelope.AggregateId.Should().Be(aggregateId);
-        envelope.Version.Should().Be(10);
-        envelope.State.Should().Be(aggregate);
-        envelope.CreatedAtUtc.Should().Be(createdAt);
-        envelope.AggregateType.Should().Contain("TestSnapshotableAggregate");
+        envelope.AggregateId.ShouldBe(aggregateId);
+        envelope.Version.ShouldBe(10);
+        envelope.State.ShouldBe(aggregate);
+        envelope.CreatedAtUtc.ShouldBe(createdAt);
+        envelope.AggregateType.ShouldContain("TestSnapshotableAggregate");
     }
 
     [Fact]
@@ -38,9 +38,9 @@ public sealed class SnapshotEnvelopeTests
         var envelope = SnapshotEnvelope.Create(snapshot);
 
         // Assert
-        envelope.Id.Should().Contain("TestSnapshotableAggregate");
-        envelope.Id.Should().Contain(aggregateId.ToString());
-        envelope.Id.Should().Contain("5");
+        envelope.Id.ShouldContain("TestSnapshotableAggregate");
+        envelope.Id.ShouldContain(aggregateId.ToString());
+        envelope.Id.ShouldContain("5");
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class SnapshotEnvelopeTests
         var envelope = SnapshotEnvelope.Create(snapshot);
 
         // Assert
-        envelope.Id.Should().Be("TestSnapshotableAggregate:12345678-1234-1234-1234-123456789012:42");
+        envelope.Id.ShouldBe("TestSnapshotableAggregate:12345678-1234-1234-1234-123456789012:42");
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class SnapshotEnvelopeTests
         var act = () => SnapshotEnvelope.Create<TestSnapshotableAggregate>(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -90,10 +90,10 @@ public sealed class SnapshotEnvelopeTests
         var snapshot = envelope.ToSnapshot();
 
         // Assert
-        snapshot.AggregateId.Should().Be(aggregateId);
-        snapshot.Version.Should().Be(10);
-        snapshot.State.Should().Be(aggregate);
-        snapshot.CreatedAtUtc.Should().Be(createdAt);
+        snapshot.AggregateId.ShouldBe(aggregateId);
+        snapshot.Version.ShouldBe(10);
+        snapshot.State.ShouldBe(aggregate);
+        snapshot.CreatedAtUtc.ShouldBe(createdAt);
     }
 
     [Fact]
@@ -114,8 +114,8 @@ public sealed class SnapshotEnvelopeTests
         var act = () => envelope.ToSnapshot();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*State is null*");
+        var ex = Should.Throw<InvalidOperationException>(act);
+        ex.Message.ShouldMatch("*State is null*");
     }
 
     [Fact]
@@ -134,11 +134,11 @@ public sealed class SnapshotEnvelopeTests
         var restoredSnapshot = envelope.ToSnapshot();
 
         // Assert
-        restoredSnapshot.AggregateId.Should().Be(originalSnapshot.AggregateId);
-        restoredSnapshot.Version.Should().Be(originalSnapshot.Version);
-        restoredSnapshot.CreatedAtUtc.Should().Be(originalSnapshot.CreatedAtUtc);
-        restoredSnapshot.State.Name.Should().Be("Test");
-        restoredSnapshot.State.Total.Should().Be(100m);
+        restoredSnapshot.AggregateId.ShouldBe(originalSnapshot.AggregateId);
+        restoredSnapshot.Version.ShouldBe(originalSnapshot.Version);
+        restoredSnapshot.CreatedAtUtc.ShouldBe(originalSnapshot.CreatedAtUtc);
+        restoredSnapshot.State.Name.ShouldBe("Test");
+        restoredSnapshot.State.Total.ShouldBe(100m);
     }
 
     [Fact]
@@ -148,11 +148,11 @@ public sealed class SnapshotEnvelopeTests
         var envelope = new SnapshotEnvelope<TestSnapshotableAggregate>();
 
         // Assert
-        envelope.Id.Should().BeEmpty();
-        envelope.AggregateId.Should().Be(Guid.Empty);
-        envelope.Version.Should().Be(0);
-        envelope.State.Should().BeNull();
-        envelope.CreatedAtUtc.Should().Be(default);
-        envelope.AggregateType.Should().BeEmpty();
+        envelope.Id.ShouldBeEmpty();
+        envelope.AggregateId.ShouldBe(Guid.Empty);
+        envelope.Version.ShouldBe(0);
+        envelope.State.ShouldBeNull();
+        envelope.CreatedAtUtc.ShouldBe(default);
+        envelope.AggregateType.ShouldBeEmpty();
     }
 }

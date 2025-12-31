@@ -1,4 +1,4 @@
-﻿namespace Encina.Caching.GuardTests;
+namespace Encina.Caching.GuardTests;
 
 /// <summary>
 /// Guard tests for <see cref="MemoryDistributedLockProvider"/> to verify null parameter handling.
@@ -13,7 +13,8 @@ public class MemoryDistributedLockProviderGuardTests
     {
         // Act & Assert
         var act = () => new MemoryDistributedLockProvider(null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("logger");
     }
 
     /// <summary>
@@ -27,11 +28,12 @@ public class MemoryDistributedLockProviderGuardTests
         string resource = null!;
 
         // Act & Assert
-        var act = async () => await provider.AcquireAsync(
+        Func<Task> act = () => provider.AcquireAsync(
             resource,
             TimeSpan.FromMinutes(5),
             CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("resource");
     }
 
     /// <summary>
@@ -45,13 +47,14 @@ public class MemoryDistributedLockProviderGuardTests
         string resource = null!;
 
         // Act & Assert
-        var act = async () => await provider.TryAcquireAsync(
+        Func<Task> act = () => provider.TryAcquireAsync(
             resource,
             TimeSpan.FromMinutes(5),
             TimeSpan.FromSeconds(30),
             TimeSpan.FromMilliseconds(100),
             CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("resource");
     }
 
     /// <summary>
@@ -65,8 +68,9 @@ public class MemoryDistributedLockProviderGuardTests
         string resource = null!;
 
         // Act & Assert
-        var act = async () => await provider.IsLockedAsync(resource, CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("resource");
+        Func<Task> act = () => provider.IsLockedAsync(resource, CancellationToken.None);
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("resource");
     }
 
     /// <summary>
@@ -80,11 +84,12 @@ public class MemoryDistributedLockProviderGuardTests
         string resource = null!;
 
         // Act & Assert
-        var act = async () => await provider.ExtendAsync(
+        Func<Task> act = () => provider.ExtendAsync(
             resource,
             TimeSpan.FromMinutes(5),
             CancellationToken.None);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("resource");
+        var ex = await Should.ThrowAsync<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("resource");
     }
 
     private static MemoryDistributedLockProvider CreateProvider()

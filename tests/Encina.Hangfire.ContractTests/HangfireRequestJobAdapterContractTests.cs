@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
 
 namespace Encina.Hangfire.ContractTests;
@@ -29,8 +29,8 @@ public sealed class HangfireRequestJobAdapterContractTests
         await Encina.Received(1).Send(request, Arg.Any<CancellationToken>());
 
         result.Match(
-            Left: _ => Assert.Fail("Expected Right but got Left"),
-            Right: actual => actual.Should().Be(expectedResponse));
+            Left: _ => false.ShouldBeTrue("Expected Right but got Left"),
+            Right: actual => actual.ShouldBe(expectedResponse));
     }
 
     [Fact]
@@ -51,8 +51,8 @@ public sealed class HangfireRequestJobAdapterContractTests
 
         // Assert
         result.Match(
-            Left: actual => actual.Should().Be(expectedError),
-            Right: _ => Assert.Fail("Expected Left but got Right"));
+            Left: actual => actual.ShouldBe(expectedError),
+            Right: _ => false.ShouldBeTrue("Expected Left but got Right"));
     }
 }
 

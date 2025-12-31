@@ -1,4 +1,4 @@
-﻿namespace Encina.Caching.Memory.Tests;
+namespace Encina.Caching.Memory.Tests;
 
 /// <summary>
 /// Unit tests for <see cref="MemoryCacheProvider"/>.
@@ -105,7 +105,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
         var result = await _sut.GetAsync<string>(key, CancellationToken.None);
 
         // Assert
-        result.Should().Be(expectedValue);
+        result.ShouldBe(expectedValue);
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
         var result = await _sut.GetAsync<string>("non-existing", CancellationToken.None);
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
         var result = await _sut.GetAsync<TestData>(key, CancellationToken.None);
 
         // Assert
-        result.Should().BeEquivalentTo(expectedValue);
+        result.ShouldBe(expectedValue);
     }
 
     #endregion
@@ -169,7 +169,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
 
         // Assert
         var result = await _sut.GetAsync<string>(key, CancellationToken.None);
-        result.Should().Be(value);
+        result.ShouldBe(value);
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
 
         // Assert
         var exists = await _sut.ExistsAsync(key, CancellationToken.None);
-        exists.Should().BeTrue();
+        exists.ShouldBeTrue();
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
 
         // Assert
         var result = await _sut.GetAsync<string>(key, CancellationToken.None);
-        result.Should().Be("updated");
+        result.ShouldBe("updated");
     }
 
     #endregion
@@ -238,15 +238,14 @@ public sealed class MemoryCacheProviderTests : IDisposable
 
         // Assert
         var exists = await _sut.ExistsAsync(key, CancellationToken.None);
-        exists.Should().BeFalse();
+        exists.ShouldBeFalse();
     }
 
     [Fact]
     public async Task RemoveAsync_WithNonExistingKey_DoesNotThrow()
     {
-        // Act & Assert
-        await _sut.Invoking(s => s.RemoveAsync("non-existing", CancellationToken.None))
-            .Should().NotThrowAsync();
+        // Act & Assert - should complete without exception
+        await _sut.RemoveAsync("non-existing", CancellationToken.None);
     }
 
     #endregion
@@ -286,10 +285,10 @@ public sealed class MemoryCacheProviderTests : IDisposable
         await _sut.RemoveByPatternAsync("user:1:*", CancellationToken.None);
 
         // Assert
-        (await _sut.ExistsAsync("user:1:name", CancellationToken.None)).Should().BeFalse();
-        (await _sut.ExistsAsync("user:1:email", CancellationToken.None)).Should().BeFalse();
-        (await _sut.ExistsAsync("user:2:name", CancellationToken.None)).Should().BeTrue();
-        (await _sut.ExistsAsync("product:1:name", CancellationToken.None)).Should().BeTrue();
+        (await _sut.ExistsAsync("user:1:name", CancellationToken.None)).ShouldBeFalse();
+        (await _sut.ExistsAsync("user:1:email", CancellationToken.None)).ShouldBeFalse();
+        (await _sut.ExistsAsync("user:2:name", CancellationToken.None)).ShouldBeTrue();
+        (await _sut.ExistsAsync("product:1:name", CancellationToken.None)).ShouldBeTrue();
     }
 
     [Fact]
@@ -304,9 +303,9 @@ public sealed class MemoryCacheProviderTests : IDisposable
         await _sut.RemoveByPatternAsync("cache:?", CancellationToken.None);
 
         // Assert
-        (await _sut.ExistsAsync("cache:a", CancellationToken.None)).Should().BeFalse();
-        (await _sut.ExistsAsync("cache:b", CancellationToken.None)).Should().BeFalse();
-        (await _sut.ExistsAsync("cache:ab", CancellationToken.None)).Should().BeTrue();
+        (await _sut.ExistsAsync("cache:a", CancellationToken.None)).ShouldBeFalse();
+        (await _sut.ExistsAsync("cache:b", CancellationToken.None)).ShouldBeFalse();
+        (await _sut.ExistsAsync("cache:ab", CancellationToken.None)).ShouldBeTrue();
     }
 
     #endregion
@@ -344,7 +343,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
         var exists = await _sut.ExistsAsync(key, CancellationToken.None);
 
         // Assert
-        exists.Should().BeTrue();
+        exists.ShouldBeTrue();
     }
 
     [Fact]
@@ -354,7 +353,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
         var exists = await _sut.ExistsAsync("non-existing", CancellationToken.None);
 
         // Assert
-        exists.Should().BeFalse();
+        exists.ShouldBeFalse();
     }
 
     #endregion
@@ -410,8 +409,8 @@ public sealed class MemoryCacheProviderTests : IDisposable
             CancellationToken.None);
 
         // Assert
-        result.Should().Be(existingValue);
-        factoryCalled.Should().BeFalse();
+        result.ShouldBe(existingValue);
+        factoryCalled.ShouldBeFalse();
     }
 
     [Fact]
@@ -434,12 +433,12 @@ public sealed class MemoryCacheProviderTests : IDisposable
             CancellationToken.None);
 
         // Assert
-        result.Should().Be(newValue);
-        factoryCalled.Should().BeTrue();
+        result.ShouldBe(newValue);
+        factoryCalled.ShouldBeTrue();
 
         // Verify it was stored
         var stored = await _sut.GetAsync<string>(key, CancellationToken.None);
-        stored.Should().Be(newValue);
+        stored.ShouldBe(newValue);
     }
 
     #endregion
@@ -478,7 +477,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
 
         // Assert
         var result = await _sut.GetAsync<string>(key, CancellationToken.None);
-        result.Should().Be(value);
+        result.ShouldBe(value);
     }
 
     [Fact]
@@ -493,7 +492,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
 
         // Assert
         var exists = await _sut.ExistsAsync(key, CancellationToken.None);
-        exists.Should().BeTrue();
+        exists.ShouldBeTrue();
     }
 
     #endregion
@@ -531,7 +530,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
         var result = await _sut.RefreshAsync(key, CancellationToken.None);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -541,7 +540,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
         var result = await _sut.RefreshAsync("non-existing", CancellationToken.None);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     #endregion

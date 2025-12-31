@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 
 namespace Encina.Polly.Tests;
 
@@ -20,17 +21,17 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var behaviorDescriptors = services.Where(sd => sd.ServiceType == typeof(IPipelineBehavior<,>)).ToList();
 
-        behaviorDescriptors.Should().HaveCount(4, "Retry, CircuitBreaker, RateLimiting, and Bulkhead behaviors should be registered");
+        behaviorDescriptors.Count.ShouldBe(4, "Retry, CircuitBreaker, RateLimiting, and Bulkhead behaviors should be registered");
 
         var hasRetryBehavior = behaviorDescriptors.Any(d => d.ImplementationType?.Name.Contains("RetryPipelineBehavior") == true);
         var hasCircuitBreakerBehavior = behaviorDescriptors.Any(d => d.ImplementationType?.Name.Contains("CircuitBreakerPipelineBehavior") == true);
         var hasRateLimitingBehavior = behaviorDescriptors.Any(d => d.ImplementationType?.Name.Contains("RateLimitingPipelineBehavior") == true);
         var hasBulkheadBehavior = behaviorDescriptors.Any(d => d.ImplementationType?.Name.Contains("BulkheadPipelineBehavior") == true);
 
-        hasRetryBehavior.Should().BeTrue("RetryPipelineBehavior should be registered");
-        hasCircuitBreakerBehavior.Should().BeTrue("CircuitBreakerPipelineBehavior should be registered");
-        hasRateLimitingBehavior.Should().BeTrue("RateLimitingPipelineBehavior should be registered");
-        hasBulkheadBehavior.Should().BeTrue("BulkheadPipelineBehavior should be registered");
+        hasRetryBehavior.ShouldBeTrue("RetryPipelineBehavior should be registered");
+        hasCircuitBreakerBehavior.ShouldBeTrue("CircuitBreakerPipelineBehavior should be registered");
+        hasRateLimitingBehavior.ShouldBeTrue("RateLimitingPipelineBehavior should be registered");
+        hasBulkheadBehavior.ShouldBeTrue("BulkheadPipelineBehavior should be registered");
     }
 
     [Fact]
@@ -45,9 +46,9 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var rateLimiterDescriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(IRateLimiter));
 
-        rateLimiterDescriptor.Should().NotBeNull("IRateLimiter should be registered");
-        rateLimiterDescriptor!.Lifetime.Should().Be(ServiceLifetime.Singleton, "IRateLimiter should be singleton for shared state");
-        rateLimiterDescriptor.ImplementationType.Should().Be(typeof(AdaptiveRateLimiter));
+        rateLimiterDescriptor.ShouldNotBeNull("IRateLimiter should be registered");
+        rateLimiterDescriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton, "IRateLimiter should be singleton for shared state");
+        rateLimiterDescriptor.ImplementationType.ShouldBe(typeof(AdaptiveRateLimiter));
     }
 
     [Fact]
@@ -60,7 +61,7 @@ public class ServiceCollectionExtensionsTests
         var result = services.AddEncinaPolly();
 
         // Assert
-        result.Should().BeSameAs(services, "should return same service collection for fluent chaining");
+        result.ShouldBeSameAs(services, "should return same service collection for fluent chaining");
     }
 
     [Fact]
@@ -75,11 +76,8 @@ public class ServiceCollectionExtensionsTests
         // Assert - verify the registered behaviors are Transient
         var behaviorDescriptors = services.Where(sd => sd.ServiceType == typeof(IPipelineBehavior<,>)).ToList();
 
-        behaviorDescriptors.Should().NotBeEmpty();
-        behaviorDescriptors.Should().AllSatisfy(descriptor =>
-        {
-            descriptor.Lifetime.Should().Be(ServiceLifetime.Transient, "all behaviors should be transient");
-        });
+        behaviorDescriptors.ShouldNotBeEmpty();
+        behaviorDescriptors.ShouldAllBe(descriptor => descriptor.Lifetime == ServiceLifetime.Transient, "all behaviors should be transient");
     }
 
     [Fact]
@@ -90,7 +88,8 @@ public class ServiceCollectionExtensionsTests
 
         // Act & Assert
         var act = () => services.AddEncinaPolly();
-        act.Should().Throw<ArgumentNullException>().WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -109,13 +108,13 @@ public class ServiceCollectionExtensionsTests
         });
 
         // Assert
-        configureWasCalled.Should().BeTrue("configure action should be invoked");
+        configureWasCalled.ShouldBeTrue("configure action should be invoked");
 
         var hasRetryBehavior = services.Any(sd =>
             sd.ServiceType == typeof(IPipelineBehavior<,>) &&
             sd.ImplementationType?.Name.Contains("RetryPipelineBehavior") == true);
 
-        hasRetryBehavior.Should().BeTrue("behaviors should be registered even with configure action");
+        hasRetryBehavior.ShouldBeTrue("behaviors should be registered even with configure action");
     }
 
     [Fact]
@@ -132,12 +131,12 @@ public class ServiceCollectionExtensionsTests
         });
 
         // Assert
-        var serviceProvider = services.BuildServiceProvider();
+        using var serviceProvider = services.BuildServiceProvider();
         var options = serviceProvider.GetService<EncinaPollyOptions>();
 
-        options.Should().NotBeNull("EncinaPollyOptions should be registered");
-        options!.EnableTelemetry.Should().BeFalse();
-        options.EnableLogging.Should().BeTrue();
+        var nonNullOptions = options.ShouldNotBeNull("EncinaPollyOptions should be registered");
+        nonNullOptions.EnableTelemetry.ShouldBeFalse();
+        nonNullOptions.EnableLogging.ShouldBeTrue();
     }
 
     [Fact]
@@ -148,7 +147,8 @@ public class ServiceCollectionExtensionsTests
 
         // Act & Assert
         var act = () => services.AddEncinaPolly(options => { });
-        act.Should().Throw<ArgumentNullException>().WithParameterName("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -159,7 +159,8 @@ public class ServiceCollectionExtensionsTests
 
         // Act & Assert
         var act = () => services.AddEncinaPolly(null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("configure");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("configure");
     }
 
     [Fact]
@@ -172,7 +173,7 @@ public class ServiceCollectionExtensionsTests
         var result = services.AddEncinaPolly(options => { });
 
         // Assert
-        result.Should().BeSameAs(services, "should return same service collection for fluent chaining");
+        result.ShouldBeSameAs(services, "should return same service collection for fluent chaining");
     }
 
     [Fact]
@@ -182,8 +183,8 @@ public class ServiceCollectionExtensionsTests
         var options = new EncinaPollyOptions();
 
         // Assert
-        options.EnableTelemetry.Should().BeTrue("telemetry should be enabled by default");
-        options.EnableLogging.Should().BeTrue("logging should be enabled by default");
+        options.EnableTelemetry.ShouldBeTrue("telemetry should be enabled by default");
+        options.EnableLogging.ShouldBeTrue("logging should be enabled by default");
     }
 
     [Fact]
@@ -197,8 +198,8 @@ public class ServiceCollectionExtensionsTests
         };
 
         // Assert
-        options.EnableTelemetry.Should().BeFalse();
-        options.EnableLogging.Should().BeFalse();
+        options.EnableTelemetry.ShouldBeFalse();
+        options.EnableLogging.ShouldBeFalse();
     }
 
     [Fact]
@@ -214,6 +215,6 @@ public class ServiceCollectionExtensionsTests
         // Assert - AddTransient allows duplicates (not Try)
         var behaviorDescriptors = services.Where(sd => sd.ServiceType == typeof(IPipelineBehavior<,>)).ToList();
 
-        behaviorDescriptors.Should().HaveCount(8, "all four behaviors should be registered twice (4 + 4)");
+        behaviorDescriptors.Count.ShouldBe(8, "all four behaviors should be registered twice (4 + 4)");
     }
 }

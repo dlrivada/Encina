@@ -14,8 +14,8 @@ public class ServiceCollectionExtensionsTests
         var act = () => services!.AddEncinaDistributedLockRedis("localhost:6379");
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("services");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class ServiceCollectionExtensionsTests
         var act = () => services.AddEncinaDistributedLockRedis(nullConnectionString);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class ServiceCollectionExtensionsTests
         var act = () => services.AddEncinaDistributedLockRedis(string.Empty);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -56,8 +56,8 @@ public class ServiceCollectionExtensionsTests
         var act = () => services.AddEncinaDistributedLockRedis(multiplexer!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("connectionMultiplexer");
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("connectionMultiplexer");
     }
 
     [Fact]
@@ -74,8 +74,8 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var serviceProvider = services.BuildServiceProvider();
         var provider = serviceProvider.GetService<IDistributedLockProvider>();
-        provider.Should().NotBeNull();
-        provider.Should().BeOfType<RedisDistributedLockProvider>();
+        provider.ShouldNotBeNull();
+        provider.ShouldBeOfType<RedisDistributedLockProvider>();
     }
 
     [Fact]
@@ -96,6 +96,6 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var serviceProvider = services.BuildServiceProvider();
         var provider = serviceProvider.GetService<IDistributedLockProvider>();
-        provider.Should().NotBeNull();
+        provider.ShouldNotBeNull();
     }
 }

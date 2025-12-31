@@ -1,4 +1,4 @@
-﻿using Encina.DistributedLock;
+using Encina.DistributedLock;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -40,8 +40,8 @@ public sealed class ServiceCollectionExtensionsTests
 
         // Assert
         var cacheProvider = provider.GetService<ICacheProvider>();
-        cacheProvider.Should().NotBeNull();
-        cacheProvider.Should().BeOfType<MemoryCacheProvider>();
+        cacheProvider.ShouldNotBeNull();
+        cacheProvider.ShouldBeOfType<MemoryCacheProvider>();
     }
 
     [Fact]
@@ -56,8 +56,8 @@ public sealed class ServiceCollectionExtensionsTests
 
         // Assert
         var pubSubProvider = provider.GetService<IPubSubProvider>();
-        pubSubProvider.Should().NotBeNull();
-        pubSubProvider.Should().BeOfType<MemoryPubSubProvider>();
+        pubSubProvider.ShouldNotBeNull();
+        pubSubProvider.ShouldBeOfType<MemoryPubSubProvider>();
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public sealed class ServiceCollectionExtensionsTests
 
         // Assert
         var lockProvider = provider.GetService<IDistributedLockProvider>();
-        lockProvider.Should().NotBeNull();
-        lockProvider.Should().BeOfType<MemoryDistributedLockProvider>();
+        lockProvider.ShouldNotBeNull();
+        lockProvider.ShouldBeOfType<MemoryDistributedLockProvider>();
     }
 
     [Fact]
@@ -92,8 +92,8 @@ public sealed class ServiceCollectionExtensionsTests
 
         // Assert
         var options = provider.GetService<IOptions<MemoryCacheOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.DefaultExpiration.Should().Be(expectedExpiration);
+        options.ShouldNotBeNull();
+        options!.Value.DefaultExpiration.ShouldBe(expectedExpiration);
     }
 
     [Fact]
@@ -108,8 +108,8 @@ public sealed class ServiceCollectionExtensionsTests
 
         // Assert
         var options = provider.GetService<IOptions<MemoryCacheOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.DefaultExpiration.Should().Be(TimeSpan.FromMinutes(5));
+        options.ShouldNotBeNull();
+        options!.Value.DefaultExpiration.ShouldBe(TimeSpan.FromMinutes(5));
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         // Assert
         var cacheProviders = provider.GetServices<ICacheProvider>().ToList();
-        cacheProviders.Should().HaveCount(1);
+        cacheProviders.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public sealed class ServiceCollectionExtensionsTests
         var result = services.AddEncinaMemoryCache();
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         // Assert
         var memoryCache = provider.GetService<IMemoryCache>();
-        memoryCache.Should().NotBeNull();
+        memoryCache.ShouldNotBeNull();
     }
 
     [Fact]
@@ -169,7 +169,7 @@ public sealed class ServiceCollectionExtensionsTests
         // Assert
         var cacheProvider1 = provider.GetRequiredService<ICacheProvider>();
         var cacheProvider2 = provider.GetRequiredService<ICacheProvider>();
-        cacheProvider1.Should().BeSameAs(cacheProvider2);
+        cacheProvider1.ShouldBeSameAs(cacheProvider2);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public sealed class ServiceCollectionExtensionsTests
         // Assert
         var pubSubProvider1 = provider.GetRequiredService<IPubSubProvider>();
         var pubSubProvider2 = provider.GetRequiredService<IPubSubProvider>();
-        pubSubProvider1.Should().BeSameAs(pubSubProvider2);
+        pubSubProvider1.ShouldBeSameAs(pubSubProvider2);
     }
 
     [Fact]
@@ -201,6 +201,6 @@ public sealed class ServiceCollectionExtensionsTests
         // Assert
         var lockProvider1 = provider.GetRequiredService<IDistributedLockProvider>();
         var lockProvider2 = provider.GetRequiredService<IDistributedLockProvider>();
-        lockProvider1.Should().BeSameAs(lockProvider2);
+        lockProvider1.ShouldBeSameAs(lockProvider2);
     }
 }

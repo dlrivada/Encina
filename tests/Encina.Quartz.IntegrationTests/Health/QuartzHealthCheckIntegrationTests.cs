@@ -48,8 +48,8 @@ public sealed class QuartzHealthCheckIntegrationTests : IAsyncLifetime
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("operational");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("operational");
     }
 
     [Fact]
@@ -63,8 +63,8 @@ public sealed class QuartzHealthCheckIntegrationTests : IAsyncLifetime
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        healthCheck.Name.Should().Be("my-custom-quartz");
-        result.Status.Should().Be(HealthStatus.Healthy);
+        healthCheck.Name.ShouldBe("my-custom-quartz");
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [Fact]
@@ -77,11 +77,11 @@ public sealed class QuartzHealthCheckIntegrationTests : IAsyncLifetime
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Data.Should().NotBeNull();
-        result.Data.Should().ContainKey("scheduler_name");
-        result.Data.Should().ContainKey("is_started");
-        result.Data.Should().ContainKey("is_shutdown");
-        result.Data.Should().ContainKey("is_standby");
+        result.Data.ShouldNotBeNull();
+        result.Data.ShouldContainKey("scheduler_name");
+        result.Data.ShouldContainKey("is_started");
+        result.Data.ShouldContainKey("is_shutdown");
+        result.Data.ShouldContainKey("is_standby");
     }
 
     [Fact]
@@ -95,11 +95,8 @@ public sealed class QuartzHealthCheckIntegrationTests : IAsyncLifetime
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("standby");
-
-        // Cleanup - restart scheduler for other tests
-        await _scheduler.Start();
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description.ShouldContain("standby");
     }
 
     [Fact]
@@ -109,15 +106,15 @@ public sealed class QuartzHealthCheckIntegrationTests : IAsyncLifetime
         var healthCheck = new QuartzHealthCheck(_serviceProvider!, null);
 
         // Assert
-        healthCheck.Tags.Should().Contain("encina");
-        healthCheck.Tags.Should().Contain("scheduling");
-        healthCheck.Tags.Should().Contain("quartz");
-        healthCheck.Tags.Should().Contain("ready");
+        healthCheck.Tags.ShouldContain("encina");
+        healthCheck.Tags.ShouldContain("scheduling");
+        healthCheck.Tags.ShouldContain("quartz");
+        healthCheck.Tags.ShouldContain("ready");
     }
 
     [Fact]
     public void DefaultName_ShouldBeEncinaQuartz()
     {
-        QuartzHealthCheck.DefaultName.Should().Be("encina-quartz");
+        QuartzHealthCheck.DefaultName.ShouldBe("encina-quartz");
     }
 }

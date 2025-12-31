@@ -34,8 +34,8 @@ public class RedisHealthCheckIntegrationTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("reachable");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("reachable");
     }
 
     [SkippableFact]
@@ -52,8 +52,8 @@ public class RedisHealthCheckIntegrationTests
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
-        healthCheck.Name.Should().Be("my-custom-redis");
-        result.Status.Should().Be(HealthStatus.Healthy);
+        healthCheck.Name.ShouldBe("my-custom-redis");
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [SkippableFact]
@@ -68,7 +68,7 @@ public class RedisHealthCheckIntegrationTests
         var healthCheck = new RedisHealthCheck(serviceProvider, options);
 
         // Assert
-        healthCheck.Tags.Should().BeEquivalentTo(customTags);
+        healthCheck.Tags.ShouldBe(customTags);
     }
 
     private ServiceProvider CreateServiceProvider()
