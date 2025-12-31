@@ -36,7 +36,7 @@
 
 ### Added
 
-- **Encina.Testing.Testcontainers Package** - Docker container fixtures for integration tests (Issue #162):
+- **Encina.Testing.Testcontainers Package** - Docker container fixtures for integration tests (Issues #162, #163):
   - `SqlServerContainerFixture` - SQL Server container (mcr.microsoft.com/mssql/server:2022-latest)
   - `PostgreSqlContainerFixture` - PostgreSQL container (postgres:17-alpine)
   - `MySqlContainerFixture` - MySQL container (mysql:9.1)
@@ -49,7 +49,15 @@
   - All fixtures implement `IAsyncLifetime` for xUnit integration
   - Properties: `Container`, `ConnectionString`, `IsRunning`
   - Automatic cleanup with `WithCleanUp(true)`
-  - Integration with `Encina.Testing.Respawn` for database reset between tests
+  - **Respawn Integration** (Issue #163):
+    - `DatabaseIntegrationTestBase<TFixture>` - Abstract base class combining Testcontainers with Respawn
+    - `SqlServerIntegrationTestBase` - Pre-configured base class for SQL Server integration tests
+    - `PostgreSqlIntegrationTestBase` - Pre-configured base class for PostgreSQL integration tests
+    - `MySqlIntegrationTestBase` - Pre-configured base class for MySQL integration tests
+    - Automatic database reset before each test via Respawn
+    - Customizable `RespawnOptions` through property override
+    - `ResetDatabaseAsync()` method for mid-test cleanup
+    - Default exclusion of Encina messaging tables from cleanup
 
 - **Encina.Testing.Architecture Package** - Architecture testing rules using ArchUnitNET (Issue #432):
   - `EncinaArchitectureRules` - Static class with pre-built architecture rules:
@@ -3196,9 +3204,10 @@
 
         public OrderSummary Create(OrderCreated e, ProjectionContext ctx)
         {
-            // StreamId is a Guid struct - guard against empty if required
+            // StreamId is a non-nullable Guid; validate against Guid.Empty only if your domain requires
+            // Guid.Empty typically indicates "no meaningful identifier" - domain logic decides if this is valid
             if (ctx.StreamId == Guid.Empty)
-                throw new ArgumentException("StreamId cannot be empty", nameof(ctx));
+                throw new ArgumentException("StreamId must represent a valid aggregate identifier", nameof(ctx));
 
             // Validate required event properties
             ArgumentNullException.ThrowIfNull(e.CustomerName, nameof(e.CustomerName));

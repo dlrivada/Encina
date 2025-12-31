@@ -102,7 +102,77 @@ public class CustomerTests
 
 ## Integration with Encina.Testing.Respawn
 
-Use with `Encina.Testing.Respawn` for database cleanup between tests:
+This package includes built-in integration with `Encina.Testing.Respawn` for automatic database cleanup between tests.
+
+### Using DatabaseIntegrationTestBase (Recommended)
+
+The simplest way to combine Testcontainers with Respawn is to inherit from one of the provided base classes:
+
+```csharp
+public class OrderRepositoryTests : SqlServerIntegrationTestBase
+{
+    public OrderRepositoryTests(SqlServerContainerFixture fixture) : base(fixture) { }
+
+    [Fact]
+    public async Task CreateOrder_ShouldPersist()
+    {
+        // Database is automatically reset before each test
+        await using var connection = new SqlConnection(ConnectionString);
+        await connection.OpenAsync();
+
+        // Insert test data
+        await connection.ExecuteAsync("INSERT INTO Orders (Id, Name) VALUES (1, 'Test')");
+
+        // Verify
+        var count = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Orders");
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public async Task GetOrder_ShouldReturnNull_WhenNotExists()
+    {
+        // This test also starts with a clean database
+        // Previous test's data is automatically cleaned up
+        await using var connection = new SqlConnection(ConnectionString);
+        await connection.OpenAsync();
+
+        var result = await connection.QuerySingleOrDefaultAsync<dynamic>(
+            "SELECT * FROM Orders WHERE Id = 1");
+        Assert.Null(result);
+    }
+}
+```
+
+### Available Base Classes
+
+| Base Class | Database |
+|------------|----------|
+| `SqlServerIntegrationTestBase` | SQL Server |
+| `PostgreSqlIntegrationTestBase` | PostgreSQL |
+| `MySqlIntegrationTestBase` | MySQL |
+| `DatabaseIntegrationTestBase<TFixture>` | Generic (any supported database) |
+
+### Customizing Respawn Options
+
+Override the `RespawnOptions` property to customize cleanup behavior:
+
+```csharp
+public class OrderTests : SqlServerIntegrationTestBase
+{
+    public OrderTests(SqlServerContainerFixture fixture) : base(fixture) { }
+
+    protected override RespawnOptions RespawnOptions => new()
+    {
+        TablesToIgnore = ["__EFMigrationsHistory", "SeedData"],
+        ResetEncinaMessagingTables = true, // Include Encina tables in cleanup
+        SchemasToExclude = ["sys", "INFORMATION_SCHEMA"]
+    };
+}
+```
+
+### Manual Respawn Integration
+
+For more control, you can manually integrate Respawn with Testcontainers:
 
 ```csharp
 public class OrderTests : IClassFixture<SqlServerContainerFixture>, IAsyncLifetime

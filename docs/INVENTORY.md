@@ -41,7 +41,7 @@
 | **Pipeline Behaviors** | ~20+ |
 | **Phase 2 Milestones** | 10 milestones (v0.10.0 → v0.19.0) |
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
-| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (9/25 completado) | 
+| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (10/25 completado) | 
 | **v0.12.0 - Database & Repository** | 22 issues |
 | **v0.13.0 - Security & Compliance** | 25 issues |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
@@ -2671,7 +2671,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 |-------|--------|-------------|-----------|-------------|
 | ~~#161~~ | ~~Test Data Generation~~ | ✅ Implementado como extensiones en Encina.Testing.Bogus | - | Bogus |
 | ~~#162~~ | ~~Testcontainers Integration~~ | ✅ Implementado como Encina.Testing.Testcontainers | - | Testcontainers .NET |
-| ~~#163~~ | ~~Database Reset (Respawn)~~ | ✅ Implementado como Encina.Testing.Respawn (#427) | - | - |
+| ~~#163~~ | ~~Database Reset (Respawn)~~ | ✅ Implementado como integración Testcontainers+Respawn | - | - |
 | ~~#164~~ | ~~HTTP Mocking (WireMock)~~ | ✅ Implementado como Encina.Testing.WireMock (#428) | - | - |
 | ~~#165~~ | ~~Snapshot Testing (Verify)~~ | ✅ Implementado como Encina.Testing.Verify (#430) | - | - |
 | **#166** | Architecture Testing | Validación de reglas arquitectónicas | Baja | ArchUnitNET |
@@ -2689,7 +2689,17 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 - Implementado como `Encina.Testing.Testcontainers` package
 - Fixtures: `SqlServerContainerFixture`, `PostgreSqlContainerFixture`, `MySqlContainerFixture`, `MongoDbContainerFixture`, `RedisContainerFixture`
 - Factory class: `EncinaContainers` con métodos de configuración
-- 33 unit tests
+- 51 unit tests
+
+**~~#163 - Database Reset (Respawn) Integration~~** ✅ Completado:
+- Integración de `Encina.Testing.Testcontainers` con `Encina.Testing.Respawn`
+- `DatabaseIntegrationTestBase<TFixture>` - Clase base abstracta combinando containers con Respawn
+- `SqlServerIntegrationTestBase` - Base pre-configurada para SQL Server
+- `PostgreSqlIntegrationTestBase` - Base pre-configurada para PostgreSQL
+- `MySqlIntegrationTestBase` - Base pre-configurada para MySQL
+- Reset automático de base de datos antes de cada test
+- Opciones personalizables vía `RespawnOptions` override
+- Exclusión por defecto de tablas de mensajería Encina
 
 **#167 - Handler Registration Tests** (Alta Prioridad):
 - `EncinaRegistrationAssertions.AllRequestsShouldHaveHandlers(assembly)`
@@ -4076,7 +4086,7 @@ Los patrones de resiliencia fueron identificados tras investigación exhaustiva 
 |-------|--------|-------------|-----------|--------|
 | ~~#161~~ | ~~Test Data Generation (Bogus/AutoBogus)~~ | ✅ Completo | - | Implementado en Encina.Testing.Bogus |
 | ~~#162~~ | ~~Testcontainers Integration~~ | ✅ Completo | - | Implementado como Encina.Testing.Testcontainers |
-| **#163** | Database Reset (Respawn) | Baja | Media | `area-testing`, `testing-integration`, `area-database` |
+| ~~#163~~ | ~~Database Reset (Respawn)~~ | ✅ Completo | - | Integración Testcontainers+Respawn |
 | **#164** | HTTP Mocking (WireMock.NET) | Media | Media | `area-testing`, `testing-mocking`, `new-package` |
 | **#165** | Snapshot Testing (Verify) | Baja | Media | `area-testing`, `testing-snapshot` |
 | **#166** | Architecture Testing (ArchUnitNET) | Baja | Baja | `area-testing`, `area-architecture-testing`, `new-package` |
