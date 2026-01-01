@@ -5,13 +5,30 @@ namespace Encina.Testing.WireMock.Tests;
 /// </summary>
 public sealed class ReceivedRequestTests
 {
+    private static Dictionary<string, IReadOnlyList<string>> CreateHeaders(params (string Key, string Value)[] headers)
+    {
+        var dict = new Dictionary<string, IReadOnlyList<string>>();
+        foreach (var (key, value) in headers)
+        {
+            if (dict.TryGetValue(key, out var existing))
+            {
+                dict[key] = existing.Concat([value]).ToList();
+            }
+            else
+            {
+                dict[key] = new List<string> { value };
+            }
+        }
+        return dict;
+    }
+
     [Fact]
     public void ReceivedRequest_ShouldStoreAllProperties()
     {
         // Arrange
         var path = "/api/test";
         var method = "GET";
-        var headers = new Dictionary<string, string> { ["Content-Type"] = "application/json" };
+        var headers = CreateHeaders(("Content-Type", "application/json"));
         var body = """{"key": "value"}""";
         var timestamp = DateTime.UtcNow;
 
@@ -21,7 +38,8 @@ public sealed class ReceivedRequestTests
         // Assert
         request.Path.ShouldBe(path);
         request.Method.ShouldBe(method);
-        request.Headers.ShouldBe(headers);
+        request.Headers.ShouldContainKey("Content-Type");
+        request.Headers["Content-Type"].ShouldContain("application/json");
         request.Body.ShouldBe(body);
         request.Timestamp.ShouldBe(timestamp);
     }
@@ -30,7 +48,7 @@ public sealed class ReceivedRequestTests
     public void ReceivedRequest_Equality_ShouldWork()
     {
         // Arrange
-        var headers = new Dictionary<string, string> { ["Accept"] = "application/json" };
+        var headers = CreateHeaders(("Accept", "application/json"));
         var timestamp = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var request1 = new ReceivedRequest("/api/test", "POST", headers, "{}", timestamp);
@@ -45,7 +63,7 @@ public sealed class ReceivedRequestTests
     public void ReceivedRequest_Inequality_ShouldWork()
     {
         // Arrange
-        var headers = new Dictionary<string, string>();
+        var headers = CreateHeaders();
         var timestamp = DateTime.UtcNow;
 
         var request1 = new ReceivedRequest("/api/a", "GET", headers, "", timestamp);
@@ -60,7 +78,7 @@ public sealed class ReceivedRequestTests
     public void ReceivedRequest_Deconstruction_ShouldWork()
     {
         // Arrange
-        var headers = new Dictionary<string, string>();
+        var headers = CreateHeaders();
         var timestamp = DateTime.UtcNow;
         var request = new ReceivedRequest("/api/test", "DELETE", headers, "body", timestamp);
 
@@ -82,7 +100,7 @@ public sealed class ReceivedRequestTests
         var request = new ReceivedRequest(
             "/api/users",
             "GET",
-            new Dictionary<string, string>(),
+            CreateHeaders(),
             "",
             DateTime.UtcNow);
 
@@ -93,5 +111,25 @@ public sealed class ReceivedRequestTests
         str.ShouldContain("ReceivedRequest");
         str.ShouldContain("/api/users");
         str.ShouldContain("GET");
+    }
+
+    [Fact]
+    public void ReceivedRequest_Headers_ShouldSupportMultipleValues()
+    {
+        // Arrange
+        var headers = new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["Accept"] = new List<string> { "application/json", "text/plain" },
+            ["X-Custom"] = new List<string> { "value1", "value2", "value3" }
+        };
+
+        // Act
+        var request = new ReceivedRequest("/api/test", "GET", headers, "", DateTime.UtcNow);
+
+        // Assert
+        request.Headers["Accept"].Count.ShouldBe(2);
+        request.Headers["Accept"].ShouldContain("application/json");
+        request.Headers["Accept"].ShouldContain("text/plain");
+        request.Headers["X-Custom"].Count.ShouldBe(3);
     }
 }

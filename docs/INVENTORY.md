@@ -2688,7 +2688,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | ~~#161~~ | ~~Test Data Generation~~ | ✅ Implementado como extensiones en Encina.Testing.Bogus | - | Bogus |
 | ~~#162~~ | ~~Testcontainers Integration~~ | ✅ Implementado como Encina.Testing.Testcontainers | - | Testcontainers .NET |
 | ~~#163~~ | ~~Database Reset (Respawn)~~ | ✅ Implementado como integración Testcontainers+Respawn | - | - |
-| ~~#164~~ | ~~HTTP Mocking (WireMock)~~ | ✅ Implementado como Encina.Testing.WireMock (#428) | - | - |
+| ~~#164~~ | ~~HTTP Mocking (WireMock)~~ | ✅ Completo - EncinaRefitMockFixture<T>, WebhookTestingExtensions | - | - |
 | ~~#165~~ | ~~Snapshot Testing (Verify)~~ | ✅ Implementado como Encina.Testing.Verify (#430) | - | - |
 | **#166** | Architecture Testing | Validación de reglas arquitectónicas | Baja | ArchUnitNET |
 | **#167** | Handler Registration Tests | Verificar registros de handlers en DI | Alta | MediatR patterns |
@@ -2741,11 +2741,13 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 - 54 unit tests + 23 property-based tests
 - Seed reproducibility para datos determinísticos
 
-**#164 - HTTP Mocking (WireMock)**:
-- `EncinaWireMockFixture` con helpers: `SetupOutboxWebhook()`, `SetupExternalApi()`
-- `EncinaRefitMockFixture<TClient>` para clientes Refit
-- Simulación de fallos: `SetupFault()`, `SetupDelay()`
-- Nuevo paquete: `Encina.Testing.WireMock`
+**~~#164 - HTTP Mocking (WireMock)~~** ✅ Completado:
+- `EncinaWireMockFixture` con fluent API: `StubGet()`, `StubPost()`, `StubFault()`, `StubDelay()`
+- `EncinaRefitMockFixture<TApiClient>` para clientes Refit con auto-configuración
+- `WebhookTestingExtensions`: `SetupOutboxWebhook()`, `SetupWebhookFailure()`, `SetupWebhookTimeout()`
+- Verificación: `VerifyWebhookReceived()`, `GetReceivedWebhooks()`, `GetReceivedWebhookBodies<T>()`
+- 147 unit tests (fault simulation, sequence, guard clauses)
+- Paquete: `Encina.Testing.WireMock`
 
 **#166 - Architecture Testing**:
 - `EncinaArchitectureRules` con reglas predefinidas
@@ -2765,7 +2767,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 |---------|-------|-------------|
 | `Encina.Testing.Testcontainers` | #162 | Docker fixtures para bases de datos |
 | ~~`Encina.Testing.DataGeneration`~~ | ~~#161~~ | ✅ Implementado como extensiones en `Encina.Testing.Bogus` |
-| `Encina.Testing.WireMock` | #164 | HTTP mocking con WireMock.NET |
+| ~~`Encina.Testing.WireMock`~~ | ~~#164~~ | ✅ HTTP mocking con WireMock.NET + Refit + Webhooks |
 | `Encina.Testing.Architecture` | #166 | Architecture testing con ArchUnitNET |
 | `Encina.Testing.TUnit` | #171 | Soporte para TUnit framework |
 
@@ -3594,7 +3596,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 | Resilience Patterns | 9 (#136-#139, #141-#145) | 4 (#136, #137, #138, #139) | 1 (#138) |
 | **Caching Patterns** | **13 (#266-#278)** | **4 (#266, #267, #268, #270)** | **3 (#277)** |
 | Scheduling Patterns | 15 (#146-#160) | 5 (#146, #147, #148, #149, #150) | 0 |
-| Testing Patterns | 13 (#161-#173) | 4 (#167, #168, #169) | 7 (#161✅, #162✅, #164, #166, #171) |
+| Testing Patterns | 13 (#161-#173) | 4 (#167, #168, #169) | 7 (#161✅, #162✅, #164✅, #166, #171) |
 | Observability Patterns | 15 (#174-#188) | 4 (#174, #175, #176, #181) | 5 (#178, #179, #180, #181, #182) |
 | Web/API Patterns | 18 (#189-#206) | 9 (#189-#195, #197) | 10 (#194, #199, #200, #205, #206) |
 | Distributed Lock Patterns | 20 (#207-#226) | 6 (#207, #215, #216, #220, #221) | 8 (#207-#214) |
@@ -4103,7 +4105,7 @@ Los patrones de resiliencia fueron identificados tras investigación exhaustiva 
 | ~~#161~~ | ~~Test Data Generation (Bogus/AutoBogus)~~ | ✅ Completo | - | Implementado en Encina.Testing.Bogus |
 | ~~#162~~ | ~~Testcontainers Integration~~ | ✅ Completo | - | Implementado como Encina.Testing.Testcontainers |
 | ~~#163~~ | ~~Database Reset (Respawn)~~ | ✅ Completo | - | Integración Testcontainers+Respawn |
-| **#164** | HTTP Mocking (WireMock.NET) | Media | Media | `area-testing`, `testing-mocking`, `new-package` |
+| ~~#164~~ | ~~HTTP Mocking (WireMock.NET)~~ | ✅ Completo | - | EncinaRefitMockFixture<T>, WebhookTestingExtensions |
 | **#165** | Snapshot Testing (Verify) | Baja | Media | `area-testing`, `testing-snapshot` |
 | **#166** | Architecture Testing (ArchUnitNET) | Baja | Baja | `area-testing`, `area-architecture-testing`, `new-package` |
 | **#167** | Handler Registration Tests | Baja | Alta | `area-testing`, `testing-unit`, `area-messaging-patterns` |
@@ -4184,7 +4186,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 | `Encina.CascadingTimeout` | #141 | Coordinación de timeouts en cascada |
 | `Encina.Testing.Testcontainers` | #162 | Docker fixtures para bases de datos |
 | ~~`Encina.Testing.DataGeneration`~~ | ~~#161~~ | ✅ Implementado como extensiones en `Encina.Testing.Bogus` |
-| `Encina.Testing.WireMock` | #164 | HTTP mocking con WireMock.NET |
+| ~~`Encina.Testing.WireMock`~~ | ~~#164~~ | ✅ HTTP mocking con WireMock.NET + Refit + Webhooks |
 | `Encina.Testing.Architecture` | #166 | Architecture testing con ArchUnitNET |
 | `Encina.Testing.TUnit` | #171 | Soporte para TUnit framework |
 | `Encina.OpenTelemetry.AzureMonitor` | #178 | Azure Monitor/App Insights integration |

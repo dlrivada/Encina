@@ -2,6 +2,7 @@
 
 ### Table of Contents
 
+- [Language Requirements](#language-requirements)
 - [Added](#added)
   - [AI/LLM Patterns Issues](#aillm-patterns-issues-12-new-features-planned-based-on-december-29-2025-research)
   - [Hexagonal Architecture Patterns Issues](#hexagonal-architecture-patterns-issues-10-new-features-planned-based-on-december-29-2025-research)
@@ -31,6 +32,12 @@
   - [Message Transport Patterns Issues](#message-transport-patterns-issues-29-new-features-planned-based-on-december-2025-research)
   - [Clean Architecture Patterns Issues](#clean-architecture-patterns-issues-2-new-features-planned-based-on-december-29-2025-research)
 - [Changed](#changed)
+
+---
+
+### Language Requirements
+
+> **Encina requires C# 14 / .NET 10 or later.** All packages in this framework use modern C# features including target-typed `new()`, `with` expressions (requires `record` types), and other .NET 10 enhancements.
 
 ---
 
@@ -258,7 +265,7 @@
       - All ID and value methods are fully reproducible with seed alone
       - Date/time methods (`DateRangeValue`, `TimeRangeValue`) are reproducible relative to the current base date/time (i.e., seed + current UTC date/time)
 
-- **Encina.Testing.WireMock Package** - HTTP API mocking for integration tests (Issue #428):
+- **Encina.Testing.WireMock Package** - HTTP API mocking for integration tests (Issues #428, #164):
   - `EncinaWireMockFixture` - xUnit fixture for in-process WireMock server with fluent API:
     - HTTP method stubs: `StubGet()`, `StubPost()`, `StubPut()`, `StubPatch()`, `StubDelete()`
     - Advanced stubbing: `Stub()` with request configuration, `StubSequence()` for sequential responses
@@ -270,6 +277,23 @@
     - Automatic container lifecycle management
     - Admin API access via `CreateAdminClient()`
     - Full isolation for CI/CD environments
+  - **(NEW Issue #164)** `EncinaRefitMockFixture<TApiClient>` - Refit API client testing fixture:
+    - Generic fixture for any Refit API interface
+    - Auto-configured Refit client via `CreateClient()`
+    - HTTP method stubs: `StubGet()`, `StubPost()`, `StubPut()`, `StubPatch()`, `StubDelete()`
+    - Error simulation: `StubError()` with status code and error response
+    - Delay simulation: `StubDelay()` for timeout testing
+    - Request verification: `VerifyCallMade()`, `VerifyNoCallsMade()`
+    - Server management: `Reset()`, `ResetRequestHistory()`
+  - **(NEW Issue #164)** `WebhookTestingExtensions` - Webhook endpoint testing:
+    - `SetupWebhookEndpoint()` - Generic webhook endpoint setup
+    - `SetupOutboxWebhook()` - Outbox pattern webhook endpoint (expects JSON POST)
+    - `SetupWebhookFailure()` - Simulate webhook failures for retry testing
+    - `SetupWebhookTimeout()` - Simulate webhook timeouts for resilience testing
+    - `VerifyWebhookReceived()` - Verify webhook was called with count
+    - `VerifyNoWebhooksReceived()` - Verify no webhooks were sent
+    - `GetReceivedWebhooks()` - Get all received webhook requests
+    - `GetReceivedWebhookBodies<T>()` - Deserialize received webhook bodies
   - `FaultType` enum - Defines fault types: EmptyResponse, MalformedResponse, Timeout
   - `ReceivedRequest` record - Captures request path, method, headers, body, timestamp
   - Fluent method chaining for stub configuration
@@ -3162,7 +3186,6 @@
   - DI registration via `AddSnapshotableAggregate<TAggregate>()`
   - Comprehensive test coverage: 121 unit tests, property tests, contract tests, guard clause tests
   - Integration tests with Testcontainers/PostgreSQL
-  - **Language Requirements**: Requires C# 14 / .NET 10.
   - Example:
     ```csharp
     // Enable snapshotting for aggregates
@@ -3234,7 +3257,7 @@
   - DI registration via `AddProjection<TProjection, TReadModel>()`
   - High-performance logging with `LoggerMessage` attributes
   - 80 tests: 30 unit, 22 property-based, 11 contract, 17 guard clause
-  - **Language Requirements**: Requires C# 14 / .NET 10. Example uses target-typed `new()` and `with` expression (requires read model to be a `record` type).
+  - **Note**: Example uses target-typed `new()` and `with` expression (requires read model to be a `record` type). See [Language Requirements](#language-requirements).
   - **Context-to-Model Mapping**: `ctx.StreamId` is a `Guid` (non-nullable struct, defaults to `Guid.Empty`). This maps directly to `IReadModel.Id` to correlate read models with their source aggregates. Guard against `Guid.Empty` if your domain requires a valid stream ID.
   - **Null Handling**: Event properties (e.g., `e.CustomerName`) may be null depending on your domain model. The `Create` method should validate required fields with `ArgumentNullException.ThrowIfNull()` or use null-coalescing for optional fields. The example below demonstrates defensive validation.
   - Example:
