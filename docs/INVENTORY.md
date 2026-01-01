@@ -2668,10 +2668,27 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
   - `SagaShouldBeStarted<TSaga>()` - Verify saga lifecycle
   - `And` property for fluent chaining
   - Implicit conversion to `Either<EncinaError, TResponse>`
-- `EitherAssertions` - Assertions para `Either<L, R>`
-  - `ShouldBeSuccess`, `ShouldBeError`
-  - `ShouldBeErrorWithCode`, `ShouldBeValidationError`
-  - Variantes async: `ShouldBeSuccessAsync`, `ShouldBeErrorAsync`
+- `EitherAssertions` - Assertions para `Either<L, R>` (#170):
+  - `ShouldBeSuccess`, `ShouldBeError` - Basic assertions
+  - `ShouldBeSuccessAnd`, `ShouldBeErrorAnd` - Fluent chaining con `AndConstraint<T>`
+  - `ShouldBeErrorWithCode`, `ShouldBeValidationError`, `ShouldBeAuthorizationError`, `ShouldBeNotFoundError`
+  - `ShouldBeValidationErrorForProperty` - Property-specific validation errors
+  - Variantes async: `ShouldBeSuccessAsync`, `ShouldBeErrorAsync`, `*AndAsync`
+- `AndConstraint<T>` - Fluent chaining pattern (#170):
+  - `Value`, `And` properties for chaining
+  - `ShouldSatisfy(Action<T>)` for custom assertions
+  - Implicit conversion to `T`
+- `EitherCollectionAssertions` - Collection assertions (#170):
+  - `ShouldAllBeSuccess`, `ShouldAllBeError` - All results verification
+  - `ShouldContainSuccess`, `ShouldContainError` - At-least-one verification
+  - `ShouldHaveSuccessCount`, `ShouldHaveErrorCount` - Count assertions
+  - EncinaError-specific: `ShouldContainValidationErrorFor`, `ShouldNotContainAuthorizationErrors`
+  - Helper methods: `GetSuccesses`, `GetErrors`
+- `StreamingAssertions` - IAsyncEnumerable assertions (#170):
+  - `ShouldAllBeSuccessAsync`, `ShouldAllBeErrorAsync` for streams
+  - `FirstShouldBeSuccessAsync`, `FirstShouldBeErrorAsync` for first item
+  - `ShouldBeEmptyAsync`, `ShouldNotBeEmptyAsync` for emptiness
+  - `CollectAsync` helper to materialize streams
 - `AggregateTestBase<TAggregate, TId>` - Given/When/Then para Event Sourcing
 - **Messaging Pattern Test Helpers** (#169) - BDD Given/When/Then para messaging patterns:
   - `OutboxTestHelper` - Outbox pattern testing con time-travel
@@ -2695,11 +2712,11 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | ~~#163~~ | ~~Database Reset (Respawn)~~ | ✅ Implementado como integración Testcontainers+Respawn | - | - |
 | ~~#164~~ | ~~HTTP Mocking (WireMock)~~ | ✅ Completo - EncinaRefitMockFixture<T>, WebhookTestingExtensions | - | - |
 | ~~#165~~ | ~~Snapshot Testing (Verify)~~ | ✅ Implementado como Encina.Testing.Verify (#430) | - | - |
-| **#166** | Architecture Testing | Validación de reglas arquitectónicas | Baja | ArchUnitNET |
+| ~~#166~~ | ~~Architecture Testing~~ | ✅ Validación de reglas CQRS y Saga | - | ArchUnitNET |
 | **#167** | Handler Registration Tests | Verificar registros de handlers en DI | Alta | MediatR patterns |
 | **#168** | Pipeline Testing Utilities | Control de behaviors en tests | Alta | Custom |
-| **#169** | Messaging Pattern Helpers | Helpers para Outbox, Inbox, Saga, Scheduling | Alta | Custom |
-| **#170** | Improved Assertions | Assertions fluent con chaining | Media | Shouldly |
+| ~~#169~~ | ~~Messaging Pattern Helpers~~ | ✅ Helpers para Outbox, Inbox, Saga, Scheduling | - | Custom |
+| ~~#170~~ | ~~Improved Assertions~~ | ✅ AndConstraint, Collection, Streaming assertions | - | Shouldly |
 | **#171** | TUnit Support | Soporte para TUnit (source-generated) | Baja | TUnit Framework |
 | **#172** | Mutation Testing (Stryker) | Configuración y scripts para Stryker | Media | Stryker.NET |
 | **#173** | CI/CD Templates | Workflows reutilizables para GitHub Actions | Baja | GitHub Actions |
@@ -2754,11 +2771,22 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 - 147 unit tests (fault simulation, sequence, guard clauses)
 - Paquete: `Encina.Testing.WireMock`
 
-**#166 - Architecture Testing**:
-- `EncinaArchitectureRules` con reglas predefinidas
-- `CommandsMustNotReturnVoid()`, `QueriesMustNotModifyState()`
-- `HandlersMustNotDependOnControllers()`, `DomainMustNotDependOnInfrastructure()`
-- Nuevo paquete: `Encina.Testing.Architecture`
+**~~#166 - Architecture Testing~~** ✅ Completado:
+- `EncinaArchitectureRules` con reglas CQRS y Saga
+- `HandlersShouldImplementCorrectInterface()`, `CommandsShouldImplementICommand()`, `QueriesShouldImplementIQuery()`
+- `HandlersShouldNotDependOnControllers()`, `PipelineBehaviorsShouldImplementCorrectInterface()`
+- `SagaDataShouldBeSealed()` - Saga data sealing verification
+- `ApplyAllStandardRules()`, `ApplyAllSagaRules()` builder methods
+- Opt-in test methods in `EncinaArchitectureTestBase`
+
+**~~#170 - Improved Assertions~~** ✅ Completado:
+- `AndConstraint<T>` - Fluent chaining pattern (FluentAssertions-style)
+- `EitherAssertions` enhancements: `*And()` variants for all assertion methods
+- `ShouldBeValidationErrorForProperty()` - Property-specific validation
+- `EitherCollectionAssertions` - Collection assertions con `And` variants
+- `StreamingAssertions` - `IAsyncEnumerable<Either<,>>` assertions
+- `StreamingShouldlyExtensions` - Shouldly version of streaming assertions
+- 85+ unit tests
 
 **#171 - TUnit Support**:
 - Soporte para TUnit (source-generated, NativeAOT compatible)

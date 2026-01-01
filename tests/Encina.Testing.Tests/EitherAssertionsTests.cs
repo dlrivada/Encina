@@ -304,4 +304,215 @@ public sealed class EitherAssertionsTests
     }
 
     #endregion
+
+    #region AndConstraint Tests
+
+    [Fact]
+    public void ShouldBeSuccessAnd_WhenRight_ReturnsAndConstraint()
+    {
+        // Arrange
+        Either<string, int> result = Right(42);
+
+        // Act
+        var constraint = result.ShouldBeSuccessAnd();
+
+        // Assert
+        constraint.Value.ShouldBe(42);
+        constraint.And.Value.ShouldBe(42);
+    }
+
+    [Fact]
+    public void ShouldBeSuccessAnd_ShouldSatisfy_ExecutesAssertion()
+    {
+        // Arrange
+        Either<string, int> result = Right(42);
+        var executed = false;
+
+        // Act
+        result.ShouldBeSuccessAnd()
+            .ShouldSatisfy(v =>
+            {
+                v.ShouldBe(42);
+                executed = true;
+            });
+
+        // Assert
+        executed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ShouldBeSuccessAnd_ChainingMultipleAssertions_Works()
+    {
+        // Arrange
+        Either<string, int> result = Right(42);
+
+        // Act & Assert (should not throw)
+        result.ShouldBeSuccessAnd()
+            .ShouldSatisfy(v => v.ShouldBeGreaterThan(0))
+            .And.ShouldSatisfy(v => v.ShouldBeLessThan(100));
+    }
+
+    [Fact]
+    public void ShouldBeErrorAnd_WhenLeft_ReturnsAndConstraint()
+    {
+        // Arrange
+        Either<string, int> result = Left("error message");
+
+        // Act
+        var constraint = result.ShouldBeErrorAnd();
+
+        // Assert
+        constraint.Value.ShouldBe("error message");
+    }
+
+    [Fact]
+    public void ShouldBeErrorAnd_ShouldSatisfy_ExecutesAssertion()
+    {
+        // Arrange
+        Either<string, int> result = Left("validation failed");
+
+        // Act & Assert
+        result.ShouldBeErrorAnd()
+            .ShouldSatisfy(e => e.ShouldContain("validation"));
+    }
+
+    [Fact]
+    public void ShouldBeRightAnd_IsAliasForShouldBeSuccessAnd()
+    {
+        // Arrange
+        Either<string, int> result = Right(42);
+
+        // Act
+        var constraint = result.ShouldBeRightAnd();
+
+        // Assert
+        constraint.Value.ShouldBe(42);
+    }
+
+    [Fact]
+    public void ShouldBeLeftAnd_IsAliasForShouldBeErrorAnd()
+    {
+        // Arrange
+        Either<string, int> result = Left("error");
+
+        // Act
+        var constraint = result.ShouldBeLeftAnd();
+
+        // Assert
+        constraint.Value.ShouldBe("error");
+    }
+
+    [Fact]
+    public void AndConstraint_ImplicitConversion_ReturnsValue()
+    {
+        // Arrange
+        Either<string, int> result = Right(42);
+
+        // Act
+        int value = result.ShouldBeSuccessAnd();
+
+        // Assert
+        value.ShouldBe(42);
+    }
+
+    [Fact]
+    public void ShouldBeValidationErrorAnd_ReturnsAndConstraint()
+    {
+        // Arrange
+        Either<EncinaError, int> result = EncinaErrors.Create("encina.validation.required", "Field is required");
+
+        // Act
+        var constraint = result.ShouldBeValidationErrorAnd();
+
+        // Assert
+        constraint.Value.Message.ShouldBe("Field is required");
+    }
+
+    [Fact]
+    public void ShouldBeErrorWithCodeAnd_ReturnsAndConstraint()
+    {
+        // Arrange
+        Either<EncinaError, int> result = EncinaErrors.Create("test.code", "Test error");
+
+        // Act
+        var constraint = result.ShouldBeErrorWithCodeAnd("test.code");
+
+        // Assert
+        constraint.Value.Message.ShouldBe("Test error");
+    }
+
+    [Fact]
+    public async Task ShouldBeSuccessAndAsync_ReturnsAndConstraint()
+    {
+        // Arrange
+        var resultTask = Task.FromResult<Either<string, int>>(Right(42));
+
+        // Act
+        var constraint = await resultTask.ShouldBeSuccessAndAsync();
+
+        // Assert
+        constraint.Value.ShouldBe(42);
+    }
+
+    [Fact]
+    public async Task ShouldBeErrorAndAsync_ReturnsAndConstraint()
+    {
+        // Arrange
+        var resultTask = Task.FromResult<Either<string, int>>(Left("async error"));
+
+        // Act
+        var constraint = await resultTask.ShouldBeErrorAndAsync();
+
+        // Assert
+        constraint.Value.ShouldBe("async error");
+    }
+
+    #endregion
+
+    #region ShouldBeValidationErrorForProperty Tests
+
+    [Fact]
+    public void ShouldBeValidationErrorForProperty_WhenPropertyInMessage_ReturnsError()
+    {
+        // Arrange
+        Either<EncinaError, int> result = EncinaErrors.Create(
+            "encina.validation.required",
+            "The field 'Email' is required");
+
+        // Act
+        var error = result.ShouldBeValidationErrorForProperty("Email");
+
+        // Assert
+        error.Message.ShouldContain("Email");
+    }
+
+    [Fact]
+    public void ShouldBeValidationErrorForProperty_WhenPropertyNotInMessage_Throws()
+    {
+        // Arrange
+        Either<EncinaError, int> result = EncinaErrors.Create(
+            "encina.validation.required",
+            "Field is required");
+
+        // Act & Assert
+        Action act = () => result.ShouldBeValidationErrorForProperty("Email");
+        Should.Throw<Xunit.Sdk.TrueException>(act);
+    }
+
+    [Fact]
+    public void ShouldBeValidationErrorForPropertyAnd_ReturnsAndConstraint()
+    {
+        // Arrange
+        Either<EncinaError, int> result = EncinaErrors.Create(
+            "encina.validation.required",
+            "The field 'Name' is required");
+
+        // Act
+        var constraint = result.ShouldBeValidationErrorForPropertyAnd("Name");
+
+        // Assert
+        constraint.Value.Message.ShouldContain("Name");
+    }
+
+    #endregion
 }

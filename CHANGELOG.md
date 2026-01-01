@@ -95,6 +95,34 @@
       - `WhenMessageScheduled()`, `WhenRecurringMessageScheduled()`, `WhenMessageProcessed()`, `WhenMessageFailed()`, `WhenMessageCancelled()`, `WhenMessageRescheduled()` - Action methods
       - `ThenMessageWasScheduled<T>()`, `ThenMessageIsDue<T>()`, `ThenMessageIsNotDue()`, `ThenMessageWasProcessed()`, `ThenMessageWasCancelled()`, `ThenMessageIsRecurring()`, `ThenMessageHasCron()`, `ThenScheduledMessageCount()` - Assertion methods
       - Time-travel: `AdvanceTimeBy()`, `AdvanceTimeByMinutes()`, `AdvanceTimeByHours()`, `AdvanceTimeByDays()`, `AdvanceTimeUntilDue()`, `GetCurrentTime()`, `GetDueMessagesAsync()`
+  - **(NEW Issue #170)** Improved Assertions with Shouldly-like fluent chaining (xUnit-based):
+    - `AndConstraint<T>` - Fluent chaining pattern for assertions:
+      - `Value` property for accessing the asserted value
+      - `And` property for continuing assertion chains
+      - `ShouldSatisfy(Action<T>)` for custom assertions
+      - Implicit conversion to underlying value type
+    - `EitherAssertions` enhancements:
+      - `ShouldBeSuccessAnd()`, `ShouldBeRightAnd()` returning `AndConstraint<TRight>`
+      - `ShouldBeErrorAnd()`, `ShouldBeLeftAnd()` returning `AndConstraint<TLeft>`
+      - `ShouldBeValidationErrorForProperty()`, `ShouldBeValidationErrorForPropertyAnd()` for property-specific validation
+      - EncinaError `*And` variants: `ShouldBeErrorWithCodeAnd()`, `ShouldBeValidationErrorAnd()`, `ShouldBeAuthorizationErrorAnd()`, `ShouldBeNotFoundErrorAnd()`, `ShouldBeErrorContainingAnd()`
+      - Async `*And` variants: `ShouldBeSuccessAndAsync()`, `ShouldBeErrorAndAsync()`, `ShouldBeValidationErrorAndAsync()`, etc.
+    - `EitherCollectionAssertions` - Collection assertions for `IEnumerable<Either<TLeft, TRight>>`:
+      - `ShouldAllBeSuccess()`, `ShouldAllBeSuccessAnd()` for all-success verification
+      - `ShouldAllBeError()`, `ShouldAllBeErrorAnd()` for all-error verification
+      - `ShouldContainSuccess()`, `ShouldContainSuccessAnd()`, `ShouldContainError()`, `ShouldContainErrorAnd()`
+      - `ShouldHaveSuccessCount()`, `ShouldHaveSuccessCountAnd()`, `ShouldHaveErrorCount()`, `ShouldHaveErrorCountAnd()`
+      - EncinaError-specific: `ShouldContainValidationErrorFor()`, `ShouldNotContainAuthorizationErrors()`, `ShouldContainAuthorizationError()`, `ShouldAllHaveErrorCode()`
+      - Async variants: `ShouldAllBeSuccessAsync()`, `ShouldAllBeErrorAsync()`, `ShouldContainSuccessAsync()`, `ShouldContainErrorAsync()`
+      - Helper methods: `GetSuccesses()`, `GetErrors()`
+    - `StreamingAssertions` - `IAsyncEnumerable<Either<TLeft, TRight>>` assertions:
+      - `ShouldAllBeSuccessAsync()`, `ShouldAllBeSuccessAndAsync()`, `ShouldAllBeErrorAsync()`, `ShouldAllBeErrorAndAsync()`
+      - `ShouldContainSuccessAsync()`, `ShouldContainSuccessAndAsync()`, `ShouldContainErrorAsync()`, `ShouldContainErrorAndAsync()`
+      - `ShouldHaveCountAsync()`, `ShouldHaveSuccessCountAsync()`, `ShouldHaveErrorCountAsync()`
+      - `FirstShouldBeSuccessAsync()`, `FirstShouldBeErrorAsync()` for first-item assertions
+      - `ShouldBeEmptyAsync()`, `ShouldNotBeEmptyAsync()` for stream emptiness
+      - EncinaError-specific: `ShouldContainValidationErrorForAsync()`, `ShouldNotContainAuthorizationErrorsAsync()`, `ShouldContainAuthorizationErrorAsync()`, `ShouldAllHaveErrorCodeAsync()`
+      - Helper: `CollectAsync()` to materialize async streams
 
 - **Encina.Testing.Testcontainers Package** - Docker container fixtures for integration tests (Issues #162, #163):
   - `SqlServerContainerFixture` - SQL Server container (mcr.microsoft.com/mssql/server:2022-latest)
@@ -349,6 +377,14 @@
     - `ShouldContainSuccess()`, `ShouldContainError()` for at-least-one verification
     - `ShouldHaveSuccessCount()`, `ShouldHaveErrorCount()` for exact counts
     - Helper methods: `GetSuccesses()`, `GetErrors()`
+  - **(NEW Issue #170)** `StreamingShouldlyExtensions` - IAsyncEnumerable assertions:
+    - `ShouldAllBeSuccessAsync()`, `ShouldAllBeErrorAsync()` for streaming results
+    - `ShouldContainSuccessAsync()`, `ShouldContainErrorAsync()` for at-least-one verification
+    - `ShouldHaveCountAsync()`, `ShouldHaveSuccessCountAsync()`, `ShouldHaveErrorCountAsync()` for counts
+    - `FirstShouldBeSuccessAsync()`, `FirstShouldBeErrorAsync()` for first item assertions
+    - `ShouldBeEmptyAsync()`, `ShouldNotBeEmptyAsync()` for stream emptiness
+    - EncinaError-specific: `ShouldContainValidationErrorForAsync()`, `ShouldNotContainAuthorizationErrorsAsync()`, `ShouldContainAuthorizationErrorAsync()`, `ShouldAllHaveErrorCodeAsync()`
+    - Helper: `CollectAsync()` to materialize async streams
   - `AggregateShouldlyExtensions` - Event sourcing assertions:
     - `ShouldHaveRaisedEvent<T>()` with predicate overloads
     - `ShouldHaveRaisedEvents<T>(count)` for multiple events
