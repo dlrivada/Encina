@@ -2896,6 +2896,12 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
   - `CleanArchitectureLayersShouldBeSeparated()` - Combined rule
   - `RepositoryInterfacesShouldResideInDomain()` - Repository location
   - `RepositoryImplementationsShouldResideInInfrastructure()` - Impl location
+  - **(#166)** `HandlersShouldImplementCorrectInterface()` - CQRS handler interface enforcement
+  - **(#166)** `CommandsShouldImplementICommand()` - Command interface enforcement
+  - **(#166)** `QueriesShouldImplementIQuery()` - Query interface enforcement
+  - **(#166)** `HandlersShouldNotDependOnControllers()` - Handler-controller separation
+  - **(#166)** `PipelineBehaviorsShouldImplementCorrectInterface()` - Behavior interface enforcement
+  - **(#166)** `SagaDataShouldBeSealed()` - Saga data sealing
 - `EncinaArchitectureTestBase` abstract class con tests predefinidos
 - `EncinaArchitectureRulesBuilder` para fluent rule composition
 - `ArchitectureVerificationResult` con `IsSuccess`, `IsFailure`, `Violations`
@@ -5464,7 +5470,8 @@ await Verify(context.Result.ForVerify());
 
 // Phase 6 - Architecture rules
 new EncinaArchitectureRulesBuilder(typeof(OrderHandler).Assembly)
-    .ApplyAllStandardRules()  // Includes sagas and event handlers
+    .ApplyAllStandardRules()  // Standard rules (handlers, behaviors, etc.)
+    .ApplyAllSagaRules()      // Opt-in saga rules
     .Verify();
 ```
 

@@ -7,6 +7,26 @@ namespace Encina.Testing.Architecture.Tests;
 /// </summary>
 public sealed class EncinaArchitectureRulesBuilderTests
 {
+    /// <summary>
+    /// Expected number of rules added by <see cref="EncinaArchitectureRulesBuilder.ApplyAllStandardRules"/>.
+    /// </summary>
+    /// <remarks>
+    /// Includes: EnforceHandlerAbstractions, EnforceSealedNotifications, EnforceSealedHandlers,
+    /// EnforceSealedBehaviors, EnforceValidatorNaming, EnforceSealedEventHandlers,
+    /// EnforceHandlerInterfaces, EnforceCommandInterfaces, EnforceQueryInterfaces,
+    /// EnforceHandlerControllerIsolation, EnforcePipelineBehaviorInterfaces.
+    /// Excludes saga rules (EnforceSealedSagas, EnforceSealedSagaData).
+    /// </remarks>
+    private const int ExpectedStandardRuleCount = 11;
+
+    /// <summary>
+    /// Expected number of rules added by <see cref="EncinaArchitectureRulesBuilder.ApplyAllSagaRules"/>.
+    /// </summary>
+    /// <remarks>
+    /// Includes: EnforceSealedSagas, EnforceSealedSagaData.
+    /// </remarks>
+    private const int ExpectedSagaRuleCount = 2;
+
     [Fact]
     public void Constructor_ThrowsForNullAssemblies()
     {
@@ -37,12 +57,14 @@ public sealed class EncinaArchitectureRulesBuilderTests
     {
         // Arrange
         var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
 
         // Act
         var result = builder.EnforceHandlerAbstractions();
 
         // Assert
         result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
     }
 
     [Fact]
@@ -50,12 +72,14 @@ public sealed class EncinaArchitectureRulesBuilderTests
     {
         // Arrange
         var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
 
         // Act
         var result = builder.EnforceSealedNotifications();
 
         // Assert
         result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
     }
 
     [Fact]
@@ -63,12 +87,14 @@ public sealed class EncinaArchitectureRulesBuilderTests
     {
         // Arrange
         var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
 
         // Act
         var result = builder.EnforceSealedHandlers();
 
         // Assert
         result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
     }
 
     [Fact]
@@ -76,12 +102,14 @@ public sealed class EncinaArchitectureRulesBuilderTests
     {
         // Arrange
         var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
 
         // Act
         var result = builder.EnforceSealedBehaviors();
 
         // Assert
         result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
     }
 
     [Fact]
@@ -89,12 +117,14 @@ public sealed class EncinaArchitectureRulesBuilderTests
     {
         // Arrange
         var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
 
         // Act
         var result = builder.EnforceValidatorNaming();
 
         // Assert
         result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
     }
 
     [Fact]
@@ -102,12 +132,14 @@ public sealed class EncinaArchitectureRulesBuilderTests
     {
         // Arrange
         var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
 
         // Act
         var result = builder.EnforceDomainMessagingIsolation("MyApp.Domain");
 
         // Assert
         result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
     }
 
     [Fact]
@@ -115,12 +147,14 @@ public sealed class EncinaArchitectureRulesBuilderTests
     {
         // Arrange
         var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
 
         // Act
         var result = builder.EnforceLayerSeparation("MyApp.Domain", "MyApp.Application", "MyApp.Infrastructure");
 
         // Assert
         result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
     }
 
     [Fact]
@@ -128,12 +162,14 @@ public sealed class EncinaArchitectureRulesBuilderTests
     {
         // Arrange
         var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
 
         // Act
         var result = builder.EnforceRepositoryInterfacesInDomain("MyApp.Domain");
 
         // Assert
         result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
     }
 
     [Fact]
@@ -141,12 +177,14 @@ public sealed class EncinaArchitectureRulesBuilderTests
     {
         // Arrange
         var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
 
         // Act
         var result = builder.EnforceRepositoryImplementationsInInfrastructure("MyApp.Infrastructure");
 
         // Assert
         result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
     }
 
     [Fact]
@@ -164,6 +202,7 @@ public sealed class EncinaArchitectureRulesBuilderTests
     {
         // Arrange
         var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
         var rule = EncinaArchitectureRules.HandlersShouldBeSealed();
 
         // Act
@@ -171,6 +210,7 @@ public sealed class EncinaArchitectureRulesBuilderTests
 
         // Assert
         result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
     }
 
     [Fact]
@@ -178,12 +218,29 @@ public sealed class EncinaArchitectureRulesBuilderTests
     {
         // Arrange
         var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
 
         // Act
         var result = builder.ApplyAllStandardRules();
 
         // Assert
         result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + ExpectedStandardRuleCount);
+    }
+
+    [Fact]
+    public void ApplyAllSagaRules_ReturnsSameBuilder()
+    {
+        // Arrange
+        var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
+
+        // Act
+        var result = builder.ApplyAllSagaRules();
+
+        // Assert
+        result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + ExpectedSagaRuleCount);
     }
 
     [Fact]
@@ -256,4 +313,127 @@ public sealed class EncinaArchitectureRulesBuilderTests
         // Assert
         builder.ShouldNotBeNull();
     }
+
+    #region CQRS Pattern Rules Builder Tests
+
+    [Fact]
+    public void EnforceHandlerInterfaces_ReturnsSameBuilder()
+    {
+        // Arrange
+        var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
+
+        // Act
+        var result = builder.EnforceHandlerInterfaces();
+
+        // Assert
+        result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
+    }
+
+    [Fact]
+    public void EnforceCommandInterfaces_ReturnsSameBuilder()
+    {
+        // Arrange
+        var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
+
+        // Act
+        var result = builder.EnforceCommandInterfaces();
+
+        // Assert
+        result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
+    }
+
+    [Fact]
+    public void EnforceQueryInterfaces_ReturnsSameBuilder()
+    {
+        // Arrange
+        var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
+
+        // Act
+        var result = builder.EnforceQueryInterfaces();
+
+        // Assert
+        result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
+    }
+
+    [Fact]
+    public void EnforceHandlerControllerIsolation_ReturnsSameBuilder()
+    {
+        // Arrange
+        var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
+
+        // Act
+        var result = builder.EnforceHandlerControllerIsolation();
+
+        // Assert
+        result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
+    }
+
+    #endregion
+
+    #region Pipeline Behavior Builder Tests
+
+    [Fact]
+    public void EnforcePipelineBehaviorInterfaces_ReturnsSameBuilder()
+    {
+        // Arrange
+        var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
+
+        // Act
+        var result = builder.EnforcePipelineBehaviorInterfaces();
+
+        // Assert
+        result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
+    }
+
+    #endregion
+
+    #region Saga Rules Builder Tests
+
+    [Fact]
+    public void EnforceSealedSagaData_ReturnsSameBuilder()
+    {
+        // Arrange
+        var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly);
+        var initialCount = builder.RuleCount;
+
+        // Act
+        var result = builder.EnforceSealedSagaData();
+
+        // Assert
+        result.ShouldBeSameAs(builder);
+        builder.RuleCount.ShouldBe(initialCount + 1);
+    }
+
+    #endregion
+
+    #region Complete Fluent Chaining Tests
+
+    [Fact]
+    public void FluentChaining_WithAllNewRules_WorksCorrectly()
+    {
+        // Arrange & Act
+        var builder = new EncinaArchitectureRulesBuilder(typeof(EncinaArchitectureRulesBuilderTests).Assembly)
+            .EnforceHandlerInterfaces()
+            .EnforceCommandInterfaces()
+            .EnforceQueryInterfaces()
+            .EnforceHandlerControllerIsolation()
+            .EnforcePipelineBehaviorInterfaces()
+            .EnforceSealedSagaData();
+
+        // Assert
+        builder.ShouldNotBeNull();
+        builder.RuleCount.ShouldBe(6);
+    }
+
+    #endregion
 }

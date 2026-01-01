@@ -138,21 +138,40 @@
     - **(NEW Phase 6)** `SagasShouldBeSealed()` - Sagas should be sealed
     - **(NEW Phase 6)** `StoreImplementationsShouldBeSealed()` - Store impls should be sealed
     - **(NEW Phase 6)** `EventHandlersShouldBeSealed()` - Event handlers should be sealed
+    - **(NEW Issue #166)** `HandlersShouldImplementCorrectInterface()` - Handlers must implement IRequestHandler, ICommandHandler, IQueryHandler, or INotificationHandler
+    - **(NEW Issue #166)** `CommandsShouldImplementICommand()` - Commands must implement ICommand<TResponse> or ICommand
+    - **(NEW Issue #166)** `QueriesShouldImplementIQuery()` - Queries must implement IQuery<TResponse> or IQuery
+    - **(NEW Issue #166)** `HandlersShouldNotDependOnControllers()` - Handlers must not depend on presentation layer
+    - **(NEW Issue #166)** `PipelineBehaviorsShouldImplementCorrectInterface()` - Behaviors must implement IPipelineBehavior<,>
+    - **(NEW Issue #166)** `SagaDataShouldBeSealed()` - Saga data classes must be sealed for serialization
   - `EncinaArchitectureTestBase` - Abstract test class with pre-defined tests:
     - Override `ApplicationAssembly`, `DomainAssembly`, `InfrastructureAssembly`
     - Override namespace properties for layer separation rules
     - Pre-built test methods: `HandlersShouldNotDependOnInfrastructure()`, etc.
+    - **(NEW Issue #166)** `HandlersShouldImplementCorrectInterface()` - Test handler interfaces
+    - **(NEW Issue #166)** `CommandsShouldImplementICommand()` - Test command interfaces
+    - **(NEW Issue #166)** `QueriesShouldImplementIQuery()` - Test query interfaces
+    - **(NEW Issue #166)** `HandlersShouldNotDependOnControllers()` - Test handler-controller separation
+    - **(NEW Issue #166)** `PipelineBehaviorsShouldImplementCorrectInterface()` - Test behavior interfaces
+    - **(NEW Issue #166)** `SagaDataShouldBeSealed()` - Test saga data sealing
   - `EncinaArchitectureRulesBuilder` - Fluent builder for custom rule composition:
     - Chain multiple rules with fluent API
     - `Verify()` - Throws `ArchitectureRuleException` on violations
     - `VerifyWithResult()` - Returns `ArchitectureVerificationResult` without throwing
-    - `ApplyAllStandardRules()` - Apply all standard Encina rules at once (now includes Sagas and EventHandlers)
+    - `ApplyAllStandardRules()` - Apply all standard Encina rules at once (excludes saga rules)
+    - **(NEW)** `ApplyAllSagaRules()` - Apply saga-specific rules (opt-in)
     - `AddCustomRule(IArchRule)` - Add custom ArchUnitNET rules
     - **(NEW Phase 6)** `EnforceRequestNaming()` - Enforce request naming conventions
     - **(NEW Phase 6)** `EnforceSealedAggregates(namespace)` - Enforce sealed aggregates
     - **(NEW Phase 6)** `EnforceSealedValueObjects()` - Enforce sealed value objects
     - **(NEW Phase 6)** `EnforceSealedSagas()` - Enforce sealed sagas
     - **(NEW Phase 6)** `EnforceSealedEventHandlers()` - Enforce sealed event handlers
+    - **(NEW Issue #166)** `EnforceHandlerInterfaces()` - Enforce handler interface implementation
+    - **(NEW Issue #166)** `EnforceCommandInterfaces()` - Enforce command interface implementation
+    - **(NEW Issue #166)** `EnforceQueryInterfaces()` - Enforce query interface implementation
+    - **(NEW Issue #166)** `EnforceHandlerControllerIsolation()` - Enforce handler-controller separation
+    - **(NEW Issue #166)** `EnforcePipelineBehaviorInterfaces()` - Enforce behavior interface implementation
+    - **(NEW Issue #166)** `EnforceSealedSagaData()` - Enforce sealed saga data classes
   - `ArchitectureRuleViolation` - Record for rule violation details
   - `ArchitectureVerificationResult` - Result with `IsSuccess`, `IsFailure`, `Violations`
   - `ArchitectureRuleException` - Exception with formatted violation messages

@@ -243,4 +243,95 @@ public sealed class EncinaArchitectureRulesTests
         // Assert
         rule.ShouldNotBeNull();
     }
+
+    #region CQRS Pattern Rules Tests
+
+    [Fact]
+    public void HandlersShouldImplementCorrectInterface_ReturnsValidRule()
+    {
+        // Arrange & Act
+        var rule = EncinaArchitectureRules.HandlersShouldImplementCorrectInterface();
+
+        // Assert
+        rule.ShouldNotBeNull();
+        rule.Description.ShouldContain("Handler");
+    }
+
+    [Fact]
+    public void CommandsShouldImplementICommand_ReturnsValidRule()
+    {
+        // Arrange & Act
+        var rule = EncinaArchitectureRules.CommandsShouldImplementICommand();
+
+        // Assert
+        rule.ShouldNotBeNull();
+        rule.Description.ShouldContain("Command");
+    }
+
+    [Fact]
+    public void QueriesShouldImplementIQuery_ReturnsValidRule()
+    {
+        // Arrange & Act
+        var rule = EncinaArchitectureRules.QueriesShouldImplementIQuery();
+
+        // Assert
+        rule.ShouldNotBeNull();
+        rule.Description.ShouldContain("Query");
+    }
+
+    [Fact]
+    public void HandlersShouldNotDependOnControllers_ReturnsValidRule()
+    {
+        // Arrange & Act
+        var rule = EncinaArchitectureRules.HandlersShouldNotDependOnControllers();
+
+        // Assert
+        rule.ShouldNotBeNull();
+        rule.Description.ShouldContain("presentation");
+    }
+
+    [Fact]
+    public void HandlersShouldNotDependOnControllers_PassesForCompliantHandlers()
+    {
+        // Arrange
+        var rule = EncinaArchitectureRules.HandlersShouldNotDependOnControllers();
+
+        // Act & Assert - Should not throw (test handlers don't depend on controllers)
+        rule.Check(TestArchitecture);
+    }
+
+    #endregion
+
+    #region Pipeline Behavior Rules Tests
+
+    [Fact]
+    public void PipelineBehaviorsShouldImplementCorrectInterface_ReturnsValidRule()
+    {
+        // Arrange & Act
+        var rule = EncinaArchitectureRules.PipelineBehaviorsShouldImplementCorrectInterface();
+
+        // Assert
+        rule.ShouldNotBeNull();
+        rule.Description.ShouldContain("Pipeline");
+    }
+
+    #endregion
+
+    #region Saga Pattern Rules Tests
+
+    [Fact]
+    public void SagaDataShouldBeSealed_ReturnsValidRule()
+    {
+        // Arrange & Act
+        var rule = EncinaArchitectureRules.SagaDataShouldBeSealed();
+
+        // Assert
+        rule.ShouldNotBeNull();
+        rule.Description.ShouldContain("sealed");
+    }
+
+    // Note: SagaDataShouldBeSealed integration test requires a test assembly with *SagaData classes.
+    // The rule itself is tested in SagaDataShouldBeSealed_ReturnsValidRule above.
+
+    #endregion
 }

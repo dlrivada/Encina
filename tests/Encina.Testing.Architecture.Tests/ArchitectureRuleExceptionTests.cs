@@ -38,7 +38,7 @@ public sealed class ArchitectureRuleExceptionTests
         var exception = new ArchitectureRuleException(violations);
 
         // Assert
-        exception.Message.ShouldContain("3 violations");
+        exception.Message.ShouldContain("3 violation(s)");
         exception.Message.ShouldContain("Rule1");
         exception.Message.ShouldContain("Rule2");
         exception.Message.ShouldContain("Rule3");

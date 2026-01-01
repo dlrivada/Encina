@@ -371,4 +371,296 @@ public static class EncinaArchitectureRules
 
         return domainRule.And(appRule);
     }
+
+    #region CQRS Pattern Rules
+
+    /// <summary>
+    /// Creates a rule that handler classes should implement the correct Encina handler interface.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This rule verifies that classes ending with "Handler" implement one of:
+    /// <list type="bullet">
+    /// <item><description><see cref="IRequestHandler{TRequest, TResponse}"/> - Base handler interface</description></item>
+    /// <item><description><see cref="ICommandHandler{TCommand, TResponse}"/> - Command handler interface</description></item>
+    /// <item><description><see cref="IQueryHandler{TQuery, TResponse}"/> - Query handler interface</description></item>
+    /// <item><description><see cref="INotificationHandler{TNotification}"/> - Notification handler interface</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <returns>An architecture rule that can be checked against an architecture.</returns>
+    /// <example>
+    /// <code>
+    /// // Valid handler - implements ICommandHandler
+    /// public sealed class CreateOrderHandler : ICommandHandler&lt;CreateOrderCommand, OrderId&gt;
+    /// {
+    ///     public ValueTask&lt;Either&lt;EncinaError, OrderId&gt;&gt; Handle(CreateOrderCommand request, CancellationToken ct) => ...;
+    /// }
+    ///
+    /// // Invalid handler - missing interface implementation
+    /// public sealed class InvalidHandler // Will fail the rule
+    /// {
+    ///     public void Handle() { }
+    /// }
+    /// </code>
+    /// </example>
+    public static IArchRule HandlersShouldImplementCorrectInterface()
+    {
+        return Classes()
+            .That()
+            .HaveNameEndingWith("Handler")
+            .And()
+            .AreNotAbstract()
+            .Should()
+            .ImplementInterface(typeof(IRequestHandler<,>))
+            .OrShould()
+            .ImplementInterface(typeof(ICommandHandler<,>))
+            .OrShould()
+            .ImplementInterface(typeof(IQueryHandler<,>))
+            .OrShould()
+            .ImplementInterface(typeof(INotificationHandler<>))
+            .Because("Handlers must implement IRequestHandler<,>, ICommandHandler<,>, IQueryHandler<,>, or INotificationHandler<>");
+    }
+
+    /// <summary>
+    /// Creates a rule that command classes should implement the ICommand interface.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This rule verifies that classes ending with "Command" implement <see cref="ICommand{TResponse}"/>
+    /// or <see cref="ICommand"/> (for Unit-returning commands).
+    /// </para>
+    /// <para>
+    /// Encina supports two command patterns:
+    /// <list type="bullet">
+    /// <item><description><c>ICommand&lt;TResponse&gt;</c> - Commands that return a specific response type</description></item>
+    /// <item><description><c>ICommand</c> - Commands that return Unit (fire-and-forget)</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <returns>An architecture rule that can be checked against an architecture.</returns>
+    /// <example>
+    /// <code>
+    /// // Valid command with response
+    /// public sealed record CreateOrderCommand(string CustomerId) : ICommand&lt;OrderId&gt;;
+    ///
+    /// // Valid command without response (returns Unit)
+    /// public sealed record DeleteOrderCommand(Guid OrderId) : ICommand;
+    ///
+    /// // Invalid - ends with "Command" but doesn't implement ICommand
+    /// public sealed record InvalidCommand(string Data); // Will fail the rule
+    /// </code>
+    /// </example>
+    public static IArchRule CommandsShouldImplementICommand()
+    {
+        return Classes()
+            .That()
+            .HaveNameEndingWith("Command")
+            .And()
+            .AreNotAbstract()
+            .And()
+            .AreNotNested()
+            .Should()
+            .ImplementInterface(typeof(ICommand<>))
+            .OrShould()
+            .ImplementInterface(typeof(ICommand))
+            .Because("Commands should implement ICommand<TResponse> or ICommand for Encina CQRS pattern");
+    }
+
+    /// <summary>
+    /// Creates a rule that query classes should implement the IQuery interface.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This rule verifies that classes ending with "Query" implement <see cref="IQuery{TResponse}"/>
+    /// or <see cref="IQuery"/> (for Unit-returning queries, though this is uncommon).
+    /// </para>
+    /// <para>
+    /// Queries in CQRS should be read-only operations that return data without modifying state.
+    /// </para>
+    /// </remarks>
+    /// <returns>An architecture rule that can be checked against an architecture.</returns>
+    /// <example>
+    /// <code>
+    /// // Valid query
+    /// public sealed record GetOrderByIdQuery(Guid OrderId) : IQuery&lt;OrderDto&gt;;
+    ///
+    /// // Valid query returning collection
+    /// public sealed record GetOrdersForCustomerQuery(string CustomerId) : IQuery&lt;IReadOnlyList&lt;OrderDto&gt;&gt;;
+    ///
+    /// // Invalid - ends with "Query" but doesn't implement IQuery
+    /// public sealed record InvalidQuery(string Filter); // Will fail the rule
+    /// </code>
+    /// </example>
+    public static IArchRule QueriesShouldImplementIQuery()
+    {
+        return Classes()
+            .That()
+            .HaveNameEndingWith("Query")
+            .And()
+            .AreNotAbstract()
+            .And()
+            .AreNotNested()
+            .Should()
+            .ImplementInterface(typeof(IQuery<>))
+            .OrShould()
+            .ImplementInterface(typeof(IQuery))
+            .Because("Queries should implement IQuery<TResponse> or IQuery for Encina CQRS pattern");
+    }
+
+    /// <summary>
+    /// Creates a rule that handlers should not depend on controller or API types.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This rule enforces separation between the application layer (handlers) and the
+    /// presentation layer (controllers, API endpoints). Handlers should be framework-agnostic
+    /// and not have dependencies on ASP.NET Core controllers or similar presentation concerns.
+    /// </para>
+    /// </remarks>
+    /// <returns>An architecture rule that can be checked against an architecture.</returns>
+    /// <example>
+    /// <code>
+    /// // Valid handler - no controller dependencies
+    /// public sealed class CreateOrderHandler : ICommandHandler&lt;CreateOrderCommand, OrderId&gt;
+    /// {
+    ///     private readonly IOrderRepository _repository;
+    ///     public CreateOrderHandler(IOrderRepository repository) => _repository = repository;
+    /// }
+    ///
+    /// // Invalid handler - depends on controller
+    /// public sealed class BadHandler : ICommandHandler&lt;SomeCommand, Unit&gt;
+    /// {
+    ///     private readonly OrderController _controller; // Will fail the rule
+    /// }
+    /// </code>
+    /// </example>
+    public static IArchRule HandlersShouldNotDependOnControllers()
+    {
+        var controllerTypes = Classes()
+            .That()
+            .ResideInNamespaceMatching(".*Controllers.*")
+            .Or()
+            .ResideInNamespaceMatching(".*Api.*")
+            .Or()
+            .ResideInNamespaceMatching(".*Endpoints.*")
+            .Or()
+            .HaveNameEndingWith("Controller")
+            .Or()
+            .HaveNameEndingWith("Endpoint")
+            .As("Controller/API Types");
+
+        return Classes()
+            .That()
+            .HaveNameEndingWith("Handler")
+            .And()
+            .AreNotAbstract()
+            .Should()
+            .NotDependOnAny(controllerTypes)
+            .Because("Handlers should not depend on presentation layer (Controllers, APIs, Endpoints)");
+    }
+
+    #endregion
+
+    #region Pipeline Behavior Rules
+
+    /// <summary>
+    /// Creates a rule that pipeline behavior classes should implement the correct interface.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This rule verifies that classes with "Behavior" or "PipelineBehavior" suffix implement
+    /// one of Encina's pipeline behavior interfaces:
+    /// <list type="bullet">
+    /// <item><description><see cref="IPipelineBehavior{TRequest, TResponse}"/> - Generic pipeline behavior</description></item>
+    /// <item><description><see cref="ICommandPipelineBehavior{TCommand, TResponse}"/> - Command-specific behavior</description></item>
+    /// <item><description><see cref="IQueryPipelineBehavior{TQuery, TResponse}"/> - Query-specific behavior</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Pipeline behaviors wrap handler execution and can implement cross-cutting concerns like
+    /// logging, validation, caching, and transaction management.
+    /// </para>
+    /// </remarks>
+    /// <returns>An architecture rule that can be checked against an architecture.</returns>
+    /// <example>
+    /// <code>
+    /// // Valid behavior
+    /// public sealed class LoggingBehavior&lt;TRequest, TResponse&gt; : IPipelineBehavior&lt;TRequest, TResponse&gt;
+    ///     where TRequest : IRequest&lt;TResponse&gt;
+    /// {
+    ///     public ValueTask&lt;Either&lt;EncinaError, TResponse&gt;&gt; Handle(
+    ///         TRequest request, RequestHandlerDelegate&lt;TResponse&gt; next, CancellationToken ct) => next();
+    /// }
+    ///
+    /// // Invalid - ends with "Behavior" but doesn't implement interface
+    /// public sealed class InvalidBehavior { } // Will fail the rule
+    /// </code>
+    /// </example>
+    public static IArchRule PipelineBehaviorsShouldImplementCorrectInterface()
+    {
+        return Classes()
+            .That()
+            .HaveNameEndingWith("Behavior")
+            .Or()
+            .HaveNameEndingWith("PipelineBehavior")
+            .And()
+            .AreNotAbstract()
+            .Should()
+            .ImplementInterface(typeof(IPipelineBehavior<,>))
+            .OrShould()
+            .ImplementInterface(typeof(ICommandPipelineBehavior<,>))
+            .OrShould()
+            .ImplementInterface(typeof(IQueryPipelineBehavior<,>))
+            .Because("Pipeline behaviors must implement IPipelineBehavior<TRequest, TResponse> or a specialized variant");
+    }
+
+    #endregion
+
+    #region Saga Pattern Rules
+
+    /// <summary>
+    /// Creates a rule that saga data classes should be sealed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Saga data classes hold the state of a saga instance and are serialized/deserialized
+    /// during saga execution. They should be sealed to ensure proper serialization behavior
+    /// and to prevent inheritance complications.
+    /// </para>
+    /// <para>
+    /// Saga data must satisfy the <c>class, new()</c> constraint for proper instantiation.
+    /// </para>
+    /// </remarks>
+    /// <returns>An architecture rule that can be checked against an architecture.</returns>
+    /// <example>
+    /// <code>
+    /// // Valid saga data
+    /// public sealed class OrderSagaData
+    /// {
+    ///     public Guid OrderId { get; set; }
+    ///     public string CustomerId { get; set; } = string.Empty;
+    ///     public decimal TotalAmount { get; set; }
+    /// }
+    ///
+    /// // Invalid - not sealed
+    /// public class InvalidSagaData // Will fail the rule
+    /// {
+    ///     public Guid Id { get; set; }
+    /// }
+    /// </code>
+    /// </example>
+    public static IArchRule SagaDataShouldBeSealed()
+    {
+        return Classes()
+            .That()
+            .HaveNameEndingWith("SagaData")
+            .And()
+            .AreNotAbstract()
+            .Should()
+            .BeSealed()
+            .Because("Saga data classes should be sealed for proper serialization and instantiation");
+    }
+
+    #endregion
 }

@@ -2,6 +2,7 @@ using ArchUnitNET.Fluent;
 using ArchUnitNET.Loader;
 using ArchUnitNET.xUnit;
 using Xunit;
+using Xunit.Sdk;
 using ReflectionAssembly = System.Reflection.Assembly;
 
 namespace Encina.Testing.Architecture;
@@ -84,6 +85,46 @@ public abstract class EncinaArchitectureTestBase
     /// Override to specify your infrastructure namespace (e.g., "MyApp.Infrastructure").
     /// </remarks>
     protected virtual string? InfrastructureNamespace => null;
+
+    /// <summary>
+    /// Gets a value indicating whether CQRS pattern rules are enabled.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Override and return <c>true</c> to enable CQRS pattern rules (HandlersShouldImplementCorrectInterface,
+    /// CommandsShouldImplementICommand, QueriesShouldImplementIQuery, HandlersShouldNotDependOnControllers).
+    /// </para>
+    /// <para>
+    /// See the Encina.Testing.Architecture README for configuration details.
+    /// </para>
+    /// </remarks>
+    protected virtual bool EnableCqrsPatternRules => false;
+
+    /// <summary>
+    /// Gets a value indicating whether pipeline behavior rules are enabled.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Override and return <c>true</c> to enable pipeline behavior rules (PipelineBehaviorsShouldImplementCorrectInterface).
+    /// </para>
+    /// <para>
+    /// See the Encina.Testing.Architecture README for configuration details.
+    /// </para>
+    /// </remarks>
+    protected virtual bool EnablePipelineBehaviorRules => false;
+
+    /// <summary>
+    /// Gets a value indicating whether saga pattern rules are enabled.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Override and return <c>true</c> to enable saga pattern rules (SagaDataShouldBeSealed).
+    /// </para>
+    /// <para>
+    /// See the Encina.Testing.Architecture README for configuration details.
+    /// </para>
+    /// </remarks>
+    protected virtual bool EnableSagaPatternRules => false;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EncinaArchitectureTestBase"/> class.
@@ -221,4 +262,113 @@ public abstract class EncinaArchitectureTestBase
             ApplicationNamespace,
             InfrastructureNamespace));
     }
+
+    #region CQRS Pattern Rules
+
+    /// <summary>
+    /// Tests that handlers implement the correct Encina handler interfaces.
+    /// </summary>
+    /// <remarks>
+    /// Verifies that classes ending with "Handler" implement IRequestHandler, ICommandHandler,
+    /// IQueryHandler, or INotificationHandler.
+    /// </remarks>
+    [SkippableFact]
+    public virtual void HandlersShouldImplementCorrectInterface()
+    {
+        Skip.IfNot(EnableCqrsPatternRules,
+            "CQRS pattern rules are disabled. Override EnableCqrsPatternRules to enable. " +
+            "See Encina.Testing.Architecture README for details.");
+
+        CheckRule(EncinaArchitectureRules.HandlersShouldImplementCorrectInterface());
+    }
+
+    /// <summary>
+    /// Tests that commands implement ICommand.
+    /// </summary>
+    /// <remarks>
+    /// Verifies that classes ending with "Command" implement ICommand&lt;TResponse&gt; or ICommand.
+    /// </remarks>
+    [SkippableFact]
+    public virtual void CommandsShouldImplementICommand()
+    {
+        Skip.IfNot(EnableCqrsPatternRules,
+            "CQRS pattern rules are disabled. Override EnableCqrsPatternRules to enable. " +
+            "See Encina.Testing.Architecture README for details.");
+
+        CheckRule(EncinaArchitectureRules.CommandsShouldImplementICommand());
+    }
+
+    /// <summary>
+    /// Tests that queries implement IQuery.
+    /// </summary>
+    /// <remarks>
+    /// Verifies that classes ending with "Query" implement IQuery&lt;TResponse&gt; or IQuery.
+    /// </remarks>
+    [SkippableFact]
+    public virtual void QueriesShouldImplementIQuery()
+    {
+        Skip.IfNot(EnableCqrsPatternRules,
+            "CQRS pattern rules are disabled. Override EnableCqrsPatternRules to enable. " +
+            "See Encina.Testing.Architecture README for details.");
+
+        CheckRule(EncinaArchitectureRules.QueriesShouldImplementIQuery());
+    }
+
+    /// <summary>
+    /// Tests that handlers do not depend on controllers or API types.
+    /// </summary>
+    /// <remarks>
+    /// Ensures proper separation between application layer (handlers) and presentation layer (controllers).
+    /// </remarks>
+    [SkippableFact]
+    public virtual void HandlersShouldNotDependOnControllers()
+    {
+        Skip.IfNot(EnableCqrsPatternRules,
+            "CQRS pattern rules are disabled. Override EnableCqrsPatternRules to enable. " +
+            "See Encina.Testing.Architecture README for details.");
+
+        CheckRule(EncinaArchitectureRules.HandlersShouldNotDependOnControllers());
+    }
+
+    #endregion
+
+    #region Pipeline Behavior Rules
+
+    /// <summary>
+    /// Tests that pipeline behaviors implement the correct interface.
+    /// </summary>
+    /// <remarks>
+    /// Verifies that classes with "Behavior" suffix implement IPipelineBehavior&lt;,&gt;.
+    /// </remarks>
+    [SkippableFact]
+    public virtual void PipelineBehaviorsShouldImplementCorrectInterface()
+    {
+        Skip.IfNot(EnablePipelineBehaviorRules,
+            "Pipeline behavior rules are disabled. Override EnablePipelineBehaviorRules to enable. " +
+            "See Encina.Testing.Architecture README for details.");
+
+        CheckRule(EncinaArchitectureRules.PipelineBehaviorsShouldImplementCorrectInterface());
+    }
+
+    #endregion
+
+    #region Saga Pattern Rules
+
+    /// <summary>
+    /// Tests that saga data classes are sealed.
+    /// </summary>
+    /// <remarks>
+    /// Ensures saga data classes are sealed for proper serialization and instantiation.
+    /// </remarks>
+    [SkippableFact]
+    public virtual void SagaDataShouldBeSealed()
+    {
+        Skip.IfNot(EnableSagaPatternRules,
+            "Saga pattern rules are disabled. Override EnableSagaPatternRules to enable. " +
+            "See Encina.Testing.Architecture README for details.");
+
+        CheckRule(EncinaArchitectureRules.SagaDataShouldBeSealed());
+    }
+
+    #endregion
 }

@@ -518,7 +518,7 @@ Key areas already completed:
   - Database Reset with Respawn [#163](https://github.com/dlrivada/Encina/issues/163) — Intelligent cleanup between tests
   - HTTP Mocking with WireMock [#164](https://github.com/dlrivada/Encina/issues/164) — External API mocking
   - Snapshot Testing with Verify [#165](https://github.com/dlrivada/Encina/issues/165) — Approval testing for complex responses
-  - Architecture Testing [#166](https://github.com/dlrivada/Encina/issues/166) — ArchUnitNET rules for CQRS patterns
+  - ~~Architecture Testing [#166](https://github.com/dlrivada/Encina/issues/166)~~ ✅ — ArchUnitNET rules for CQRS patterns (completed: CQRS, pipeline behavior, and saga rules)
   - Handler Registration Tests [#167](https://github.com/dlrivada/Encina/issues/167) — Verify all handlers are registered
   - Pipeline Testing Utilities [#168](https://github.com/dlrivada/Encina/issues/168) — Control behaviors in tests
   - ~~Messaging Pattern Helpers [#169](https://github.com/dlrivada/Encina/issues/169)~~ ✅ — Helpers for Outbox, Inbox, Saga, Scheduling tests

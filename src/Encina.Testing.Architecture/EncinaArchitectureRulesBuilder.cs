@@ -52,6 +52,12 @@ public sealed class EncinaArchitectureRulesBuilder
     public ArchUnitNET.Domain.Architecture Architecture => _architecture;
 
     /// <summary>
+    /// Gets the number of rules currently registered.
+    /// </summary>
+    /// <remarks>Exposed for testing purposes only.</remarks>
+    internal int RuleCount => _rules.Count;
+
+    /// <summary>
     /// Adds a rule that handlers should not depend on infrastructure.
     /// </summary>
     /// <returns>The builder for chaining.</returns>
@@ -221,6 +227,10 @@ public sealed class EncinaArchitectureRulesBuilder
     /// <summary>
     /// Applies all standard Encina architecture rules.
     /// </summary>
+    /// <remarks>
+    /// This does not include saga-specific rules. To enforce saga rules,
+    /// call <see cref="ApplyAllSagaRules"/> explicitly.
+    /// </remarks>
     /// <returns>The builder for chaining.</returns>
     public EncinaArchitectureRulesBuilder ApplyAllStandardRules()
     {
@@ -229,9 +239,99 @@ public sealed class EncinaArchitectureRulesBuilder
             .EnforceSealedHandlers()
             .EnforceSealedBehaviors()
             .EnforceValidatorNaming()
-            .EnforceSealedSagas()
-            .EnforceSealedEventHandlers();
+            .EnforceSealedEventHandlers()
+            .EnforceHandlerInterfaces()
+            .EnforceCommandInterfaces()
+            .EnforceQueryInterfaces()
+            .EnforceHandlerControllerIsolation()
+            .EnforcePipelineBehaviorInterfaces();
     }
+
+    /// <summary>
+    /// Applies all saga-specific architecture rules.
+    /// </summary>
+    /// <remarks>
+    /// Saga rules are opt-in and not included in <see cref="ApplyAllStandardRules"/>.
+    /// Call this method explicitly when your project uses sagas.
+    /// </remarks>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder ApplyAllSagaRules()
+    {
+        return EnforceSealedSagas()
+            .EnforceSealedSagaData();
+    }
+
+    #region CQRS Pattern Rules
+
+    /// <summary>
+    /// Adds a rule that handlers should implement the correct interface.
+    /// </summary>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder EnforceHandlerInterfaces()
+    {
+        _rules.Add(EncinaArchitectureRules.HandlersShouldImplementCorrectInterface());
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a rule that commands should implement ICommand.
+    /// </summary>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder EnforceCommandInterfaces()
+    {
+        _rules.Add(EncinaArchitectureRules.CommandsShouldImplementICommand());
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a rule that queries should implement IQuery.
+    /// </summary>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder EnforceQueryInterfaces()
+    {
+        _rules.Add(EncinaArchitectureRules.QueriesShouldImplementIQuery());
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a rule that handlers should not depend on controllers.
+    /// </summary>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder EnforceHandlerControllerIsolation()
+    {
+        _rules.Add(EncinaArchitectureRules.HandlersShouldNotDependOnControllers());
+        return this;
+    }
+
+    #endregion
+
+    #region Pipeline Behavior Rules
+
+    /// <summary>
+    /// Adds a rule that pipeline behaviors should implement the correct interface.
+    /// </summary>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder EnforcePipelineBehaviorInterfaces()
+    {
+        _rules.Add(EncinaArchitectureRules.PipelineBehaviorsShouldImplementCorrectInterface());
+        return this;
+    }
+
+    #endregion
+
+    #region Saga Rules
+
+    /// <summary>
+    /// Adds a rule that saga data should be sealed.
+    /// </summary>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder EnforceSealedSagaData()
+    {
+        _rules.Add(EncinaArchitectureRules.SagaDataShouldBeSealed());
+        return this;
+    }
+
+    #endregion
 
     /// <summary>
     /// Verifies all added rules and throws if any violations are found.

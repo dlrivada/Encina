@@ -15,6 +15,7 @@ dotnet add package Encina.Testing.Architecture
 Inherit from `EncinaArchitectureTestBase` for automatic architecture tests:
 
 ```csharp
+using System.Reflection;
 using Encina.Testing.Architecture;
 
 public class ArchitectureTests : EncinaArchitectureTestBase
@@ -26,6 +27,11 @@ public class ArchitectureTests : EncinaArchitectureTestBase
     protected override string? DomainNamespace => "MyApp.Domain";
     protected override string? ApplicationNamespace => "MyApp.Application";
     protected override string? InfrastructureNamespace => "MyApp.Infrastructure";
+
+    // Enable opt-in rules (disabled by default)
+    protected override bool EnableCqrsPatternRules => true;
+    protected override bool EnablePipelineBehaviorRules => true;
+    protected override bool EnableSagaPatternRules => true;
 }
 ```
 
@@ -38,13 +44,20 @@ This automatically runs these tests:
 - Domain should not depend on messaging (if namespace configured)
 - Layers should be properly separated (if namespaces configured)
 
+**Opt-in Rules** (disabled by default, enable via properties):
+- `EnableCqrsPatternRules` - Handlers implement correct interface, commands/queries implement ICommand/IQuery
+- `EnablePipelineBehaviorRules` - Pipeline behaviors implement IPipelineBehavior
+- `EnableSagaPatternRules` - Saga data classes should be sealed
+
 ### Option 2: Using Individual Rules
 
 Use `EncinaArchitectureRules` for more control:
 
 ```csharp
+using ArchUnitNET.Domain;
 using ArchUnitNET.Loader;
 using Encina.Testing.Architecture;
+using Xunit;
 
 public class CustomArchitectureTests
 {
@@ -76,6 +89,7 @@ Use `EncinaArchitectureRulesBuilder` for fluent configuration:
 
 ```csharp
 using Encina.Testing.Architecture;
+using Xunit;
 
 public class BuilderArchitectureTests
 {
@@ -165,6 +179,7 @@ var result = new EncinaArchitectureRulesBuilder(assembly1, assembly2)
     .EnforceRepositoryImplementationsInInfrastructure("MyApp.Infrastructure")
     .AddCustomRule(myCustomRule)       // Custom rules
     .ApplyAllStandardRules()           // All standard rules at once
+    .ApplyAllSagaRules()               // Opt-in saga rules
     .VerifyWithResult();               // Returns result instead of throwing
 
 if (result.IsFailure)
