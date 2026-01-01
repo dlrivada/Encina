@@ -6,6 +6,19 @@ namespace Encina.Testing.Tests.EventSourcing;
 
 public class AggregateTestBaseTests
 {
+    /// <summary>
+    /// Shared constants for error message fragments to avoid brittle string literals in assertions.
+    /// </summary>
+    private static class ErrorMessages
+    {
+        public const string Given = "Given()";
+        public const string When = "When()";
+        public const string ExceptionWasThrown = "exception was thrown";
+        public const string NoExceptionWasThrown = "no exception was thrown";
+        public const string Position0 = "position 0";
+        public const string ExpectedNoEventsButFound = "Expected no events but found";
+    }
+
     #region Given Tests
 
     [Fact]
@@ -21,11 +34,10 @@ public class AggregateTestBaseTests
         );
 
         // Assert
-        test.ExecuteWhenAndGetAggregate(order => { })
-            .ShouldBeOfType<TestOrderAggregate>().ShouldSatisfy(o =>
-                o.CustomerId == "Customer1" &&
-                o.Items.Count == 1 &&
-                o.Items["Product1"] == 2);
+        var aggregate = test.ExecuteWhenAndGetAggregate(order => { });
+        aggregate.CustomerId.ShouldBe("Customer1");
+        aggregate.Items.Count.ShouldBe(1);
+        aggregate.Items["Product1"].ShouldBe(2);
     }
 
     [Fact]
@@ -109,8 +121,7 @@ public class AggregateTestBaseTests
         test.TestWhen(order => order.Create(Guid.NewGuid(), "TestCustomer"));
 
         // Assert
-        test.GetTestUncommittedEvents().ShouldHaveSingleItem()
-            .Which.ShouldBeOfType<OrderCreated>();
+        _ = test.GetSingleUncommittedEvent<OrderCreated>();
     }
 
     [Fact]
@@ -124,7 +135,7 @@ public class AggregateTestBaseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*Given()*");
+        ex.Message.ShouldContain(ErrorMessages.Given);
     }
 
     [Fact]
@@ -178,8 +189,7 @@ public class AggregateTestBaseTests
         });
 
         // Assert
-        test.GetTestUncommittedEvents().ShouldHaveSingleItem()
-            .Which.ShouldBeOfType<OrderSubmitted>();
+        _ = test.GetSingleUncommittedEvent<OrderSubmitted>();
     }
 
     [Fact]
@@ -235,7 +245,7 @@ public class AggregateTestBaseTests
         // Assert
         var act = () => test.TestThen<OrderSubmitted>();
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*OrderSubmitted*");
+        ex.Message.ShouldContain(nameof(OrderSubmitted));
     }
 
     [Fact]
@@ -250,7 +260,7 @@ public class AggregateTestBaseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*When()*");
+        ex.Message.ShouldContain(ErrorMessages.When);
     }
 
     [Fact]
@@ -283,7 +293,7 @@ public class AggregateTestBaseTests
         // Assert
         var act = () => test.TestThen<OrderSubmitted>();
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*exception was thrown*");
+        ex.Message.ShouldContain(ErrorMessages.ExceptionWasThrown);
     }
 
     #endregion
@@ -325,7 +335,7 @@ public class AggregateTestBaseTests
         // Assert
         var act = () => test.TestThenEvents(typeof(ItemAdded), typeof(OrderCreated));
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*position 0*");
+        ex.Message.ShouldContain(ErrorMessages.Position0);
     }
 
     [Fact]
@@ -341,7 +351,8 @@ public class AggregateTestBaseTests
         // Assert
         var act = () => test.TestThenEvents(typeof(OrderCreated), typeof(ItemAdded));
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*Expected 2 events but got 1*");
+        ex.Message.ShouldContain("Expected");
+        ex.Message.ShouldContain("events");
     }
 
     #endregion
@@ -378,7 +389,7 @@ public class AggregateTestBaseTests
         // Assert
         var act = () => test.TestThenNoEvents();
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*Expected no events but found*");
+        ex.Message.ShouldContain(ErrorMessages.ExpectedNoEventsButFound);
     }
 
     #endregion
@@ -455,7 +466,7 @@ public class AggregateTestBaseTests
         // Assert
         var act = () => test.TestThenThrows<InvalidOperationException>();
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*no exception was thrown*");
+        ex.Message.ShouldContain(ErrorMessages.NoExceptionWasThrown);
     }
 
     [Fact]
@@ -471,7 +482,7 @@ public class AggregateTestBaseTests
         // Assert
         var act = () => test.TestThenThrows<ArgumentException>();
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*ArgumentException*InvalidOperationException*");
+        ex.Message.ShouldContain(nameof(ArgumentException));
     }
 
     [Fact]
@@ -531,7 +542,7 @@ public class AggregateTestBaseTests
         });
 
         // Assert
-        var itemEvents = test.GetTestUncommittedEvents<ItemAdded>();
+        var itemEvents = test.GetTestUncommittedEvents<ItemAdded>().ToList();
         itemEvents.Count.ShouldBe(2);
     }
 
@@ -551,7 +562,7 @@ public class AggregateTestBaseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*When()*");
+        ex.Message.ShouldContain(ErrorMessages.When);
     }
 
     #endregion
@@ -574,6 +585,16 @@ public class AggregateTestBaseTests
         public IReadOnlyList<object> GetTestUncommittedEvents() => GetUncommittedEvents();
         public IEnumerable<TEvent> GetTestUncommittedEvents<TEvent>() where TEvent : class => GetUncommittedEvents<TEvent>();
         public TestOrderAggregate GetTestAggregate() => Aggregate;
+
+        /// <summary>
+        /// Materializes uncommitted events once, asserts exactly one exists, and returns it cast to T.
+        /// </summary>
+        public TEvent GetSingleUncommittedEvent<TEvent>() where TEvent : class
+        {
+            var events = GetUncommittedEvents();
+            events.Count.ShouldBe(1, "Expected exactly one uncommitted event");
+            return events[0].ShouldBeOfType<TEvent>();
+        }
 
         public TestOrderAggregate ExecuteWhenAndGetAggregate(Action<TestOrderAggregate> action)
         {

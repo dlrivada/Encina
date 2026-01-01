@@ -41,7 +41,7 @@
 | **Pipeline Behaviors** | ~20+ |
 | **Phase 2 Milestones** | 10 milestones (v0.10.0 → v0.19.0) |
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
-| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (10/25 completado) | 
+| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (12/25 completado) | 
 | **v0.12.0 - Database & Repository** | 22 issues |
 | **v0.13.0 - Security & Compliance** | 25 issues |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
@@ -2651,7 +2651,23 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 
 #### Features Actuales
 
-- `EncinaFixture` - DI fixture para tests
+- `EncinaTestFixture` - Fluent builder para test setup (#444):
+  - `WithMockedOutbox()`, `WithMockedInbox()`, `WithMockedSaga()` - Configure fake stores
+  - `WithMockedScheduling()`, `WithMockedDeadLetter()` - Additional store mocking
+  - `WithAllMockedStores()` - Enable all mocked stores at once
+  - `WithHandler<THandler>()` - Register request/notification handlers
+  - `WithService<TService>(instance)` - Register custom service instances
+  - `SendAsync<TResponse>(IRequest)` - Send request and get test context
+  - `PublishAsync(INotification)` - Publish notification and get test context
+  - Properties: `Outbox`, `Inbox`, `SagaStore`, `ScheduledMessageStore`, `DeadLetterStore`
+  - `ClearStores()` - Reset all stores for test isolation
+- `EncinaTestContext<TResponse>` - Chainable assertion context (#444):
+  - `ShouldSucceed()`, `ShouldFail()` - Assert result state
+  - `ShouldSucceedWith(Action<TResponse>)`, `ShouldFailWith(Action<EncinaError>)`
+  - `OutboxShouldContain<TNotification>()`, `OutboxShouldBeEmpty()`
+  - `SagaShouldBeStarted<TSaga>()` - Verify saga lifecycle
+  - `And` property for fluent chaining
+  - Implicit conversion to `Either<EncinaError, TResponse>`
 - `EitherAssertions` - Assertions para `Either<L, R>`
   - `ShouldBeSuccess`, `ShouldBeError`
   - `ShouldBeErrorWithCode`, `ShouldBeValidationError`
@@ -5294,7 +5310,7 @@ Developer Experience (DX) es un diferenciador clave en la adopción de framework
 | **#441** | Enhanced Exception Formatting | `Encina.Diagnostics` con pretty-print para errores | Media | Baja |
 | **#442** | Hot Reload Support | Soporte para hot reload de handlers sin reiniciar | Media | Media |
 | **#443** | AI-Ready Request Tracing | Tracing con redacción PII y export AI-compatible | Media | Media |
-| **#444** | Enhanced Testing Fixtures | Fluent assertions para Either, time-travel para sagas | Media | Media |
+| ~~**#444**~~ | ~~Enhanced Testing Fixtures~~ | ✅ Completado: 6/6 phases (Time-travel, Snapshot, Contract) | Media | Media |
 | **#445** | Developer Dashboard | Web UI local para debugging (tipo Hangfire Dashboard) | **Alta** | Alta |
 | **#446** | OpenAPI Integration | `Encina.OpenApi` para generación automática de endpoints | Media | Media |
 | **#447** | Dev Containers Support | Configuración para Dev Containers y GitHub Codespaces | Baja | Baja |
@@ -5398,19 +5414,51 @@ services.AddEncina(config => {
 public class CreateOrderCommand : ICommand<OrderResult> { }
 ```
 
-**#444 - Enhanced Testing Fixtures** (Media Prioridad):
-- `EncinaTestFixture` con fluent builder
-- Assertions para `Either`: `ShouldBeSuccess()`, `ShouldBeError()`
-- Time-travel testing para sagas: `AdvanceTimeBy()`
-- Outbox/Inbox assertions: `OutboxShouldContain<T>()`
-- Snapshot testing integration con Verify
+**~~#444 - Enhanced Testing Fixtures~~** ✅ COMPLETADO (6/6 Phases):
+- **Phase 1 - EncinaTestFixture** ✅ COMPLETADO
+  - `WithMockedOutbox()`, `WithMockedInbox()`, `WithMockedSaga()` ✅
+  - `WithMockedScheduling()`, `WithMockedDeadLetter()`, `WithAllMockedStores()` ✅
+  - `WithHandler<THandler>()`, `WithService<TService>()` ✅
+  - `SendAsync()`, `PublishAsync()` ✅
+  - Properties: `Outbox`, `Inbox`, `SagaStore`, `ScheduledMessageStore`, `DeadLetterStore` ✅
+- **Phase 2 - Either assertions** ✅ Ya existen en `Encina.Testing.Shouldly`
+- **Phase 3 - Time-travel testing** ✅ COMPLETADO
+  - `WithFakeTimeProvider()`, `AdvanceTimeBy()`, `AdvanceTimeByHours()`, `SetTimeTo()` ✅
+  - `ThenAdvanceTimeBy()`, `ThenAdvanceTimeByHours()` (chainable context) ✅
+  - `SagaShouldHaveTimedOut()`, `SagaShouldHaveCompleted()`, `SagaShouldBeCompensating()` ✅
+- **Phase 4 - Outbox/Inbox assertions** ✅ COMPLETADO (in EncinaTestContext)
+- **Phase 5 - Snapshot testing** ✅ COMPLETADO
+  - `PrepareHandlerResult()`, `PrepareSagaStates()`, `PrepareValidationError()` ✅
+  - `PrepareTestScenario()` para snapshots completos ✅
+  - `ForVerify()`, `SuccessForVerify()`, `ErrorForVerify()` extensions ✅
+- **Phase 6 - Contract testing** ✅ COMPLETADO
+  - `RequestsShouldFollowNamingConvention()`, `SagasShouldBeSealed()` ✅
+  - `AggregatesShouldFollowPattern()`, `ValueObjectsShouldBeSealed()` ✅
+  - `EnforceSealedSagas()`, `EnforceSealedEventHandlers()` ✅
 - Labels: `area-testing`, `area-developer-experience`, `testing-assertions`, `testing-bdd`, `testing-snapshot`, `testing-time-control`, `testing-mocking`, `wolverine-inspired`
 
 ```csharp
-await fixture.Send(new CreateOrderCommand(...))
-    .ShouldSucceed()
-    .And.OutboxShouldContain<OrderCreatedEvent>()
-    .And.SagaShouldBeStarted<OrderSaga>();
+// All 6 phases completed - comprehensive testing support
+var fixture = new EncinaTestFixture()
+    .WithMockedOutbox()
+    .WithMockedSaga()
+    .WithFakeTimeProvider(startTime)  // Phase 3
+    .WithHandler<CreateOrderHandler>();
+
+var context = await fixture.SendAsync(new CreateOrderCommand(...));
+context.ShouldSucceed()
+    .And.OutboxShouldContain<OrderCreatedEvent>()  // Phase 4
+    .And.SagaShouldBeStarted<OrderSaga>()
+    .ThenAdvanceTimeByHours(2)  // Phase 3
+    .And.SagaShouldHaveCompleted<OrderSaga>();  // Phase 3
+
+// Phase 5 - Snapshot testing
+await Verify(context.Result.ForVerify());
+
+// Phase 6 - Architecture rules
+new EncinaArchitectureRulesBuilder(typeof(OrderHandler).Assembly)
+    .ApplyAllStandardRules()  // Includes sagas and event handlers
+    .Verify();
 ```
 
 **#445 - Developer Dashboard** (Alta Prioridad):

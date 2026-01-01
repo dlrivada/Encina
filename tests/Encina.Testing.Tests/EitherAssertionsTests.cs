@@ -28,7 +28,7 @@ public sealed class EitherAssertionsTests
         Either<string, int> result = Left("error");
 
         // Act & Assert
-        var act = () => result.ShouldBeSuccess();
+        Action act = () => { _ = result.ShouldBeSuccess(); };
         Should.Throw<Xunit.Sdk.TrueException>(act);
     }
 
@@ -49,7 +49,7 @@ public sealed class EitherAssertionsTests
         Either<string, int> result = Right(42);
 
         // Act & Assert
-        var act = () => result.ShouldBeSuccess(99);
+        Action act = () => { result.ShouldBeSuccess(99); };
         Should.Throw<Xunit.Sdk.EqualException>(act);
     }
 
@@ -108,7 +108,7 @@ public sealed class EitherAssertionsTests
         Either<string, int> result = Right(42);
 
         // Act & Assert
-        var act = () => result.ShouldBeError();
+        Action act = () => { _ = result.ShouldBeError(); };
         Should.Throw<Xunit.Sdk.TrueException>(act);
     }
 
@@ -167,7 +167,7 @@ public sealed class EitherAssertionsTests
         Either<EncinaError, int> result = EncinaErrors.Create("test.code", "Test error");
 
         // Act & Assert
-        var act = () => result.ShouldBeErrorWithCode("wrong.code");
+        Action act = () => { _ = result.ShouldBeErrorWithCode("wrong.code"); };
         Should.Throw<Xunit.Sdk.EqualException>(act);
     }
 
@@ -181,7 +181,7 @@ public sealed class EitherAssertionsTests
         var error = result.ShouldBeErrorContaining("test error");
 
         // Assert
-        error.ShouldNotBeNull();
+        error.Message.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public sealed class EitherAssertionsTests
         Either<EncinaError, int> result = EncinaErrors.Create("test.code", "This is a test error");
 
         // Act & Assert
-        var act = () => result.ShouldBeErrorContaining("does not exist");
+        Action act = () => { _ = result.ShouldBeErrorContaining("does not exist"); };
         Should.Throw<Xunit.Sdk.ContainsException>(act);
     }
 
@@ -215,7 +215,7 @@ public sealed class EitherAssertionsTests
         Either<EncinaError, int> result = EncinaErrors.Create("other.code", "Not a validation error");
 
         // Act & Assert
-        var act = () => result.ShouldBeValidationError();
+        Action act = () => { _ = result.ShouldBeValidationError(); };
         Should.Throw<Xunit.Sdk.StartsWithException>(act);
     }
 

@@ -91,7 +91,7 @@ public sealed class EncinaFixtureTests
         // Act & Assert
         var act = () => fixture.GetRequiredService<IEncina>();
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*CreateEncina*");
+        ex.Message.ShouldContain("CreateEncina");
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed class EncinaFixtureTests
         // Act & Assert
         var act = () => fixture.CreateScope();
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*CreateEncina*");
+        ex.Message.ShouldContain("CreateEncina");
     }
 
     [Fact]

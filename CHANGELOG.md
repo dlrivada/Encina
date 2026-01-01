@@ -36,6 +36,40 @@
 
 ### Added
 
+- **Encina.Testing Package** - Enhanced testing fixtures for fluent test setup (Issue #444):
+  - `EncinaTestFixture` - Fluent builder pattern for test setup:
+    - `WithMockedOutbox()`, `WithMockedInbox()`, `WithMockedSaga()` - Configure fake stores
+    - `WithMockedScheduling()`, `WithMockedDeadLetter()` - Additional store mocking
+    - `WithAllMockedStores()` - Enable all mocked stores at once
+    - `WithHandler<THandler>()` - Register request/notification handlers
+    - `WithService<TService>(instance)` - Register custom service instances
+    - `WithService<TService, TImplementation>()` - Register service with implementation type
+    - `WithConfiguration(Action<EncinaConfiguration>)` - Custom Encina configuration
+    - `SendAsync<TResponse>(IRequest<TResponse>)` - Send request and get test context
+    - `PublishAsync(INotification)` - Publish notification and get test context
+    - Properties: `Outbox`, `Inbox`, `SagaStore`, `ScheduledMessageStore`, `DeadLetterStore`
+    - `ClearStores()` - Reset all stores for test isolation
+    - `IAsyncLifetime` support for xUnit integration
+  - `EncinaTestContext<TResponse>` - Chainable assertion context:
+    - `ShouldSucceed()`, `ShouldFail()` - Assert result state
+    - `ShouldSucceedWith(Action<TResponse>)` - Assert and verify success value
+    - `ShouldFailWith(Action<EncinaError>)` - Assert and verify error
+    - `ShouldSatisfy(Action<TResponse>)` - Custom verification
+    - `OutboxShouldContain<TNotification>()` - Verify outbox messages
+    - `OutboxShouldBeEmpty()`, `OutboxShouldContainExactly(count)` - Outbox assertions
+    - `SagaShouldBeStarted<TSaga>()` - Verify saga lifecycle
+    - `SagaShouldHaveTimedOut<TSaga>()`, `SagaShouldHaveCompleted<TSaga>()` - Saga state assertions
+    - `SagaShouldBeCompensating<TSaga>()`, `SagaShouldHaveFailed<TSaga>()` - Saga failure assertions
+    - `GetSuccessValue()`, `GetErrorValue()` - Extract values
+    - `And` property for fluent chaining
+    - Implicit conversion to `Either<EncinaError, TResponse>`
+  - **Time-Travel Testing** (Phase 3):
+    - `WithFakeTimeProvider()`, `WithFakeTimeProvider(DateTimeOffset)` - Configure fake time
+    - `AdvanceTimeBy(TimeSpan)`, `AdvanceTimeByMinutes(int)`, `AdvanceTimeByHours(int)` - Advance time
+    - `AdvanceTimeByDays(int)`, `SetTimeTo(DateTimeOffset)`, `GetCurrentTime()` - Time control
+    - `ThenAdvanceTimeBy()`, `ThenAdvanceTimeByHours()` - Context chaining for time-travel
+    - `TimeProvider` property for direct FakeTimeProvider access
+
 - **Encina.Testing.Testcontainers Package** - Docker container fixtures for integration tests (Issues #162, #163):
   - `SqlServerContainerFixture` - SQL Server container (mcr.microsoft.com/mssql/server:2022-latest)
   - `PostgreSqlContainerFixture` - PostgreSQL container (postgres:17-alpine)
@@ -59,7 +93,7 @@
     - `ResetDatabaseAsync()` method for mid-test cleanup
     - Default exclusion of Encina messaging tables from cleanup
 
-- **Encina.Testing.Architecture Package** - Architecture testing rules using ArchUnitNET (Issue #432):
+- **Encina.Testing.Architecture Package** - Architecture testing rules using ArchUnitNET (Issue #432, Phase 6 of #444):
   - `EncinaArchitectureRules` - Static class with pre-built architecture rules:
     - `HandlersShouldNotDependOnInfrastructure()` - Handlers should use abstractions
     - `HandlersShouldBeSealed()` - Handler classes should be sealed
@@ -72,6 +106,12 @@
     - `CleanArchitectureLayersShouldBeSeparated(domain, app, infra)` - Combined layer rules
     - `RepositoryInterfacesShouldResideInDomain(namespace)` - Repository interface location
     - `RepositoryImplementationsShouldResideInInfrastructure(namespace)` - Impl location
+    - **(NEW Phase 6)** `RequestsShouldFollowNamingConvention()` - Requests should end with Command/Query
+    - **(NEW Phase 6)** `AggregatesShouldFollowPattern(namespace)` - Aggregates should be sealed
+    - **(NEW Phase 6)** `ValueObjectsShouldBeSealed()` - Value objects should be sealed
+    - **(NEW Phase 6)** `SagasShouldBeSealed()` - Sagas should be sealed
+    - **(NEW Phase 6)** `StoreImplementationsShouldBeSealed()` - Store impls should be sealed
+    - **(NEW Phase 6)** `EventHandlersShouldBeSealed()` - Event handlers should be sealed
   - `EncinaArchitectureTestBase` - Abstract test class with pre-defined tests:
     - Override `ApplicationAssembly`, `DomainAssembly`, `InfrastructureAssembly`
     - Override namespace properties for layer separation rules
@@ -80,8 +120,13 @@
     - Chain multiple rules with fluent API
     - `Verify()` - Throws `ArchitectureRuleException` on violations
     - `VerifyWithResult()` - Returns `ArchitectureVerificationResult` without throwing
-    - `ApplyAllStandardRules()` - Apply all standard Encina rules at once
+    - `ApplyAllStandardRules()` - Apply all standard Encina rules at once (now includes Sagas and EventHandlers)
     - `AddCustomRule(IArchRule)` - Add custom ArchUnitNET rules
+    - **(NEW Phase 6)** `EnforceRequestNaming()` - Enforce request naming conventions
+    - **(NEW Phase 6)** `EnforceSealedAggregates(namespace)` - Enforce sealed aggregates
+    - **(NEW Phase 6)** `EnforceSealedValueObjects()` - Enforce sealed value objects
+    - **(NEW Phase 6)** `EnforceSealedSagas()` - Enforce sealed sagas
+    - **(NEW Phase 6)** `EnforceSealedEventHandlers()` - Enforce sealed event handlers
   - `ArchitectureRuleViolation` - Record for rule violation details
   - `ArchitectureVerificationResult` - Result with `IsSuccess`, `IsFailure`, `Violations`
   - `ArchitectureRuleException` - Exception with formatted violation messages
@@ -102,6 +147,14 @@
     - `PrepareSagaState()` - Prepare saga state for verification
     - `PrepareScheduledMessages()` - Prepare scheduled messages for verification
     - `PrepareDeadLetterMessages()` - Prepare dead letter messages for verification
+    - **(NEW Phase 5)** `PrepareHandlerResult<TRequest, TResponse>()` - Prepare handler result with request context
+    - **(NEW Phase 5)** `PrepareSagaStates()` - Prepare multiple saga states for verification
+    - **(NEW Phase 5)** `PrepareValidationError()` - Prepare validation error for verification
+    - **(NEW Phase 5)** `PrepareTestScenario<TResponse>()` - Prepare complete test scenario with outbox/sagas
+  - **(NEW Phase 5)** `EncinaTestContextExtensions` - Extension methods for Either results:
+    - `ForVerify<TResponse>()` - Prepare Either for snapshot verification
+    - `SuccessForVerify<TResponse>()` - Extract success value for verification
+    - `ErrorForVerify<TResponse>()` - Extract error for verification
   - Automatic GUID scrubbing with deterministic placeholders (Guid_1, Guid_2, etc.)
   - Integration with Verify.Xunit for xUnit test framework
 - **Encina.Aspire.Testing Package** - Aspire integration testing support (Issue #418):

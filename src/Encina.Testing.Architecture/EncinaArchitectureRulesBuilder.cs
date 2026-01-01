@@ -168,6 +168,57 @@ public sealed class EncinaArchitectureRulesBuilder
     }
 
     /// <summary>
+    /// Adds a rule that request types should follow naming conventions.
+    /// </summary>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder EnforceRequestNaming()
+    {
+        _rules.Add(EncinaArchitectureRules.RequestsShouldFollowNamingConvention());
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a rule that aggregates should be sealed.
+    /// </summary>
+    /// <param name="aggregateNamespace">The namespace pattern for aggregates.</param>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder EnforceSealedAggregates(string aggregateNamespace)
+    {
+        _rules.Add(EncinaArchitectureRules.AggregatesShouldFollowPattern(aggregateNamespace));
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a rule that value objects should be sealed.
+    /// </summary>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder EnforceSealedValueObjects()
+    {
+        _rules.Add(EncinaArchitectureRules.ValueObjectsShouldBeSealed());
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a rule that sagas should be sealed.
+    /// </summary>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder EnforceSealedSagas()
+    {
+        _rules.Add(EncinaArchitectureRules.SagasShouldBeSealed());
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a rule that event handlers should be sealed.
+    /// </summary>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder EnforceSealedEventHandlers()
+    {
+        _rules.Add(EncinaArchitectureRules.EventHandlersShouldBeSealed());
+        return this;
+    }
+
+    /// <summary>
     /// Applies all standard Encina architecture rules.
     /// </summary>
     /// <returns>The builder for chaining.</returns>
@@ -177,7 +228,9 @@ public sealed class EncinaArchitectureRulesBuilder
             .EnforceSealedNotifications()
             .EnforceSealedHandlers()
             .EnforceSealedBehaviors()
-            .EnforceValidatorNaming();
+            .EnforceValidatorNaming()
+            .EnforceSealedSagas()
+            .EnforceSealedEventHandlers();
     }
 
     /// <summary>

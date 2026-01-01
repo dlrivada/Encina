@@ -240,6 +240,117 @@ public static class EncinaArchitectureRules
         Regex.Escape(input);
 
     /// <summary>
+    /// Creates a rule that request types should follow the naming convention.
+    /// </summary>
+    /// <returns>An architecture rule that can be checked against an architecture.</returns>
+    /// <remarks>
+    /// Requests should end with Command or Query to indicate their intent.
+    /// </remarks>
+    public static IArchRule RequestsShouldFollowNamingConvention()
+    {
+        return Classes()
+            .That()
+            .ImplementInterface(typeof(IRequest<>))
+            .Or()
+            .ImplementInterface(typeof(ICommand<>))
+            .Or()
+            .ImplementInterface(typeof(IQuery<>))
+            .Should()
+            .HaveNameMatching(".*(?:Command|Query)$")
+            .Because("Request types should end with 'Command' or 'Query' to indicate their intent");
+    }
+
+    /// <summary>
+    /// Creates a rule that aggregates should be sealed and follow naming conventions.
+    /// </summary>
+    /// <remarks>
+    /// This rule verifies that classes ending with "Aggregate" in the specified namespace are sealed.
+    /// While aggregates should ideally inherit from AggregateRoot&lt;TId&gt; or AggregateBase&lt;TId&gt;,
+    /// ArchUnitNET supports two approaches for validating generic base class inheritance:
+    /// (1) Use <c>AreAssignableTo(typeof(MyGenericBase&lt;&gt;))</c> to check assignment to open generic types, or
+    /// (2) Create custom <c>DescribedPredicate</c> implementations that inspect <c>BaseType</c> and
+    /// <c>GenericTypeDefinition</c> via reflection to detect generic base-class inheritance.
+    /// </remarks>
+    /// <param name="aggregateNamespace">The namespace pattern for aggregates.</param>
+    /// <returns>An architecture rule that can be checked against an architecture.</returns>
+    public static IArchRule AggregatesShouldFollowPattern(string aggregateNamespace)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(aggregateNamespace);
+
+        return Classes()
+            .That()
+            .ResideInNamespaceMatching($".*{EscapeForRegex(aggregateNamespace)}.*")
+            .And()
+            .HaveNameEndingWith("Aggregate")
+            .Should()
+            .BeSealed()
+            .Because("Aggregates should be sealed and follow naming conventions");
+    }
+
+    /// <summary>
+    /// Creates a rule that value objects should be records or sealed classes.
+    /// </summary>
+    /// <returns>An architecture rule that can be checked against an architecture.</returns>
+    public static IArchRule ValueObjectsShouldBeSealed()
+    {
+        return Classes()
+            .That()
+            .HaveNameEndingWith("ValueObject")
+            .Or()
+            .HaveNameEndingWith("VO")
+            .Should()
+            .BeSealed()
+            .Because("Value objects should be sealed records or classes for immutability");
+    }
+
+    /// <summary>
+    /// Creates a rule that saga types should be sealed.
+    /// </summary>
+    /// <returns>An architecture rule that can be checked against an architecture.</returns>
+    public static IArchRule SagasShouldBeSealed()
+    {
+        return Classes()
+            .That()
+            .HaveNameEndingWith("Saga")
+            .Should()
+            .BeSealed()
+            .Because("Sagas should be sealed for clarity and performance");
+    }
+
+    /// <summary>
+    /// Creates a rule that store implementations should be sealed.
+    /// </summary>
+    /// <returns>An architecture rule that can be checked against an architecture.</returns>
+    public static IArchRule StoreImplementationsShouldBeSealed()
+    {
+        return Classes()
+            .That()
+            .HaveNameEndingWith("Store")
+            .And()
+            .DoNotHaveNameStartingWith("Fake")
+            .Should()
+            .BeSealed()
+            .Because("Store implementations should be sealed to prevent misuse");
+    }
+
+    /// <summary>
+    /// Creates a rule that event handler classes should be sealed.
+    /// </summary>
+    /// <remarks>
+    /// Sealing event handlers prevents inheritance and improves performance.
+    /// </remarks>
+    /// <returns>An architecture rule that can be checked against an architecture.</returns>
+    public static IArchRule EventHandlersShouldBeSealed()
+    {
+        return Classes()
+            .That()
+            .HaveNameEndingWith("EventHandler")
+            .Should()
+            .BeSealed()
+            .Because("Event handlers should be sealed");
+    }
+
+    /// <summary>
     /// Creates a combined rule for clean architecture layer separation.
     /// </summary>
     /// <param name="domainNamespace">The namespace for domain types.</param>

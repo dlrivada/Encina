@@ -284,6 +284,122 @@ public static class EncinaVerify
             ReplayResult = m.ReplayResult
         }).ToList();
     }
+
+    /// <summary>
+    /// Prepares a handler test result for snapshot verification.
+    /// </summary>
+    /// <typeparam name="TRequest">The request type.</typeparam>
+    /// <typeparam name="TResponse">The response type.</typeparam>
+    /// <param name="request">The request that was sent.</param>
+    /// <param name="result">The result from the handler.</param>
+    /// <returns>An object suitable for snapshot verification.</returns>
+    /// <remarks>
+    /// This creates a comprehensive snapshot that includes both the request and response,
+    /// useful for verifying handler behavior with specific inputs.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var request = new CreateOrderCommand { CustomerId = "CUST-001" };
+    /// var result = await handler.Handle(request);
+    /// await Verify(EncinaVerify.PrepareHandlerResult(request, result));
+    /// </code>
+    /// </example>
+    public static object PrepareHandlerResult<TRequest, TResponse>(
+        TRequest request,
+        Either<EncinaError, TResponse> result)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return result.Match(
+            Right: response => (object)new HandlerResultSnapshot<TRequest, TResponse>
+            {
+                RequestType = typeof(TRequest).Name,
+                Request = request,
+                IsSuccess = true,
+                Response = response
+            },
+            Left: error => new HandlerResultSnapshot<TRequest, TResponse>
+            {
+                RequestType = typeof(TRequest).Name,
+                Request = request,
+                IsSuccess = false,
+                Error = new ErrorSnapshot
+                {
+                    Message = error.Message,
+                    Code = error.GetCode().Match(Some: c => c, None: () => (string?)null)
+                }
+            });
+    }
+
+    /// <summary>
+    /// Prepares multiple saga states for snapshot verification.
+    /// </summary>
+    /// <param name="sagaStates">The saga states to prepare.</param>
+    /// <returns>An object suitable for snapshot verification.</returns>
+    /// <remarks>
+    /// The sagas are sorted by saga ID for consistent snapshot output.
+    /// </remarks>
+    public static IReadOnlyList<object> PrepareSagaStates(IEnumerable<ISagaState> sagaStates)
+    {
+        ArgumentNullException.ThrowIfNull(sagaStates);
+
+        return sagaStates.OrderBy(s => s.SagaId).Select(PrepareSagaState).ToList();
+    }
+
+    /// <summary>
+    /// Prepares a validation error result for snapshot verification.
+    /// </summary>
+    /// <param name="error">The EncinaError containing validation details.</param>
+    /// <returns>An object suitable for snapshot verification.</returns>
+    /// <remarks>
+    /// This is useful for verifying that validation produces expected error messages.
+    /// </remarks>
+    public static object PrepareValidationError(EncinaError error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+
+        var code = error.GetCode().Match(Some: c => c, None: () => (string?)null);
+        return new ValidationErrorSnapshot
+        {
+            Message = error.Message,
+            Code = code,
+            IsValidationError = code?.StartsWith("encina.validation.", StringComparison.OrdinalIgnoreCase) ?? false
+        };
+    }
+
+    /// <summary>
+    /// Prepares a combined test scenario result for snapshot verification.
+    /// </summary>
+    /// <typeparam name="TResponse">The response type.</typeparam>
+    /// <param name="result">The handler result.</param>
+    /// <param name="outboxMessages">Optional outbox messages to include.</param>
+    /// <param name="sagaStates">Optional saga states to include.</param>
+    /// <returns>An object suitable for snapshot verification.</returns>
+    /// <remarks>
+    /// Use this to create comprehensive snapshots that capture the complete state
+    /// after a handler execution, including side effects like outbox messages and sagas.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var result = await handler.Handle(command);
+    /// await Verify(EncinaVerify.PrepareTestScenario(
+    ///     result,
+    ///     outboxStore.Messages,
+    ///     sagaStore.GetSagas()));
+    /// </code>
+    /// </example>
+    public static object PrepareTestScenario<TResponse>(
+        Either<EncinaError, TResponse> result,
+        IEnumerable<IOutboxMessage>? outboxMessages = null,
+        IEnumerable<ISagaState>? sagaStates = null)
+    {
+        return new TestScenarioSnapshot<TResponse>
+        {
+            Result = PrepareEither(result),
+            OutboxMessages = outboxMessages != null ? PrepareOutboxMessages(outboxMessages) : null,
+            SagaStates = sagaStates != null ? PrepareSagaStates(sagaStates) : null
+        };
+    }
 }
 
 #region Snapshot Types
@@ -388,6 +504,47 @@ internal sealed class DeadLetterMessageSnapshot
     public string? CorrelationId { get; set; }
     public bool IsReplayed { get; set; }
     public string? ReplayResult { get; set; }
+}
+
+/// <summary>
+/// Internal snapshot representation for handler results.
+/// </summary>
+internal sealed class HandlerResultSnapshot<TRequest, TResponse>
+{
+    public string RequestType { get; set; } = string.Empty;
+    public TRequest? Request { get; set; }
+    public bool IsSuccess { get; set; }
+    public TResponse? Response { get; set; }
+    public ErrorSnapshot? Error { get; set; }
+}
+
+/// <summary>
+/// Internal snapshot representation for errors.
+/// </summary>
+internal sealed class ErrorSnapshot
+{
+    public string Message { get; set; } = string.Empty;
+    public string? Code { get; set; }
+}
+
+/// <summary>
+/// Internal snapshot representation for validation errors.
+/// </summary>
+internal sealed class ValidationErrorSnapshot
+{
+    public string Message { get; set; } = string.Empty;
+    public string? Code { get; set; }
+    public bool IsValidationError { get; set; }
+}
+
+/// <summary>
+/// Internal snapshot representation for complete test scenarios.
+/// </summary>
+internal sealed class TestScenarioSnapshot<TResponse>
+{
+    public object? Result { get; set; }
+    public IReadOnlyList<object>? OutboxMessages { get; set; }
+    public IReadOnlyList<object>? SagaStates { get; set; }
 }
 
 #endregion

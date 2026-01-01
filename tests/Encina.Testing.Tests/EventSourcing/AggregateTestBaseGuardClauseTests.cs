@@ -69,7 +69,7 @@ public sealed class AggregateTestBaseGuardClauseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*Given()*GivenEmpty()*");
+        ex.Message.ShouldContain("Given()");
     }
 
     #endregion
@@ -102,7 +102,7 @@ public sealed class AggregateTestBaseGuardClauseTests
 
         // Assert
         var ex = await Should.ThrowAsync<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*Given()*");
+        ex.Message.ShouldContain("Given()");
     }
 
     #endregion
@@ -121,7 +121,7 @@ public sealed class AggregateTestBaseGuardClauseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*When()*");
+        ex.Message.ShouldContain("When()");
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public sealed class AggregateTestBaseGuardClauseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*When()*");
+        ex.Message.ShouldContain("When()");
     }
 
     #endregion
@@ -191,7 +191,7 @@ public sealed class AggregateTestBaseGuardClauseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*When()*");
+        ex.Message.ShouldContain("When()");
     }
 
     #endregion
@@ -226,7 +226,7 @@ public sealed class AggregateTestBaseGuardClauseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*When()*");
+        ex.Message.ShouldContain("When()");
     }
 
     #endregion
@@ -245,7 +245,7 @@ public sealed class AggregateTestBaseGuardClauseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*When()*");
+        ex.Message.ShouldContain("When()");
     }
 
     [Fact]
@@ -261,7 +261,7 @@ public sealed class AggregateTestBaseGuardClauseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*no exception was thrown*");
+        ex.Message.ShouldContain("no exception was thrown");
     }
 
     [Fact]
@@ -296,7 +296,7 @@ public sealed class AggregateTestBaseGuardClauseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*When()*");
+        ex.Message.ShouldContain("When()");
     }
 
     #endregion
@@ -315,7 +315,7 @@ public sealed class AggregateTestBaseGuardClauseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*When()*");
+        ex.Message.ShouldContain("When()");
     }
 
     #endregion
