@@ -76,6 +76,25 @@
     - `AdvanceTimeByDays(int)`, `SetTimeTo(DateTimeOffset)`, `GetCurrentTime()` - Time control
     - `ThenAdvanceTimeBy()`, `ThenAdvanceTimeByHours()` - Context chaining for time-travel
     - `TimeProvider` property for direct FakeTimeProvider access
+  - **Messaging Pattern Test Helpers** (Issue #169) - BDD Given/When/Then helpers for messaging patterns:
+    - `OutboxTestHelper` - Fluent test helper for outbox pattern testing:
+      - `GivenEmptyOutbox()`, `GivenMessages()`, `GivenPendingMessage()`, `GivenProcessedMessage()`, `GivenFailedMessage()` - Setup methods
+      - `WhenMessageAdded()`, `WhenMessageProcessed()`, `WhenMessageFailed()`, `When()`, `WhenAsync()` - Action methods
+      - `ThenMessageWasAdded<T>()`, `ThenOutboxContains<T>()`, `ThenMessageWasProcessed()`, `ThenNoMessagesWereAdded()`, `ThenNoException()`, `ThenThrows<T>()` - Assertion methods
+      - Time-travel: `AdvanceTimeBy()`, `AdvanceTimeByMinutes()`, `AdvanceTimeByHours()`, `AdvanceTimeByDays()`, `GetCurrentTime()`
+    - `InboxTestHelper` - Fluent test helper for inbox/idempotency testing:
+      - `GivenEmptyInbox()`, `GivenNewMessage()`, `GivenProcessedMessage()`, `GivenFailedMessage()` - Setup methods
+      - `WhenMessageReceived()`, `WhenMessageRegistered()`, `WhenMessageProcessed()`, `WhenMessageFailed()`, `When()`, `WhenAsync()` - Action methods
+      - `ThenMessageWasRegistered()`, `ThenMessageIsProcessed()`, `ThenCachedResponseIs<T>()`, `ThenMessageWasDuplicate()`, `ThenNoException()`, `ThenThrows<T>()` - Assertion methods
+    - `SagaTestHelper` - Fluent test helper for saga orchestration testing:
+      - `GivenNoSagas()`, `GivenNewSaga<TSaga, TData>()`, `GivenRunningSaga<TSaga, TData>()`, `GivenCompletedSaga()`, `GivenFailedSaga()`, `GivenTimedOutSaga()` - Setup methods
+      - `WhenSagaStarts<TSaga, TData>()`, `WhenSagaAdvancesToNextStep()`, `WhenSagaDataUpdated<TData>()`, `WhenSagaCompletes()`, `WhenSagaStartsCompensating()`, `WhenSagaFails()`, `WhenSagaTimesOut()` - Action methods
+      - `ThenSagaWasStarted<TSaga>()`, `ThenSagaIsAtStep()`, `ThenSagaIsCompleted()`, `ThenSagaIsFailed()`, `ThenSagaIsCompensating()`, `ThenSagaData<TData>()`, `ThenNoException()`, `ThenThrows<T>()` - Assertion methods
+    - `SchedulingTestHelper` - Fluent test helper for scheduled message testing:
+      - `GivenNoScheduledMessages()`, `GivenScheduledMessage()`, `GivenRecurringMessage()`, `GivenDueMessage()`, `GivenProcessedMessage()`, `GivenFailedMessage()`, `GivenCancelledMessage()` - Setup methods
+      - `WhenMessageScheduled()`, `WhenRecurringMessageScheduled()`, `WhenMessageProcessed()`, `WhenMessageFailed()`, `WhenMessageCancelled()`, `WhenMessageRescheduled()` - Action methods
+      - `ThenMessageWasScheduled<T>()`, `ThenMessageIsDue<T>()`, `ThenMessageIsNotDue()`, `ThenMessageWasProcessed()`, `ThenMessageWasCancelled()`, `ThenMessageIsRecurring()`, `ThenMessageHasCron()`, `ThenScheduledMessageCount()` - Assertion methods
+      - Time-travel: `AdvanceTimeBy()`, `AdvanceTimeByMinutes()`, `AdvanceTimeByHours()`, `AdvanceTimeByDays()`, `AdvanceTimeUntilDue()`, `GetCurrentTime()`, `GetDueMessagesAsync()`
 
 - **Encina.Testing.Testcontainers Package** - Docker container fixtures for integration tests (Issues #162, #163):
   - `SqlServerContainerFixture` - SQL Server container (mcr.microsoft.com/mssql/server:2022-latest)

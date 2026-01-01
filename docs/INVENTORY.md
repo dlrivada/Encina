@@ -2673,6 +2673,11 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
   - `ShouldBeErrorWithCode`, `ShouldBeValidationError`
   - Variantes async: `ShouldBeSuccessAsync`, `ShouldBeErrorAsync`
 - `AggregateTestBase<TAggregate, TId>` - Given/When/Then para Event Sourcing
+- **Messaging Pattern Test Helpers** (#169) - BDD Given/When/Then para messaging patterns:
+  - `OutboxTestHelper` - Outbox pattern testing con time-travel
+  - `InboxTestHelper` - Inbox/idempotency testing con cached response verification
+  - `SagaTestHelper` - Saga orchestration testing con state transitions
+  - `SchedulingTestHelper` - Scheduled message testing con CRON support
 - `EncinaWireMockFixture` - HTTP mocking con WireMock.NET
   - Fluent API: `StubGet`, `StubPost`, `StubPut`, `StubPatch`, `StubDelete`
   - Fault simulation: `StubFault` con `FaultType` (EmptyResponse, MalformedResponse, Timeout)

@@ -7,6 +7,11 @@ namespace Encina.Testing.Fakes.Models;
 /// </summary>
 public sealed class FakeSagaState : ISagaState
 {
+    /// <summary>
+    /// Sentinel value indicating a completed saga (no more steps to execute).
+    /// </summary>
+    public const int CompletedStep = 99;
+
     /// <inheritdoc />
     public Guid SagaId { get; set; } = Guid.NewGuid();
 
@@ -38,9 +43,21 @@ public sealed class FakeSagaState : ISagaState
     public DateTime? TimeoutAtUtc { get; set; }
 
     /// <summary>
-    /// Creates a deep copy of this saga state.
+    /// Creates a shallow copy of this saga state with the same property values.
     /// </summary>
-    /// <returns>A new instance with the same values.</returns>
+    /// <returns>A new <see cref="FakeSagaState"/> instance with identical property values.</returns>
+    /// <remarks>
+    /// <para>
+    /// This performs a shallow copy. The string properties (<see cref="SagaType"/>, <see cref="Data"/>,
+    /// <see cref="Status"/>, and <see cref="ErrorMessage"/>) are reference types, but since strings
+    /// are immutable in .NET, it is safe to share their references between the original and cloned instances.
+    /// </para>
+    /// <para>
+    /// The remaining properties (<see cref="SagaId"/>, <see cref="CurrentStep"/>, <see cref="StartedAtUtc"/>,
+    /// <see cref="CompletedAtUtc"/>, <see cref="LastUpdatedAtUtc"/>, and <see cref="TimeoutAtUtc"/>)
+    /// are value types and are copied by value.
+    /// </para>
+    /// </remarks>
     public FakeSagaState Clone() => new()
     {
         SagaId = SagaId,

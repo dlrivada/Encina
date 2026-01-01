@@ -172,6 +172,25 @@ public sealed class FakeOutboxStore : IOutboxStore
     }
 
     /// <summary>
+    /// Clears only the tracking collections while leaving persisted messages intact.
+    /// </summary>
+    /// <remarks>
+    /// Use this method to reset tracking state (AddedMessages, ProcessedMessageIds, FailedMessageIds)
+    /// without removing the actual messages from the store. This is useful for setting up
+    /// "historical" messages in tests where the tracking should start fresh.
+    /// </remarks>
+    public void ClearTracking()
+    {
+        lock (_lock)
+        {
+            _addedMessages.Clear();
+            _processedMessageIds.Clear();
+            _failedMessageIds.Clear();
+            SaveChangesCallCount = 0;
+        }
+    }
+
+    /// <summary>
     /// Verifies that a message was added with the specified notification type.
     /// </summary>
     /// <param name="notificationType">The notification type to look for.</param>
