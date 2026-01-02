@@ -21,6 +21,7 @@ jobs:
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_NOLOGO: true
+      DOTNET_SDK_VERSION: '10.0.100'
 
     steps:
       - name: Checkout
@@ -29,7 +30,29 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.100
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            %USERPROFILE%\.nuget\packages
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget
+
+      - name: Cache dotnet tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.dotnet/tools
+            %USERPROFILE%\.dotnet\tools
+          key: ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
+          restore-keys: |
+            ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-dotnet-tools
 
       - name: Restore
         run: dotnet restore Encina.slnx
