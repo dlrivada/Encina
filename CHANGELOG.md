@@ -242,6 +242,10 @@
       - `TargetMethod` (optional) - Method name where mutation applies
       - `Line` (optional) - Line number where mutation applies
       - `[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]` - Multiple instances per test allowed
+  - **(FIX Issue #497)** ModuleArchitectureAnalyzerTests: Fix false positive dependency detection:
+    - **Root Cause**: Test modules (`OrdersModule`, `PaymentsModule`, `ShippingModule`) were in the same namespace, causing the analyzer to detect false dependencies
+    - **Solution**: Moved test modules to distinct namespaces (`Encina.Testing.Tests.Modules.TestModules.Orders`, etc.) to simulate real modular architecture
+    - **Additional Fix**: Adjusted `Result_DiscoversModulesInAssembly` test to verify module containment rather than exact match (assembly may contain additional test modules from other files)
     - Common mutation types: `EqualityMutation`, `ArithmeticMutation`, `BooleanMutation`, `UnaryMutation`, `NullCheckMutation`, `StringMutation`, `LinqMutation`, `BlockRemoval`
     - Documentation updated in `docs/en/guides/MUTATION_TESTING.md`
 
