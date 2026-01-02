@@ -44,7 +44,7 @@ public sealed class ModuleArchitectureAnalyzerTests
     public void Constructor_NullAssemblies_ThrowsArgumentException()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => new ModuleArchitectureAnalyzer(null!));
+        Should.Throw<ArgumentException>(() => new ModuleArchitectureAnalyzer(assemblies: null!));
     }
 
     [Fact]
@@ -101,11 +101,11 @@ public sealed class ModuleArchitectureAnalyzerTests
         // Act
         var result = analyzer.Result;
 
-        // Assert
-        result.ModuleCount.ShouldBeGreaterThanOrEqualTo(3); // At least our test modules
-        result.Modules.ShouldContain(m => m.Name == "Orders");
-        result.Modules.ShouldContain(m => m.Name == "Payments");
-        result.Modules.ShouldContain(m => m.Name == "Shipping");
+        // Assert - discovered modules should exactly match the test modules declared above
+        // Use an intentionally unordered expected list and compare order-insensitively
+        var expectedModules = new[] { "Payments", "Shipping", "Orders" };
+        var actualModuleNames = result.Modules.Select(m => m.Name).OrderBy(n => n).ToArray();
+        actualModuleNames.ShouldBe(expectedModules.OrderBy(n => n).ToArray());
     }
 
     [Fact]

@@ -522,9 +522,9 @@ Key areas already completed:
   - Handler Registration Tests [#167](https://github.com/dlrivada/Encina/issues/167) — Verify all handlers are registered
   - Pipeline Testing Utilities [#168](https://github.com/dlrivada/Encina/issues/168) — Control behaviors in tests
   - ~~Messaging Pattern Helpers [#169](https://github.com/dlrivada/Encina/issues/169)~~ ✅ — Helpers for Outbox, Inbox, Saga, Scheduling tests
-  - Improved Assertions [#170](https://github.com/dlrivada/Encina/issues/170) — Fluent assertions with chaining (Shouldly-style)
+  - ~~Improved Assertions [#170](https://github.com/dlrivada/Encina/issues/170)~~ ✅ — Fluent assertions with chaining (Shouldly-style)
   - TUnit Support [#171](https://github.com/dlrivada/Encina/issues/171) — Source-generated testing framework (NativeAOT compatible)
-  - Mutation Testing Integration [#172](https://github.com/dlrivada/Encina/issues/172) — Stryker.NET configuration and scripts
+  - ~~Mutation Testing Integration [#172](https://github.com/dlrivada/Encina/issues/172)~~ ✅ — Stryker.NET helper attributes (NeedsMutationCoverage, MutationKiller)
   - CI/CD Workflow Templates [#173](https://github.com/dlrivada/Encina/issues/173) — Reusable GitHub Actions workflows
 - **TDD Patterns** (new - based on December 29, 2025 research):
   - Encina.Testing.Fakes [#426](https://github.com/dlrivada/Encina/issues/426) — Test doubles for IEncina and messaging stores (HIGH priority)

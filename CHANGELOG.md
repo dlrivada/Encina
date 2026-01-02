@@ -228,6 +228,22 @@
       - `ShouldNotHaveDependency(string source, string target)` - Assert no dependency
     - Supporting records: `ModuleInfo`, `ModuleDependency`, `CircularDependency`
     - `DependencyType` enum: `Direct`, `PublicApi`, `IntegrationEvent`
+  - **(NEW Issue #172)** Mutation Testing Helper Attributes (`Encina.Testing.Mutations` namespace):
+    - `NeedsMutationCoverageAttribute` - Mark tests needing stronger assertions:
+      - `Reason` (required) - Description of mutation coverage gap
+      - `MutantId` (optional) - Stryker mutant ID from report
+      - `SourceFile` (optional) - Path to source file with surviving mutant
+      - `Line` (optional) - Line number where mutation was applied
+      - `[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]` - Multiple instances per test allowed
+    - `MutationKillerAttribute` - Document tests that kill specific mutations:
+      - `MutationType` (required) - Type of mutation killed (e.g., "EqualityMutation", "ArithmeticMutation")
+      - `Description` (optional) - Detailed description of what mutation is killed
+      - `SourceFile` (optional) - Path to source file containing the mutation target
+      - `TargetMethod` (optional) - Method name where mutation applies
+      - `Line` (optional) - Line number where mutation applies
+      - `[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]` - Multiple instances per test allowed
+    - Common mutation types: `EqualityMutation`, `ArithmeticMutation`, `BooleanMutation`, `UnaryMutation`, `NullCheckMutation`, `StringMutation`, `LinqMutation`, `BlockRemoval`
+    - Documentation updated in `docs/en/guides/MUTATION_TESTING.md`
 
 - **Encina.Testing.Testcontainers Package** - Docker container fixtures for integration tests (Issues #162, #163):
   - `SqlServerContainerFixture` - SQL Server container (mcr.microsoft.com/mssql/server:2022-latest)
@@ -3011,24 +3027,10 @@
   - DI integration via `MessagingConfiguration.UseScatterGather = true`
   - Comprehensive test coverage: 131 tests (unit, property, contract, guard, load)
   - Benchmarks for scatter-gather performance across strategies
-  - Example:
-    ```csharp
-    using Encina.Messaging.ScatterGather;
-
-    // Helper methods (simplified placeholders for this example)
-    // Task<decimal> GetPriceFromA/B/C(PriceRequest req, CancellationToken ct) => ...
-
-    var definition = ScatterGatherBuilder.Create<PriceRequest, decimal>("PriceAggregator")
-        .ScatterTo("SupplierA", async (req, ct) => await GetPriceFromA(req, ct))
-        .ScatterTo("SupplierB", async (req, ct) => await GetPriceFromB(req, ct))
-        .ScatterTo("SupplierC", async (req, ct) => await GetPriceFromC(req, ct))
-        .ExecuteInParallel()
-        .GatherAll()
-        .TakeMin(price => price)  // Get lowest price
-        .Build();
-
-    var result = await runner.ExecuteAsync(definition, new PriceRequest("SKU123"));
-    ```
+  - Example: a fully working, copy-pastable scatter-gather example is available in
+    [docs/examples.md](docs/examples.md). The changelog previously contained
+    simplified placeholder snippets; the full examples (with imports and helper
+    implementations) live in the documentation to avoid non-compilable copy/paste.
 
 - Content-Based Router (Issue #64):
   - Enterprise Integration Pattern for routing messages based on content inspection

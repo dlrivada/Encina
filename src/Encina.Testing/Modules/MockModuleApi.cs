@@ -6,7 +6,10 @@ namespace Encina.Testing.Modules;
 /// <summary>
 /// A simple mock builder for module API interfaces.
 /// </summary>
-/// <typeparam name="TModuleApi">The module API interface type.</typeparam>
+/// <typeparam name="TModuleApi">
+/// The module API interface type. <b>Must be an interface type.</b>
+/// A runtime check is performed and an exception will be thrown if a non-interface type is used.
+/// </typeparam>
 /// <remarks>
 /// <para>
 /// This provides a lightweight way to mock module dependencies without requiring
@@ -22,13 +25,6 @@ namespace Encina.Testing.Modules;
 /// var api = mock.Build();
 /// </code>
 /// </example>
-/// <summary>
-/// A simple mock builder for module API interfaces.
-///
-/// <typeparam name="TModuleApi">The module API interface type. <b>Must be an interface type</b>.
-/// A runtime check is performed and an exception will be thrown if a non-interface type
-/// is used for <c>TModuleApi</c>.</typeparam>
-/// </summary>
 public sealed class MockModuleApi<TModuleApi> where TModuleApi : class
 {
     private readonly Dictionary<string, Delegate> _methodSetups = new(StringComparer.Ordinal);
@@ -150,7 +146,7 @@ public sealed class MockModuleApi<TModuleApi> where TModuleApi : class
 /// <remarks>
 /// <para>
 /// This proxy invokes stored delegates using <c>Delegate.DynamicInvoke</c> inside
-/// <see cref="Invoke(MethodInfo, object[]?)"/>. That approach is intentionally lightweight
+/// the <c>Invoke</c> method. That approach is intentionally lightweight
 /// but has trade-offs:
 /// </para>
 /// <list type="bullet">

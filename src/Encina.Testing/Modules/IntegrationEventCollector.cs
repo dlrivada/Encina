@@ -321,7 +321,7 @@ public sealed class IntegrationEventCollector
 
     #endregion
 
-    private IReadOnlyList<string> GetTypeNamesSnapshot()
+    private ReadOnlyCollection<string> GetTypeNamesSnapshot()
     {
         lock (_sync)
         {
