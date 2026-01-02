@@ -171,6 +171,63 @@
       - `ThenCompensated()` - Assert compensation executed
       - `ThenFailed(string?)` - Assert saga failed with optional message
       - `ThenData(Action<TSagaData>)` - Validate saga data state
+  - **(NEW Issue #362)** Module Testing Utilities for modular monolith testing:
+    - `ModuleTestFixture<TModule>` - Fluent test fixture for isolated module testing:
+      - `WithMockedModule<TModuleApi>(Action<MockModuleApi<TModuleApi>>)` - Mock dependent module with fluent setup
+      - `WithMockedModule<TModuleApi>(TModuleApi)` - Mock dependent module with implementation
+      - `WithFakeModule<TModuleApi, TFakeModule>()` - Register fake module implementation
+      - `WithFakeModule<TModuleApi, TFakeModule>(TFakeModule)` - Register fake module instance
+      - `WithService<TService>(TService)`, `WithService<TService, TImplementation>()` - Service registration
+      - `ConfigureServices(Action<IServiceCollection>)` - Custom service configuration
+      - `WithMockedOutbox()`, `WithMockedInbox()`, `WithMockedSaga()` - Messaging store mocking
+      - `WithMockedScheduling()`, `WithMockedDeadLetter()`, `WithAllMockedStores()` - Additional stores
+      - `WithFakeTimeProvider()`, `WithFakeTimeProvider(DateTimeOffset)` - Time control
+      - `AdvanceTimeBy(TimeSpan)` - Time advancement
+      - `Configure(Action<EncinaConfiguration>)` - Encina configuration
+      - `SendAsync<TResponse>(IRequest<TResponse>)` - Send request returning `ModuleTestContext`
+      - `PublishAsync(INotification)` - Publish notification capturing integration events
+      - Properties: `Module`, `IntegrationEvents`, `Outbox`, `Inbox`, `SagaStore`, `ScheduledMessageStore`, `DeadLetterStore`, `TimeProvider`, `ServiceProvider`
+      - `ClearStores()` - Reset all stores and captured events
+      - `IDisposable` and `IAsyncDisposable` support
+    - `ModuleTestContext<TResponse>` - Fluent assertion context for module test results:
+      - `ShouldSucceed()`, `ShouldFail()` - Basic result assertions
+      - `ShouldSucceedWith(Action<TResponse>)`, `ShouldFailWith(Action<EncinaError>)` - With validation
+      - `ShouldSucceedAnd()`, `ShouldFailAnd()` - Return `AndConstraint<T>` for chaining
+      - `ShouldFailWithMessage(string)` - Assert error contains message
+      - `ShouldBeValidationError()` - Assert validation error
+      - `OutboxShouldContain<T>()`, `OutboxShouldBeEmpty()`, `OutboxShouldHaveCount(int)` - Outbox assertions
+      - `IntegrationEventShouldContain<T>()`, `IntegrationEventsShouldBeEmpty()` - Integration event assertions
+      - Properties: `Fixture`, `Result`, `IsSuccess`, `Value`, `Error`
+    - `IntegrationEventCollector` - Thread-safe collection for integration event assertions:
+      - `Add(INotification)` (internal) - Capture events
+      - `Clear()` - Clear captured events
+      - `GetEvents<TEvent>()`, `GetFirst<TEvent>()`, `GetFirstOrDefault<TEvent>()`, `GetSingle<TEvent>()` - Query events
+      - `Contains<TEvent>()`, `Contains<TEvent>(Func<TEvent, bool>)` - Check existence
+      - `ShouldContain<TEvent>()`, `ShouldContain<TEvent>(Func<TEvent, bool>)` - Fluent assertions
+      - `ShouldContainAnd<TEvent>()`, `ShouldContainSingle<TEvent>()`, `ShouldContainSingleAnd<TEvent>()` - With chaining
+      - `ShouldNotContain<TEvent>()`, `ShouldBeEmpty()`, `ShouldHaveCount(int)`, `ShouldHaveCount<TEvent>(int)` - Additional assertions
+    - `MockModuleApi<TModuleApi>` - Simple mock builder for module APIs using DispatchProxy:
+      - `Setup(string methodName, Delegate)` - Configure method implementation
+      - `SetupProperty(string propertyName, object?)` - Configure property value
+      - `Build()` - Create proxy instance implementing the interface
+    - `ModuleArchitectureRules` - Pre-built ArchUnitNET rules for modules:
+      - `ModulesShouldBeSealed()` - Module implementations should be sealed
+      - `IntegrationEventsShouldBeSealed()` - Integration events should be sealed
+      - `DomainShouldNotDependOnInfrastructure(string domainNs, string infraNs)` - Layer dependency rule
+    - `ModuleArchitectureAnalyzer` - Module dependency analysis:
+      - `Analyze(params Assembly[])` - Analyze assemblies
+      - `AnalyzeAssemblyContaining<T1>()`, `AnalyzeAssemblyContaining<T1, T2>()` - Type-based analysis
+      - `Result` property returning `ModuleAnalysisResult`
+      - `Architecture` property for ArchUnitNET access
+    - `ModuleAnalysisResult` - Analysis result with assertions:
+      - `Modules`, `Dependencies`, `CircularDependencies` properties
+      - `ModuleCount`, `HasCircularDependencies` properties
+      - `ShouldHaveNoCircularDependencies()` - Assert no cycles
+      - `ShouldContainModule(string)` - Assert module exists
+      - `ShouldHaveDependency(string source, string target)` - Assert dependency exists
+      - `ShouldNotHaveDependency(string source, string target)` - Assert no dependency
+    - Supporting records: `ModuleInfo`, `ModuleDependency`, `CircularDependency`
+    - `DependencyType` enum: `Direct`, `PublicApi`, `IntegrationEvent`
 
 - **Encina.Testing.Testcontainers Package** - Docker container fixtures for integration tests (Issues #162, #163):
   - `SqlServerContainerFixture` - SQL Server container (mcr.microsoft.com/mssql/server:2022-latest)

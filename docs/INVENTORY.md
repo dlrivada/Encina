@@ -4372,19 +4372,21 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 - Labels: `area-feature-flags`, `saas-enabler`, `cloud-azure`
 - Fuentes: [Microsoft.FeatureManagement](https://github.com/microsoft/FeatureManagement-Dotnet)
 
-**#362 - Module Testing Utilities** (Extensión de `Encina.Testing`):
-- `ModuleTestBase<TModule>` base class para tests aislados por módulo
-- `WithMockedModule<TApi>()` helper para mockear dependencias
-- `WithFakeModule<TModule, TFake>()` para implementaciones fake
-- `IntegrationEvents.ShouldContain<TEvent>()` assertions
-- `ModuleArchitecture.Analyze()` para tests de arquitectura:
-  - `ShouldHaveNoCircularDependencies()`
-  - `ShouldNotReference(typeof(OtherDbContext))`
-  - `ShouldOnlyAccessPublicApis()`
-- `ModuleDataArchitecture` para data isolation tests
-- Given/When/Then helpers para saga testing
+~~**#362 - Module Testing Utilities**~~ ✅ Completado (Extensión de `Encina.Testing`):
+- ✅ `ModuleTestFixture<TModule>` base class para tests aislados por módulo
+- ✅ `WithMockedModule<TApi>()` helper para mockear dependencias (con `MockModuleApi<T>` builder)
+- ✅ `WithFakeModule<TModule, TFake>()` para implementaciones fake
+- ✅ `IntegrationEventCollector` con `ShouldContain<TEvent>()`, `ShouldBeEmpty()`, etc.
+- ✅ `ModuleArchitectureAnalyzer` para tests de arquitectura:
+  - `ShouldHaveNoCircularDependencies()` - Detección de dependencias circulares con DFS
+  - `ShouldContainModule()`, `ShouldHaveDependency()`, `ShouldNotHaveDependency()`
+- ✅ `ModuleArchitectureRules` con reglas pre-construidas ArchUnitNET:
+  - `ModulesShouldBeSealed()`, `IntegrationEventsShouldBeSealed()`
+  - `DomainShouldNotDependOnInfrastructure()`
+- ✅ `ModuleTestContext<TResponse>` para assertions fluentes
+- ✅ Soporte para messaging stores, time control, service registration
 - Labels: `area-testing`, `area-architecture-testing`, `testing-integration`
-- Fuentes: [ArchUnitNET](https://github.com/TNG/ArchUnitNET), [NetArchTest](https://github.com/BenMorris/NetArchTest)
+- Fuentes: [ArchUnitNET](https://github.com/TNG/ArchUnitNET), [Shouldly](https://github.com/shouldly/shouldly)
 
 **#363 - Anti-Corruption Layer (ACL) Support**:
 - `IAntiCorruptionLayer<TExternal, TInternal>` con `TranslateToInternal`/`TranslateToExternal`
