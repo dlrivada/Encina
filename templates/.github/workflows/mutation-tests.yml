@@ -16,6 +16,7 @@ permissions:
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_NOLOGO: true
+  DOTNET_SDK_VERSION: '10.0.x'
 
 jobs:
   mutation-test:
@@ -29,15 +30,16 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
           path: |
             ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: |
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
             ${{ runner.os }}-nuget
 
       - name: Cache dotnet tools
@@ -45,8 +47,9 @@ jobs:
         with:
           path: |
             ~/.dotnet/tools
-          key: ${{ runner.os }}-dotnet-tools
+          key: ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
           restore-keys: |
+            ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
             ${{ runner.os }}-dotnet-tools
 
       - name: Restore dependencies
