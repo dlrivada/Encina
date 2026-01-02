@@ -40,6 +40,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget
 
+      - name: Cache dotnet tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.dotnet/tools
+          key: ${{ runner.os }}-dotnet-tools
+          restore-keys: |
+            ${{ runner.os }}-dotnet-tools
+
       - name: Restore dependencies
         run: dotnet restore
 
