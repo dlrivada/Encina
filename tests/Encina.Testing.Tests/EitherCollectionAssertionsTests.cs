@@ -220,7 +220,7 @@ public sealed class EitherCollectionAssertionsTests
 
         // Act & Assert
         Action act = () => results.ShouldHaveSuccessCount(3);
-        Should.Throw<Xunit.Sdk.EqualException>(act);
+        Should.Throw<Xunit.Sdk.TrueException>(act);
     }
 
     #endregion

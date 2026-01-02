@@ -535,7 +535,7 @@ Key areas already completed:
   - Encina.Testing.Bogus [#431](https://github.com/dlrivada/Encina/issues/431) — Realistic test data generation
   - Encina.Testing.Architecture [#432](https://github.com/dlrivada/Encina/issues/432) — Architectural rules enforcement with ArchUnitNET
   - FakeTimeProvider [#433](https://github.com/dlrivada/Encina/issues/433) — Time control for testing (.NET 8+ TimeProvider)
-  - BDD Specification Testing [#434](https://github.com/dlrivada/Encina/issues/434) — Given/When/Then for handlers
+  - BDD Specification Testing [#434](https://github.com/dlrivada/Encina/issues/434) — Given/When/Then for handlers ✅ DONE
   - Encina.Testing.FsCheck [#435](https://github.com/dlrivada/Encina/issues/435) — Property-based testing extensions
   - Encina.Testing.Pact [#436](https://github.com/dlrivada/Encina/issues/436) — Consumer-Driven Contract Testing
   - Stryker.NET Configuration [#437](https://github.com/dlrivada/Encina/issues/437) — Mutation testing templates and scripts

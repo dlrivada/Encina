@@ -123,6 +123,54 @@
       - `ShouldBeEmptyAsync()`, `ShouldNotBeEmptyAsync()` for stream emptiness
       - EncinaError-specific: `ShouldContainValidationErrorForAsync()`, `ShouldNotContainAuthorizationErrorsAsync()`, `ShouldContainAuthorizationErrorAsync()`, `ShouldAllHaveErrorCodeAsync()`
       - Helper: `CollectAsync()` to materialize async streams
+  - **(NEW Issue #434)** BDD Handler and Saga Specification Testing:
+    - `HandlerSpecification<TRequest, TResponse>` - Abstract base class for handler BDD testing:
+      - `Given(Action<TRequest>)` - Setup request modifications
+      - `GivenRequest(TRequest)` - Setup explicit request
+      - `When(Action<TRequest>)`, `WhenAsync(Action<TRequest>, CancellationToken)` - Execute handler
+      - `ThenSuccess(Action<TResponse>?)` - Assert success and validate
+      - `ThenSuccessAnd()` - Assert success returning `AndConstraint<TResponse>`
+      - `ThenError(Action<EncinaError>?)` - Assert error and validate
+      - `ThenErrorAnd()` - Assert error returning `AndConstraint<EncinaError>`
+      - `ThenValidationError(params string[])` - Assert validation error for properties
+      - `ThenValidationErrorAnd(params string[])` - Returns `AndConstraint<EncinaError>`
+      - `ThenErrorWithCode(string)` - Assert specific error code
+      - `ThenErrorWithCodeAnd(string)` - Returns `AndConstraint<EncinaError>`
+      - `ThenThrows<TException>()` - Assert exception thrown
+      - `ThenThrowsAnd<TException>()` - Returns `AndConstraint<TException>`
+    - `Scenario<TRequest, TResponse>` - Fluent inline scenario builder:
+      - `Describe(string)` - Create named scenario
+      - `Given(Action<TRequest>)` - Setup request modifications
+      - `UsingHandler(Func<IRequestHandler<TRequest, TResponse>>)` - Set handler factory
+      - `WhenAsync(TRequest, CancellationToken)` - Execute and return `ScenarioResult<TResponse>`
+    - `ScenarioResult<TResponse>` - Result wrapper with assertions:
+      - `IsSuccess`, `HasException`, `Result`, `Exception` properties
+      - `ShouldBeSuccess(Action<TResponse>?)` - Assert success
+      - `ShouldBeSuccessAnd()` - Returns `AndConstraint<TResponse>`
+      - `ShouldBeError(Action<EncinaError>?)` - Assert error
+      - `ShouldBeErrorAnd()` - Returns `AndConstraint<EncinaError>`
+      - `ShouldBeValidationError(params string[])` - Assert validation error
+      - `ShouldBeErrorWithCode(string)` - Assert specific error code
+      - `ShouldThrow<TException>()` - Assert exception
+      - `ShouldThrowAnd<TException>()` - Returns `AndConstraint<TException>`
+      - Implicit conversion to `Either<EncinaError, TResponse>`
+    - `SagaSpecification<TSaga, TSagaData>` - Abstract base class for saga BDD testing:
+      - `GivenData(Action<TSagaData>)` - Setup saga data modifications
+      - `GivenSagaData(TSagaData)` - Setup explicit saga data
+      - `WhenComplete(CancellationToken)` - Execute saga from step 0
+      - `WhenStep(int, CancellationToken)` - Execute saga from specific step
+      - `WhenCompensate(int, CancellationToken)` - Execute compensation
+      - `ThenSuccess(Action<TSagaData>?)` - Assert saga success
+      - `ThenSuccessAnd()` - Returns `AndConstraint<TSagaData>`
+      - `ThenError(Action<EncinaError>?)` - Assert saga error
+      - `ThenErrorAnd()` - Returns `AndConstraint<EncinaError>`
+      - `ThenErrorWithCode(string)` - Assert specific error code
+      - `ThenThrows<TException>()` - Assert exception
+      - `ThenThrowsAnd<TException>()` - Returns `AndConstraint<TException>`
+      - `ThenCompleted()` - Assert saga completed successfully
+      - `ThenCompensated()` - Assert compensation executed
+      - `ThenFailed(string?)` - Assert saga failed with optional message
+      - `ThenData(Action<TSagaData>)` - Validate saga data state
 
 - **Encina.Testing.Testcontainers Package** - Docker container fixtures for integration tests (Issues #162, #163):
   - `SqlServerContainerFixture` - SQL Server container (mcr.microsoft.com/mssql/server:2022-latest)

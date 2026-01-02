@@ -41,7 +41,7 @@
 | **Pipeline Behaviors** | ~20+ |
 | **Phase 2 Milestones** | 10 milestones (v0.10.0 → v0.19.0) |
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
-| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (12/25 completado) | 
+| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (13/25 completado) | 
 | **v0.12.0 - Database & Repository** | 22 issues |
 | **v0.13.0 - Security & Compliance** | 25 issues |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
@@ -2842,7 +2842,7 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 | **#431** | Bogus Generators | Generación de datos realistas con Bogus | Media | Media | `testing-unit`, `testing-data-generation`, `new-package` |
 | ~~**#432**~~ | ~~Architecture Testing~~ | ✅ Implementado como Encina.Testing.Architecture | - | - | - |
 | **#433** | FakeTimeProvider | Control de tiempo en tests (.NET 8+ TimeProvider) | Media | Baja | `testing-unit`, `testing-time-control`, `foundational`, `dotnet-10` |
-| **#434** | BDD Specifications | Given/When/Then para handlers (extensión de AggregateTestBase) | Baja | Media | `testing-unit`, `testing-bdd`, `area-ddd`, `area-event-sourcing` |
+| ~~**#434**~~ | ~~BDD Specifications~~ | ✅ Implementado como HandlerSpecification, SagaSpecification, Scenario | - | - | - |
 | **#435** | FsCheck Extensions | Property-based testing con arbitraries Encina | Baja | Alta | `testing-unit`, `testing-property-based`, `industry-best-practice`, `new-package` |
 | **#436** | Pact Contract Testing | Consumer-Driven Contracts para microservicios | Baja | Alta | `testing-integration`, `testing-contract`, `area-microservices`, `area-interop`, `new-package` |
 | **#437** | Stryker.NET Config | Templates y scripts para mutation testing | Baja | Baja | `area-mutation-testing`, `area-ci-cd`, `industry-best-practice`, `phase-3-testing` |
@@ -2948,15 +2948,30 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - **Ubicación**: `Encina.Testing` (core package)
 - **Inspiración**: [.NET 8 TimeProvider](https://learn.microsoft.com/en-us/dotnet/api/system.timeprovider)
 
-**#434 - BDD Specification Testing** (Baja Prioridad):
-- `HandlerSpecification<TRequest, TResponse>` base class
-- `Given()`, `When()`, `Then()` pattern para handlers
-- `ThenSuccess()`, `ThenError()`, `ThenValidationError()`, `ThenThrows<T>()`
-- `SagaSpecification<TSaga, TData>` para sagas
-- `Scenario<TRequest, TResponse>` fluent builder
-- Extensión del pattern `AggregateTestBase` existente
-- **Ubicación**: `Encina.Testing` (extensión)
-- **Inspiración**: [xBehave.net](https://github.com/xbehave/xbehave.net), SpecFlow
+**#434 - BDD Specification Testing** ✅ **IMPLEMENTADO**:
+- `HandlerSpecification<TRequest, TResponse>` - Abstract base class for handler BDD testing:
+  - `Given(Action<TRequest>)`, `GivenRequest(TRequest)` - Setup phase
+  - `When(CancellationToken)`, `When(Action<TRequest>, CancellationToken)` - Execution phase
+  - `ThenSuccess()`, `ThenSuccessAnd()` → `AndConstraint<TResponse>`
+  - `ThenError()`, `ThenErrorAnd()`, `ThenValidationError()`, `ThenErrorWithCode()`
+  - `ThenThrows<T>()`, `ThenThrowsAnd<T>()` - Exception assertions
+- `Scenario<TRequest, TResponse>` - Fluent inline scenario builder:
+  - `Describe(string)` - Named scenario
+  - `Given(Action<TRequest>)` - Accumulative modifications
+  - `UsingHandler(Func<IRequestHandler<TRequest, TResponse>>)` - Handler factory
+  - `WhenAsync(TRequest, CancellationToken)` - Execute → `ScenarioResult<TResponse>`
+- `ScenarioResult<TResponse>` - Result wrapper with assertions:
+  - `IsSuccess`, `IsError`, `HasException`, `Result`, `Exception`
+  - `ShouldBeSuccess()`, `ShouldBeError()`, `ShouldThrow<T>()` with `*And()` variants
+  - Implicit conversion to `Either<EncinaError, TResponse>`
+- `SagaSpecification<TSaga, TSagaData>` - Abstract base class for saga BDD testing:
+  - `GivenData(Action<TSagaData>)`, `GivenSagaData(TSagaData)` - Setup phase
+  - `WhenComplete()`, `WhenStep(int)`, `WhenCompensate(int)` - Execution phase
+  - `ThenSuccess()`, `ThenError()`, `ThenThrows<T>()` with `*And()` variants
+  - `ThenCompleted()`, `ThenCompensated()`, `ThenFailed()` - Saga state assertions
+  - Abstract: `CreateSaga()`, `ExecuteSagaAsync()`, `CompensateSagaAsync()`
+- **Ubicación**: `Encina.Testing.Handlers`, `Encina.Testing.Sagas`
+- **Tests**: 92 unit tests (all passing)
 
 **#435 - Encina.Testing.FsCheck** (Baja Prioridad):
 - `EncinaArbitraries`: `RequestContext()`, `EncinaError()`, `ValidationError()`
