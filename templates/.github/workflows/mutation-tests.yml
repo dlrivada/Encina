@@ -48,14 +48,15 @@ jobs:
         if: always()
         with:
           name: stryker-report
-          path: StrykerOutput/**/reports/
+          path: StrykerOutput/**/reports/**
           retention-days: 30
 
       - name: Publish Stryker Summary
         if: always()
         run: |
-          if [ -f "StrykerOutput/reports/mutation-report.html" ]; then
+          report=$(find StrykerOutput -type f -name mutation-report.html -print -quit 2>/dev/null || true)
+          if [ -n "$report" ]; then
             echo "### Mutation Testing Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Stryker report generated. Download the artifact for details." >> $GITHUB_STEP_SUMMARY
+            echo "Stryker report generated: $report" >> $GITHUB_STEP_SUMMARY
           fi
