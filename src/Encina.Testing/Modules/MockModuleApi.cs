@@ -86,6 +86,10 @@ public sealed class MockModuleApi<TModuleApi> where TModuleApi : class
             }
 
             var mr = m.ReturnType;
+            // For void methods, accept any delegate return type (result will be ignored)
+            if (mr == typeof(void))
+                return true;
+
             // Covariant return compatibility: the method's declared return type
             // must be assignable from the implementation's return type (i.e.,
             // callers expecting the declared return can receive the implementation value).
