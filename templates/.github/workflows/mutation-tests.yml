@@ -1,0 +1,61 @@
+name: Mutation Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Sundays at 3:00 AM UTC
+    - cron: "0 3 * * 0"
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+
+jobs:
+  mutation-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for baseline comparison
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Install Stryker
+        run: dotnet tool install -g dotnet-stryker
+
+      - name: Run Stryker
+        run: dotnet stryker --config-file stryker-config.json
+
+      - name: Upload Stryker Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stryker-report
+          path: StrykerOutput/**/reports/
+          retention-days: 30
+
+      - name: Publish Stryker Summary
+        if: always()
+        run: |
+          if [ -f "StrykerOutput/reports/mutation-report.html" ]; then
+            echo "### Mutation Testing Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Stryker report generated. Download the artifact for details." >> $GITHUB_STEP_SUMMARY
+          fi
