@@ -35,7 +35,7 @@ public class RedisHealthCheckIntegrationTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("reachable");
+        (result.Description ?? string.Empty).ShouldContain("reachable");
     }
 
     [SkippableFact]

@@ -11,7 +11,7 @@ namespace Encina.Testing.Respawn.IntegrationTests;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "SqlServer")]
-public sealed class SqlServerRespawnerIntegrationTests : IClassFixture<SqlServerFixture>, IAsyncLifetime
+public sealed class SqlServerRespawnerIntegrationTests : IClassFixture<SqlServerFixture>, IAsyncLifetime, IDisposable
 {
     private readonly SqlServerFixture _fixture;
     private SqlServerRespawner _respawner = null!;
@@ -31,6 +31,12 @@ public sealed class SqlServerRespawnerIntegrationTests : IClassFixture<SqlServer
     public async Task DisposeAsync()
     {
         await _respawner.DisposeAsync();
+    }
+
+    public void Dispose()
+    {
+        // Respawner only implements IAsyncDisposable, disposal handled in DisposeAsync
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

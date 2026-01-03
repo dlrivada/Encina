@@ -38,10 +38,10 @@ public sealed class MartenHealthCheckContractTests : IEncinaHealthCheckContractT
     }
 
     [Fact]
-    public void Tags_WithDefaultOptions_ShouldContainDatabaseTag()
+    public void Tags_WithDefaultOptions_ShouldContainPostgresqlTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.ShouldContain("database");
+        healthCheck.Tags.ShouldContain("postgresql");
     }
 
     [Fact]

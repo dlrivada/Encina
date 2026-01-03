@@ -165,7 +165,7 @@ public class CodeGeneratorTests : IDisposable
 
         // Assert
         result.Success.ShouldBeFalse();
-        result.ErrorMessage.ShouldContain("At least one step is required");
+        result.ErrorMessage!.ShouldContain("At least one step is required");
     }
 
     [Fact]

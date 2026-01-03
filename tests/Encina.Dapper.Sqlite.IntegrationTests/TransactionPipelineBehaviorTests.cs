@@ -10,8 +10,13 @@ namespace Encina.Dapper.Sqlite.IntegrationTests;
 /// Integration tests for <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/>.
 /// Tests transaction commit/rollback behavior with real SQLite database.
 /// </summary>
+/// <remarks>
+/// These tests must run serially because they share an in-memory SQLite connection
+/// that doesn't support concurrent access.
+/// </remarks>
 [Trait("Category", "Integration")]
-public sealed class TransactionPipelineBehaviorTests : IClassFixture<SqliteFixture>
+[Collection("SqliteSerialTests")]
+public sealed class TransactionPipelineBehaviorTests
 {
     private readonly SqliteFixture _database;
 
@@ -143,25 +148,58 @@ public sealed class TransactionPipelineBehaviorTests : IClassFixture<SqliteFixtu
     public async Task Handle_ClosedConnection_OpensConnection()
     {
         // Arrange
-        var connection = _database.CreateConnection();
-        connection.Close(); // Ensure closed
-        var behavior = new TransactionPipelineBehavior<TestRequest, string>(connection);
-        var request = new TestRequest();
-        var context = RequestContext.Create();
-
-        RequestHandlerCallback<string> next = async () =>
+        // Use a file-based SQLite for this specific test since in-memory SQLite
+        // destroys the database when the connection is closed
+        var tempFile = Path.Combine(Path.GetTempPath(), $"encina_test_{Guid.NewGuid():N}.db");
+        SqliteConnection? connection = null;
+        try
         {
-            // Verify connection is open
-            Assert.Equal(ConnectionState.Open, connection.State);
-            await Task.CompletedTask;
-            return Right<EncinaError, string>("Success");
-        };
+            connection = new SqliteConnection($"Data Source={tempFile}");
+            connection.Open();
 
-        // Act
-        var result = await behavior.Handle(request, context, next, CancellationToken.None);
+            // Create minimal schema needed for the test
+            await using var createCmd = connection.CreateCommand();
+            createCmd.CommandText = "CREATE TABLE TestTable (Id INTEGER PRIMARY KEY)";
+            await createCmd.ExecuteNonQueryAsync();
 
-        // Assert
-        result.ShouldBeSuccess();
+            connection.Close(); // Ensure closed
+
+            var behavior = new TransactionPipelineBehavior<TestRequest, string>(connection);
+            var request = new TestRequest();
+            var context = RequestContext.Create();
+
+            RequestHandlerCallback<string> next = async () =>
+            {
+                // Verify connection is open
+                Assert.Equal(ConnectionState.Open, connection.State);
+                await Task.CompletedTask;
+                return Right<EncinaError, string>("Success");
+            };
+
+            // Act
+            var result = await behavior.Handle(request, context, next, CancellationToken.None);
+
+            // Assert
+            result.ShouldBeSuccess();
+        }
+        finally
+        {
+            // Dispose the connection first to release file lock
+            connection?.Dispose();
+
+            // Then delete the temp file
+            if (File.Exists(tempFile))
+            {
+                try
+                {
+                    File.Delete(tempFile);
+                }
+                catch (IOException)
+                {
+                    // Best effort cleanup - file may be locked
+                }
+            }
+        }
     }
 
     [Fact]

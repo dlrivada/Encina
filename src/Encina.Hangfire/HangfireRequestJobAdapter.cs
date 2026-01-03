@@ -11,22 +11,22 @@ namespace Encina.Hangfire;
 public sealed class HangfireRequestJobAdapter<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
-    private readonly IEncina _Encina;
+    private readonly IEncina _encina;
     private readonly ILogger<HangfireRequestJobAdapter<TRequest, TResponse>> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HangfireRequestJobAdapter{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="Encina">The Encina instance.</param>
+    /// <param name="encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     public HangfireRequestJobAdapter(
-        IEncina Encina,
+        IEncina encina,
         ILogger<HangfireRequestJobAdapter<TRequest, TResponse>> logger)
     {
-        ArgumentNullException.ThrowIfNull(Encina);
+        ArgumentNullException.ThrowIfNull(encina);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _Encina = Encina;
+        _encina = encina;
         _logger = logger;
     }
 
@@ -46,7 +46,7 @@ public sealed class HangfireRequestJobAdapter<TRequest, TResponse>
         {
             Log.ExecutingRequestJob(_logger, typeof(TRequest).Name);
 
-            var result = await _Encina.Send(request, cancellationToken)
+            var result = await _encina.Send(request, cancellationToken)
                 .ConfigureAwait(false);
 
             result.Match(

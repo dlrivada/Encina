@@ -15,7 +15,7 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
     where TRequest : ICommand<TResponse>
 {
     private readonly IDocumentSession _session;
-    private readonly IEncina _Encina;
+    private readonly IEncina _encina;
     private readonly ILogger<EventPublishingPipelineBehavior<TRequest, TResponse>> _logger;
     private readonly EncinaMartenOptions _options;
 
@@ -23,22 +23,22 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
     /// Initializes a new instance of the <see cref="EventPublishingPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
     /// <param name="session">The Marten document session.</param>
-    /// <param name="Encina">The Encina for publishing events.</param>
+    /// <param name="encina">The Encina for publishing events.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
     public EventPublishingPipelineBehavior(
         IDocumentSession session,
-        IEncina Encina,
+        IEncina encina,
         ILogger<EventPublishingPipelineBehavior<TRequest, TResponse>> logger,
         IOptions<EncinaMartenOptions> options)
     {
         ArgumentNullException.ThrowIfNull(session);
-        ArgumentNullException.ThrowIfNull(Encina);
+        ArgumentNullException.ThrowIfNull(encina);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
 
         _session = session;
-        _Encina = Encina;
+        _encina = encina;
         _logger = logger;
         _options = options.Value;
     }
@@ -76,7 +76,7 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
         // Publish each domain event
         foreach (var domainEvent in pendingEvents)
         {
-            var publishResult = await _Encina.Publish(domainEvent, cancellationToken).ConfigureAwait(false);
+            var publishResult = await _encina.Publish(domainEvent, cancellationToken).ConfigureAwait(false);
 
             if (publishResult.IsLeft)
             {

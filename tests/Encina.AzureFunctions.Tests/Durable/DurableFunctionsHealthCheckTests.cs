@@ -85,7 +85,7 @@ public class DurableFunctionsHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("configured and ready");
+        result.Description!.ShouldContain("configured and ready");
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class DurableFunctionsHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("DefaultMaxRetries cannot be negative");
+        result.Description!.ShouldContain("DefaultMaxRetries cannot be negative");
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class DurableFunctionsHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("DefaultFirstRetryInterval must be positive");
+        result.Description!.ShouldContain("DefaultFirstRetryInterval must be positive");
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public class DurableFunctionsHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("DefaultBackoffCoefficient must be positive");
+        result.Description!.ShouldContain("DefaultBackoffCoefficient must be positive");
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public class DurableFunctionsHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("DefaultSagaTimeout must be positive");
+        result.Description!.ShouldContain("DefaultSagaTimeout must be positive");
     }
 
     [Fact]
@@ -196,8 +196,8 @@ public class DurableFunctionsHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("DefaultMaxRetries cannot be negative");
-        result.Description.ShouldContain("DefaultBackoffCoefficient must be positive");
+        result.Description!.ShouldContain("DefaultMaxRetries cannot be negative");
+        result.Description!.ShouldContain("DefaultBackoffCoefficient must be positive");
     }
 
     [Fact]

@@ -11,7 +11,7 @@ namespace Encina.Testing.Respawn.IntegrationTests;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "MySql")]
-public sealed class MySqlRespawnerIntegrationTests : IClassFixture<MySqlFixture>, IAsyncLifetime
+public sealed class MySqlRespawnerIntegrationTests : IClassFixture<MySqlFixture>, IAsyncLifetime, IDisposable
 {
     private readonly MySqlFixture _fixture;
     private MySqlRespawner _respawner = null!;
@@ -31,6 +31,12 @@ public sealed class MySqlRespawnerIntegrationTests : IClassFixture<MySqlFixture>
     public async Task DisposeAsync()
     {
         await _respawner.DisposeAsync();
+    }
+
+    public void Dispose()
+    {
+        // Respawner only implements IAsyncDisposable, disposal handled in DisposeAsync
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

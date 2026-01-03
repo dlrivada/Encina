@@ -11,22 +11,22 @@ namespace Encina.Quartz;
 public sealed class QuartzNotificationJob<TNotification> : IJob
     where TNotification : INotification
 {
-    private readonly IEncina _Encina;
+    private readonly IEncina _encina;
     private readonly ILogger<QuartzNotificationJob<TNotification>> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="QuartzNotificationJob{TNotification}"/> class.
     /// </summary>
-    /// <param name="Encina">The Encina instance.</param>
+    /// <param name="encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     public QuartzNotificationJob(
-        IEncina Encina,
+        IEncina encina,
         ILogger<QuartzNotificationJob<TNotification>> logger)
     {
-        ArgumentNullException.ThrowIfNull(Encina);
+        ArgumentNullException.ThrowIfNull(encina);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _Encina = Encina;
+        _encina = encina;
         _logger = logger;
     }
 
@@ -52,7 +52,7 @@ public sealed class QuartzNotificationJob<TNotification> : IJob
         {
             Log.PublishingNotificationJob(_logger, context.JobDetail.Key, typeof(TNotification).Name);
 
-            await _Encina.Publish(notification, context.CancellationToken)
+            await _encina.Publish(notification, context.CancellationToken)
                 .ConfigureAwait(false);
 
             Log.NotificationJobCompleted(_logger, context.JobDetail.Key, typeof(TNotification).Name);

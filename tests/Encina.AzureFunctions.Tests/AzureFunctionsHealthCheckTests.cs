@@ -81,7 +81,7 @@ public class AzureFunctionsHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("properly configured");
+        result.Description!.ShouldContain("properly configured");
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class AzureFunctionsHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("incomplete configuration");
+        result.Description!.ShouldContain("incomplete configuration");
     }
 
     [Fact]

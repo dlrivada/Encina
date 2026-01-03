@@ -20,7 +20,7 @@ public class QuartzRequestJobGuardsTests
         var exception = Assert.Throws<ArgumentNullException>(() =>
             new QuartzRequestJob<QuartzTestRequest, QuartzTestResponse>(Encina, logger));
 
-        exception.ParamName.ShouldBe("Encina");
+        exception.ParamName.ShouldBe("encina");
     }
 
     [Fact]

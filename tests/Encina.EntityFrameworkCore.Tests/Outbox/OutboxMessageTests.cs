@@ -1,5 +1,6 @@
 using Encina.EntityFrameworkCore.Outbox;
 using Shouldly;
+using Xunit;
 
 namespace Encina.EntityFrameworkCore.Tests.Outbox;
 

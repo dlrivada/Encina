@@ -30,7 +30,7 @@ public sealed class SnapshotContractTests
             .GetMethod(nameof(ISnapshotStore<TestSnapshotableAggregate>.GetLatestAsync));
 
         method.ShouldNotBeNull();
-        method!.ReturnType.ShouldBeAssignableTo(
+        method!.ReturnType.ShouldBe(
             typeof(Task<Either<EncinaError, Snapshot<TestSnapshotableAggregate>?>>));
     }
 
@@ -45,7 +45,7 @@ public sealed class SnapshotContractTests
             .GetMethod(nameof(ISnapshotStore<TestSnapshotableAggregate>.SaveAsync));
 
         method.ShouldNotBeNull();
-        method!.ReturnType.ShouldBeAssignableTo(
+        method!.ReturnType.ShouldBe(
             typeof(Task<Either<EncinaError, Unit>>));
     }
 
@@ -60,7 +60,7 @@ public sealed class SnapshotContractTests
             .GetMethod(nameof(ISnapshotStore<TestSnapshotableAggregate>.PruneAsync));
 
         method.ShouldNotBeNull();
-        method!.ReturnType.ShouldBeAssignableTo(
+        method!.ReturnType.ShouldBe(
             typeof(Task<Either<EncinaError, int>>));
     }
 

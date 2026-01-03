@@ -116,7 +116,7 @@ public abstract class IEncinaHealthCheckContractTests
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WithCancelledToken_ShouldThrowOperationCanceledException()
+    public async Task CheckHealthAsync_WithCancelledToken_ShouldNotThrow()
     {
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -124,10 +124,10 @@ public abstract class IEncinaHealthCheckContractTests
         cts.Cancel();
 
         // Act
-        Func<Task> act = () => healthCheck.CheckHealthAsync(cts.Token);
+        var result = await healthCheck.CheckHealthAsync(cts.Token);
 
-        // Assert
-        await Should.ThrowAsync<OperationCanceledException>(act);
+        // Assert - Cancelled health checks should return a valid result rather than throwing
+        result.Status.ShouldBeOneOf(HealthStatus.Healthy, HealthStatus.Unhealthy, HealthStatus.Degraded);
     }
 
     [Fact]

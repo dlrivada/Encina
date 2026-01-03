@@ -1,3 +1,4 @@
+using Encina.gRPC;
 using Encina.gRPC.Health;
 using Encina.Messaging.ContractTests.Health;
 using Encina.Messaging.Health;
@@ -53,7 +54,23 @@ public sealed class GrpcHealthCheckContractTests : IEncinaHealthCheckContractTes
 
     private static IServiceProvider CreateMockServiceProvider()
     {
+        // Mock the IGrpcEncinaService
+        var grpcService = Substitute.For<IGrpcEncinaService>();
+
+        // Mock the scoped service provider that will return the gRPC service
+        var serviceScope = Substitute.For<IServiceScope>();
+        var scopedServiceProvider = Substitute.For<IServiceProvider>();
+        scopedServiceProvider.GetService(typeof(IGrpcEncinaService)).Returns(grpcService);
+        serviceScope.ServiceProvider.Returns(scopedServiceProvider);
+
+        // Mock the IServiceScopeFactory
+        var serviceScopeFactory = Substitute.For<IServiceScopeFactory>();
+        serviceScopeFactory.CreateScope().Returns(serviceScope);
+
+        // Mock the root service provider
         var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IServiceScopeFactory)).Returns(serviceScopeFactory);
+
         return serviceProvider;
     }
 }

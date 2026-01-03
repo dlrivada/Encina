@@ -14,6 +14,7 @@ CREATE TABLE [dbo].[SagaStates]
     [CompletedAtUtc] DATETIME2(7) NULL,
     [ErrorMessage] NVARCHAR(MAX) NULL,
     [CurrentStep] INT NOT NULL DEFAULT 0,
+    [TimeoutAtUtc] DATETIME2(7) NULL,
 
     INDEX [IX_SagaStates_Status_LastUpdated]
         ([Status], [LastUpdatedAtUtc])

@@ -43,8 +43,9 @@ public sealed class GrpcHealthCheck : EncinaHealthCheck
     {
         try
         {
-            // Verify gRPC service is registered
-            var grpcService = _serviceProvider.GetService<IGrpcEncinaService>();
+            // Create a scope to resolve scoped services
+            using var scope = _serviceProvider.CreateScope();
+            var grpcService = scope.ServiceProvider.GetService<IGrpcEncinaService>();
 
             if (grpcService is null)
             {

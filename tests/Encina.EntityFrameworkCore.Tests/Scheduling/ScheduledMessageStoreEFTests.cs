@@ -24,7 +24,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
     public async Task AddAsync_ShouldAddMessageToStore()
     {
         // Arrange
-        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var now = DateTime.UtcNow;
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
@@ -49,8 +49,8 @@ public class ScheduledMessageStoreEFTests : IDisposable
     [Fact]
     public async Task GetDueMessagesAsync_ShouldReturnDueMessages()
     {
-        // Arrange
-        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        // Arrange - Use current time to avoid date-based test failures
+        var now = DateTime.UtcNow;
         var due1 = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
@@ -103,7 +103,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
         var messages = await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Count.ShouldBe(2);
+        messages.Count().ShouldBe(2);
         messages.ShouldContain(m => m.Id == due1.Id);
         messages.ShouldContain(m => m.Id == due2.Id);
     }
@@ -112,7 +112,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
     public async Task GetDueMessagesAsync_ShouldRespectBatchSize()
     {
         // Arrange
-        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var now = DateTime.UtcNow;
         for (var i = 0; i < 10; i++)
         {
             await _dbContext.ScheduledMessages.AddAsync(new ScheduledMessage
@@ -132,14 +132,14 @@ public class ScheduledMessageStoreEFTests : IDisposable
         var messages = await _store.GetDueMessagesAsync(batchSize: 5, maxRetries: 3);
 
         // Assert
-        messages.Count.ShouldBe(5);
+        messages.Count().ShouldBe(5);
     }
 
     [Fact]
     public async Task GetDueMessagesAsync_ShouldExcludeMaxRetriedMessages()
     {
         // Arrange
-        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var now = DateTime.UtcNow;
         var maxRetried = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
@@ -165,7 +165,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
     public async Task MarkAsProcessedAsync_ShouldUpdateMessage()
     {
         // Arrange
-        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var now = DateTime.UtcNow;
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
@@ -195,7 +195,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
     public async Task MarkAsFailedAsync_ShouldUpdateMessageWithError()
     {
         // Arrange
-        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var now = DateTime.UtcNow;
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
@@ -227,7 +227,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
     public async Task RescheduleRecurringMessageAsync_ShouldResetMessage()
     {
         // Arrange
-        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var now = DateTime.UtcNow;
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
@@ -262,7 +262,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
     public async Task CancelAsync_ShouldRemoveMessage()
     {
         // Arrange
-        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var now = DateTime.UtcNow;
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
@@ -290,7 +290,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
     public void IsDue_ShouldReturnTrueForDueMessages()
     {
         // Arrange
-        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var now = DateTime.UtcNow;
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),
@@ -310,7 +310,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
     public void IsDeadLettered_ShouldReturnTrueForMaxRetriedMessages()
     {
         // Arrange
-        var now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var now = DateTime.UtcNow;
         var message = new ScheduledMessage
         {
             Id = Guid.NewGuid(),

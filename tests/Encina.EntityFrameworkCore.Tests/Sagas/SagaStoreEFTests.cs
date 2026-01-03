@@ -161,7 +161,7 @@ public class SagaStoreEFTests : IDisposable
             batchSize: 10);
 
         // Assert
-        stuck.Count.ShouldBe(1);
+        stuck.Count().ShouldBe(1);
         stuck.First().SagaId.ShouldBe(stuckSaga.SagaId);
     }
 
@@ -189,7 +189,7 @@ public class SagaStoreEFTests : IDisposable
             batchSize: 10);
 
         // Assert
-        stuck.Count.ShouldBe(1);
+        stuck.Count().ShouldBe(1);
         stuck.First().SagaId.ShouldBe(compensatingSaga.SagaId);
     }
 
@@ -218,7 +218,7 @@ public class SagaStoreEFTests : IDisposable
             batchSize: 5);
 
         // Assert
-        stuck.Count.ShouldBe(5);
+        stuck.Count().ShouldBe(5);
     }
 
     [Fact]
@@ -268,7 +268,7 @@ public class SagaStoreEFTests : IDisposable
         var expired = await _store.GetExpiredSagasAsync(batchSize: 10);
 
         // Assert
-        expired.Count.ShouldBe(1);
+        expired.Count().ShouldBe(1);
         expired.First().SagaId.ShouldBe(expiredSaga.SagaId);
     }
 
@@ -322,7 +322,7 @@ public class SagaStoreEFTests : IDisposable
         var expired = await _store.GetExpiredSagasAsync(batchSize: 10);
 
         // Assert
-        expired.Count.ShouldBe(1);
+        expired.Count().ShouldBe(1);
         expired.First().SagaId.ShouldBe(compensatingExpired.SagaId);
     }
 
@@ -350,7 +350,7 @@ public class SagaStoreEFTests : IDisposable
         var expired = await _store.GetExpiredSagasAsync(batchSize: 5);
 
         // Assert
-        expired.Count.ShouldBe(5);
+        expired.Count().ShouldBe(5);
     }
 
     [Fact]

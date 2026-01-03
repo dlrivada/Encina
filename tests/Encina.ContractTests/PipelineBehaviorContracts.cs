@@ -53,6 +53,9 @@ public sealed class PipelineBehaviorContracts
             // Exclude ValidationPipelineBehavior - it's opt-in via validation packages
             // and intentionally works with both commands and queries (no specialized interface)
             .Where(t => t.FullName != "Encina.Validation.ValidationPipelineBehavior`2")
+            // Exclude ModuleBehaviorAdapter - it's an internal adapter for module-scoped behaviors
+            // with 3 type parameters (TModule, TRequest, TResponse) and doesn't need specialized interfaces
+            .Where(t => t.FullName != "Encina.Modules.ModuleBehaviorAdapter`3")
             .ToArray();
     }
 

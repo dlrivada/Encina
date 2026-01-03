@@ -187,7 +187,7 @@ public class SqsMessageHandlerTests
     public void DeserializeMessage_WithNullRecord_ThrowsArgumentNullException()
     {
         // Act
-        var action = () => SqsMessageHandler.DeserializeMessage<TestMessage>(null!);
+        Action action = () => _ = SqsMessageHandler.DeserializeMessage<TestMessage>(null!);
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(action);

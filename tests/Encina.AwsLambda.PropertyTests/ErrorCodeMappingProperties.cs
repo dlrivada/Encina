@@ -109,7 +109,7 @@ public class ErrorCodeMappingProperties
     }
 
     [Property]
-    public Property UnknownErrors_AlwaysReturn500(NonEmptyString codeInput)
+    public bool UnknownErrors_AlwaysReturn500(NonEmptyString codeInput)
     {
         // Arrange
         var errorCode = codeInput.Get;
@@ -129,9 +129,8 @@ public class ErrorCodeMappingProperties
         // Act
         var statusCode = MapErrorCodeToStatusCode(errorCode);
 
-        // Assert with precondition
-        return (statusCode == HttpStatusCode.InternalServerError).ToProperty()
-            .When(!isKnownPattern);
+        // Assert with precondition - if it's a known pattern, skip (trivially true); otherwise check 500
+        return isKnownPattern || statusCode == HttpStatusCode.InternalServerError;
     }
 
     [Fact]

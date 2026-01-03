@@ -67,12 +67,12 @@ public class RedisDistributedLockProviderTests
         var provider = new RedisDistributedLockProvider(connection, _options, _logger);
 
         // Act
-        var act = () => provider.TryAcquireAsync(
+        var act = async () => await provider.TryAcquireAsync(
             null!,
             TimeSpan.FromMinutes(1),
             TimeSpan.FromSeconds(5),
             TimeSpan.FromMilliseconds(100),
-            CancellationToken.None).AsTask();
+            CancellationToken.None);
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
@@ -87,10 +87,10 @@ public class RedisDistributedLockProviderTests
         var provider = new RedisDistributedLockProvider(connection, _options, _logger);
 
         // Act
-        var act = () => provider.AcquireAsync(
+        var act = async () => await provider.AcquireAsync(
             null!,
             TimeSpan.FromMinutes(1),
-            CancellationToken.None).AsTask();
+            CancellationToken.None);
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
@@ -105,7 +105,7 @@ public class RedisDistributedLockProviderTests
         var provider = new RedisDistributedLockProvider(connection, _options, _logger);
 
         // Act
-        var act = () => provider.IsLockedAsync(null!, CancellationToken.None).AsTask();
+        var act = async () => await provider.IsLockedAsync(null!, CancellationToken.None);
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
@@ -120,10 +120,10 @@ public class RedisDistributedLockProviderTests
         var provider = new RedisDistributedLockProvider(connection, _options, _logger);
 
         // Act
-        var act = () => provider.ExtendAsync(
+        var act = async () => await provider.ExtendAsync(
             null!,
             TimeSpan.FromMinutes(5),
-            CancellationToken.None).AsTask();
+            CancellationToken.None);
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
@@ -137,15 +137,15 @@ public class RedisDistributedLockProviderTests
         var connection = Substitute.For<IConnectionMultiplexer>();
         var provider = new RedisDistributedLockProvider(connection, _options, _logger);
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
+        cts.Cancel();
 
         // Act
-        var act = () => provider.TryAcquireAsync(
+        var act = async () => await provider.TryAcquireAsync(
             "test-resource",
             TimeSpan.FromMinutes(1),
             TimeSpan.FromSeconds(5),
             TimeSpan.FromMilliseconds(100),
-            cts.Token).AsTask();
+            cts.Token);
 
         // Assert
         await Should.ThrowAsync<OperationCanceledException>(act);

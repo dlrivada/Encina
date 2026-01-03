@@ -110,7 +110,7 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => stepBuilder.Compensate(null!);
 
         // Assert
-        Should.Throw<ArgumentException>(action).ParamName.ShouldBe("compensationActivityName");
+        Should.Throw<ArgumentException>(action).ParamName.ShouldBe("activityName");
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public sealed class DurableFunctionsGuardClauseTests
         var action = () => stepBuilder.Compensate(string.Empty);
 
         // Assert
-        Should.Throw<ArgumentException>(action).ParamName.ShouldBe("compensationActivityName");
+        Should.Throw<ArgumentException>(action).ParamName.ShouldBe("activityName");
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class DurableFunctionsGuardClauseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(action);
-        ex.Message.ShouldMatch("*at least one step*");
+        ex.Message.ShouldContain("at least one step");
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public sealed class DurableFunctionsGuardClauseTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(action);
-        ex.Message.ShouldMatch("*must have an Execute*");
+        ex.Message.ShouldContain("must have an Execute");
     }
 
     #endregion

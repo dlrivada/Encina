@@ -45,11 +45,11 @@ public sealed class MartenHealthCheckPropertyTests
     }
 
     [Property(MaxTest = 50)]
-    public bool Tags_WithDefaultOptions_ContainsDatabase(int seed)
+    public bool Tags_WithDefaultOptions_ContainsPostgresql(int seed)
     {
         var serviceProvider = CreateMockServiceProvider();
         var healthCheck = new MartenHealthCheck(serviceProvider, null);
-        return healthCheck.Tags.Contains("database");
+        return healthCheck.Tags.Contains("postgresql");
     }
 
     [Property(MaxTest = 50)]

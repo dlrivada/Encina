@@ -47,12 +47,19 @@ public sealed class RespawnOptions
 
     /// <summary>
     /// Gets the default Encina messaging tables.
+    /// Includes both PascalCase (SQL Server) and lowercase (PostgreSQL) versions.
     /// </summary>
     public static readonly string[] EncinaMessagingTables =
     [
+        // SQL Server uses PascalCase
         "OutboxMessages",
         "InboxMessages",
         "SagaStates",
-        "ScheduledMessages"
+        "ScheduledMessages",
+        // PostgreSQL converts unquoted identifiers to lowercase
+        "outboxmessages",
+        "inboxmessages",
+        "sagastates",
+        "scheduledmessages"
     ];
 }

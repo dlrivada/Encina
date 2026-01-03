@@ -1,6 +1,7 @@
 using Encina.gRPC;
 using Encina.gRPC.Health;
 using Encina.Messaging.Health;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -12,6 +13,21 @@ namespace Encina.gRPC.Tests.Health;
 /// </summary>
 public sealed class GrpcHealthCheckTests
 {
+    private static IServiceProvider CreateMockServiceProviderWithScope(IGrpcEncinaService? grpcService = null)
+    {
+        var serviceScope = Substitute.For<IServiceScope>();
+        var scopedServiceProvider = Substitute.For<IServiceProvider>();
+        scopedServiceProvider.GetService(typeof(IGrpcEncinaService)).Returns(grpcService);
+        serviceScope.ServiceProvider.Returns(scopedServiceProvider);
+
+        var serviceScopeFactory = Substitute.For<IServiceScopeFactory>();
+        serviceScopeFactory.CreateScope().Returns(serviceScope);
+
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IServiceScopeFactory)).Returns(serviceScopeFactory);
+
+        return serviceProvider;
+    }
     [Fact]
     public void DefaultName_IsCorrect()
     {
@@ -66,9 +82,7 @@ public sealed class GrpcHealthCheckTests
     public async Task CheckHealthAsync_WhenServiceNotRegistered_ReturnsUnhealthy()
     {
         // Arrange
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(IGrpcEncinaService)).Returns((object?)null);
-
+        var serviceProvider = CreateMockServiceProviderWithScope(grpcService: null);
         var healthCheck = new GrpcHealthCheck(serviceProvider, null);
 
         // Act
@@ -86,10 +100,8 @@ public sealed class GrpcHealthCheckTests
     public async Task CheckHealthAsync_WhenServiceRegistered_ReturnsHealthy()
     {
         // Arrange
-        var serviceProvider = Substitute.For<IServiceProvider>();
         var grpcService = Substitute.For<IGrpcEncinaService>();
-        serviceProvider.GetService(typeof(IGrpcEncinaService)).Returns(grpcService);
-
+        var serviceProvider = CreateMockServiceProviderWithScope(grpcService);
         var healthCheck = new GrpcHealthCheck(serviceProvider, null);
 
         // Act
@@ -103,7 +115,7 @@ public sealed class GrpcHealthCheckTests
     }
 
     [Fact]
-    public void Constructor_WithCustomTags_UsesCustomTags()
+    public void Constructor_WithCustomTags_UsesCustomTagsAndEncinaTag()
     {
         // Arrange
         var serviceProvider = Substitute.For<IServiceProvider>();
@@ -115,9 +127,9 @@ public sealed class GrpcHealthCheckTests
         // Act
         var healthCheck = new GrpcHealthCheck(serviceProvider, options);
 
-        // Assert
+        // Assert - custom tags are used, but "encina" is always present per contract
         healthCheck.Tags.ShouldContain("custom");
         healthCheck.Tags.ShouldContain("tags");
-        healthCheck.Tags.ShouldNotContain("encina");
+        healthCheck.Tags.ShouldContain("encina");
     }
 }

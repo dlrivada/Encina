@@ -115,7 +115,7 @@ public sealed class SnapshotEnvelopeTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*State is null*");
+        ex.Message.ShouldContain("State is null");
     }
 
     [Fact]

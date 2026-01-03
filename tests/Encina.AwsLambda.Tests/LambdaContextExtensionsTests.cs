@@ -369,7 +369,7 @@ public class LambdaContextExtensionsTests
         ILambdaContext nullContext = null!;
 
         // Act
-        var action = () => nullContext.GetRemainingTimeMs();
+        Action action = () => _ = nullContext.GetRemainingTimeMs();
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(action);

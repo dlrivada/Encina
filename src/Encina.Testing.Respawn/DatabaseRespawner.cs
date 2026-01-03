@@ -92,7 +92,18 @@ public abstract class DatabaseRespawner : IAsyncDisposable
             await connection.OpenAsync(cancellationToken);
 
             var respawnerOptions = BuildRespawnerOptions();
-            _respawner = await Respawner.CreateAsync(connection, respawnerOptions);
+
+            try
+            {
+                _respawner = await Respawner.CreateAsync(connection, respawnerOptions);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("No tables found"))
+            {
+                // When all tables are ignored, Respawn throws because there's nothing to reset.
+                // This is a valid scenario (e.g., only messaging tables exist and all are ignored).
+                // We mark as initialized but leave _respawner null - ResetAsync will handle this.
+            }
+
             _isInitialized = true;
         }
         finally
@@ -111,9 +122,15 @@ public abstract class DatabaseRespawner : IAsyncDisposable
     {
         await InitializeAsync(cancellationToken);
 
+        // If no respawner was created (all tables ignored), there's nothing to reset
+        if (_respawner is null)
+        {
+            return;
+        }
+
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
-        await _respawner!.ResetAsync(connection);
+        await _respawner.ResetAsync(connection);
     }
 
     /// <summary>

@@ -11,7 +11,7 @@ namespace Encina.Testing.Respawn.IntegrationTests;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "PostgreSql")]
-public sealed class PostgreSqlRespawnerIntegrationTests : IClassFixture<PostgreSqlFixture>, IAsyncLifetime
+public sealed class PostgreSqlRespawnerIntegrationTests : IClassFixture<PostgreSqlFixture>, IAsyncLifetime, IDisposable
 {
     private readonly PostgreSqlFixture _fixture;
     private PostgreSqlRespawner _respawner = null!;
@@ -31,6 +31,12 @@ public sealed class PostgreSqlRespawnerIntegrationTests : IClassFixture<PostgreS
     public async Task DisposeAsync()
     {
         await _respawner.DisposeAsync();
+    }
+
+    public void Dispose()
+    {
+        // Respawner only implements IAsyncDisposable, disposal handled in DisposeAsync
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

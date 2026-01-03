@@ -46,7 +46,7 @@ public class SpecificationGuardTests
         var spec = new ActiveProductsSpec();
 
         // Act
-        var act = () => spec.IsSatisfiedBy(null!);
+        Action act = () => { _ = spec.IsSatisfiedBy(null!); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);

@@ -57,7 +57,7 @@ public sealed class EventUpcasterRegistryTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*already registered*");
+        ex.Message.ShouldContain("already registered");
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class EventUpcasterRegistryTests
 
         // Assert
         var ex = Should.Throw<ArgumentException>(act);
-        ex.Message.ShouldMatch("*does not implement IEventUpcaster*");
+        ex.Message.ShouldContain("does not implement IEventUpcaster");
     }
 
     [Fact]

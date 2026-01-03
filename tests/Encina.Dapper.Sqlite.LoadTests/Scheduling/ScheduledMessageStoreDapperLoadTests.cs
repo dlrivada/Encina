@@ -396,16 +396,18 @@ public sealed class ScheduledMessageStoreDapperLoadTests : IClassFixture<SqliteF
             for (var i = 0; i < messageCount; i++)
             {
                 var messageId = messageIds[i];
-                var nextRun = DateTime.UtcNow.AddHours(round % 2 == 0 ? -1 : 1); // Alternate due/not due
+                // Use future dates only - rescheduling to past is not allowed
+                var nextRun = DateTime.UtcNow.AddHours(round + 1);
                 tasks.Add(Task.Run(async () =>
                     await _store.RescheduleRecurringMessageAsync(messageId, nextRun)));
             }
             await Task.WhenAll(tasks);
         }
 
-        // Assert - All messages still exist (final state depends on last reschedule)
-        var messages = await _store.GetDueMessagesAsync(100, 5);
-        Assert.Equal(messageCount, messages.Count()); // Last reschedule was to past (due)
+        // Assert - All messages still exist and are scheduled for the future
+        var allMessages = await _store.GetDueMessagesAsync(100, 5);
+        // Messages are in future, so GetDueMessages returns none
+        Assert.Empty(allMessages);
     }
 
     #endregion

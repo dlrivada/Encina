@@ -11,26 +11,26 @@ namespace Encina.GraphQL;
 /// </summary>
 public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
 {
-    private readonly IEncina _Encina;
+    private readonly IEncina _encina;
     private readonly ILogger<GraphQLEncinaBridge> _logger;
     private readonly EncinaGraphQLOptions _options;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GraphQLEncinaBridge"/> class.
     /// </summary>
-    /// <param name="Encina">The Encina instance.</param>
+    /// <param name="encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
     public GraphQLEncinaBridge(
-        IEncina Encina,
+        IEncina encina,
         ILogger<GraphQLEncinaBridge> logger,
         IOptions<EncinaGraphQLOptions> options)
     {
-        ArgumentNullException.ThrowIfNull(Encina);
+        ArgumentNullException.ThrowIfNull(encina);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
 
-        _Encina = Encina;
+        _encina = encina;
         _logger = logger;
         _options = options.Value;
     }
@@ -50,7 +50,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_options.ExecutionTimeout);
 
-            var result = await _Encina.Send(query, cts.Token).ConfigureAwait(false);
+            var result = await _encina.Send(query, cts.Token).ConfigureAwait(false);
 
             result.IfRight(_ => Log.SuccessfullyExecutedQuery(_logger, typeof(TQuery).Name));
 
@@ -92,7 +92,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_options.ExecutionTimeout);
 
-            var result = await _Encina.Send(mutation, cts.Token).ConfigureAwait(false);
+            var result = await _encina.Send(mutation, cts.Token).ConfigureAwait(false);
 
             result.IfRight(_ => Log.SuccessfullyExecutedMutation(_logger, typeof(TMutation).Name));
 

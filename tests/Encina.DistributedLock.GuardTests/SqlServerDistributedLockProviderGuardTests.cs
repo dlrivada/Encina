@@ -55,7 +55,7 @@ public class SqlServerDistributedLockProviderGuardTests
         // Act
         var act = () => new SqlServerDistributedLockProvider(options, logger);
 
-        // Assert
-        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("ConnectionString");
+        // Assert - The parameter name is "options" because that's the invalid constructor argument
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("options");
     }
 }

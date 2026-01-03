@@ -54,7 +54,7 @@ public sealed class FakeOutboxStoreTests
         var pending = await _sut.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        pending.Count.ShouldBe(1);
+        pending.Count().ShouldBe(1);
         pending.First().Id.ShouldBe(pendingMessage.Id);
     }
 

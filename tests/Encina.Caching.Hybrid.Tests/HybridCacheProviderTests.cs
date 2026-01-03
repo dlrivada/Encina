@@ -257,9 +257,8 @@ public sealed class HybridCacheProviderTests : IDisposable
     [Fact]
     public async Task RemoveAsync_WithNonExistingKey_DoesNotThrow()
     {
-        // Act & Assert
-        await _sut.Invoking(s => s.RemoveAsync("non-existing", CancellationToken.None))
-            // Removed - async void not supported
+        // Act & Assert - should not throw
+        await _sut.RemoveAsync("non-existing", CancellationToken.None);
     }
 
     #endregion

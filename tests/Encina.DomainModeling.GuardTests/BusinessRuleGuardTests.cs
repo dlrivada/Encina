@@ -28,7 +28,7 @@ public class BusinessRuleGuardTests
         IBusinessRule rule = null!;
 
         // Act
-        var act = () => rule.Check();
+        Action act = () => { _ = rule.Check(); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);
@@ -42,7 +42,7 @@ public class BusinessRuleGuardTests
         IEnumerable<IBusinessRule> rules = null!;
 
         // Act
-        var act = () => rules.CheckFirst();
+        Action act = () => { _ = rules.CheckFirst(); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);
@@ -56,7 +56,7 @@ public class BusinessRuleGuardTests
         IEnumerable<IBusinessRule> rules = null!;
 
         // Act
-        var act = () => rules.CheckAll();
+        Action act = () => { _ = rules.CheckAll(); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);

@@ -9,22 +9,22 @@ namespace Encina.Hangfire;
 public sealed class HangfireNotificationJobAdapter<TNotification>
     where TNotification : INotification
 {
-    private readonly IEncina _Encina;
+    private readonly IEncina _encina;
     private readonly ILogger<HangfireNotificationJobAdapter<TNotification>> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HangfireNotificationJobAdapter{TNotification}"/> class.
     /// </summary>
-    /// <param name="Encina">The Encina instance.</param>
+    /// <param name="encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     public HangfireNotificationJobAdapter(
-        IEncina Encina,
+        IEncina encina,
         ILogger<HangfireNotificationJobAdapter<TNotification>> logger)
     {
-        ArgumentNullException.ThrowIfNull(Encina);
+        ArgumentNullException.ThrowIfNull(encina);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _Encina = Encina;
+        _encina = encina;
         _logger = logger;
     }
 
@@ -44,7 +44,7 @@ public sealed class HangfireNotificationJobAdapter<TNotification>
         {
             Log.PublishingNotificationJob(_logger, typeof(TNotification).Name);
 
-            await _Encina.Publish(notification, cancellationToken)
+            await _encina.Publish(notification, cancellationToken)
                 .ConfigureAwait(false);
 
             Log.NotificationJobCompleted(_logger, typeof(TNotification).Name);

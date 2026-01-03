@@ -203,7 +203,7 @@ public class EncinaContextMiddlewareTests
         var response = await client.SendAsync(request);
 
         // Assert
-        response.Headers.ShouldContainKey("X-Correlation-ID");
+        response.Headers.Contains("X-Correlation-ID").ShouldBeTrue();
         response.Headers.GetValues("X-Correlation-ID").ShouldContain(correlationId);
     }
 
@@ -273,7 +273,7 @@ public class EncinaContextMiddlewareTests
         // Assert
         capturedContext.ShouldNotBeNull();
         capturedContext!.CorrelationId.ShouldBe(correlationId);
-        response.Headers.ShouldContainKey("X-Request-ID");
+        response.Headers.Contains("X-Request-ID").ShouldBeTrue();
     }
 
     private static async Task<IHost> CreateTestHost(

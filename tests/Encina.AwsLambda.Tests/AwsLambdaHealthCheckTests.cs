@@ -50,7 +50,7 @@ public class AwsLambdaHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("configured and ready");
+        result.Description!.ShouldContain("configured and ready");
     }
 
     [Fact]

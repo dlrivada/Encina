@@ -54,14 +54,6 @@ public sealed class SqliteHealthCheckPropertyTests
     }
 
     [Property(MaxTest = 50)]
-    public bool Tags_WithDefaultOptions_ContainsSqlite(int seed)
-    {
-        var serviceProvider = CreateMockServiceProvider();
-        var healthCheck = new SqliteHealthCheck(serviceProvider, null);
-        return healthCheck.Tags.Contains("sqlite");
-    }
-
-    [Property(MaxTest = 50)]
     public bool Tags_WithCustomTags_UsesCustomTags(PositiveInt count)
     {
         var tagCount = (count.Get % 5) + 1;
@@ -69,7 +61,10 @@ public sealed class SqliteHealthCheckPropertyTests
         var serviceProvider = CreateMockServiceProvider();
         var options = new ProviderHealthCheckOptions { Tags = tagArray };
         var healthCheck = new SqliteHealthCheck(serviceProvider, options);
-        return tagArray.All(tag => healthCheck.Tags.Contains(tag));
+
+        // Should contain all custom tags plus "encina"
+        return tagArray.All(tag => healthCheck.Tags.Contains(tag)) &&
+               healthCheck.Tags.Contains("encina");
     }
 
     [Property(MaxTest = 20)]

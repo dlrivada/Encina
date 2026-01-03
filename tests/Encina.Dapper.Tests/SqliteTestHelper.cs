@@ -67,7 +67,8 @@ public sealed class SqliteTestHelper : IDisposable
                 LastUpdatedAtUtc TEXT NOT NULL,
                 CompletedAtUtc TEXT,
                 ErrorMessage TEXT,
-                CurrentStep INTEGER NOT NULL DEFAULT 0
+                CurrentStep INTEGER NOT NULL DEFAULT 0,
+                TimeoutAtUtc TEXT
             )";
         command.ExecuteNonQuery();
     }

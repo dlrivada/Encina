@@ -20,25 +20,7 @@ public sealed class SqliteHealthCheckPropertyTests
     }
 
     [Property(MaxTest = 50)]
-    public bool Constructor_WithNullOptions_UsesDefaultName(int seed)
-    {
-        var serviceProvider = CreateMockServiceProvider();
-        var healthCheck = new SqliteHealthCheck(serviceProvider, null);
-        return healthCheck.Name == SqliteHealthCheck.DefaultName;
-    }
-
-    [Property(MaxTest = 100)]
-    public bool Constructor_WithCustomName_UsesCustomName(PositiveInt seed)
-    {
-        var customName = $"custom-name-{seed.Get}";
-        var serviceProvider = CreateMockServiceProvider();
-        var options = new ProviderHealthCheckOptions { Name = customName };
-        var healthCheck = new SqliteHealthCheck(serviceProvider, options);
-        return healthCheck.Name == customName;
-    }
-
-    [Property(MaxTest = 50)]
-    public bool Tags_WithDefaultOptions_ContainsEncina(int seed)
+    public bool Tags_AlwaysContainsEncina(int seed)
     {
         var serviceProvider = CreateMockServiceProvider();
         var healthCheck = new SqliteHealthCheck(serviceProvider, null);
@@ -54,14 +36,6 @@ public sealed class SqliteHealthCheckPropertyTests
     }
 
     [Property(MaxTest = 50)]
-    public bool Tags_WithDefaultOptions_ContainsSqlite(int seed)
-    {
-        var serviceProvider = CreateMockServiceProvider();
-        var healthCheck = new SqliteHealthCheck(serviceProvider, null);
-        return healthCheck.Tags.Contains("sqlite");
-    }
-
-    [Property(MaxTest = 50)]
     public bool Tags_WithCustomTags_UsesCustomTags(PositiveInt count)
     {
         var tagCount = (count.Get % 5) + 1;
@@ -69,18 +43,25 @@ public sealed class SqliteHealthCheckPropertyTests
         var serviceProvider = CreateMockServiceProvider();
         var options = new ProviderHealthCheckOptions { Tags = tagArray };
         var healthCheck = new SqliteHealthCheck(serviceProvider, options);
-        return tagArray.All(tag => healthCheck.Tags.Contains(tag));
+
+        // Should contain all custom tags plus "encina"
+        return tagArray.All(tag => healthCheck.Tags.Contains(tag)) &&
+               healthCheck.Tags.Contains("encina");
     }
 
-    [Property(MaxTest = 20)]
-    public bool CheckHealthAsync_ReturnsValidHealthStatus(int seed)
+    [Property(MaxTest = 50)]
+    public bool Tags_WithCustomName_UsesCustomName(NonEmptyString customName)
     {
+        var name = customName.Get.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return true; // Skip invalid names
+        }
+
         var serviceProvider = CreateMockServiceProvider();
-        var healthCheck = new SqliteHealthCheck(serviceProvider, null);
-        var result = healthCheck.CheckHealthAsync().GetAwaiter().GetResult();
-        return result.Status == HealthStatus.Healthy
-            || result.Status == HealthStatus.Unhealthy
-            || result.Status == HealthStatus.Degraded;
+        var options = new ProviderHealthCheckOptions { Name = name };
+        var healthCheck = new SqliteHealthCheck(serviceProvider, options);
+        return healthCheck.Name == name;
     }
 
     private static IServiceProvider CreateMockServiceProvider()

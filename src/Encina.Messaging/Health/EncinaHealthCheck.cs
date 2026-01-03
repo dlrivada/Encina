@@ -39,13 +39,28 @@ public abstract class EncinaHealthCheck : IEncinaHealthCheck
     /// Initializes a new instance of the <see cref="EncinaHealthCheck"/> class.
     /// </summary>
     /// <param name="name">The unique name of the health check.</param>
-    /// <param name="tags">The tags associated with this health check.</param>
+    /// <param name="tags">The tags associated with this health check. "encina" tag is always included.</param>
     protected EncinaHealthCheck(string name, IReadOnlyCollection<string>? tags = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         _name = name;
-        _tags = tags ?? [];
+        _tags = EnsureEncinaTag(tags);
+    }
+
+    private static IReadOnlyCollection<string> EnsureEncinaTag(IReadOnlyCollection<string>? tags)
+    {
+        if (tags is null || tags.Count == 0)
+        {
+            return ["encina"];
+        }
+
+        if (tags.Contains("encina", StringComparer.OrdinalIgnoreCase))
+        {
+            return tags;
+        }
+
+        return ["encina", .. tags];
     }
 
     /// <inheritdoc />
@@ -81,4 +96,28 @@ public abstract class EncinaHealthCheck : IEncinaHealthCheck
     /// is provided by the base class.
     /// </remarks>
     protected abstract Task<HealthCheckResult> CheckHealthCoreAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Merges custom tags with default tags, ensuring "encina" tag is always present.
+    /// </summary>
+    /// <param name="customTags">Custom tags to merge (can be null).</param>
+    /// <param name="defaultTags">Default tags to use when custom tags are null.</param>
+    /// <returns>A collection containing merged tags with "encina" always included.</returns>
+    protected static IReadOnlyCollection<string> MergeTags(
+        IReadOnlyCollection<string>? customTags,
+        IReadOnlyCollection<string> defaultTags)
+    {
+        if (customTags is null)
+        {
+            return defaultTags;
+        }
+
+        // Ensure "encina" is always included in custom tags
+        if (customTags.Contains("encina", StringComparer.OrdinalIgnoreCase))
+        {
+            return customTags;
+        }
+
+        return ["encina", .. customTags];
+    }
 }

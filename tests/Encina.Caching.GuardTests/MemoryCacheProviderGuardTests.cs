@@ -84,7 +84,7 @@ public class MemoryCacheProviderGuardTests : IDisposable
         string key = null!;
 
         // Act & Assert
-        var act = () => provider.GetAsync<string>(key, CancellationToken.None).AsTask();
+        var act = () => provider.GetAsync<string>(key, CancellationToken.None);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("key");
     }
@@ -100,7 +100,7 @@ public class MemoryCacheProviderGuardTests : IDisposable
         string key = null!;
 
         // Act & Assert
-        var act = () => provider.SetAsync(key, "value", TimeSpan.FromMinutes(5), CancellationToken.None).AsTask();
+        var act = () => provider.SetAsync(key, "value", TimeSpan.FromMinutes(5), CancellationToken.None);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("key");
     }
@@ -116,7 +116,7 @@ public class MemoryCacheProviderGuardTests : IDisposable
         string key = null!;
 
         // Act & Assert
-        var act = () => provider.RemoveAsync(key, CancellationToken.None).AsTask();
+        var act = () => provider.RemoveAsync(key, CancellationToken.None);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("key");
     }
@@ -132,7 +132,7 @@ public class MemoryCacheProviderGuardTests : IDisposable
         string key = null!;
 
         // Act & Assert
-        var act = () => provider.ExistsAsync(key, CancellationToken.None).AsTask();
+        var act = () => provider.ExistsAsync(key, CancellationToken.None);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("key");
     }
@@ -148,7 +148,7 @@ public class MemoryCacheProviderGuardTests : IDisposable
         string key = null!;
 
         // Act & Assert
-        var act = () => provider.RefreshAsync(key, CancellationToken.None).AsTask();
+        var act = () => provider.RefreshAsync(key, CancellationToken.None);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("key");
     }
@@ -168,7 +168,7 @@ public class MemoryCacheProviderGuardTests : IDisposable
             key,
             _ => Task.FromResult("value"),
             TimeSpan.FromMinutes(5),
-            CancellationToken.None).AsTask();
+            CancellationToken.None);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("key");
     }
@@ -188,7 +188,7 @@ public class MemoryCacheProviderGuardTests : IDisposable
             "key",
             factory,
             TimeSpan.FromMinutes(5),
-            CancellationToken.None).AsTask();
+            CancellationToken.None);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("factory");
     }
@@ -204,7 +204,7 @@ public class MemoryCacheProviderGuardTests : IDisposable
         string pattern = null!;
 
         // Act & Assert
-        var act = () => provider.RemoveByPatternAsync(pattern, CancellationToken.None).AsTask();
+        var act = () => provider.RemoveByPatternAsync(pattern, CancellationToken.None);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("pattern");
     }
@@ -225,7 +225,7 @@ public class MemoryCacheProviderGuardTests : IDisposable
             "value",
             TimeSpan.FromMinutes(1),
             TimeSpan.FromMinutes(5),
-            CancellationToken.None).AsTask();
+            CancellationToken.None);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("key");
     }

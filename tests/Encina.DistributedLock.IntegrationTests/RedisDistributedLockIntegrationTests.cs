@@ -18,8 +18,7 @@ public class RedisDistributedLockIntegrationTests : IAsyncLifetime
 
     public RedisDistributedLockIntegrationTests()
     {
-        _redisContainer = new RedisBuilder()
-            .WithImage("redis:7-alpine")
+        _redisContainer = new RedisBuilder("redis:7-alpine")
             .Build();
     }
 

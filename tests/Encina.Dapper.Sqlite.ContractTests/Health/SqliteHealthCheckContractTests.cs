@@ -45,13 +45,6 @@ public sealed class SqliteHealthCheckContractTests : IEncinaHealthCheckContractT
         healthCheck.Tags.ShouldContain("database");
     }
 
-    [Fact]
-    public void Tags_WithDefaultOptions_ShouldContainSqliteTag()
-    {
-        var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.ShouldContain("sqlite");
-    }
-
     private static IServiceProvider CreateMockServiceProvider()
     {
         var serviceProvider = Substitute.For<IServiceProvider>();

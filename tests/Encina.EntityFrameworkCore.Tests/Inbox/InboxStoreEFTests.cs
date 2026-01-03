@@ -130,7 +130,8 @@ public class InboxStoreEFTests : IDisposable
         var updated = await _dbContext.InboxMessages.FindAsync("fail-test-id");
         updated!.ErrorMessage.ShouldBe("Test error");
         updated.RetryCount.ShouldBe(1);
-        updated.NextRetryAtUtc.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
+        updated.NextRetryAtUtc.ShouldNotBeNull();
+        updated.NextRetryAtUtc!.Value.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
     [Fact]
@@ -163,7 +164,7 @@ public class InboxStoreEFTests : IDisposable
         var messages = await _store.GetExpiredMessagesAsync(batchSize: 10);
 
         // Assert
-        messages.Count.ShouldBe(1);
+        messages.Count().ShouldBe(1);
         messages.First().MessageId.ShouldBe("expired-id");
     }
 

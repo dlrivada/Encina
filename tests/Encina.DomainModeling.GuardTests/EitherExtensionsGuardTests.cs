@@ -19,7 +19,7 @@ public class EitherExtensionsGuardTests
         var result = Right<TestError, int>(5);
 
         // Act
-        var act = () => result.When(true, null!);
+        Action act = () => { _ = result.When(true, null!); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);
@@ -37,7 +37,7 @@ public class EitherExtensionsGuardTests
         var result = Right<TestError, int>(5);
 
         // Act
-        var act = () => result.Ensure(null!, _ => new TestError("Error"));
+        Action act = () => { _ = result.Ensure(null!, _ => new TestError("Error")); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);
@@ -51,7 +51,7 @@ public class EitherExtensionsGuardTests
         var result = Right<TestError, int>(5);
 
         // Act
-        var act = () => result.Ensure(x => x > 0, null!);
+        Action act = () => { _ = result.Ensure(x => x > 0, null!); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);
@@ -69,7 +69,7 @@ public class EitherExtensionsGuardTests
         var result = Right<TestError, int>(5);
 
         // Act
-        var act = () => result.OrElse(null!);
+        Action act = () => { _ = result.OrElse(null!); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);
@@ -87,7 +87,7 @@ public class EitherExtensionsGuardTests
         var result = Right<TestError, int>(5);
 
         // Act
-        var act = () => result.GetOrElse(null!);
+        Action act = () => { _ = result.GetOrElse(null!); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);
@@ -105,7 +105,7 @@ public class EitherExtensionsGuardTests
         var result = Right<TestError, int>(5);
 
         // Act
-        var act = () => result.Tap(null!);
+        Action act = () => { _ = result.Tap(null!); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);
@@ -123,7 +123,7 @@ public class EitherExtensionsGuardTests
         var result = Right<TestError, int>(5);
 
         // Act
-        var act = () => result.TapError(null!);
+        Action act = () => { _ = result.TapError(null!); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);
@@ -141,7 +141,7 @@ public class EitherExtensionsGuardTests
         var option = Some(5);
 
         // Act
-        var act = () => option.ToEither<TestError, int>(null!);
+        Action act = () => { _ = option.ToEither<TestError, int>(null!); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);
@@ -159,7 +159,7 @@ public class EitherExtensionsGuardTests
         var result = Right<TestError, int>(5);
 
         // Act
-        var act = () => result.GetOrThrow(null!);
+        Action act = () => { _ = result.GetOrThrow(null!); };
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(act);

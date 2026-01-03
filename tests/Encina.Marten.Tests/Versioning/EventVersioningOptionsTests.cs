@@ -92,7 +92,7 @@ public sealed class EventVersioningOptionsTests
 
         // Assert
         var ex = Should.Throw<ArgumentException>(act);
-        ex.Message.ShouldMatch("*does not implement IEventUpcaster*");
+        ex.Message.ShouldContain("does not implement IEventUpcaster");
     }
 
     [Fact]

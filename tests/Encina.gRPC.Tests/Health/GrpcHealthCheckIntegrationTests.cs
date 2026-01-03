@@ -1,6 +1,7 @@
 using Encina.gRPC.Health;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Encina.gRPC.Tests.Health;
 
@@ -16,6 +17,9 @@ public sealed class GrpcHealthCheckIntegrationTests : IDisposable
     public GrpcHealthCheckIntegrationTests()
     {
         var services = new ServiceCollection();
+
+        // Add logging (required for GrpcEncinaService)
+        services.AddLogging();
 
         // Configure gRPC services with Encina core
         services.AddEncina(typeof(GrpcHealthCheckIntegrationTests).Assembly);
@@ -35,7 +39,8 @@ public sealed class GrpcHealthCheckIntegrationTests : IDisposable
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("configured and ready");
+        result.Description.ShouldNotBeNull();
+        result.Description!.ShouldContain("configured and ready");
     }
 
     [Fact]
@@ -66,7 +71,8 @@ public sealed class GrpcHealthCheckIntegrationTests : IDisposable
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("not configured");
+        result.Description.ShouldNotBeNull();
+        result.Description!.ShouldContain("not configured");
     }
 
     [Fact]

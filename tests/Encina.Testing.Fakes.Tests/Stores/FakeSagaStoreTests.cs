@@ -122,7 +122,7 @@ public sealed class FakeSagaStoreTests
         var stuck = await _sut.GetStuckSagasAsync(olderThan: TimeSpan.FromHours(1), batchSize: 10);
 
         // Assert
-        stuck.Count.ShouldBe(1);
+        stuck.Count().ShouldBe(1);
         stuck.First().SagaId.ShouldBe(stuckSaga.SagaId);
     }
 
@@ -155,7 +155,7 @@ public sealed class FakeSagaStoreTests
         var expired = await _sut.GetExpiredSagasAsync(batchSize: 10);
 
         // Assert
-        expired.Count.ShouldBe(1);
+        expired.Count().ShouldBe(1);
         expired.First().SagaId.ShouldBe(expiredSaga.SagaId);
     }
 

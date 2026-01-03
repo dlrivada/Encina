@@ -80,7 +80,7 @@ public class OutboxStoreDapperTests : IDisposable
         var messages = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Count.ShouldBe(2);
+        messages.Count().ShouldBe(2);
         messages.ShouldContain(m => m.Id == pending1.Id);
         messages.ShouldContain(m => m.Id == pending2.Id);
         messages.ShouldNotContain(m => m.Id == processed.Id);
@@ -106,7 +106,7 @@ public class OutboxStoreDapperTests : IDisposable
         var messages = await _store.GetPendingMessagesAsync(batchSize: 5, maxRetries: 3);
 
         // Assert
-        messages.Count.ShouldBe(5);
+        messages.Count().ShouldBe(5);
     }
 
     [Fact]
@@ -183,7 +183,8 @@ public class OutboxStoreDapperTests : IDisposable
             new { message.Id });
         updated.ErrorMessage.ShouldBe("Test error");
         updated.RetryCount.ShouldBe(1);
-        updated.NextRetryAtUtc.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
+        updated.NextRetryAtUtc.ShouldNotBeNull();
+        updated.NextRetryAtUtc!.Value.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
     [Fact]

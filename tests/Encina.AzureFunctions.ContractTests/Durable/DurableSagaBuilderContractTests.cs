@@ -155,7 +155,7 @@ public sealed class DurableSagaBuilderContractTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*at least one step*");
+        ex.Message.ShouldContain("at least one step");
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public sealed class DurableSagaBuilderContractTests
 
         // Assert
         var ex = Should.Throw<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*must have an Execute*");
+        ex.Message.ShouldContain("must have an Execute");
     }
 
     [Fact]
@@ -223,7 +223,7 @@ public sealed class DurableSagaBuilderContractTests
 
         // Assert
         error.FailedStep.ShouldBe("FailedStep");
-        error.OriginalError.ShouldNotBeNull();
+        error.OriginalError.ShouldNotBe(default);
         error.CompensationErrors.Count.ShouldBe(2);
         error.WasCompensated.ShouldBeFalse();
     }

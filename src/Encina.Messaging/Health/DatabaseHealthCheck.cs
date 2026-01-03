@@ -32,6 +32,8 @@ namespace Encina.Messaging.Health;
 /// </example>
 public class DatabaseHealthCheck : EncinaHealthCheck
 {
+    private static readonly string[] DefaultTags = ["encina", "database", "ready"];
+
     private readonly Func<IDbConnection> _connectionFactory;
     private readonly ProviderHealthCheckOptions _options;
 
@@ -48,7 +50,7 @@ public class DatabaseHealthCheck : EncinaHealthCheck
         ProviderHealthCheckOptions? options = null)
         : base(
             options?.Name ?? name,
-            options?.Tags ?? ["encina", "database", "ready"])
+            MergeTags(options?.Tags, DefaultTags))
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;

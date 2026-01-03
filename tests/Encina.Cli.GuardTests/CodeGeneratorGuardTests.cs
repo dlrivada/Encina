@@ -39,7 +39,7 @@ public class CodeGeneratorGuardTests
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentException>(act);
-        ex.ParamName.ShouldBe("options.Name");
+        ex.ParamName.ShouldBe(nameof(options.Name));
     }
 
     [Theory]
@@ -163,7 +163,7 @@ public class CodeGeneratorGuardTests
 
         // Assert
         result.Success.ShouldBeFalse();
-        result.ErrorMessage.ShouldContain("At least one step is required");
+        result.ErrorMessage!.ShouldContain("At least one step is required");
     }
 
     [Fact]

@@ -12,22 +12,22 @@ namespace Encina.Quartz;
 public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
     where TRequest : IRequest<TResponse>
 {
-    private readonly IEncina _Encina;
+    private readonly IEncina _encina;
     private readonly ILogger<QuartzRequestJob<TRequest, TResponse>> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="QuartzRequestJob{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="Encina">The Encina instance.</param>
+    /// <param name="encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     public QuartzRequestJob(
-        IEncina Encina,
+        IEncina encina,
         ILogger<QuartzRequestJob<TRequest, TResponse>> logger)
     {
-        ArgumentNullException.ThrowIfNull(Encina);
+        ArgumentNullException.ThrowIfNull(encina);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _Encina = Encina;
+        _encina = encina;
         _logger = logger;
     }
 
@@ -53,7 +53,7 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
         {
             Log.ExecutingRequestJob(_logger, context.JobDetail.Key, typeof(TRequest).Name);
 
-            var result = await _Encina.Send(request, context.CancellationToken)
+            var result = await _encina.Send(request, context.CancellationToken)
                 .ConfigureAwait(false);
 
             result.Match(

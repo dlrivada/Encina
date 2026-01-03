@@ -64,22 +64,23 @@ public sealed class MartenHealthCheckTests
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WhenQuerySucceeds_ReturnsUnhealthyWithMockedStore()
+    public async Task CheckHealthAsync_WhenQueryFails_ReturnsUnhealthy()
     {
         // Arrange
-        // We can't easily mock Marten's Query<T>() chain due to complex LINQ internals
-        // The mock will return null for Query<object>() which will cause an exception
+        // We can't easily mock Marten's QueryAsync<T>() chain due to complex LINQ internals
+        // Instead, we test by making QuerySession throw an exception
         // Integration tests with a real PostgreSQL database will verify healthy status
-        var session = Substitute.For<IDocumentSession>();
-        _store.LightweightSession().Returns(session);
+        var session = Substitute.For<IQuerySession>();
+        session.QueryAsync<int>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<IReadOnlyList<int>>(_ => throw new InvalidOperationException("Query failed"));
+        _store.QuerySession().Returns(session);
 
         var healthCheck = new MartenHealthCheck(_serviceProvider, null);
 
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
-        // Assert - Since Query<object>() returns null in mock, an exception occurs
-        // The base class catches this and returns Unhealthy
+        // Assert - The base class catches the exception and returns Unhealthy
         result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
@@ -104,7 +105,7 @@ public sealed class MartenHealthCheckTests
     public async Task CheckHealthAsync_WhenSessionCreationFails_ReturnsUnhealthy()
     {
         // Arrange
-        _store.LightweightSession()
+        _store.QuerySession()
             .Returns(_ => throw new InvalidOperationException("Database connection failed"));
         var healthCheck = new MartenHealthCheck(_serviceProvider, null);
 

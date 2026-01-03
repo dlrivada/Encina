@@ -11,7 +11,7 @@ namespace Encina.gRPC;
 /// </summary>
 public sealed class GrpcEncinaService : IGrpcEncinaService
 {
-    private readonly IEncina _Encina;
+    private readonly IEncina _encina;
     private readonly ILogger<GrpcEncinaService> _logger;
     private readonly Dictionary<string, Type> _requestTypeCache = new();
     private readonly Dictionary<string, Type> _notificationTypeCache = new();
@@ -19,19 +19,19 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
     /// <summary>
     /// Initializes a new instance of the <see cref="GrpcEncinaService"/> class.
     /// </summary>
-    /// <param name="Encina">The Encina instance.</param>
+    /// <param name="encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options (reserved for future use).</param>
     public GrpcEncinaService(
-        IEncina Encina,
+        IEncina encina,
         ILogger<GrpcEncinaService> logger,
         IOptions<EncinaGrpcOptions> options)
     {
-        ArgumentNullException.ThrowIfNull(Encina);
+        ArgumentNullException.ThrowIfNull(encina);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
 
-        _Encina = Encina;
+        _encina = encina;
         _logger = logger;
         _ = options.Value; // Reserved for future use
     }
@@ -85,7 +85,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             }
 
             var genericMethod = sendMethod.MakeGenericMethod(type, responseType);
-            var task = (dynamic)genericMethod.Invoke(_Encina, [request, cancellationToken])!;
+            var task = (dynamic)genericMethod.Invoke(_encina, [request, cancellationToken])!;
             Either<EncinaError, object> result = await task;
 
             return result.Match(
@@ -145,7 +145,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
                 .First(m => m.Name == "Publish" && m.GetGenericArguments().Length == 1);
 
             var genericMethod = publishMethod.MakeGenericMethod(type);
-            var task = (ValueTask)genericMethod.Invoke(_Encina, [notification, cancellationToken])!;
+            var task = (ValueTask)genericMethod.Invoke(_encina, [notification, cancellationToken])!;
             await task;
 
             return Right<EncinaError, Unit>(Unit.Default);

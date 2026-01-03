@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Amazon.Lambda.CloudWatchEvents;
+using Encina.TestInfrastructure.Extensions;
 using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;

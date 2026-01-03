@@ -75,7 +75,8 @@ public static class SqliteSchema
                 LastUpdatedAtUtc TEXT NOT NULL,
                 CompletedAtUtc TEXT NULL,
                 ErrorMessage TEXT NULL,
-                CompensationData TEXT NULL
+                CompensationData TEXT NULL,
+                TimeoutAtUtc TEXT NULL
             );
 
             CREATE INDEX IF NOT EXISTS IX_SagaStates_Status_LastUpdatedAtUtc

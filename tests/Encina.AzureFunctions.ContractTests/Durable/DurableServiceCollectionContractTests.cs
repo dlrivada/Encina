@@ -22,10 +22,12 @@ public sealed class DurableServiceCollectionContractTests
 
         // Act
         services.AddEncinaDurableFunctions();
+        var provider = services.BuildServiceProvider();
 
-        // Assert - Verify IConfigureOptions<DurableFunctionsOptions> is registered
-        services.ShouldContain(sd =>
-            sd.ServiceType == typeof(IConfigureOptions<DurableFunctionsOptions>));
+        // Assert - Verify options can be resolved
+        var options = provider.GetService<IOptions<DurableFunctionsOptions>>();
+        options.ShouldNotBeNull();
+        options.Value.ShouldNotBeNull();
     }
 
     [Fact]
@@ -49,29 +51,17 @@ public sealed class DurableServiceCollectionContractTests
         // Arrange
         var services = new ServiceCollection();
         var expectedMaxRetries = 10;
-        var callbackInvoked = false;
 
         // Act
         services.AddEncinaDurableFunctions(options =>
         {
             options.DefaultMaxRetries = expectedMaxRetries;
-            callbackInvoked = true;
         });
+        var provider = services.BuildServiceProvider();
 
-        // Assert - Verify callback was registered (IConfigureOptions exists)
-        services.ShouldContain(sd =>
-            sd.ServiceType == typeof(IConfigureOptions<DurableFunctionsOptions>));
-
-        // Verify callback is invoked when options are created
-        var configuredOptions = new DurableFunctionsOptions();
-        var configureOptions = services
-            .Where(sd => sd.ServiceType == typeof(IConfigureOptions<DurableFunctionsOptions>))
-            .Select(sd => sd.ImplementationInstance as IConfigureOptions<DurableFunctionsOptions>)
-            .FirstOrDefault(c => c is not null);
-
-        configureOptions?.Configure(configuredOptions);
-        callbackInvoked.ShouldBeTrue();
-        configuredOptions.DefaultMaxRetries.ShouldBe(expectedMaxRetries);
+        // Assert - Verify callback was applied
+        var options = provider.GetRequiredService<IOptions<DurableFunctionsOptions>>();
+        options.Value.DefaultMaxRetries.ShouldBe(expectedMaxRetries);
     }
 
     [Fact]
@@ -96,11 +86,12 @@ public sealed class DurableServiceCollectionContractTests
         // Act
         services.AddEncinaDurableFunctions(o => o.DefaultMaxRetries = 3);
         services.AddEncinaDurableFunctions(o => o.DefaultBackoffCoefficient = 3.0);
+        var provider = services.BuildServiceProvider();
 
-        // Assert - Should register multiple IConfigureOptions (all are applied in order)
-        var configureOptionsCount = services.Count(sd =>
-            sd.ServiceType == typeof(IConfigureOptions<DurableFunctionsOptions>));
-        configureOptionsCount.ShouldBeGreaterThanOrEqualTo(2);
+        // Assert - Both configurations should be applied
+        var options = provider.GetRequiredService<IOptions<DurableFunctionsOptions>>();
+        options.Value.DefaultMaxRetries.ShouldBe(3);
+        options.Value.DefaultBackoffCoefficient.ShouldBe(3.0);
 
         // Health check should be registered only once (idempotent)
         var healthCheckCount = services.Count(sd =>
@@ -126,7 +117,7 @@ public sealed class DurableServiceCollectionContractTests
     public void Contract_HealthCheck_ImplementsIEncinaHealthCheck()
     {
         // Assert - Type-level verification without building ServiceProvider
-        typeof(DurableFunctionsHealthCheck).ShouldBeAssignableTo<IEncinaHealthCheck>();
+        typeof(IEncinaHealthCheck).IsAssignableFrom(typeof(DurableFunctionsHealthCheck)).ShouldBeTrue();
     }
 
     [Fact]

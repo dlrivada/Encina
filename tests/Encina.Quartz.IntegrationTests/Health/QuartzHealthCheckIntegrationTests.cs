@@ -49,7 +49,7 @@ public sealed class QuartzHealthCheckIntegrationTests : IAsyncLifetime
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("operational");
+        result.Description!.ShouldContain("operational");
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class QuartzHealthCheckIntegrationTests : IAsyncLifetime
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("standby");
+        result.Description!.ShouldContain("standby");
     }
 
     [Fact]

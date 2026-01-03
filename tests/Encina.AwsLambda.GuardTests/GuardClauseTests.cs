@@ -160,7 +160,7 @@ public class GuardClauseTests
     public void SqsMessageHandler_DeserializeMessage_ThrowsOnNullRecord()
     {
         // Act
-        var action = () => SqsMessageHandler.DeserializeMessage<TestMessage>(null!);
+        Action action = () => _ = SqsMessageHandler.DeserializeMessage<TestMessage>(null!);
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(action);
@@ -318,7 +318,7 @@ public class GuardClauseTests
         ILambdaContext context = null!;
 
         // Act
-        var action = () => context.GetRemainingTimeMs();
+        Action action = () => _ = context.GetRemainingTimeMs();
 
         // Assert
         var ex = Should.Throw<ArgumentNullException>(action);

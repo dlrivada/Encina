@@ -371,7 +371,7 @@ public sealed class FakeEncinaTests
 
         // Assert
         publishResult.IsLeft.ShouldBeTrue();
-        publishResult.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe("test.internal_error")));
+        _ = publishResult.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe("test.internal_error")));
     }
 
     #endregion

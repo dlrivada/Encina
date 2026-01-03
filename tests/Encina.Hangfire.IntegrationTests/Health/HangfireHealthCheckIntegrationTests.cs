@@ -45,7 +45,7 @@ public sealed class HangfireHealthCheckIntegrationTests : IDisposable
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("operational");
+        result.Description!.ShouldContain("operational");
     }
 
     [Fact]

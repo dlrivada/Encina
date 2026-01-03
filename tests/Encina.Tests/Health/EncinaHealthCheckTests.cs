@@ -16,17 +16,21 @@ public sealed class EncinaHealthCheckTests
 
         // Assert
         check.Name.ShouldBe("test-check");
-        check.Tags.ShouldBe(tags);
+        // "encina" tag is always present per the contract
+        check.Tags.ShouldContain("encina");
+        check.Tags.ShouldContain("ready");
+        check.Tags.ShouldContain("live");
     }
 
     [Fact]
-    public void Constructor_WithNullTags_UsesEmptyCollection()
+    public void Constructor_WithNullTags_UsesEncinaTagOnly()
     {
         // Act
         var check = new TestHealthCheck("test-check", null);
 
-        // Assert
-        check.Tags.ShouldBeEmpty();
+        // Assert - "encina" tag is always included even when null
+        check.Tags.ShouldContain("encina");
+        check.Tags.Count.ShouldBe(1);
     }
 
     [Fact]
