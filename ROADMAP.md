@@ -129,6 +129,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ Module Testing Utilities — ModuleTestFixture, IntegrationEventCollector [#362](https://github.com/dlrivada/Encina/issues/362)
 - ✅ Mutation Testing Helpers — NeedsMutationCoverage, MutationKiller attributes [#172](https://github.com/dlrivada/Encina/issues/172)
 - ✅ CI/CD Workflow Templates — Reusable GitHub Actions workflows [#173](https://github.com/dlrivada/Encina/issues/173)
+- ✅ TUnit Framework Support — Source-generated testing with NativeAOT compatibility [#171](https://github.com/dlrivada/Encina/issues/171)
 
 **Remaining:**
 - Testcontainers Integration [#162](https://github.com/dlrivada/Encina/issues/162)
@@ -533,7 +534,7 @@ Key areas already completed:
   - Pipeline Testing Utilities [#168](https://github.com/dlrivada/Encina/issues/168) — Control behaviors in tests
   - ~~Messaging Pattern Helpers [#169](https://github.com/dlrivada/Encina/issues/169)~~ ✅ — Helpers for Outbox, Inbox, Saga, Scheduling tests
   - ~~Improved Assertions [#170](https://github.com/dlrivada/Encina/issues/170)~~ ✅ — Fluent assertions with chaining (Shouldly-style)
-  - TUnit Support [#171](https://github.com/dlrivada/Encina/issues/171) — Source-generated testing framework (NativeAOT compatible)
+  - ~~TUnit Support [#171](https://github.com/dlrivada/Encina/issues/171)~~ ✅ — Source-generated testing framework (NativeAOT compatible)
   - ~~Mutation Testing Integration [#172](https://github.com/dlrivada/Encina/issues/172)~~ ✅ — Stryker.NET helper attributes (NeedsMutationCoverage, MutationKiller)
   - CI/CD Workflow Templates [#173](https://github.com/dlrivada/Encina/issues/173) — Reusable GitHub Actions workflows
 - **TDD Patterns** (new - based on December 29, 2025 research):

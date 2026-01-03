@@ -2647,6 +2647,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | **Encina.Testing.Bogus** | Generación de datos realistas con Bogus (#431) | ✅ Completo |
 | **Encina.Testing.Verify** | Snapshot testing con Verify (#430) | ✅ Completo |
 | **Encina.Testing.Architecture** | Architecture testing rules con ArchUnitNET (#432) | ✅ Completo |
+| **Encina.Testing.TUnit** | TUnit framework support con NativeAOT (#171) | ✅ Completo |
 | **Encina.Aspire.Testing** | Aspire integration testing support (#418) | ✅ Completo |
 
 #### Features Actuales
@@ -2717,7 +2718,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | **#168** | Pipeline Testing Utilities | Control de behaviors en tests | Alta | Custom |
 | ~~#169~~ | ~~Messaging Pattern Helpers~~ | ✅ Helpers para Outbox, Inbox, Saga, Scheduling | - | Custom |
 | ~~#170~~ | ~~Improved Assertions~~ | ✅ AndConstraint, Collection, Streaming assertions | - | Shouldly |
-| **#171** | TUnit Support | Soporte para TUnit (source-generated) | Baja | TUnit Framework |
+| ~~#171~~ | ~~TUnit Support~~ | ✅ EncinaTUnitFixture, TUnitEitherAssertions, NativeAOT compatible | - | TUnit Framework |
 | **#172** | Mutation Testing (Stryker) | Configuración y scripts para Stryker | Media | Stryker.NET |
 | **#173** | CI/CD Templates | Workflows reutilizables para GitHub Actions | Baja | GitHub Actions |
 
@@ -2788,11 +2789,14 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 - `StreamingShouldlyExtensions` - Shouldly version of streaming assertions
 - 85+ unit tests
 
-**#171 - TUnit Support**:
-- Soporte para TUnit (source-generated, NativeAOT compatible)
-- `EncinaTUnitFixture` adaptado al modelo TUnit
-- Compatible con Source Generators de Encina (#50)
-- Nuevo paquete: `Encina.Testing.TUnit`
+**~~#171 - TUnit Support~~** ✅ Completado:
+- `EncinaTUnitFixture` - Test fixture adaptado al modelo TUnit (IAsyncInitializer, IAsyncDisposable)
+- `TUnitEitherAssertions` - Assertions async-first para `Either<TLeft, TRight>`
+- `TUnitEitherCollectionAssertions` - Assertions para colecciones de Either
+- EncinaError-specific assertions (Validation, Authorization, NotFound, Conflict, Internal)
+- NativeAOT compatible (`<IsAotCompatible>true</IsAotCompatible>`)
+- 56 unit tests cubriendo todas las APIs públicas
+- Paquete: `Encina.Testing.TUnit`
 
 #### Paquetes Nuevos Planificados (Testing)
 
@@ -2802,7 +2806,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | ~~`Encina.Testing.DataGeneration`~~ | ~~#161~~ | ✅ Implementado como extensiones en `Encina.Testing.Bogus` |
 | ~~`Encina.Testing.WireMock`~~ | ~~#164~~ | ✅ HTTP mocking con WireMock.NET + Refit + Webhooks |
 | `Encina.Testing.Architecture` | #166 | Architecture testing con ArchUnitNET |
-| `Encina.Testing.TUnit` | #171 | Soporte para TUnit framework |
+| ~~`Encina.Testing.TUnit`~~ | ~~#171~~ | ✅ Soporte para TUnit framework |
 
 #### Labels Específicas de Testing (Nuevas)
 
@@ -4166,7 +4170,7 @@ Los patrones de resiliencia fueron identificados tras investigación exhaustiva 
 | **#168** | Pipeline Testing Utilities | Media | Alta | `area-testing`, `testing-unit`, `testing-integration` |
 | **#169** | Messaging Pattern Helpers | Media | Alta | `area-testing`, `area-messaging`, `area-saga`, `area-scheduling` |
 | **#170** | Improved Assertions (Shouldly) | Baja | Media | `area-testing`, `testing-unit` |
-| **#171** | TUnit Framework Support | Media | Baja | `area-testing`, `aot-compatible`, `new-package`, `dotnet-10` |
+| ~~**#171**~~ | ~~TUnit Framework Support~~ | ✅ Completo | - | `area-testing`, `aot-compatible`, `new-package`, `dotnet-10` |
 | **#172** | Mutation Testing (Stryker.NET) | Baja | Media | `area-testing`, `area-mutation-testing`, `area-ci-cd` |
 | **#173** | CI/CD Workflow Templates | Baja | Baja | `area-testing`, `area-ci-cd`, `area-docker` |
 
@@ -4242,7 +4246,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 | ~~`Encina.Testing.DataGeneration`~~ | ~~#161~~ | ✅ Implementado como extensiones en `Encina.Testing.Bogus` |
 | ~~`Encina.Testing.WireMock`~~ | ~~#164~~ | ✅ HTTP mocking con WireMock.NET + Refit + Webhooks |
 | `Encina.Testing.Architecture` | #166 | Architecture testing con ArchUnitNET |
-| `Encina.Testing.TUnit` | #171 | Soporte para TUnit framework |
+| ~~`Encina.Testing.TUnit`~~ | ~~#171~~ | ✅ Soporte para TUnit framework |
 | `Encina.OpenTelemetry.AzureMonitor` | #178 | Azure Monitor/App Insights integration |
 | `Encina.OpenTelemetry.AwsXRay` | #179 | AWS X-Ray via ADOT integration |
 | `Encina.OpenTelemetry.Prometheus` | #180 | Native Prometheus metrics endpoint |

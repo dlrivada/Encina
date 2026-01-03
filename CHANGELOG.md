@@ -2,6 +2,8 @@
 
 ### Table of Contents
 
+- [Encina.Testing.TUnit](#encinatestingtunit-new-package-issue-171)
+
 - [Language Requirements](#language-requirements)
 - [Added](#added)
   - [AI/LLM Patterns Issues](#aillm-patterns-issues-12-new-features-planned-based-on-december-29-2025-research)
@@ -42,6 +44,61 @@
 ---
 
 ### Added
+
+#### Encina.Testing.TUnit (New Package, Issue #171)
+
+TUnit framework support for modern, source-generated testing with NativeAOT compatibility.
+
+- **`EncinaTUnitFixture`** - TUnit-compatible test fixture with fluent builder pattern:
+  - Implements TUnit's `IAsyncInitializer` and `IAsyncDisposable` for lifecycle management
+  - `WithConfiguration(Action<EncinaConfiguration>)` - Custom Encina configuration
+  - `WithServices(Action<IServiceCollection>)` - Register custom services for DI
+  - `WithHandlersFromAssemblyContaining<T>()` - Scan assembly for handlers
+  - `Encina` property - Get the configured Encina instance
+  - `CreateScope()` - Create service scope for scoped services
+  - `GetService<T>()`, `GetRequiredService<T>()` - Resolve services
+  - Fluent builder pattern with chaining support
+  - Proper `GC.SuppressFinalize` in `DisposeAsync()` per CA1816
+
+- **`TUnitEitherAssertions`** - Async-first assertions for `Either<TLeft, TRight>`:
+  - `ShouldBeSuccessAsync()` - Assert Right and return value
+  - `ShouldBeSuccessAsync(expected)` - Assert Right with expected value
+  - `ShouldBeSuccessAsync(Func<TRight, Task>)` - Assert with async validator
+  - `ShouldBeErrorAsync()` - Assert Left and return error
+  - `ShouldBeErrorAsync(Func<TLeft, Task>)` - Assert with async validator
+  - `AndReturnAsync()` - Alias for `ShouldBeSuccessAsync()` for fluent chaining
+
+- **EncinaError-Specific Assertions**:
+  - `ShouldBeErrorWithCodeAsync(code)` - Assert error with specific code
+  - `ShouldBeErrorContainingAsync(text)` - Assert error message contains text
+  - `ShouldBeValidationErrorAsync()` - Assert code starts with "encina.validation"
+  - `ShouldBeAuthorizationErrorAsync()` - Assert code starts with "encina.authorization"
+  - `ShouldBeNotFoundErrorAsync()` - Assert code starts with "encina.notfound"
+  - `ShouldBeConflictErrorAsync()` - Assert code starts with "encina.conflict"
+  - `ShouldBeInternalErrorAsync()` - Assert code starts with "encina.internal"
+
+- **Task Extension Methods** - All assertions work with `Task<Either<>>`:
+  - `task.ShouldBeSuccessAsync()`, `task.ShouldBeErrorAsync()`
+  - `task.ShouldBeValidationErrorAsync()`, `task.AndReturnAsync()`, etc.
+
+- **`TUnitEitherCollectionAssertions`** - Collection assertions for `IEnumerable<Either<>>`:
+  - `ShouldAllBeSuccessAsync()` - Assert all items are Right, return values
+  - `ShouldAllBeErrorAsync()` - Assert all items are Left, return errors
+  - `ShouldContainSuccessAsync()` - Assert at least one Right
+  - `ShouldContainErrorAsync()` - Assert at least one Left
+  - `ShouldHaveSuccessCountAsync(count)` - Assert exact success count
+  - `ShouldHaveErrorCountAsync(count)` - Assert exact error count
+  - `GetSuccesses()`, `GetErrors()` - Extract values/errors from collection
+
+- **NativeAOT Compatibility**:
+  - Package marked with `<IsAotCompatible>true</IsAotCompatible>`
+  - No reflection-based patterns in package code
+  - Compatible with TUnit's source-generated test discovery
+
+- **Tests**: 56 unit tests covering all public APIs
+  - EncinaTUnitFixtureTests (15 tests)
+  - TUnitEitherAssertionsTests (21 tests)
+  - TUnitEitherCollectionAssertionsTests (20 tests)
 
 - **CI/CD Workflow Templates** (Issue #173) - Reusable GitHub Actions workflow templates for testing .NET 10 applications:
   - `encina-test.yml` - Basic test workflow with unit tests and coverage:
@@ -3087,14 +3144,15 @@
   - Benchmarks for routing performance
   - Example:
     ```csharp
+    // RouteTo accepts both sync and async handlers
     var definition = ContentRouterBuilder.Create<Order, string>()
         .When("HighValue", o => o.Total > 10000)
             .WithPriority(1)
             .RouteTo(async (o, ct) => await ProcessHighValueOrder(o, ct))
         .When("International", o => o.IsInternational)
             .WithPriority(2)
-            .RouteTo(o => Right<EncinaError, string>("InternationalHandler"))
-        .Default(o => Right<EncinaError, string>("StandardHandler"))
+            .RouteTo(async (o, ct) => await Task.FromResult(Right<EncinaError, string>("InternationalHandler")))
+        .Default(async (o, ct) => await Task.FromResult(Right<EncinaError, string>("StandardHandler")))
         .Build();
 
     var result = await router.RouteAsync(definition, order);
