@@ -2,6 +2,7 @@
 
 ### Table of Contents
 
+- [Encina.Testing.FsCheck](#encinatestingfscheck-new-package-issue-435)
 - [Encina.Testing.TUnit](#encinatestingtunit-new-package-issue-171)
 
 - [Language Requirements](#language-requirements)
@@ -44,6 +45,51 @@
 ---
 
 ### Added
+
+#### Encina.Testing.FsCheck (New Package, Issue #435)
+
+FsCheck property-based testing extensions for Encina framework, compatible with FsCheck 3.x.
+
+- **`EncinaArbitraries`** - Pre-built arbitraries for generating Encina types:
+  - Core types: `EncinaError()`, `EncinaErrorWithException()`, `RequestContext()`
+  - Either types: `EitherOf<T>()`, `SuccessEither<T>()`, `FailureEither<T>()`
+  - Messaging types: `OutboxMessage()`, `PendingOutboxMessage()`, `FailedOutboxMessage()`
+  - `InboxMessage()`, `SagaState()`, `ScheduledMessage()`, `RecurringScheduledMessage()`
+
+- **`EncinaProperties`** - Common property validators for invariants:
+  - Either properties: `EitherIsExclusive()`, `MapPreservesRightState()`, `BindToFailureProducesLeft()`
+  - Error properties: `ErrorHasNonEmptyMessage()`, `ErrorFromStringPreservesMessage()`
+  - Context properties: `ContextHasCorrelationId()`, `WithMetadataIsImmutable()`, `WithUserIdCreatesNewContext()`
+  - Outbox: `OutboxProcessedStateIsConsistent()`, `OutboxDeadLetterIsConsistent()`, `OutboxHasRequiredFields()`
+  - Inbox: `InboxProcessedStateIsConsistent()`, `InboxHasRequiredFields()`
+  - Saga: `SagaStatusIsValid()`, `SagaHasRequiredFields()`, `SagaCurrentStepIsNonNegative()`
+  - Scheduled: `RecurringHasCronExpression()`, `ScheduledHasRequiredFields()`
+  - Handler: `HandlerIsDeterministic()`, `AsyncHandlerIsDeterministic()`
+
+- **`GenExtensions`** - Generator extension methods:
+  - Either generators: `ToEither()`, `ToSuccess()`, `ToFailure<T>()`
+  - Nullable generators: `OrNull()`, `OrNullValue()`
+  - String generators: `NonEmptyString()`, `AlphaNumericString()`, `EmailAddress()`
+  - Data generators: `JsonObject()`, `UtcDateTime()`, `PastUtcDateTime()`, `FutureUtcDateTime()`
+  - Other: `CronExpression()`, `PositiveDecimal()`, `ListOf()`, `NonEmptyListOf()`
+
+- **xUnit Integration**:
+  - `PropertyTestBase` - Base class with auto-registered arbitraries
+  - `EncinaArbitraryProvider` - Arbitrary provider for FsCheck type registration
+  - Custom attributes: `[EncinaProperty]`, `[QuickProperty]`, `[ThoroughProperty]`
+  - `PropertyTestConfig` - Configuration constants for test runs
+
+- **Concrete Message Types** for testing:
+  - `ArbitraryOutboxMessage` - Implements `IOutboxMessage`
+  - `ArbitraryInboxMessage` - Implements `IInboxMessage`
+  - `ArbitrarySagaState` - Implements `ISagaState`
+  - `ArbitraryScheduledMessage` - Implements `IScheduledMessage`
+
+- **Tests**: 75 unit tests covering all public APIs
+  - EncinaArbitrariesTests (22 tests)
+  - EncinaPropertiesTests (22 tests)
+  - GenExtensionsTests (18 tests)
+  - PropertyTestBaseTests (13 tests)
 
 #### Encina.Testing.TUnit (New Package, Issue #171)
 

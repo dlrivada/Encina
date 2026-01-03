@@ -2648,6 +2648,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | **Encina.Testing.Verify** | Snapshot testing con Verify (#430) | ✅ Completo |
 | **Encina.Testing.Architecture** | Architecture testing rules con ArchUnitNET (#432) | ✅ Completo |
 | **Encina.Testing.TUnit** | TUnit framework support con NativeAOT (#171) | ✅ Completo |
+| **Encina.Testing.FsCheck** | Property-based testing con FsCheck 3.x (#435) | ✅ Completo |
 | **Encina.Aspire.Testing** | Aspire integration testing support (#418) | ✅ Completo |
 
 #### Features Actuales
@@ -3024,7 +3025,7 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 | ~~`Encina.Testing.Verify`~~ | ~~#430~~ | ~~Snapshot testing~~ | ✅ Completo |
 | ~~`Encina.Testing.Bogus`~~ | ~~#431~~ | ~~Data generation~~ | ✅ Completo |
 | ~~`Encina.Testing.Architecture`~~ | ~~#432~~ | ~~Architecture testing~~ | ✅ Completo |
-| `Encina.Testing.FsCheck` | #435 | Property-based testing | Baja |
+| ~~`Encina.Testing.FsCheck`~~ | ~~#435~~ | ~~Property-based testing~~ | ✅ Completo |
 | `Encina.Testing.Pact` | #436 | Contract testing | Baja |
 
 ##### Fuentes e Investigación (Diciembre 29, 2025)
