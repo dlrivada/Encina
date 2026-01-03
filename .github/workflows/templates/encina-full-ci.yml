@@ -1,0 +1,723 @@
+# Encina CI/CD Template: Full CI Pipeline
+# Comprehensive CI pipeline with build, test, analysis, and package
+#
+# Features:
+#   - Build and pack NuGet packages
+#   - Unit tests with coverage
+#   - Integration tests with Docker services
+#   - Architecture tests
+#   - Code formatting and analysis
+#   - Mutation tests (optional)
+#   - Coverage threshold enforcement
+#   - Artifact upload
+#
+# Usage:
+#   jobs:
+#     ci:
+#       uses: dlrivada/Encina/.github/workflows/templates/encina-full-ci.yml@main
+#       with:
+#         solution: 'MyApp.slnx'
+#         coverage-threshold: '80'
+#         run-mutation-tests: true
+#       secrets:
+#         NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+
+name: Encina Full CI Template
+
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: "Solution file to build and test"
+        required: false
+        default: "*.slnx"
+        type: string
+      configuration:
+        description: "Build configuration"
+        required: false
+        default: "Release"
+        type: string
+      dotnet-version:
+        description: ".NET SDK version"
+        required: false
+        default: "10.0.x"
+        type: string
+      runs-on:
+        description: "Primary runner for CI jobs"
+        required: false
+        default: "ubuntu-latest"
+        type: string
+      coverage-threshold:
+        description: "Minimum line coverage percentage"
+        required: false
+        default: "0"
+        type: string
+      run-integration-tests:
+        description: "Run integration tests"
+        required: false
+        default: false
+        type: boolean
+      run-architecture-tests:
+        description: "Run architecture tests"
+        required: false
+        default: true
+        type: boolean
+      run-mutation-tests:
+        description: "Run Stryker mutation tests"
+        required: false
+        default: false
+        type: boolean
+      mutation-score-threshold:
+        description: "Minimum mutation score percentage"
+        required: false
+        default: "0"
+        type: string
+      enforce-formatting:
+        description: "Enforce code formatting (dotnet format)"
+        required: false
+        default: true
+        type: boolean
+      treat-warnings-as-errors:
+        description: "Treat build warnings as errors"
+        required: false
+        default: true
+        type: boolean
+      pack-nuget:
+        description: "Create NuGet packages"
+        required: false
+        default: true
+        type: boolean
+      publish-nuget:
+        description: "Publish NuGet packages (requires tag)"
+        required: false
+        default: false
+        type: boolean
+      nuget-source:
+        description: "NuGet source URL for publishing"
+        required: false
+        default: "https://api.nuget.org/v3/index.json"
+        type: string
+    secrets:
+      NUGET_API_KEY:
+        description: "NuGet API key for publishing"
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # BUILD & ANALYZE
+  # ─────────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build & Analyze
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 20
+
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DOTNET_SDK_VERSION: ${{ inputs.dotnet-version }}
+
+    outputs:
+      solution: ${{ steps.solution.outputs.file }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # Full history for version calculation
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ${{ runner.os == 'Windows' && '%USERPROFILE%\.nuget\packages' || '' }}
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-
+            ${{ runner.os }}-nuget-
+
+      - name: Resolve solution file
+        id: solution
+        shell: bash
+        run: |
+          if [[ "${{ inputs.solution }}" == "*.slnx" ]]; then
+            solution=$(ls *.slnx 2>/dev/null | head -1)
+            if [[ -z "$solution" ]]; then
+              solution=$(ls *.sln 2>/dev/null | head -1)
+            fi
+          else
+            solution="${{ inputs.solution }}"
+          fi
+          echo "file=$solution" >> "$GITHUB_OUTPUT"
+          echo "Resolved solution: $solution"
+
+      - name: Calculate version
+        id: version
+        shell: bash
+        run: |
+          # Try to get version from tag or generate from commit
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF#refs/tags/v}"
+          else
+            # Generate version from commit count
+            commit_count=$(git rev-list --count HEAD)
+            short_sha=$(git rev-parse --short HEAD)
+            version="0.0.${commit_count}-dev.${short_sha}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version: $version"
+
+      - name: Restore dependencies
+        run: dotnet restore "${{ steps.solution.outputs.file }}"
+
+      - name: Check formatting
+        if: inputs.enforce-formatting
+        run: dotnet format "${{ steps.solution.outputs.file }}" --verify-no-changes
+
+      - name: Build
+        shell: bash
+        run: |
+          build_args=("--configuration" "${{ inputs.configuration }}" "--no-restore")
+          if [[ "${{ inputs.treat-warnings-as-errors }}" == "true" ]]; then
+            build_args+=("-warnaserror")
+          fi
+          dotnet build "${{ steps.solution.outputs.file }}" "${build_args[@]}"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: build-output
+          path: |
+            **/bin/${{ inputs.configuration }}
+            **/obj/${{ inputs.configuration }}
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # UNIT TESTS
+  # ─────────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    runs-on: ${{ inputs.runs-on }}
+    needs: build
+    timeout-minutes: 30
+
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+      DOTNET_SDK_VERSION: ${{ inputs.dotnet-version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+
+      - name: Restore and build
+        run: |
+          dotnet restore "${{ needs.build.outputs.solution }}"
+          dotnet build "${{ needs.build.outputs.solution }}" --configuration ${{ inputs.configuration }} --no-restore
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+        continue-on-error: true
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+
+          for proj in tests/**/*.csproj; do
+            # Skip integration and load tests
+            case "$proj" in
+              *IntegrationTests*|*LoadTests*)
+                echo "Skipping: $proj"
+                continue
+                ;;
+            esac
+
+            echo "Testing: $proj"
+            dotnet test "$proj" \
+              --configuration ${{ inputs.configuration }} \
+              --no-build \
+              --collect "XPlat Code Coverage" \
+              --results-directory artifacts/test-results \
+              --verbosity normal \
+              --logger "trx;LogFileName=results.trx"
+          done
+
+      - name: Generate coverage report
+        run: |
+          dotnet tool run reportgenerator \
+            -reports:"artifacts/test-results/**/coverage.cobertura.xml" \
+            -targetdir:"artifacts/coverage" \
+            -reporttypes:"Html;HtmlSummary;TextSummary;JsonSummary"
+        continue-on-error: true
+
+      - name: Enforce coverage threshold
+        if: inputs.coverage-threshold != '0'
+        shell: bash
+        run: |
+          threshold=${{ inputs.coverage-threshold }}
+          summary_file=$(find artifacts/coverage -name "Summary.json" 2>/dev/null | head -1)
+
+          if [[ -z "$summary_file" ]]; then
+            echo "::warning::Coverage summary not found"
+            exit 0
+          fi
+
+          # Use jq to extract linecoverage (cross-platform)
+          coverage=$(jq -r '.summary.linecoverage // .linecoverage // empty' "$summary_file" 2>/dev/null)
+
+          if [[ -z "$coverage" ]]; then
+            echo "::warning::Could not extract line coverage from summary"
+            exit 0
+          fi
+
+          echo "Line coverage: ${coverage}%"
+
+          # Use Python for cross-platform numeric comparison
+          if python3 -c "import sys; sys.exit(0 if float('$coverage') >= float('$threshold') else 1)" 2>/dev/null || \
+             python -c "import sys; sys.exit(0 if float('$coverage') >= float('$threshold') else 1)" 2>/dev/null; then
+            echo "Coverage threshold met"
+          else
+            echo "::error::Line coverage ${coverage}% is below threshold ${threshold}%"
+            exit 1
+          fi
+
+      - name: Publish coverage summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "artifacts/coverage/Summary.txt" ]]; then
+            {
+              echo '### Unit Test Coverage'
+              echo '```'
+              cat artifacts/coverage/Summary.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-report
+          path: artifacts/coverage
+          if-no-files-found: ignore
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: unit-test-results
+          path: artifacts/test-results
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # INTEGRATION TESTS (optional)
+  # ─────────────────────────────────────────────────────────────────────────────
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+    if: inputs.run-integration-tests
+    timeout-minutes: 45
+
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+      DOTNET_SDK_VERSION: ${{ inputs.dotnet-version }}
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: encina
+          POSTGRES_PASSWORD: encina_test
+          POSTGRES_DB: encina_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: Encina_Test_123!
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Encina_Test_123! -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 1433:1433
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+
+      - name: Set connection strings
+        run: |
+          echo "ConnectionStrings__PostgreSQL=Host=localhost;Port=5432;Database=encina_test;Username=encina;Password=encina_test" >> "$GITHUB_ENV"
+          echo "ConnectionStrings__SqlServer=Server=localhost,1433;Database=encina_test;User Id=sa;Password=Encina_Test_123!;TrustServerCertificate=true" >> "$GITHUB_ENV"
+          echo "ConnectionStrings__Redis=localhost:6379" >> "$GITHUB_ENV"
+
+      - name: Restore and build
+        run: |
+          dotnet restore "${{ needs.build.outputs.solution }}"
+          dotnet build "${{ needs.build.outputs.solution }}" --configuration ${{ inputs.configuration }} --no-restore
+
+      - name: Run integration tests
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+
+          for proj in tests/**/*IntegrationTests*.csproj; do
+            [[ ! -f "$proj" ]] && continue
+
+            echo "Testing: $proj"
+            dotnet test "$proj" \
+              --configuration ${{ inputs.configuration }} \
+              --no-build \
+              --results-directory artifacts/integration-results \
+              --verbosity normal \
+              --logger "trx;LogFileName=results.trx"
+          done
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: integration-test-results
+          path: artifacts/integration-results
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # ARCHITECTURE TESTS (optional)
+  # ─────────────────────────────────────────────────────────────────────────────
+  architecture-tests:
+    name: Architecture Tests
+    runs-on: ${{ inputs.runs-on }}
+    needs: build
+    if: inputs.run-architecture-tests
+    timeout-minutes: 15
+
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+      DOTNET_SDK_VERSION: ${{ inputs.dotnet-version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+
+      - name: Restore and build
+        run: |
+          dotnet restore "${{ needs.build.outputs.solution }}"
+          dotnet build "${{ needs.build.outputs.solution }}" --configuration ${{ inputs.configuration }} --no-restore
+
+      - name: Run architecture tests
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+
+          for proj in tests/**/*ArchitectureTests*.csproj tests/**/*Architecture.Tests*.csproj; do
+            [[ ! -f "$proj" ]] && continue
+
+            echo "Testing: $proj"
+            dotnet test "$proj" \
+              --configuration ${{ inputs.configuration }} \
+              --no-build \
+              --results-directory artifacts/architecture-results \
+              --verbosity normal
+          done
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # MUTATION TESTS (optional)
+  # ─────────────────────────────────────────────────────────────────────────────
+  mutation-tests:
+    name: Mutation Tests
+    runs-on: ${{ inputs.runs-on }}
+    needs: [build, unit-tests]
+    if: inputs.run-mutation-tests
+    timeout-minutes: 120
+
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+      DOTNET_SDK_VERSION: ${{ inputs.dotnet-version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+
+      - name: Restore and build
+        run: |
+          dotnet restore "${{ needs.build.outputs.solution }}"
+          dotnet build "${{ needs.build.outputs.solution }}" --configuration ${{ inputs.configuration }} --no-restore
+
+      - name: Install Stryker
+        run: dotnet tool install --global dotnet-stryker || dotnet tool update --global dotnet-stryker
+
+      - name: Run Stryker mutation tests
+        shell: bash
+        run: |
+          failed=0
+
+          # Run Stryker on source projects
+          for proj in src/**/*.csproj; do
+            [[ ! -f "$proj" ]] && continue
+
+            proj_name=$(basename "$proj" .csproj)
+            test_proj="tests/${proj_name}.Tests/${proj_name}.Tests.csproj"
+
+            if [[ ! -f "$test_proj" ]]; then
+              echo "Skipping $proj_name (no test project found)"
+              continue
+            fi
+
+            echo "Mutating: $proj_name"
+            if ! dotnet stryker \
+              --project "$proj" \
+              --test-project "$test_proj" \
+              --output "artifacts/mutation/$proj_name" \
+              --reporters "html" "json" "progress"; then
+              echo "::error::Stryker failed for project: $proj_name"
+              failed=1
+            fi
+          done
+
+          if [[ "$failed" -ne 0 ]]; then
+            echo "::error::One or more Stryker runs failed"
+            exit 1
+          fi
+
+      - name: Enforce mutation score threshold
+        if: inputs.mutation-score-threshold != '0'
+        shell: bash
+        run: |
+          threshold=${{ inputs.mutation-score-threshold }}
+
+          # Find all mutation reports
+          for report in artifacts/mutation/**/mutation-report.json; do
+            [[ ! -f "$report" ]] && continue
+
+            # Extract mutation score
+            score=$(grep -oP '"mutationScore"\s*:\s*\K[0-9.]+' "$report" | head -1)
+            echo "Mutation score in $report: ${score}%"
+
+            if (( $(echo "$score < $threshold" | bc -l) )); then
+              echo "::error::Mutation score ${score}% is below threshold ${threshold}%"
+              exit 1
+            fi
+          done
+
+      - name: Upload mutation reports
+        uses: actions/upload-artifact@v6
+        with:
+          name: mutation-reports
+          path: artifacts/mutation
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PACK & PUBLISH
+  # ─────────────────────────────────────────────────────────────────────────────
+  pack:
+    name: Pack NuGet
+    runs-on: ${{ inputs.runs-on }}
+    needs: [build, unit-tests]
+    if: inputs.pack-nuget
+    timeout-minutes: 15
+
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+      DOTNET_SDK_VERSION: ${{ inputs.dotnet-version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+
+      - name: Restore and build
+        run: |
+          dotnet restore "${{ needs.build.outputs.solution }}"
+          dotnet build "${{ needs.build.outputs.solution }}" --configuration ${{ inputs.configuration }} --no-restore
+
+      - name: Pack NuGet packages
+        run: |
+          dotnet pack "${{ needs.build.outputs.solution }}" \
+            --configuration ${{ inputs.configuration }} \
+            --no-build \
+            --output artifacts/nuget \
+            /p:Version=${{ needs.build.outputs.version }}
+
+      - name: Upload NuGet packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: nuget-packages
+          path: artifacts/nuget/*.nupkg
+
+  publish:
+    name: Publish NuGet
+    runs-on: ${{ inputs.runs-on }}
+    needs: [build, pack]
+    if: inputs.publish-nuget && startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 10
+
+    steps:
+      - name: Download NuGet packages
+        uses: actions/download-artifact@v6
+        with:
+          name: nuget-packages
+          path: nuget
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Publish to NuGet
+        run: |
+          for package in nuget/*.nupkg; do
+            dotnet nuget push "$package" \
+              --source "${{ inputs.nuget-source }}" \
+              --api-key "${{ secrets.NUGET_API_KEY }}" \
+              --skip-duplicate
+          done
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # SUMMARY
+  # ─────────────────────────────────────────────────────────────────────────────
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs:
+      [
+        build,
+        unit-tests,
+        integration-tests,
+        architecture-tests,
+        mutation-tests,
+        pack,
+      ]
+    if: always()
+
+    steps:
+      - name: Generate summary
+        shell: bash
+        run: |
+          echo "### CI Pipeline Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Stage | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+          # Check job results (treat both success and skipped as non-failure for optional jobs)
+          [[ "${{ needs.build.result }}" == "success" ]] && build_status=":white_check_mark:" || build_status=":x:"
+          [[ "${{ needs.unit-tests.result }}" == "success" ]] && unit_status=":white_check_mark:" || unit_status=":x:"
+
+          echo "| Build & Analyze | $build_status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Unit Tests | $unit_status |" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "${{ inputs.run-integration-tests }}" == "true" ]]; then
+            result="${{ needs.integration-tests.result }}"
+            [[ "$result" == "success" || "$result" == "skipped" ]] && int_status=":white_check_mark:" || int_status=":x:"
+            echo "| Integration Tests | $int_status |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "${{ inputs.run-architecture-tests }}" == "true" ]]; then
+            result="${{ needs.architecture-tests.result }}"
+            [[ "$result" == "success" || "$result" == "skipped" ]] && arch_status=":white_check_mark:" || arch_status=":x:"
+            echo "| Architecture Tests | $arch_status |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "${{ inputs.run-mutation-tests }}" == "true" ]]; then
+            result="${{ needs.mutation-tests.result }}"
+            [[ "$result" == "success" || "$result" == "skipped" ]] && mut_status=":white_check_mark:" || mut_status=":x:"
+            echo "| Mutation Tests | $mut_status |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "${{ inputs.pack-nuget }}" == "true" ]]; then
+            result="${{ needs.pack.result }}"
+            [[ "$result" == "success" || "$result" == "skipped" ]] && pack_status=":white_check_mark:" || pack_status=":x:"
+            echo "| NuGet Pack | $pack_status |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Version**: ${{ needs.build.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"

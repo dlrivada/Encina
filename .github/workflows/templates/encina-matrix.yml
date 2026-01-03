@@ -1,0 +1,377 @@
+# Encina CI/CD Template: Matrix Testing Workflow
+# Reusable workflow for matrix testing across OS and database providers
+#
+# Features:
+#   - Multiple OS testing (Windows, Linux, macOS)
+#   - Multiple database provider testing
+#   - Docker service containers for databases
+#   - Parallel execution
+#   - Testcontainers support
+#
+# Usage:
+#   jobs:
+#     matrix-test:
+#       uses: dlrivada/Encina/.github/workflows/templates/encina-matrix.yml@main
+#       with:
+#         solution: 'MyApp.slnx'
+#         test-os: '["ubuntu-latest", "windows-latest"]'
+#         test-databases: '["postgresql", "sqlserver"]'
+
+name: Encina Matrix Test Template
+
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: "Solution file to build and test"
+        required: false
+        default: "*.slnx"
+        type: string
+      configuration:
+        description: "Build configuration"
+        required: false
+        default: "Release"
+        type: string
+      dotnet-version:
+        description: ".NET SDK version"
+        required: false
+        default: "10.0.x"
+        type: string
+      test-os:
+        description: 'JSON array of OS runners (e.g., ["ubuntu-latest", "windows-latest"])'
+        required: false
+        default: '["ubuntu-latest"]'
+        type: string
+      test-databases:
+        description: 'JSON array of databases (e.g., ["postgresql", "sqlserver", "sqlite"])'
+        required: false
+        default: '["sqlite"]'
+        type: string
+      fail-fast:
+        description: "Cancel all jobs if one fails"
+        required: false
+        default: false
+        type: boolean
+      max-parallel:
+        description: "Maximum parallel jobs (0 for unlimited)"
+        required: false
+        default: 4
+        type: number
+      timeout-minutes:
+        description: "Job timeout in minutes"
+        required: false
+        default: 45
+        type: number
+      test-filter:
+        description: "Test filter expression"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  matrix-test:
+    name: Test ${{ matrix.os }} / ${{ matrix.database }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+
+    strategy:
+      fail-fast: ${{ inputs.fail-fast }}
+      max-parallel: ${{ inputs.max-parallel }}
+      matrix:
+        os: ${{ fromJson(inputs.test-os) }}
+        database: ${{ fromJson(inputs.test-databases) }}
+        exclude:
+          # Docker service containers only available on Linux
+          # Exclude all container-based databases from non-Linux runners
+          - os: macos-latest
+            database: postgresql
+          - os: macos-latest
+            database: sqlserver
+          - os: macos-latest
+            database: mysql
+          - os: macos-latest
+            database: redis
+          - os: macos-latest
+            database: mongodb
+          - os: windows-latest
+            database: postgresql
+          - os: windows-latest
+            database: sqlserver
+          - os: windows-latest
+            database: mysql
+          - os: windows-latest
+            database: redis
+          - os: windows-latest
+            database: mongodb
+
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DOTNET_SDK_VERSION: ${{ inputs.dotnet-version }}
+      TEST_DATABASE: ${{ matrix.database }}
+
+    # Service containers for database testing (Linux only - matrix excludes ensure this)
+    services:
+      postgres:
+        image: ${{ matrix.database == 'postgresql' && 'postgres:16' || '' }}
+        env:
+          POSTGRES_USER: encina
+          POSTGRES_PASSWORD: encina_test
+          POSTGRES_DB: encina_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      sqlserver:
+        image: ${{ matrix.database == 'sqlserver' && 'mcr.microsoft.com/mssql/server:2022-latest' || '' }}
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: Encina_Test_123!
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Encina_Test_123! -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 1433:1433
+
+      mysql:
+        image: ${{ matrix.database == 'mysql' && 'mysql:8' || '' }}
+        env:
+          MYSQL_ROOT_PASSWORD: encina_test
+          MYSQL_DATABASE: encina_test
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 3306:3306
+
+      redis:
+        image: ${{ matrix.database == 'redis' && 'redis:7-alpine' || '' }}
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+      mongodb:
+        image: ${{ matrix.database == 'mongodb' && 'mongo:7' || '' }}
+        options: >-
+          --health-cmd "echo 'db.runCommand({ping: 1})' | mongosh localhost:27017/test --quiet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ${{ runner.os == 'Windows' && '%USERPROFILE%\.nuget\packages' || '' }}
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-
+            ${{ runner.os }}-nuget-
+
+      - name: Resolve solution file
+        id: solution
+        shell: bash
+        run: |
+          if [[ "${{ inputs.solution }}" == "*.slnx" ]]; then
+            solution=$(ls *.slnx 2>/dev/null | head -1)
+            if [[ -z "$solution" ]]; then
+              solution=$(ls *.sln 2>/dev/null | head -1)
+            fi
+          else
+            solution="${{ inputs.solution }}"
+          fi
+          echo "file=$solution" >> "$GITHUB_OUTPUT"
+
+      - name: Set connection strings
+        shell: bash
+        run: |
+          case "${{ matrix.database }}" in
+            postgresql)
+              echo "ConnectionStrings__PostgreSQL=Host=localhost;Port=5432;Database=encina_test;Username=encina;Password=encina_test" >> "$GITHUB_ENV"
+              ;;
+            sqlserver)
+              echo "ConnectionStrings__SqlServer=Server=localhost,1433;Database=encina_test;User Id=sa;Password=Encina_Test_123!;TrustServerCertificate=true" >> "$GITHUB_ENV"
+              ;;
+            mysql)
+              echo "ConnectionStrings__MySQL=Server=localhost;Port=3306;Database=encina_test;User=root;Password=encina_test" >> "$GITHUB_ENV"
+              ;;
+            sqlite)
+              echo "ConnectionStrings__SQLite=Data Source=encina_test.db" >> "$GITHUB_ENV"
+              ;;
+            redis)
+              echo "ConnectionStrings__Redis=localhost:6379" >> "$GITHUB_ENV"
+              ;;
+            mongodb)
+              echo "ConnectionStrings__MongoDB=mongodb://localhost:27017/encina_test" >> "$GITHUB_ENV"
+              ;;
+          esac
+
+      - name: Restore dependencies
+        run: dotnet restore "${{ steps.solution.outputs.file }}"
+
+      - name: Build
+        run: dotnet build "${{ steps.solution.outputs.file }}" --configuration ${{ inputs.configuration }} --no-restore
+
+      - name: Run database-specific tests
+        shell: bash
+        env:
+          TEST_FILTER: ${{ inputs.test-filter }}
+        run: |
+          shopt -s globstar nullglob
+
+          # Build filter for database-specific tests
+          db_filter=""
+          case "${{ matrix.database }}" in
+            postgresql)
+              db_filter="Database=PostgreSQL"
+              ;;
+            sqlserver)
+              db_filter="Database=SqlServer"
+              ;;
+            mysql)
+              db_filter="Database=MySQL"
+              ;;
+            sqlite)
+              db_filter="Database=SQLite"
+              ;;
+            redis)
+              db_filter="Database=Redis"
+              ;;
+            mongodb)
+              db_filter="Database=MongoDB"
+              ;;
+          esac
+
+          # Combine filters
+          combined_filter=""
+          if [[ -n "$db_filter" && -n "$TEST_FILTER" ]]; then
+            combined_filter="($db_filter) & ($TEST_FILTER)"
+          elif [[ -n "$db_filter" ]]; then
+            combined_filter="$db_filter"
+          elif [[ -n "$TEST_FILTER" ]]; then
+            combined_filter="$TEST_FILTER"
+          fi
+
+          # Find and run integration test projects
+          test_failed=0
+          for proj in tests/**/*IntegrationTests*.csproj; do
+            [[ ! -f "$proj" ]] && continue
+
+            echo "Testing: $proj"
+
+            # Build test command as array to preserve arguments with spaces
+            test_args=(
+              --configuration "${{ inputs.configuration }}"
+              --no-build
+              --collect "XPlat Code Coverage"
+              --results-directory "artifacts/test-results/${{ matrix.database }}"
+              --verbosity normal
+            )
+
+            if [[ -n "$combined_filter" ]]; then
+              test_args+=(--filter "$combined_filter")
+            fi
+
+            if ! dotnet test "$proj" "${test_args[@]}"; then
+              test_failed=1
+            fi
+          done
+
+          # Write test status for summarize step
+          mkdir -p artifacts/test-results/${{ matrix.database }}
+          if [[ "$test_failed" -eq 0 ]]; then
+            echo "passed" > "artifacts/test-results/${{ matrix.database }}/.test-status"
+          else
+            echo "failed" > "artifacts/test-results/${{ matrix.database }}/.test-status"
+            exit 1
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results-${{ matrix.os }}-${{ matrix.database }}
+          path: artifacts/test-results
+          if-no-files-found: ignore
+
+  summarize:
+    name: Summarize Results
+    runs-on: ubuntu-latest
+    needs: matrix-test
+    if: always()
+
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          path: all-test-results
+          pattern: test-results-*
+
+      - name: Generate summary
+        shell: bash
+        run: |
+          echo "### Matrix Test Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| OS | Database | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+          overall_failed=0
+          for dir in all-test-results/test-results-*; do
+            [[ ! -d "$dir" ]] && continue
+
+            name=$(basename "$dir" | sed 's/test-results-//')
+            os=$(echo "$name" | cut -d'-' -f1,2)
+            db=$(echo "$name" | cut -d'-' -f3)
+
+            # Check test status file written by test step
+            status_file=$(find "$dir" -name ".test-status" 2>/dev/null | head -1)
+            if [[ -f "$status_file" ]]; then
+              status=$(cat "$status_file")
+              if [[ "$status" == "passed" ]]; then
+                echo "| $os | $db | :white_check_mark: Passed |" >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "| $os | $db | :x: Failed |" >> "$GITHUB_STEP_SUMMARY"
+                overall_failed=1
+              fi
+            elif find "$dir" -name "*.trx" -o -name "*.xml" 2>/dev/null | head -1 | grep -q .; then
+              # Fallback: files exist but no status (legacy or interrupted run)
+              echo "| $os | $db | :warning: Unknown |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| $os | $db | :x: No Results |" >> "$GITHUB_STEP_SUMMARY"
+              overall_failed=1
+            fi
+          done
+
+          if [[ "$overall_failed" -eq 1 ]]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo ":x: **Some tests failed**" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi

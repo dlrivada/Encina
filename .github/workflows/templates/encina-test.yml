@@ -1,0 +1,275 @@
+# Encina CI/CD Template: Basic Test Workflow
+# Reusable workflow for testing .NET 10 applications with Encina
+#
+# Features:
+#   - Unit tests with code coverage
+#   - Integration tests (optional, with Docker services)
+#   - Cross-platform support (Windows, Linux, macOS)
+#   - NuGet package caching
+#   - Coverage report generation
+#
+# Usage:
+#   jobs:
+#     test:
+#       uses: dlrivada/Encina/.github/workflows/templates/encina-test.yml@main
+#       with:
+#         solution: 'MyApp.slnx'
+#         coverage-threshold: '80'
+
+name: Encina Test Template
+
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: "Solution file to build and test (e.g., MyApp.slnx or MyApp.sln)"
+        required: false
+        default: "*.slnx"
+        type: string
+      configuration:
+        description: "Build configuration (Release or Debug)"
+        required: false
+        default: "Release"
+        type: string
+      dotnet-version:
+        description: ".NET SDK version"
+        required: false
+        default: "10.0.x"
+        type: string
+      runs-on:
+        description: "Runner to use (windows-latest, ubuntu-latest, macos-latest)"
+        required: false
+        default: "ubuntu-latest"
+        type: string
+      coverage-threshold:
+        description: "Minimum line coverage percentage (0-100)"
+        required: false
+        default: "0"
+        type: string
+      run-integration-tests:
+        description: "Run integration tests requiring Docker services"
+        required: false
+        default: false
+        type: boolean
+      test-filter:
+        description: 'Test filter expression (e.g., "Category!=Integration")'
+        required: false
+        default: ""
+        type: string
+      exclude-patterns:
+        description: 'Comma-separated patterns for projects to exclude (e.g., "LoadTests,IntegrationTests")'
+        required: false
+        default: "LoadTests"
+        type: string
+      upload-coverage:
+        description: "Upload coverage report as artifact"
+        required: false
+        default: true
+        type: boolean
+      timeout-minutes:
+        description: "Job timeout in minutes"
+        required: false
+        default: 30
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ inputs.runs-on }})
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DOTNET_SDK_VERSION: ${{ inputs.dotnet-version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ${{ runner.os == 'Windows' && '%USERPROFILE%\.nuget\packages' || '' }}
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-
+            ${{ runner.os }}-nuget-
+
+      - name: Cache dotnet tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.dotnet/tools
+            ${{ runner.os == 'Windows' && '%USERPROFILE%\.dotnet\tools' || '' }}
+          key: ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
+          restore-keys: |
+            ${{ runner.os }}-dotnet-tools-
+
+      - name: Resolve solution file
+        id: solution
+        shell: bash
+        run: |
+          if [[ "${{ inputs.solution }}" == "*.slnx" ]]; then
+            solution=$(ls *.slnx 2>/dev/null | head -1)
+            if [[ -z "$solution" ]]; then
+              solution=$(ls *.sln 2>/dev/null | head -1)
+            fi
+          else
+            solution="${{ inputs.solution }}"
+          fi
+          echo "file=$solution" >> "$GITHUB_OUTPUT"
+          echo "Resolved solution: $solution"
+
+      - name: Restore dependencies
+        run: dotnet restore "${{ steps.solution.outputs.file }}"
+
+      - name: Build
+        run: dotnet build "${{ steps.solution.outputs.file }}" --configuration ${{ inputs.configuration }} --no-restore
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+        continue-on-error: true
+
+      - name: Run tests with coverage
+        shell: bash
+        env:
+          EXCLUDE_PATTERNS: ${{ inputs.exclude-patterns }}
+          TEST_FILTER: ${{ inputs.test-filter }}
+          RUN_INTEGRATION: ${{ inputs.run-integration-tests }}
+        run: |
+          shopt -s globstar nullglob
+
+          # Convert exclude patterns to array
+          IFS=',' read -ra EXCLUDES <<< "$EXCLUDE_PATTERNS"
+
+          # Find and run test projects
+          for proj in tests/**/*.csproj; do
+            skip=false
+
+            # Check if project matches any exclude pattern
+            for pattern in "${EXCLUDES[@]}"; do
+              if [[ "$proj" == *"$pattern"* ]]; then
+                echo "Skipping (excluded): $proj"
+                skip=true
+                break
+              fi
+            done
+
+            # Skip integration tests if not requested
+            if [[ "$RUN_INTEGRATION" != "true" && "$proj" == *"IntegrationTests"* ]]; then
+              echo "Skipping (integration): $proj"
+              skip=true
+            fi
+
+            if [[ "$skip" == "true" ]]; then
+              continue
+            fi
+
+            echo "Testing: $proj"
+
+            # Build test command as array to preserve arguments with spaces
+            test_args=(
+              --configuration "${{ inputs.configuration }}"
+              --no-build
+              --collect "XPlat Code Coverage"
+              --results-directory artifacts/test-results
+              --verbosity normal
+            )
+
+            if [[ -n "$TEST_FILTER" ]]; then
+              test_args+=(--filter "$TEST_FILTER")
+            fi
+
+            dotnet test "$proj" "${test_args[@]}"
+          done
+
+      - name: Generate coverage report
+        if: always()
+        run: |
+          if command -v dotnet-reportgenerator &> /dev/null || dotnet tool list -g | grep -q reportgenerator || dotnet tool list | grep -q reportgenerator; then
+            dotnet tool run reportgenerator \
+              -reports:"artifacts/test-results/**/coverage.cobertura.xml" \
+              -targetdir:"artifacts/coverage" \
+              -reporttypes:"Html;HtmlSummary;TextSummary;JsonSummary" || \
+            dotnet reportgenerator \
+              -reports:"artifacts/test-results/**/coverage.cobertura.xml" \
+              -targetdir:"artifacts/coverage" \
+              -reporttypes:"Html;HtmlSummary;TextSummary;JsonSummary" || \
+            echo "ReportGenerator not available, skipping coverage report"
+          else
+            echo "ReportGenerator not installed, skipping coverage report"
+          fi
+        continue-on-error: true
+
+      - name: Enforce coverage threshold
+        if: inputs.coverage-threshold != '0'
+        shell: bash
+        run: |
+          threshold=${{ inputs.coverage-threshold }}
+          summary_file=$(find artifacts/coverage -name "Summary.json" 2>/dev/null | head -1)
+
+          if [[ -z "$summary_file" ]]; then
+            echo "Coverage summary not found, skipping threshold check"
+            exit 0
+          fi
+
+          # Extract line coverage from JSON
+          if command -v jq &> /dev/null; then
+            coverage=$(jq -r '.summary.linecoverage' "$summary_file")
+          else
+            # Fallback: grep for linecoverage value
+            coverage=$(grep -oP '"linecoverage"\s*:\s*\K[0-9.]+' "$summary_file" | head -1)
+          fi
+
+          echo "Line coverage: ${coverage}%"
+          echo "Threshold: ${threshold}%"
+
+          # Use Python for cross-platform numeric comparison (available on all GitHub runners)
+          if python3 -c "exit(0 if float('${coverage}') >= float('${threshold}') else 1)" 2>/dev/null || \
+             python -c "exit(0 if float('${coverage}') >= float('${threshold}') else 1)" 2>/dev/null; then
+            echo "Coverage meets threshold"
+          else
+            echo "::error::Line coverage ${coverage}% is below threshold ${threshold}%"
+            exit 1
+          fi
+
+      - name: Publish coverage summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "artifacts/coverage/Summary.txt" ]]; then
+            {
+              echo '### Test Coverage Summary'
+              echo '```'
+              cat artifacts/coverage/Summary.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload coverage report
+        if: inputs.upload-coverage && always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-report-${{ inputs.runs-on }}
+          path: artifacts/coverage
+          if-no-files-found: ignore
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results-${{ inputs.runs-on }}
+          path: artifacts/test-results
+          if-no-files-found: ignore

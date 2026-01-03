@@ -43,6 +43,30 @@
 
 ### Added
 
+- **CI/CD Workflow Templates** (Issue #173) - Reusable GitHub Actions workflow templates for testing .NET 10 applications:
+  - `encina-test.yml` - Basic test workflow with unit tests and coverage:
+    - Cross-platform support (Windows, Linux, macOS)
+    - Configurable coverage threshold enforcement
+    - NuGet package caching for faster builds
+    - Test filter expressions for selective testing
+    - Integration test opt-in
+  - `encina-matrix.yml` - Matrix testing across OS and database providers:
+    - Multiple OS testing (Windows, Linux, macOS)
+    - Database service containers (PostgreSQL, SQL Server, MySQL, Redis, MongoDB, SQLite)
+    - Parallel execution with configurable max-parallel
+    - Automatic connection string configuration
+    - Summary report across all matrix combinations
+  - `encina-full-ci.yml` - Complete CI pipeline with all stages:
+    - Build & analyze (formatting, warnings-as-errors)
+    - Unit tests with coverage threshold
+    - Integration tests with Docker services (optional)
+    - Architecture tests (optional)
+    - Mutation tests with Stryker (optional)
+    - NuGet package creation and publishing
+    - CI summary report
+  - Documentation: `docs/ci-cd-templates.md` with usage examples and best practices
+  - Tests: `Encina.Workflows.Tests` project with 49 YAML validation tests
+
 - **Encina.Testing Package** - Enhanced testing fixtures for fluent test setup (Issue #444):
   - `EncinaTestFixture` - Fluent builder pattern for test setup:
     - `WithMockedOutbox()`, `WithMockedInbox()`, `WithMockedSaga()` - Configure fake stores

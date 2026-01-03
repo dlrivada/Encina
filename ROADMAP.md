@@ -115,14 +115,24 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 ##### v0.11.0 — Testing Infrastructure
 *Complete testing toolkit*
 
-- `Encina.Testing.Fakes` — Test doubles for IEncina
-- `Encina.Testing.Respawn` — Database reset
-- `Encina.Testing.WireMock` — HTTP API mocking
-- `Encina.Testing.Shouldly` — Open-source assertions
-- `Encina.Testing.Verify` — Snapshot testing
-- `Encina.Testing.Bogus` — Test data generation
-- `Encina.Testing.Architecture` — Architectural rules
-- `FakeTimeProvider` — Time control for testing
+**Completed:**
+- ✅ `Encina.Testing.Fakes` — Test doubles for IEncina [#426](https://github.com/dlrivada/Encina/issues/426)
+- ✅ `Encina.Testing.Respawn` — Database reset [#163](https://github.com/dlrivada/Encina/issues/163)
+- ✅ `Encina.Testing.WireMock` — HTTP API mocking + Refit + Webhooks [#164](https://github.com/dlrivada/Encina/issues/164)
+- ✅ `Encina.Testing.Shouldly` — Open-source assertions [#429](https://github.com/dlrivada/Encina/issues/429)
+- ✅ `Encina.Testing.Verify` — Snapshot testing [#165](https://github.com/dlrivada/Encina/issues/165)
+- ✅ `Encina.Testing.Bogus` — Test data generation [#161](https://github.com/dlrivada/Encina/issues/161)
+- ✅ `Encina.Testing.Architecture` — Architectural rules [#432](https://github.com/dlrivada/Encina/issues/432)
+- ✅ `FakeTimeProvider` — Time control for testing [#444](https://github.com/dlrivada/Encina/issues/444)
+- ✅ Enhanced Testing Fixtures — Fluent API for test setup [#444](https://github.com/dlrivada/Encina/issues/444)
+- ✅ Improved Assertions with Shouldly — AndConstraint, Collections, Streaming [#170](https://github.com/dlrivada/Encina/issues/170)
+- ✅ Module Testing Utilities — ModuleTestFixture, IntegrationEventCollector [#362](https://github.com/dlrivada/Encina/issues/362)
+- ✅ Mutation Testing Helpers — NeedsMutationCoverage, MutationKiller attributes [#172](https://github.com/dlrivada/Encina/issues/172)
+- ✅ CI/CD Workflow Templates — Reusable GitHub Actions workflows [#173](https://github.com/dlrivada/Encina/issues/173)
+
+**Remaining:**
+- Testcontainers Integration [#162](https://github.com/dlrivada/Encina/issues/162)
+- AggregateTestBase improvements [#495](https://github.com/dlrivada/Encina/issues/495)
 
 → [View v0.11.0 Issues](https://github.com/dlrivada/Encina/milestone/8)
 
