@@ -11,7 +11,7 @@
 | Phase | Status | Progress |
 |-------|--------|----------|
 | Phase 1: Foundation | ✅ Complete | 100% |
-| Phase 2: Either Assertions | 🟡 In Progress | 40% |
+| Phase 2: Either Assertions | 🟡 In Progress | 60% |
 | Phase 3: Test Data Generation | ⚪ Not Started | 0% |
 | Phase 4: Messaging Fakes | ⚪ Not Started | 0% |
 

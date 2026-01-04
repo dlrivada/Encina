@@ -67,7 +67,7 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -89,8 +89,7 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, initialData);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var slipResult = result.Match(Right: r => r, Left: _ => null!);
+        var slipResult = result.ShouldBeSuccess();
         slipResult.StepsExecuted.ShouldBe(1);
         slipResult.FinalData.Id.ShouldNotBe(Guid.Empty);
     }
@@ -130,11 +129,11 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        var slipResult = result.ShouldBeSuccess();
         step1Executed.ShouldBeTrue();
         step2Executed.ShouldBeTrue();
         step3Executed.ShouldBeTrue();
-        result.Match(Right: r => r.StepsExecuted, Left: _ => 0).ShouldBe(3);
+        slipResult.StepsExecuted.ShouldBe(3);
     }
 
     [Fact]
@@ -152,8 +151,7 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.Match(Right: _ => EncinaErrors.Create("none", "none"), Left: e => e);
+        var error = result.ShouldBeError();
         error.GetCode().Match(Some: c => c, None: () => "").ShouldBe("test.error");
     }
 
@@ -324,8 +322,7 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var slipResult = result.Match(Right: r => r, Left: _ => null!);
+        var slipResult = result.ShouldBeSuccess();
         slipResult.FinalData.Id.ShouldNotBe(Guid.Empty);
         slipResult.FinalData.ReservationId.ShouldBe(slipResult.FinalData.Id);
         slipResult.FinalData.PaymentId.ShouldBe(slipResult.FinalData.ReservationId);
@@ -344,8 +341,7 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var slipResult = result.Match(Right: r => r, Left: _ => null!);
+        var slipResult = result.ShouldBeSuccess();
         slipResult.RoutingSlipId.ShouldNotBe(Guid.Empty);
     }
 
@@ -369,7 +365,7 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         completionExecuted.ShouldBeTrue();
     }
 
@@ -390,8 +386,7 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var slipResult = result.Match(Right: r => r, Left: _ => null!);
+        var slipResult = result.ShouldBeSuccess();
         slipResult.Duration.ShouldBeGreaterThan(TimeSpan.Zero);
     }
 
@@ -410,8 +405,7 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var slipResult = result.Match(Right: r => r, Left: _ => null!);
+        var slipResult = result.ShouldBeSuccess();
         slipResult.ActivityLog.Count.ShouldBe(2);
         slipResult.ActivityLog[0].StepName.ShouldBe("Step1");
         slipResult.ActivityLog[1].StepName.ShouldBe("Step2");
@@ -437,8 +431,7 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, new TestData(), cts.Token);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.Match(Right: _ => EncinaErrors.Create("none", "none"), Left: e => e);
+        var error = result.ShouldBeError();
         error.GetCode().Match(Some: c => c, None: () => "").ShouldBe(RoutingSlipErrorCodes.HandlerCancelled);
     }
 
@@ -455,8 +448,7 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.Match(Right: _ => EncinaErrors.Create("none", "none"), Left: e => e);
+        var error = result.ShouldBeError();
         error.GetCode().Match(Some: c => c, None: () => "").ShouldBe(RoutingSlipErrorCodes.HandlerFailed);
     }
 
@@ -488,9 +480,8 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        var slipResult = result.ShouldBeSuccess();
         dynamicStepExecuted.ShouldBeTrue();
-        var slipResult = result.Match(Right: r => r, Left: _ => null!);
         slipResult.StepsExecuted.ShouldBe(2);
         slipResult.StepsAdded.ShouldBe(1);
     }
@@ -527,7 +518,7 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         executionOrder.ShouldBe(["Step 1", "Inserted Step", "Step 2"]);
     }
 
@@ -556,9 +547,8 @@ public sealed class RoutingSlipRunnerTests
         var result = await _sut.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        var slipResult = result.ShouldBeSuccess();
         step2Executed.ShouldBeFalse();
-        var slipResult = result.Match(Right: r => r, Left: _ => null!);
         slipResult.StepsExecuted.ShouldBe(1);
         slipResult.StepsRemoved.ShouldBeGreaterThan(0);
     }
