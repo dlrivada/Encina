@@ -87,7 +87,7 @@ public class BusinessRuleTests
         var result = rule.Check();
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -101,12 +101,9 @@ public class BusinessRuleTests
         var result = rule.Check();
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.ErrorCode.ShouldBe("ORDER_NO_ITEMS");
-            error.ErrorMessage.ShouldBe("Order must have at least one item");
-        });
+        var error = result.ShouldBeError();
+        error.ErrorCode.ShouldBe("ORDER_NO_ITEMS");
+        error.ErrorMessage.ShouldBe("Order must have at least one item");
     }
 
     [Fact]
@@ -143,7 +140,7 @@ public class BusinessRuleTests
         var result = rules.CheckFirst();
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -161,11 +158,8 @@ public class BusinessRuleTests
         var result = rules.CheckFirst();
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.ErrorCode.ShouldBe("ORDER_NO_ITEMS");
-        });
+        var error = result.ShouldBeError();
+        error.ErrorCode.ShouldBe("ORDER_NO_ITEMS");
     }
 
     [Fact]
@@ -178,7 +172,7 @@ public class BusinessRuleTests
         var result = rules.CheckFirst();
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -215,7 +209,7 @@ public class BusinessRuleTests
         var result = rules.CheckAll();
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -233,13 +227,10 @@ public class BusinessRuleTests
         var result = rules.CheckAll();
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(aggregate =>
-        {
-            aggregate.Errors.Count.ShouldBe(2);
-            aggregate.Errors.ShouldContain(e => e.ErrorCode == "ORDER_NO_ITEMS");
-            aggregate.Errors.ShouldContain(e => e.ErrorCode == "ORDER_INVALID_TOTAL");
-        });
+        var aggregate = result.ShouldBeError();
+        aggregate.Errors.Count.ShouldBe(2);
+        aggregate.Errors.ShouldContain(e => e.ErrorCode == "ORDER_NO_ITEMS");
+        aggregate.Errors.ShouldContain(e => e.ErrorCode == "ORDER_INVALID_TOTAL");
     }
 
     [Fact]

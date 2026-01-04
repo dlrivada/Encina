@@ -102,12 +102,9 @@ public class AntiCorruptionLayerTests
         var result = acl.TranslateToInternal(webhook);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(payment =>
-        {
-            payment.PaymentId.ShouldBe(Guid.Parse("550e8400-e29b-41d4-a716-446655440000"));
-            payment.Amount.ShouldBe(100m);
-        });
+        var payment = result.ShouldBeSuccess();
+        payment.PaymentId.ShouldBe(Guid.Parse("550e8400-e29b-41d4-a716-446655440000"));
+        payment.Amount.ShouldBe(100m);
     }
 
     [Fact]
@@ -124,12 +121,9 @@ public class AntiCorruptionLayerTests
         var result = acl.TranslateToInternal(webhook);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.ErrorCode.ShouldBe("ACL_UNSUPPORTED_TYPE");
-            error.ExternalSystemId.ShouldBe("Stripe");
-        });
+        var error = result.ShouldBeError();
+        error.ErrorCode.ShouldBe("ACL_UNSUPPORTED_TYPE");
+        error.ExternalSystemId.ShouldBe("Stripe");
     }
 
     [Fact]
@@ -146,11 +140,8 @@ public class AntiCorruptionLayerTests
         var result = acl.TranslateToInternal(webhook);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.ErrorCode.ShouldBe("ACL_MISSING_FIELD");
-        });
+        var error = result.ShouldBeError();
+        error.ErrorCode.ShouldBe("ACL_MISSING_FIELD");
     }
 
     [Fact]
@@ -174,11 +165,8 @@ public class AntiCorruptionLayerTests
         var result = acl.TranslateToInternal(webhook);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.ErrorCode.ShouldBe("ACL_INVALID_FORMAT");
-        });
+        var error = result.ShouldBeError();
+        error.ErrorCode.ShouldBe("ACL_INVALID_FORMAT");
     }
 
     #endregion
@@ -195,8 +183,8 @@ public class AntiCorruptionLayerTests
         var result = acl.TranslateToExternal(42);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(str => str.ShouldBe("42"));
+        var str = result.ShouldBeSuccess();
+        str.ShouldBe("42");
     }
 
     [Fact]
@@ -210,7 +198,7 @@ public class AntiCorruptionLayerTests
         var result = acl.TranslateToExternal(payment);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     #endregion

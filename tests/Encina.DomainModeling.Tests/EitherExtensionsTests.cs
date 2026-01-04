@@ -24,12 +24,9 @@ public class EitherExtensionsTests
         var result = first.Combine(second);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(tuple =>
-        {
-            tuple.Item1.ShouldBe(1);
-            tuple.Item2.ShouldBe("hello");
-        });
+        var tuple = result.ShouldBeSuccess();
+        tuple.Item1.ShouldBe(1);
+        tuple.Item2.ShouldBe("hello");
     }
 
     [Fact]
@@ -44,7 +41,8 @@ public class EitherExtensionsTests
         var result = first.Combine(second);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        var returnedError = result.ShouldBeError();
+        returnedError.ShouldBe(error);
     }
 
     [Fact]
@@ -59,7 +57,8 @@ public class EitherExtensionsTests
         var result = first.Combine(second);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        var returnedError = result.ShouldBeError();
+        returnedError.ShouldBe(error);
     }
 
     [Fact]
@@ -74,13 +73,10 @@ public class EitherExtensionsTests
         var result = first.Combine(second, third);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(tuple =>
-        {
-            tuple.Item1.ShouldBe(1);
-            tuple.Item2.ShouldBe("hello");
-            tuple.Item3.ShouldBeTrue();
-        });
+        var tuple = result.ShouldBeSuccess();
+        tuple.Item1.ShouldBe(1);
+        tuple.Item2.ShouldBe("hello");
+        tuple.Item3.ShouldBeTrue();
     }
 
     [Fact]
@@ -96,14 +92,11 @@ public class EitherExtensionsTests
         var result = first.Combine(second, third, fourth);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(tuple =>
-        {
-            tuple.Item1.ShouldBe(1);
-            tuple.Item2.ShouldBe("hello");
-            tuple.Item3.ShouldBeTrue();
-            tuple.Item4.ShouldBe(3.14);
-        });
+        var tuple = result.ShouldBeSuccess();
+        tuple.Item1.ShouldBe(1);
+        tuple.Item2.ShouldBe("hello");
+        tuple.Item3.ShouldBeTrue();
+        tuple.Item4.ShouldBe(3.14);
     }
 
     [Fact]
@@ -121,22 +114,21 @@ public class EitherExtensionsTests
         var combined = results.Combine();
 
         // Assert
-        combined.IsRight.ShouldBeTrue();
-        combined.IfRight(list =>
-        {
-            list.ShouldBe([1, 2, 3]);
-        });
+        var list = combined.ShouldBeSuccess();
+        list.ShouldBe([1, 2, 3]);
     }
 
     [Fact]
     public void Combine_Collection_OneLeft_ReturnsFirstLeft()
     {
         // Arrange
-        var error = new TestError("Error");
+        var firstError = new TestError("First Error");
+        var secondError = new TestError("Second Error");
         var results = new List<Either<TestError, int>>
         {
             Right<TestError, int>(1),
-            Left<TestError, int>(error),
+            Left<TestError, int>(firstError),
+            Left<TestError, int>(secondError),
             Right<TestError, int>(3)
         };
 
@@ -144,7 +136,8 @@ public class EitherExtensionsTests
         var combined = results.Combine();
 
         // Assert
-        combined.IsLeft.ShouldBeTrue();
+        var returnedError = combined.ShouldBeError();
+        returnedError.ShouldBe(firstError);
     }
 
     #endregion
@@ -161,8 +154,8 @@ public class EitherExtensionsTests
         var doubled = result.When(true, x => Right<TestError, int>(x * 2));
 
         // Assert
-        doubled.IsRight.ShouldBeTrue();
-        doubled.IfRight(x => x.ShouldBe(10));
+        var value = doubled.ShouldBeSuccess();
+        value.ShouldBe(10);
     }
 
     [Fact]
@@ -175,8 +168,8 @@ public class EitherExtensionsTests
         var unchanged = result.When(false, x => Right<TestError, int>(x * 2));
 
         // Assert
-        unchanged.IsRight.ShouldBeTrue();
-        unchanged.IfRight(x => x.ShouldBe(5));
+        var value = unchanged.ShouldBeSuccess();
+        value.ShouldBe(5);
     }
 
     [Fact]
@@ -207,8 +200,8 @@ public class EitherExtensionsTests
         var ensured = result.Ensure(x => x > 0, _ => new TestError("Must be positive"));
 
         // Assert
-        ensured.IsRight.ShouldBeTrue();
-        ensured.IfRight(x => x.ShouldBe(5));
+        var value = ensured.ShouldBeSuccess();
+        value.ShouldBe(5);
     }
 
     [Fact]
@@ -221,8 +214,8 @@ public class EitherExtensionsTests
         var ensured = result.Ensure(x => x > 0, _ => new TestError("Must be positive"));
 
         // Assert
-        ensured.IsLeft.ShouldBeTrue();
-        ensured.IfLeft(e => e.Message.ShouldBe("Must be positive"));
+        var error = ensured.ShouldBeError();
+        error.Message.ShouldBe("Must be positive");
     }
 
     [Fact]
@@ -236,8 +229,8 @@ public class EitherExtensionsTests
         var ensured = result.Ensure(x => x > 0, _ => new TestError("New error"));
 
         // Assert
-        ensured.IsLeft.ShouldBeTrue();
-        ensured.IfLeft(e => e.Message.ShouldBe("Original error"));
+        var errorResult = ensured.ShouldBeError();
+        errorResult.Message.ShouldBe("Original error");
     }
 
     [Fact]
@@ -282,8 +275,8 @@ public class EitherExtensionsTests
         var orElse = result.OrElse(_ => Right<TestError, int>(0));
 
         // Assert
-        orElse.IsRight.ShouldBeTrue();
-        orElse.IfRight(x => x.ShouldBe(5));
+        var value = orElse.ShouldBeSuccess();
+        value.ShouldBe(5);
     }
 
     [Fact]
@@ -297,8 +290,8 @@ public class EitherExtensionsTests
         var orElse = result.OrElse(_ => Right<TestError, int>(0));
 
         // Assert
-        orElse.IsRight.ShouldBeTrue();
-        orElse.IfRight(x => x.ShouldBe(0));
+        var value = orElse.ShouldBeSuccess();
+        value.ShouldBe(0);
     }
 
     [Fact]
@@ -405,8 +398,8 @@ public class EitherExtensionsTests
 
         // Assert
         executed.ShouldBeTrue();
-        tapped.IsRight.ShouldBeTrue();
-        tapped.IfRight(x => x.ShouldBe(5));
+        var value = tapped.ShouldBeSuccess();
+        value.ShouldBe(5);
     }
 
     [Fact]
@@ -421,7 +414,7 @@ public class EitherExtensionsTests
 
         // Assert
         executed.ShouldBeFalse();
-        tapped.IsLeft.ShouldBeTrue();
+        tapped.ShouldBeError();
     }
 
     [Fact]
@@ -446,7 +439,8 @@ public class EitherExtensionsTests
     public void TapError_OnLeft_ExecutesActionAndReturnsOriginal()
     {
         // Arrange
-        var result = Left<TestError, int>(new TestError("Error"));
+        var originalError = new TestError("Error");
+        var result = Left<TestError, int>(originalError);
         var executed = false;
 
         // Act
@@ -454,7 +448,8 @@ public class EitherExtensionsTests
 
         // Assert
         executed.ShouldBeTrue();
-        tapped.IsLeft.ShouldBeTrue();
+        var returnedError = tapped.ShouldBeError();
+        returnedError.ShouldBe(originalError);
     }
 
     [Fact]
@@ -469,7 +464,8 @@ public class EitherExtensionsTests
 
         // Assert
         executed.ShouldBeFalse();
-        tapped.IsRight.ShouldBeTrue();
+        var value = tapped.ShouldBeSuccess();
+        value.ShouldBe(5);
     }
 
     [Fact]
@@ -531,8 +527,8 @@ public class EitherExtensionsTests
         var result = option.ToEither(() => new TestError("Not found"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(x => x.ShouldBe(5));
+        var value = result.ShouldBeSuccess();
+        value.ShouldBe(5);
     }
 
     [Fact]
@@ -545,8 +541,8 @@ public class EitherExtensionsTests
         var result = option.ToEither(() => new TestError("Not found"));
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(e => e.Message.ShouldBe("Not found"));
+        var error = result.ShouldBeError();
+        error.Message.ShouldBe("Not found");
     }
 
     [Fact]
@@ -623,22 +619,24 @@ public class EitherExtensionsTests
             x => Task.FromResult(Right<TestError, int>(x * 2)));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(x => x.ShouldBe(10));
+        var value = result.ShouldBeSuccess();
+        value.ShouldBe(10);
     }
 
     [Fact]
     public async Task BindAsync_TaskEither_OnLeft_ReturnsLeft()
     {
         // Arrange
-        var task = Task.FromResult(Left<TestError, int>(new TestError("Error")));
+        var expectedError = new TestError("Error");
+        var task = Task.FromResult(Left<TestError, int>(expectedError));
 
         // Act
         var result = await task.BindAsync(
             x => Task.FromResult(Right<TestError, int>(x * 2)));
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        var returnedError = result.ShouldBeError();
+        returnedError.ShouldBe(expectedError);
     }
 
     [Fact]
@@ -651,8 +649,8 @@ public class EitherExtensionsTests
         var result = await task.MapAsync(x => Task.FromResult(x.ToString(CultureInfo.InvariantCulture)));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(x => x.ShouldBe("5"));
+        var value = result.ShouldBeSuccess();
+        value.ShouldBe("5");
     }
 
     [Fact]
@@ -671,7 +669,8 @@ public class EitherExtensionsTests
 
         // Assert
         executed.ShouldBeTrue();
-        result.IsRight.ShouldBeTrue();
+        var value = result.ShouldBeSuccess();
+        value.ShouldBe(5);
     }
 
     [Fact]
@@ -685,8 +684,8 @@ public class EitherExtensionsTests
             x => Task.FromResult(Right<TestError, int>(x * 2)));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(x => x.ShouldBe(10));
+        var value = result.ShouldBeSuccess();
+        value.ShouldBe(10);
     }
 
     [Fact]
@@ -699,8 +698,8 @@ public class EitherExtensionsTests
         var result = await either.MapAsync(x => Task.FromResult(x.ToString(CultureInfo.InvariantCulture)));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(x => x.ShouldBe("5"));
+        var value = result.ShouldBeSuccess();
+        value.ShouldBe("5");
     }
 
     #endregion
