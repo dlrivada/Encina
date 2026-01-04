@@ -130,6 +130,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ Mutation Testing Helpers — NeedsMutationCoverage, MutationKiller attributes [#172](https://github.com/dlrivada/Encina/issues/172)
 - ✅ CI/CD Workflow Templates — Reusable GitHub Actions workflows [#173](https://github.com/dlrivada/Encina/issues/173)
 - ✅ TUnit Framework Support — Source-generated testing with NativeAOT compatibility [#171](https://github.com/dlrivada/Encina/issues/171)
+- ✅ `Encina.Testing.Pact` — Consumer-Driven Contract Testing with PactNet [#436](https://github.com/dlrivada/Encina/issues/436)
 
 **Remaining:**
 - Testcontainers Integration [#162](https://github.com/dlrivada/Encina/issues/162)
@@ -548,7 +549,7 @@ Key areas already completed:
   - FakeTimeProvider [#433](https://github.com/dlrivada/Encina/issues/433) — Time control for testing (.NET 8+ TimeProvider)
   - BDD Specification Testing [#434](https://github.com/dlrivada/Encina/issues/434) — Given/When/Then for handlers ✅ DONE
   - Encina.Testing.FsCheck [#435](https://github.com/dlrivada/Encina/issues/435) — Property-based testing extensions
-  - Encina.Testing.Pact [#436](https://github.com/dlrivada/Encina/issues/436) — Consumer-Driven Contract Testing
+  - ~~Encina.Testing.Pact [#436](https://github.com/dlrivada/Encina/issues/436)~~ ✅ — Consumer-Driven Contract Testing with PactNet
   - Stryker.NET Configuration [#437](https://github.com/dlrivada/Encina/issues/437) — Mutation testing templates and scripts
 - **Cloud-Native Patterns** (new - based on December 29, 2025 research):
   - Encina.Aspire [#449](https://github.com/dlrivada/Encina/issues/449) — .NET Aspire integration with service discovery, health checks, resilience (HIGH priority)

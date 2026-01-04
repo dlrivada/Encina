@@ -2,6 +2,7 @@
 
 ### Table of Contents
 
+- [Encina.Testing.Pact](#encinatestingpact-new-package-issue-436)
 - [Encina.Testing.FsCheck](#encinatestingfscheck-new-package-issue-435)
 - [Encina.Testing.TUnit](#encinatestingtunit-new-package-issue-171)
 
@@ -45,6 +46,68 @@
 ---
 
 ### Added
+
+#### Encina.Testing.Pact (New Package, Issue #436)
+
+PactNet integration for Consumer-Driven Contract Testing (CDC) with Encina framework.
+
+- **`EncinaPactConsumerBuilder`** - Fluent builder for defining consumer-side Pact expectations:
+  - `WithCommandExpectation<TCommand, TResponse>()` - Define command request/response contracts
+  - `WithQueryExpectation<TQuery, TResponse>()` - Define query request/response contracts
+  - `WithNotificationExpectation<TNotification>()` - Define notification contracts
+  - `WithCommandFailureExpectation<TCommand, TResponse>()` - Define expected error responses for commands
+  - `WithQueryFailureExpectation<TQuery, TResponse>()` - Define expected error responses for queries
+  - `BuildAsync()` - Build the Pact and write to configured directory
+  - `GetMockServerUri()` - Get mock server URI for testing
+
+- **`EncinaPactProviderVerifier`** - Verifies Pact contracts against provider implementation:
+  - `WithProviderName()` - Set the provider name for verification
+  - `WithProviderState(stateName, Action)` - Register synchronous provider state setup
+  - `WithProviderState(stateName, Func<Task>)` - Register async provider state setup
+  - `WithProviderState(stateName, Func<IDictionary<string,object>, Task>)` - State setup with parameters
+  - `VerifyAsync(pactFilePath)` - Verify a local Pact JSON file
+  - `VerifyFromBrokerAsync(brokerUrl, providerName)` - Verify from Pact Broker
+
+- **`EncinaPactFixture`** - xUnit test fixture for simplified test setup:
+  - Implements `IAsyncLifetime` and `IDisposable` for lifecycle management
+  - `CreateConsumer(consumerName, providerName)` - Create a consumer builder
+  - `CreateVerifier(providerName)` - Create a provider verifier
+  - `VerifyAsync(consumer, Action<Uri>)` - Verify with sync test action
+  - `VerifyAsync(consumer, Func<Uri, Task>)` - Verify with async test action
+  - `VerifyProviderAsync(providerName)` - Verify all Pact files for a provider
+  - `WithEncina(encina, serviceProvider)` - Configure with Encina instance
+  - `WithServices(configureServices)` - Configure with DI services
+
+- **`PactExtensions`** - Extension methods for working with Pact:
+  - `CreatePactHttpClient(Uri)` - Create HTTP client for mock server
+  - `SendCommandAsync<TCommand, TResponse>()` - Send command to mock server
+  - `SendQueryAsync<TQuery, TResponse>()` - Send query to mock server
+  - `PublishNotificationAsync<TNotification>()` - Publish notification to mock server
+  - `ReadAsEitherAsync<TResponse>()` - Deserialize response as Either result
+  - `ToPactResponse<TResponse>()` - Convert Either to Pact-compatible response
+
+- **Response Types**:
+  - `PactSuccessResponse<T>` - Success response wrapper with `IsSuccess` and `Data`
+  - `PactErrorResponse` - Error response with `IsSuccess`, `ErrorCode`, `ErrorMessage`
+  - `PactVerificationResult` - Verification result with `Success`, `Errors`, `InteractionResults`
+  - `InteractionVerificationResult` - Individual interaction result with `Description`, `Success`, `ErrorMessage`
+
+- **Error Code Mapping** - Automatic HTTP status code mapping from Encina error codes:
+  - `encina.validation.*` → 400 Bad Request
+  - `encina.authorization.*` → 403 Forbidden
+  - `encina.authentication.*` → 401 Unauthorized
+  - `encina.notfound.*` → 404 Not Found
+  - `encina.conflict.*` → 409 Conflict
+  - `encina.timeout.*` → 408 Request Timeout
+  - `encina.ratelimit.*` → 429 Too Many Requests
+  - Other errors → 500 Internal Server Error
+
+- **Tests**: 118 unit tests covering all public APIs
+  - EncinaPactConsumerBuilderTests (17 tests)
+  - EncinaPactProviderVerifierTests (24 tests)
+  - EncinaPactFixtureTests (23 tests)
+  - PactExtensionsTests (14 tests)
+  - GuardClauseTests (40 tests)
 
 #### Encina.Testing.FsCheck (New Package, Issue #435)
 

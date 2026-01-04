@@ -2649,6 +2649,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | **Encina.Testing.Architecture** | Architecture testing rules con ArchUnitNET (#432) | ✅ Completo |
 | **Encina.Testing.TUnit** | TUnit framework support con NativeAOT (#171) | ✅ Completo |
 | **Encina.Testing.FsCheck** | Property-based testing con FsCheck 3.x (#435) | ✅ Completo |
+| **Encina.Testing.Pact** | Consumer-Driven Contract Testing con PactNet (#436) | ✅ Completo |
 | **Encina.Aspire.Testing** | Aspire integration testing support (#418) | ✅ Completo |
 
 #### Features Actuales
