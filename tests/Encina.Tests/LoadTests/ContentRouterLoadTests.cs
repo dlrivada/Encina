@@ -23,6 +23,12 @@ public sealed class ContentRouterLoadTests
     private readonly ContentRouterOptions _options = new();
     private readonly ILogger<Messaging.ContentRouter.ContentRouter> _logger =
         Substitute.For<ILogger<Messaging.ContentRouter.ContentRouter>>();
+    private readonly Xunit.Abstractions.ITestOutputHelper _output;
+
+    public ContentRouterLoadTests(Xunit.Abstractions.ITestOutputHelper output)
+    {
+        _output = output;
+    }
 
     [Fact]
     public async Task HighConcurrency_1000Requests_AllSucceed()
@@ -216,10 +222,9 @@ public sealed class ContentRouterLoadTests
                         else
                         {
                             // Log error details for diagnostics when investigating failures
-                            // Using Trace.WriteLine instead of Debug.WriteLine to ensure
-                            // diagnostics are available in Release builds
+                            // Using ITestOutputHelper for xUnit integration and test log visibility
                             result.IfLeft(error =>
-                                Trace.WriteLine(
+                                _output.WriteLine(
                                     $"Worker {workerId} error: {error.Message}"));
                             localError++;
                         }

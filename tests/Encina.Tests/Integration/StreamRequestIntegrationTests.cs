@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Encina.Testing;
 using Encina.Testing.Shouldly;
+using EitherShoudlyExt = Encina.Testing.Shouldly.EitherShouldlyExtensions;
 using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -155,7 +156,7 @@ public sealed class StreamRequestIntegrationTests
 
         // Assert
         results.Count.ShouldBe(10);
-        EitherShouldlyExtensions.ShouldBeError(results[4], "error should be at position 5");
+        EitherShoudlyExt.ShouldBeError(results[4], "error should be at position 5");
 
         var errorCode = results[4].Match(
             Left: error => error.GetEncinaCode(),
@@ -385,6 +386,7 @@ public sealed class StreamRequestIntegrationTests
 
     private sealed class FastNumberStreamHandler : IStreamRequestHandler<NumberStreamRequest, int>
     {
+#pragma warning disable CS1998 // Async method lacks 'await' - yield return in async IAsyncEnumerable doesn't require await
         public async IAsyncEnumerable<Either<EncinaError, int>> Handle(
             NumberStreamRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -396,6 +398,7 @@ public sealed class StreamRequestIntegrationTests
                 yield return Right<EncinaError, int>(request.Start + i);
             }
         }
+#pragma warning restore CS1998
     }
 
     private sealed class ErrorStreamHandler : IStreamRequestHandler<ErrorStreamRequest, int>

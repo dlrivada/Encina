@@ -363,19 +363,20 @@ public sealed class ContentRouterPropertyTests
     [EncinaProperty]
     public Property RouteAsync_WithPositiveTotal_AlwaysReturnsResult()
     {
-        var router = new Messaging.ContentRouter.ContentRouter(_options, _logger);
-        var definition = ContentRouterBuilder.Create<TestOrder, string>()
-            .When(o => o.Total > 100)
-            .RouteTo(o => Right<EncinaError, string>("high"))
-            .When(o => o.Total > 50)
-            .RouteTo(o => Right<EncinaError, string>("medium"))
-            .Default(o => Right<EncinaError, string>("low"))
-            .Build();
-
         return Prop.ForAll(
             Arb.From(Gen.Choose(1, 1000).Select(i => (decimal)i)),
             async total =>
             {
+                // Create fresh router and definition per iteration to avoid shared state
+                var router = new Messaging.ContentRouter.ContentRouter(_options, _logger);
+                var definition = ContentRouterBuilder.Create<TestOrder, string>()
+                    .When(o => o.Total > 100)
+                    .RouteTo(o => Right<EncinaError, string>("high"))
+                    .When(o => o.Total > 50)
+                    .RouteTo(o => Right<EncinaError, string>("medium"))
+                    .Default(o => Right<EncinaError, string>("low"))
+                    .Build();
+
                 var order = new TestOrder { Total = total };
                 var result = await router.RouteAsync(definition, order);
                 return result.IsRight;
@@ -389,19 +390,20 @@ public sealed class ContentRouterPropertyTests
     [EncinaProperty]
     public Property RouteAsync_ClassificationIsCorrect()
     {
-        var router = new Messaging.ContentRouter.ContentRouter(_options, _logger);
-        var definition = ContentRouterBuilder.Create<TestOrder, string>()
-            .When(o => o.Total > 100)
-            .RouteTo(o => Right<EncinaError, string>("high"))
-            .When(o => o.Total > 50)
-            .RouteTo(o => Right<EncinaError, string>("medium"))
-            .Default(o => Right<EncinaError, string>("low"))
-            .Build();
-
         return Prop.ForAll(
             Arb.From(Gen.Choose(1, 200).Select(i => (decimal)i)),
             async total =>
             {
+                // Create fresh router and definition per iteration to avoid shared state
+                var router = new Messaging.ContentRouter.ContentRouter(_options, _logger);
+                var definition = ContentRouterBuilder.Create<TestOrder, string>()
+                    .When(o => o.Total > 100)
+                    .RouteTo(o => Right<EncinaError, string>("high"))
+                    .When(o => o.Total > 50)
+                    .RouteTo(o => Right<EncinaError, string>("medium"))
+                    .Default(o => Right<EncinaError, string>("low"))
+                    .Build();
+
                 var order = new TestOrder { Total = total };
                 var result = await router.RouteAsync(definition, order);
 
@@ -426,18 +428,19 @@ public sealed class ContentRouterPropertyTests
     [EncinaProperty]
     public Property ExclusiveRoutes_MatchedCountIsAlwaysOne()
     {
-        var router = new Messaging.ContentRouter.ContentRouter(_options, _logger);
-        var definition = ContentRouterBuilder.Create<TestOrder, string>()
-            .When("Above50", o => o.Total > 50)
-            .RouteTo(o => Right<EncinaError, string>("above"))
-            .When("Below50", o => o.Total <= 50)
-            .RouteTo(o => Right<EncinaError, string>("below"))
-            .Build();
-
         return Prop.ForAll(
             Arb.From(Gen.Choose(1, 100).Select(i => (decimal)i)),
             async total =>
             {
+                // Create fresh router and definition per iteration to avoid shared state
+                var router = new Messaging.ContentRouter.ContentRouter(_options, _logger);
+                var definition = ContentRouterBuilder.Create<TestOrder, string>()
+                    .When("Above50", o => o.Total > 50)
+                    .RouteTo(o => Right<EncinaError, string>("above"))
+                    .When("Below50", o => o.Total <= 50)
+                    .RouteTo(o => Right<EncinaError, string>("below"))
+                    .Build();
+
                 var order = new TestOrder { Total = total };
                 var result = await router.RouteAsync(definition, order);
 

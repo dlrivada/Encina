@@ -541,7 +541,9 @@ public sealed class RoutingSlipPropertyTests
             Arb.From(Gen.Choose(1, 15)),
             async stepCount =>
             {
-                var runner = new RoutingSlipRunner(_requestContext, _options, _logger);
+                // Create fresh RequestContext per iteration to avoid cross-test interference
+                var requestContext = RequestContext.Create();
+                var runner = new RoutingSlipRunner(requestContext, _options, _logger);
                 var definition = BuildDefinitionWithSteps(stepCount);
 
                 var result = await runner.RunAsync(definition, new TestData());
@@ -563,7 +565,9 @@ public sealed class RoutingSlipPropertyTests
             Arb.From(Gen.Choose(1, 15)),
             async stepCount =>
             {
-                var runner = new RoutingSlipRunner(_requestContext, _options, _logger);
+                // Create fresh RequestContext per iteration to avoid cross-test interference
+                var requestContext = RequestContext.Create();
+                var runner = new RoutingSlipRunner(requestContext, _options, _logger);
                 var definition = BuildDefinitionWithSteps(stepCount);
 
                 var result = await runner.RunAsync(definition, new TestData());
@@ -585,7 +589,9 @@ public sealed class RoutingSlipPropertyTests
             Arb.From(Gen.Choose(1, 10)),
             async stepCount =>
             {
-                var runner = new RoutingSlipRunner(_requestContext, _options, _logger);
+                // Create fresh RequestContext per iteration to avoid cross-test interference
+                var requestContext = RequestContext.Create();
+                var runner = new RoutingSlipRunner(requestContext, _options, _logger);
                 var definition = BuildDefinitionWithSteps(stepCount);
 
                 var result = await runner.RunAsync(definition, new TestData());

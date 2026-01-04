@@ -698,14 +698,8 @@ public sealed class StreamRequestPropertyTests
                     item.IfRight(results.Add);
                 }
 
-                // Verify ascending order
-                for (var i = 1; i < results.Count; i++)
-                {
-                    if (results[i] <= results[i - 1])
-                        return false;
-                }
-
-                return true;
+                // Verify ascending order using LINQ: pair each element with its successor
+                return results.Zip(results.Skip(1), (current, next) => next > current).All(x => x);
             });
     }
 
