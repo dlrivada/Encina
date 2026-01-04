@@ -78,10 +78,8 @@ public sealed class ScatterGatherLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        results.ShouldAllBeSuccess();
-        results.All(r => r.Match(
-            Right: result => result.Response.Value == 6,
-            Left: _ => false)).ShouldBeTrue();
+        var successResults = results.ShouldAllBeSuccess();
+        successResults.ShouldAllBe(result => result.Response.Value == 6);
     }
 
     [Fact]

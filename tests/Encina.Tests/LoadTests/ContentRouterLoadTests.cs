@@ -192,6 +192,9 @@ public sealed class ContentRouterLoadTests
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // Run for 5 seconds
 
         // Act
+        // Stress test pattern: aggregate success/error counts across all workers rather than
+        // failing immediately. This allows measuring throughput and stability over the test
+        // duration. Final assertions verify zero errors occurred across all iterations.
         var workers = Enumerable.Range(0, 10)
             .Select(async workerId =>
             {
@@ -207,9 +210,17 @@ public sealed class ContentRouterLoadTests
                         var result = await router.RouteAsync(definition, order, cts.Token);
 
                         if (result.IsRight)
+                        {
                             localSuccess++;
+                        }
                         else
+                        {
+                            // Log error details for diagnostics when investigating failures
+                            result.IfLeft(error =>
+                                System.Diagnostics.Debug.WriteLine(
+                                    $"Worker {workerId} error: {error.Message}"));
                             localError++;
+                        }
                     }
                     catch (OperationCanceledException)
                     {
