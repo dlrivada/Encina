@@ -73,8 +73,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.MatchedRouteCount.ShouldBe(1);
         routerResult.RouteResults.Count.ShouldBe(1);
         routerResult.RouteResults[0].Result.ShouldBe("high-value");
@@ -95,8 +94,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.Match(Right: _ => default, Left: e => e);
+        var error = result.ShouldBeError();
         error.Message.ShouldContain("No matching route");
     }
 
@@ -118,8 +116,7 @@ public sealed class ContentRouterTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.HasMatches.ShouldBeFalse();
         routerResult.MatchedRouteCount.ShouldBe(0);
     }
@@ -140,8 +137,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.UsedDefaultRoute.ShouldBeTrue();
         routerResult.RouteResults.Count.ShouldBe(1);
         routerResult.RouteResults[0].Result.ShouldBe("standard");
@@ -164,8 +160,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.MatchedRouteCount.ShouldBe(1);
         routerResult.RouteResults[0].Result.ShouldBe("over-100");
     }
@@ -190,8 +185,7 @@ public sealed class ContentRouterTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.MatchedRouteCount.ShouldBe(2);
         routerResult.RouteResults.Count.ShouldBe(2);
     }
@@ -211,8 +205,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.Match(Right: _ => default, Left: e => e);
+        var error = result.ShouldBeError();
         error.Message.ShouldBe("Handler failed");
     }
 
@@ -231,8 +224,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.Match(Right: _ => default, Left: e => e);
+        var error = result.ShouldBeError();
         error.Message.ShouldContain("Unexpected error");
     }
 
@@ -257,8 +249,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order, cts.Token);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.Match(Right: _ => default, Left: e => e);
+        var error = result.ShouldBeError();
         error.Message.ShouldContain("cancelled");
     }
 
@@ -281,8 +272,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.RouteResults[0].Result.ShouldBe("high-priority");
     }
 
@@ -301,8 +291,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.RouteResults[0].RouteName.ShouldBe("HighValueOrders");
     }
 
@@ -325,8 +314,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.RouteResults[0].Result.ShouldBe("Total: 100");
     }
 
@@ -349,8 +337,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.TotalDuration.TotalMilliseconds.ShouldBeGreaterThan(40);
         routerResult.RouteResults[0].Duration.TotalMilliseconds.ShouldBeGreaterThan(40);
     }
@@ -372,8 +359,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.RouteResults[0].Result.ShouldBe("fallback");
     }
 
@@ -397,7 +383,7 @@ public sealed class ContentRouterTests
         var result = await _sut.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         executed.ShouldBeTrue();
     }
 

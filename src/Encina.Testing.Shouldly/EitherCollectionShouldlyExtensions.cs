@@ -62,6 +62,20 @@ public static class EitherCollectionShouldlyExtensions
     }
 
     /// <summary>
+    /// Asserts that all results in the collection are successes (Right).
+    /// Alias for <see cref="ShouldAllBeSuccess{TLeft,TRight}"/> for backwards compatibility.
+    /// </summary>
+    /// <typeparam name="TLeft">The error type.</typeparam>
+    /// <typeparam name="TRight">The success type.</typeparam>
+    /// <param name="results">The collection of Either results to assert.</param>
+    /// <param name="customMessage">Optional custom failure message.</param>
+    /// <returns>The collection of success values for further assertions.</returns>
+    public static IReadOnlyList<TRight> AllShouldBeSuccess<TLeft, TRight>(
+        this IEnumerable<Either<TLeft, TRight>> results,
+        string? customMessage = null)
+        => results.ShouldAllBeSuccess(customMessage);
+
+    /// <summary>
     /// Asserts that all results in the collection are errors (Left).
     /// </summary>
     /// <typeparam name="TLeft">The error type.</typeparam>

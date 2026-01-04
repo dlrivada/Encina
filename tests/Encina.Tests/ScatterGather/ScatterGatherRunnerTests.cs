@@ -60,16 +60,13 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r =>
-            {
-                r.Response.Value.ShouldBe(300);
-                r.SuccessCount.ShouldBe(2);
-                r.FailureCount.ShouldBe(0);
-                r.AllSucceeded.ShouldBeTrue();
-            },
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        result.ShouldBeSuccess(r =>
+        {
+            r.Response.Value.ShouldBe(300);
+            r.SuccessCount.ShouldBe(2);
+            r.FailureCount.ShouldBe(0);
+            r.AllSucceeded.ShouldBeTrue();
+        });
     }
 
     [Fact]
@@ -88,10 +85,7 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error => error.Message.ShouldContain("succeeded"));
+        result.ShouldBeError(error => error.Message.ShouldContain("succeeded"));
     }
 
     [Fact]
@@ -121,14 +115,11 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r =>
-            {
-                r.Response.Value.ShouldBe(100);
-                r.Strategy.ShouldBe(GatherStrategy.WaitForFirst);
-            },
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        result.ShouldBeSuccess(r =>
+        {
+            r.Response.Value.ShouldBe(100);
+            r.Strategy.ShouldBe(GatherStrategy.WaitForFirst);
+        });
     }
 
     [Fact]
@@ -152,14 +143,11 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r =>
-            {
-                r.Response.Value.ShouldBe(300);
-                r.SuccessCount.ShouldBeGreaterThanOrEqualTo(2);
-            },
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        result.ShouldBeSuccess(r =>
+        {
+            r.Response.Value.ShouldBe(300);
+            r.SuccessCount.ShouldBeGreaterThanOrEqualTo(2);
+        });
     }
 
     [Fact]
@@ -179,10 +167,7 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error => error.Message.ShouldContain("Quorum not reached"));
+        result.ShouldBeError(error => error.Message.ShouldContain("Quorum not reached"));
     }
 
     [Fact]
@@ -205,15 +190,12 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r =>
-            {
-                r.Response.Value.ShouldBe(100);
-                r.HasPartialFailures.ShouldBeTrue();
-                r.FailureCount.ShouldBe(1);
-            },
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        result.ShouldBeSuccess(r =>
+        {
+            r.Response.Value.ShouldBe(100);
+            r.HasPartialFailures.ShouldBeTrue();
+            r.FailureCount.ShouldBe(1);
+        });
     }
 
     [Fact]
@@ -236,7 +218,7 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert - should fail due to timeout (either "timed out" or scatter failure due to cancellation)
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -266,7 +248,7 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"), cts.Token);
 
         // Assert - should fail due to cancellation (either "cancelled" or scatter failure)
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -301,7 +283,7 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         executionOrder.ShouldBe([1, 2, 3]);
     }
 
@@ -357,7 +339,7 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         maxConcurrent.ShouldBeGreaterThan(1); // Should have run concurrently
     }
 
@@ -377,10 +359,7 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r => r.Response.Value.ShouldBe(100),
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        result.ShouldBeSuccess(r => r.Response.Value.ShouldBe(100));
     }
 
     [Fact]
@@ -400,10 +379,7 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r => r.Response.Value.ShouldBe(100),
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        result.ShouldBeSuccess(r => r.Response.Value.ShouldBe(100));
     }
 
     [Fact]
@@ -423,10 +399,7 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r => r.Response.Value.ShouldBe(300),
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        result.ShouldBeSuccess(r => r.Response.Value.ShouldBe(300));
     }
 
     [Fact]
@@ -445,7 +418,7 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert - Strategy allows partial failures, but all failed so returns error
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -464,15 +437,12 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r =>
-            {
-                r.ScatterResults.Count.ShouldBe(2);
-                r.ScatterResults.All(sr => sr.IsSuccess).ShouldBeTrue();
-                r.ScatterResults.All(sr => sr.Duration > TimeSpan.Zero).ShouldBeTrue();
-            },
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        result.ShouldBeSuccess(r =>
+        {
+            r.ScatterResults.Count.ShouldBe(2);
+            r.ScatterResults.All(sr => sr.IsSuccess).ShouldBeTrue();
+            r.ScatterResults.All(sr => sr.Duration > TimeSpan.Zero).ShouldBeTrue();
+        });
     }
 
     [Fact]
@@ -490,10 +460,7 @@ public sealed class ScatterGatherRunnerTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r => r.OperationId.ShouldNotBe(Guid.Empty),
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        result.ShouldBeSuccess(r => r.OperationId.ShouldNotBe(Guid.Empty));
     }
 
     public sealed record TestRequest(string Query);

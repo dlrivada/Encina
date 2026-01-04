@@ -64,8 +64,8 @@ public sealed class DeadLetterManagerTests
         var result = await _manager.ReplayAsync(messageId);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.LeftAsEnumerable().First().Message.ShouldContain(DeadLetterErrorCodes.NotFound);
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain(DeadLetterErrorCodes.NotFound);
     }
 
     [Fact]
@@ -83,8 +83,8 @@ public sealed class DeadLetterManagerTests
         var result = await _manager.ReplayAsync(messageId);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.LeftAsEnumerable().First().Message.ShouldContain(DeadLetterErrorCodes.AlreadyReplayed);
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain(DeadLetterErrorCodes.AlreadyReplayed);
     }
 
     [Fact]
@@ -102,8 +102,8 @@ public sealed class DeadLetterManagerTests
         var result = await _manager.ReplayAsync(messageId);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.LeftAsEnumerable().First().Message.ShouldContain(DeadLetterErrorCodes.Expired);
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain(DeadLetterErrorCodes.Expired);
     }
 
     [Fact]
@@ -123,8 +123,8 @@ public sealed class DeadLetterManagerTests
         var result = await _manager.ReplayAsync(messageId);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.LeftAsEnumerable().First().Message.ShouldContain(DeadLetterErrorCodes.DeserializationFailed);
+        var error = result.ShouldBeError();
+        error.Message.ShouldContain(DeadLetterErrorCodes.DeserializationFailed);
         await _store.Received(1).MarkAsReplayedAsync(messageId, Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 

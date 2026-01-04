@@ -59,10 +59,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
         var result = await behavior.Handle(request, _requestContext, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r => r.Value.ShouldBe("Success"),
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        result.ShouldBeSuccess(r => r.Value.ShouldBe("Success"));
     }
 
     [Fact]
@@ -90,7 +87,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
         var result = await behavior.Handle(request, _requestContext, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         attemptCount.ShouldBe(3);
     }
 
@@ -120,7 +117,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
         var result = await behavior.Handle(request, _requestContext, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         attemptCount.ShouldBe(1); // No retries for permanent errors
     }
 
@@ -147,7 +144,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
         var result = await behavior.Handle(request, _requestContext, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         await _delayedRetryScheduler.Received(1).ScheduleRetryAsync(
             request,
             Arg.Any<RecoverabilityContext>(),
@@ -179,7 +176,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
         var result = await behavior.Handle(request, _requestContext, nextStep, CancellationToken.None);
 
         // Assert - Should not throw, just return the error
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -204,7 +201,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
         var result = await behavior.Handle(request, _requestContext, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         await _delayedRetryScheduler.DidNotReceive().ScheduleRetryAsync(
             Arg.Any<TestCommand>(),
             Arg.Any<RecoverabilityContext>(),
@@ -242,7 +239,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
         var result = await behavior.Handle(request, _requestContext, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         attemptCount.ShouldBe(3);
     }
 
@@ -270,7 +267,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
         var result = await behavior.Handle(request, _requestContext, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         attemptCount.ShouldBe(1);
     }
 
@@ -291,10 +288,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
         var result = await behavior.Handle(request, _requestContext, nextStep, cts.Token);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.Match(
-            Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: e => e.Message.ShouldContain("cancelled"));
+        result.ShouldBeError(e => e.Message.ShouldContain("cancelled"));
     }
 
     [Fact]
@@ -324,7 +318,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
         var result = await behavior.Handle(request, _requestContext, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         capturedMessage.ShouldNotBeNull();
         capturedMessage!.Request.ShouldBe(request);
     }
@@ -349,7 +343,7 @@ public sealed class RecoverabilityPipelineBehaviorTests
 
         // Act & Assert - Should not throw
         var result = await behavior.Handle(request, _requestContext, nextStep, CancellationToken.None);
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     public sealed class TestCommand : IRequest<TestResponse>

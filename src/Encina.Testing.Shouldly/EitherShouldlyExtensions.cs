@@ -101,6 +101,42 @@ public static class EitherShouldlyExtensions
 
     #endregion
 
+    #region Bottom State Assertions
+
+    /// <summary>
+    /// Asserts that the Either is in its default/bottom state (neither Left nor Right).
+    /// This is useful when testing guard methods that output a default Either on success.
+    /// </summary>
+    /// <typeparam name="TLeft">The error type.</typeparam>
+    /// <typeparam name="TRight">The success type.</typeparam>
+    /// <param name="either">The Either to check.</param>
+    /// <param name="customMessage">Optional custom failure message.</param>
+    public static void ShouldBeBottom<TLeft, TRight>(
+        this Either<TLeft, TRight> either,
+        string? customMessage = null)
+    {
+        either.IsLeft.ShouldBeFalse(customMessage ?? "Expected bottom state but got Left");
+        either.IsRight.ShouldBeFalse(customMessage ?? "Expected bottom state but got Right");
+    }
+
+    /// <summary>
+    /// Asserts that the Either is NOT in its default/bottom state (must be Left or Right).
+    /// This is useful when verifying that an operation completed and returned a valid result.
+    /// </summary>
+    /// <typeparam name="TLeft">The error type.</typeparam>
+    /// <typeparam name="TRight">The success type.</typeparam>
+    /// <param name="either">The Either to check.</param>
+    /// <param name="customMessage">Optional custom failure message.</param>
+    public static void ShouldNotBeBottom<TLeft, TRight>(
+        this Either<TLeft, TRight> either,
+        string? customMessage = null)
+    {
+        var isValid = either.IsLeft || either.IsRight;
+        isValid.ShouldBeTrue(customMessage ?? "Expected a valid result (Left or Right) but got bottom state");
+    }
+
+    #endregion
+
     #region Error Assertions
 
     /// <summary>
