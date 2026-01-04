@@ -101,7 +101,7 @@ public sealed class ModuleBehaviorServiceCollectionExtensionsTests
         var result = await adapter.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         auditLog.Entries.ShouldContain("Order operation started");
         auditLog.Entries.ShouldContain("Order operation completed");
     }
@@ -127,8 +127,7 @@ public sealed class ModuleBehaviorServiceCollectionExtensionsTests
         var result = await adapter.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(r => r.ShouldBe("other-handled"));
+        result.ShouldBeSuccess(r => r.ShouldBe("other-handled"));
         // The behavior should NOT have executed because handler is not in the module
         auditLog.Entries.ShouldBeEmpty();
     }

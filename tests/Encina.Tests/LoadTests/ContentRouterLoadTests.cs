@@ -54,7 +54,7 @@ public sealed class ContentRouterLoadTests
         stopwatch.Stop();
 
         // Assert
-        results.All(r => r.IsRight).ShouldBeTrue();
+        results.ShouldAllBeSuccess();
         results.Length.ShouldBe(requestCount);
 
         // Performance assertion: should complete in reasonable time
@@ -123,7 +123,7 @@ public sealed class ContentRouterLoadTests
         stopwatch.Stop();
 
         // Assert
-        results.All(r => r.IsRight).ShouldBeTrue();
+        results.ShouldAllBeSuccess();
 
         // Should complete in reasonable time even with 100 routes
         stopwatch.Elapsed.TotalSeconds.ShouldBeLessThan(30);
@@ -169,12 +169,10 @@ public sealed class ContentRouterLoadTests
         stopwatch.Stop();
 
         // Assert
-        results.All(r => r.IsRight).ShouldBeTrue();
-
         // Each result should have 10 route results
         foreach (var result in results)
         {
-            var routerResult = result.Match(Right: r => r, Left: _ => null!);
+            var routerResult = result.ShouldBeSuccess();
             routerResult.MatchedRouteCount.ShouldBe(10);
         }
     }
@@ -265,7 +263,7 @@ public sealed class ContentRouterLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        results.All(r => r.IsRight).ShouldBeTrue();
+        results.ShouldAllBeSuccess();
     }
 
     public class TestOrder

@@ -40,7 +40,7 @@ public sealed class ContentRouterIntegrationTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class ContentRouterIntegrationTests
         }
 
         // Assert
-        results.All(r => r.IsRight).ShouldBeTrue();
+        results.ShouldAllBeSuccess();
     }
 
     [Fact]
@@ -105,8 +105,7 @@ public sealed class ContentRouterIntegrationTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.RouteResults[0].Result.ShouldBe("Processed: 150");
     }
 
@@ -145,7 +144,7 @@ public sealed class ContentRouterIntegrationTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        results.All(r => r.IsRight).ShouldBeTrue();
+        results.ShouldAllBeSuccess();
         results.Length.ShouldBe(10);
     }
 
@@ -198,8 +197,7 @@ public sealed class ContentRouterIntegrationTests
         {
             var result = await router.RouteAsync(definition, order);
 
-            result.IsRight.ShouldBeTrue();
-            var routerResult = result.Match(Right: r => r, Left: _ => null!);
+            var routerResult = result.ShouldBeSuccess();
             var orderResult = routerResult.RouteResults[0].Result;
 
             orderResult.Handler.ShouldBe(expectedHandler);
@@ -240,8 +238,7 @@ public sealed class ContentRouterIntegrationTests
         var result = await router.RouteAsync(definition, order, cts.Token);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.Match(Right: _ => default, Left: e => e);
+        var error = result.ShouldBeError();
         error.Message.ShouldContain("cancelled");
     }
 

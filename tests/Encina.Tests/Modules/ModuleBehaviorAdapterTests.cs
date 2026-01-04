@@ -36,9 +36,7 @@ public sealed class ModuleBehaviorAdapterTests
         // Assert
         behavior.WasCalled.ShouldBeTrue();
         nextStepCalled.ShouldBeTrue();
-        var errorMsg = result.Match(Left: e => e.Message, Right: _ => "");
-        result.IsRight.ShouldBeTrue($"Expected Right but got Left: {errorMsg}");
-        result.IfRight(r => r.ShouldBe("behavior-executed:next-result"));
+        result.ShouldBeSuccess(r => r.ShouldBe("behavior-executed:next-result"));
     }
 
     [Fact]
@@ -68,9 +66,7 @@ public sealed class ModuleBehaviorAdapterTests
         // Assert
         behavior.WasCalled.ShouldBeFalse();
         nextStepCalled.ShouldBeTrue();
-        var errorMsg2 = result.Match(Left: e => e.Message, Right: _ => "");
-        result.IsRight.ShouldBeTrue($"Expected Right but got Left: {errorMsg2}");
-        result.IfRight(r => r.ShouldBe("next-result"));
+        result.ShouldBeSuccess(r => r.ShouldBe("next-result"));
     }
 
     [Fact]
@@ -129,10 +125,9 @@ public sealed class ModuleBehaviorAdapterTests
         // Act
         var result = await adapter.Handle(request, context, nextStep, CancellationToken.None);
 
-        // Assert with better diagnostics
-        var errorMessage = result.Match(Left: e => $"Left({e.Message})", Right: r => $"Right({r})");
-        result.IsLeft.ShouldBeTrue($"Result should be Left but was: {errorMessage}");
-        result.IfLeft(e => e.Message.ShouldBe("behavior-error"));
+        // Assert
+        var error = result.ShouldBeError();
+        error.Message.ShouldBe("behavior-error");
     }
 
     #region Helpers

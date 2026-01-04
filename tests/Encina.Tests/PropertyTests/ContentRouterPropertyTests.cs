@@ -55,7 +55,7 @@ public sealed class ContentRouterPropertyTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         executedRoutes.Count.ShouldBe(1);
         executedRoutes[0].ShouldBe("Route_0");
     }
@@ -94,7 +94,7 @@ public sealed class ContentRouterPropertyTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         var expectedPriority = priorities.Min();
         executedRoute.ShouldBe($"Priority_{expectedPriority}");
     }
@@ -134,10 +134,8 @@ public sealed class ContentRouterPropertyTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        var routerResult = result.ShouldBeSuccess();
         executedCount.ShouldBe(matchingRoutes);
-
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
         routerResult.MatchedRouteCount.ShouldBe(matchingRoutes);
     }
 
@@ -184,10 +182,8 @@ public sealed class ContentRouterPropertyTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        var routerResult = result.ShouldBeSuccess();
         defaultExecuted.ShouldBe(expectDefaultUsed);
-
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
         routerResult.UsedDefaultRoute.ShouldBe(expectDefaultUsed);
     }
 
@@ -227,9 +223,7 @@ public sealed class ContentRouterPropertyTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
-
+        var routerResult = result.ShouldBeSuccess();
         var sumOfDurations = routerResult.RouteResults.Sum(r => r.Duration.TotalMilliseconds);
         routerResult.TotalDuration.TotalMilliseconds.ShouldBeGreaterThanOrEqualTo(sumOfDurations * 0.9); // Allow some margin
     }
@@ -270,8 +264,7 @@ public sealed class ContentRouterPropertyTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.Match(Right: _ => default, Left: e => e);
+        var error = result.ShouldBeError();
         error.Message.ShouldContain($"Route {failingRouteIndex} failed");
     }
 
@@ -308,9 +301,7 @@ public sealed class ContentRouterPropertyTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
-
+        var routerResult = result.ShouldBeSuccess();
         // The first non-throwing route should execute
         routerResult.RouteResults.Count.ShouldBe(1);
     }
@@ -347,9 +338,7 @@ public sealed class ContentRouterPropertyTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
-
+        var routerResult = result.ShouldBeSuccess();
         // Exactly one condition should match
         routerResult.MatchedRouteCount.ShouldBe(1);
     }

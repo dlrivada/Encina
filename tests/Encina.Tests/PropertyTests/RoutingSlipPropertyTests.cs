@@ -74,7 +74,7 @@ public sealed class RoutingSlipPropertyTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         executionOrder.ShouldBe(Enumerable.Range(1, stepCount).ToList());
     }
 
@@ -96,8 +96,7 @@ public sealed class RoutingSlipPropertyTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var slipResult = result.Match(Right: r => r, Left: _ => null!);
+        var slipResult = result.ShouldBeSuccess();
         slipResult.StepsExecuted.ShouldBe(stepCount);
     }
 
@@ -159,8 +158,7 @@ public sealed class RoutingSlipPropertyTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var slipResult = result.Match(Right: r => r, Left: _ => null!);
+        var slipResult = result.ShouldBeSuccess();
         slipResult.FinalData.Value.ShouldBe(stepCount);
     }
 
@@ -182,8 +180,7 @@ public sealed class RoutingSlipPropertyTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var slipResult = result.Match(Right: r => r, Left: _ => null!);
+        var slipResult = result.ShouldBeSuccess();
         slipResult.ActivityLog.Count.ShouldBe(stepCount);
     }
 
@@ -343,8 +340,7 @@ public sealed class RoutingSlipPropertyTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var slipResult = result.Match(Right: r => r, Left: _ => null!);
+        var slipResult = result.ShouldBeSuccess();
         slipResult.StepsExecuted.ShouldBe(initialSteps + addedSteps);
         slipResult.StepsAdded.ShouldBe(addedSteps);
     }
@@ -390,7 +386,7 @@ public sealed class RoutingSlipPropertyTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         executedSteps.Count.ShouldBe(clearAfterStep);
         executedSteps.ShouldBe(Enumerable.Range(1, clearAfterStep).ToList());
     }
@@ -499,8 +495,7 @@ public sealed class RoutingSlipPropertyTests
         var result = await runner.RunAsync(definition, new TestData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var slipResult = result.Match(Right: r => r, Left: _ => null!);
+        var slipResult = result.ShouldBeSuccess();
         slipResult.Duration.ShouldBeGreaterThan(TimeSpan.Zero);
     }
 

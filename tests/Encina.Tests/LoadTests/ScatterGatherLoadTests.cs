@@ -46,14 +46,9 @@ public sealed class ScatterGatherLoadTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r =>
-            {
-                r.SuccessCount.ShouldBe(handlerCount);
-                r.FailureCount.ShouldBe(0);
-            },
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        var sgResult = result.ShouldBeSuccess();
+        sgResult.SuccessCount.ShouldBe(handlerCount);
+        sgResult.FailureCount.ShouldBe(0);
     }
 
     [Fact]
@@ -83,7 +78,7 @@ public sealed class ScatterGatherLoadTests
         var results = await Task.WhenAll(tasks);
 
         // Assert
-        results.All(r => r.IsRight).ShouldBeTrue();
+        results.ShouldAllBeSuccess();
         results.All(r => r.Match(
             Right: result => result.Response.Value == 6,
             Left: _ => false)).ShouldBeTrue();
@@ -124,10 +119,8 @@ public sealed class ScatterGatherLoadTests
         stopwatch.Stop();
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r => r.SuccessCount.ShouldBeGreaterThanOrEqualTo(quorum),
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        var sgResult = result.ShouldBeSuccess();
+        sgResult.SuccessCount.ShouldBeGreaterThanOrEqualTo(quorum);
 
         // Quorum should complete faster than waiting for all
         stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(5));
@@ -164,7 +157,7 @@ public sealed class ScatterGatherLoadTests
         stopwatch.Stop();
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         // Should complete much faster than 5 seconds
         stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(1));
     }
@@ -202,7 +195,7 @@ public sealed class ScatterGatherLoadTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         executionOrder.ShouldBe(Enumerable.Range(0, handlerCount).ToList());
     }
 
@@ -252,7 +245,7 @@ public sealed class ScatterGatherLoadTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         maxConcurrent.ShouldBeLessThanOrEqualTo(maxParallelism);
     }
 

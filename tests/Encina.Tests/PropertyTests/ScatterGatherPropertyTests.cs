@@ -129,15 +129,13 @@ public sealed class ScatterGatherPropertyTests
         // Assert
         if (successCount > 0)
         {
-            result.IsRight.ShouldBeTrue();
-            result.Match(
-                Right: r => (r.SuccessCount + r.FailureCount).ShouldBe(totalCount),
-                Left: _ => throw new InvalidOperationException("Expected Right"));
+            var sgResult = result.ShouldBeSuccess();
+            (sgResult.SuccessCount + sgResult.FailureCount).ShouldBe(totalCount);
         }
         else
         {
             // All handlers failed
-            result.IsLeft.ShouldBeTrue();
+            result.ShouldBeError();
         }
     }
 
@@ -175,10 +173,8 @@ public sealed class ScatterGatherPropertyTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r => r.SuccessCount.ShouldBeGreaterThanOrEqualTo(quorum),
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        var sgResult = result.ShouldBeSuccess();
+        sgResult.SuccessCount.ShouldBeGreaterThanOrEqualTo(quorum);
     }
 
     /// <summary>
@@ -214,7 +210,7 @@ public sealed class ScatterGatherPropertyTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     #endregion
@@ -255,7 +251,7 @@ public sealed class ScatterGatherPropertyTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     /// <summary>
@@ -288,10 +284,8 @@ public sealed class ScatterGatherPropertyTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r => r.SuccessCount.ShouldBe(handlerCount),
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        var sgResult = result.ShouldBeSuccess();
+        sgResult.SuccessCount.ShouldBe(handlerCount);
     }
 
     #endregion
@@ -364,10 +358,8 @@ public sealed class ScatterGatherPropertyTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r => r.SuccessCount.ShouldBeGreaterThanOrEqualTo(1),
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        var sgResult = result.ShouldBeSuccess();
+        sgResult.SuccessCount.ShouldBeGreaterThanOrEqualTo(1);
     }
 
     /// <summary>
@@ -414,7 +406,7 @@ public sealed class ScatterGatherPropertyTests
         stopwatch.Stop();
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         // Should complete much faster than 5 seconds
         stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(1));
         // Only the fast handler should have completed
@@ -455,10 +447,8 @@ public sealed class ScatterGatherPropertyTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r => r.Response.Value.ShouldBe(expectedMin),
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        var sgResult = result.ShouldBeSuccess();
+        sgResult.Response.Value.ShouldBe(expectedMin);
     }
 
     /// <summary>
@@ -491,10 +481,8 @@ public sealed class ScatterGatherPropertyTests
         var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.Match(
-            Right: r => r.Response.Value.ShouldBe(expectedMax),
-            Left: _ => throw new InvalidOperationException("Expected Right"));
+        var sgResult = result.ShouldBeSuccess();
+        sgResult.Response.Value.ShouldBe(expectedMax);
     }
 
     #endregion

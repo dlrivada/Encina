@@ -92,7 +92,7 @@ public sealed class SagaRunnerTests
         var result = await _sut.RunAsync(definition);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -116,8 +116,7 @@ public sealed class SagaRunnerTests
         var result = await _sut.RunAsync(definition, initialData);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var sagaResult = result.Match(Right: r => r, Left: _ => null!);
+        var sagaResult = result.ShouldBeSuccess();
         sagaResult.StepsExecuted.ShouldBe(1);
         sagaResult.Data.OrderId.ShouldNotBe(Guid.Empty);
     }
@@ -159,11 +158,11 @@ public sealed class SagaRunnerTests
         var result = await _sut.RunAsync(definition, new TestSagaData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        var sagaResult = result.ShouldBeSuccess();
         step1Executed.ShouldBeTrue();
         step2Executed.ShouldBeTrue();
         step3Executed.ShouldBeTrue();
-        result.Match(Right: r => r.StepsExecuted, Left: _ => 0).ShouldBe(3);
+        sagaResult.StepsExecuted.ShouldBe(3);
     }
 
     [Fact]
@@ -183,8 +182,7 @@ public sealed class SagaRunnerTests
         var result = await _sut.RunAsync(definition, new TestSagaData());
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.Match(Right: _ => EncinaErrors.Create("none", "none"), Left: e => e);
+        var error = result.ShouldBeError();
         error.GetCode().Match(Some: c => c, None: () => "").ShouldBe("test.error");
     }
 
@@ -373,8 +371,7 @@ public sealed class SagaRunnerTests
         var result = await _sut.RunAsync(definition, new TestSagaData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var sagaResult = result.Match(Right: r => r, Left: _ => null!);
+        var sagaResult = result.ShouldBeSuccess();
         sagaResult.Data.OrderId.ShouldNotBe(Guid.Empty);
         sagaResult.Data.ReservationId.ShouldBe(sagaResult.Data.OrderId);
         sagaResult.Data.PaymentId.ShouldBe(sagaResult.Data.ReservationId);
@@ -395,8 +392,7 @@ public sealed class SagaRunnerTests
         var result = await _sut.RunAsync(definition, new TestSagaData());
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var sagaResult = result.Match(Right: r => r, Left: _ => null!);
+        var sagaResult = result.ShouldBeSuccess();
         sagaResult.SagaId.ShouldNotBe(Guid.Empty);
     }
 

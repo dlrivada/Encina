@@ -38,7 +38,7 @@ public sealed class ContentRouterContractTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert - should complete without exception
-        (result.IsLeft || result.IsRight).ShouldBeTrue();
+        result.ShouldNotBeBottom();
     }
 
     /// <summary>
@@ -60,7 +60,7 @@ public sealed class ContentRouterContractTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     /// <summary>
@@ -83,7 +83,7 @@ public sealed class ContentRouterContractTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
     }
 
     /// <summary>
@@ -110,7 +110,7 @@ public sealed class ContentRouterContractTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         executed.ShouldBeTrue();
     }
 
@@ -138,8 +138,7 @@ public sealed class ContentRouterContractTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.RouteResults.ShouldNotBeNull();
     }
 
@@ -163,8 +162,7 @@ public sealed class ContentRouterContractTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.MatchedRouteCount.ShouldBeGreaterThanOrEqualTo(0);
     }
 
@@ -187,8 +185,7 @@ public sealed class ContentRouterContractTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         routerResult.TotalDuration.ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero);
     }
 
@@ -211,8 +208,7 @@ public sealed class ContentRouterContractTests
         var result = await router.RouteAsync(definition, order);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var routerResult = result.Match(Right: r => r, Left: _ => null!);
+        var routerResult = result.ShouldBeSuccess();
         var routeResult = routerResult.RouteResults[0];
 
         routeResult.RouteName.ShouldNotBeNullOrWhiteSpace();
