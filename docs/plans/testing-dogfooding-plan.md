@@ -129,8 +129,20 @@ These packages **cannot use their own infrastructure**:
 | Package | Notes |
 |---------|-------|
 | Integration Tests | Keep `Testcontainers` where Aspire is not available (e.g., Oracle) |
-| Load Tests | May use NBomber directly, but data generation should use `Encina.Testing.Bogus` |
+| Load Tests | May use NBomber directly, but data generation should use `Encina.Testing.Bogus`. ⚠️ See [Known Issues](#34-known-issues) for .NET 10 JIT bug. |
 | Contract Tests | Should use `Encina.Testing.Pact` when testing external APIs |
+
+### 3.4 Known Issues
+
+> **⚠️ .NET 10 JIT Bug affecting Load Tests**
+>
+> Load tests using `IAsyncEnumerable<Either<EncinaError, T>>` may fail in Release builds due to a .NET 10 JIT optimization bug.
+>
+> **Workaround**: Set environment variable `DOTNET_JitObjectStackAllocationConditionalEscape=0` before running load tests.
+>
+> **Action Required**: Remove this workaround once a .NET 10.0.x patch addresses the issue.
+>
+> See [Additional Notes](#additional-notes) item 5 for full context.
 
 ---
 
@@ -396,7 +408,16 @@ public class OrderRepositoryTests : SqlServerIntegrationTestBase, IAsyncLifetime
 
 #### Standard Rule Bundles
 
-Use `ApplyAllStandardRules()` to apply all pre-built DDD/CQRS rules at once:
+Use `ApplyAllStandardRules()` to apply common DDD/CQRS architectural rules. This method is **opt-in** and includes the following rule groups:
+
+| Rule Group | Description |
+|------------|-------------|
+| General Rules | Naming conventions, assembly references, namespace structure |
+| Domain Rules | Aggregates must be sealed, entities have private setters, value objects are immutable |
+| Application Rules | Handlers cannot reference infrastructure directly, commands/queries are immutable |
+| Integration Rules | Controllers depend only on IEncina, no direct repository access from controllers |
+
+> **Note**: `ApplyAllStandardRules()` does **NOT** include saga-specific rules. If your project uses sagas, you must explicitly call `ApplySagaRules()` in addition to or instead of `ApplyAllStandardRules()`.
 
 ```csharp
 public class ArchitectureTests : EncinaArchitectureTestBase
@@ -406,7 +427,20 @@ public class ArchitectureTests : EncinaArchitectureTestBase
     {
         var rules = EncinaArchitectureRulesBuilder
             .ForAssembly(typeof(CreateOrderHandler).Assembly)
-            .ApplyAllStandardRules()  // Applies all standard DDD/CQRS rules
+            .ApplyAllStandardRules()  // General, Domain, Application, Integration rules
+            .Build();
+
+        rules.Check();
+    }
+
+    [Fact]
+    public void StandardAndSagaRules_ShouldPass()
+    {
+        // For projects using sagas: combine standard rules with saga rules
+        var rules = EncinaArchitectureRulesBuilder
+            .ForAssembly(typeof(CreateOrderHandler).Assembly)
+            .ApplyAllStandardRules()
+            .ApplySagaRules()  // Required when using sagas - validates saga structure and dependencies
             .Build();
 
         rules.Check();
@@ -591,11 +625,60 @@ Encina automatically maps `Either<EncinaError, T>` to Pact responses:
 
 #### Pattern 1: Using PropertyTestBase with EncinaArbitraryProvider
 
+`PropertyTestBase` automatically registers `EncinaArbitraryProvider` with FsCheck, so derived test classes inherit all Encina type generators without manual setup.
+
+**How Registration Works:**
+
+```csharp
+// EncinaArbitraryProvider registers arbitraries for Encina domain types
+public class EncinaArbitraryProvider
+{
+    // FsCheck discovers these static properties automatically when registered
+    public static Arbitrary<EncinaError> EncinaError => EncinaArbitraries.EncinaError();
+    public static Arbitrary<Either<EncinaError, T>> Either<T>() => EncinaArbitraries.Either<T>();
+    public static Arbitrary<OutboxMessage> OutboxMessage => EncinaArbitraries.OutboxMessage();
+    // ... additional arbitraries for InboxMessage, SagaState, etc.
+}
+
+// PropertyTestBase registers the provider in its static constructor
+public abstract class PropertyTestBase
+{
+    static PropertyTestBase()
+    {
+        // Register Encina arbitraries globally for all derived test classes
+        Arb.Register<EncinaArbitraryProvider>();
+    }
+}
+```
+
+**Manual Registration (when not using PropertyTestBase):**
+
+```csharp
+// Option 1: Static constructor in your test class
+public class MyPropertyTests
+{
+    static MyPropertyTests()
+    {
+        Arb.Register<EncinaArbitraryProvider>();
+    }
+}
+
+// Option 2: Using [Properties] attribute with Arbitrary types
+[Properties(Arbitrary = new[] { typeof(EncinaArbitraryProvider) })]
+public class MyPropertyTests { }
+
+// Option 3: Per-test registration with [Property] attribute
+[Property(Arbitrary = new[] { typeof(EncinaArbitraryProvider) })]
+public Property MyTest(Either<EncinaError, int> either) => ...;
+```
+
+**Using PropertyTestBase (recommended):**
+
 ```csharp
 public class EitherPropertyTests : PropertyTestBase
 {
-    // EncinaArbitraryProvider auto-registers arbitraries for:
-    // - EncinaError, Either<EncinaError, T>, OutboxMessage, InboxMessage, etc.
+    // EncinaArbitraryProvider is auto-registered via PropertyTestBase's static constructor.
+    // Arbitraries available: EncinaError, Either<EncinaError, T>, OutboxMessage, InboxMessage, etc.
 
     [EncinaProperty]  // 100 tests with Encina arbitraries
     public Property Either_IsExclusive(Either<EncinaError, int> either)
@@ -1336,6 +1419,9 @@ public class EitherPropertyTests : PropertyTestBase
 ### Example 8: Contract Testing with Pact
 
 **BEFORE** (Raw PactNet with manual mock server setup):
+
+> **Note**: The following example uses PactNet v4 low-level APIs for illustrative purposes. While functional, this approach requires significant boilerplate for mock server setup, interaction definitions, and verification. Modern PactNet usage may differ; consult the [PactNet documentation](https://github.com/pact-foundation/pact-net) for current best practices. The "AFTER" example below demonstrates how `Encina.Testing.Pact` abstracts this complexity.
+
 ```csharp
 public class OrderServiceConsumerTests : IAsyncLifetime
 {
