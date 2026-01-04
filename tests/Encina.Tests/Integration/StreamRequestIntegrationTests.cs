@@ -1,4 +1,6 @@
 using System.Runtime.CompilerServices;
+using Encina.Testing;
+using Encina.Testing.Shouldly;
 using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,7 +11,7 @@ using static LanguageExt.Prelude;
 namespace Encina.Tests.Integration;
 
 /// <summary>
-/// Integration tests for Stream Requests.
+/// Integration tests for Stream Requests using EncinaTestFixture.
 /// Tests end-to-end scenarios with real DI container and IEncina.
 /// </summary>
 [Trait("Category", "Integration")]
@@ -21,12 +23,14 @@ public sealed class StreamRequestIntegrationTests
     public async Task Stream_WithSimpleHandler_ShouldProcessAllItems()
     {
         // Arrange
-        var services = new ServiceCollection();
-        services.AddEncina();
-        services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
-        var provider = services.BuildServiceProvider();
-        var encina = provider.GetRequiredService<IEncina>();
+        using var fixture = new EncinaTestFixture()
+            .ConfigureServices(services =>
+            {
+                services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
+            });
 
+        fixture.Build();
+        var encina = fixture.GetRequiredService<IEncina>();
         var request = new NumberStreamRequest(Start: 1, Count: 10);
 
         // Act
@@ -45,13 +49,15 @@ public sealed class StreamRequestIntegrationTests
     public async Task Stream_WithSingleBehavior_ShouldApplyTransformation()
     {
         // Arrange
-        var services = new ServiceCollection();
-        services.AddEncina();
-        services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
-        services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, DoubleValueBehavior>();
-        var provider = services.BuildServiceProvider();
-        var encina = provider.GetRequiredService<IEncina>();
+        using var fixture = new EncinaTestFixture()
+            .ConfigureServices(services =>
+            {
+                services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
+                services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, DoubleValueBehavior>();
+            });
 
+        fixture.Build();
+        var encina = fixture.GetRequiredService<IEncina>();
         var request = new NumberStreamRequest(Start: 1, Count: 5);
 
         // Act
@@ -69,27 +75,27 @@ public sealed class StreamRequestIntegrationTests
     public async Task Stream_WithMultipleBehaviors_ShouldApplyInOrder()
     {
         // Arrange
-        var services = new ServiceCollection();
-        services.AddEncina();
-        services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
+        using var fixture = new EncinaTestFixture()
+            .ConfigureServices(services =>
+            {
+                services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
+                // Register behaviors in order: DoubleValue → AddFive
+                services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, DoubleValueBehavior>();
+                services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, AddFiveBehavior>();
+            });
 
-        // Register behaviors in order: DoubleValue ? AddFive
-        services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, DoubleValueBehavior>();
-        services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, AddFiveBehavior>();
-
-        var provider = services.BuildServiceProvider();
-        var Encina = provider.GetRequiredService<IEncina>();
-
+        fixture.Build();
+        var encina = fixture.GetRequiredService<IEncina>();
         var request = new NumberStreamRequest(Start: 1, Count: 3);
 
         // Act
         var results = new List<int>();
-        await foreach (var item in Encina.Stream(request))
+        await foreach (var item in encina.Stream(request))
         {
             item.IfRight(results.Add);
         }
 
-        // Assert - Behaviors execute as: Handler ? AddFive ? DoubleValue
+        // Assert - Behaviors execute as: Handler → AddFive → DoubleValue
         // Handler: 1, 2, 3
         // After AddFive: 6, 7, 8
         // After DoubleValue: 12, 14, 16
@@ -100,13 +106,15 @@ public sealed class StreamRequestIntegrationTests
     public async Task Stream_WithFilterBehavior_ShouldFilterItems()
     {
         // Arrange
-        var services = new ServiceCollection();
-        services.AddEncina();
-        services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
-        services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, GreaterThanFiveBehavior>();
-        var provider = services.BuildServiceProvider();
-        var encina = provider.GetRequiredService<IEncina>();
+        using var fixture = new EncinaTestFixture()
+            .ConfigureServices(services =>
+            {
+                services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
+                services.AddTransient<IStreamPipelineBehavior<NumberStreamRequest, int>, GreaterThanFiveBehavior>();
+            });
 
+        fixture.Build();
+        var encina = fixture.GetRequiredService<IEncina>();
         var request = new NumberStreamRequest(Start: 1, Count: 10);
 
         // Act
@@ -128,12 +136,14 @@ public sealed class StreamRequestIntegrationTests
     public async Task Stream_WithErrorProducingHandler_ShouldYieldLeftValues()
     {
         // Arrange
-        var services = new ServiceCollection();
-        services.AddEncina();
-        services.AddTransient<IStreamRequestHandler<ErrorStreamRequest, int>, ErrorStreamHandler>();
-        var provider = services.BuildServiceProvider();
-        var encina = provider.GetRequiredService<IEncina>();
+        using var fixture = new EncinaTestFixture()
+            .ConfigureServices(services =>
+            {
+                services.AddTransient<IStreamRequestHandler<ErrorStreamRequest, int>, ErrorStreamHandler>();
+            });
 
+        fixture.Build();
+        var encina = fixture.GetRequiredService<IEncina>();
         var request = new ErrorStreamRequest(TotalItems: 10, ErrorAtPosition: 5);
 
         // Act
@@ -145,7 +155,7 @@ public sealed class StreamRequestIntegrationTests
 
         // Assert
         results.Count.ShouldBe(10);
-        results[4].ShouldBeError("error should be at position 5");
+        EitherShouldlyExtensions.ShouldBeError(results[4], "error should be at position 5");
 
         var errorCode = results[4].Match(
             Left: error => error.GetEncinaCode(),
@@ -158,13 +168,15 @@ public sealed class StreamRequestIntegrationTests
     public async Task Stream_WithErrorRecoveryBehavior_ShouldRecoverFromErrors()
     {
         // Arrange
-        var services = new ServiceCollection();
-        services.AddEncina();
-        services.AddTransient<IStreamRequestHandler<ErrorStreamRequest, int>, ErrorStreamHandler>();
-        services.AddTransient<IStreamPipelineBehavior<ErrorStreamRequest, int>, ErrorRecoveryBehavior>();
-        var provider = services.BuildServiceProvider();
-        var encina = provider.GetRequiredService<IEncina>();
+        using var fixture = new EncinaTestFixture()
+            .ConfigureServices(services =>
+            {
+                services.AddTransient<IStreamRequestHandler<ErrorStreamRequest, int>, ErrorStreamHandler>();
+                services.AddTransient<IStreamPipelineBehavior<ErrorStreamRequest, int>, ErrorRecoveryBehavior>();
+            });
 
+        fixture.Build();
+        var encina = fixture.GetRequiredService<IEncina>();
         var request = new ErrorStreamRequest(TotalItems: 5, ErrorAtPosition: 3);
 
         // Act
@@ -186,12 +198,14 @@ public sealed class StreamRequestIntegrationTests
     public async Task Stream_WithCancellation_ShouldStopProcessing()
     {
         // Arrange
-        var services = new ServiceCollection();
-        services.AddEncina();
-        services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
-        var provider = services.BuildServiceProvider();
-        var encina = provider.GetRequiredService<IEncina>();
+        using var fixture = new EncinaTestFixture()
+            .ConfigureServices(services =>
+            {
+                services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
+            });
 
+        fixture.Build();
+        var encina = fixture.GetRequiredService<IEncina>();
         var request = new NumberStreamRequest(Start: 1, Count: 100);
         using var cts = new CancellationTokenSource();
 
@@ -227,12 +241,14 @@ public sealed class StreamRequestIntegrationTests
     public async Task Stream_WithLargeDataSet_ShouldHandleEfficiently()
     {
         // Arrange
-        var services = new ServiceCollection();
-        services.AddEncina();
-        services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, FastNumberStreamHandler>();
-        var provider = services.BuildServiceProvider();
-        var encina = provider.GetRequiredService<IEncina>();
+        using var fixture = new EncinaTestFixture()
+            .ConfigureServices(services =>
+            {
+                services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, FastNumberStreamHandler>();
+            });
 
+        fixture.Build();
+        var encina = fixture.GetRequiredService<IEncina>();
         var request = new NumberStreamRequest(Start: 1, Count: 10_000);
 
         // Act
@@ -256,11 +272,14 @@ public sealed class StreamRequestIntegrationTests
     public async Task Stream_MultipleSimultaneousStreams_ShouldNotInterfere()
     {
         // Arrange
-        var services = new ServiceCollection();
-        services.AddEncina();
-        services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
-        var provider = services.BuildServiceProvider();
-        var encina = provider.GetRequiredService<IEncina>();
+        using var fixture = new EncinaTestFixture()
+            .ConfigureServices(services =>
+            {
+                services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
+            });
+
+        fixture.Build();
+        var encina = fixture.GetRequiredService<IEncina>();
 
         var request1 = new NumberStreamRequest(Start: 1, Count: 50);
         var request2 = new NumberStreamRequest(Start: 100, Count: 50);
@@ -317,13 +336,16 @@ public sealed class StreamRequestIntegrationTests
     {
         // Arrange
         var loggingBehavior = new LoggingBehavior();
-        var services = new ServiceCollection();
-        services.AddEncina();
-        services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
-        services.AddSingleton<IStreamPipelineBehavior<NumberStreamRequest, int>>(loggingBehavior);
-        var provider = services.BuildServiceProvider();
-        var encina = provider.GetRequiredService<IEncina>();
 
+        using var fixture = new EncinaTestFixture()
+            .ConfigureServices(services =>
+            {
+                services.AddTransient<IStreamRequestHandler<NumberStreamRequest, int>, NumberStreamHandler>();
+                services.AddSingleton<IStreamPipelineBehavior<NumberStreamRequest, int>>(loggingBehavior);
+            });
+
+        fixture.Build();
+        var encina = fixture.GetRequiredService<IEncina>();
         var request = new NumberStreamRequest(Start: 1, Count: 20);
 
         // Act

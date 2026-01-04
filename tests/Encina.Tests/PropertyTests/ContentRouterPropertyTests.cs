@@ -1,4 +1,7 @@
 using Encina.Messaging.ContentRouter;
+using Encina.Testing.FsCheck;
+using FsCheck;
+using FsCheck.Fluent;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -350,4 +353,99 @@ public sealed class ContentRouterPropertyTests
         public decimal Total { get; set; }
         public bool IsInternational { get; set; }
     }
+
+    #region FsCheck Property Tests
+
+    /// <summary>
+    /// Property: Router always returns a result for any positive total.
+    /// Uses FsCheck to generate random positive decimals.
+    /// </summary>
+    [EncinaProperty]
+    public Property RouteAsync_WithPositiveTotal_AlwaysReturnsResult()
+    {
+        var router = new Messaging.ContentRouter.ContentRouter(_options, _logger);
+        var definition = ContentRouterBuilder.Create<TestOrder, string>()
+            .When(o => o.Total > 100)
+            .RouteTo(o => Right<EncinaError, string>("high"))
+            .When(o => o.Total > 50)
+            .RouteTo(o => Right<EncinaError, string>("medium"))
+            .Default(o => Right<EncinaError, string>("low"))
+            .Build();
+
+        return Prop.ForAll(
+            Arb.From(Gen.Choose(1, 1000).Select(i => (decimal)i)),
+            async total =>
+            {
+                var order = new TestOrder { Total = total };
+                var result = await router.RouteAsync(definition, order);
+                return result.IsRight;
+            });
+    }
+
+    /// <summary>
+    /// Property: Router correctly classifies orders based on thresholds.
+    /// Uses FsCheck to verify classification logic across range of values.
+    /// </summary>
+    [EncinaProperty]
+    public Property RouteAsync_ClassificationIsCorrect()
+    {
+        var router = new Messaging.ContentRouter.ContentRouter(_options, _logger);
+        var definition = ContentRouterBuilder.Create<TestOrder, string>()
+            .When(o => o.Total > 100)
+            .RouteTo(o => Right<EncinaError, string>("high"))
+            .When(o => o.Total > 50)
+            .RouteTo(o => Right<EncinaError, string>("medium"))
+            .Default(o => Right<EncinaError, string>("low"))
+            .Build();
+
+        return Prop.ForAll(
+            Arb.From(Gen.Choose(1, 200).Select(i => (decimal)i)),
+            async total =>
+            {
+                var order = new TestOrder { Total = total };
+                var result = await router.RouteAsync(definition, order);
+
+                var expectedCategory = total switch
+                {
+                    > 100 => "high",
+                    > 50 => "medium",
+                    _ => "low"
+                };
+
+                return result.Match(
+                    Left: _ => false,
+                    Right: r => r.RouteResults.Count > 0 &&
+                               r.RouteResults[0].Result == expectedCategory);
+            });
+    }
+
+    /// <summary>
+    /// Property: MatchedRouteCount is always exactly 1 for exclusive routes.
+    /// Invariant verified across random order totals.
+    /// </summary>
+    [EncinaProperty]
+    public Property ExclusiveRoutes_MatchedCountIsAlwaysOne()
+    {
+        var router = new Messaging.ContentRouter.ContentRouter(_options, _logger);
+        var definition = ContentRouterBuilder.Create<TestOrder, string>()
+            .When("Above50", o => o.Total > 50)
+            .RouteTo(o => Right<EncinaError, string>("above"))
+            .When("Below50", o => o.Total <= 50)
+            .RouteTo(o => Right<EncinaError, string>("below"))
+            .Build();
+
+        return Prop.ForAll(
+            Arb.From(Gen.Choose(1, 100).Select(i => (decimal)i)),
+            async total =>
+            {
+                var order = new TestOrder { Total = total };
+                var result = await router.RouteAsync(definition, order);
+
+                return result.Match(
+                    Left: _ => false,
+                    Right: r => r.MatchedRouteCount == 1);
+            });
+    }
+
+    #endregion
 }

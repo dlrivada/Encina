@@ -1,4 +1,7 @@
 using System.Runtime.CompilerServices;
+using Encina.Testing.FsCheck;
+using FsCheck;
+using FsCheck.Fluent;
 using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -645,6 +648,98 @@ public sealed class StreamRequestPropertyTests
                 yield return item;
             }
         }
+    }
+
+    #endregion
+
+    #region FsCheck Property Tests
+
+    /// <summary>
+    /// Property: Stream always yields exactly the requested count.
+    /// Uses FsCheck to verify across random item counts.
+    /// </summary>
+    [EncinaProperty]
+    public Property Stream_AlwaysYieldsExactCount()
+    {
+        return Prop.ForAll(
+            Arb.From(Gen.Choose(0, 100)),
+            async expectedCount =>
+            {
+                var handler = new SequentialStreamHandler();
+                var request = new TestStreamRequest(expectedCount);
+
+                var count = 0;
+                await foreach (var item in handler.Handle(request, CancellationToken.None))
+                {
+                    if (item.IsRight) count++;
+                }
+
+                return count == expectedCount;
+            });
+    }
+
+    /// <summary>
+    /// Property: Stream items are always in ascending order.
+    /// Verified across random item counts.
+    /// </summary>
+    [EncinaProperty]
+    public Property Stream_ItemsAreAlwaysAscending()
+    {
+        return Prop.ForAll(
+            Arb.From(Gen.Choose(1, 50)),
+            async itemCount =>
+            {
+                var handler = new SequentialStreamHandler();
+                var request = new TestStreamRequest(itemCount);
+
+                var results = new List<int>();
+                await foreach (var item in handler.Handle(request, CancellationToken.None))
+                {
+                    item.IfRight(results.Add);
+                }
+
+                // Verify ascending order
+                for (var i = 1; i < results.Count; i++)
+                {
+                    if (results[i] <= results[i - 1])
+                        return false;
+                }
+
+                return true;
+            });
+    }
+
+    /// <summary>
+    /// Property: Error items are always Left values, never exceptions.
+    /// Uses FsCheck to verify across random error intervals.
+    /// </summary>
+    [EncinaProperty]
+    public Property Errors_AreAlwaysLeftValues()
+    {
+        return Prop.ForAll(
+            Arb.From(Gen.Choose(2, 10)),
+            async errorInterval =>
+            {
+                var handler = new ErrorAtIntervalHandler(errorInterval);
+                var request = new TestStreamRequest(errorInterval * 2);
+
+                var exceptionThrown = false;
+                var leftCount = 0;
+
+                try
+                {
+                    await foreach (var item in handler.Handle(request, CancellationToken.None))
+                    {
+                        if (item.IsLeft) leftCount++;
+                    }
+                }
+                catch
+                {
+                    exceptionThrown = true;
+                }
+
+                return !exceptionThrown && leftCount == 2;
+            });
     }
 
     #endregion

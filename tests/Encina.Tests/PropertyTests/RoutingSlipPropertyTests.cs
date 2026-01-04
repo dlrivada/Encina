@@ -1,4 +1,7 @@
 using Encina.Messaging.RoutingSlip;
+using Encina.Testing.FsCheck;
+using FsCheck;
+using FsCheck.Fluent;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -521,6 +524,76 @@ public sealed class RoutingSlipPropertyTests
     private sealed class TestData
     {
         public int Value { get; set; }
+    }
+
+    #endregion
+
+    #region FsCheck Property Tests
+
+    /// <summary>
+    /// Property: StepsExecuted always equals step count when all succeed.
+    /// Verified across random step counts.
+    /// </summary>
+    [EncinaProperty]
+    public Property StepsExecuted_EqualsStepCount_WhenAllSucceed()
+    {
+        return Prop.ForAll(
+            Arb.From(Gen.Choose(1, 15)),
+            async stepCount =>
+            {
+                var runner = new RoutingSlipRunner(_requestContext, _options, _logger);
+                var definition = BuildDefinitionWithSteps(stepCount);
+
+                var result = await runner.RunAsync(definition, new TestData());
+
+                return result.Match(
+                    Left: _ => false,
+                    Right: r => r.StepsExecuted == stepCount);
+            });
+    }
+
+    /// <summary>
+    /// Property: ActivityLog count equals StepsExecuted.
+    /// Verified across random step counts.
+    /// </summary>
+    [EncinaProperty]
+    public Property ActivityLog_CountEqualsStepsExecuted()
+    {
+        return Prop.ForAll(
+            Arb.From(Gen.Choose(1, 15)),
+            async stepCount =>
+            {
+                var runner = new RoutingSlipRunner(_requestContext, _options, _logger);
+                var definition = BuildDefinitionWithSteps(stepCount);
+
+                var result = await runner.RunAsync(definition, new TestData());
+
+                return result.Match(
+                    Left: _ => false,
+                    Right: r => r.ActivityLog.Count == r.StepsExecuted);
+            });
+    }
+
+    /// <summary>
+    /// Property: Duration is always positive for any step count.
+    /// Verified with random step counts.
+    /// </summary>
+    [EncinaProperty]
+    public Property Duration_AlwaysPositive_ForAnyStepCount()
+    {
+        return Prop.ForAll(
+            Arb.From(Gen.Choose(1, 10)),
+            async stepCount =>
+            {
+                var runner = new RoutingSlipRunner(_requestContext, _options, _logger);
+                var definition = BuildDefinitionWithSteps(stepCount);
+
+                var result = await runner.RunAsync(definition, new TestData());
+
+                return result.Match(
+                    Left: _ => false,
+                    Right: r => r.Duration > TimeSpan.Zero);
+            });
     }
 
     #endregion

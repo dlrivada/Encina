@@ -1,4 +1,7 @@
 using Encina.Messaging.ScatterGather;
+using Encina.Testing.FsCheck;
+using FsCheck;
+using FsCheck.Fluent;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -489,4 +492,92 @@ public sealed class ScatterGatherPropertyTests
 
     public sealed record TestRequest(string Query);
     public sealed record TestResponse(decimal Value);
+
+    #region FsCheck Property Tests
+
+    /// <summary>
+    /// Property: ScatterCount always equals handler count.
+    /// Uses FsCheck to verify across random handler counts.
+    /// </summary>
+    [EncinaProperty]
+    public Property ScatterCount_EqualsHandlerCount()
+    {
+        return Prop.ForAll(
+            Arb.From(Gen.Choose(1, 20)),
+            handlerCount =>
+            {
+                var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
+
+                for (var i = 0; i < handlerCount; i++)
+                {
+                    var index = i;
+                    builder.ScatterTo($"Handler{i}", req => Right<EncinaError, TestResponse>(new TestResponse(index)));
+                }
+
+                var definition = builder.GatherAll().TakeFirst().Build();
+                return definition.ScatterCount == handlerCount;
+            });
+    }
+
+    /// <summary>
+    /// Property: All handlers succeed ? SuccessCount equals ScatterCount.
+    /// Verified with random handler counts.
+    /// </summary>
+    [EncinaProperty]
+    public Property AllSuccess_SuccessCountEqualsScatterCount()
+    {
+        return Prop.ForAll(
+            Arb.From(Gen.Choose(1, 10)),
+            async handlerCount =>
+            {
+                var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
+
+                for (var i = 0; i < handlerCount; i++)
+                {
+                    var index = i;
+                    builder.ScatterTo($"Handler{i}", req => Right<EncinaError, TestResponse>(new TestResponse(index)));
+                }
+
+                var definition = builder.GatherAll()
+                    .AggregateSuccessful(results => Right<EncinaError, TestResponse>(new TestResponse(results.Count())))
+                    .Build();
+
+                var runner = CreateRunner();
+                var result = await runner.ExecuteAsync(definition, new TestRequest("test"));
+
+                return result.Match(
+                    Left: _ => false,
+                    Right: r => r.SuccessCount == handlerCount);
+            });
+    }
+
+    /// <summary>
+    /// Property: Default quorum is always (N/2) + 1.
+    /// Verified across random scatter counts.
+    /// </summary>
+    [EncinaProperty]
+    public Property DefaultQuorum_IsMajority()
+    {
+        return Prop.ForAll(
+            Arb.From(Gen.Choose(1, 50)),
+            scatterCount =>
+            {
+                var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
+
+                for (var i = 0; i < scatterCount; i++)
+                {
+                    var index = i;
+                    builder.ScatterTo($"Handler{i}", req => Right<EncinaError, TestResponse>(new TestResponse(index)));
+                }
+
+                var definition = builder.GatherWith(GatherStrategy.WaitForQuorum)
+                    .TakeFirst()
+                    .Build();
+
+                var expectedQuorum = (scatterCount / 2) + 1;
+                return definition.GetEffectiveQuorumCount() == expectedQuorum;
+            });
+    }
+
+    #endregion
 }

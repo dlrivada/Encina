@@ -216,8 +216,10 @@ public sealed class ContentRouterLoadTests
                         else
                         {
                             // Log error details for diagnostics when investigating failures
+                            // Using Trace.WriteLine instead of Debug.WriteLine to ensure
+                            // diagnostics are available in Release builds
                             result.IfLeft(error =>
-                                System.Diagnostics.Debug.WriteLine(
+                                Trace.WriteLine(
                                     $"Worker {workerId} error: {error.Message}"));
                             localError++;
                         }
