@@ -30,12 +30,15 @@ Encina.Testing.Examples/
 ├── Fixtures/                         # Fixture usage examples
 │   └── WireMockFixtureExamples.cs    # EncinaWireMockFixture patterns
 ├── TestData/                         # Test data generation examples
-│   └── BogusExamples.cs              # EncinaFaker patterns
+│   ├── BogusExamples.cs              # EncinaFaker patterns
+│   └── MessagingFakerExamples.cs     # FakeOutboxStore, OutboxTestHelper patterns
+├── PropertyBased/                    # Property-based testing examples
+│   └── PropertyTestExamples.cs       # FsCheck with EncinaProperty patterns
+├── ContractTests/                    # Consumer-driven contract testing
+│   └── PactConsumerExamples.cs       # EncinaPactConsumerBuilder patterns
 └── Architecture/                     # Architecture test examples
     └── ArchitectureRulesExamples.cs  # EncinaArchitectureRulesBuilder
 ```
-
-**Note:** Additional examples for PropertyBased testing, Pact contracts, and Messaging fakers will be added as the APIs are validated during migration.
 
 ## Running Examples
 
