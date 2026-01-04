@@ -20,6 +20,7 @@
 10. [Assertion Patterns](#10-assertion-patterns)
 11. [Migration Execution Process](#11-migration-execution-process)
 12. [Available Encina.Testing Packages](#12-available-encinatesting-packages)
+13. [Phase 2 Implementation Findings](#13-phase-2-implementation-findings)
 
 ---
 
@@ -2213,9 +2214,108 @@ Each phase issue should verify:
 
 ---
 
+## 13. Phase 2 Implementation Findings
+
+This section documents findings from the pilot migration phase (Phase 2 of Issue #498).
+
+### 13.1 Reference Project Created
+
+**Location**: `tests/Encina.Testing.Examples/`
+
+A reference implementation project was created as living documentation. This project:
+- Compiles and runs successfully
+- Contains executable examples for all major patterns
+- References ALL `Encina.Testing.*` packages
+
+**Structure**:
+```
+Encina.Testing.Examples/
+├── Domain/                           # Sample domain types
+├── Unit/                             # Unit test examples
+│   ├── HandlerTestExamples.cs        # EncinaTestFixture patterns
+│   ├── HandlerSpecificationExamples.cs # HandlerSpecification BDD
+│   └── EitherAssertionExamples.cs    # Shouldly Either extensions
+├── Integration/                      # ModuleTestFixture patterns
+├── Fixtures/                         # EncinaWireMockFixture examples
+├── TestData/                         # EncinaFaker examples
+└── Architecture/                     # EncinaArchitectureRulesBuilder
+```
+
+### 13.2 Pilot Migration Analysis
+
+**Files Analyzed**:
+1. `Encina.Tests/EncinaTests.cs` - Core mediator tests
+2. `Encina.Tests/Health/OutboxHealthCheckTests.cs` - Health check tests
+3. `Encina.Tests/PipelineBehaviorsTests.cs` - Pipeline behavior tests
+
+**Key Findings**:
+
+| Finding | Impact | Action Required |
+|---------|--------|-----------------|
+| Tests already use Shouldly | Low | Migration is mostly about adding `Encina.Testing.Shouldly` extensions |
+| Tests use NSubstitute for mocking | None | NSubstitute remains acceptable per plan guidelines |
+| Tests have custom `ExpectSuccess`/`ExpectFailure` helpers | Medium | Replace with `ShouldBeSuccess()`/`ShouldBeError()` from Encina.Testing.Shouldly |
+| Tests manually configure `ServiceCollection` | Medium | Consider using `EncinaTestFixture` for simpler tests |
+| FakeOutboxStore API differs from documented | High | API documentation in plan may need updates |
+
+### 13.3 API Discovery Issues
+
+During Phase 2, several API mismatches were discovered:
+
+1. **EncinaErrors Factory Methods**:
+   - Documented: `EncinaErrors.Validation()`, `EncinaErrors.NotFound()`
+   - Actual API: `EncinaErrors.Create(code, message)`
+   - **Action**: Update examples to use actual API
+
+2. **IOutboxMessageFactory.Create**:
+   - Expected: `Create(object notification)`
+   - Actual: `Create(Guid id, string notificationType, string content, DateTime createdAtUtc)`
+   - **Action**: Examples corrected in reference project
+
+3. **FakeOutboxStore**:
+   - Missing: `GetMessages<T>()`
+   - Available: `AddedMessages` property, `WasMessageAdded<T>()` method
+   - **Action**: Update example patterns to use available API
+
+### 13.4 Recommendations for Phase 3
+
+Based on Phase 2 findings:
+
+1. **Start with Health Check tests** - They are simple, use NSubstitute appropriately, and only need Shouldly extension imports
+
+2. **Migration Priority Adjustment**:
+   - Priority 1: Add `Encina.Testing.Shouldly` imports for Either extensions
+   - Priority 2: Replace custom `ExpectSuccess`/`ExpectFailure` helpers
+   - Priority 3: Replace manual `ServiceCollection` setup with `EncinaTestFixture` where beneficial
+   - Priority 4: Replace `new Faker<T>()` with `new EncinaFaker<T>()`
+
+3. **Document Current API Accurately**:
+   - Update before/after examples to reflect actual `EncinaErrors.Create()` syntax
+   - Update messaging faker examples with actual properties
+   - Add examples for the real `FakeOutboxStore` verification API
+
+### 13.5 APIs Validated as Working
+
+The following APIs were validated during Phase 2:
+
+| Package | API | Status |
+|---------|-----|--------|
+| Encina.Testing.Shouldly | `ShouldBeSuccess()`, `ShouldBeError()` | ✅ Working |
+| Encina.Testing.Shouldly | `ShouldBeValidationError()`, `ShouldBeNotFoundError()` | ✅ Working |
+| Encina.Testing.Shouldly | `ShouldBeErrorWithCode()`, `ShouldBeErrorContaining()` | ✅ Working |
+| Encina.Testing.Shouldly | `ShouldBeSuccessAsync()` | ✅ Working |
+| Encina.Testing.Bogus | `EncinaFaker<T>`, `RuleFor()`, `Generate()` | ✅ Working |
+| Encina.Testing.Bogus | `UseSeed()`, extension methods | ✅ Working |
+| Encina.Testing.Architecture | `EncinaArchitectureRulesBuilder`, `VerifyWithResult()` | ✅ Working |
+| Encina.Testing.WireMock | `EncinaWireMockFixture`, HTTP stubs | ✅ Working |
+| Encina.Testing.Handlers | `HandlerSpecification<,>`, BDD pattern | ✅ Working |
+
+---
+
 ## Version History
 
 | Date | Version | Changes |
 |------|---------|---------|
 | 2024-01-03 | 1.0 | Initial document |
 | 2024-01-04 | 2.0 | Complete rewrite per Issue #498 Phase 1 (Tasks 1-8) |
+| 2024-01-04 | 2.1 | Added Phase 2 findings and reference project documentation |
