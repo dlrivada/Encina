@@ -25,7 +25,7 @@ public sealed class SagaNotFoundDispatcherTests
         var result = await dispatcher.DispatchAsync(new TestMessage(), context);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class SagaNotFoundDispatcherTests
         var result = await dispatcher.DispatchAsync(message, context);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         handler.HandleCalled.ShouldBeTrue();
         handler.ReceivedMessage.ShouldBe(message);
         handler.ReceivedContext.ShouldBe(context);
@@ -110,14 +110,11 @@ public sealed class SagaNotFoundDispatcherTests
         var result = await dispatcher.DispatchAsync(new TestMessage(), context);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.GetCode().Match(
-                Some: code => code.ShouldBe(SagaErrorCodes.HandlerFailed),
-                None: () => Assert.Fail("Expected error code"));
-            error.Message.ShouldContain("failed");
-        });
+        var error = result.ShouldBeError();
+        error.GetCode().Match(
+            Some: code => code.ShouldBe(SagaErrorCodes.HandlerFailed),
+            None: () => Assert.Fail("Expected error code"));
+        error.Message.ShouldContain("failed");
     }
 
     [Fact]
@@ -136,14 +133,11 @@ public sealed class SagaNotFoundDispatcherTests
         var result = await dispatcher.DispatchAsync(new TestMessage(), context, cts.Token);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.GetCode().Match(
-                Some: code => code.ShouldBe(SagaErrorCodes.HandlerCancelled),
-                None: () => Assert.Fail("Expected error code"));
-            error.Message.ShouldContain("cancelled");
-        });
+        var error = result.ShouldBeError();
+        error.GetCode().Match(
+            Some: code => code.ShouldBe(SagaErrorCodes.HandlerCancelled),
+            None: () => Assert.Fail("Expected error code"));
+        error.Message.ShouldContain("cancelled");
     }
 
     [Fact]
@@ -185,7 +179,7 @@ public sealed class SagaNotFoundDispatcherTests
         var result = await dispatcher.DispatchAsync(new TestMessage(), context);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
         context.WasIgnored.ShouldBeTrue();
         context.Action.ShouldBe(SagaNotFoundAction.Ignored);
     }
