@@ -172,12 +172,21 @@ These packages **cannot use their own infrastructure**:
 **Purpose**: Test individual methods in isolation with mocked dependencies.
 
 **Primary Tools**:
-- `Encina.Testing` - `EncinaTestFixture`, `EncinaTestContext`
+- `Encina.Testing` - `EncinaTestFixture`, `EncinaTestContext`, `AggregateTestBase<T>`, `HandlerSpecification<TRequest, TResponse>`
 - `Encina.Testing.Shouldly` - `EitherShouldlyExtensions`
 - `Encina.Testing.Fakes` - `FakeEncina`, `FakeOutboxStore`, etc.
 - `Encina.Testing.Bogus` - `EncinaFaker<T>`
 
-**Pattern**:
+#### When to Use Base Classes vs Plain Test Classes
+
+| Base Class | Use When |
+|------------|----------|
+| `AggregateTestBase<TAggregate, TId>` | Testing event-sourced aggregates with Given/When/Then pattern |
+| `HandlerSpecification<TRequest, TResponse>` | Testing request handlers with BDD-style Given/When/Then |
+| Plain test class with `EncinaTestFixture` | General handler/service tests without BDD structure |
+
+#### Pattern 1: EncinaTestFixture (General Purpose)
+
 ```csharp
 [Fact]
 public async Task Handler_WithValidInput_ShouldReturnSuccess()
@@ -200,6 +209,77 @@ public async Task Handler_WithValidInput_ShouldReturnSuccess()
 }
 ```
 
+#### Pattern 2: AggregateTestBase (Event-Sourced Aggregates)
+
+```csharp
+public class OrderAggregateTests : AggregateTestBase<Order, OrderId>
+{
+    [Fact]
+    public void Submit_WhenOrderCreated_ShouldProduceOrderSubmittedEvent()
+    {
+        Given(
+            new OrderCreated(OrderId, CustomerId, Items),
+            new PaymentReceived(OrderId, Amount)
+        );
+
+        When(order => order.Submit());
+
+        Then<OrderSubmitted>(e =>
+        {
+            Assert.Equal(OrderId, e.OrderId);
+        });
+    }
+
+    [Fact]
+    public void Cancel_WhenAlreadyShipped_ShouldThrowException()
+    {
+        Given(new OrderShipped(OrderId));
+
+        When(order => order.Cancel());
+
+        ThenThrows<InvalidOperationException>();
+    }
+}
+```
+
+#### Pattern 3: HandlerSpecification (BDD-Style Handler Tests)
+
+```csharp
+public class CreateOrderHandlerSpecs : HandlerSpecification<CreateOrder, OrderId>
+{
+    private readonly Mock<IOrderRepository> _mockRepo = new();
+
+    protected override CreateOrder CreateRequest() => new()
+    {
+        CustomerId = "CUST-001",
+        Items = [new OrderItem("PROD-001", 1, 99.99m)]
+    };
+
+    protected override IRequestHandler<CreateOrder, OrderId> CreateHandler() =>
+        new CreateOrderHandler(_mockRepo.Object);
+
+    [Fact]
+    public async Task Should_create_order_with_valid_data()
+    {
+        Given(r => r.CustomerId = "PREMIUM-CUSTOMER");
+
+        await When();
+
+        ThenSuccess(orderId => Assert.NotEqual(Guid.Empty, orderId.Value));
+    }
+
+    [Fact]
+    public async Task Should_return_validation_error_for_empty_customer()
+    {
+        Given(r => r.CustomerId = "");
+
+        await When();
+
+        ThenValidationError("CustomerId");
+    }
+}
+```
+
 **Execution Time**: < 1ms per test
 
 ### 5.2 Integration Tests
@@ -207,14 +287,55 @@ public async Task Handler_WithValidInput_ShouldReturnSuccess()
 **Purpose**: Test against real infrastructure (databases, queues, etc.).
 
 **Primary Tools**:
+- `Encina.Testing` - `ModuleTestFixture<TModule>` for isolated module testing
 - `Encina.Aspire.Testing` - For Aspire-compatible resources
 - `Encina.Testing.Testcontainers` - For Docker-based fixtures
 - `Encina.Testing.Respawn` - Database cleanup between tests
+- `Encina.Testing.Fakes` - `FakeOutboxStore`, `FakeInboxStore`, `FakeSagaStore`
 
-**Pattern with Aspire**:
+#### Pattern 1: ModuleTestFixture for Isolated Module Testing
+
 ```csharp
-public class OrderIntegrationTests(AspireFixture fixture)
-    : IClassFixture<AspireFixture>
+public class OrderModuleTests : IAsyncLifetime
+{
+    private ModuleTestFixture<OrdersModule> _fixture = null!;
+
+    public async Task InitializeAsync()
+    {
+        _fixture = new ModuleTestFixture<OrdersModule>()
+            .WithMockedModule<IInventoryModuleApi>(mock =>
+                mock.ReserveStock = _ => Task.FromResult(
+                    Either<EncinaError, ReservationId>.Right(new ReservationId("res-123"))))
+            .WithMockedOutbox()
+            .WithFakeTimeProvider();
+
+        _fixture.Build();
+        await Task.CompletedTask;
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _fixture.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task PlaceOrder_ValidOrder_Succeeds()
+    {
+        // Act
+        var result = await _fixture.SendAsync(new PlaceOrderCommand(...));
+
+        // Assert
+        result.ShouldSucceed();
+        _fixture.IntegrationEvents.ShouldContain<OrderPlacedEvent>();
+        _fixture.Outbox.GetMessages().ShouldNotBeEmpty();
+    }
+}
+```
+
+#### Pattern 2: Aspire Integration Testing
+
+```csharp
+public class OrderIntegrationTests(AspireFixture fixture) : IClassFixture<AspireFixture>
 {
     [Fact]
     public async Task CreateOrder_ShouldPersistToDatabase()
@@ -232,14 +353,27 @@ public class OrderIntegrationTests(AspireFixture fixture)
 }
 ```
 
-**Pattern with Testcontainers**:
+#### Pattern 3: Testcontainers with Async Lifecycle
+
 ```csharp
-public class OrderIntegrationTests : SqlServerIntegrationTestBase
+public class OrderRepositoryTests : SqlServerIntegrationTestBase, IAsyncLifetime
 {
+    public async Task InitializeAsync()
+    {
+        await StartContainerAsync();
+        await RunMigrationsAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await StopContainerAsync();
+    }
+
     [Fact]
+    [Trait("Category", "Integration")]
     public async Task CreateOrder_ShouldPersistToDatabase()
     {
-        // Uses inherited connection from SqlServerIntegrationTestBase
+        // Uses inherited Connection from SqlServerIntegrationTestBase
         var store = new OrderStore(Connection);
 
         var order = new EncinaFaker<Order>().Generate();
@@ -258,9 +392,30 @@ public class OrderIntegrationTests : SqlServerIntegrationTestBase
 **Purpose**: Enforce architectural constraints via static analysis.
 
 **Primary Tools**:
-- `Encina.Testing.Architecture` - `EncinaArchitectureRulesBuilder`
+- `Encina.Testing.Architecture` - `EncinaArchitectureRulesBuilder`, `EncinaArchitectureTestBase`
 
-**Pattern**:
+#### Standard Rule Bundles
+
+Use `ApplyAllStandardRules()` to apply all pre-built DDD/CQRS rules at once:
+
+```csharp
+public class ArchitectureTests : EncinaArchitectureTestBase
+{
+    [Fact]
+    public void AllStandardArchitectureRules_ShouldPass()
+    {
+        var rules = EncinaArchitectureRulesBuilder
+            .ForAssembly(typeof(CreateOrderHandler).Assembly)
+            .ApplyAllStandardRules()  // Applies all standard DDD/CQRS rules
+            .Build();
+
+        rules.Check();
+    }
+}
+```
+
+#### Custom Rule Composition
+
 ```csharp
 public class ArchitectureTests : EncinaArchitectureTestBase
 {
@@ -285,54 +440,120 @@ public class ArchitectureTests : EncinaArchitectureTestBase
 
         rules.Check();
     }
+
+    [Fact]
+    public void SagaRules_OptIn()
+    {
+        // Saga rules are opt-in and not included in ApplyAllStandardRules
+        var rules = EncinaArchitectureRulesBuilder
+            .ForAssembly(typeof(OrderFulfillmentSaga).Assembly)
+            .ApplySagaRules()
+            .Build();
+
+        rules.Check();
+    }
 }
 ```
 
 ### 5.4 Contract Tests (Pact)
 
-**Purpose**: Verify consumer-provider contracts for APIs.
+**Purpose**: Verify consumer-provider contracts for APIs using Consumer-Driven Contract (CDC) testing.
 
 **Primary Tools**:
-- `Encina.Testing.Pact` - `EncinaPactConsumerBuilder`, `EncinaPactProviderVerifier`
+- `Encina.Testing.Pact` - `EncinaPactConsumerBuilder`, `EncinaPactProviderVerifier`, `EncinaPactFixture`
 
-**Consumer Test Pattern**:
+#### HTTP Conventions
+
+Encina uses standard HTTP conventions for message types:
+
+| Message Type | HTTP Endpoint | HTTP Method |
+|--------------|---------------|-------------|
+| Commands | `/api/commands/{TypeName}` | POST |
+| Queries | `/api/queries/{TypeName}` | POST |
+| Notifications | `/api/notifications/{TypeName}` | POST |
+
+#### Consumer Test Pattern
+
 ```csharp
 public class OrderServiceConsumerTests : IClassFixture<EncinaPactFixture>
 {
     private readonly EncinaPactFixture _fixture;
 
+    public OrderServiceConsumerTests(EncinaPactFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     [Fact]
     public async Task GetOrder_WhenOrderExists_ReturnsOrder()
     {
+        // Define consumer expectations
         var consumer = _fixture.CreateConsumer("OrderClient", "OrderService")
             .WithQueryExpectation(
-                new GetOrderQuery { OrderId = Guid.Parse("...") },
-                Either<EncinaError, OrderDto>.Right(new OrderDto { ... }));
+                new GetOrderQuery { OrderId = Guid.Parse("12345678-...") },
+                Either<EncinaError, OrderDto>.Right(new OrderDto { ... }))
+            .WithProviderState("an order with id 12345678-... exists");
 
-        await _fixture.VerifyAsync(consumer, async uri =>
+        // Verify consumer behavior against mock server
+        await consumer.VerifyAsync(async uri =>
         {
             using var client = uri.CreatePactHttpClient();
+
+            // POST /api/queries/GetOrderQuery
             var response = await client.SendQueryAsync<GetOrderQuery, OrderDto>(
-                new GetOrderQuery { OrderId = Guid.Parse("...") });
+                new GetOrderQuery { OrderId = Guid.Parse("12345678-...") });
 
             var result = await response.ReadAsEitherAsync<OrderDto>();
             result.ShouldBeSuccess();
         });
     }
+
+    [Fact]
+    public async Task GetOrder_WhenOrderNotFound_ReturnsError()
+    {
+        var consumer = _fixture.CreateConsumer("OrderClient", "OrderService")
+            .WithQueryExpectation(
+                new GetOrderQuery { OrderId = Guid.Parse("00000000-...") },
+                Either<EncinaError, OrderDto>.Left(EncinaErrors.NotFound("Order", "...")))
+            .WithProviderState("no orders exist");
+
+        await consumer.VerifyAsync(async uri =>
+        {
+            using var client = uri.CreatePactHttpClient();
+            var response = await client.SendQueryAsync<GetOrderQuery, OrderDto>(
+                new GetOrderQuery { OrderId = Guid.Parse("00000000-...") });
+
+            var result = await response.ReadAsEitherAsync<OrderDto>();
+            result.ShouldBeNotFoundError();
+        });
+    }
 }
 ```
 
-**Provider Verification Pattern**:
+#### Provider State Management
+
 ```csharp
 public class OrderServiceProviderTests : IClassFixture<EncinaPactFixture>
 {
+    private readonly EncinaPactFixture _fixture;
+    private readonly IOrderRepository _repository;
+
     [Fact]
     public async Task VerifyPactWithOrderClient()
     {
         var verifier = _fixture.CreateVerifier("OrderService")
-            .WithProviderState("an order exists", async () =>
+            // Register provider states with setup callbacks
+            .WithProviderState("an order with id 12345678-... exists", async () =>
             {
-                await SeedTestOrder();
+                await _repository.AddAsync(new Order
+                {
+                    Id = Guid.Parse("12345678-..."),
+                    CustomerId = "CUST-001"
+                });
+            })
+            .WithProviderState("no orders exist", async () =>
+            {
+                await _repository.ClearAsync();
             });
 
         var result = await verifier.VerifyAsync("pacts/OrderClient-OrderService.json");
@@ -341,58 +562,158 @@ public class OrderServiceProviderTests : IClassFixture<EncinaPactFixture>
 }
 ```
 
+#### Either Result Mapping to Pact Responses
+
+Encina automatically maps `Either<EncinaError, T>` to Pact responses:
+
+| Either Result | HTTP Status | Response Body |
+|---------------|-------------|---------------|
+| `Right(value)` | 200 OK | Serialized value |
+| `Left(ValidationError)` | 400 Bad Request | `PactErrorResponse` |
+| `Left(NotFoundError)` | 404 Not Found | `PactErrorResponse` |
+| `Left(AuthorizationError)` | 403 Forbidden | `PactErrorResponse` |
+| `Left(OtherError)` | 500 Internal Server Error | `PactErrorResponse` |
+
 ### 5.5 Property-Based Tests
 
 **Purpose**: Test invariants with randomly generated inputs.
 
 **Primary Tools**:
-- `Encina.Testing.FsCheck` - `EncinaProperties`, `EncinaArbitraries`
-- `Encina.Testing.Bogus` - For simpler random generation
+- `Encina.Testing.FsCheck` - `PropertyTestBase`, `EncinaArbitraryProvider`, `EncinaArbitraries`, `EncinaProperties`, `GenExtensions`
 
-**Pattern with FsCheck**:
+#### Custom Attributes for Test Configuration
+
+| Attribute | Max Tests | Use Case |
+|-----------|-----------|----------|
+| `[EncinaProperty]` | 100 | Default property tests |
+| `[QuickProperty]` | 20 | Fast development feedback |
+| `[ThoroughProperty]` | 1000 | Comprehensive testing before release |
+
+#### Pattern 1: Using PropertyTestBase with EncinaArbitraryProvider
+
 ```csharp
-public class MoneyPropertyTests : PropertyTestBase
+public class EitherPropertyTests : PropertyTestBase
 {
-    [Property]
-    public Property Money_Addition_IsCommutative()
+    // EncinaArbitraryProvider auto-registers arbitraries for:
+    // - EncinaError, Either<EncinaError, T>, OutboxMessage, InboxMessage, etc.
+
+    [EncinaProperty]  // 100 tests with Encina arbitraries
+    public Property Either_IsExclusive(Either<EncinaError, int> either)
     {
-        return EncinaProperties.ForAll(
-            EncinaArbitraries.Money(),
-            EncinaArbitraries.Money(),
-            (a, b) => a + b == b + a);
+        return EncinaProperties.EitherIsExclusive(either);
     }
 
-    [Property]
-    public Property Money_FromPositiveAmount_NeverFails()
+    [QuickProperty]  // 20 tests for fast feedback
+    public Property Error_HasNonEmptyMessage(EncinaError error)
     {
-        return Prop.ForAll(
-            Gen.Choose(1, 1_000_000).ToArbitrary(),
-            amount =>
-            {
-                var result = Money.From(amount, Currency.USD);
-                return result.IsRight;
-            });
+        return EncinaProperties.ErrorHasNonEmptyMessage(error);
+    }
+
+    [ThoroughProperty]  // 1000 tests for thorough validation
+    public Property Handler_IsDeterministic()
+    {
+        return EncinaProperties.HandlerIsDeterministic<CreateOrderHandler, CreateOrder, OrderId>(
+            () => new CreateOrderHandler(),
+            () => new CreateOrder { CustomerId = "CUST-001" });
     }
 }
 ```
 
-**Pattern with Bogus for simpler cases**:
+#### EncinaArbitraries - Pre-built Generators
+
 ```csharp
-[Theory]
-[MemberData(nameof(RandomOrders))]
-public async Task CreateOrder_WithAnyValidOrder_ShouldSucceed(CreateOrderCommand command)
+// Built-in arbitraries for Encina types
+EncinaArbitraries.EncinaError()           // Generates random EncinaError
+EncinaArbitraries.Either<T>(arbT)         // Generates Either<EncinaError, T>
+EncinaArbitraries.OutboxMessage()         // Generates OutboxMessage
+EncinaArbitraries.InboxMessage()          // Generates InboxMessage
+EncinaArbitraries.SagaState()             // Generates SagaState
+EncinaArbitraries.ScheduledMessage()      // Generates ScheduledMessage
+```
+
+#### EncinaProperties - Reusable Validators
+
+```csharp
+// Pre-built property validators
+EncinaProperties.EitherIsExclusive(either)     // Either is Left XOR Right, never both
+EncinaProperties.ErrorHasNonEmptyMessage(err)  // Error messages are never empty
+EncinaProperties.HandlerIsDeterministic(...)   // Same input = same output
+```
+
+#### GenExtensions - Fluent Generator Composition
+
+```csharp
+public class CustomPropertyTests : PropertyTestBase
 {
-    var result = await _fixture.SendAsync(command);
-    result.Result.ShouldBeSuccess();
+    [EncinaProperty]
+    public Property OrderAmount_AlwaysPositive()
+    {
+        // ToSuccess<T>() - Always generates Right values
+        var orderGen = Gen.Choose(1, 10000)
+            .Select(amount => new Order { Amount = amount })
+            .ToSuccess<Order>();
+
+        return Prop.ForAll(orderGen.ToArbitrary(), result =>
+        {
+            var order = result.Match(Right: o => o, Left: _ => null!);
+            return order.Amount > 0;
+        });
+    }
+
+    [EncinaProperty]
+    public Property ValidationErrors_AreAlwaysLeft()
+    {
+        // ToFailure<T>() - Always generates Left values
+        var errorGen = EncinaArbitraries.EncinaError().Generator
+            .ToFailure<Order>();
+
+        return Prop.ForAll(errorGen.ToArbitrary(), result =>
+        {
+            return result.IsLeft;
+        });
+    }
+
+    [EncinaProperty]
+    public Property Either_MixedGeneration()
+    {
+        // ToEither<T>() - Generates both Left and Right values randomly
+        var eitherGen = Gen.Choose(1, 100).ToEither<int>();
+
+        return Prop.ForAll(eitherGen.ToArbitrary(), result =>
+        {
+            return result.IsLeft || result.IsRight;  // Always true
+        });
+    }
+}
+```
+
+#### Creating Custom Domain Arbitraries
+
+```csharp
+public static class DomainArbitraries
+{
+    public static Arbitrary<OrderId> OrderId()
+    {
+        return Gen.Select(ArbMap.Default.GeneratorFor<Guid>(),
+            guid => new OrderId(guid)).ToArbitrary();
+    }
+
+    public static Arbitrary<Money> Money()
+    {
+        return Gen.Select2(
+            Gen.Choose(1, 1000000),
+            Gen.Elements("USD", "EUR", "GBP"),
+            (cents, currency) => Domain.Money.From(cents / 100m, currency)
+                .Match(Right: m => m, Left: _ => throw new Exception()))
+            .ToArbitrary();
+    }
 }
 
-public static IEnumerable<object[]> RandomOrders()
+// Register in tests
+[EncinaProperty(Arbitrary = new[] { typeof(DomainArbitraries) })]
+public Property Money_AdditionIsCommutative(Money a, Money b)
 {
-    var faker = new EncinaFaker<CreateOrderCommand>()
-        .RuleFor(x => x.CustomerId, f => f.Random.UserId())
-        .RuleFor(x => x.Amount, f => f.Finance.Amount(1, 10000));
-
-    return faker.Generate(10).Select(x => new object[] { x });
+    return (a + b == b + a).ToProperty();
 }
 ```
 
@@ -437,59 +758,111 @@ public class SerializationTests
 
 This matrix shows which Encina.Testing.* package replaces each external testing dependency.
 
+> **Important**: xUnit attributes (`[Fact]`, `[Theory]`, etc.) and NSubstitute for general mocking remain acceptable. Only replace dependencies where Encina.Testing.* provides domain-specific value.
+
 ### 6.1 Assertion Libraries
 
-| Before | After | Notes |
-|--------|-------|-------|
-| `FluentAssertions` | `Encina.Testing.Shouldly` | Use `ShouldBeSuccess()`, `ShouldBeError()` |
-| `Assert.True(result.IsRight)` | `result.ShouldBeSuccess()` | Domain-specific assertions |
-| `Assert.Equal(expected, actual)` | `actual.ShouldBe(expected)` | Shouldly syntax |
-| `result.Should().BeRight()` | `result.ShouldBeSuccess()` | Railway-oriented |
+| Before (Direct Dependency) | After (Encina.Testing.*) | Notes |
+|----------------------------|--------------------------|-------|
+| `Shouldly` (raw) | `Encina.Testing.Shouldly` | Adds Either-specific extensions: `ShouldBeSuccess()`, `ShouldBeError()`, `ShouldBeValidationError()` |
+| `FluentAssertions` | `Encina.Testing.Shouldly` | Migrate to Shouldly-based assertions |
+| `Assert.True(result.IsRight)` | `result.ShouldBeSuccess()` | Domain-specific, better error messages |
+| `Assert.Equal(expected, actual)` | `actual.ShouldBe(expected)` | Standard Shouldly syntax |
+| Aggregate event assertions | `ShouldHaveRaisedEvent<T>()`, `ShouldHaveVersion()` | From `Encina.Testing.Shouldly` |
+| Streaming assertions | Memory-efficient first-item checks | From `Encina.Testing.Shouldly` |
 
 ### 6.2 Test Data Generation
 
-| Before | After | Notes |
-|--------|-------|-------|
-| `AutoFixture` | `Encina.Testing.Bogus` | Use `EncinaFaker<T>` |
-| `new Fixture().Create<T>()` | `new EncinaFaker<T>().Generate()` | Explicit rules preferred |
-| Manual object instantiation | `EncinaFaker<T>` with rules | Reproducible with seed |
-| `Builder<T>` pattern | `EncinaFaker<T>.RuleFor()` | Fluent configuration |
+| Before (Direct Dependency) | After (Encina.Testing.*) | Notes |
+|----------------------------|--------------------------|-------|
+| `Bogus` (raw) | `Encina.Testing.Bogus` | `EncinaFaker<T>` base class with reproducible seeding (seed: 12345) |
+| `AutoFixture` | `Encina.Testing.Bogus` | Use `EncinaFaker<T>` with explicit rules |
+| `new Fixture().Create<T>()` | `new EncinaFaker<T>().Generate()` | Explicit rules preferred over auto-generation |
+| Manual object instantiation | `EncinaFaker<T>` with `RuleFor()` | Reproducible, self-documenting |
+| Domain type generators | Extension methods: `EntityId<TId>()`, `StronglyTypedIdValue<T>()`, `QuantityValue()`, `PercentageValue()` | From `Encina.Testing.Bogus` |
+| Metadata generators | `CorrelationId()`, `UserId()`, `TenantId()`, `IdempotencyKey()` | From `Encina.Testing.Bogus` |
+| Messaging entity builders | `InboxMessageFaker.AsProcessed()`, `OutboxMessageFaker.AsFailed()` | Builder pattern for states |
 
 ### 6.3 Mocking and Fakes
 
-| Before | After | Notes |
-|--------|-------|-------|
-| `new Mock<IOutboxStore>()` | `new FakeOutboxStore()` | Behavioral fake with verification |
+| Before (Direct Dependency) | After (Encina.Testing.*) | Notes |
+|----------------------------|--------------------------|-------|
+| `NSubstitute` for `IOutboxStore` | `FakeOutboxStore` | Behavioral fake with verification methods |
+| `NSubstitute` for `IInboxStore` | `FakeInboxStore` | Behavioral fake with verification methods |
+| `NSubstitute` for `ISagaStore` | `FakeSagaStore` | Behavioral fake with verification methods |
+| `NSubstitute` for `IScheduledMessageStore` | `FakeScheduledMessageStore` | Behavioral fake with verification methods |
 | `Mock<IEncina>()` | `FakeEncina` | Full in-memory implementation |
 | Manual mock setup | `EncinaTestFixture.WithMockedOutbox()` | Fluent configuration |
-| Custom test doubles | `Encina.Testing.Fakes` | Pre-built fakes for messaging |
+| **`NSubstitute` for other interfaces** | **Keep `NSubstitute`** | ✅ Acceptable for non-messaging mocks |
 
 ### 6.4 Infrastructure Fixtures
 
-| Before | After | Notes |
-|--------|-------|-------|
-| `Testcontainers.MsSql` | `SqlServerContainerFixture` | Wrapped with Encina conventions |
-| `Testcontainers.PostgreSql` | `PostgreSqlContainerFixture` | Wrapped with Encina conventions |
+| Before (Direct Dependency) | After (Encina.Testing.*) | Notes |
+|----------------------------|--------------------------|-------|
+| `Testcontainers.MsSql` | `Encina.Testing.Testcontainers` → `SqlServerContainerFixture` | Wrapped with Encina conventions |
+| `Testcontainers.PostgreSql` | `Encina.Testing.Testcontainers` → `PostgreSqlContainerFixture` | Wrapped with Encina conventions |
+| `Testcontainers.MySql` | `Encina.Testing.Testcontainers` → `MySqlContainerFixture` | Wrapped with Encina conventions |
 | Manual Docker setup | `EncinaContainers` factory | Standardized container creation |
-| Aspire `DistributedApplicationTestingBuilder` | `Encina.Aspire.Testing` | When using Aspire |
+| Aspire `DistributedApplicationTestingBuilder` | `Encina.Aspire.Testing` | When using Aspire (pending #509 investigation) |
 
-### 6.5 Test Framework Extensions
+### 6.5 Test Framework and Attributes
 
 | Before | After | Notes |
 |--------|-------|-------|
-| xUnit raw assertions | `Encina.Testing.Shouldly` | Enhanced error messages |
+| **xUnit `[Fact]`, `[Theory]`** | **Keep xUnit attributes** | ✅ Encina.Testing is an abstraction layer ON TOP of xUnit |
+| xUnit raw `Assert.*` | `Encina.Testing.Shouldly` | Enhanced error messages, domain-specific |
 | TUnit with custom assertions | `Encina.Testing.TUnit` | TUnit-specific extensions |
-| Verify with custom converters | `Encina.Testing.Verify` | Pre-configured for Encina types |
 
-### 6.6 Specialized Testing
+### 6.6 Snapshot Testing
 
-| Before | After | Notes |
-|--------|-------|-------|
-| WireMock manual setup | `EncinaWireMockFixture` | HTTP mocking |
-| Respawn manual config | `DatabaseRespawner` | Database cleanup |
-| ArchUnitNET manual rules | `EncinaArchitectureRulesBuilder` | Architecture testing |
-| PactNet raw usage | `EncinaPactConsumerBuilder` | Contract testing |
-| FsCheck raw arbitraries | `EncinaArbitraries` | Property testing |
+| Before (Direct Dependency) | After (Encina.Testing.*) | Notes |
+|----------------------------|--------------------------|-------|
+| `Verify` (raw) | `Encina.Testing.Verify` | `EncinaVerifySettings` pre-configured for Encina types |
+| Custom Verify converters | `EncinaVerify.PrepareEither()` | Automatic scrubbing for dynamic values |
+| Aggregate snapshot | `EncinaVerify.PrepareAggregate()` | Pre-configured for aggregate events |
+| Outbox snapshot | `EncinaVerify.PrepareOutboxMessages()` | Pre-configured for messaging |
+
+### 6.7 Database Cleanup
+
+| Before (Direct Dependency) | After (Encina.Testing.*) | Notes |
+|----------------------------|--------------------------|-------|
+| `Respawn` (raw) | `Encina.Testing.Respawn` | `DatabaseRespawner` with Encina-aware configuration |
+| Manual cleanup scripts | `DatabaseRespawner.ResetAsync()` | Standardized `InitializeAsync`/`ResetAsync` pattern |
+
+### 6.8 Architecture Testing
+
+| Before (Direct Dependency) | After (Encina.Testing.*) | Notes |
+|----------------------------|--------------------------|-------|
+| `ArchUnitNET` (raw) | `Encina.Testing.Architecture` | `EncinaArchitectureRulesBuilder` fluent API |
+| Manual rule definitions | `ApplyAllStandardRules()` | Pre-built DDD/CQRS rule bundles |
+| Custom architecture rules | `EncinaArchitectureRulesBuilder` composition | Fluent rule building |
+
+### 6.9 Property-Based Testing
+
+| Before (Direct Dependency) | After (Encina.Testing.*) | Notes |
+|----------------------------|--------------------------|-------|
+| `FsCheck` (raw) with manual `Arb.Register` | `Encina.Testing.FsCheck` | `EncinaArbitraryProvider` auto-registers arbitraries |
+| `[Property]` attribute | `[EncinaProperty]` (100 tests), `[QuickProperty]` (20), `[ThoroughProperty]` (1000) | Custom attributes with sensible defaults |
+| Manual arbitrary creation | `EncinaArbitraries.EncinaError()`, `.Either<T>()`, `.OutboxMessage()`, etc. | Pre-built arbitraries for Encina types |
+| Custom property validators | `EncinaProperties.EitherIsExclusive()`, `.ErrorHasNonEmptyMessage()`, `.HandlerIsDeterministic()` | Reusable property validators |
+| Generator composition | `GenExtensions.ToEither<T>()`, `.ToSuccess<T>()`, `.ToFailure<T>()` | Fluent generator composition |
+
+### 6.10 Contract Testing (Pact)
+
+| Before (Direct Dependency) | After (Encina.Testing.*) | Notes |
+|----------------------------|--------------------------|-------|
+| `PactNet` with manual mock server setup | `Encina.Testing.Pact` → `EncinaPactConsumerBuilder` | Fluent API for consumer expectations |
+| Manual provider verification | `EncinaPactProviderVerifier` | Handler invocation via reflection |
+| Manual xUnit lifecycle | `EncinaPactFixture` | `IAsyncLifetime` integration |
+| HTTP response mapping | `PactExtensions.ReadAsEitherAsync<T>()` | Automatic Either conversion |
+| Provider state setup | `.WithProviderState(name, callback)` | Structured state management |
+
+### 6.11 HTTP Mocking
+
+| Before (Direct Dependency) | After (Encina.Testing.*) | Notes |
+|----------------------------|--------------------------|-------|
+| `WireMock.Net` manual setup | `Encina.Testing.WireMock` → `EncinaWireMockFixture` | HTTP mocking with `IAsyncLifetime` |
+| Refit client mocking | `EncinaRefitMockFixture` | Automatic Refit client configuration |
 
 ---
 
@@ -722,184 +1095,360 @@ public class OrderRepositoryTests : SqlServerIntegrationTestBase
 
 ---
 
-### Example 5: Error Handling Test
+### Example 5: Snapshot Testing with Verify
 
-**BEFORE** (Manual error extraction):
+**BEFORE** (Raw Verify with custom converters):
 ```csharp
 [Fact]
-public async Task CreateOrder_WithInvalidCustomer_ReturnsValidationError()
+public async Task OrderCreatedEvent_SerializesCorrectly()
 {
-    // ... setup ...
-
-    var result = await encina.Send(new CreateOrderCommand { CustomerId = "" });
-
-    Assert.True(result.IsLeft);
-    var error = result.Match(Right: _ => null!, Left: e => e);
-    Assert.NotNull(error);
-    Assert.StartsWith("encina.validation", error.GetCode().IfNone(""));
-    Assert.Contains("CustomerId", error.Message);
-}
-```
-
-**AFTER** (Using ShouldBeValidationError):
-```csharp
-[Fact]
-public async Task CreateOrder_WithInvalidCustomer_ReturnsValidationError()
-{
-    // Arrange
-    var fixture = new EncinaTestFixture()
-        .WithHandler<CreateOrderHandler>()
-        .WithValidator<CreateOrderValidator>();
-
-    // Act
-    var context = await fixture.SendAsync(new CreateOrderCommand { CustomerId = "" });
-
-    // Assert
-    context.Result
-        .ShouldBeValidationError()
-        .Message.ShouldContain("CustomerId");
-}
-```
-
----
-
-### Example 6: Saga Orchestration Test
-
-**BEFORE** (Manual saga tracking):
-```csharp
-[Fact]
-public async Task OrderFulfillmentSaga_CompletesAllSteps()
-{
-    var sagaStore = new InMemorySagaStore();
-    // ... complex setup ...
-
-    await encina.Send(new StartOrderFulfillmentCommand { OrderId = orderId });
-
-    var saga = sagaStore.GetByCorrelationId(orderId);
-    Assert.NotNull(saga);
-    Assert.Equal("Completed", saga.Status);
-    Assert.Equal(3, saga.CompletedSteps.Count);
-}
-```
-
-**AFTER** (Using EncinaTestFixture with FakeSagaStore):
-```csharp
-[Fact]
-public async Task OrderFulfillmentSaga_CompletesAllSteps()
-{
-    // Arrange
-    var fixture = new EncinaTestFixture()
-        .WithHandler<OrderFulfillmentSagaHandler>()
-        .WithMockedSaga()
-        .WithMockedOutbox();
-
-    var orderId = Guid.NewGuid();
-
-    // Act
-    await fixture.SendAsync(new StartOrderFulfillmentCommand { OrderId = orderId });
-
-    // Assert
-    var saga = fixture.SagaStore.GetByCorrelationId(orderId);
-    saga.ShouldNotBeNull();
-    saga.Status.ShouldBe("Completed");
-    saga.CompletedSteps.Count.ShouldBe(3);
-}
-```
-
----
-
-### Example 7: HTTP API Mock Test
-
-**BEFORE** (Manual WireMock setup):
-```csharp
-[Fact]
-public async Task PaymentGateway_ReturnsSuccess()
-{
-    using var server = WireMockServer.Start();
-    server.Given(Request.Create().WithPath("/payments").UsingPost())
-          .RespondWith(Response.Create()
-              .WithStatusCode(200)
-              .WithBody("{\"transactionId\":\"TXN-001\",\"status\":\"approved\"}"));
-
-    var client = new PaymentGatewayClient(new HttpClient { BaseAddress = new Uri(server.Url!) });
-
-    var result = await client.ProcessPaymentAsync(new PaymentRequest { Amount = 100 });
-
-    Assert.True(result.IsRight);
-}
-```
-
-**AFTER** (Using EncinaWireMockFixture):
-```csharp
-public class PaymentGatewayTests : IClassFixture<EncinaWireMockFixture>
-{
-    private readonly EncinaWireMockFixture _wireMock;
-
-    [Fact]
-    public async Task PaymentGateway_ReturnsSuccess()
+    var @event = new OrderCreatedEvent
     {
-        // Arrange
-        _wireMock.SetupPostEndpoint("/payments", new
-        {
-            transactionId = "TXN-001",
-            status = "approved"
-        });
+        OrderId = Guid.Parse("12345678-1234-1234-1234-123456789012"),
+        CustomerId = "CUST-001",
+        Amount = 150.00m,
+        CreatedAtUtc = DateTime.UtcNow  // Dynamic value!
+    };
 
-        var client = new PaymentGatewayClient(_wireMock.CreateClient());
+    // Manual scrubbing configuration
+    var settings = new VerifySettings();
+    settings.ScrubMembers("CreatedAtUtc");
+    settings.AddExtraSettings(s =>
+    {
+        s.Converters.Add(new EncinaErrorConverter());
+        s.Converters.Add(new EitherConverter());
+    });
 
-        // Act
-        var result = await client.ProcessPaymentAsync(
-            new EncinaFaker<PaymentRequest>()
-                .RuleFor(x => x.Amount, f => f.Finance.Amount())
-                .Generate());
+    await Verify(@event, settings);
+}
 
-        // Assert
-        result.ShouldBeSuccess();
-    }
+// Custom converters needed for each Encina type...
+public class EncinaErrorConverter : WriteOnlyJsonConverter<EncinaError> { ... }
+public class EitherConverter : WriteOnlyJsonConverter { ... }
+```
+
+**AFTER** (Using EncinaVerify with pre-configured settings):
+```csharp
+[Fact]
+public async Task OrderCreatedEvent_SerializesCorrectly()
+{
+    var @event = new OrderCreatedEvent
+    {
+        OrderId = Guid.Parse("12345678-1234-1234-1234-123456789012"),
+        CustomerId = "CUST-001",
+        Amount = 150.00m,
+        CreatedAtUtc = DateTime.UtcNow
+    };
+
+    // Automatic scrubbing and Encina type converters
+    await EncinaVerify.VerifyJson(@event);
+}
+
+[Fact]
+public async Task Handler_ResultSnapshot()
+{
+    var fixture = new EncinaTestFixture().WithHandler<CreateOrderHandler>();
+    var result = await fixture.SendAsync(new CreateOrderCommand { ... });
+
+    // PrepareEither automatically handles Left/Right serialization
+    await EncinaVerify.PrepareEither(result.Result);
+}
+
+[Fact]
+public async Task Aggregate_EventsSnapshot()
+{
+    var order = new Order();
+    order.Create(orderId, customerId);
+    order.AddItem(productId, quantity);
+
+    // PrepareAggregate includes uncommitted events with scrubbing
+    await EncinaVerify.PrepareAggregate(order);
 }
 ```
 
 ---
 
-### Example 8: Architecture Constraint Test
+### Example 6: Architecture Rule Testing
 
-**BEFORE** (Manual reflection checks):
+**BEFORE** (Raw ArchUnitNET with manual rule definition):
 ```csharp
 [Fact]
-public void Handlers_ShouldNotReferenceDataAccessDirectly()
+public void Handlers_ShouldNotDependOnInfrastructure()
 {
-    var handlerAssembly = typeof(CreateOrderHandler).Assembly;
-    var handlerTypes = handlerAssembly.GetTypes()
-        .Where(t => t.Name.EndsWith("Handler"));
+    var architecture = new ArchLoader()
+        .LoadAssemblies(typeof(CreateOrderHandler).Assembly)
+        .Build();
 
-    foreach (var handler in handlerTypes)
-    {
-        var fields = handler.GetFields(BindingFlags.NonPublic | BindingFlags.Instance);
-        foreach (var field in fields)
-        {
-            Assert.False(
-                field.FieldType.Namespace?.StartsWith("System.Data") ?? false,
-                $"Handler {handler.Name} should not depend on System.Data");
-        }
-    }
+    var handlerRule = Types()
+        .That()
+        .ResideInNamespace("*.Handlers")
+        .And()
+        .HaveNameEndingWith("Handler")
+        .Should()
+        .NotDependOnAny(Types().That().ResideInNamespace("*.Infrastructure"))
+        .Because("Handlers should not depend on infrastructure");
+
+    handlerRule.Check(architecture);
 }
+
+[Fact]
+public void Commands_ShouldBeSealed()
+{
+    var architecture = new ArchLoader()
+        .LoadAssemblies(typeof(CreateOrderCommand).Assembly)
+        .Build();
+
+    var commandRule = Types()
+        .That()
+        .ImplementInterface(typeof(ICommand<>))
+        .Should()
+        .BeSealed()
+        .Because("Commands should be immutable");
+
+    commandRule.Check(architecture);
+}
+// ... many more boilerplate rules
 ```
 
-**AFTER** (Using EncinaArchitectureRulesBuilder):
+**AFTER** (Using EncinaArchitectureRulesBuilder with pre-built bundles):
 ```csharp
 public class ArchitectureTests : EncinaArchitectureTestBase
 {
     [Fact]
-    public void Handlers_ShouldNotReferenceDataAccessDirectly()
+    public void AllStandardRules_ShouldPass()
+    {
+        // ApplyAllStandardRules includes:
+        // - Handlers cannot depend on Infrastructure
+        // - Commands/Queries must be sealed
+        // - Domain cannot depend on Application/Infrastructure
+        // - And more...
+        var rules = EncinaArchitectureRulesBuilder
+            .ForAssembly(typeof(CreateOrderHandler).Assembly)
+            .ApplyAllStandardRules()
+            .Build();
+
+        rules.Check();
+    }
+
+    [Fact]
+    public void CustomRule_HandlersCannotUseEntityFramework()
     {
         var rules = EncinaArchitectureRulesBuilder
             .ForAssembly(typeof(CreateOrderHandler).Assembly)
             .TypesMatching(".*Handler")
-            .ShouldNotDependOn("System.Data")
             .ShouldNotDependOn("Microsoft.EntityFrameworkCore")
+            .ShouldNotDependOn("System.Data")
             .Build();
 
         rules.Check();
+    }
+}
+```
+
+---
+
+### Example 7: Property-Based Testing with FsCheck
+
+**BEFORE** (Raw FsCheck with manual Arb.Register):
+```csharp
+public class EitherPropertyTests
+{
+    static EitherPropertyTests()
+    {
+        // Manual arbitrary registration required
+        Arb.Register<EncinaErrorArbitrary>();
+        Arb.Register<EitherArbitrary>();
+    }
+
+    [Property]
+    public Property Either_IsExclusive()
+    {
+        return Prop.ForAll(
+            Arb.From<Either<EncinaError, int>>(),
+            either => (either.IsLeft && !either.IsRight) || (!either.IsLeft && either.IsRight));
+    }
+
+    [Property(MaxTest = 1000)]  // Manual configuration
+    public Property Error_HasNonEmptyMessage()
+    {
+        return Prop.ForAll(
+            Arb.From<EncinaError>(),
+            error => !string.IsNullOrEmpty(error.Message));
+    }
+}
+
+// Manual arbitrary classes needed
+public class EncinaErrorArbitrary : Arbitrary<EncinaError>
+{
+    public override Gen<EncinaError> Generator =>
+        from code in Gen.Elements("encina.validation", "encina.notfound")
+        from message in Arb.Generate<NonEmptyString>()
+        select EncinaErrors.Create(code, message.Get);
+}
+```
+
+**AFTER** (Using PropertyTestBase with EncinaArbitraryProvider):
+```csharp
+public class EitherPropertyTests : PropertyTestBase
+{
+    // EncinaArbitraryProvider auto-registers all Encina arbitraries
+
+    [EncinaProperty]  // 100 tests, Encina arbitraries auto-included
+    public Property Either_IsExclusive(Either<EncinaError, int> either)
+    {
+        // Use pre-built property validator
+        return EncinaProperties.EitherIsExclusive(either);
+    }
+
+    [ThoroughProperty]  // 1000 tests for comprehensive validation
+    public Property Error_HasNonEmptyMessage(EncinaError error)
+    {
+        return EncinaProperties.ErrorHasNonEmptyMessage(error);
+    }
+
+    [EncinaProperty]
+    public Property Handler_IsDeterministic()
+    {
+        return EncinaProperties.HandlerIsDeterministic<CreateOrderHandler, CreateOrder, OrderId>(
+            () => new CreateOrderHandler(),
+            () => new CreateOrder { CustomerId = "CUST-001" });
+    }
+
+    [QuickProperty]  // 20 tests for fast feedback
+    public Property CustomProperty_OrderAmountIsPositive()
+    {
+        // Use GenExtensions for fluent generator composition
+        var orderGen = Gen.Choose(1, 10000)
+            .Select(amount => new Order { Amount = amount })
+            .ToSuccess<Order>();
+
+        return Prop.ForAll(orderGen.ToArbitrary(), result =>
+        {
+            var order = result.Match(Right: o => o, Left: _ => null!);
+            return order.Amount > 0;
+        });
+    }
+}
+```
+
+---
+
+### Example 8: Contract Testing with Pact
+
+**BEFORE** (Raw PactNet with manual mock server setup):
+```csharp
+public class OrderServiceConsumerTests : IAsyncLifetime
+{
+    private IPactBuilderV4? _pactBuilder;
+    private int _mockServerPort;
+
+    public async Task InitializeAsync()
+    {
+        var config = new PactConfig
+        {
+            PactDir = Path.Combine("..", "..", "..", "pacts"),
+            LogLevel = PactLogLevel.Information
+        };
+
+        _pactBuilder = Pact.V4("OrderClient", "OrderService", config).WithHttpInteractions();
+        _mockServerPort = 9222;
+    }
+
+    [Fact]
+    public async Task GetOrder_WhenOrderExists_ReturnsOrder()
+    {
+        // Manual interaction setup
+        _pactBuilder!
+            .UponReceiving("a request for an existing order")
+            .Given("an order with id 12345678 exists")
+            .WithRequest(HttpMethod.Post, "/api/queries/GetOrderQuery")
+            .WithHeader("Content-Type", "application/json")
+            .WithJsonBody(new { OrderId = "12345678-1234-1234-1234-123456789012" })
+            .WillRespond()
+            .WithStatus(HttpStatusCode.OK)
+            .WithHeader("Content-Type", "application/json")
+            .WithJsonBody(new
+            {
+                Id = "12345678-1234-1234-1234-123456789012",
+                CustomerId = "CUST-001",
+                Amount = 150.00m
+            });
+
+        await _pactBuilder.VerifyAsync(async ctx =>
+        {
+            var client = new HttpClient { BaseAddress = new Uri($"http://localhost:{ctx.MockServerUri.Port}") };
+            var response = await client.PostAsJsonAsync("/api/queries/GetOrderQuery",
+                new { OrderId = "12345678-1234-1234-1234-123456789012" });
+
+            Assert.True(response.IsSuccessStatusCode);
+            var order = await response.Content.ReadFromJsonAsync<OrderDto>();
+            Assert.NotNull(order);
+        });
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
+}
+```
+
+**AFTER** (Using EncinaPactConsumerBuilder with fluent API):
+```csharp
+public class OrderServiceConsumerTests : IClassFixture<EncinaPactFixture>
+{
+    private readonly EncinaPactFixture _fixture;
+
+    public OrderServiceConsumerTests(EncinaPactFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    [Fact]
+    public async Task GetOrder_WhenOrderExists_ReturnsOrder()
+    {
+        // Fluent consumer expectation builder
+        var consumer = _fixture.CreateConsumer("OrderClient", "OrderService")
+            .WithQueryExpectation(
+                new GetOrderQuery { OrderId = Guid.Parse("12345678-1234-1234-1234-123456789012") },
+                Either<EncinaError, OrderDto>.Right(new OrderDto
+                {
+                    Id = Guid.Parse("12345678-1234-1234-1234-123456789012"),
+                    CustomerId = "CUST-001",
+                    Amount = 150.00m
+                }))
+            .WithProviderState("an order with id 12345678 exists");
+
+        // Verify with automatic HTTP conventions
+        await consumer.VerifyAsync(async uri =>
+        {
+            using var client = uri.CreatePactHttpClient();
+
+            // POST /api/queries/GetOrderQuery (automatic convention)
+            var response = await client.SendQueryAsync<GetOrderQuery, OrderDto>(
+                new GetOrderQuery { OrderId = Guid.Parse("12345678-1234-1234-1234-123456789012") });
+
+            // Automatic Either conversion
+            var result = await response.ReadAsEitherAsync<OrderDto>();
+            result.ShouldBeSuccess();
+        });
+    }
+
+    [Fact]
+    public async Task GetOrder_WhenNotFound_ReturnsError()
+    {
+        var consumer = _fixture.CreateConsumer("OrderClient", "OrderService")
+            .WithQueryExpectation(
+                new GetOrderQuery { OrderId = Guid.Parse("00000000-0000-0000-0000-000000000000") },
+                Either<EncinaError, OrderDto>.Left(EncinaErrors.NotFound("Order", "...")))
+            .WithProviderState("no orders exist");
+
+        await consumer.VerifyAsync(async uri =>
+        {
+            using var client = uri.CreatePactHttpClient();
+            var response = await client.SendQueryAsync<GetOrderQuery, OrderDto>(
+                new GetOrderQuery { OrderId = Guid.Parse("00000000-0000-0000-0000-000000000000") });
+
+            var result = await response.ReadAsEitherAsync<OrderDto>();
+            result.ShouldBeNotFoundError();  // Domain-specific assertion
+        });
     }
 }
 ```
@@ -975,10 +1524,56 @@ var scheduledFaker = new ScheduledMessageFaker();
 // Generate with defaults
 var outboxMessages = outboxFaker.Generate(5);
 
-// Customize
+// Customize with fluent builder pattern
 var customOutbox = new OutboxMessageFaker()
     .WithNotificationType("OrderCreated")
     .WithStatus(OutboxMessageStatus.Pending)
+    .Generate();
+```
+
+#### Builder Pattern for Message States
+
+Use builder methods to create messages in specific states:
+
+```csharp
+// OutboxMessage states
+var pending = new OutboxMessageFaker().AsPending().Generate();
+var processed = new OutboxMessageFaker().AsProcessed().Generate();
+var failed = new OutboxMessageFaker().AsFailed("Connection timeout").Generate();
+
+// InboxMessage states
+var unprocessed = new InboxMessageFaker().AsUnprocessed().Generate();
+var processedInbox = new InboxMessageFaker().AsProcessed().Generate();
+var duplicateDetected = new InboxMessageFaker().AsDuplicate().Generate();
+
+// SagaState states
+var startedSaga = new SagaStateFaker().AsStarted().Generate();
+var completedSaga = new SagaStateFaker().AsCompleted().Generate();
+var compensatingSaga = new SagaStateFaker().AsCompensating().Generate();
+var failedSaga = new SagaStateFaker().AsFailed("Payment declined").Generate();
+
+// ScheduledMessage states
+var scheduledForFuture = new ScheduledMessageFaker().AsScheduledFor(DateTime.UtcNow.AddHours(1)).Generate();
+var readyToExecute = new ScheduledMessageFaker().AsReady().Generate();
+var executed = new ScheduledMessageFaker().AsExecuted().Generate();
+var cancelled = new ScheduledMessageFaker().AsCancelled().Generate();
+```
+
+#### Retry Scenario Builders
+
+```csharp
+// Build messages with retry history
+var messageWithRetries = new OutboxMessageFaker()
+    .WithRetryCount(3)
+    .WithNextRetryAt(DateTime.UtcNow.AddMinutes(5))
+    .WithErrorMessage("Temporary failure")
+    .Generate();
+
+// Saga with step history
+var sagaWithSteps = new SagaStateFaker()
+    .WithCompletedStep("ReserveInventory")
+    .WithCompletedStep("ProcessPayment")
+    .WithCurrentStep("ShipOrder")
     .Generate();
 ```
 
@@ -1042,34 +1637,118 @@ public class OrderHandlerTests : IClassFixture<SharedTestFixture>, IDisposable
 }
 ```
 
-### 9.3 Database Fixtures
+### 9.3 ModuleTestFixture vs EncinaTestFixture
+
+| Fixture | Use Case | Features |
+|---------|----------|----------|
+| `EncinaTestFixture` | Unit tests, single handler | Lightweight, per-test isolation |
+| `ModuleTestFixture<T>` | Integration tests, full module | Module registration, mocked dependencies, integration events |
 
 ```csharp
-// Integration test with database
-public class OrderRepositoryTests : SqlServerIntegrationTestBase
+// EncinaTestFixture: Single handler, unit test
+[Fact]
+public async Task UnitTest_SingleHandler()
 {
-    // Base class handles:
-    // - Container lifecycle (StartAsync/StopAsync)
-    // - Connection management
-    // - Schema creation
+    var fixture = new EncinaTestFixture()
+        .WithHandler<CreateOrderHandler>()
+        .WithMockedOutbox();
 
-    protected override async Task SeedDataAsync()
+    await fixture.SendAsync(command);
+}
+
+// ModuleTestFixture: Full module with dependencies
+[Fact]
+public async Task IntegrationTest_FullModule()
+{
+    var fixture = new ModuleTestFixture<OrdersModule>()
+        .WithMockedModule<IInventoryModuleApi>(mock => { ... })
+        .WithMockedModule<IPaymentModuleApi>(mock => { ... })
+        .WithMockedOutbox()
+        .WithFakeTimeProvider();
+
+    var result = await fixture.SendAsync(new PlaceOrderCommand { ... });
+
+    // Assert integration events were published
+    fixture.IntegrationEvents.ShouldContain<OrderPlacedEvent>();
+}
+```
+
+### 9.4 Database Fixtures with Respawn
+
+```csharp
+// Integration test with database and Respawn cleanup
+public class OrderRepositoryTests : SqlServerIntegrationTestBase, IAsyncLifetime
+{
+    private DatabaseRespawner _respawner = null!;
+
+    public async Task InitializeAsync()
     {
-        // Optional: seed test data
-        await Connection.ExecuteAsync("INSERT INTO ...");
+        await base.StartContainerAsync();
+        await base.RunMigrationsAsync();
+
+        // Configure Respawn with Encina-aware settings
+        _respawner = await DatabaseRespawner.CreateAsync(ConnectionString, options =>
+        {
+            options.TablesToIgnore = ["__EFMigrationsHistory"];
+            options.WithReseed = true;
+        });
+    }
+
+    public async Task DisposeAsync()
+    {
+        await base.StopContainerAsync();
+    }
+
+    // Reset database between tests
+    public async Task ResetAsync()
+    {
+        await _respawner.ResetAsync();
     }
 
     [Fact]
     public async Task MyTest()
     {
-        // Connection is available and ready
+        await ResetAsync();  // Clean slate
+
         var repo = new OrderRepository(Connection);
         // ...
     }
 }
 ```
 
-### 9.4 Collection Fixtures
+#### InitializeAsync/ResetAsync Pattern
+
+```csharp
+public abstract class DatabaseTestBase : IAsyncLifetime
+{
+    protected DatabaseRespawner Respawner { get; private set; } = null!;
+    protected DbConnection Connection { get; private set; } = null!;
+
+    // Called once before all tests in class
+    public virtual async Task InitializeAsync()
+    {
+        Connection = await CreateConnectionAsync();
+        Respawner = await DatabaseRespawner.CreateAsync(Connection);
+    }
+
+    // Called once after all tests in class
+    public virtual async Task DisposeAsync()
+    {
+        await Connection.DisposeAsync();
+    }
+
+    // Call in each test to reset state
+    protected async Task ResetDatabaseAsync()
+    {
+        await Respawner.ResetAsync();
+        await SeedDataAsync();
+    }
+
+    protected virtual Task SeedDataAsync() => Task.CompletedTask;
+}
+```
+
+### 9.5 Collection Fixtures
 
 ```csharp
 // Share expensive resources across test classes
@@ -1199,7 +1878,31 @@ var values = results.ShouldAllBeSuccess();          // Returns extracted values
 values.ShouldContain(x => x.Id == orderId);
 ```
 
-### 10.4 Outbox/Store Verification
+### 10.4 Aggregate Event Assertions
+
+```csharp
+// Assert aggregate raised specific events
+order.ShouldHaveRaisedEvent<OrderCreated>();
+order.ShouldHaveRaisedEvent<OrderCreated>(e => e.CustomerId.ShouldBe("CUST-001"));
+
+// Assert multiple events in sequence
+order.ShouldHaveRaisedEvents(
+    typeof(OrderCreated),
+    typeof(OrderItemAdded),
+    typeof(OrderSubmitted)
+);
+
+// Assert aggregate version
+order.ShouldHaveVersion(3);
+
+// Assert no events were raised
+order.ShouldNotHaveRaisedAnyEvents();
+
+// Assert event count
+order.UncommittedEvents.ShouldHaveCount(3);
+```
+
+### 10.5 Outbox/Store Verification
 
 ```csharp
 // Verify messages were added to outbox
@@ -1212,9 +1915,40 @@ fixture.Outbox.GetMessagePayload<OrderCreatedEvent>()
 var saga = fixture.SagaStore.GetByCorrelationId(correlationId);
 saga.ShouldNotBeNull();
 saga.Status.ShouldBe("Completed");
+
+// Verify scheduled messages
+fixture.ScheduledMessageStore.GetMessages()
+    .ShouldContain(m => m.ScheduledAtUtc > DateTime.UtcNow);
 ```
 
-### 10.5 Snapshot Assertions
+### 10.6 Streaming/IAsyncEnumerable Assertions
+
+```csharp
+// Memory-efficient first-item check (doesn't enumerate entire stream)
+await stream.ShouldHaveFirstItem<OrderDto>(first =>
+{
+    first.Id.ShouldNotBe(Guid.Empty);
+    first.Status.ShouldBe("Active");
+});
+
+// Assert stream produces at least N items
+await stream.ShouldHaveAtLeast(5);
+
+// Assert all items in stream match predicate (with early exit on failure)
+await stream.ShouldAllSatisfy(item => item.IsValid.ShouldBeTrue());
+
+// Assert stream is empty
+await stream.ShouldBeEmpty();
+
+// Assert stream has exact count
+await stream.ShouldHaveCount(10);
+
+// Collect and assert (only when full enumeration needed)
+var items = await stream.ToListAsync();
+items.ShouldAllBeSuccess();
+```
+
+### 10.7 Snapshot Assertions
 
 ```csharp
 // Verify serialization is stable
@@ -1231,7 +1965,7 @@ await EncinaVerify.VerifyJson(response, settings =>
 });
 ```
 
-### 10.6 Architecture Assertions
+### 10.8 Architecture Assertions
 
 ```csharp
 // Build and check rules
@@ -1398,4 +2132,4 @@ Each phase issue should verify:
 | Date | Version | Changes |
 |------|---------|---------|
 | 2024-01-03 | 1.0 | Initial document |
-| 2024-01-04 | 2.0 | Complete rewrite per Issue #498 Task 1 requirements |
+| 2024-01-04 | 2.0 | Complete rewrite per Issue #498 Phase 1 (Tasks 1-8) |
