@@ -1,0 +1,167 @@
+# Testing Dogfooding Validation Workflow
+# Validates that test migrations compile and pass
+
+name: Testing Dogfooding Validation
+
+on:
+  pull_request:
+    paths:
+      - 'tests/**'
+      - 'src/Encina.Testing*/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'tests/**'
+      - 'src/Encina.Testing*/**'
+  workflow_dispatch:
+    inputs:
+      test_filter:
+        description: 'Test filter (e.g., FullyQualifiedName~Examples)'
+        required: false
+        default: ''
+
+jobs:
+  validate-examples:
+    name: Validate Reference Examples
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore tests/Encina.Testing.Examples/Encina.Testing.Examples.csproj
+
+      - name: Build reference examples
+        run: dotnet build tests/Encina.Testing.Examples/Encina.Testing.Examples.csproj --configuration Release --no-restore
+
+      - name: Run reference example tests
+        run: |
+          dotnet test tests/Encina.Testing.Examples/Encina.Testing.Examples.csproj \
+            --configuration Release \
+            --no-build \
+            --logger "trx;LogFileName=examples-results.trx" \
+            --results-directory ./TestResults
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: example-test-results
+          path: ./TestResults/*.trx
+
+  validate-testing-packages:
+    name: Validate Testing Packages
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        package:
+          - Encina.Testing
+          - Encina.Testing.Shouldly
+          - Encina.Testing.Bogus
+          - Encina.Testing.Fakes
+          - Encina.Testing.WireMock
+          - Encina.Testing.Architecture
+          - Encina.Testing.FsCheck
+          - Encina.Testing.Pact
+          - Encina.Testing.Verify
+          - Encina.Testing.Respawn
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build package
+        run: dotnet build src/${{ matrix.package }}/${{ matrix.package }}.csproj --configuration Release
+
+      - name: Run package tests
+        run: |
+          TEST_PROJECT="tests/${{ matrix.package }}.Tests/${{ matrix.package }}.Tests.csproj"
+          if [ -f "$TEST_PROJECT" ]; then
+            dotnet test "$TEST_PROJECT" --configuration Release --no-build --verbosity normal
+          else
+            echo "No test project found for ${{ matrix.package }}"
+          fi
+
+  audit-dependencies:
+    name: Audit Test Dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PowerShell
+        uses: microsoft/setup-powershell@v1
+
+      - name: Run dependency audit
+        run: |
+          pwsh -File scripts/audit-test-dependencies.ps1 -Path . -OutputFormat Markdown > dependency-audit.md
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-report
+          path: dependency-audit.md
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('dependency-audit.md', 'utf8');
+
+            // Only comment if there are findings
+            if (report.includes('Projects Requiring Migration')) {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '## 📋 Test Dependency Audit\n\n' + report
+              });
+            }
+
+  migration-progress:
+    name: Check Migration Progress
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Count Encina.Testing.* usages
+        run: |
+          echo "## Migration Progress Report" > progress-report.md
+          echo "" >> progress-report.md
+          echo "### Encina.Testing.Shouldly Usages" >> progress-report.md
+          grep -r "using Encina.Testing.Shouldly" tests/ --include="*.cs" | wc -l >> progress-report.md
+          echo "" >> progress-report.md
+          echo "### EncinaFaker Usages" >> progress-report.md
+          grep -r "new EncinaFaker" tests/ --include="*.cs" | wc -l >> progress-report.md
+          echo "" >> progress-report.md
+          echo "### FakeOutboxStore Usages" >> progress-report.md
+          grep -r "FakeOutboxStore" tests/ --include="*.cs" | wc -l >> progress-report.md
+          echo "" >> progress-report.md
+          echo "### Legacy Faker<T> Usages (to migrate)" >> progress-report.md
+          grep -r "new Faker<" tests/ --include="*.cs" | grep -v EncinaFaker | wc -l >> progress-report.md
+
+          cat progress-report.md
+
+      - name: Upload progress report
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-progress-report
+          path: progress-report.md
