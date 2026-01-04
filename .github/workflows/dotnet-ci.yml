@@ -21,7 +21,7 @@ jobs:
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_NOLOGO: true
-      DOTNET_SDK_VERSION: '10.0.x'
+      DOTNET_SDK_VERSION: "10.0.x"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -34,9 +34,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.nuget/packages
-            %USERPROFILE%\.nuget\packages
+          path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: |
             ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
@@ -45,9 +43,7 @@ jobs:
       - name: Cache dotnet tools
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.dotnet/tools
-            %USERPROFILE%\.dotnet\tools
+          path: ~/.dotnet/tools
           key: ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
           restore-keys: |
             ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}

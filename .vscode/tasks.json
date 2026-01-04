@@ -164,7 +164,7 @@
     },
     {
       "label": "test (safe)",
-      "detail": "Run all tests (excludes Load and Integration)",
+      "detail": "Run all tests (excludes Load and Integration projects)",
       "command": "dotnet",
       "type": "process",
       "args": [
@@ -313,6 +313,23 @@
       "problemMatcher": "$msCompile",
       "group": "test",
       "dependsOn": "build: observability"
+    },
+    {
+      "label": "test: integration",
+      "detail": "Run integration tests only (*.IntegrationTests projects)",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/Encina.slnx",
+        "-maxcpucount:1",
+        "--no-build",
+        "--filter",
+        "FullyQualifiedName~IntegrationTests"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "test",
+      "dependsOn": "build (safe)"
     },
     {
       "label": "restore",
