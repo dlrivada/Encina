@@ -53,21 +53,23 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
             throw new ArgumentException("Batch size must be greater than zero.", nameof(batchSize));
         if (maxRetries < 0)
             throw new ArgumentException("Max retries cannot be negative.", nameof(maxRetries));
+
+        var nowUtc = DateTime.UtcNow;
         var sql = $@"
             SELECT *
             FROM {_tableName}
             WHERE (ProcessedAtUtc IS NULL OR IsRecurring = 1)
               AND RetryCount < @MaxRetries
               AND (
-                  (NextRetryAtUtc IS NOT NULL AND NextRetryAtUtc <= datetime('now'))
-                  OR (NextRetryAtUtc IS NULL AND ScheduledAtUtc <= datetime('now'))
+                  (NextRetryAtUtc IS NOT NULL AND NextRetryAtUtc <= @NowUtc)
+                  OR (NextRetryAtUtc IS NULL AND ScheduledAtUtc <= @NowUtc)
               )
             ORDER BY ScheduledAtUtc
             LIMIT @BatchSize";
 
         var messages = await _connection.QueryAsync<ScheduledMessage>(
             sql,
-            new { BatchSize = batchSize, MaxRetries = maxRetries });
+            new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc });
 
         return messages.Cast<IScheduledMessage>();
     }
@@ -77,14 +79,16 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
     {
         if (messageId == Guid.Empty)
             throw new ArgumentException("Message ID cannot be empty.", nameof(messageId));
+
+        var nowUtc = DateTime.UtcNow;
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = datetime('now'),
-                LastExecutedAtUtc = datetime('now'),
+            SET ProcessedAtUtc = @NowUtc,
+                LastExecutedAtUtc = @NowUtc,
                 ErrorMessage = NULL
             WHERE Id = @MessageId";
 
-        await _connection.ExecuteAsync(sql, new { MessageId = messageId });
+        await _connection.ExecuteAsync(sql, new { MessageId = messageId, NowUtc = nowUtc });
     }
 
     /// <inheritdoc />
@@ -97,12 +101,14 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
         if (messageId == Guid.Empty)
             throw new ArgumentException("Message ID cannot be empty.", nameof(messageId));
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+
+        var nowUtc = DateTime.UtcNow;
         var sql = $@"
             UPDATE {_tableName}
             SET ErrorMessage = @ErrorMessage,
                 RetryCount = RetryCount + 1,
                 NextRetryAtUtc = @NextRetryAtUtc,
-                LastExecutedAtUtc = datetime('now')
+                LastExecutedAtUtc = @NowUtc
             WHERE Id = @MessageId";
 
         await _connection.ExecuteAsync(
@@ -111,7 +117,8 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
             {
                 MessageId = messageId,
                 ErrorMessage = errorMessage,
-                NextRetryAtUtc = nextRetryAtUtc
+                NextRetryAtUtc = nextRetryAtUtc,
+                NowUtc = nowUtc
             });
     }
 

@@ -442,7 +442,7 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
         Assert.Empty(messages);
     }
 
-    [Fact(Skip = "SQLite datetime format incompatibility with ISO8601 makes this test unreliable - see GitHub issue #7")]
+    [Fact]
     public async Task RescheduleRecurringMessageAsync_Contract_ResetsRetryFields()
     {
         // Arrange
@@ -463,9 +463,12 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
         };
         await _store.AddAsync(message);
 
-        // Act - Reschedule to current time
-        var nextRun = DateTime.UtcNow;
+        // Act - Reschedule to a time slightly in the future to avoid validation issues
+        var nextRun = DateTime.UtcNow.AddSeconds(1);
         await _store.RescheduleRecurringMessageAsync(messageId, nextRun);
+
+        // Small delay to ensure the scheduled time has passed
+        await Task.Delay(1100);
 
         // Assert - Appears in due with reset fields
         var messages = await _store.GetDueMessagesAsync(10, 3);

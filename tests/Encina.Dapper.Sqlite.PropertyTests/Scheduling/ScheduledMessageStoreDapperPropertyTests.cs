@@ -492,10 +492,8 @@ public sealed class ScheduledMessageStoreDapperPropertyTests : IClassFixture<Sql
     /// <summary>
     /// Property: RescheduleRecurringMessageAsync resets retry-related fields.
     /// Invariant: After reschedule, RetryCount = 0, ErrorMessage = null, NextRetryAtUtc = null.
-    /// Note: Skipped due to SQLite datetime format incompatibility with GetDueMessagesAsync.
-    /// See GitHub issue #7 for details.
     /// </summary>
-    [Theory(Skip = "SQLite datetime format incompatibility - see GitHub issue #7")]
+    [Theory]
     [InlineData(2, "Error 1")]
     [InlineData(5, "Error 2")]
     public async Task Reschedule_AlwaysResetsRetryFields(int initialRetryCount, string errorMessage)

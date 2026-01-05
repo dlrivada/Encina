@@ -51,24 +51,21 @@ public sealed class OutboxStoreDapper : IOutboxStore
         CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(batchSize, 0);
-
         ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
 
-        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
-        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
-
+        var nowUtc = DateTime.UtcNow;
         var sql = $@"
             SELECT *
             FROM {_tableName}
             WHERE ProcessedAtUtc IS NULL
               AND RetryCount < @MaxRetries
-              AND (NextRetryAtUtc IS NULL OR NextRetryAtUtc <= datetime('now'))
+              AND (NextRetryAtUtc IS NULL OR NextRetryAtUtc <= @NowUtc)
             ORDER BY CreatedAtUtc
             LIMIT @BatchSize";
 
         var messages = await _connection.QueryAsync<OutboxMessage>(
             sql,
-            new { BatchSize = batchSize, MaxRetries = maxRetries });
+            new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc });
 
         return messages.Cast<IOutboxMessage>();
     }
@@ -82,13 +79,14 @@ public sealed class OutboxStoreDapper : IOutboxStore
             throw new ArgumentException("Message ID cannot be empty GUID.", nameof(messageId));
         }
 
+        var nowUtc = DateTime.UtcNow;
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = datetime('now'),
+            SET ProcessedAtUtc = @NowUtc,
                 ErrorMessage = NULL
             WHERE Id = @MessageId";
 
-        await _connection.ExecuteAsync(sql, new { MessageId = messageId });
+        await _connection.ExecuteAsync(sql, new { MessageId = messageId, NowUtc = nowUtc });
     }
 
     /// <inheritdoc />

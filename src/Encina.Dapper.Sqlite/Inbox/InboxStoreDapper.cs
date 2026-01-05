@@ -66,14 +66,15 @@ public sealed class InboxStoreDapper : IInboxStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
+        var nowUtc = DateTime.UtcNow;
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = datetime('now'),
+            SET ProcessedAtUtc = @NowUtc,
                 Response = @Response,
                 ErrorMessage = NULL
             WHERE MessageId = @MessageId";
 
-        await _connection.ExecuteAsync(sql, new { MessageId = messageId, Response = response });
+        await _connection.ExecuteAsync(sql, new { MessageId = messageId, Response = response, NowUtc = nowUtc });
     }
 
     /// <inheritdoc />
@@ -112,17 +113,16 @@ public sealed class InboxStoreDapper : IInboxStore
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(batchSize, 0);
 
-        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
-
+        var nowUtc = DateTime.UtcNow;
         var sql = $@"
             SELECT *
             FROM {_tableName}
-            WHERE ExpiresAtUtc < datetime('now')
+            WHERE ExpiresAtUtc < @NowUtc
               AND ProcessedAtUtc IS NOT NULL
             ORDER BY ExpiresAtUtc
             LIMIT @BatchSize";
 
-        var messages = await _connection.QueryAsync<InboxMessage>(sql, new { BatchSize = batchSize });
+        var messages = await _connection.QueryAsync<InboxMessage>(sql, new { BatchSize = batchSize, NowUtc = nowUtc });
         return messages.Cast<IInboxMessage>();
     }
 

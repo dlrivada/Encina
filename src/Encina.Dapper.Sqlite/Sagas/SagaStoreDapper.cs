@@ -58,19 +58,34 @@ public sealed class SagaStoreDapper : ISagaStore
     public async Task UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sagaState);
+
+        var nowUtc = DateTime.UtcNow;
         var sql = $@"
             UPDATE {_tableName}
             SET SagaType = @SagaType,
                 Data = @Data,
                 Status = @Status,
-                LastUpdatedAtUtc = datetime('now'),
+                LastUpdatedAtUtc = @NowUtc,
                 CompletedAtUtc = @CompletedAtUtc,
                 ErrorMessage = @ErrorMessage,
                 CurrentStep = @CurrentStep,
                 TimeoutAtUtc = @TimeoutAtUtc
             WHERE SagaId = @SagaId";
 
-        await _connection.ExecuteAsync(sql, sagaState);
+        await _connection.ExecuteAsync(
+            sql,
+            new
+            {
+                sagaState.SagaId,
+                sagaState.SagaType,
+                sagaState.Data,
+                sagaState.Status,
+                NowUtc = nowUtc,
+                sagaState.CompletedAtUtc,
+                sagaState.ErrorMessage,
+                sagaState.CurrentStep,
+                sagaState.TimeoutAtUtc
+            });
     }
 
     /// <inheritdoc />
@@ -114,12 +129,13 @@ public sealed class SagaStoreDapper : ISagaStore
         if (batchSize <= 0)
             throw new ArgumentException("Batch size must be greater than zero.", nameof(batchSize));
 
+        var nowUtc = DateTime.UtcNow;
         var sql = $@"
             SELECT *
             FROM {_tableName}
             WHERE (Status = @Running OR Status = @Compensating)
               AND TimeoutAtUtc IS NOT NULL
-              AND TimeoutAtUtc <= datetime('now')
+              AND TimeoutAtUtc <= @NowUtc
             ORDER BY TimeoutAtUtc
             LIMIT @BatchSize";
 
@@ -129,7 +145,8 @@ public sealed class SagaStoreDapper : ISagaStore
             {
                 BatchSize = batchSize,
                 Running = "Running",
-                Compensating = "Compensating"
+                Compensating = "Compensating",
+                NowUtc = nowUtc
             });
 
         return sagas.Cast<ISagaState>();
