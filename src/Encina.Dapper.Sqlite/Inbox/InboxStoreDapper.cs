@@ -13,19 +13,25 @@ public sealed class InboxStoreDapper : IInboxStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InboxStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The inbox table name (default: InboxMessages).</param>
+    /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is null or whitespace.</exception>
-    public InboxStoreDapper(IDbConnection connection, string tableName = "InboxMessages")
+    public InboxStoreDapper(
+        IDbConnection connection,
+        string tableName = "InboxMessages",
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -66,7 +72,7 @@ public sealed class InboxStoreDapper : IInboxStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             UPDATE {_tableName}
             SET ProcessedAtUtc = @NowUtc,
@@ -111,9 +117,9 @@ public sealed class InboxStoreDapper : IInboxStore
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(batchSize, 0);
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             SELECT *
             FROM {_tableName}

@@ -4,6 +4,7 @@ using Encina.TestInfrastructure.Fixtures;
 using Encina.TestInfrastructure.PropertyTests;
 using FsCheck;
 using FsCheck.Xunit;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.Dapper.Sqlite.Tests.Inbox;
 
@@ -12,21 +13,39 @@ namespace Encina.Dapper.Sqlite.Tests.Inbox;
 /// Verifies invariants and properties across various inputs.
 /// Uses FsCheck with Bogus for realistic test data generation.
 /// </summary>
-public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
+public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>, IAsyncLifetime
 {
     private readonly SqliteFixture _database;
     private readonly InboxStoreDapper _store;
+    private readonly FakeTimeProvider _fakeTimeProvider;
+    private readonly DateTime _now;
 
     public InboxStoreDapperPropertyTests(SqliteFixture database)
     {
         _database = database;
         DapperTypeHandlers.RegisterSqliteHandlers();
 
-        // Clear all data before each test to ensure clean state
-        _database.ClearAllDataAsync().GetAwaiter().GetResult();
-
-        _store = new InboxStoreDapper(_database.CreateConnection());
+        // Use deterministic time for all tests
+        _fakeTimeProvider = new FakeTimeProvider(new DateTimeOffset(2025, 1, 5, 12, 0, 0, TimeSpan.Zero));
+        _now = _fakeTimeProvider.GetUtcNow().UtcDateTime;
+        _store = new InboxStoreDapper(_database.CreateConnection(), "InboxMessages", _fakeTimeProvider);
     }
+
+    /// <summary>
+    /// Clears all data before each test to ensure clean state.
+    /// </summary>
+    public Task InitializeAsync() => _database.ClearAllDataAsync();
+
+    /// <summary>
+    /// No cleanup required after tests.
+    /// </summary>
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    /// <summary>
+    /// Creates a store with a custom TimeProvider for tests that need time manipulation.
+    /// </summary>
+    private InboxStoreDapper CreateStoreWithTimeProvider(FakeTimeProvider timeProvider)
+        => new(_database.CreateConnection(), "InboxMessages", timeProvider);
 
     #region FsCheck + Bogus Property Tests
 
@@ -185,8 +204,8 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
         await _store.AddAsync(message);
@@ -215,8 +234,8 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = initialRetryCount
         };
         await _store.AddAsync(message);
@@ -248,8 +267,8 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
         await _store.AddAsync(message);
@@ -275,8 +294,8 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = previousRetries,
             ErrorMessage = previousRetries > 0 ? "Previous error" : null
         };
@@ -308,9 +327,9 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow.AddDays(daysExpired - 5),
-            ProcessedAtUtc = DateTime.UtcNow.AddDays(daysExpired - 3),
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(daysExpired),
+            ReceivedAtUtc = _now.AddDays(daysExpired - 5),
+            ProcessedAtUtc = _now.AddDays(daysExpired - 3),
+            ExpiresAtUtc = _now.AddDays(daysExpired),
             RetryCount = 0
         };
         await _store.AddAsync(message);
@@ -335,9 +354,9 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ProcessedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(daysUntilExpiry),
+            ReceivedAtUtc = _now,
+            ProcessedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(daysUntilExpiry),
             RetryCount = 0
         };
         await _store.AddAsync(message);
@@ -365,8 +384,8 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
 
@@ -390,16 +409,16 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId1,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
         var message2 = new InboxMessage
         {
             MessageId = messageId2,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
 
@@ -433,8 +452,8 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = requestType,
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
 
@@ -465,8 +484,8 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
         await _store.AddAsync(message);
@@ -493,8 +512,8 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
         await _store.AddAsync(message);
@@ -525,8 +544,8 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
         await _store.AddAsync(message);
@@ -557,12 +576,12 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
         await _store.AddAsync(message);
-        var nextRetry = DateTime.UtcNow.AddMinutes(minutesDelay);
+        var nextRetry = _now.AddMinutes(minutesDelay);
 
         // Act
         await _store.MarkAsFailedAsync(messageId, "Temporary error", nextRetry);
@@ -595,9 +614,9 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
             {
                 MessageId = $"batch-test-{i}",
                 RequestType = "TestRequest",
-                ReceivedAtUtc = DateTime.UtcNow.AddDays(-40),
-                ProcessedAtUtc = DateTime.UtcNow.AddDays(-35),
-                ExpiresAtUtc = DateTime.UtcNow.AddDays(-i - 1),
+                ReceivedAtUtc = _now.AddDays(-40),
+                ProcessedAtUtc = _now.AddDays(-35),
+                ExpiresAtUtc = _now.AddDays(-i - 1),
                 RetryCount = 0
             };
             await _store.AddAsync(message);
@@ -624,8 +643,8 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
 
@@ -653,14 +672,14 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
 
         // Act & Assert - After failure
         await _store.AddAsync(message);
-        await _store.MarkAsFailedAsync(messageId, "Temporary failure", DateTime.UtcNow.AddMinutes(5));
+        await _store.MarkAsFailedAsync(messageId, "Temporary failure", _now.AddMinutes(5));
         var failed = await _store.GetMessageAsync(messageId);
         Assert.NotNull(failed);
         Assert.NotNull(failed.ErrorMessage);
@@ -689,9 +708,9 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         {
             MessageId = messageId,
             RequestType = "TestRequest",
-            ReceivedAtUtc = DateTime.UtcNow,
-            ProcessedAtUtc = isProcessed ? DateTime.UtcNow : null,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+            ReceivedAtUtc = _now,
+            ProcessedAtUtc = isProcessed ? _now : null,
+            ExpiresAtUtc = _now.AddDays(30),
             RetryCount = 0
         };
 

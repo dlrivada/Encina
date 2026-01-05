@@ -2,6 +2,7 @@
 using Encina.Messaging.Scheduling;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.Dapper.Sqlite.Tests.Scheduling;
 
@@ -13,6 +14,8 @@ namespace Encina.Dapper.Sqlite.Tests.Scheduling;
 public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<SqliteFixture>
 {
     private readonly SqliteFixture _database;
+    private readonly FakeTimeProvider _fakeTimeProvider;
+    private readonly DateTime _now;
     private readonly ScheduledMessageStoreDapper _store;
 
     public ScheduledMessageStoreDapperContractTests(SqliteFixture database)
@@ -23,7 +26,10 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
         // Clear all data before each test to ensure clean state
         _database.ClearAllDataAsync().GetAwaiter().GetResult();
 
-        _store = new ScheduledMessageStoreDapper(_database.CreateConnection());
+        // Use fixed time for deterministic tests
+        _fakeTimeProvider = new FakeTimeProvider(new DateTimeOffset(2025, 1, 5, 12, 0, 0, TimeSpan.Zero));
+        _now = _fakeTimeProvider.GetUtcNow().UtcDateTime;
+        _store = new ScheduledMessageStoreDapper(_database.CreateConnection(), timeProvider: _fakeTimeProvider);
     }
 
     #region Contract: AddAsync
@@ -39,8 +45,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = Guid.NewGuid(),
             RequestType = "ContractCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1), // Past time so it appears in due messages
-            CreatedAtUtc = DateTime.UtcNow,
+            ScheduledAtUtc = _now.AddHours(-1), // Past time so it appears in due messages
+            CreatedAtUtc = _now,
             RetryCount = 0,
             IsRecurring = false
         };
@@ -64,8 +70,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = messageId,
             RequestType = "FieldTestCommand",
             Content = "{\"test\":true}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
             RetryCount = 0,
             IsRecurring = false
         };
@@ -92,8 +98,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = Guid.NewGuid(),
             RequestType = "CancellableCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1), // Past time so it appears in due messages
-            CreatedAtUtc = DateTime.UtcNow,
+            ScheduledAtUtc = _now.AddHours(-1), // Past time so it appears in due messages
+            CreatedAtUtc = _now,
             RetryCount = 0,
             IsRecurring = false
         };
@@ -121,8 +127,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = Guid.NewGuid(),
             RequestType = "DueCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
             RetryCount = 0,
             IsRecurring = false
         };
@@ -146,8 +152,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = Guid.NewGuid(),
             RequestType = "DueCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
             RetryCount = 0,
             IsRecurring = false
         };
@@ -158,8 +164,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = Guid.NewGuid(),
             RequestType = "FutureCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(2),
-            CreatedAtUtc = DateTime.UtcNow,
+            ScheduledAtUtc = _now.AddHours(2),
+            CreatedAtUtc = _now,
             RetryCount = 0,
             IsRecurring = false
         };
@@ -184,8 +190,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
                 Id = Guid.NewGuid(),
                 RequestType = $"Command{i}",
                 Content = "{}",
-                ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-                CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
+                ScheduledAtUtc = _now.AddHours(-1),
+                CreatedAtUtc = _now.AddHours(-2),
                 RetryCount = 0,
                 IsRecurring = false
             };
@@ -208,8 +214,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = Guid.NewGuid(),
             RequestType = "LowRetryCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
             RetryCount = 2,
             IsRecurring = false
         };
@@ -220,8 +226,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = Guid.NewGuid(),
             RequestType = "HighRetryCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
             RetryCount = 5,
             IsRecurring = false
         };
@@ -244,9 +250,9 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = Guid.NewGuid(),
             RequestType = "RecurringCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
-            ProcessedAtUtc = DateTime.UtcNow.AddMinutes(-30),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
+            ProcessedAtUtc = _now.AddMinutes(-30),
             RetryCount = 0,
             IsRecurring = true,
             CronExpression = "0 * * * *"
@@ -286,8 +292,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = messageId,
             RequestType = "ProcessCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
             RetryCount = 0,
             IsRecurring = false
         };
@@ -311,8 +317,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = messageId,
             RequestType = "CancelCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
             RetryCount = 0,
             IsRecurring = false
         };
@@ -341,16 +347,16 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = messageId,
             RequestType = "FailCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
             RetryCount = 0,
             IsRecurring = false
         };
         await _store.AddAsync(message);
 
         // Act - Mark as failed twice
-        await _store.MarkAsFailedAsync(messageId, "Error 1", DateTime.UtcNow.AddHours(1));
-        await _store.MarkAsFailedAsync(messageId, "Error 2", DateTime.UtcNow.AddHours(1));
+        await _store.MarkAsFailedAsync(messageId, "Error 1", _now.AddHours(1));
+        await _store.MarkAsFailedAsync(messageId, "Error 2", _now.AddHours(1));
 
         // Assert - RetryCount should be 2 (not returned due to future retry time)
         var messages = await _store.GetDueMessagesAsync(10, 3);
@@ -367,15 +373,15 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = messageId,
             RequestType = "ErrorCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
             RetryCount = 0,
             IsRecurring = false
         };
         await _store.AddAsync(message);
 
         // Act
-        await _store.MarkAsFailedAsync(messageId, "Test error", DateTime.UtcNow.AddSeconds(-10));
+        await _store.MarkAsFailedAsync(messageId, "Test error", _now.AddSeconds(-10));
 
         // Assert - Appears in due with error (past retry time)
         var messages = await _store.GetDueMessagesAsync(10, 3);
@@ -393,8 +399,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = messageId,
             RequestType = "CancelFailCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
             RetryCount = 0,
             IsRecurring = false
         };
@@ -402,7 +408,7 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
         using var cts = new CancellationTokenSource();
 
         // Act
-        await _store.MarkAsFailedAsync(messageId, "Error", DateTime.UtcNow.AddSeconds(-1), cts.Token);
+        await _store.MarkAsFailedAsync(messageId, "Error", _now.AddSeconds(-1), cts.Token);
 
         // Assert - Message appears with error message
         var messages = await _store.GetDueMessagesAsync(10, 3);
@@ -424,9 +430,9 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = messageId,
             RequestType = "RecurringCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
-            ProcessedAtUtc = DateTime.UtcNow.AddMinutes(-30),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
+            ProcessedAtUtc = _now.AddMinutes(-30),
             RetryCount = 0,
             IsRecurring = true,
             CronExpression = "0 * * * *"
@@ -434,7 +440,7 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
         await _store.AddAsync(message);
 
         // Act - Reschedule to future
-        var nextRun = DateTime.UtcNow.AddHours(1);
+        var nextRun = _now.AddHours(1);
         await _store.RescheduleRecurringMessageAsync(messageId, nextRun);
 
         // Assert - No longer due (future time)
@@ -452,23 +458,23 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = messageId,
             RequestType = "RecurringResetCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
-            ProcessedAtUtc = DateTime.UtcNow.AddMinutes(-30),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
+            ProcessedAtUtc = _now.AddMinutes(-30),
             RetryCount = 3,
             ErrorMessage = "Previous error",
-            NextRetryAtUtc = DateTime.UtcNow.AddMinutes(10),
+            NextRetryAtUtc = _now.AddMinutes(10),
             IsRecurring = true,
             CronExpression = "0 * * * *"
         };
         await _store.AddAsync(message);
 
-        // Act - Reschedule to a time slightly in the future to avoid validation issues
-        var nextRun = DateTime.UtcNow.AddSeconds(1);
+        // Act - Reschedule to a time slightly in the future
+        var nextRun = _now.AddSeconds(1);
         await _store.RescheduleRecurringMessageAsync(messageId, nextRun);
 
-        // Small delay to ensure the scheduled time has passed
-        await Task.Delay(1100);
+        // Advance the fake clock past the scheduled time
+        _fakeTimeProvider.Advance(TimeSpan.FromSeconds(2));
 
         // Assert - Appears in due with reset fields
         var messages = await _store.GetDueMessagesAsync(10, 3);
@@ -488,9 +494,9 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = messageId,
             RequestType = "CancelRecurringCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1),
-            CreatedAtUtc = DateTime.UtcNow.AddHours(-2),
-            ProcessedAtUtc = DateTime.UtcNow.AddMinutes(-30),
+            ScheduledAtUtc = _now.AddHours(-1),
+            CreatedAtUtc = _now.AddHours(-2),
+            ProcessedAtUtc = _now.AddMinutes(-30),
             RetryCount = 0,
             IsRecurring = true,
             CronExpression = "0 * * * *"
@@ -499,7 +505,7 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
         using var cts = new CancellationTokenSource();
 
         // Act
-        var nextRun = DateTime.UtcNow.AddHours(1);
+        var nextRun = _now.AddHours(1);
         await _store.RescheduleRecurringMessageAsync(messageId, nextRun, cts.Token);
 
         // Assert - Message no longer due (scheduled for future)
@@ -521,8 +527,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = messageId,
             RequestType = "RemoveCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(1),
-            CreatedAtUtc = DateTime.UtcNow,
+            ScheduledAtUtc = _now.AddHours(1),
+            CreatedAtUtc = _now,
             RetryCount = 0,
             IsRecurring = false
         };
@@ -546,8 +552,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
             Id = messageId,
             RequestType = "CancelCancelCommand",
             Content = "{}",
-            ScheduledAtUtc = DateTime.UtcNow.AddHours(-1), // Past time so it would appear in due
-            CreatedAtUtc = DateTime.UtcNow,
+            ScheduledAtUtc = _now.AddHours(-1), // Past time so it would appear in due
+            CreatedAtUtc = _now,
             RetryCount = 0,
             IsRecurring = false
         };
@@ -598,8 +604,8 @@ public sealed class ScheduledMessageStoreDapperContractTests : IClassFixture<Sql
     {
         // Arrange - Create message scheduled in past so it appears in GetDueMessagesAsync
         var messageId = Guid.NewGuid();
-        var scheduledAt = DateTime.UtcNow.AddHours(-1);
-        var createdAt = DateTime.UtcNow.AddHours(-2);
+        var scheduledAt = _now.AddHours(-1);
+        var createdAt = _now.AddHours(-2);
 
         var message = new ScheduledMessage
         {
