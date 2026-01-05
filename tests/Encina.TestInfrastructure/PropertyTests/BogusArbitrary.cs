@@ -57,7 +57,7 @@ public static class BogusArbitrary
     {
         ArgumentNullException.ThrowIfNull(generator);
 
-        var faker = new Faker { Random = new Randomizer(seed) };
+        var faker = CreateFaker(seed);
         return generator(faker);
     }
 
@@ -117,7 +117,7 @@ public static class BogusArbitrary
         ArgumentNullException.ThrowIfNull(generator);
         ArgumentOutOfRangeException.ThrowIfNegative(count);
 
-        var faker = new Faker { Random = new Randomizer(seed) };
+        var faker = CreateFaker(seed);
         var items = new List<T>(count);
         for (int i = 0; i < count; i++)
         {

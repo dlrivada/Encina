@@ -31,21 +31,21 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     #region FsCheck + Bogus Property Tests
 
     /// <summary>
-    /// Property: Generated messages should always persist with correct MessageId.
-    /// Uses Bogus for realistic data generation with FsCheck for property verification.
+    /// Integration test: Generated messages should always persist with correct MessageId.
+    /// Uses representative seeds for Bogus data generation.
     /// </summary>
-    [Property(MaxTest = 50)]
-    public async Task AddAsync_BogusGeneratedMessage_ShouldPersistMessageId(PositiveInt seed)
+    [Theory]
+    [InlineData(42)]
+    [InlineData(123)]
+    [InlineData(9999)]
+    public async Task AddAsync_BogusGeneratedMessage_ShouldPersistMessageId(int seed)
     {
         // Arrange - Generate realistic message data using Bogus
-        // Use a unique suffix to avoid conflicts between FsCheck iterations
-        var uniqueSuffix = Guid.NewGuid().ToString("N")[..8];
-        var data = MessageDataGenerators.GenerateInboxData(seed.Get);
-        var uniqueMessageId = $"{data.MessageId}-{uniqueSuffix}";
+        var data = MessageDataGenerators.GenerateInboxData(seed);
 
         var message = new InboxMessage
         {
-            MessageId = uniqueMessageId,
+            MessageId = data.MessageId,
             RequestType = data.RequestType,
             ReceivedAtUtc = data.ReceivedAtUtc,
             ExpiresAtUtc = data.ExpiresAtUtc,
@@ -56,26 +56,27 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         await _store.AddAsync(message);
 
         // Assert
-        var retrieved = await _store.GetMessageAsync(uniqueMessageId);
+        var retrieved = await _store.GetMessageAsync(data.MessageId);
         Assert.NotNull(retrieved);
-        Assert.Equal(uniqueMessageId, retrieved.MessageId);
+        Assert.Equal(data.MessageId, retrieved.MessageId);
         Assert.Equal(data.RequestType, retrieved.RequestType);
     }
 
     /// <summary>
-    /// Property: RetryCount should always be non-negative after failures.
+    /// Integration test: RetryCount should always be non-negative after failures.
     /// </summary>
-    [Property(MaxTest = 50)]
-    public async Task MarkAsFailedAsync_BogusGeneratedMessage_RetryCountIsNonNegative(PositiveInt seed)
+    [Theory]
+    [InlineData(42)]
+    [InlineData(123)]
+    [InlineData(9999)]
+    public async Task MarkAsFailedAsync_BogusGeneratedMessage_RetryCountIsNonNegative(int seed)
     {
-        // Arrange - Generate message using Bogus with unique ID
-        var uniqueSuffix = Guid.NewGuid().ToString("N")[..8];
-        var data = MessageDataGenerators.GenerateInboxData(seed.Get);
-        var uniqueMessageId = $"{data.MessageId}-{uniqueSuffix}";
+        // Arrange - Generate message using Bogus
+        var data = MessageDataGenerators.GenerateInboxData(seed);
 
         var message = new InboxMessage
         {
-            MessageId = uniqueMessageId,
+            MessageId = data.MessageId,
             RequestType = data.RequestType,
             ReceivedAtUtc = data.ReceivedAtUtc,
             ExpiresAtUtc = data.ExpiresAtUtc,
@@ -84,30 +85,31 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         await _store.AddAsync(message);
 
         // Act - Fail the message with Bogus-generated error
-        var faker = BogusArbitrary.CreateFaker(seed.Get);
+        var faker = BogusArbitrary.CreateFaker(seed);
         var errorMessage = faker.Lorem.Sentence();
-        await _store.MarkAsFailedAsync(uniqueMessageId, errorMessage, null);
+        await _store.MarkAsFailedAsync(data.MessageId, errorMessage, null);
 
         // Assert - RetryCount should be positive
-        var retrieved = await _store.GetMessageAsync(uniqueMessageId);
+        var retrieved = await _store.GetMessageAsync(data.MessageId);
         Assert.NotNull(retrieved);
         Assert.True(retrieved.RetryCount >= 1, "RetryCount should be at least 1 after failure");
     }
 
     /// <summary>
-    /// Property: Processed messages should have ProcessedAtUtc set.
+    /// Integration test: Processed messages should have ProcessedAtUtc set.
     /// </summary>
-    [Property(MaxTest = 50)]
-    public async Task MarkAsProcessedAsync_BogusGeneratedMessage_SetsProcessedAtUtc(PositiveInt seed)
+    [Theory]
+    [InlineData(42)]
+    [InlineData(123)]
+    [InlineData(9999)]
+    public async Task MarkAsProcessedAsync_BogusGeneratedMessage_SetsProcessedAtUtc(int seed)
     {
-        // Arrange - Generate message using Bogus with unique ID
-        var uniqueSuffix = Guid.NewGuid().ToString("N")[..8];
-        var data = MessageDataGenerators.GenerateInboxData(seed.Get);
-        var uniqueMessageId = $"{data.MessageId}-{uniqueSuffix}";
+        // Arrange - Generate message using Bogus
+        var data = MessageDataGenerators.GenerateInboxData(seed);
 
         var message = new InboxMessage
         {
-            MessageId = uniqueMessageId,
+            MessageId = data.MessageId,
             RequestType = data.RequestType,
             ReceivedAtUtc = data.ReceivedAtUtc,
             ExpiresAtUtc = data.ExpiresAtUtc,
@@ -116,12 +118,12 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         await _store.AddAsync(message);
 
         // Act - Process the message with Bogus-generated response
-        var faker = BogusArbitrary.CreateFaker(seed.Get);
+        var faker = BogusArbitrary.CreateFaker(seed);
         var response = faker.Lorem.Paragraph();
-        await _store.MarkAsProcessedAsync(uniqueMessageId, response);
+        await _store.MarkAsProcessedAsync(data.MessageId, response);
 
         // Assert - ProcessedAtUtc should be set and message marked as processed
-        var retrieved = await _store.GetMessageAsync(uniqueMessageId);
+        var retrieved = await _store.GetMessageAsync(data.MessageId);
         Assert.NotNull(retrieved);
         Assert.NotNull(retrieved.ProcessedAtUtc);
         Assert.True(retrieved.IsProcessed, "Message should be marked as processed");

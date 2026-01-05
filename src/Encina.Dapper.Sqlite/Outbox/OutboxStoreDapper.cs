@@ -13,19 +13,25 @@ public sealed class OutboxStoreDapper : IOutboxStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The outbox table name (default: OutboxMessages).</param>
+    /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
     /// <exception cref="ArgumentNullException">Thrown when connection or tableName is null.</exception>
     /// <exception cref="ArgumentException">Thrown when tableName is empty or whitespace.</exception>
-    public OutboxStoreDapper(IDbConnection connection, string tableName = "OutboxMessages")
+    public OutboxStoreDapper(
+        IDbConnection connection,
+        string tableName = "OutboxMessages",
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -53,7 +59,7 @@ public sealed class OutboxStoreDapper : IOutboxStore
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(batchSize, 0);
         ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
 
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             SELECT *
             FROM {_tableName}
@@ -79,7 +85,7 @@ public sealed class OutboxStoreDapper : IOutboxStore
             throw new ArgumentException("Message ID cannot be empty GUID.", nameof(messageId));
         }
 
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             UPDATE {_tableName}
             SET ProcessedAtUtc = @NowUtc,

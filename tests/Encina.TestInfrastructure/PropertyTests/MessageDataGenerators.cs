@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Bogus;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
@@ -33,6 +34,11 @@ namespace Encina.TestInfrastructure.PropertyTests;
 /// </remarks>
 public static class MessageDataGenerators
 {
+    /// <summary>
+    /// Fixed UTC reference time for deterministic date generation.
+    /// </summary>
+    private static readonly DateTime FixedUtcReference = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
     private static readonly string[] RequestTypes =
     [
         "CreateOrderCommand",
@@ -76,14 +82,15 @@ public static class MessageDataGenerators
     public static InboxMessageData GenerateInboxData(int seed)
     {
         var faker = new Faker { Random = new Randomizer(seed) };
+        var receivedAtUtc = faker.Date.Between(FixedUtcReference.AddDays(-7), FixedUtcReference);
 
         return new InboxMessageData
         {
             MessageId = faker.Random.Guid().ToString(),
             RequestType = faker.PickRandom(RequestTypes),
-            ReceivedAtUtc = DateTime.SpecifyKind(faker.Date.Recent(7), DateTimeKind.Utc),
+            ReceivedAtUtc = DateTime.SpecifyKind(receivedAtUtc, DateTimeKind.Utc),
             ProcessedAtUtc = null,
-            ExpiresAtUtc = DateTime.SpecifyKind(faker.Date.Soon(30), DateTimeKind.Utc),
+            ExpiresAtUtc = DateTime.SpecifyKind(faker.Date.Between(FixedUtcReference, FixedUtcReference.AddDays(30)), DateTimeKind.Utc),
             Response = null,
             ErrorMessage = null,
             RetryCount = 0,
@@ -99,15 +106,15 @@ public static class MessageDataGenerators
     public static InboxMessageData GenerateProcessedInboxData(int seed)
     {
         var faker = new Faker { Random = new Randomizer(seed) };
-        var receivedAt = DateTime.SpecifyKind(faker.Date.Recent(7), DateTimeKind.Utc);
+        var receivedAtUtc = DateTime.SpecifyKind(faker.Date.Between(FixedUtcReference.AddDays(-7), FixedUtcReference), DateTimeKind.Utc);
 
         return new InboxMessageData
         {
             MessageId = faker.Random.Guid().ToString(),
             RequestType = faker.PickRandom(RequestTypes),
-            ReceivedAtUtc = receivedAt,
-            ProcessedAtUtc = receivedAt.AddSeconds(faker.Random.Int(1, 60)),
-            ExpiresAtUtc = DateTime.SpecifyKind(faker.Date.Soon(30), DateTimeKind.Utc),
+            ReceivedAtUtc = receivedAtUtc,
+            ProcessedAtUtc = receivedAtUtc.AddSeconds(faker.Random.Int(1, 60)),
+            ExpiresAtUtc = DateTime.SpecifyKind(faker.Date.Between(FixedUtcReference, FixedUtcReference.AddDays(30)), DateTimeKind.Utc),
             Response = GenerateJsonContent(faker),
             ErrorMessage = null,
             RetryCount = 0,
@@ -129,13 +136,13 @@ public static class MessageDataGenerators
         {
             MessageId = faker.Random.Guid().ToString(),
             RequestType = faker.PickRandom(RequestTypes),
-            ReceivedAtUtc = DateTime.SpecifyKind(faker.Date.Recent(7), DateTimeKind.Utc),
+            ReceivedAtUtc = DateTime.SpecifyKind(faker.Date.Between(FixedUtcReference.AddDays(-7), FixedUtcReference), DateTimeKind.Utc),
             ProcessedAtUtc = null,
-            ExpiresAtUtc = DateTime.SpecifyKind(faker.Date.Soon(30), DateTimeKind.Utc),
+            ExpiresAtUtc = DateTime.SpecifyKind(faker.Date.Between(FixedUtcReference, FixedUtcReference.AddDays(30)), DateTimeKind.Utc),
             Response = null,
             ErrorMessage = faker.Lorem.Sentence(),
             RetryCount = retryCount ?? faker.Random.Int(1, 5),
-            NextRetryAtUtc = DateTime.SpecifyKind(faker.Date.Soon(1), DateTimeKind.Utc)
+            NextRetryAtUtc = DateTime.SpecifyKind(faker.Date.Between(FixedUtcReference, FixedUtcReference.AddDays(1)), DateTimeKind.Utc)
         };
     }
 
@@ -153,7 +160,7 @@ public static class MessageDataGenerators
             Id = faker.Random.Guid(),
             NotificationType = faker.PickRandom(NotificationTypes),
             Content = GenerateJsonContent(faker),
-            CreatedAtUtc = DateTime.SpecifyKind(faker.Date.Recent(7), DateTimeKind.Utc),
+            CreatedAtUtc = DateTime.SpecifyKind(faker.Date.Between(FixedUtcReference.AddDays(-7), FixedUtcReference), DateTimeKind.Utc),
             ProcessedAtUtc = null,
             ErrorMessage = null,
             RetryCount = 0,
@@ -169,15 +176,15 @@ public static class MessageDataGenerators
     public static OutboxMessageData GenerateProcessedOutboxData(int seed)
     {
         var faker = new Faker { Random = new Randomizer(seed) };
-        var createdAt = DateTime.SpecifyKind(faker.Date.Recent(7), DateTimeKind.Utc);
+        var createdAtUtc = DateTime.SpecifyKind(faker.Date.Between(FixedUtcReference.AddDays(-7), FixedUtcReference), DateTimeKind.Utc);
 
         return new OutboxMessageData
         {
             Id = faker.Random.Guid(),
             NotificationType = faker.PickRandom(NotificationTypes),
             Content = GenerateJsonContent(faker),
-            CreatedAtUtc = createdAt,
-            ProcessedAtUtc = createdAt.AddSeconds(faker.Random.Int(1, 60)),
+            CreatedAtUtc = createdAtUtc,
+            ProcessedAtUtc = createdAtUtc.AddSeconds(faker.Random.Int(1, 60)),
             ErrorMessage = null,
             RetryCount = 0,
             NextRetryAtUtc = null
@@ -192,7 +199,7 @@ public static class MessageDataGenerators
     public static SagaStateData GenerateSagaStateData(int seed)
     {
         var faker = new Faker { Random = new Randomizer(seed) };
-        var startedAt = DateTime.SpecifyKind(faker.Date.Recent(7), DateTimeKind.Utc);
+        var startedAtUtc = DateTime.SpecifyKind(faker.Date.Between(FixedUtcReference.AddDays(-7), FixedUtcReference), DateTimeKind.Utc);
 
         return new SagaStateData
         {
@@ -200,8 +207,8 @@ public static class MessageDataGenerators
             SagaType = faker.PickRandom(SagaTypes),
             CurrentState = faker.PickRandom(SagaStatuses),
             StateData = GenerateJsonContent(faker),
-            StartedAtUtc = startedAt,
-            LastUpdatedAtUtc = startedAt.AddSeconds(faker.Random.Int(1, 3600)),
+            StartedAtUtc = startedAtUtc,
+            LastUpdatedAtUtc = startedAtUtc.AddSeconds(faker.Random.Int(1, 3600)),
             CompletedAtUtc = null,
             Version = faker.Random.Int(1, 10)
         };
@@ -221,8 +228,8 @@ public static class MessageDataGenerators
             Id = faker.Random.Guid(),
             RequestType = faker.PickRandom(RequestTypes),
             Content = GenerateJsonContent(faker),
-            ScheduledAtUtc = DateTime.SpecifyKind(faker.Date.Soon(7), DateTimeKind.Utc),
-            CreatedAtUtc = DateTime.SpecifyKind(faker.Date.Recent(1), DateTimeKind.Utc),
+            ScheduledAtUtc = DateTime.SpecifyKind(faker.Date.Between(FixedUtcReference, FixedUtcReference.AddDays(7)), DateTimeKind.Utc),
+            CreatedAtUtc = DateTime.SpecifyKind(faker.Date.Between(FixedUtcReference.AddDays(-1), FixedUtcReference), DateTimeKind.Utc),
             ProcessedAtUtc = null,
             ErrorMessage = null,
             RetryCount = 0
@@ -231,15 +238,15 @@ public static class MessageDataGenerators
 
     private static string GenerateJsonContent(Faker faker, int propertyCount = 3)
     {
-        var properties = new List<string>(propertyCount);
+        var properties = new Dictionary<string, string>(propertyCount);
         for (int i = 0; i < propertyCount; i++)
         {
             var key = faker.Lorem.Word();
-            var value = faker.Lorem.Sentence().Replace("\"", "\\\"");
-            properties.Add($"\"{key}\":\"{value}\"");
+            var value = faker.Lorem.Sentence();
+            properties.TryAdd(key, value);
         }
 
-        return "{" + string.Join(",", properties) + "}";
+        return JsonSerializer.Serialize(properties);
     }
 }
 

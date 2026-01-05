@@ -13,19 +13,25 @@ public sealed class SagaStoreDapper : ISagaStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The saga state table name (default: SagaStates).</param>
+    /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is null or whitespace.</exception>
-    public SagaStoreDapper(IDbConnection connection, string tableName = "SagaStates")
+    public SagaStoreDapper(
+        IDbConnection connection,
+        string tableName = "SagaStates",
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -59,7 +65,7 @@ public sealed class SagaStoreDapper : ISagaStore
     {
         ArgumentNullException.ThrowIfNull(sagaState);
 
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             UPDATE {_tableName}
             SET SagaType = @SagaType,
@@ -98,7 +104,7 @@ public sealed class SagaStoreDapper : ISagaStore
             throw new ArgumentException("OlderThan must be greater than zero.", nameof(olderThan));
         if (batchSize <= 0)
             throw new ArgumentException("Batch size must be greater than zero.", nameof(batchSize));
-        var thresholdUtc = DateTime.UtcNow.Subtract(olderThan);
+        var thresholdUtc = _timeProvider.GetUtcNow().UtcDateTime.Subtract(olderThan);
 
         var sql = $@"
             SELECT *
@@ -129,7 +135,7 @@ public sealed class SagaStoreDapper : ISagaStore
         if (batchSize <= 0)
             throw new ArgumentException("Batch size must be greater than zero.", nameof(batchSize));
 
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             SELECT *
             FROM {_tableName}
