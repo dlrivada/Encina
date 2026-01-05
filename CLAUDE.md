@@ -557,6 +557,26 @@ Fatal error. Internal CLR error. (0x80131506)
 - [dotnet/runtime Issue #93893](https://github.com/dotnet/runtime/issues/93893)
 - [MSBuild Race Conditions](https://learn.microsoft.com/en-us/visualstudio/msbuild/fix-intermittent-build-failures)
 
+#### SQLite DateTime Format Incompatibility
+
+**Problem**: SQLite stores DateTime values as ISO 8601 text (e.g., `2026-01-05T12:30:00.0000000`), but SQLite's built-in `datetime('now')` function returns a different format (`2026-01-05 12:30:00`). This causes datetime comparisons in SQL queries to fail silently.
+
+**Solution**: Never use `datetime('now')` in SQLite Dapper queries. Always use parameterized `@NowUtc` with `DateTime.UtcNow` from C#:
+
+```csharp
+// ❌ WRONG - datetime('now') format incompatible with ISO 8601
+var sql = "SELECT * FROM Messages WHERE ProcessedAtUtc < datetime('now')";
+
+// ✅ CORRECT - Use parameterized DateTime from C#
+var nowUtc = DateTime.UtcNow;
+var sql = "SELECT * FROM Messages WHERE ProcessedAtUtc < @NowUtc";
+await connection.QueryAsync<Message>(sql, new { NowUtc = nowUtc });
+```
+
+**Affected stores**: All `Encina.Dapper.Sqlite` stores use `TimeProvider` or `DateTime.UtcNow` for time-based queries.
+
+**For tests**: When testing time-based behavior, use `TimeProvider` injection for deterministic time control.
+
 ### Spanish/English
 
 - User communicates in Spanish
