@@ -1,12 +1,16 @@
-﻿using Encina.Dapper.Sqlite.Inbox;
+using Encina.Dapper.Sqlite.Inbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
+using Encina.TestInfrastructure.PropertyTests;
+using FsCheck;
+using FsCheck.Xunit;
 
 namespace Encina.Dapper.Sqlite.Tests.Inbox;
 
 /// <summary>
 /// Property-based tests for <see cref="InboxStoreDapper"/>.
 /// Verifies invariants and properties across various inputs.
+/// Uses FsCheck with Bogus for realistic test data generation.
 /// </summary>
 public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
 {
@@ -23,6 +27,146 @@ public sealed class InboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
 
         _store = new InboxStoreDapper(_database.CreateConnection());
     }
+
+    #region FsCheck + Bogus Property Tests
+
+    /// <summary>
+    /// Property: Generated messages should always persist with correct MessageId.
+    /// Uses Bogus for realistic data generation with FsCheck for property verification.
+    /// </summary>
+    [Property(MaxTest = 50)]
+    public async Task AddAsync_BogusGeneratedMessage_ShouldPersistMessageId(PositiveInt seed)
+    {
+        // Arrange - Generate realistic message data using Bogus
+        // Use a unique suffix to avoid conflicts between FsCheck iterations
+        var uniqueSuffix = Guid.NewGuid().ToString("N")[..8];
+        var data = MessageDataGenerators.GenerateInboxData(seed.Get);
+        var uniqueMessageId = $"{data.MessageId}-{uniqueSuffix}";
+
+        var message = new InboxMessage
+        {
+            MessageId = uniqueMessageId,
+            RequestType = data.RequestType,
+            ReceivedAtUtc = data.ReceivedAtUtc,
+            ExpiresAtUtc = data.ExpiresAtUtc,
+            RetryCount = data.RetryCount
+        };
+
+        // Act
+        await _store.AddAsync(message);
+
+        // Assert
+        var retrieved = await _store.GetMessageAsync(uniqueMessageId);
+        Assert.NotNull(retrieved);
+        Assert.Equal(uniqueMessageId, retrieved.MessageId);
+        Assert.Equal(data.RequestType, retrieved.RequestType);
+    }
+
+    /// <summary>
+    /// Property: RetryCount should always be non-negative after failures.
+    /// </summary>
+    [Property(MaxTest = 50)]
+    public async Task MarkAsFailedAsync_BogusGeneratedMessage_RetryCountIsNonNegative(PositiveInt seed)
+    {
+        // Arrange - Generate message using Bogus with unique ID
+        var uniqueSuffix = Guid.NewGuid().ToString("N")[..8];
+        var data = MessageDataGenerators.GenerateInboxData(seed.Get);
+        var uniqueMessageId = $"{data.MessageId}-{uniqueSuffix}";
+
+        var message = new InboxMessage
+        {
+            MessageId = uniqueMessageId,
+            RequestType = data.RequestType,
+            ReceivedAtUtc = data.ReceivedAtUtc,
+            ExpiresAtUtc = data.ExpiresAtUtc,
+            RetryCount = 0
+        };
+        await _store.AddAsync(message);
+
+        // Act - Fail the message with Bogus-generated error
+        var faker = BogusArbitrary.CreateFaker(seed.Get);
+        var errorMessage = faker.Lorem.Sentence();
+        await _store.MarkAsFailedAsync(uniqueMessageId, errorMessage, null);
+
+        // Assert - RetryCount should be positive
+        var retrieved = await _store.GetMessageAsync(uniqueMessageId);
+        Assert.NotNull(retrieved);
+        Assert.True(retrieved.RetryCount >= 1, "RetryCount should be at least 1 after failure");
+    }
+
+    /// <summary>
+    /// Property: Processed messages should have ProcessedAtUtc set.
+    /// </summary>
+    [Property(MaxTest = 50)]
+    public async Task MarkAsProcessedAsync_BogusGeneratedMessage_SetsProcessedAtUtc(PositiveInt seed)
+    {
+        // Arrange - Generate message using Bogus with unique ID
+        var uniqueSuffix = Guid.NewGuid().ToString("N")[..8];
+        var data = MessageDataGenerators.GenerateInboxData(seed.Get);
+        var uniqueMessageId = $"{data.MessageId}-{uniqueSuffix}";
+
+        var message = new InboxMessage
+        {
+            MessageId = uniqueMessageId,
+            RequestType = data.RequestType,
+            ReceivedAtUtc = data.ReceivedAtUtc,
+            ExpiresAtUtc = data.ExpiresAtUtc,
+            RetryCount = 0
+        };
+        await _store.AddAsync(message);
+
+        // Act - Process the message with Bogus-generated response
+        var faker = BogusArbitrary.CreateFaker(seed.Get);
+        var response = faker.Lorem.Paragraph();
+        await _store.MarkAsProcessedAsync(uniqueMessageId, response);
+
+        // Assert - ProcessedAtUtc should be set and message marked as processed
+        var retrieved = await _store.GetMessageAsync(uniqueMessageId);
+        Assert.NotNull(retrieved);
+        Assert.NotNull(retrieved.ProcessedAtUtc);
+        Assert.True(retrieved.IsProcessed, "Message should be marked as processed");
+    }
+
+    /// <summary>
+    /// Property: Same seed produces reproducible message data (determinism test).
+    /// </summary>
+    [Property(MaxTest = 50)]
+    public bool SameSeed_ProducesReproducibleInboxData(PositiveInt seed)
+    {
+        var data1 = MessageDataGenerators.GenerateInboxData(seed.Get);
+        var data2 = MessageDataGenerators.GenerateInboxData(seed.Get);
+
+        return data1.MessageId == data2.MessageId &&
+               data1.RequestType == data2.RequestType;
+    }
+
+    /// <summary>
+    /// Property: Generated request types should be valid Encina request patterns.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public bool GeneratedRequestType_ShouldBeValidPattern(PositiveInt seed)
+    {
+        var data = MessageDataGenerators.GenerateInboxData(seed.Get);
+
+        // RequestType should not be null or empty
+        if (string.IsNullOrWhiteSpace(data.RequestType))
+            return false;
+
+        // RequestType should follow naming conventions (e.g., end with Command)
+        return data.RequestType.EndsWith("Command", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Property: ExpiresAtUtc should always be in the future relative to ReceivedAtUtc.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public bool GeneratedMessage_ExpiresAfterReceived(PositiveInt seed)
+    {
+        var data = MessageDataGenerators.GenerateInboxData(seed.Get);
+        return data.ExpiresAtUtc > data.ReceivedAtUtc;
+    }
+
+    #endregion
 
     #region RetryCount Invariants
 
