@@ -8,17 +8,27 @@ namespace Encina.Caching.Tests;
 /// <summary>
 /// Unit tests for <see cref="QueryCachingPipelineBehavior{TRequest, TResponse}"/>.
 /// </summary>
-public class QueryCachingPipelineBehaviorTests
+public class QueryCachingPipelineBehaviorTests : IDisposable
 {
-    private readonly ICacheProvider _cacheProvider;
+    private readonly FakeCacheProvider _cacheProvider;
     private readonly ICacheKeyGenerator _keyGenerator;
     private readonly ILogger<QueryCachingPipelineBehavior<CachedQuery, string>> _logger;
+    private readonly Faker _faker;
+    private readonly CacheKeyFaker _keyFaker;
 
     public QueryCachingPipelineBehaviorTests()
     {
-        _cacheProvider = Substitute.For<ICacheProvider>();
+        _cacheProvider = new FakeCacheProvider();
         _keyGenerator = Substitute.For<ICacheKeyGenerator>();
         _logger = NullLogger<QueryCachingPipelineBehavior<CachedQuery, string>>.Instance;
+        _faker = new Faker();
+        _keyFaker = new CacheKeyFaker();
+    }
+
+    public void Dispose()
+    {
+        _cacheProvider.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     [Fact]
@@ -109,7 +119,8 @@ public class QueryCachingPipelineBehaviorTests
         // Arrange
         var options = new CachingOptions { EnableQueryCaching = true };
         var sut = CreateBehavior(options);
-        var request = new CachedQuery("test");
+        var queryValue = _faker.Lorem.Word();
+        var request = new CachedQuery(queryValue);
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>("context", () =>
@@ -126,7 +137,8 @@ public class QueryCachingPipelineBehaviorTests
         // Arrange
         var options = new CachingOptions { EnableQueryCaching = true };
         var sut = CreateBehavior(options);
-        var request = new CachedQuery("test");
+        var queryValue = _faker.Lorem.Word();
+        var request = new CachedQuery(queryValue);
         var context = CreateContext();
 
         // Act & Assert
@@ -140,9 +152,10 @@ public class QueryCachingPipelineBehaviorTests
         // Arrange
         var options = new CachingOptions { EnableQueryCaching = false };
         var sut = CreateBehavior(options);
-        var request = new CachedQuery("test");
+        var queryValue = _faker.Lorem.Word();
+        var request = new CachedQuery(queryValue);
         var context = CreateContext();
-        var expectedResult = "result";
+        var expectedResult = _faker.Lorem.Sentence();
 
         // Act
         var result = await sut.Handle(
@@ -154,8 +167,8 @@ public class QueryCachingPipelineBehaviorTests
         // Assert
         result.ShouldBeSuccess().ShouldBe(expectedResult);
 
-        // Verify cache was not accessed
-        await _cacheProvider.DidNotReceive().GetAsync<CacheEntry<string>>(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        // Verify cache was not accessed using FakeCacheProvider
+        _cacheProvider.GetOperations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -164,14 +177,17 @@ public class QueryCachingPipelineBehaviorTests
         // Arrange
         var options = new CachingOptions { EnableQueryCaching = true };
         var sut = CreateBehavior(options);
-        var request = new CachedQuery("test");
+        var queryValue = _faker.Lorem.Word();
+        var request = new CachedQuery(queryValue);
         var context = CreateContext();
-        var cacheKey = "cache:test";
-        var cachedValue = "cached-result";
+        var cacheKey = _keyFaker.WithPrefix("cache").Generate();
+        var cachedValue = _faker.Lorem.Sentence();
+
+        // Pre-populate cache
+        await _cacheProvider.SetAsync(cacheKey, new CacheEntry<string> { Value = cachedValue, CachedAtUtc = DateTime.UtcNow }, null, CancellationToken.None);
+        _cacheProvider.ClearTracking(); // Clear tracking so we can verify behavior
 
         _keyGenerator.GenerateKey<CachedQuery, string>(request, context).Returns(cacheKey);
-        _cacheProvider.GetAsync<CacheEntry<string>>(cacheKey, Arg.Any<CancellationToken>())
-            .Returns(new CacheEntry<string> { Value = cachedValue, CachedAtUtc = DateTime.UtcNow });
 
         var nextStepCalled = false;
 
@@ -189,6 +205,9 @@ public class QueryCachingPipelineBehaviorTests
         // Assert
         result.ShouldBeSuccess().ShouldBe(cachedValue);
         nextStepCalled.ShouldBeFalse();
+
+        // Verify cache was accessed
+        _cacheProvider.WasKeyRequested(cacheKey).ShouldBeTrue();
     }
 
     [Fact]
@@ -197,14 +216,13 @@ public class QueryCachingPipelineBehaviorTests
         // Arrange
         var options = new CachingOptions { EnableQueryCaching = true };
         var sut = CreateBehavior(options);
-        var request = new CachedQuery("test");
+        var queryValue = _faker.Lorem.Word();
+        var request = new CachedQuery(queryValue);
         var context = CreateContext();
-        var cacheKey = "cache:test";
-        var freshResult = "fresh-result";
+        var cacheKey = _keyFaker.WithPrefix("cache").Generate();
+        var freshResult = _faker.Lorem.Sentence();
 
         _keyGenerator.GenerateKey<CachedQuery, string>(request, context).Returns(cacheKey);
-        _cacheProvider.GetAsync<CacheEntry<string>>(cacheKey, Arg.Any<CancellationToken>())
-            .Returns((CacheEntry<string>?)null);
 
         // Act
         var result = await sut.Handle(
@@ -216,11 +234,13 @@ public class QueryCachingPipelineBehaviorTests
         // Assert
         result.ShouldBeSuccess().ShouldBe(freshResult);
 
-        await _cacheProvider.Received(1).SetAsync(
-            cacheKey,
-            Arg.Any<CacheEntry<string>>(),
-            Arg.Any<TimeSpan>(),
-            Arg.Any<CancellationToken>());
+        // Verify the key was cached using FakeCacheProvider verification
+        _cacheProvider.WasKeyCached(cacheKey).ShouldBeTrue();
+
+        // Verify the cached value
+        var cachedEntry = _cacheProvider.GetValue<CacheEntry<string>>(cacheKey);
+        cachedEntry.ShouldNotBeNull();
+        cachedEntry.Value.ShouldBe(freshResult);
     }
 
     [Fact]
@@ -229,14 +249,14 @@ public class QueryCachingPipelineBehaviorTests
         // Arrange
         var options = new CachingOptions { EnableQueryCaching = true };
         var sut = CreateBehavior(options);
-        var request = new CachedQuery("test");
+        var queryValue = _faker.Lorem.Word();
+        var request = new CachedQuery(queryValue);
         var context = CreateContext();
-        var cacheKey = "cache:test";
-        var error = EncinaError.New("Test error");
+        var cacheKey = _keyFaker.WithPrefix("cache").Generate();
+        var errorMessage = _faker.Lorem.Sentence();
+        var error = EncinaError.New(errorMessage);
 
         _keyGenerator.GenerateKey<CachedQuery, string>(request, context).Returns(cacheKey);
-        _cacheProvider.GetAsync<CacheEntry<string>>(cacheKey, Arg.Any<CancellationToken>())
-            .Returns((CacheEntry<string>?)null);
 
         // Act
         var result = await sut.Handle(
@@ -248,26 +268,30 @@ public class QueryCachingPipelineBehaviorTests
         // Assert
         result.ShouldBeError();
 
-        await _cacheProvider.DidNotReceive().SetAsync(
-            Arg.Any<string>(),
-            Arg.Any<CacheEntry<string>>(),
-            Arg.Any<TimeSpan?>(),
-            Arg.Any<CancellationToken>());
+        // Verify nothing was cached
+        _cacheProvider.CachedKeys.ShouldNotContain(cacheKey);
     }
 
     [Fact]
     public async Task Handle_WhenCacheThrows_ContinuesWithoutCache()
     {
-        // Arrange
+        // Arrange - using a mock for this specific error simulation test
+        var errorCacheProvider = Substitute.For<ICacheProvider>();
         var options = new CachingOptions { EnableQueryCaching = true, ThrowOnCacheErrors = false };
-        var sut = CreateBehavior(options);
-        var request = new CachedQuery("test");
+        var sut = new QueryCachingPipelineBehavior<CachedQuery, string>(
+            errorCacheProvider,
+            _keyGenerator,
+            Options.Create(options),
+            _logger);
+
+        var queryValue = _faker.Lorem.Word();
+        var request = new CachedQuery(queryValue);
         var context = CreateContext();
-        var cacheKey = "cache:test";
-        var freshResult = "fresh-result";
+        var cacheKey = _keyFaker.WithPrefix("cache").Generate();
+        var freshResult = _faker.Lorem.Sentence();
 
         _keyGenerator.GenerateKey<CachedQuery, string>(request, context).Returns(cacheKey);
-        _cacheProvider.GetAsync<CacheEntry<string>>(cacheKey, Arg.Any<CancellationToken>())
+        errorCacheProvider.GetAsync<CacheEntry<string>>(cacheKey, Arg.Any<CancellationToken>())
             .Returns<CacheEntry<string>?>(x => throw new InvalidOperationException("Cache error"));
 
         // Act
@@ -284,16 +308,16 @@ public class QueryCachingPipelineBehaviorTests
     [Fact]
     public async Task Handle_WhenCacheThrowsAndThrowOnCacheErrorsEnabled_ThrowsException()
     {
-        // Arrange
+        // Arrange - use FakeCacheProvider with SimulateErrors
+        _cacheProvider.SimulateErrors = true;
         var options = new CachingOptions { EnableQueryCaching = true, ThrowOnCacheErrors = true };
         var sut = CreateBehavior(options);
-        var request = new CachedQuery("test");
+        var queryValue = _faker.Lorem.Word();
+        var request = new CachedQuery(queryValue);
         var context = CreateContext();
-        var cacheKey = "cache:test";
+        var cacheKey = _keyFaker.WithPrefix("cache").Generate();
 
         _keyGenerator.GenerateKey<CachedQuery, string>(request, context).Returns(cacheKey);
-        _cacheProvider.GetAsync<CacheEntry<string>>(cacheKey, Arg.Any<CancellationToken>())
-            .Returns<CacheEntry<string>?>(x => throw new InvalidOperationException("Cache error"));
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -308,7 +332,7 @@ public class QueryCachingPipelineBehaviorTests
     public async Task Handle_ForNonCachedQuery_BypassesCaching()
     {
         // Arrange
-        var cacheProvider = Substitute.For<ICacheProvider>();
+        using var cacheProvider = new FakeCacheProvider();
         var keyGenerator = Substitute.For<ICacheKeyGenerator>();
         var options = new CachingOptions { EnableQueryCaching = true };
         var logger = NullLogger<QueryCachingPipelineBehavior<NonCachedQuery, string>>.Instance;
@@ -319,9 +343,10 @@ public class QueryCachingPipelineBehaviorTests
             Options.Create(options),
             logger);
 
-        var request = new NonCachedQuery("test");
+        var queryValue = _faker.Lorem.Word();
+        var request = new NonCachedQuery(queryValue);
         var context = CreateContext();
-        var expectedResult = "result";
+        var expectedResult = _faker.Lorem.Sentence();
 
         // Act
         var result = await sut.Handle(
@@ -334,7 +359,8 @@ public class QueryCachingPipelineBehaviorTests
         result.ShouldBeSuccess().ShouldBe(expectedResult);
 
         // Verify cache was not accessed (no [Cache] attribute)
-        await cacheProvider.DidNotReceive().GetAsync<CacheEntry<string>>(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        cacheProvider.GetOperations.ShouldBeEmpty();
+        cacheProvider.CachedKeys.ShouldBeEmpty();
     }
 
     private QueryCachingPipelineBehavior<CachedQuery, string> CreateBehavior(CachingOptions options)
@@ -346,12 +372,12 @@ public class QueryCachingPipelineBehaviorTests
             _logger);
     }
 
-    private static IRequestContext CreateContext()
+    private IRequestContext CreateContext()
     {
         var context = Substitute.For<IRequestContext>();
-        context.TenantId.Returns("tenant1");
-        context.UserId.Returns("user1");
-        context.CorrelationId.Returns("corr-123");
+        context.TenantId.Returns(_faker.Random.TenantId());
+        context.UserId.Returns(_faker.Random.UserId());
+        context.CorrelationId.Returns(_faker.Random.CorrelationId().ToString());
         return context;
     }
 

@@ -8,18 +8,20 @@ namespace Encina.Caching.Tests;
 /// <summary>
 /// Unit tests for <see cref="CacheInvalidationPipelineBehavior{TRequest, TResponse}"/>.
 /// </summary>
-public class CacheInvalidationPipelineBehaviorTests
+public class CacheInvalidationPipelineBehaviorTests : IDisposable
 {
-    private readonly ICacheProvider _cacheProvider;
-    private readonly IPubSubProvider _pubSubProvider;
+    private readonly FakeCacheProvider _cacheProvider;
+    private readonly FakePubSubProvider _pubSubProvider;
     private readonly ICacheKeyGenerator _keyGenerator;
     private readonly CachingOptions _options;
     private readonly ILogger<CacheInvalidationPipelineBehavior<InvalidatingCommand, string>> _logger;
+    private readonly Faker _faker;
+    private readonly CacheKeyFaker _keyFaker;
 
     public CacheInvalidationPipelineBehaviorTests()
     {
-        _cacheProvider = Substitute.For<ICacheProvider>();
-        _pubSubProvider = Substitute.For<IPubSubProvider>();
+        _cacheProvider = new FakeCacheProvider();
+        _pubSubProvider = new FakePubSubProvider();
         _keyGenerator = Substitute.For<ICacheKeyGenerator>();
         _options = new CachingOptions
         {
@@ -28,6 +30,14 @@ public class CacheInvalidationPipelineBehaviorTests
             InvalidationChannel = "cache:invalidate"
         };
         _logger = NullLogger<CacheInvalidationPipelineBehavior<InvalidatingCommand, string>>.Instance;
+        _faker = new Faker();
+        _keyFaker = new CacheKeyFaker();
+    }
+
+    public void Dispose()
+    {
+        _cacheProvider.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     [Fact]
@@ -108,8 +118,14 @@ public class CacheInvalidationPipelineBehaviorTests
         // Arrange
         _options.EnableCacheInvalidation = false;
         var sut = CreateBehavior();
-        var request = new InvalidatingCommand(Guid.NewGuid());
+        var productId = _faker.Random.Guid();
+        var request = new InvalidatingCommand(productId);
         var context = CreateContext();
+
+        // Pre-populate cache with some data
+        var cacheKey = $"product:{productId}:details";
+        await _cacheProvider.SetAsync(cacheKey, "cached-data", null, CancellationToken.None);
+        _cacheProvider.ClearTracking();
 
         // Act
         await sut.Handle(
@@ -118,8 +134,8 @@ public class CacheInvalidationPipelineBehaviorTests
             () => ValueTask.FromResult(Right<EncinaError, string>("result")),
             CancellationToken.None);
 
-        // Assert
-        await _cacheProvider.DidNotReceive().RemoveByPatternAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        // Assert - cache should not have been cleared
+        _cacheProvider.RemovedKeys.ShouldBeEmpty();
     }
 
     [Fact]
@@ -127,10 +143,15 @@ public class CacheInvalidationPipelineBehaviorTests
     {
         // Arrange
         var sut = CreateBehavior();
-        var productId = Guid.NewGuid();
+        var productId = _faker.Random.Guid();
         var request = new InvalidatingCommand(productId);
         var context = CreateContext();
         var expectedPattern = $"product:{productId}:*";
+
+        // Pre-populate cache with matching keys
+        await _cacheProvider.SetAsync($"product:{productId}:details", "data1", null, CancellationToken.None);
+        await _cacheProvider.SetAsync($"product:{productId}:inventory", "data2", null, CancellationToken.None);
+        _cacheProvider.ClearTracking();
 
         _keyGenerator.GeneratePatternFromTemplate("product:{ProductId}:*", request, context)
             .Returns(expectedPattern);
@@ -142,8 +163,9 @@ public class CacheInvalidationPipelineBehaviorTests
             () => ValueTask.FromResult(Right<EncinaError, string>("result")),
             CancellationToken.None);
 
-        // Assert
-        await _cacheProvider.Received(1).RemoveByPatternAsync(expectedPattern, Arg.Any<CancellationToken>());
+        // Assert - both keys should have been removed
+        _cacheProvider.RemovedKeys.ShouldContain($"product:{productId}:details");
+        _cacheProvider.RemovedKeys.ShouldContain($"product:{productId}:inventory");
     }
 
     [Fact]
@@ -151,9 +173,16 @@ public class CacheInvalidationPipelineBehaviorTests
     {
         // Arrange
         var sut = CreateBehavior();
-        var request = new InvalidatingCommand(Guid.NewGuid());
+        var productId = _faker.Random.Guid();
+        var request = new InvalidatingCommand(productId);
         var context = CreateContext();
-        var error = EncinaError.New("Test error");
+        var errorMessage = _faker.Lorem.Sentence();
+        var error = EncinaError.New(errorMessage);
+
+        // Pre-populate cache
+        var cacheKey = $"product:{productId}:details";
+        await _cacheProvider.SetAsync(cacheKey, "cached-data", null, CancellationToken.None);
+        _cacheProvider.ClearTracking();
 
         // Act
         await sut.Handle(
@@ -162,8 +191,8 @@ public class CacheInvalidationPipelineBehaviorTests
             () => ValueTask.FromResult(Left<EncinaError, string>(error)),
             CancellationToken.None);
 
-        // Assert
-        await _cacheProvider.DidNotReceive().RemoveByPatternAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        // Assert - cache should not have been cleared on error
+        _cacheProvider.RemovedKeys.ShouldBeEmpty();
     }
 
     [Fact]
@@ -171,8 +200,7 @@ public class CacheInvalidationPipelineBehaviorTests
     {
         // Arrange
         _options.EnablePubSubInvalidation = true;
-        var sut = CreateBehaviorWithPubSub();
-        var productId = Guid.NewGuid();
+        var productId = _faker.Random.Guid();
         var request = new InvalidatingCommandWithBroadcast(productId);
         var context = CreateContext();
         var expectedPattern = $"product:{productId}:*";
@@ -195,51 +223,57 @@ public class CacheInvalidationPipelineBehaviorTests
             () => ValueTask.FromResult(Right<EncinaError, string>("result")),
             CancellationToken.None);
 
-        // Assert
-        await _pubSubProvider.Received(1).PublishAsync(
-            _options.InvalidationChannel,
-            expectedPattern,
-            Arg.Any<CancellationToken>());
+        // Assert - verify message was published to invalidation channel
+        _pubSubProvider.WasMessagePublished(_options.InvalidationChannel).ShouldBeTrue();
+        _pubSubProvider.WasMessagePublished(_options.InvalidationChannel, expectedPattern).ShouldBeTrue();
     }
 
     [Fact]
     public async Task Handle_WhenCacheThrows_ContinuesWithoutThrowing()
     {
-        // Arrange
+        // Arrange - use mock for error simulation
+        var errorCacheProvider = Substitute.For<ICacheProvider>();
         _options.ThrowOnCacheErrors = false;
-        var sut = CreateBehavior();
-        var request = new InvalidatingCommand(Guid.NewGuid());
+        var sut = new CacheInvalidationPipelineBehavior<InvalidatingCommand, string>(
+            errorCacheProvider,
+            _keyGenerator,
+            Options.Create(_options),
+            _logger);
+
+        var productId = _faker.Random.Guid();
+        var request = new InvalidatingCommand(productId);
         var context = CreateContext();
+        var expectedResult = _faker.Lorem.Sentence();
 
         _keyGenerator.GeneratePatternFromTemplate(Arg.Any<string>(), Arg.Any<InvalidatingCommand>(), Arg.Any<IRequestContext>())
             .Returns("pattern:*");
-        _cacheProvider.RemoveByPatternAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        errorCacheProvider.RemoveByPatternAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(x => throw new InvalidOperationException("Cache error"));
 
         // Act
         var result = await sut.Handle(
             request,
             context,
-            () => ValueTask.FromResult(Right<EncinaError, string>("result")),
+            () => ValueTask.FromResult(Right<EncinaError, string>(expectedResult)),
             CancellationToken.None);
 
         // Assert
-        result.ShouldBeSuccess();
+        result.ShouldBeSuccess().ShouldBe(expectedResult);
     }
 
     [Fact]
     public async Task Handle_WhenCacheThrowsAndThrowEnabled_ThrowsException()
     {
-        // Arrange
+        // Arrange - use FakeCacheProvider with SimulateErrors
+        _cacheProvider.SimulateErrors = true;
         _options.ThrowOnCacheErrors = true;
         var sut = CreateBehavior();
-        var request = new InvalidatingCommand(Guid.NewGuid());
+        var productId = _faker.Random.Guid();
+        var request = new InvalidatingCommand(productId);
         var context = CreateContext();
 
         _keyGenerator.GeneratePatternFromTemplate(Arg.Any<string>(), Arg.Any<InvalidatingCommand>(), Arg.Any<IRequestContext>())
             .Returns("pattern:*");
-        _cacheProvider.RemoveByPatternAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(x => throw new InvalidOperationException("Cache error"));
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -254,7 +288,7 @@ public class CacheInvalidationPipelineBehaviorTests
     public async Task Handle_ForNonInvalidatingCommand_DoesNotInvalidate()
     {
         // Arrange
-        var cacheProvider = Substitute.For<ICacheProvider>();
+        using var cacheProvider = new FakeCacheProvider();
         var keyGenerator = Substitute.For<ICacheKeyGenerator>();
         var options = new CachingOptions { EnableCacheInvalidation = true };
         var logger = NullLogger<CacheInvalidationPipelineBehavior<NonInvalidatingCommand, string>>.Instance;
@@ -265,8 +299,13 @@ public class CacheInvalidationPipelineBehaviorTests
             Options.Create(options),
             logger);
 
-        var request = new NonInvalidatingCommand("test");
+        var requestValue = _faker.Lorem.Word();
+        var request = new NonInvalidatingCommand(requestValue);
         var context = CreateContext();
+
+        // Pre-populate cache
+        await cacheProvider.SetAsync("some:key", "data", null, CancellationToken.None);
+        cacheProvider.ClearTracking();
 
         // Act
         await sut.Handle(
@@ -275,8 +314,8 @@ public class CacheInvalidationPipelineBehaviorTests
             () => ValueTask.FromResult(Right<EncinaError, string>("result")),
             CancellationToken.None);
 
-        // Assert
-        await cacheProvider.DidNotReceive().RemoveByPatternAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        // Assert - cache should not have been cleared (no [InvalidatesCache] attribute)
+        cacheProvider.RemovedKeys.ShouldBeEmpty();
     }
 
     private CacheInvalidationPipelineBehavior<InvalidatingCommand, string> CreateBehavior()
@@ -298,12 +337,12 @@ public class CacheInvalidationPipelineBehaviorTests
             _pubSubProvider);
     }
 
-    private static IRequestContext CreateContext()
+    private IRequestContext CreateContext()
     {
         var context = Substitute.For<IRequestContext>();
-        context.TenantId.Returns("tenant1");
-        context.UserId.Returns("user1");
-        context.CorrelationId.Returns("corr-123");
+        context.TenantId.Returns(_faker.Random.TenantId());
+        context.UserId.Returns(_faker.Random.UserId());
+        context.CorrelationId.Returns(_faker.Random.CorrelationId().ToString());
         return context;
     }
 

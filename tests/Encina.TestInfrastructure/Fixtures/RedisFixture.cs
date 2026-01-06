@@ -27,6 +27,115 @@ public sealed class RedisFixture : IAsyncLifetime
     /// </summary>
     public bool IsAvailable => _container is not null && Connection is not null;
 
+    /// <summary>
+    /// Gets the database instance for direct Redis operations.
+    /// </summary>
+    public IDatabase? Database => Connection?.GetDatabase();
+
+    /// <summary>
+    /// Flushes all keys from the current database.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>
+    /// This is useful for test isolation - call in InitializeAsync or at the start of each test
+    /// to ensure a clean state.
+    /// </remarks>
+    public async Task FlushDatabaseAsync()
+    {
+        if (Connection is null)
+        {
+            return;
+        }
+
+        var server = Connection.GetServer(Connection.GetEndPoints()[0]);
+        await server.FlushDatabaseAsync();
+    }
+
+    /// <summary>
+    /// Clears all keys matching a pattern from the cache.
+    /// </summary>
+    /// <param name="pattern">The glob pattern to match (e.g., "user:*", "cache:*:data").</param>
+    /// <returns>The number of keys that were deleted.</returns>
+    /// <remarks>
+    /// Supported pattern syntax:
+    /// <list type="bullet">
+    /// <item><description><c>*</c> matches any sequence of characters</description></item>
+    /// <item><description><c>?</c> matches any single character</description></item>
+    /// <item><description><c>[abc]</c> matches any character in the set</description></item>
+    /// </list>
+    /// </remarks>
+    public async Task<long> ClearCacheAsync(string pattern)
+    {
+        if (Connection is null || Database is null)
+        {
+            return 0;
+        }
+
+        var server = Connection.GetServer(Connection.GetEndPoints()[0]);
+        var keys = server.Keys(pattern: pattern).ToArray();
+
+        if (keys.Length == 0)
+        {
+            return 0;
+        }
+
+        return await Database.KeyDeleteAsync(keys);
+    }
+
+    /// <summary>
+    /// Gets all keys matching a pattern.
+    /// </summary>
+    /// <param name="pattern">The glob pattern to match (default: "*" for all keys).</param>
+    /// <returns>An array of matching key names.</returns>
+    public string[] GetKeys(string pattern = "*")
+    {
+        if (Connection is null)
+        {
+            return [];
+        }
+
+        var server = Connection.GetServer(Connection.GetEndPoints()[0]);
+        return server.Keys(pattern: pattern).Select(k => k.ToString()).ToArray();
+    }
+
+    /// <summary>
+    /// Gets all keys matching a pattern asynchronously.
+    /// </summary>
+    /// <param name="pattern">The glob pattern to match (default: "*" for all keys).</param>
+    /// <returns>An array of matching key names.</returns>
+    public async Task<string[]> GetKeysAsync(string pattern = "*")
+    {
+        if (Connection is null)
+        {
+            return [];
+        }
+
+        var server = Connection.GetServer(Connection.GetEndPoints()[0]);
+        var keys = new List<string>();
+
+        await foreach (var key in server.KeysAsync(pattern: pattern))
+        {
+            keys.Add(key.ToString());
+        }
+
+        return [.. keys];
+    }
+
+    /// <summary>
+    /// Gets the count of keys in the database.
+    /// </summary>
+    /// <returns>The number of keys.</returns>
+    public long GetKeyCount()
+    {
+        if (Connection is null)
+        {
+            return 0;
+        }
+
+        var server = Connection.GetServer(Connection.GetEndPoints()[0]);
+        return server.DatabaseSize();
+    }
+
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
