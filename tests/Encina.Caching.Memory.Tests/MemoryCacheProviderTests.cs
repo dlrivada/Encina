@@ -7,6 +7,8 @@ public sealed class MemoryCacheProviderTests : IDisposable
 {
     private readonly MemoryCache _memoryCache;
     private readonly MemoryCacheProvider _sut;
+    private readonly Faker _faker;
+    private readonly CacheKeyFaker _keyFaker;
     private bool _disposed;
 
     public MemoryCacheProviderTests()
@@ -20,6 +22,8 @@ public sealed class MemoryCacheProviderTests : IDisposable
         });
 
         _sut = new MemoryCacheProvider(_memoryCache, providerOptions, NullLogger<MemoryCacheProvider>.Instance);
+        _faker = new Faker();
+        _keyFaker = new CacheKeyFaker();
     }
 
     public void Dispose()
@@ -97,9 +101,10 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task GetAsync_WithExistingKey_ReturnsValue()
     {
         // Arrange
-        const string key = "test-key";
-        const string expectedValue = "test-value";
-        await _sut.SetAsync(key, expectedValue, TimeSpan.FromMinutes(5), CancellationToken.None);
+        var key = _keyFaker.Generate();
+        var expectedValue = _faker.Lorem.Sentence();
+        var expiration = _faker.CacheExpiration();
+        await _sut.SetAsync(key, expectedValue, expiration, CancellationToken.None);
 
         // Act
         var result = await _sut.GetAsync<string>(key, CancellationToken.None);
@@ -111,8 +116,11 @@ public sealed class MemoryCacheProviderTests : IDisposable
     [Fact]
     public async Task GetAsync_WithNonExistingKey_ReturnsNull()
     {
+        // Arrange
+        var nonExistingKey = _keyFaker.Generate();
+
         // Act
-        var result = await _sut.GetAsync<string>("non-existing", CancellationToken.None);
+        var result = await _sut.GetAsync<string>(nonExistingKey, CancellationToken.None);
 
         // Assert
         result.ShouldBeNull();
@@ -122,9 +130,10 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task GetAsync_WithComplexType_ReturnsDeserializedValue()
     {
         // Arrange
-        const string key = "complex-key";
-        var expectedValue = new TestData(Guid.NewGuid(), "Test Name", 42);
-        await _sut.SetAsync(key, expectedValue, TimeSpan.FromMinutes(5), CancellationToken.None);
+        var key = _keyFaker.WithPrefix("complex").Generate();
+        var expectedValue = new TestData(_faker.Random.Guid(), _faker.Name.FullName(), _faker.Random.Int(1, 100));
+        var expiration = _faker.CacheExpiration();
+        await _sut.SetAsync(key, expectedValue, expiration, CancellationToken.None);
 
         // Act
         var result = await _sut.GetAsync<TestData>(key, CancellationToken.None);
@@ -161,11 +170,12 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task SetAsync_WithValue_StoresValueInCache()
     {
         // Arrange
-        const string key = "set-key";
-        const string value = "set-value";
+        var key = _keyFaker.Generate();
+        var value = _faker.Lorem.Sentence();
+        var expiration = _faker.CacheExpiration();
 
         // Act
-        await _sut.SetAsync(key, value, TimeSpan.FromMinutes(5), CancellationToken.None);
+        await _sut.SetAsync(key, value, expiration, CancellationToken.None);
 
         // Assert
         var result = await _sut.GetAsync<string>(key, CancellationToken.None);
@@ -176,8 +186,8 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task SetAsync_WithNullExpiration_UsesDefaultExpiration()
     {
         // Arrange
-        const string key = "null-expiration-key";
-        const string value = "value";
+        var key = _keyFaker.Generate();
+        var value = _faker.Lorem.Sentence();
 
         // Act
         await _sut.SetAsync(key, value, null, CancellationToken.None);
@@ -191,15 +201,19 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task SetAsync_OverwritesExistingValue()
     {
         // Arrange
-        const string key = "overwrite-key";
-        await _sut.SetAsync(key, "original", TimeSpan.FromMinutes(5), CancellationToken.None);
+        var key = _keyFaker.Generate();
+        var originalValue = _faker.Lorem.Sentence();
+        var updatedValue = _faker.Lorem.Sentence();
+        var expiration = _faker.CacheExpiration();
+
+        await _sut.SetAsync(key, originalValue, expiration, CancellationToken.None);
 
         // Act
-        await _sut.SetAsync(key, "updated", TimeSpan.FromMinutes(5), CancellationToken.None);
+        await _sut.SetAsync(key, updatedValue, expiration, CancellationToken.None);
 
         // Assert
         var result = await _sut.GetAsync<string>(key, CancellationToken.None);
-        result.ShouldBe("updated");
+        result.ShouldBe(updatedValue);
     }
 
     #endregion
@@ -230,8 +244,10 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task RemoveAsync_WithExistingKey_RemovesFromCache()
     {
         // Arrange
-        const string key = "remove-key";
-        await _sut.SetAsync(key, "value", TimeSpan.FromMinutes(5), CancellationToken.None);
+        var key = _keyFaker.Generate();
+        var value = _faker.Lorem.Sentence();
+        var expiration = _faker.CacheExpiration();
+        await _sut.SetAsync(key, value, expiration, CancellationToken.None);
 
         // Act
         await _sut.RemoveAsync(key, CancellationToken.None);
@@ -244,8 +260,11 @@ public sealed class MemoryCacheProviderTests : IDisposable
     [Fact]
     public async Task RemoveAsync_WithNonExistingKey_DoesNotThrow()
     {
+        // Arrange
+        var nonExistingKey = _keyFaker.Generate();
+
         // Act & Assert - should complete without exception
-        await _sut.RemoveAsync("non-existing", CancellationToken.None);
+        await _sut.RemoveAsync(nonExistingKey, CancellationToken.None);
     }
 
     #endregion
@@ -276,18 +295,21 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task RemoveByPatternAsync_WithWildcard_RemovesMatchingKeys()
     {
         // Arrange
-        await _sut.SetAsync("user:1:name", "Alice", TimeSpan.FromMinutes(5), CancellationToken.None);
-        await _sut.SetAsync("user:1:email", "alice@test.com", TimeSpan.FromMinutes(5), CancellationToken.None);
-        await _sut.SetAsync("user:2:name", "Bob", TimeSpan.FromMinutes(5), CancellationToken.None);
-        await _sut.SetAsync("product:1:name", "Widget", TimeSpan.FromMinutes(5), CancellationToken.None);
+        var userId = _faker.Random.Int(1, 1000);
+        var expiration = _faker.CacheExpiration();
+
+        await _sut.SetAsync($"user:{userId}:name", _faker.Name.FullName(), expiration, CancellationToken.None);
+        await _sut.SetAsync($"user:{userId}:email", _faker.Internet.Email(), expiration, CancellationToken.None);
+        await _sut.SetAsync("user:other:name", _faker.Name.FullName(), expiration, CancellationToken.None);
+        await _sut.SetAsync("product:1:name", _faker.Commerce.ProductName(), expiration, CancellationToken.None);
 
         // Act
-        await _sut.RemoveByPatternAsync("user:1:*", CancellationToken.None);
+        await _sut.RemoveByPatternAsync($"user:{userId}:*", CancellationToken.None);
 
         // Assert
-        (await _sut.ExistsAsync("user:1:name", CancellationToken.None)).ShouldBeFalse();
-        (await _sut.ExistsAsync("user:1:email", CancellationToken.None)).ShouldBeFalse();
-        (await _sut.ExistsAsync("user:2:name", CancellationToken.None)).ShouldBeTrue();
+        (await _sut.ExistsAsync($"user:{userId}:name", CancellationToken.None)).ShouldBeFalse();
+        (await _sut.ExistsAsync($"user:{userId}:email", CancellationToken.None)).ShouldBeFalse();
+        (await _sut.ExistsAsync("user:other:name", CancellationToken.None)).ShouldBeTrue();
         (await _sut.ExistsAsync("product:1:name", CancellationToken.None)).ShouldBeTrue();
     }
 
@@ -295,9 +317,11 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task RemoveByPatternAsync_WithQuestionMarkWildcard_RemovesMatchingKeys()
     {
         // Arrange
-        await _sut.SetAsync("cache:a", "value-a", TimeSpan.FromMinutes(5), CancellationToken.None);
-        await _sut.SetAsync("cache:b", "value-b", TimeSpan.FromMinutes(5), CancellationToken.None);
-        await _sut.SetAsync("cache:ab", "value-ab", TimeSpan.FromMinutes(5), CancellationToken.None);
+        var expiration = _faker.CacheExpiration();
+
+        await _sut.SetAsync("cache:a", _faker.Lorem.Word(), expiration, CancellationToken.None);
+        await _sut.SetAsync("cache:b", _faker.Lorem.Word(), expiration, CancellationToken.None);
+        await _sut.SetAsync("cache:ab", _faker.Lorem.Word(), expiration, CancellationToken.None);
 
         // Act
         await _sut.RemoveByPatternAsync("cache:?", CancellationToken.None);
@@ -336,8 +360,10 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task ExistsAsync_WithExistingKey_ReturnsTrue()
     {
         // Arrange
-        const string key = "exists-key";
-        await _sut.SetAsync(key, "value", TimeSpan.FromMinutes(5), CancellationToken.None);
+        var key = _keyFaker.Generate();
+        var value = _faker.Lorem.Sentence();
+        var expiration = _faker.CacheExpiration();
+        await _sut.SetAsync(key, value, expiration, CancellationToken.None);
 
         // Act
         var exists = await _sut.ExistsAsync(key, CancellationToken.None);
@@ -349,8 +375,11 @@ public sealed class MemoryCacheProviderTests : IDisposable
     [Fact]
     public async Task ExistsAsync_WithNonExistingKey_ReturnsFalse()
     {
+        // Arrange
+        var nonExistingKey = _keyFaker.Generate();
+
         // Act
-        var exists = await _sut.ExistsAsync("non-existing", CancellationToken.None);
+        var exists = await _sut.ExistsAsync(nonExistingKey, CancellationToken.None);
 
         // Assert
         exists.ShouldBeFalse();
@@ -392,9 +421,10 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task GetOrSetAsync_WhenCacheHit_ReturnsExistingValue()
     {
         // Arrange
-        const string key = "getorset-hit";
-        const string existingValue = "existing";
-        await _sut.SetAsync(key, existingValue, TimeSpan.FromMinutes(5), CancellationToken.None);
+        var key = _keyFaker.Generate();
+        var existingValue = _faker.Lorem.Sentence();
+        var expiration = _faker.CacheExpiration();
+        await _sut.SetAsync(key, existingValue, expiration, CancellationToken.None);
         var factoryCalled = false;
 
         // Act
@@ -403,9 +433,9 @@ public sealed class MemoryCacheProviderTests : IDisposable
             _ =>
             {
                 factoryCalled = true;
-                return Task.FromResult("new-value");
+                return Task.FromResult(_faker.Lorem.Sentence());
             },
-            TimeSpan.FromMinutes(5),
+            expiration,
             CancellationToken.None);
 
         // Assert
@@ -417,8 +447,9 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task GetOrSetAsync_WhenCacheMiss_CallsFactoryAndStoresValue()
     {
         // Arrange
-        const string key = "getorset-miss";
-        const string newValue = "new-value";
+        var key = _keyFaker.Generate();
+        var newValue = _faker.Lorem.Sentence();
+        var expiration = _faker.CacheExpiration();
         var factoryCalled = false;
 
         // Act
@@ -429,7 +460,7 @@ public sealed class MemoryCacheProviderTests : IDisposable
                 factoryCalled = true;
                 return Task.FromResult(newValue);
             },
-            TimeSpan.FromMinutes(5),
+            expiration,
             CancellationToken.None);
 
         // Assert
@@ -469,11 +500,13 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task SetWithSlidingExpirationAsync_StoresValueWithSlidingExpiration()
     {
         // Arrange
-        const string key = "sliding-key";
-        const string value = "sliding-value";
+        var key = _keyFaker.Generate();
+        var value = _faker.Lorem.Sentence();
+        var slidingExpiration = _faker.CacheSlidingExpiration();
+        var absoluteExpiration = _faker.CacheAbsoluteExpiration();
 
         // Act
-        await _sut.SetWithSlidingExpirationAsync(key, value, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5), CancellationToken.None);
+        await _sut.SetWithSlidingExpirationAsync(key, value, slidingExpiration, absoluteExpiration, CancellationToken.None);
 
         // Assert
         var result = await _sut.GetAsync<string>(key, CancellationToken.None);
@@ -484,11 +517,12 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task SetWithSlidingExpirationAsync_WithNullAbsoluteExpiration_Works()
     {
         // Arrange
-        const string key = "sliding-only-key";
-        const string value = "sliding-value";
+        var key = _keyFaker.Generate();
+        var value = _faker.Lorem.Sentence();
+        var slidingExpiration = _faker.CacheSlidingExpiration();
 
         // Act
-        await _sut.SetWithSlidingExpirationAsync(key, value, TimeSpan.FromMinutes(1), null, CancellationToken.None);
+        await _sut.SetWithSlidingExpirationAsync(key, value, slidingExpiration, null, CancellationToken.None);
 
         // Assert
         var exists = await _sut.ExistsAsync(key, CancellationToken.None);
@@ -523,8 +557,10 @@ public sealed class MemoryCacheProviderTests : IDisposable
     public async Task RefreshAsync_WithExistingKey_ReturnsTrue()
     {
         // Arrange
-        const string key = "refresh-key";
-        await _sut.SetAsync(key, "value", TimeSpan.FromMinutes(5), CancellationToken.None);
+        var key = _keyFaker.Generate();
+        var value = _faker.Lorem.Sentence();
+        var expiration = _faker.CacheExpiration();
+        await _sut.SetAsync(key, value, expiration, CancellationToken.None);
 
         // Act
         var result = await _sut.RefreshAsync(key, CancellationToken.None);
@@ -536,8 +572,11 @@ public sealed class MemoryCacheProviderTests : IDisposable
     [Fact]
     public async Task RefreshAsync_WithNonExistingKey_ReturnsFalse()
     {
+        // Arrange
+        var nonExistingKey = _keyFaker.Generate();
+
         // Act
-        var result = await _sut.RefreshAsync("non-existing", CancellationToken.None);
+        var result = await _sut.RefreshAsync(nonExistingKey, CancellationToken.None);
 
         // Assert
         result.ShouldBeFalse();

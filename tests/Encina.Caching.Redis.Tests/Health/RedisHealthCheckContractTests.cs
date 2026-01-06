@@ -38,10 +38,10 @@ public sealed class RedisHealthCheckContractTests : IEncinaHealthCheckContractTe
     }
 
     [Fact]
-    public void Tags_WithDefaultOptions_ShouldContainCachingTag()
+    public void Tags_WithDefaultOptions_ShouldContainCacheTag()
     {
         var healthCheck = CreateHealthCheck();
-        healthCheck.Tags.ShouldContain("caching");
+        healthCheck.Tags.ShouldContain("cache");
     }
 
     [Fact]

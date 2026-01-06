@@ -45,11 +45,11 @@ public sealed class RedisHealthCheckPropertyTests
     }
 
     [Property(MaxTest = 50)]
-    public bool Tags_WithDefaultOptions_ContainsCaching(int seed)
+    public bool Tags_WithDefaultOptions_ContainsCache(int seed)
     {
         var serviceProvider = CreateMockServiceProvider();
         var healthCheck = new RedisHealthCheck(serviceProvider, null);
-        return healthCheck.Tags.Contains("caching");
+        return healthCheck.Tags.Contains("cache");
     }
 
     [Property(MaxTest = 50)]
