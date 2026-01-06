@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.Messaging;
 using LanguageExt;
 using Microsoft.Data.Sqlite;
 
@@ -65,7 +66,7 @@ public class TransactionPipelineBehaviorGuardsTests
     }
 
     /// <summary>
-    /// Verifies that Handle throws ArgumentNullException when next is null.
+    /// Verifies that Handle throws ArgumentNullException when nextStep is null.
     /// </summary>
     [Fact]
     public async Task Handle_NullNext_ThrowsArgumentNullException()
@@ -76,12 +77,12 @@ public class TransactionPipelineBehaviorGuardsTests
 
         var request = new TestRequest();
         var context = Substitute.For<IRequestContext>();
-        RequestHandlerCallback<string> next = null!;
+        RequestHandlerCallback<string> nextStep = null!;
 
         // Act & Assert
-        var act = () => behavior.Handle(request, context, next, CancellationToken.None).AsTask();
+        var act = () => behavior.Handle(request, context, nextStep, CancellationToken.None).AsTask();
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("next");
+        ex.ParamName.ShouldBe("nextStep");
     }
 
     /// <summary>

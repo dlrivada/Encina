@@ -44,9 +44,10 @@ public sealed class ContentRouterLoadTests
             .Build();
 
         const int requestCount = 1000;
-        var random = new Random(42);
+        var random = new Random(42); // Deterministic seed for reproducibility
 
         // Act
+        var stopwatch = Stopwatch.StartNew();
         var tasks = Enumerable.Range(0, requestCount)
             .Select(async i =>
             {
@@ -55,7 +56,6 @@ public sealed class ContentRouterLoadTests
             })
             .ToList();
 
-        var stopwatch = Stopwatch.StartNew();
         var results = await Task.WhenAll(tasks);
         stopwatch.Stop();
 
@@ -206,7 +206,7 @@ public sealed class ContentRouterLoadTests
             {
                 var localSuccess = 0;
                 var localError = 0;
-                var random = new Random(workerId);
+                var random = new Random(workerId); // Deterministic seed per worker
 
                 while (!cts.Token.IsCancellationRequested)
                 {

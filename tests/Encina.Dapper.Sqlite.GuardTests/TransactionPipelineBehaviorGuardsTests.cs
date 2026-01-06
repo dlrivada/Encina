@@ -1,5 +1,5 @@
 using System.Data;
-using Encina.Dapper.Sqlite;
+using Encina.Messaging;
 
 namespace Encina.Dapper.Sqlite.GuardTests;
 

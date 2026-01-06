@@ -194,7 +194,8 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var updated = await verifyContext.InboxMessages.FindAsync(message.MessageId);
         updated!.ErrorMessage.ShouldBe("Test error");
         updated.RetryCount.ShouldBe(1);
-        updated.NextRetryAtUtc.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
+        updated.NextRetryAtUtc.ShouldNotBeNull();
+        updated.NextRetryAtUtc.Value.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
     [Fact]

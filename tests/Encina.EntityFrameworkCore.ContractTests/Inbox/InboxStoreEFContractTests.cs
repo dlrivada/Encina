@@ -214,7 +214,7 @@ public sealed class InboxStoreEFContractTests : IDisposable
 
         // Assert
         var ex = await Should.ThrowAsync<InvalidOperationException>(async () => await act());
-        ex.Message.ShouldMatch("*InboxMessage*");
+        ex.Message.ShouldContain("InboxMessage");
     }
 
     public void Dispose()

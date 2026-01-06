@@ -34,7 +34,7 @@ public sealed class EntityFrameworkCoreHealthCheckIntegrationTests : IClassFixtu
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("reachable");
+        result.Description!.ShouldContain("reachable");
     }
 
     [Fact]

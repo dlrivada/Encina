@@ -14,6 +14,11 @@ public sealed class EntityFrameworkCoreHealthCheck : EncinaHealthCheck
     /// </summary>
     public const string DefaultName = "encina-efcore";
 
+    /// <summary>
+    /// Tags that are always included in the health check and merged with any user-provided tags.
+    /// </summary>
+    private static readonly string[] DefaultTags = ["encina", "database", "efcore", "ready"];
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ProviderHealthCheckOptions _options;
 
@@ -25,7 +30,7 @@ public sealed class EntityFrameworkCoreHealthCheck : EncinaHealthCheck
     public EntityFrameworkCoreHealthCheck(
         IServiceProvider serviceProvider,
         ProviderHealthCheckOptions? options)
-        : base(options?.Name ?? DefaultName)
+        : base(options?.Name ?? DefaultName, MergeTags(options?.Tags, DefaultTags))
     {
         _serviceProvider = serviceProvider;
         _options = options ?? new ProviderHealthCheckOptions();

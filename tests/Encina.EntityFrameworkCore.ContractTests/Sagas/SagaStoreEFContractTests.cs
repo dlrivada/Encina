@@ -181,7 +181,7 @@ public sealed class SagaStoreEFContractTests : IDisposable
 
         // Assert
         var ex = await Should.ThrowAsync<InvalidOperationException>(async () => await act());
-        ex.Message.ShouldMatch("*SagaState*");
+        ex.Message.ShouldContain("SagaState");
     }
 
     public void Dispose()

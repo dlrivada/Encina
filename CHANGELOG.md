@@ -2,6 +2,8 @@
 
 ### Table of Contents
 
+- [Dogfooding Initiative](#dogfooding-initiative-issues-498-502)
+- [Solution Filters Reorganization](#solution-filters-reorganization)
 - [Encina.Testing.Pact](#encinatestingpact-new-package-issue-436)
 - [Encina.Testing.FsCheck](#encinatestingfscheck-new-package-issue-435)
 - [Encina.Testing.TUnit](#encinatestingtunit-new-package-issue-171)
@@ -46,6 +48,62 @@
 ---
 
 ### Added
+
+#### Dogfooding Initiative (Issues #498-502)
+
+Epic initiative to refactor all Encina tests to use `Encina.Testing.*` infrastructure (dogfooding).
+
+**Phases Completed**:
+
+- **Phase 1** (#499): Core package tests - **CLOSED**
+- **Phase 2** (#500): DomainModeling package tests - **CLOSED**
+- **Phase 3** (#501): Messaging package tests - **CLOSED**
+- **Phase 4** (#502): Database provider tests (ADO, Dapper, EF Core) - **IN PROGRESS**
+
+**Test Infrastructure Improvements**:
+
+- `BogusArbitrary<T>` class bridging Bogus Faker with FsCheck generators
+- `MessageDataGenerators` with pre-built generators for messaging entities
+- `TimeProvider` injection to Dapper stores for deterministic time control
+- Fixed SQLite datetime format incompatibility (ISO 8601 vs `datetime('now')`)
+
+**Test Fixes Applied**:
+
+- ADO/Dapper GuardTests: Fixed parameter name "next" → "nextStep"
+- EF Core ContractTests: Fixed invalid regex `ShouldMatch("*Type*")` → `ShouldContain("Type")`
+- EF Core IntegrationTests: Added `HasConversion<string>()` for SagaStatus enum
+- EF Core HealthCheck: Added `DefaultTags` with ["encina", "database", "efcore", "ready"]
+
+**Test Results**:
+
+- ADO.Sqlite: 209 tests ✅
+- EF Core: 219 tests ✅
+
+#### Solution Filters Reorganization
+
+Updated all solution filters (`.slnf` files) to include complete test project coverage.
+
+**Updated Filters** (11 files):
+
+- `Encina.Core.slnf` - Added DomainModeling and all its tests
+- `Encina.Messaging.slnf` - Added TestInfrastructure
+- `Encina.EventSourcing.slnf` - Added TestInfrastructure, Marten.IntegrationTests
+- `Encina.Observability.slnf` - Added Messaging, TestInfrastructure
+- `Encina.Validation.slnf` - Added GuardClauses.Tests
+- `Encina.Web.slnf` - Added SignalR, gRPC and tests
+- `Encina.Scheduling.slnf` - Reorganized TestInfrastructure
+- `Encina.Testing.slnf` - Added FsCheck, Verify, Testcontainers, Architecture, Aspire (32 projects)
+- `Encina.Database.slnf` - Full expansion with all 85 database provider test projects
+- `Encina.Caching.slnf` - Added TestInfrastructure, Redis.Tests
+- `Encina.Resilience.slnf` - Added TestInfrastructure
+
+**New Filters Created** (5 files):
+
+- `Encina.Transports.slnf` - RabbitMQ, Kafka, AzureServiceBus, AmazonSQS, NATS, MQTT
+- `Encina.Serverless.slnf` - AwsLambda, AzureFunctions
+- `Encina.DistributedLock.slnf` - DistributedLock, Redis, SqlServer
+- `Encina.Cli.slnf` - CLI tool
+- `Encina.Workflows.slnf` - Workflows
 
 #### Encina.Testing.Pact (New Package, Issue #436)
 
@@ -875,7 +933,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - **Local Workaround**: Set `DOTNET_JitObjectStackAllocationConditionalEscape=0` before running load tests
     - **Internal Docs**: See [docs/history/2025-12.md](docs/history/2025-12.md#clr-crash-on-net-10-issue-5) "Known Issues" section
 
-
 #### AI/LLM Patterns Issues (12 new features planned based on December 29, 2025 research)
 
 - **MCP (Model Context Protocol) Support** (Issue #481) - MCP server/client integration
@@ -1334,7 +1391,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - New package planned: `Encina.Orleans`
     - Priority: LOW - High-concurrency niche
 
-
 #### Microservices Architecture Patterns Issues (12 new features planned based on December 29, 2025 research)
 
 - **Service Discovery & Configuration Management** (Issue #382) - Foundational microservices pattern
@@ -1428,7 +1484,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `kubernetes-native` - Kubernetes-native patterns and deployment
   - `pattern-sidecar` - Sidecar and Ambassador patterns
   - `pattern-bff` - Backend for Frontend pattern
-
 
 #### Security Patterns Issues (8 new features planned based on December 29, 2025 research)
 
@@ -1574,7 +1629,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `pattern-data-sovereignty` - Data residency and sovereignty
   - `area-data-protection` - Data protection and privacy features
 
-
 #### Advanced Validation Patterns Issues (10 new features planned based on December 2025 research)
 
 - **Source-Generated Validation** (Issue #227) - Compile-time validation code generation
@@ -1632,7 +1686,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - Best practice for clean CQRS architecture
 
 - New label created: `area-source-generators` for source generator-related features
-
 
 #### Advanced Event Sourcing Patterns Issues (13 new features planned based on December 2025 research)
 
@@ -1703,7 +1756,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `area-archival` - Event archival and cold storage patterns
   - `area-developer-experience` - Developer experience and tooling improvements
   - `marten-integration` - Marten library integration
-
 
 #### Advanced CQRS Patterns Issues (12 new features planned based on December 2025 market research)
 
@@ -1786,7 +1838,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `graphql-inspired` - Pattern inspired by GraphQL ecosystem
   - `pattern-batch-processing` - Batch processing and bulk command pattern
   - `pattern-request-composition` - Request composition and aggregation pattern
-
 
 #### Domain Modeling Building Blocks Issues (15 new features planned based on December 29, 2025 DDD research)
 
@@ -1873,7 +1924,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `area-auditing` - Auditing, change tracking, and soft delete patterns (already existed)
   - `foundational` - Core building block that other features depend on
 
-
 #### Vertical Slice Architecture Patterns Issues (12 new features planned based on December 29, 2025 research)
 
 - **Feature Flags Integration** (Issue #345) - Microsoft.FeatureManagement integration
@@ -1954,7 +2004,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `area-auditing` - Audit trail and logging patterns
   - `area-domain-events` - Domain events and integration events
   - `saas-essential` - Essential pattern for SaaS applications
-
 
 #### Modular Monolith Architecture Patterns Issues (10 new features planned based on December 29, 2025 research)
 
@@ -2056,7 +2105,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `saas-enabler` - Enables SaaS application development
   - `roslyn-analyzer` - Requires Roslyn analyzer implementation
 
-
 #### Advanced Messaging Patterns Issues (15 new features planned based on market research)
 
 - **Message Batching** (Issue #121) - Process multiple messages in a single handler invocation
@@ -2117,7 +2165,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - Automatic classification (transient, permanent, malformed)
     - Per-classification actions (retry, DLQ, quarantine)
     - Security violation alerting
-
 
 #### Database Providers Patterns Issues (16 new features planned based on December 2025 research)
 
@@ -2198,7 +2245,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `area-pagination` - Pagination patterns (offset, cursor, keyset)
   - `area-concurrency` - Concurrency control and conflict resolution
   - `area-connection-pool` - Connection pooling and management
-
 
 #### Advanced DDD & Workflow Patterns Issues (13 new features planned based on December 29, 2025 research)
 
@@ -2369,7 +2415,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `stripe-pattern` - Pattern inspired by Stripe engineering
   - `temporal-pattern` - Pattern inspired by Temporal.io
 
-
 #### Advanced Caching Patterns Issues (13 new features planned based on December 2025 research)
 
 - **Cache Stampede Protection** (Issue #266) - Thundering herd prevention with multiple strategies
@@ -2451,7 +2496,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
 
 - Issue #140 (Cache Stampede Prevention) closed as duplicate of #266 (more comprehensive)
 
-
 #### Advanced Resilience Patterns Issues (9 new features planned based on 2025 research)
 
 - **Hedging Pattern** (Issue #136) - Parallel redundant requests for latency reduction
@@ -2495,7 +2539,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - Latency injection, exception injection, result manipulation
     - Controlled chaos via feature flags
     - Integration with testing infrastructure
-
 
 #### Advanced Scheduling Patterns Issues (15 new features planned based on 2025 research)
 
@@ -2559,7 +2602,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - Inspired by Meta FOQS, Uber Cadence
     - Leader election per region
     - Cross-region coordination
-
 
 #### Advanced Observability Patterns Issues (15 new features planned based on 2025 research)
 
@@ -2639,7 +2681,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - Aspire Dashboard configuration
     - Encina trace visualization
     - Local development setup
-
 
 #### Web/API Integration Patterns Issues (18 new features planned based on December 2025 research)
 
@@ -2771,7 +2812,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `area-authentication` - Authentication patterns (Passkeys, OAuth, etc.)
   - `cloud-cloudflare` - Cloudflare Workers and services
 
-
 #### Advanced Testing Patterns Issues (13 new features planned based on 2025 research)
 
 - **Test Data Generation** (Issue #161) - Bogus/AutoBogus integration for realistic test data
@@ -2849,7 +2889,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `area-ci-cd` - CI/CD pipelines and automation
   - `area-docker` - Docker and containerization
   - `aot-compatible` - NativeAOT and trimming compatible
-
 
 #### Advanced Distributed Lock Patterns Issues (20 new features planned based on December 2025 research)
 
@@ -2976,7 +3015,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `area-semaphore` - Distributed semaphores and counting locks
   - `area-coordination` - Distributed coordination primitives
   - `area-pipeline` - Pipeline behaviors and middleware
-
 
 #### Message Transport Patterns Issues (29 new features planned based on December 2025 research)
 
@@ -3149,7 +3187,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - Packaged as .NET global tool (`dotnet tool install Encina.Cli`)
   - Comprehensive test coverage: 65 tests (unit, guard)
 
-
 #### Clean Architecture Patterns Issues (2 new features planned based on December 29, 2025 research)
 
 - **Result Pattern Extensions** (Issue #468) - Fluent API for Either
@@ -3185,7 +3222,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
 
 - **ODBC Provider** (Issue #56) - Moved to post-1.0 evaluation. Valuable for legacy database scenarios but not critical for core 1.0 release.
 
-### Added
+### Added (Patterns & Infrastructure)
 
 - Scatter-Gather Pattern (Issue #63):
   - Enterprise Integration Pattern for sending requests to multiple handlers and aggregating results
@@ -3252,6 +3289,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - Comprehensive test coverage: 117 tests (unit, integration, property, contract, guard, load)
   - Benchmarks for routing performance
   - Example:
+
     ```csharp
     // RouteTo accepts both sync and async handlers
     var definition = ContentRouterBuilder.Create<Order, string>()
@@ -3456,6 +3494,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - DI integration via `MessagingConfiguration.UseRoutingSlips`
   - Comprehensive test coverage: 137+ tests (unit, property, guard)
   - Example:
+
     ```csharp
     var definition = RoutingSlipBuilder.Create<OrderData>("ProcessOrder")
         .Step("Validate Order")
@@ -3511,6 +3550,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - `AddEventUpcaster<TUpcaster>()` extension method for individual upcaster registration
   - Comprehensive test coverage: 85+ tests (unit, property, contract, guard, integration)
   - Example:
+
     ```csharp
     // Define upcaster class
     public class OrderCreatedV1ToV2Upcaster : EventUpcasterBase<OrderCreatedV1, OrderCreatedV2>
@@ -3535,6 +3575,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
             old => new OrderCreatedV2(old.OrderId, old.CustomerName, "migrated@example.com"));
     });
     ```
+
 - Snapshotting for large aggregates (Issue #52):
   - `ISnapshotable<TAggregate>` marker interface for aggregates supporting snapshots
   - `ISnapshot<TAggregate>` interface with `AggregateId`, `Version`, `CreatedAtUtc` properties
@@ -3563,6 +3604,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - Comprehensive test coverage: 121 unit tests, property tests, contract tests, guard clause tests
   - Integration tests with Testcontainers/PostgreSQL
   - Example:
+
     ```csharp
     // Enable snapshotting for aggregates
     services.AddEncinaMarten(options =>
@@ -3586,6 +3628,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
         // ... standard aggregate implementation
     }
     ```
+
 - Projections/Read Models for CQRS read side (Issue #36):
   - `IReadModel` interface for read model abstraction with `Guid Id` property
   - `IReadModel<TId>` generic variant for strongly-typed identifiers
@@ -3637,6 +3680,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - **Context-to-Model Mapping**: `ctx.StreamId` is a `Guid` (non-nullable struct, defaults to `Guid.Empty`). This maps directly to `IReadModel.Id` to correlate read models with their source aggregates. Guard against `Guid.Empty` if your domain requires a valid stream ID.
   - **Null Handling**: Event properties (e.g., `e.CustomerName`) may be null depending on your domain model. The `Create` method should validate required fields with `ArgumentNullException.ThrowIfNull()` or use null-coalescing for optional fields. The example below demonstrates defensive validation.
   - Example:
+
     ```csharp
     // Define a read model (must be a record to use 'with' expression)
     public record OrderSummary : IReadModel
@@ -3679,6 +3723,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     // Query read models
     var summary = await repository.GetByIdAsync(orderId);
     ```
+
 - Bulkhead Isolation Pattern (Issue #53):
   - `BulkheadAttribute` for attribute-based bulkhead configuration:
     - `MaxConcurrency` - Maximum parallel executions allowed (default: 10)
@@ -3707,6 +3752,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - Comprehensive test coverage: unit, integration, property-based, contract, guard, load tests
   - Performance benchmarks for acquire/release operations
   - Example:
+
     ```csharp
     // Limit payment processing to 10 concurrent executions
     [Bulkhead(MaxConcurrency = 10, MaxQueuedActions = 20)]
@@ -3716,6 +3762,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     [Bulkhead(MaxConcurrency = 5, MaxQueuedActions = 10, QueueTimeoutMs = 5000)]
     public record CallExternalApiQuery(string Endpoint) : IRequest<ApiResponse>;
     ```
+
 - Dead Letter Queue (Issue #42):
   - `IDeadLetterMessage` interface for dead letter message abstraction
   - `IDeadLetterStore` interface for provider-agnostic storage:
@@ -3759,6 +3806,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - **Contract Tests**: Use `IDeadLetterStoreContractTests` base class to verify custom implementations
     - **Sample Implementation**: See `InMemoryDeadLetterStore` in [DeadLetterIntegrationTests.cs](tests/Encina.Tests/Integration/DeadLetterIntegrationTests.cs) for implementation reference
   - Example (Testing with built-in FakeDeadLetterStore):
+
     ```csharp
     // Testing scenario: Use built-in FakeDeadLetterStore
     services.AddEncinaDeadLetterQueue<FakeDeadLetterStore, FakeDeadLetterMessageFactory>(options =>
@@ -3767,7 +3815,9 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
         options.EnableAutomaticCleanup = false; // Disable for testing
     });
     ```
+
   - Example (Production with custom store):
+
     ```csharp
     // Production scenario: Implement IDeadLetterStore for your persistence layer
     public class MyEfCoreDeadLetterStore : IDeadLetterStore
@@ -3797,6 +3847,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     var stats = await manager.GetStatisticsAsync();
     var result = await manager.ReplayAsync(messageId);
     ```
+
 - Low-Ceremony Sagas (Issue #41):
   - `SagaDefinition.Create<TData>(sagaType)` fluent API for defining sagas inline
   - `SagaStepBuilder<TData>` with `Execute()` and `Compensate()` methods
@@ -3813,6 +3864,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - Full test coverage: unit, property-based, and contract tests
   - Automatic DI registration when `UseSagas = true`
   - Example:
+
     ```csharp
     var saga = SagaDefinition.Create<OrderData>("ProcessOrder")
         .Step("Reserve Inventory")
@@ -3842,6 +3894,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
         await alertService.NotifyFailureAsync(result.SagaId, result.Error);
     }
     ```
+
 - Automatic Rate Limiting with Adaptive Throttling (Issue #40):
   - `RateLimitAttribute` with configurable properties:
     - `MaxRequestsPerWindow` - Maximum requests allowed in the time window
@@ -4010,7 +4063,6 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - v0.18.0 — Developer Experience (43 issues)
   - v0.19.0 — Observability & Resilience (87 issues)
 
-
 - **Performance**: Optimized delegate caches to minimize reflection and boxing (Issue #49):
   - TryGetValue-before-GetOrAdd pattern on ConcurrentDictionary to avoid delegate allocation on cache hits
   - Cached `GetRequestKind` type checks to avoid repeated `IsAssignableFrom` calls on hot paths
@@ -4052,7 +4104,5 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - Fixed `SagaStatus` type ambiguity in `SagaStoreEFIntegrationTests.cs`
 
 ---
-
-### Changed
 
 ## [0.9.0]

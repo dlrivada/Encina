@@ -86,6 +86,6 @@ public sealed class TransactionPipelineBehaviorGuardTests
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
 
         // Assert
-        ex.ParamName.ShouldBe("next");
+        ex.ParamName.ShouldBe("nextStep");
     }
 }

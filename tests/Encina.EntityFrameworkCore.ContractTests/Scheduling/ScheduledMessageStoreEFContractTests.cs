@@ -231,7 +231,7 @@ public sealed class ScheduledMessageStoreEFContractTests : IDisposable
 
         // Assert
         var ex = await Should.ThrowAsync<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*ScheduledMessage*");
+        ex.Message.ShouldContain("ScheduledMessage");
     }
 
     public void Dispose()

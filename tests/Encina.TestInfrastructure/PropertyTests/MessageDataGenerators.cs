@@ -53,14 +53,14 @@ public static class MessageDataGenerators
 
     private static readonly string[] NotificationTypes =
     [
-        "OrderCreated",
-        "OrderCompleted",
-        "OrderCancelled",
-        "PaymentReceived",
-        "PaymentFailed",
-        "ShipmentDispatched",
-        "CustomerRegistered",
-        "InventoryUpdated"
+        "OrderCreatedEvent",
+        "OrderCompletedEvent",
+        "OrderCancelledEvent",
+        "PaymentReceivedEvent",
+        "PaymentFailedEvent",
+        "ShipmentDispatchedNotification",
+        "CustomerRegisteredEvent",
+        "InventoryUpdatedNotification"
     ];
 
     private static readonly string[] SagaTypes =
@@ -215,6 +215,25 @@ public static class MessageDataGenerators
     }
 
     /// <summary>
+    /// Generates saga data using a seed for reproducibility.
+    /// Returns data compatible with Dapper.Sqlite SagaState entity.
+    /// </summary>
+    /// <param name="seed">The seed for random generation.</param>
+    /// <returns>Generated saga data.</returns>
+    public static SagaData GenerateSagaData(int seed)
+    {
+        var faker = new Faker { Random = new Randomizer(seed) };
+
+        return new SagaData
+        {
+            SagaId = faker.Random.Guid(),
+            SagaType = faker.PickRandom(SagaTypes),
+            Data = GenerateJsonContent(faker),
+            CurrentStep = faker.Random.Int(1, 10)
+        };
+    }
+
+    /// <summary>
     /// Generates scheduled message data using a seed for reproducibility.
     /// </summary>
     /// <param name="seed">The seed for random generation.</param>
@@ -341,6 +360,24 @@ public sealed record SagaStateData
 
     /// <summary>Gets or sets the version for optimistic concurrency.</summary>
     public int Version { get; init; }
+}
+
+/// <summary>
+/// Data transfer object for saga properties (compatible with Dapper.Sqlite SagaState).
+/// </summary>
+public sealed record SagaData
+{
+    /// <summary>Gets or sets the saga ID.</summary>
+    public required Guid SagaId { get; init; }
+
+    /// <summary>Gets or sets the saga type name.</summary>
+    public required string SagaType { get; init; }
+
+    /// <summary>Gets or sets the saga data payload.</summary>
+    public required string Data { get; init; }
+
+    /// <summary>Gets or sets the current step.</summary>
+    public int CurrentStep { get; init; }
 }
 
 /// <summary>

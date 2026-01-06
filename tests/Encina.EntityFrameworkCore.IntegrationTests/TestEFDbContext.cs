@@ -55,7 +55,7 @@ public sealed class TestEFDbContext : DbContext
             entity.HasKey(e => e.SagaId);
             entity.Property(e => e.SagaType).HasMaxLength(500).IsRequired();
             entity.Property(e => e.CurrentStep).IsRequired();
-            entity.Property(e => e.Status).IsRequired();
+            entity.Property(e => e.Status).IsRequired().HasConversion<string>().HasMaxLength(50);
             entity.Property(e => e.Data).IsRequired();
             entity.Property(e => e.StartedAtUtc).IsRequired();
             entity.Property(e => e.LastUpdatedAtUtc).IsRequired();

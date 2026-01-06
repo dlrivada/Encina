@@ -122,7 +122,7 @@ public sealed class OutboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var messages = await store.GetPendingMessagesAsync(batchSize: 5, maxRetries: 3);
 
         // Assert
-        messages.Count.ShouldBe(5);
+        messages.Count().ShouldBe(5);
     }
 
     [Fact]
@@ -249,7 +249,8 @@ public sealed class OutboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var updated = await verifyContext.OutboxMessages.FindAsync(message.Id);
         updated!.ErrorMessage.ShouldBe("Test error");
         updated.RetryCount.ShouldBe(1);
-        updated.NextRetryAtUtc.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
+        updated.NextRetryAtUtc.ShouldNotBeNull();
+        updated.NextRetryAtUtc.Value.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
     [Fact]

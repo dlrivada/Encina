@@ -80,7 +80,7 @@ public class TransactionPipelineBehaviorGuardsTests
         // Act & Assert
         Func<Task> act = () => behavior.Handle(request, context, next, CancellationToken.None);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("next");
+        ex.ParamName.ShouldBe("nextStep");
     }
 
     /// <summary>

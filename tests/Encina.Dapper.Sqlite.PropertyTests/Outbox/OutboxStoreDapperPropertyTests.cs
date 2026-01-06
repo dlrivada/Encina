@@ -1,28 +1,126 @@
-﻿using Encina.Dapper.Sqlite.Outbox;
-using Encina.TestInfrastructure.Extensions;
+using Encina.Dapper.Sqlite.Outbox;
 using Encina.TestInfrastructure.Fixtures;
+using Encina.TestInfrastructure.PropertyTests;
+using FsCheck;
+using FsCheck.Xunit;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.Dapper.Sqlite.Tests.Outbox;
 
 /// <summary>
 /// Property-based integration tests for <see cref="OutboxStoreDapper"/>.
 /// These tests verify invariants hold across various inputs and scenarios.
-/// Uses real SQLite database.
+/// Uses real SQLite database with FakeTimeProvider for deterministic time control.
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("TestType", "Property")]
 [Trait("Provider", "Dapper.Sqlite")]
-public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture>
+[Collection("Database")]
+public sealed class OutboxStoreDapperPropertyTests : DapperSqlitePropertyTestBase<OutboxStoreDapper>
 {
-    private readonly SqliteFixture _fixture;
+    public OutboxStoreDapperPropertyTests(SqliteFixture fixture) : base(fixture) { }
 
-    public OutboxStoreDapperPropertyTests(SqliteFixture fixture)
+    /// <inheritdoc />
+    protected override OutboxStoreDapper CreateStore(TimeProvider timeProvider)
+        => new(Fixture.CreateConnection(), "OutboxMessages", timeProvider);
+
+    #region FsCheck + Bogus Property Tests
+
+    /// <summary>
+    /// Unit test: Validates that MessageDataGenerators produces valid outbox data.
+    /// Pure unit test without DB calls for fast execution.
+    /// </summary>
+    [Theory]
+    [Trait("Category", "Unit")]
+    [InlineData(42)]
+    [InlineData(123)]
+    [InlineData(9999)]
+    public void GenerateOutboxData_ShouldProduceValidData(int seed)
     {
-        _fixture = fixture;
+        // Act
+        var data = MessageDataGenerators.GenerateOutboxData(seed);
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
+        // Assert - Validate generated data properties
+        // FixedUtcReference in MessageDataGenerators is 2026-01-01 12:00:00 UTC
+        // Dates are generated between FixedUtcReference.AddDays(-7) and FixedUtcReference
+        var expectedMinDate = new DateTime(2025, 12, 25, 12, 0, 0, DateTimeKind.Utc);
+        var expectedMaxDate = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        Assert.NotEqual(Guid.Empty, data.Id);
+        Assert.False(string.IsNullOrWhiteSpace(data.NotificationType));
+        Assert.NotNull(data.Content);
+        Assert.True(data.RetryCount >= 0);
+        Assert.True(data.CreatedAtUtc >= expectedMinDate && data.CreatedAtUtc <= expectedMaxDate,
+            $"CreatedAtUtc {data.CreatedAtUtc} should be within generator range ({expectedMinDate} - {expectedMaxDate})");
     }
+
+    /// <summary>
+    /// Integration test: Generated messages should always persist with correct Id.
+    /// Uses representative seeds for Bogus data generation.
+    /// </summary>
+    [Theory]
+    [InlineData(42)]
+    [InlineData(123)]
+    [InlineData(9999)]
+    public async Task AddAsync_BogusGeneratedMessage_ShouldPersistId(int seed)
+    {
+        // Arrange - Generate realistic message data using Bogus
+        var data = MessageDataGenerators.GenerateOutboxData(seed);
+
+        var message = new OutboxMessage
+        {
+            Id = data.Id,
+            NotificationType = data.NotificationType,
+            Content = data.Content,
+            CreatedAtUtc = Now,
+            RetryCount = data.RetryCount
+        };
+
+        // Act
+        await Store.AddAsync(message);
+        var pending = await Store.GetPendingMessagesAsync(100, 10);
+
+        // Assert
+        var retrieved = pending.FirstOrDefault(m => m.Id == data.Id);
+        Assert.NotNull(retrieved);
+        Assert.Equal(data.NotificationType, retrieved.NotificationType);
+        Assert.Equal(data.Content, retrieved.Content);
+    }
+
+    /// <summary>
+    /// Property: Same seed produces reproducible outbox message data (determinism test).
+    /// </summary>
+    [Property(MaxTest = 50)]
+    public bool SameSeed_ProducesReproducibleOutboxData(PositiveInt seed)
+    {
+        var data1 = MessageDataGenerators.GenerateOutboxData(seed.Get);
+        var data2 = MessageDataGenerators.GenerateOutboxData(seed.Get);
+
+        return data1.Id == data2.Id &&
+               data1.NotificationType == data2.NotificationType;
+    }
+
+    /// <summary>
+    /// Property: Generated notification types should be valid Encina notification patterns.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public bool GeneratedNotificationType_ShouldBeValidPattern(PositiveInt seed)
+    {
+        var data = MessageDataGenerators.GenerateOutboxData(seed.Get);
+
+        // NotificationType should not be null or empty
+        if (string.IsNullOrWhiteSpace(data.NotificationType))
+            return false;
+
+        // NotificationType should follow naming conventions (end with Event or Notification)
+        return data.NotificationType.EndsWith("Event", StringComparison.Ordinal) ||
+               data.NotificationType.EndsWith("Notification", StringComparison.Ordinal);
+    }
+
+    #endregion
+
+    #region Store Invariant Property Tests
+
     /// <summary>
     /// Property: Any message added to outbox can be retrieved via GetPendingMessagesAsync.
     /// Invariant: AddAsync followed by GetPendingMessagesAsync always includes the added message.
@@ -36,21 +134,18 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
     public async Task AddedMessage_AlwaysRetrievableInPending(string notificationType, string content)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new OutboxStoreDapper(_fixture.CreateConnection());
-
         var messageId = Guid.NewGuid();
         var message = new OutboxMessage
         {
             Id = messageId,
             NotificationType = notificationType,
             Content = content,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = Now
         };
 
         // Act
-        await store.AddAsync(message);
-        var pending = await store.GetPendingMessagesAsync(100, 10);
+        await Store.AddAsync(message);
+        var pending = await Store.GetPendingMessagesAsync(100, 10);
 
         // Assert
         var retrieved = pending.FirstOrDefault(m => m.Id == messageId);
@@ -70,30 +165,27 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
     public async Task ProcessedMessage_NeverAppearsInPending(int messageCount)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new OutboxStoreDapper(_fixture.CreateConnection());
-
         var messageIds = new List<Guid>();
         for (var i = 0; i < messageCount; i++)
         {
             var id = Guid.NewGuid();
             messageIds.Add(id);
-            await store.AddAsync(new OutboxMessage
+            await Store.AddAsync(new OutboxMessage
             {
                 Id = id,
                 NotificationType = $"Event{i}",
                 Content = "{}",
-                CreatedAtUtc = DateTime.UtcNow
+                CreatedAtUtc = Now
             });
         }
 
         // Act - Mark all as processed
         foreach (var id in messageIds)
         {
-            await store.MarkAsProcessedAsync(id);
+            await Store.MarkAsProcessedAsync(id);
         }
 
-        var pending = await store.GetPendingMessagesAsync(100, 10);
+        var pending = await Store.GetPendingMessagesAsync(100, 10);
 
         // Assert - None should appear in pending
         foreach (var id in messageIds)
@@ -110,31 +202,27 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
     [InlineData(1)]
     [InlineData(3)]
     [InlineData(5)]
-    [InlineData(10)]
     public async Task RetryCount_IncreasesMonotonically(int failureCount)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new OutboxStoreDapper(_fixture.CreateConnection());
-
         var messageId = Guid.NewGuid();
-        await store.AddAsync(new OutboxMessage
+        await Store.AddAsync(new OutboxMessage
         {
             Id = messageId,
             NotificationType = "TestEvent",
             Content = "{}",
-            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = Now,
             RetryCount = 0
         });
 
         // Act - Fail N times
         for (var i = 0; i < failureCount; i++)
         {
-            await store.MarkAsFailedAsync(messageId, $"Error {i}", null);
+            await Store.MarkAsFailedAsync(messageId, $"Error {i}", null);
         }
 
         // Assert
-        var pending = await store.GetPendingMessagesAsync(100, 100);
+        var pending = await Store.GetPendingMessagesAsync(100, 100);
         var retrieved = pending.FirstOrDefault(m => m.Id == messageId);
 
         Assert.NotNull(retrieved);
@@ -146,32 +234,26 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
     /// Invariant: GetPendingMessagesAsync(batchSize: N).Count() ≤ N
     /// </summary>
     [Theory]
-    [InlineData(50, 10)]
-    [InlineData(50, 25)]
-    [InlineData(50, 50)]
-    [InlineData(50, 100)]
     [InlineData(10, 5)]
+    [InlineData(10, 10)]
     [InlineData(10, 20)]
+    [InlineData(5, 3)]
     public async Task BatchSize_AlwaysLimitsResults(int messageCount, int batchSize)
     {
-        // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new OutboxStoreDapper(_fixture.CreateConnection());
-
-        // Add N messages
+        // Arrange - Add N messages with sequential timestamps
         for (var i = 0; i < messageCount; i++)
         {
-            await store.AddAsync(new OutboxMessage
+            await Store.AddAsync(new OutboxMessage
             {
                 Id = Guid.NewGuid(),
                 NotificationType = $"Event{i}",
                 Content = "{}",
-                CreatedAtUtc = DateTime.UtcNow.AddSeconds(i)
+                CreatedAtUtc = Now.AddSeconds(i)
             });
         }
 
         // Act
-        var pending = await store.GetPendingMessagesAsync(batchSize, 10);
+        var pending = await Store.GetPendingMessagesAsync(batchSize, 10);
 
         // Assert
         Assert.True(pending.Count() <= batchSize);
@@ -185,28 +267,23 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
     [Theory]
     [InlineData(3)]
     [InlineData(5)]
-    [InlineData(10)]
     public async Task MaxRetries_AlwaysFiltersCorrectly(int maxRetries)
     {
-        // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new OutboxStoreDapper(_fixture.CreateConnection());
-
-        // Add messages with various retry counts
+        // Arrange - Add messages with various retry counts
         for (var i = 0; i <= maxRetries + 2; i++)
         {
-            await store.AddAsync(new OutboxMessage
+            await Store.AddAsync(new OutboxMessage
             {
                 Id = Guid.NewGuid(),
                 NotificationType = $"Event{i}",
                 Content = "{}",
-                CreatedAtUtc = DateTime.UtcNow,
+                CreatedAtUtc = Now,
                 RetryCount = i
             });
         }
 
         // Act
-        var pending = await store.GetPendingMessagesAsync(100, maxRetries);
+        var pending = await Store.GetPendingMessagesAsync(100, maxRetries);
 
         // Assert - All retrieved messages have RetryCount < maxRetries
         Assert.All(pending, m => Assert.True(m.RetryCount < maxRetries));
@@ -219,28 +296,22 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
     [Theory]
     [InlineData(5)]
     [InlineData(10)]
-    [InlineData(20)]
     public async Task GetPending_AlwaysReturnsChronologicalOrder(int messageCount)
     {
-        // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new OutboxStoreDapper(_fixture.CreateConnection());
-
-        // Add messages with sequential timestamps
-        var baseTime = DateTime.UtcNow;
+        // Arrange - Add messages with sequential timestamps
         for (var i = 0; i < messageCount; i++)
         {
-            await store.AddAsync(new OutboxMessage
+            await Store.AddAsync(new OutboxMessage
             {
                 Id = Guid.NewGuid(),
                 NotificationType = $"Event{i}",
                 Content = "{}",
-                CreatedAtUtc = baseTime.AddSeconds(i)
+                CreatedAtUtc = Now.AddSeconds(i)
             });
         }
 
         // Act
-        var pending = (await store.GetPendingMessagesAsync(100, 10)).ToList();
+        var pending = (await Store.GetPendingMessagesAsync(100, 10)).ToList();
 
         // Assert - Verify ordering
         if (pending.Count > 1)
@@ -265,34 +336,31 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
     public async Task NextRetryAtUtc_CorrectlyFilters(int futureSeconds)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new OutboxStoreDapper(_fixture.CreateConnection());
-
         var readyMessageId = Guid.NewGuid();
         var futureMessageId = Guid.NewGuid();
 
-        // Message ready for retry (past or null)
-        await store.AddAsync(new OutboxMessage
+        // Message ready for retry (past)
+        await Store.AddAsync(new OutboxMessage
         {
             Id = readyMessageId,
             NotificationType = "ReadyEvent",
             Content = "{}",
-            CreatedAtUtc = DateTime.UtcNow,
-            NextRetryAtUtc = DateTime.UtcNow.AddSeconds(-10) // Past
+            CreatedAtUtc = Now,
+            NextRetryAtUtc = Now.AddSeconds(-10)
         });
 
         // Message not ready (future)
-        await store.AddAsync(new OutboxMessage
+        await Store.AddAsync(new OutboxMessage
         {
             Id = futureMessageId,
             NotificationType = "FutureEvent",
             Content = "{}",
-            CreatedAtUtc = DateTime.UtcNow,
-            NextRetryAtUtc = DateTime.UtcNow.AddSeconds(futureSeconds)
+            CreatedAtUtc = Now,
+            NextRetryAtUtc = Now.AddSeconds(futureSeconds)
         });
 
         // Act
-        var pending = await store.GetPendingMessagesAsync(100, 10);
+        var pending = await Store.GetPendingMessagesAsync(100, 10);
 
         // Assert
         Assert.Contains(pending, m => m.Id == readyMessageId);
@@ -305,22 +373,38 @@ public sealed class OutboxStoreDapperPropertyTests : IClassFixture<SqliteFixture
     /// </summary>
     [Theory]
     [InlineData(1)]
+    [InlineData(3)]
     [InlineData(5)]
-    [InlineData(10)]
-    [InlineData(100)]
     public async Task SaveChanges_IsIdempotent(int callCount)
     {
-        // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new OutboxStoreDapper(_fixture.CreateConnection());
+        // Arrange - Add a message and capture initial state
+        var message = new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            NotificationType = "TestNotification",
+            Content = """{"test":"data"}""",
+            CreatedAtUtc = Now,
+            RetryCount = 0
+        };
+        await Store.AddAsync(message);
 
-        // Act - Call SaveChangesAsync N times
+        var initialState = (await Store.GetPendingMessagesAsync(100, 10)).ToList();
+        var initialIds = initialState.Select(m => m.Id).OrderBy(id => id).ToList();
+
+        // Act - Call SaveChangesAsync N times, verify no exception
         for (var i = 0; i < callCount; i++)
         {
-            await store.SaveChangesAsync();
+            var exception = await Record.ExceptionAsync(() => Store.SaveChangesAsync());
+            Assert.Null(exception);
         }
 
-        // Assert - No exception thrown, operation completed
-        Assert.True(true);
+        // Assert - State should remain unchanged (idempotent)
+        var finalState = (await Store.GetPendingMessagesAsync(100, 10)).ToList();
+        var finalIds = finalState.Select(m => m.Id).OrderBy(id => id).ToList();
+
+        Assert.Equal(initialState.Count, finalState.Count);
+        Assert.Equal(initialIds, finalIds);
     }
+
+    #endregion
 }

@@ -1,28 +1,97 @@
-﻿using Encina.Dapper.Sqlite.Sagas;
-using Encina.TestInfrastructure.Extensions;
+using Encina.Dapper.Sqlite.Sagas;
 using Encina.TestInfrastructure.Fixtures;
+using Encina.TestInfrastructure.PropertyTests;
+using FsCheck;
+using FsCheck.Xunit;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.Dapper.Sqlite.Tests.Sagas;
 
 /// <summary>
 /// Property-based integration tests for <see cref="SagaStoreDapper"/>.
 /// These tests verify invariants hold across various inputs and scenarios.
-/// Uses real SQLite database.
+/// Uses real SQLite database with FakeTimeProvider for deterministic time control.
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("TestType", "Property")]
 [Trait("Provider", "Dapper.Sqlite")]
-public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
+[Collection("Database")]
+public sealed class SagaStoreDapperPropertyTests : DapperSqlitePropertyTestBase<SagaStoreDapper>
 {
-    private readonly SqliteFixture _fixture;
+    public SagaStoreDapperPropertyTests(SqliteFixture fixture) : base(fixture) { }
 
-    public SagaStoreDapperPropertyTests(SqliteFixture fixture)
+    /// <inheritdoc />
+    protected override SagaStoreDapper CreateStore(TimeProvider timeProvider)
+        => new(Fixture.CreateConnection(), "SagaStates", timeProvider);
+
+    #region FsCheck + Bogus Property Tests
+
+    /// <summary>
+    /// Integration test: Generated sagas should always persist with correct Id.
+    /// Uses representative seeds for Bogus data generation.
+    /// </summary>
+    [Theory]
+    [InlineData(42)]
+    [InlineData(123)]
+    [InlineData(9999)]
+    public async Task AddAsync_BogusGeneratedSaga_ShouldPersistId(int seed)
     {
-        _fixture = fixture;
+        // Arrange - Generate realistic saga data using Bogus
+        var data = MessageDataGenerators.GenerateSagaData(seed);
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
+        var saga = new SagaState
+        {
+            SagaId = data.SagaId,
+            SagaType = data.SagaType,
+            Data = data.Data,
+            Status = "Running",
+            StartedAtUtc = Now,
+            LastUpdatedAtUtc = Now,
+            CurrentStep = data.CurrentStep
+        };
+
+        // Act
+        await Store.AddAsync(saga);
+        var retrieved = await Store.GetAsync(data.SagaId);
+
+        // Assert
+        Assert.NotNull(retrieved);
+        Assert.Equal(data.SagaType, retrieved.SagaType);
+        Assert.Equal(data.Data, retrieved.Data);
     }
+
+    /// <summary>
+    /// Property: Same seed produces reproducible saga data (determinism test).
+    /// </summary>
+    [Property(MaxTest = 50)]
+    public bool SameSeed_ProducesReproducibleSagaData(PositiveInt seed)
+    {
+        var data1 = MessageDataGenerators.GenerateSagaData(seed.Get);
+        var data2 = MessageDataGenerators.GenerateSagaData(seed.Get);
+
+        return data1.SagaId == data2.SagaId &&
+               data1.SagaType == data2.SagaType;
+    }
+
+    /// <summary>
+    /// Property: Generated saga types should be valid Encina saga patterns.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public bool GeneratedSagaType_ShouldBeValidPattern(PositiveInt seed)
+    {
+        var data = MessageDataGenerators.GenerateSagaData(seed.Get);
+
+        // SagaType should not be null or empty
+        if (string.IsNullOrWhiteSpace(data.SagaType))
+            return false;
+
+        // SagaType should follow naming conventions (end with Saga)
+        return data.SagaType.EndsWith("Saga", StringComparison.Ordinal);
+    }
+
+    #endregion
+
+    #region Store Invariant Property Tests
 
     /// <summary>
     /// Property: Any saga added can be retrieved via GetAsync.
@@ -37,9 +106,6 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     public async Task AddedSaga_AlwaysRetrievableByGet(string sagaType, string data, string status)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
         var sagaId = Guid.NewGuid();
         var saga = new SagaState
         {
@@ -47,14 +113,14 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
             SagaType = sagaType,
             Data = data,
             Status = status,
-            StartedAtUtc = DateTime.UtcNow,
-            LastUpdatedAtUtc = DateTime.UtcNow,
+            StartedAtUtc = Now,
+            LastUpdatedAtUtc = Now,
             CurrentStep = 1
         };
 
         // Act
-        await store.AddAsync(saga);
-        var retrieved = await store.GetAsync(sagaId);
+        await Store.AddAsync(saga);
+        var retrieved = await Store.GetAsync(sagaId);
 
         // Assert
         Assert.NotNull(retrieved);
@@ -77,9 +143,6 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     public async Task UpdatedSaga_AlwaysReflectsNewState(string initialStatus, string updatedStatus)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
         var sagaId = Guid.NewGuid();
         var saga = new SagaState
         {
@@ -87,19 +150,19 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
             SagaType = "TestSaga",
             Data = "{}",
             Status = initialStatus,
-            StartedAtUtc = DateTime.UtcNow,
-            LastUpdatedAtUtc = DateTime.UtcNow,
+            StartedAtUtc = Now,
+            LastUpdatedAtUtc = Now,
             CurrentStep = 1
         };
-        await store.AddAsync(saga);
+        await Store.AddAsync(saga);
 
         // Act
         saga.Status = updatedStatus;
         saga.CurrentStep = 2;
-        await store.UpdateAsync(saga);
+        await Store.UpdateAsync(saga);
 
         // Assert
-        var retrieved = await store.GetAsync(sagaId);
+        var retrieved = await Store.GetAsync(sagaId);
         Assert.NotNull(retrieved);
         Assert.Equal(updatedStatus, retrieved.Status);
         Assert.Equal(2, retrieved.CurrentStep);
@@ -118,9 +181,6 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     public async Task GetStuckSagas_OnlyReturnsRunningOrCompensating(string status, bool shouldBeStuck)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
         var sagaId = Guid.NewGuid();
         var saga = new SagaState
         {
@@ -128,14 +188,14 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
             SagaType = "TestSaga",
             Data = "{}",
             Status = status,
-            StartedAtUtc = DateTime.UtcNow.AddHours(-5),
-            LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-5),
+            StartedAtUtc = Now.AddHours(-5),
+            LastUpdatedAtUtc = Now.AddHours(-5),
             CurrentStep = 1
         };
-        await store.AddAsync(saga);
+        await Store.AddAsync(saga);
 
         // Act
-        var stuckSagas = await store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10);
+        var stuckSagas = await Store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10);
 
         // Assert
         if (shouldBeStuck)
@@ -159,9 +219,6 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     public async Task GetStuckSagas_RespectsTimeThreshold(int thresholdHours, bool shouldBeStuck)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
         var sagaId = Guid.NewGuid();
         var saga = new SagaState
         {
@@ -169,14 +226,14 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
             SagaType = "TestSaga",
             Data = "{}",
             Status = "Running",
-            StartedAtUtc = DateTime.UtcNow.AddMinutes(-30),
-            LastUpdatedAtUtc = DateTime.UtcNow.AddMinutes(-30),
+            StartedAtUtc = Now.AddMinutes(-30),
+            LastUpdatedAtUtc = Now.AddMinutes(-30),
             CurrentStep = 1
         };
-        await store.AddAsync(saga);
+        await Store.AddAsync(saga);
 
         // Act
-        var stuckSagas = await store.GetStuckSagasAsync(TimeSpan.FromHours(thresholdHours), 10);
+        var stuckSagas = await Store.GetStuckSagasAsync(TimeSpan.FromHours(thresholdHours), 10);
 
         // Assert
         if (shouldBeStuck)
@@ -202,27 +259,23 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     [InlineData(10, 20)]
     public async Task BatchSize_AlwaysLimitsResults(int sagaCount, int batchSize)
     {
-        // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
-        // Add N sagas
+        // Arrange - Add N sagas with timestamps in the past
         for (var i = 0; i < sagaCount; i++)
         {
-            await store.AddAsync(new SagaState
+            await Store.AddAsync(new SagaState
             {
                 SagaId = Guid.NewGuid(),
                 SagaType = $"Saga{i}",
                 Data = "{}",
                 Status = "Running",
-                StartedAtUtc = DateTime.UtcNow.AddHours(-5 - i),
-                LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-5 - i),
+                StartedAtUtc = Now.AddHours(-5 - i),
+                LastUpdatedAtUtc = Now.AddHours(-5 - i),
                 CurrentStep = 1
             });
         }
 
         // Act
-        var stuckSagas = await store.GetStuckSagasAsync(TimeSpan.FromHours(1), batchSize);
+        var stuckSagas = await Store.GetStuckSagasAsync(TimeSpan.FromHours(1), batchSize);
 
         // Assert
         Assert.True(stuckSagas.Count() <= batchSize);
@@ -239,15 +292,11 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     [InlineData(20)]
     public async Task GetStuckSagas_AlwaysReturnsChronologicalOrder(int sagaCount)
     {
-        // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
-        // Add sagas with sequential timestamps
-        var baseTime = DateTime.UtcNow.AddHours(-10);
+        // Arrange - Add sagas with sequential timestamps
+        var baseTime = Now.AddHours(-10);
         for (var i = 0; i < sagaCount; i++)
         {
-            await store.AddAsync(new SagaState
+            await Store.AddAsync(new SagaState
             {
                 SagaId = Guid.NewGuid(),
                 SagaType = $"Saga{i}",
@@ -260,7 +309,7 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         }
 
         // Act
-        var stuckSagas = (await store.GetStuckSagasAsync(TimeSpan.FromHours(1), 100)).ToList();
+        var stuckSagas = (await Store.GetStuckSagasAsync(TimeSpan.FromHours(1), 100)).ToList();
 
         // Assert - Verify ordering
         if (stuckSagas.Count > 1)
@@ -286,9 +335,6 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     public async Task CurrentStep_AlwaysMonotonicallyIncreasing(int initialStep, int updatedStep)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
         var sagaId = Guid.NewGuid();
         var saga = new SagaState
         {
@@ -296,18 +342,18 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
             SagaType = "StepTestSaga",
             Data = "{}",
             Status = "Running",
-            StartedAtUtc = DateTime.UtcNow,
-            LastUpdatedAtUtc = DateTime.UtcNow,
+            StartedAtUtc = Now,
+            LastUpdatedAtUtc = Now,
             CurrentStep = initialStep
         };
-        await store.AddAsync(saga);
+        await Store.AddAsync(saga);
 
         // Act
         saga.CurrentStep = updatedStep;
-        await store.UpdateAsync(saga);
+        await Store.UpdateAsync(saga);
 
         // Assert
-        var retrieved = await store.GetAsync(sagaId);
+        var retrieved = await Store.GetAsync(sagaId);
         Assert.NotNull(retrieved);
         Assert.Equal(updatedStep, retrieved.CurrentStep);
         Assert.True(retrieved.CurrentStep >= initialStep);
@@ -324,18 +370,39 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     [InlineData(100)]
     public async Task SaveChanges_IsIdempotent(int callCount)
     {
-        // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
+        // Arrange - Add a saga and capture initial state
+        var sagaId = Guid.NewGuid();
+        var saga = new SagaState
+        {
+            SagaId = sagaId,
+            SagaType = "TestSaga",
+            Data = """{"test":"data"}""",
+            Status = "Running",
+            StartedAtUtc = Now,
+            LastUpdatedAtUtc = Now,
+            CurrentStep = 1
+        };
+        await Store.AddAsync(saga);
 
-        // Act - Call SaveChangesAsync N times
+        var initialState = await Store.GetAsync(sagaId);
+        Assert.NotNull(initialState);
+
+        // Act - Call SaveChangesAsync N times, verify no exception
         for (var i = 0; i < callCount; i++)
         {
-            await store.SaveChangesAsync();
+            var exception = await Record.ExceptionAsync(() => Store.SaveChangesAsync());
+            Assert.Null(exception);
         }
 
-        // Assert - No exception thrown, operation completed
-        Assert.True(true);
+        // Assert - State should remain unchanged (idempotent)
+        var finalState = await Store.GetAsync(sagaId);
+        Assert.NotNull(finalState);
+
+        Assert.Equal(initialState.SagaId, finalState.SagaId);
+        Assert.Equal(initialState.SagaType, finalState.SagaType);
+        Assert.Equal(initialState.Data, finalState.Data);
+        Assert.Equal(initialState.Status, finalState.Status);
+        Assert.Equal(initialState.CurrentStep, finalState.CurrentStep);
     }
 
     /// <summary>
@@ -351,9 +418,6 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     public async Task CompletedAtUtc_OnlySetWhenCompleted(string status, bool shouldHaveCompletedAt)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
         var sagaId = Guid.NewGuid();
         var saga = new SagaState
         {
@@ -361,15 +425,15 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
             SagaType = "CompletionTestSaga",
             Data = "{}",
             Status = status,
-            StartedAtUtc = DateTime.UtcNow,
-            LastUpdatedAtUtc = DateTime.UtcNow,
-            CompletedAtUtc = shouldHaveCompletedAt ? DateTime.UtcNow : null,
+            StartedAtUtc = Now,
+            LastUpdatedAtUtc = Now,
+            CompletedAtUtc = shouldHaveCompletedAt ? Now : null,
             CurrentStep = 1
         };
-        await store.AddAsync(saga);
+        await Store.AddAsync(saga);
 
         // Act
-        var retrieved = await store.GetAsync(sagaId);
+        var retrieved = await Store.GetAsync(sagaId);
 
         // Assert
         Assert.NotNull(retrieved);
@@ -395,9 +459,6 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     public async Task ErrorMessage_SetAppropriatelyByStatus(string status, string? errorMessage)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
         var sagaId = Guid.NewGuid();
         var saga = new SagaState
         {
@@ -405,15 +466,15 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
             SagaType = "ErrorTestSaga",
             Data = "{}",
             Status = status,
-            StartedAtUtc = DateTime.UtcNow,
-            LastUpdatedAtUtc = DateTime.UtcNow,
+            StartedAtUtc = Now,
+            LastUpdatedAtUtc = Now,
             ErrorMessage = errorMessage,
             CurrentStep = 1
         };
-        await store.AddAsync(saga);
+        await Store.AddAsync(saga);
 
         // Act
-        var retrieved = await store.GetAsync(sagaId);
+        var retrieved = await Store.GetAsync(sagaId);
 
         // Assert
         Assert.NotNull(retrieved);
@@ -431,11 +492,8 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     public async Task StartedAtUtc_NeverChangesAfterCreation(int updateCount)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
         var sagaId = Guid.NewGuid();
-        var startedTime = DateTime.UtcNow.AddHours(-5);
+        var startedTime = Now.AddHours(-5);
         var saga = new SagaState
         {
             SagaId = sagaId,
@@ -446,18 +504,18 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
             LastUpdatedAtUtc = startedTime,
             CurrentStep = 1
         };
-        await store.AddAsync(saga);
+        await Store.AddAsync(saga);
 
         // Act - Update N times
         for (var i = 0; i < updateCount; i++)
         {
             saga.Status = i % 2 == 0 ? "Running" : "Completed";
             saga.CurrentStep = i + 2;
-            await store.UpdateAsync(saga);
+            await Store.UpdateAsync(saga);
         }
 
         // Assert
-        var retrieved = await store.GetAsync(sagaId);
+        var retrieved = await Store.GetAsync(sagaId);
         Assert.NotNull(retrieved);
         Assert.Equal(startedTime, retrieved.StartedAtUtc);
     }
@@ -476,9 +534,6 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     public async Task DataField_PreservesAnyContent(string data)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
         var sagaId = Guid.NewGuid();
         var saga = new SagaState
         {
@@ -486,14 +541,14 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
             SagaType = "DataTestSaga",
             Data = data,
             Status = "Running",
-            StartedAtUtc = DateTime.UtcNow,
-            LastUpdatedAtUtc = DateTime.UtcNow,
+            StartedAtUtc = Now,
+            LastUpdatedAtUtc = Now,
             CurrentStep = 1
         };
-        await store.AddAsync(saga);
+        await Store.AddAsync(saga);
 
         // Act
-        var retrieved = await store.GetAsync(sagaId);
+        var retrieved = await Store.GetAsync(sagaId);
 
         // Assert
         Assert.NotNull(retrieved);
@@ -512,9 +567,6 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     public async Task SagaType_PreservedAfterUpdate(string sagaType)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
         var sagaId = Guid.NewGuid();
         var saga = new SagaState
         {
@@ -522,19 +574,19 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
             SagaType = sagaType,
             Data = "{}",
             Status = "Running",
-            StartedAtUtc = DateTime.UtcNow,
-            LastUpdatedAtUtc = DateTime.UtcNow,
+            StartedAtUtc = Now,
+            LastUpdatedAtUtc = Now,
             CurrentStep = 1
         };
-        await store.AddAsync(saga);
+        await Store.AddAsync(saga);
 
         // Act
         saga.Status = "Completed";
         saga.CurrentStep = 5;
-        await store.UpdateAsync(saga);
+        await Store.UpdateAsync(saga);
 
         // Assert
-        var retrieved = await store.GetAsync(sagaId);
+        var retrieved = await Store.GetAsync(sagaId);
         Assert.NotNull(retrieved);
         Assert.Equal(sagaType, retrieved.SagaType);
     }
@@ -549,15 +601,11 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     [InlineData(10)]
     public async Task GetAsync_NonExistentSaga_AlwaysReturnsNull(int attemptCount)
     {
-        // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
         // Act & Assert
         for (var i = 0; i < attemptCount; i++)
         {
             var nonExistentId = Guid.NewGuid();
-            var result = await store.GetAsync(nonExistentId);
+            var result = await Store.GetAsync(nonExistentId);
             Assert.Null(result);
         }
     }
@@ -573,22 +621,19 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
     public async Task MultipleSagas_CoexistIndependently(int sagaCount)
     {
         // Arrange
-        DapperTypeHandlers.RegisterSqliteHandlers();
-        var store = new SagaStoreDapper(_fixture.CreateConnection());
-
         var sagaIds = new List<Guid>();
         for (var i = 0; i < sagaCount; i++)
         {
             var sagaId = Guid.NewGuid();
             sagaIds.Add(sagaId);
-            await store.AddAsync(new SagaState
+            await Store.AddAsync(new SagaState
             {
                 SagaId = sagaId,
                 SagaType = $"Saga{i}",
                 Data = $"{{\"index\":{i}}}",
                 Status = "Running",
-                StartedAtUtc = DateTime.UtcNow,
-                LastUpdatedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = Now,
+                LastUpdatedAtUtc = Now,
                 CurrentStep = i
             });
         }
@@ -596,10 +641,12 @@ public sealed class SagaStoreDapperPropertyTests : IClassFixture<SqliteFixture>
         // Act & Assert - Each saga can be retrieved independently
         for (var i = 0; i < sagaCount; i++)
         {
-            var retrieved = await store.GetAsync(sagaIds[i]);
+            var retrieved = await Store.GetAsync(sagaIds[i]);
             Assert.NotNull(retrieved);
             Assert.Equal($"Saga{i}", retrieved.SagaType);
             Assert.Equal(i, retrieved.CurrentStep);
         }
     }
+
+    #endregion
 }

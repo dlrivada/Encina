@@ -165,7 +165,7 @@ public sealed class OutboxStoreEFContractTests : IDisposable
 
         // Assert
         var ex = await Should.ThrowAsync<InvalidOperationException>(act);
-        ex.Message.ShouldMatch("*OutboxMessage*");
+        ex.Message.ShouldContain("OutboxMessage");
     }
 
     public void Dispose()
