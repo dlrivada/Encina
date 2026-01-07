@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -343,6 +344,7 @@ public static class RecoverabilityErrorCodes
 /// <summary>
 /// LoggerMessage definitions for high-performance logging.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal static partial class RecoverabilityLog
 {
     [LoggerMessage(

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -188,6 +189,7 @@ public sealed class SagaRunner : ISagaRunner
 /// <summary>
 /// LoggerMessage definitions for high-performance logging.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal static partial class Log
 {
     [LoggerMessage(

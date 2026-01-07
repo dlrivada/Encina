@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
@@ -136,6 +137,7 @@ internal sealed class SerializableRecoverabilityContext
 /// <summary>
 /// LoggerMessage definitions for delayed retry scheduling.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal static partial class DelayedRetryLog
 {
     [LoggerMessage(

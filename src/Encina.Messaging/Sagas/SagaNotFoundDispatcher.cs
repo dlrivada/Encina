@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -72,6 +73,7 @@ internal sealed partial class SagaNotFoundDispatcher : ISagaNotFoundDispatcher
         }
     }
 
+    [ExcludeFromCodeCoverage]
     private static partial class Log
     {
         [LoggerMessage(

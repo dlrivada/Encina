@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -228,6 +229,7 @@ public static class OutboxErrorCodes
 /// <summary>
 /// LoggerMessage definitions for high-performance logging.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal static partial class Log
 {
     [LoggerMessage(

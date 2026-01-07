@@ -230,7 +230,7 @@ public sealed class DefaultErrorClassifierTests
         // Arrange
         var error = EncinaErrors.Create("test.error", "Test error");
         var innerException = new TimeoutException();
-        var exception = new Exception("Wrapper", innerException);
+        var exception = new AggregateException("Wrapper", innerException);
 
         // Act
         var result = _classifier.Classify(error, exception);

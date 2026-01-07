@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 using LanguageExt;
 
@@ -376,6 +377,7 @@ public sealed class ContentRouter : IContentRouter
 /// <summary>
 /// LoggerMessage definitions for high-performance logging.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal static partial class ContentRouterLog
 {
     [LoggerMessage(

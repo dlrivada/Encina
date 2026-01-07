@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -388,6 +389,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
 /// <summary>
 /// LoggerMessage definitions for delayed retry processor.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal static partial class DelayedRetryProcessorLog
 {
     [LoggerMessage(

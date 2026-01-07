@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 using LanguageExt;
 
@@ -238,6 +239,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
 /// <summary>
 /// LoggerMessage definitions for high-performance logging.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal static partial class RoutingSlipLog
 {
     [LoggerMessage(
