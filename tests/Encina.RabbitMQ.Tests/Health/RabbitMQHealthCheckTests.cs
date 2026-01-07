@@ -125,4 +125,49 @@ public sealed class RabbitMQHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Exception.ShouldNotBeNull();
     }
+
+    [Fact]
+    public void Constructor_WithCustomTags_SetsCustomTags()
+    {
+        // Arrange
+        var customTags = new[] { "custom-tag-1", "custom-tag-2" };
+        var options = new ProviderHealthCheckOptions
+        {
+            Name = "custom-check",
+            Tags = customTags
+        };
+
+        // Act
+        var healthCheck = new RabbitMQHealthCheck(_serviceProvider, options);
+
+        // Assert
+        healthCheck.Tags.ShouldContain("custom-tag-1");
+        healthCheck.Tags.ShouldContain("custom-tag-2");
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_WithCancellationToken_PassesTokenThrough()
+    {
+        // Arrange
+        _connection.IsOpen.Returns(true);
+        var healthCheck = new RabbitMQHealthCheck(_serviceProvider, null);
+        using var cts = new CancellationTokenSource();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(cts.Token);
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Healthy);
+    }
+
+    [Fact]
+    public void Name_ReturnsExpectedValue()
+    {
+        // Arrange
+        var options = new ProviderHealthCheckOptions { Name = "my-rabbitmq" };
+        var healthCheck = new RabbitMQHealthCheck(_serviceProvider, options);
+
+        // Assert
+        healthCheck.Name.ShouldBe("my-rabbitmq");
+    }
 }
