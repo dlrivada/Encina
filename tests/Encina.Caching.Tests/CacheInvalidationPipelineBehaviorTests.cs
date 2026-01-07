@@ -285,6 +285,48 @@ public class CacheInvalidationPipelineBehaviorTests : IDisposable
     }
 
     [Fact]
+    public async Task Handle_WithDelayedInvalidation_InvalidatesAfterDelay()
+    {
+        // Arrange
+        using var cacheProvider = new FakeCacheProvider();
+        var keyGenerator = Substitute.For<ICacheKeyGenerator>();
+        var options = new CachingOptions { EnableCacheInvalidation = true };
+        var logger = NullLogger<CacheInvalidationPipelineBehavior<InvalidatingCommandWithDelay, string>>.Instance;
+
+        var sut = new CacheInvalidationPipelineBehavior<InvalidatingCommandWithDelay, string>(
+            cacheProvider,
+            keyGenerator,
+            Options.Create(options),
+            logger);
+
+        var productId = _faker.Random.Guid();
+        var request = new InvalidatingCommandWithDelay(productId);
+        var context = CreateContext();
+        var expectedPattern = $"product:{productId}:*";
+
+        // Pre-populate cache
+        await cacheProvider.SetAsync($"product:{productId}:details", "data", null, CancellationToken.None);
+        cacheProvider.ClearTracking();
+
+        keyGenerator.GeneratePatternFromTemplate("product:{ProductId}:*", request, context)
+            .Returns(expectedPattern);
+
+        // Act
+        await sut.Handle(
+            request,
+            context,
+            () => ValueTask.FromResult(Right<EncinaError, string>("result")),
+            CancellationToken.None);
+
+        // Assert - immediately after the call, cache may not be invalidated yet (delay is 50ms)
+        // Wait a bit more than the delay to ensure invalidation occurs
+        await Task.Delay(100);
+
+        // Now the cache should have been invalidated
+        cacheProvider.RemovedKeys.ShouldContain($"product:{productId}:details");
+    }
+
+    [Fact]
     public async Task Handle_ForNonInvalidatingCommand_DoesNotInvalidate()
     {
         // Arrange
@@ -353,6 +395,10 @@ public class CacheInvalidationPipelineBehaviorTests : IDisposable
     // Command with broadcast
     [InvalidatesCache("product:{ProductId}:*", BroadcastInvalidation = true)]
     private sealed record InvalidatingCommandWithBroadcast(Guid ProductId) : IRequest<string>;
+
+    // Command with delayed invalidation
+    [InvalidatesCache("product:{ProductId}:*", DelayMilliseconds = 50)]
+    private sealed record InvalidatingCommandWithDelay(Guid ProductId) : IRequest<string>;
 
     // Command without [InvalidatesCache] attribute
     private sealed record NonInvalidatingCommand(string Value) : IRequest<string>;
