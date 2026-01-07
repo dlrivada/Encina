@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Encina.Aspire.POC.Tests</RootNamespace>
+    <!-- Specify the startup object to resolve multiple entry points conflict -->
+    <StartupObject>Encina.Aspire.POC.Tests.TestAppHost</StartupObject>
+    <!-- Set to Exe only when running benchmarks, otherwise it's a test library -->
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Test Framework -->
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Shouldly" />
+
+    <!-- Aspire Testing -->
+    <PackageReference Include="Aspire.Hosting.Testing" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+
+    <!-- Testcontainers for comparison -->
+    <PackageReference Include="Testcontainers.PostgreSql" />
+
+    <!-- PostgreSQL client -->
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Dapper" />
+
+    <!-- Benchmarking -->
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Encina.TestInfrastructure\Encina.TestInfrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+    <Using Include="Npgsql" />
+    <Using Include="Dapper" />
+  </ItemGroup>
+
+</Project>

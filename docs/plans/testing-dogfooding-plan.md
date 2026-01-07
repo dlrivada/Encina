@@ -21,6 +21,7 @@
 11. [Migration Execution Process](#11-migration-execution-process)
 12. [Available Encina.Testing Packages](#12-available-encinatesting-packages)
 13. [Phase 2 Implementation Findings](#13-phase-2-implementation-findings)
+14. [Aspire vs Testcontainers Guidance](#14-aspire-vs-testcontainers-guidance)
 
 ---
 
@@ -2394,6 +2395,133 @@ Encina.Testing.Examples/
 
 ---
 
+## 14. Aspire vs Testcontainers Guidance
+
+> **Related Resources:**
+>
+> - [ADR-008: Aspire vs Testcontainers Testing Strategy](../architecture/adr/008-aspire-vs-testcontainers-testing-strategy.md)
+> - [Aspire Migration Guide](../testing/aspire-migration-guide.md)
+> - [Aspire Integration Test Template](../testing/templates/AspireIntegrationTestTemplate.cs)
+
+### Overview
+
+As of Issue #509, the Encina project evaluated **Aspire.Hosting.Testing** as a potential complement to the existing Testcontainers infrastructure. This section provides guidance on when to use each approach.
+
+### Decision Summary
+
+**Primary Approach: Testcontainers** - Maintain for all component-level integration tests
+
+**Secondary Approach: Aspire.Hosting.Testing** - Introduce selectively for distributed application scenarios
+
+### When to Use Testcontainers
+
+Use the existing `DatabaseFixture<T>` and Testcontainers patterns when:
+
+| Scenario | Example |
+|----------|---------|
+| Single database tests | `OutboxStorePostgreSqlTests` |
+| Component-level testing | Testing a single store implementation |
+| Oracle database | Not supported in Aspire |
+| NATS/MQTT messaging | Limited Aspire support |
+| Fine-grained control | Custom wait strategies, port mapping |
+| Existing fixtures | Leveraging `Encina.TestInfrastructure` |
+
+**Pattern (Current Standard):**
+
+```csharp
+public class MyIntegrationTests : IClassFixture<PostgreSqlFixture>
+{
+    private readonly PostgreSqlFixture _fixture;
+
+    public MyIntegrationTests(PostgreSqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    [Fact]
+    public async Task Store_CanPersist()
+    {
+        using var connection = _fixture.CreateConnection();
+        // Test with direct connection
+    }
+}
+```
+
+### When to Use Aspire.Hosting.Testing
+
+Consider Aspire when:
+
+| Scenario | Example |
+|----------|---------|
+| Full AppHost validation | Testing production Aspire configurations |
+| Multi-service orchestration | API → Worker → Database flows |
+| Cross-service communication | Service discovery tests |
+| Production parity | Using same orchestration model |
+
+**Pattern (Aspire):**
+
+```csharp
+public class DistributedTests : IAsyncLifetime
+{
+    private DistributedApplication? _app;
+
+    public async Task InitializeAsync()
+    {
+        var builder = await DistributedApplicationTestingBuilder
+            .CreateAsync<ProductionAppHost>();
+        _app = await builder.BuildAsync();
+        await _app.StartAsync();
+    }
+
+    [Fact]
+    public async Task CrossService_Works()
+    {
+        var apiClient = _app!.CreateHttpClient("api");
+        // Test multi-service scenario
+    }
+
+    public async Task DisposeAsync() => /* cleanup */;
+}
+```
+
+### Key Differences
+
+| Aspect | Testcontainers | Aspire |
+|--------|---------------|--------|
+| **Best For** | Component tests | Distributed tests |
+| **Oracle Support** | Yes (GenericContainer) | No |
+| **Connection String** | `container.GetConnectionString()` | `app.GetConnectionStringAsync(name)` |
+| **Overhead** | Lower | Higher (orchestration) |
+| **Existing Fixtures** | 31 fixtures available | New patterns needed |
+
+### Migration Policy
+
+**Do NOT migrate existing tests to Aspire** unless there is a specific distributed testing requirement. The current Testcontainers infrastructure:
+
+- Has 3+ years of proven usage
+- Covers all providers (including Oracle)
+- Is well-understood by the team
+- Requires no changes
+
+### Creating New Integration Tests
+
+1. **Default to Testcontainers** - Use `DatabaseFixture<T>` for new database tests
+2. **Consider Aspire only if**:
+   - Testing a full AppHost configuration
+   - Need multi-service orchestration
+   - Testing cross-service communication
+3. **Use the template** - See `docs/testing/templates/AspireIntegrationTestTemplate.cs`
+
+### POC Reference
+
+A proof-of-concept comparing both approaches is available at:
+
+- `tests/Encina.Aspire.POC.Tests/` - PostgreSQL tests with both approaches
+- `tests/Encina.Aspire.POC.Tests/PERFORMANCE-RESULTS.md` - Performance documentation
+- `tests/Encina.Aspire.POC.Tests/Benchmarks/` - BenchmarkDotNet comparison
+
+---
+
 ## Version History
 
 | Date | Version | Changes |
@@ -2401,3 +2529,4 @@ Encina.Testing.Examples/
 | 2024-01-03 | 1.0 | Initial document |
 | 2024-01-04 | 2.0 | Complete rewrite per Issue #498 Phase 1 (Tasks 1-8) |
 | 2024-01-04 | 2.1 | Added Phase 2 findings and reference project documentation |
+| 2026-01-07 | 2.2 | Added Aspire vs Testcontainers guidance (Issue #509) |

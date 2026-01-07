@@ -2,11 +2,91 @@
 
 Integration testing support for Encina-based applications using .NET Aspire's `DistributedApplicationTestingBuilder`.
 
+> **Important Distinction:** This package provides **in-memory fake implementations** for messaging pattern testing (outbox, inbox, saga, scheduling). It does **NOT** provide container orchestration. For container orchestration, see the [Aspire vs Testcontainers distinction](#aspire-vs-testcontainers-distinction) section below.
+
 ## Installation
 
 ```bash
 dotnet add package Encina.Aspire.Testing
 ```
+
+## Aspire vs Testcontainers Distinction
+
+### Understanding the Testing Tools
+
+| Package | Purpose | Use Case |
+|---------|---------|----------|
+| **Encina.Aspire.Testing** | In-memory fakes for messaging | Unit/integration tests without real databases |
+| **Aspire.Hosting.Testing** | Container orchestration | Integration tests with real infrastructure |
+| **Testcontainers** | Container lifecycle | Component-level database tests |
+
+### When to Use Each
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                    Encina Testing Package Selection                       │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────┐  ┌─────────────────────────┐  ┌────────────────┐
+│ Messaging Pattern Tests │  │ Distributed App Tests   │  │ Database Tests │
+│ (No real database)      │  │ (Real containers)       │  │ (Real DB)      │
+├─────────────────────────┤  ├─────────────────────────┤  ├────────────────┤
+│                         │  │                         │  │                │
+│ Encina.Aspire.Testing   │  │ Aspire.Hosting.Testing  │  │ Testcontainers │
+│                         │  │                         │  │                │
+│ - FakeOutboxStore       │  │ - DistributedApp        │  │ - SqlServer    │
+│ - FakeInboxStore        │  │   TestingBuilder        │  │ - PostgreSQL   │
+│ - FakeSagaStore         │  │ - CreateAsync<T>()      │  │ - MySQL        │
+│ - AssertOutboxAsync     │  │ - GetConnectionString   │  │ - Oracle       │
+│ - SimulateFailure       │  │ - WaitForResource       │  │ - Redis        │
+│                         │  │                         │  │                │
+└─────────────────────────┘  └─────────────────────────┘  └────────────────┘
+```
+
+### Typical Combinations
+
+**1. Unit Tests with Messaging Verification:**
+
+```csharp
+// Use Encina.Aspire.Testing with fake stores
+builder.WithEncinaTestSupport(options =>
+{
+    options.ClearOutboxBeforeTest = true;
+});
+await app.AssertOutboxContainsAsync<OrderCreatedEvent>();
+```
+
+**2. Integration Tests with Real Database:**
+
+```csharp
+// Use Testcontainers for database
+public class StoreTests : IClassFixture<PostgreSqlFixture>
+{
+    // Uses real PostgreSQL container
+}
+```
+
+**3. End-to-End Distributed Tests:**
+
+```csharp
+// Use Aspire.Hosting.Testing for full orchestration
+var builder = await DistributedApplicationTestingBuilder
+    .CreateAsync<ProductionAppHost>();
+// Tests full AppHost with real containers
+```
+
+### Summary
+
+- **Encina.Aspire.Testing** = Fake stores for messaging patterns (this package)
+- **Aspire.Hosting.Testing** = Real container orchestration via AppHost
+- **Testcontainers** = Individual container management for databases
+
+See also:
+
+- [ADR-008: Aspire vs Testcontainers Testing Strategy](../../docs/architecture/adr/008-aspire-vs-testcontainers-testing-strategy.md)
+- [Aspire Migration Guide](../../docs/testing/aspire-migration-guide.md)
+
+---
 
 ## Features
 

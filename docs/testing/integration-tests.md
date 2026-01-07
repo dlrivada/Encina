@@ -206,6 +206,43 @@ Oracle XE has a large image size (~2 GB) and slow startup (~60 seconds):
 - Pull image once: `docker pull container-registry.oracle.com/database/express:21.3.0-xe`
 - Keep Oracle container running between test runs
 
+## Provider Support Matrix
+
+The following table shows which providers are supported by each testing approach:
+
+| Provider | Testcontainers | Aspire.Hosting | Recommended Approach | Notes |
+|----------|----------------|----------------|---------------------|-------|
+| **PostgreSQL** | `PostgreSqlContainer` | `AddPostgres()` | Testcontainers | Established fixtures, simpler API |
+| **SQL Server** | `MsSqlContainer` | `AddSqlServer()` | Testcontainers | Established fixtures, simpler API |
+| **MySQL** | `MySqlContainer` | `AddMySql()` | Testcontainers | Established fixtures, simpler API |
+| **Oracle** | `GenericContainer` | **Not Supported** | **Testcontainers Only** | Critical - no Aspire alternative |
+| **SQLite** | N/A (in-memory) | N/A | In-memory | No container needed |
+| **MongoDB** | `MongoDbContainer` | `AddMongoDB()` | Testcontainers | Established fixtures |
+| **Redis** | `RedisContainer` | `AddRedis()` | Testcontainers | Established fixtures |
+| **RabbitMQ** | `RabbitMqContainer` | `AddRabbitMQ()` | Testcontainers | Established fixtures |
+| **Kafka** | `KafkaContainer` | `AddKafka()` | Testcontainers | Established fixtures |
+| **NATS** | `GenericContainer` | `AddNats()` | Testcontainers | Limited Aspire support |
+| **MQTT** | `GenericContainer` | **Limited** | **Testcontainers Only** | No dedicated Aspire resource |
+
+### Decision Guidance
+
+**Use Testcontainers when:**
+
+- Component-level database/service tests
+- Oracle database (not supported in Aspire)
+- Fine-grained container control needed
+- Leveraging existing `Encina.TestInfrastructure` fixtures
+
+**Use Aspire.Hosting.Testing when:**
+
+- Testing full Aspire AppHost configurations
+- Multi-service orchestration scenarios
+- Production parity validation
+
+See [ADR-008: Aspire vs Testcontainers Testing Strategy](../architecture/adr/008-aspire-vs-testcontainers-testing-strategy.md) for detailed guidance.
+
+---
+
 ## Architecture
 
 ### Test Infrastructure
