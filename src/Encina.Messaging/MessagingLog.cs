@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Messaging;
@@ -6,6 +7,11 @@ namespace Encina.Messaging;
 /// High-performance logging methods using LoggerMessage source generators.
 /// Shared across all messaging providers (Dapper, ADO.NET, EF Core).
 /// </summary>
+/// <remarks>
+/// This class uses source generators to create optimized logging methods.
+/// Excluded from code coverage as the generated code is boilerplate.
+/// </remarks>
+[ExcludeFromCodeCoverage]
 public static partial class MessagingLog
 {
     // =========================================================================

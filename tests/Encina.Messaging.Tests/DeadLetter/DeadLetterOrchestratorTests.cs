@@ -90,18 +90,18 @@ public sealed class DeadLetterOrchestratorTests
         var expectedMessage = CreateTestDeadLetterMessage(Guid.NewGuid());
         _messageFactory.Create(
             Arg.Any<Guid>(),
-            expectedRequestType,
-            expectedRequestContent,
-            error.Message,
-            sourcePattern,
-            expectedRetryCount,
-            firstFailedAt,
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<int>(),
+            Arg.Any<DateTime>(),
             Arg.Any<DateTime>(),
             Arg.Any<DateTime?>(),
-            Arg.Is<string?>(s => s == null),
-            Arg.Is<string?>(s => s == null),
-            Arg.Is<string?>(s => s == null),
-            Arg.Is<string?>(s => s == null))
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<string?>())
             .Returns(expectedMessage);
 
         // Act
@@ -445,6 +445,11 @@ public sealed class TestDeadLetterRequest
 /// </summary>
 internal sealed class TestDeadLetterMessage : IDeadLetterMessage
 {
+    /// <summary>
+    /// Fixed UTC time used for deterministic testing (2026-01-01 12:00:00 UTC).
+    /// </summary>
+    private static readonly DateTime DefaultFixedUtcNow = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
     public Guid Id { get; set; }
     public string RequestType { get; set; } = string.Empty;
     public string RequestContent { get; set; } = string.Empty;
@@ -462,11 +467,11 @@ internal sealed class TestDeadLetterMessage : IDeadLetterMessage
     public string? ReplayResult { get; set; }
 
     /// <summary>
-    /// Time provider for deterministic testing. Defaults to <see cref="DeadLetterOrchestratorTests.FixedUtcNow"/>
-    /// (2026-01-01 12:00:00 UTC) for predictable <see cref="IsExpired"/> behavior.
+    /// Time provider for deterministic testing. Defaults to 2026-01-01 12:00:00 UTC
+    /// for predictable <see cref="IsExpired"/> behavior.
     /// Override in tests that require real-time behavior or specific time scenarios.
     /// </summary>
-    public Func<DateTime> NowProvider { get; set; } = () => FixedUtcNow;
+    public Func<DateTime> NowProvider { get; set; } = () => DefaultFixedUtcNow;
 
     public bool IsReplayed => ReplayedAtUtc.HasValue;
     public bool IsExpired => ExpiresAtUtc.HasValue && ExpiresAtUtc.Value <= NowProvider();

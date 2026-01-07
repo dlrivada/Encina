@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.EntityFrameworkCore;
@@ -5,6 +6,11 @@ namespace Encina.EntityFrameworkCore;
 /// <summary>
 /// High-performance logging methods using LoggerMessage source generators.
 /// </summary>
+/// <remarks>
+/// This class uses source generators to create optimized logging methods.
+/// Excluded from code coverage as the generated code is boilerplate.
+/// </remarks>
+[ExcludeFromCodeCoverage]
 internal static partial class Log
 {
     // Transaction Pipeline Behavior (1-5)

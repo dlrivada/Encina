@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Messaging.DeadLetter;
@@ -5,6 +6,11 @@ namespace Encina.Messaging.DeadLetter;
 /// <summary>
 /// High-performance logging for Dead Letter Queue operations.
 /// </summary>
+/// <remarks>
+/// This class uses source generators to create optimized logging methods.
+/// Excluded from code coverage as the generated code is boilerplate.
+/// </remarks>
+[ExcludeFromCodeCoverage]
 internal static partial class DeadLetterLog
 {
     [LoggerMessage(
