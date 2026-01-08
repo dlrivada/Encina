@@ -91,7 +91,17 @@
       "Bash(docker ps:*)",
       "Bash(dotnet tool restore:*)",
       "Bash(reportgenerator:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(Select-String -Pattern \"FAIL|error.*ShouldReturnEncinaError\")",
+      "Bash(dotnet tool run reportgenerator:*)",
+      "Bash(gh issue comment 520 --body \"$\\(cat <<''EOF''\n## Solución implementada\n\nEl bug tenía dos problemas de reflexión en `GrpcEncinaService`:\n\n### 1. SendAsync - búsqueda incorrecta del método\n\n```csharp\n// ANTES: buscaba métodos con 2 argumentos genéricos\nvar sendMethod = typeof\\(IEncina\\)\n    .GetMethods\\(\\)\n    .First\\(m => m.Name == \"Send\" && m.GetGenericArguments\\(\\).Length == 2\\);\n\n// DESPUÉS: IEncina.Send<TResponse> solo tiene 1 argumento genérico\nvar sendMethod = typeof\\(IEncina\\)\n    .GetMethods\\(\\)\n    .First\\(m => m.Name == \"Send\" && m.GetGenericArguments\\(\\).Length == 1\\);\n```\n\n### 2. SendAsync - MakeGenericMethod con parámetros incorrectos\n\n```csharp\n// ANTES: pasaba tipo de request y response\nvar genericMethod = sendMethod.MakeGenericMethod\\(type, responseType\\);\n\n// DESPUÉS: solo pasa el tipo de response\nvar genericMethod = sendMethod.MakeGenericMethod\\(responseType\\);\n```\n\n### 3. Manejo de Either con dynamic\n\nEl `Either<EncinaError, TResponse>` no se asignaba correctamente a `Either<EncinaError, object>` porque `Either` no es covariante. La solución usa acceso explícito a propiedades:\n\n```csharp\ndynamic result = await task;\n\nif \\(\\(bool\\)result.IsRight\\)\n{\n    object? responseValue = null;\n    result.IfRight\\(\\(Action<object>\\)\\(r => responseValue = r\\)\\);\n    var responseBytes = JsonSerializer.SerializeToUtf8Bytes\\(responseValue, responseType\\);\n    return Right<EncinaError, byte[]>\\(responseBytes\\);\n}\nelse\n{\n    EncinaError error = default;\n    result.IfLeft\\(\\(Action<EncinaError>\\)\\(e => error = e\\)\\);\n    return Left<EncinaError, byte[]>\\(error\\);\n}\n```\n\n### 4. PublishAsync - manejo del resultado\n\n```csharp\n// ANTES: ignoraba el resultado de Either\nvar task = \\(ValueTask\\)genericMethod.Invoke\\(_encina, [notification, cancellationToken]\\)!;\nawait task;\nreturn Right<EncinaError, Unit>\\(Unit.Default\\);\n\n// DESPUÉS: propaga correctamente el resultado\nvar task = \\(dynamic\\)genericMethod.Invoke\\(_encina, [notification, cancellationToken]\\)!;\nEither<EncinaError, Unit> result = await task;\nreturn result;\n```\n\n**Commit:** 9c5fc76\n\n**Tests de integración habilitados:** Los 3 tests que estaban con `Skip` referenciando este bug ahora pasan correctamente.\nEOF\n\\)\")",
+      "Bash(src/Encina.SignalR/Log.cs )",
+      "Bash(src/Encina.gRPC/Log.cs )",
+      "Bash(tests/Encina.AspNetCore.Tests/ )",
+      "Bash(tests/Encina.Refit.Tests/ )",
+      "Bash(tests/Encina.Refit.IntegrationTests/ )",
+      "Bash(tests/Encina.SignalR.Tests/ )",
+      "Bash(tests/Encina.gRPC.Tests/)"
     ]
   }
 }

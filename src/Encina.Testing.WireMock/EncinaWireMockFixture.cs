@@ -262,12 +262,16 @@ public sealed class EncinaWireMockFixture : IAsyncLifetime
 
     /// <summary>
     /// Stubs a sequence of responses for the same request path.
-    /// Each subsequent call returns the next response in the sequence.
+    /// Each subsequent call returns the next response in the sequence using WireMock scenarios.
     /// </summary>
     /// <param name="method">The HTTP method to match.</param>
     /// <param name="path">The URL path to match.</param>
     /// <param name="responses">Array of (response, statusCode) tuples.</param>
     /// <returns>This fixture for method chaining.</returns>
+    /// <remarks>
+    /// Uses WireMock's scenario feature to implement stateful response sequences.
+    /// The scenario transitions through states "Step0", "Step1", etc.
+    /// </remarks>
     public EncinaWireMockFixture StubSequence(
         string method,
         string path,
@@ -282,9 +286,8 @@ public sealed class EncinaWireMockFixture : IAsyncLifetime
             throw new ArgumentException("At least one response is required", nameof(responses));
         }
 
-        var request = Request.Create()
-            .WithPath(path)
-            .UsingMethod(method);
+        // Use a unique scenario name based on method and path
+        var scenarioName = $"Sequence_{method}_{path.Replace("/", "_")}";
 
         for (int i = 0; i < responses.Length; i++)
         {
@@ -300,11 +303,30 @@ public sealed class EncinaWireMockFixture : IAsyncLifetime
                     .WithBody(json);
             }
 
-            // Use AtPriority to ensure proper ordering - lower priority = matched first
-            // Each response gets incremented priority so they're processed in sequence
-            Server.Given(request)
-                .AtPriority(i)
-                .RespondWith(responseBuilder);
+            var request = Request.Create()
+                .WithPath(path)
+                .UsingMethod(method);
+
+            var nextState = $"Step{i + 1}";
+
+            if (i == 0)
+            {
+                // First response: don't use WhenStateIs - the initial state is implicit
+                Server.Given(request)
+                    .InScenario(scenarioName)
+                    .WillSetStateTo(nextState)
+                    .RespondWith(responseBuilder);
+            }
+            else
+            {
+                // Subsequent responses: match on the previous state
+                var currentState = $"Step{i}";
+                Server.Given(request)
+                    .InScenario(scenarioName)
+                    .WhenStateIs(currentState)
+                    .WillSetStateTo(nextState)
+                    .RespondWith(responseBuilder);
+            }
         }
 
         return this;
