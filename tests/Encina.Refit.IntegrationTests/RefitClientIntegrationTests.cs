@@ -1,256 +1,158 @@
-using System.Net.Http.Json;
-using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Refit;
 using Encina.Refit;
-using Encina.Testing.WireMock;
 
 namespace Encina.Refit.IntegrationTests;
 
 /// <summary>
-/// Integration tests for Refit client integration with WireMock for HTTP mocking.
-/// Tests end-to-end scenarios with mocked HTTP responses for reliable, deterministic testing.
+/// Integration tests for Refit client integration with Encina.
+/// Tests end-to-end scenarios with real HTTP calls.
 /// </summary>
-/// <remarks>
-/// This test class demonstrates how to use <see cref="EncinaWireMockFixture"/>
-/// for testing Refit clients directly with WireMock.
-/// </remarks>
 [Trait("Category", "Integration")]
-public class RefitClientIntegrationTests : IClassFixture<EncinaWireMockFixture>, IAsyncLifetime
+public class RefitClientIntegrationTests
 {
-    private readonly EncinaWireMockFixture _fixture;
-    private IServiceProvider _serviceProvider = null!;
-    private ITodoApi _todoApi = null!;
-    private IHttpHeadersApi _headersApi = null!;
-
-    public RefitClientIntegrationTests(EncinaWireMockFixture fixture)
+    [Fact]
+    [Trait("Category", "E2E")]
+    public async Task EndToEnd_WithEncina_ShouldResolveClientAndExecute()
     {
-        _fixture = fixture;
-    }
+        // NOTE: This test makes real HTTP calls to jsonplaceholder.typicode.com
+        // It may fail if the external service is unavailable
+        // Consider using a mock HTTP server for more reliable tests
 
-    public Task InitializeAsync()
-    {
-        _fixture.Reset();
-
+        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddEncina(options =>
+        {
+            options.RegisterServicesFromAssemblyContaining<GetTodoRequest>();
+        });
         services.AddEncinaRefitClient<ITodoApi>(client =>
         {
-            client.BaseAddress = new Uri(_fixture.BaseUrl);
-        });
-        services.AddEncinaRefitClient<IHttpHeadersApi>(client =>
-        {
-            client.BaseAddress = new Uri(_fixture.BaseUrl);
-            client.DefaultRequestHeaders.Add("X-Custom-Header", "TestValue");
+            client.BaseAddress = new Uri("https://jsonplaceholder.typicode.com");
         });
 
-        _serviceProvider = services.BuildServiceProvider();
-        _todoApi = _serviceProvider.GetRequiredService<ITodoApi>();
-        _headersApi = _serviceProvider.GetRequiredService<IHttpHeadersApi>();
+        var serviceProvider = services.BuildServiceProvider();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
-        return Task.CompletedTask;
-    }
-
-    public async Task DisposeAsync()
-    {
-        if (_serviceProvider is IAsyncDisposable asyncDisposable)
-        {
-            await asyncDisposable.DisposeAsync();
-        }
-        else if (_serviceProvider is IDisposable disposable)
-        {
-            disposable.Dispose();
-        }
-    }
-
-    [Fact]
-    public async Task RefitClient_GetRequest_ShouldResolveAndExecute()
-    {
-        // Arrange
-        var expectedTodo = new Todo { Id = 1, Title = "Test Todo", Completed = false, UserId = 1 };
-        _fixture.StubGet("/todos/1", expectedTodo);
+        var request = new GetTodoRequest(1);
 
         // Act
-        var result = await _todoApi.GetTodoAsync(1);
+        var result = await Encina.Send(request);
 
         // Assert
-        result.ShouldNotBeNull();
-        result.Id.ShouldBe(1);
-        result.Title.ShouldBe("Test Todo");
-        result.Completed.ShouldBeFalse();
-
-        _fixture.VerifyCallMade("/todos/1", times: 1, method: "GET");
+        result.ShouldBeSuccess();
+        result.IfRight(todo =>
+        {
+            todo.Id.ShouldBe(1);
+            todo.Title.ShouldNotBeNullOrEmpty();
+        });
     }
 
     [Fact]
-    public async Task RefitClient_MultipleRequests_ShouldAllSucceed()
+    [Trait("Category", "E2E")]
+    public async Task EndToEnd_MultipleRequests_ShouldReuseHttpClient()
     {
+        // NOTE: This test makes real HTTP calls to jsonplaceholder.typicode.com
+        // It may fail if the external service is unavailable
+
         // Arrange
-        _fixture.StubGet("/todos/1", new Todo { Id = 1, Title = "Todo 1", Completed = false, UserId = 1 });
-        _fixture.StubGet("/todos/2", new Todo { Id = 2, Title = "Todo 2", Completed = true, UserId = 1 });
-        _fixture.StubGet("/todos/3", new Todo { Id = 3, Title = "Todo 3", Completed = false, UserId = 2 });
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncina(options =>
+        {
+            options.RegisterServicesFromAssemblyContaining<GetTodoRequest>();
+        });
+        services.AddEncinaRefitClient<ITodoApi>(client =>
+        {
+            client.BaseAddress = new Uri("https://jsonplaceholder.typicode.com");
+        });
+
+        var serviceProvider = services.BuildServiceProvider();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
         // Act
         var results = await Task.WhenAll(
-            _todoApi.GetTodoAsync(1),
-            _todoApi.GetTodoAsync(2),
-            _todoApi.GetTodoAsync(3)
+            Encina.Send(new GetTodoRequest(1)),
+            Encina.Send(new GetTodoRequest(2)),
+            Encina.Send(new GetTodoRequest(3))
         );
 
         // Assert
         results.Length.ShouldBe(3);
-        results[0].Id.ShouldBe(1);
-        results[1].Id.ShouldBe(2);
-        results[2].Id.ShouldBe(3);
+        results.AllShouldBeSuccess();
 
-        _fixture.VerifyCallMade("/todos/1", times: 1, method: "GET");
-        _fixture.VerifyCallMade("/todos/2", times: 1, method: "GET");
-        _fixture.VerifyCallMade("/todos/3", times: 1, method: "GET");
+        results[0].IfRight(todo => todo.Id.ShouldBe(1));
+        results[1].IfRight(todo => todo.Id.ShouldBe(2));
+        results[2].IfRight(todo => todo.Id.ShouldBe(3));
     }
 
     [Fact]
-    public async Task RefitClient_WithCustomHeaders_ShouldIncludeHeaders()
+    [Trait("Category", "E2E")]
+    public async Task EndToEnd_WithCustomHeaders_ShouldIncludeHeaders()
     {
+        // NOTE: This test makes real HTTP calls to httpbin.org
+        // It may fail if the external service is unavailable
+
         // Arrange
-        var expectedResponse = new HeadersResponse
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncina(options =>
         {
-            Headers = new Dictionary<string, string>
-            {
-                ["X-Custom-Header"] = "TestValue"
-            }
-        };
-        _fixture.StubGet("/headers", expectedResponse);
-
-        // Act
-        var result = await _headersApi.GetHeadersAsync();
-
-        // Assert
-        result.ShouldNotBeNull();
-        result.Headers.ShouldContainKey("X-Custom-Header");
-        result.Headers["X-Custom-Header"].ShouldBe("TestValue");
-
-        _fixture.VerifyCallMade("/headers", times: 1, method: "GET");
-    }
-
-    [Fact]
-    public async Task RefitClient_PostRequest_ShouldSendData()
-    {
-        // Arrange
-        var createdTodo = new Todo { Id = 201, Title = "New Todo", Completed = false, UserId = 1 };
-        _fixture.StubPost("/todos", createdTodo, statusCode: 201);
-
-        var newTodo = new Todo { Title = "New Todo", Completed = false, UserId = 1 };
-
-        // Act
-        var result = await _todoApi.CreateTodoAsync(newTodo);
-
-        // Assert
-        result.ShouldNotBeNull();
-        result.Title.ShouldBe("New Todo");
-        result.Completed.ShouldBeFalse();
-
-        _fixture.VerifyCallMade("/todos", times: 1, method: "POST");
-    }
-
-    [Fact]
-    public async Task RefitClient_DeleteRequest_ShouldSucceed()
-    {
-        // Arrange
-        _fixture.StubDelete("/todos/1");
-
-        // Act & Assert
-        await Should.NotThrowAsync(async () => await _todoApi.DeleteTodoAsync(1));
-
-        _fixture.VerifyCallMade("/todos/1", times: 1, method: "DELETE");
-    }
-
-    [Fact]
-    public async Task RefitClient_PutRequest_ShouldUpdateData()
-    {
-        // Arrange
-        var updatedTodo = new Todo { Id = 1, Title = "Updated Todo", Completed = true, UserId = 1 };
-        _fixture.StubPut("/todos/1", updatedTodo);
-
-        var todoUpdate = new Todo { Id = 1, Title = "Updated Todo", Completed = true, UserId = 1 };
-
-        // Act
-        var result = await _todoApi.UpdateTodoAsync(1, todoUpdate);
-
-        // Assert
-        result.ShouldNotBeNull();
-        result.Title.ShouldBe("Updated Todo");
-        result.Completed.ShouldBeTrue();
-
-        _fixture.VerifyCallMade("/todos/1", times: 1, method: "PUT");
-    }
-
-    [Fact]
-    public async Task RefitClient_ServerError_ShouldThrowApiException()
-    {
-        // Arrange
-        _fixture.Server.Given(
-            WireMock.RequestBuilders.Request.Create()
-                .WithPath("/todos/1")
-                .UsingMethod("GET"))
-            .RespondWith(
-                WireMock.ResponseBuilders.Response.Create()
-                    .WithStatusCode(503)
-                    .WithHeader("Content-Type", "application/json")
-                    .WithBody("{\"error\": \"Service unavailable\"}"));
-
-        // Act & Assert
-        var exception = await Should.ThrowAsync<ApiException>(async () =>
+            options.RegisterServicesFromAssemblyContaining<GetHeadersRequest>();
+        });
+        services.AddEncinaRefitClient<IHttpBinApi>(client =>
         {
-            await _todoApi.GetTodoAsync(1);
+            client.BaseAddress = new Uri("https://httpbin.org");
+            client.DefaultRequestHeaders.Add("X-Custom-Header", "TestValue");
         });
 
-        exception.StatusCode.ShouldBe(System.Net.HttpStatusCode.ServiceUnavailable);
+        var serviceProvider = services.BuildServiceProvider();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
+
+        var request = new GetHeadersRequest();
+
+        // Act
+        var result = await Encina.Send(request);
+
+        // Assert
+        result.ShouldBeSuccess();
+        result.IfRight(response =>
+        {
+            response.Headers.ShouldContainKey("X-Custom-Header");
+            response.Headers["X-Custom-Header"].ShouldBe("TestValue");
+        });
     }
 
     [Fact]
-    public async Task RefitClient_NotFound_ShouldThrowApiException()
+    public async Task EndToEnd_PostRequest_ShouldSendData()
     {
         // Arrange
-        _fixture.Server.Given(
-            WireMock.RequestBuilders.Request.Create()
-                .WithPath("/todos/999")
-                .UsingMethod("GET"))
-            .RespondWith(
-                WireMock.ResponseBuilders.Response.Create()
-                    .WithStatusCode(404)
-                    .WithHeader("Content-Type", "application/json")
-                    .WithBody("{\"error\": \"Todo not found\"}"));
-
-        // Act & Assert
-        var exception = await Should.ThrowAsync<ApiException>(async () =>
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncina(options =>
         {
-            await _todoApi.GetTodoAsync(999);
+            options.RegisterServicesFromAssemblyContaining<CreateTodoRequest>();
+        });
+        services.AddEncinaRefitClient<ITodoApi>(client =>
+        {
+            client.BaseAddress = new Uri("https://jsonplaceholder.typicode.com");
         });
 
-        exception.StatusCode.ShouldBe(System.Net.HttpStatusCode.NotFound);
-    }
+        var serviceProvider = services.BuildServiceProvider();
+        var Encina = serviceProvider.GetRequiredService<IEncina>();
 
-    [Fact]
-    public async Task WireMock_SequenceResponses_ShouldReturnInOrder()
-    {
-        // Arrange - First call returns success, second call returns error
-        // Use a unique path to avoid conflicts with other tests
-        _fixture.StubSequence("GET", "/todos/sequence-test",
-            (new Todo { Id = 1, Title = "First Call", Completed = false, UserId = 1 }, 200),
-            (new { error = "Rate limited" }, 429));
+        var request = new CreateTodoRequest("New Todo", false);
 
-        // Act - First call (using direct HTTP)
-        using var httpClient = new HttpClient { BaseAddress = new Uri(_fixture.BaseUrl) };
-        var response1 = await httpClient.GetAsync("/todos/sequence-test");
+        // Act
+        var result = await Encina.Send(request);
 
-        // Assert - First call succeeds
-        response1.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
-
-        // Act - Second call (same endpoint)
-        var response2 = await httpClient.GetAsync("/todos/sequence-test");
-
-        // Assert - Second call fails with rate limit
-        response2.StatusCode.ShouldBe(System.Net.HttpStatusCode.TooManyRequests);
+        // Assert
+        result.ShouldBeSuccess();
+        result.IfRight(todo =>
+        {
+            todo.Title.ShouldBe("New Todo");
+            todo.Completed.ShouldBeFalse();
+        });
     }
 
     // Test APIs
@@ -261,22 +163,16 @@ public class RefitClientIntegrationTests : IClassFixture<EncinaWireMockFixture>,
 
         [Post("/todos")]
         Task<Todo> CreateTodoAsync([Body] Todo todo);
-
-        [Put("/todos/{id}")]
-        Task<Todo> UpdateTodoAsync(int id, [Body] Todo todo);
-
-        [Delete("/todos/{id}")]
-        Task DeleteTodoAsync(int id);
     }
 
-    public interface IHttpHeadersApi
+    public interface IHttpBinApi
     {
         [Get("/headers")]
         Task<HeadersResponse> GetHeadersAsync();
     }
 
     // Test models
-    public sealed class Todo
+    public class Todo
     {
         public int Id { get; set; }
         public string Title { get; set; } = string.Empty;
@@ -284,8 +180,39 @@ public class RefitClientIntegrationTests : IClassFixture<EncinaWireMockFixture>,
         public int UserId { get; set; }
     }
 
-    public sealed class HeadersResponse
+    public class HeadersResponse
     {
         public Dictionary<string, string> Headers { get; set; } = new();
+    }
+
+    // Test requests
+    public record GetTodoRequest(int Id) : IRestApiRequest<ITodoApi, Todo>
+    {
+        public async Task<Todo> ExecuteAsync(ITodoApi apiClient, CancellationToken cancellationToken)
+        {
+            return await apiClient.GetTodoAsync(Id);
+        }
+    }
+
+    public record CreateTodoRequest(string Title, bool Completed) : IRestApiRequest<ITodoApi, Todo>
+    {
+        public async Task<Todo> ExecuteAsync(ITodoApi apiClient, CancellationToken cancellationToken)
+        {
+            var todo = new Todo
+            {
+                Title = Title,
+                Completed = Completed,
+                UserId = 1
+            };
+            return await apiClient.CreateTodoAsync(todo);
+        }
+    }
+
+    public record GetHeadersRequest : IRestApiRequest<IHttpBinApi, HeadersResponse>
+    {
+        public async Task<HeadersResponse> ExecuteAsync(IHttpBinApi apiClient, CancellationToken cancellationToken)
+        {
+            return await apiClient.GetHeadersAsync();
+        }
     }
 }

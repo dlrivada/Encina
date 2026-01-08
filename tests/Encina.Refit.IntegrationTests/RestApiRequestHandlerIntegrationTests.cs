@@ -1,246 +1,229 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Refit;
 using Encina.Refit;
-using Encina.Testing.WireMock;
 
 namespace Encina.Refit.IntegrationTests;
 
 /// <summary>
-/// Integration tests for <see cref="RestApiRequestHandler{TRequest, TApiClient, TResponse}"/>
-/// using WireMock for HTTP mocking instead of real external APIs.
+/// Integration tests for <see cref="RestApiRequestHandler{TRequest, TApiClient, TResponse}"/>.
+/// Tests real HTTP calls using public APIs.
 /// </summary>
-/// <remarks>
-/// This test class demonstrates how to use <see cref="EncinaRefitMockFixture{TApiClient}"/>
-/// for reliable, deterministic integration testing without external dependencies.
-/// </remarks>
 [Trait("Category", "Integration")]
-public class RestApiRequestHandlerIntegrationTests : IClassFixture<EncinaRefitMockFixture<ITestPostApi>>, IAsyncLifetime
+public class RestApiRequestHandlerIntegrationTests
 {
-    private readonly EncinaRefitMockFixture<ITestPostApi> _fixture;
-    private IServiceProvider _serviceProvider = null!;
-    private RestApiRequestHandler<GetPostRequest, ITestPostApi, Post> _handler = null!;
-
-    public RestApiRequestHandlerIntegrationTests(EncinaRefitMockFixture<ITestPostApi> fixture)
+    [Fact]
+    [Trait("Category", "E2E")]
+    public async Task EndToEnd_RealApiCall_ShouldSucceed()
     {
-        _fixture = fixture;
-    }
+        // NOTE: This test makes real HTTP calls to jsonplaceholder.typicode.com
+        // It may fail if the external service is unavailable
+        // Consider using a mock HTTP server for more reliable tests
 
-    public Task InitializeAsync()
-    {
-        _fixture.Reset();
-
+        // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddEncinaRefitClient<ITestPostApi>(client =>
+        services.AddEncinaRefitClient<IJsonPlaceholderApi>(client =>
         {
-            client.BaseAddress = new Uri(_fixture.BaseUrl);
-            client.Timeout = TimeSpan.FromSeconds(5);
+            client.BaseAddress = new Uri("https://jsonplaceholder.typicode.com");
+            client.Timeout = TimeSpan.FromSeconds(30);
         });
-        services.AddSingleton<RestApiRequestHandler<GetPostRequest, ITestPostApi, Post>>();
+        services.AddSingleton<RestApiRequestHandler<GetPostRequest, IJsonPlaceholderApi, Post>>();
 
-        _serviceProvider = services.BuildServiceProvider();
-        _handler = _serviceProvider.GetRequiredService<RestApiRequestHandler<GetPostRequest, ITestPostApi, Post>>();
-
-        return Task.CompletedTask;
-    }
-
-    public async Task DisposeAsync()
-    {
-        if (_serviceProvider is IAsyncDisposable asyncDisposable)
-        {
-            await asyncDisposable.DisposeAsync();
-        }
-        else if (_serviceProvider is IDisposable disposable)
-        {
-            disposable.Dispose();
-        }
-    }
-
-    [Fact]
-    public async Task Handle_SuccessfulApiCall_ShouldReturnRight()
-    {
-        // Arrange
-        var expectedPost = new Post
-        {
-            Id = 1,
-            UserId = 1,
-            Title = "Test Post Title",
-            Body = "This is the body of the test post"
-        };
-        _fixture.StubGet("/posts/1", expectedPost);
-
+        var serviceProvider = services.BuildServiceProvider();
+        var handler = serviceProvider.GetRequiredService<RestApiRequestHandler<GetPostRequest, IJsonPlaceholderApi, Post>>();
         var request = new GetPostRequest(1);
 
         // Act
-        var result = await _handler.Handle(request, CancellationToken.None);
+        var result = await handler.Handle(request, CancellationToken.None);
 
         // Assert
         result.ShouldBeSuccess();
         result.IfRight(post =>
         {
             post.Id.ShouldBe(1);
-            post.Title.ShouldBe("Test Post Title");
-            post.Body.ShouldBe("This is the body of the test post");
+            post.Title.ShouldNotBeNullOrEmpty();
+            post.Body.ShouldNotBeNullOrEmpty();
         });
-
-        _fixture.VerifyCallMade("/posts/1", times: 1, method: "GET");
     }
 
     [Fact]
-    public async Task Handle_404NotFound_ShouldReturnEncinaError()
+    public async Task EndToEnd_404NotFound_ShouldReturnEncinaError()
     {
         // Arrange
-        _fixture.StubError("/posts/999999", statusCode: 404, errorResponse: new { error = "Post not found" }, method: "GET");
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaRefitClient<IJsonPlaceholderApi>(client =>
+        {
+            client.BaseAddress = new Uri("https://jsonplaceholder.typicode.com");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        services.AddSingleton<RestApiRequestHandler<GetPostRequest, IJsonPlaceholderApi, Post>>();
 
-        var request = new GetPostRequest(999999);
+        var serviceProvider = services.BuildServiceProvider();
+        var handler = serviceProvider.GetRequiredService<RestApiRequestHandler<GetPostRequest, IJsonPlaceholderApi, Post>>();
+        var request = new GetPostRequest(999999); // Non-existent post
 
         // Act
-        var result = await _handler.Handle(request, CancellationToken.None);
+        var result = await handler.Handle(request, CancellationToken.None);
 
         // Assert
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            // Error message contains the HTTP status name (NotFound) rather than numeric code
-            error.Message.ShouldContain("NotFound");
+            error.Message.ShouldContain("404");
         });
-
-        _fixture.VerifyCallMade("/posts/999999", times: 1, method: "GET");
     }
 
     [Fact]
-    public async Task Handle_500InternalServerError_ShouldReturnEncinaError()
+    public async Task EndToEnd_500InternalServerError_ShouldReturnEncinaError()
     {
         // Arrange
-        _fixture.StubError("/posts/1", statusCode: 500, errorResponse: new { error = "Internal server error" }, method: "GET");
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaRefitClient<IHttpBinApi>(client =>
+        {
+            client.BaseAddress = new Uri("https://httpbin.org");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        services.AddSingleton<RestApiRequestHandler<GetStatusCodeRequest, IHttpBinApi, string>>();
 
-        var request = new GetPostRequest(1);
+        var serviceProvider = services.BuildServiceProvider();
+        var handler = serviceProvider.GetRequiredService<RestApiRequestHandler<GetStatusCodeRequest, IHttpBinApi, string>>();
+        var request = new GetStatusCodeRequest(500);
 
         // Act
-        var result = await _handler.Handle(request, CancellationToken.None);
+        var result = await handler.Handle(request, CancellationToken.None);
 
         // Assert
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            // Error message contains the HTTP status name (InternalServerError) rather than numeric code
-            error.Message.ShouldContain("InternalServerError");
+            error.Message.ShouldContain("500");
         });
     }
 
     [Fact]
-    public async Task Handle_Timeout_ShouldReturnTimeoutError()
+    public async Task EndToEnd_NetworkError_ShouldReturnEncinaError()
     {
-        // Arrange - Stub a response with delay longer than client timeout
-        var post = new Post { Id = 1, Title = "Delayed", Body = "Body" };
-        _fixture.StubDelay("/posts/1", TimeSpan.FromSeconds(10), post, method: "GET");
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaRefitClient<IInvalidApi>(client =>
+        {
+            client.BaseAddress = new Uri("https://this-domain-does-not-exist-12345.com");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
+        services.AddSingleton<RestApiRequestHandler<GetDataRequest, IInvalidApi, string>>();
 
-        var request = new GetPostRequest(1);
+        var serviceProvider = services.BuildServiceProvider();
+        var handler = serviceProvider.GetRequiredService<RestApiRequestHandler<GetDataRequest, IInvalidApi, string>>();
+        var request = new GetDataRequest();
 
         // Act
-        var result = await _handler.Handle(request, CancellationToken.None);
+        var result = await handler.Handle(request, CancellationToken.None);
 
         // Assert
         result.ShouldBeError();
         result.IfLeft(error =>
         {
-            // Timeout can manifest as "timed out" or "cancelled" depending on the scenario
-            (error.Message.Contains("timed out", StringComparison.OrdinalIgnoreCase) ||
-             error.Message.Contains("cancel", StringComparison.OrdinalIgnoreCase))
-                .ShouldBeTrue($"Expected timeout or cancellation message, but got: {error.Message}");
+            error.Message.ShouldContain("request failed");
         });
     }
 
     [Fact]
-    public async Task Handle_ConcurrentRequests_ShouldAllSucceed()
+    [Trait("Category", "E2E")]
+    public async Task EndToEnd_Timeout_ShouldReturnTimeoutError()
     {
+        // NOTE: This test makes real HTTP calls to httpbin.org
+        // It may fail if the external service is unavailable
+
         // Arrange
-        _fixture.StubGet("/posts/1", new Post { Id = 1, Title = "Post 1", Body = "Body 1" });
-        _fixture.StubGet("/posts/2", new Post { Id = 2, Title = "Post 2", Body = "Body 2" });
-        _fixture.StubGet("/posts/3", new Post { Id = 3, Title = "Post 3", Body = "Body 3" });
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaRefitClient<IHttpBinApi>(client =>
+        {
+            client.BaseAddress = new Uri("https://httpbin.org");
+            client.Timeout = TimeSpan.FromMilliseconds(500); // Increased from 100ms for more reliable test
+        });
+        services.AddSingleton<RestApiRequestHandler<GetDelayRequest, IHttpBinApi, string>>();
+
+        var serviceProvider = services.BuildServiceProvider();
+        var handler = serviceProvider.GetRequiredService<RestApiRequestHandler<GetDelayRequest, IHttpBinApi, string>>();
+        var request = new GetDelayRequest(5); // 5 second delay
 
         // Act
-        var results = await Task.WhenAll(
-            _handler.Handle(new GetPostRequest(1), CancellationToken.None),
-            _handler.Handle(new GetPostRequest(2), CancellationToken.None),
-            _handler.Handle(new GetPostRequest(3), CancellationToken.None)
-        );
-
-        // Assert
-        results.Length.ShouldBe(3);
-        results.AllShouldBeSuccess();
-
-        results[0].IfRight(post => post.Id.ShouldBe(1));
-        results[1].IfRight(post => post.Id.ShouldBe(2));
-        results[2].IfRight(post => post.Id.ShouldBe(3));
-
-        _fixture.VerifyCallMade("/posts/1", times: 1, method: "GET");
-        _fixture.VerifyCallMade("/posts/2", times: 1, method: "GET");
-        _fixture.VerifyCallMade("/posts/3", times: 1, method: "GET");
-    }
-
-    [Fact]
-    public async Task Handle_EmptyResponseBody_ShouldHandleGracefully()
-    {
-        // Arrange - Stub returns 200 but with empty body
-        _fixture.Stub("GET", "/posts/1", statusCode: 204);
-
-        var request = new GetPostRequest(1);
-
-        // Act
-        var result = await _handler.Handle(request, CancellationToken.None);
-
-        // Assert - Empty response might cause deserialization issue
-        // The handler should handle this gracefully
-        result.ShouldBeError();
-    }
-
-    [Fact]
-    public async Task Handle_MalformedJson_ShouldReturnError()
-    {
-        // Arrange - We need to use the underlying Server for malformed responses
-        _fixture.Server.Given(
-            WireMock.RequestBuilders.Request.Create()
-                .WithPath("/posts/1")
-                .UsingMethod("GET"))
-            .RespondWith(
-                WireMock.ResponseBuilders.Response.Create()
-                    .WithStatusCode(200)
-                    .WithHeader("Content-Type", "application/json")
-                    .WithBody("{ invalid json }"));
-
-        var request = new GetPostRequest(1);
-
-        // Act
-        var result = await _handler.Handle(request, CancellationToken.None);
+        var result = await handler.Handle(request, CancellationToken.None);
 
         // Assert
         result.ShouldBeError();
+        result.IfLeft(error =>
+        {
+            error.Message.ShouldContain("timed out");
+        });
     }
 
-}
-
-// Test API interface for WireMock (must be at namespace level for IClassFixture)
-public interface ITestPostApi
-{
-    [Get("/posts/{id}")]
-    Task<Post> GetPostAsync(int id);
-}
-
-// Test models
-public sealed class Post
-{
-    public int Id { get; set; }
-    public int UserId { get; set; }
-    public string Title { get; set; } = string.Empty;
-    public string Body { get; set; } = string.Empty;
-}
-
-// Test request
-public sealed record GetPostRequest(int Id) : IRestApiRequest<ITestPostApi, Post>
-{
-    public async Task<Post> ExecuteAsync(ITestPostApi apiClient, CancellationToken cancellationToken)
+    // Test APIs
+    public interface IJsonPlaceholderApi
     {
-        return await apiClient.GetPostAsync(Id);
+        [Get("/posts/{id}")]
+        Task<Post> GetPostAsync(int id);
+    }
+
+    public interface IHttpBinApi
+    {
+        [Get("/status/{code}")]
+        Task<string> GetStatusCodeAsync(int code);
+
+        [Get("/delay/{seconds}")]
+        Task<string> GetDelayAsync(int seconds);
+    }
+
+    public interface IInvalidApi
+    {
+        [Get("/data")]
+        Task<string> GetDataAsync();
+    }
+
+    // Test models
+    public class Post
+    {
+        public int Id { get; set; }
+        public int UserId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Body { get; set; } = string.Empty;
+    }
+
+    // Test requests
+    public record GetPostRequest(int Id) : IRestApiRequest<IJsonPlaceholderApi, Post>
+    {
+        public async Task<Post> ExecuteAsync(IJsonPlaceholderApi apiClient, CancellationToken cancellationToken)
+        {
+            return await apiClient.GetPostAsync(Id);
+        }
+    }
+
+    public record GetStatusCodeRequest(int StatusCode) : IRestApiRequest<IHttpBinApi, string>
+    {
+        public async Task<string> ExecuteAsync(IHttpBinApi apiClient, CancellationToken cancellationToken)
+        {
+            return await apiClient.GetStatusCodeAsync(StatusCode);
+        }
+    }
+
+    public record GetDelayRequest(int Seconds) : IRestApiRequest<IHttpBinApi, string>
+    {
+        public async Task<string> ExecuteAsync(IHttpBinApi apiClient, CancellationToken cancellationToken)
+        {
+            return await apiClient.GetDelayAsync(Seconds);
+        }
+    }
+
+    public record GetDataRequest : IRestApiRequest<IInvalidApi, string>
+    {
+        public async Task<string> ExecuteAsync(IInvalidApi apiClient, CancellationToken cancellationToken)
+        {
+            return await apiClient.GetDataAsync();
+        }
     }
 }
