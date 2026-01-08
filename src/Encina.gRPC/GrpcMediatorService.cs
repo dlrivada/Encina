@@ -68,9 +68,10 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             }
 
             // Use reflection to call the generic Send method
+            // IEncina.Send<TResponse> has 1 generic parameter (the response type)
             var sendMethod = typeof(IEncina)
                 .GetMethods()
-                .First(m => m.Name == "Send" && m.GetGenericArguments().Length == 2);
+                .First(m => m.Name == "Send" && m.GetGenericArguments().Length == 1);
 
             var responseType = type.GetInterfaces()
                 .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>))
@@ -84,17 +85,25 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
                         $"Could not determine response type for request '{requestType}'."));
             }
 
-            var genericMethod = sendMethod.MakeGenericMethod(type, responseType);
+            var genericMethod = sendMethod.MakeGenericMethod(responseType);
             var task = (dynamic)genericMethod.Invoke(_encina, [request, cancellationToken])!;
-            Either<EncinaError, object> result = await task;
+            dynamic result = await task;
 
-            return result.Match(
-                Right: response =>
-                {
-                    var responseBytes = JsonSerializer.SerializeToUtf8Bytes(response, responseType);
-                    return Right<EncinaError, byte[]>(responseBytes);
-                },
-                Left: error => Left<EncinaError, byte[]>(error));
+            // result is Either<EncinaError, TResponse> - check IsRight/IsLeft and extract value
+            if ((bool)result.IsRight)
+            {
+                // Use IfRight to get the actual response value
+                object? responseValue = null;
+                result.IfRight((Action<object>)(r => responseValue = r));
+                var responseBytes = JsonSerializer.SerializeToUtf8Bytes(responseValue, responseType);
+                return Right<EncinaError, byte[]>(responseBytes);
+            }
+            else
+            {
+                EncinaError error = default;
+                result.IfLeft((Action<EncinaError>)(e => error = e));
+                return Left<EncinaError, byte[]>(error);
+            }
         }
         catch (Exception ex)
         {
@@ -140,15 +149,16 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             }
 
             // Use reflection to call the generic Publish method
+            // IEncina.Publish<TNotification> returns ValueTask<Either<EncinaError, Unit>>
             var publishMethod = typeof(IEncina)
                 .GetMethods()
                 .First(m => m.Name == "Publish" && m.GetGenericArguments().Length == 1);
 
             var genericMethod = publishMethod.MakeGenericMethod(type);
-            var task = (ValueTask)genericMethod.Invoke(_encina, [notification, cancellationToken])!;
-            await task;
+            var task = (dynamic)genericMethod.Invoke(_encina, [notification, cancellationToken])!;
+            Either<EncinaError, Unit> result = await task;
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return result;
         }
         catch (Exception ex)
         {
