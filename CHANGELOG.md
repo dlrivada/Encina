@@ -59,6 +59,18 @@ Epic initiative to refactor all Encina tests to use `Encina.Testing.*` infrastru
 - **Phase 2** (#500): DomainModeling package tests - **CLOSED**
 - **Phase 3** (#501): Messaging package tests - **CLOSED**
 - **Phase 4** (#502): Database provider tests (ADO, Dapper, EF Core) - **IN PROGRESS**
+- **Phase 7** (#505): Web Integration tests (AspNetCore, Refit, gRPC, SignalR) - **CLOSED**
+
+**Phase 7 Coverage Results** (all ≥85% target met):
+
+| Package | Coverage | Tests |
+|---------|----------|-------|
+| Encina.AspNetCore | 89.3% | 101 |
+| Encina.Refit | 92.1% | 46 |
+| Encina.SignalR | 94.0% | 111 |
+| Encina.gRPC | 97.7% | 78 |
+
+**Bug Fix**: #520 - Fixed reflection bug in `GrpcEncinaService.SendAsync` that was searching for methods with wrong generic argument count.
 
 **Test Infrastructure Improvements**:
 
