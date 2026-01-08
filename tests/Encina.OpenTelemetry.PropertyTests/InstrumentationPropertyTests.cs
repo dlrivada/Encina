@@ -114,7 +114,7 @@ public sealed class InstrumentationPropertyTests
         }
 
         // Should not throw
-        var provider = services.BuildServiceProvider();
+        using var provider = services.BuildServiceProvider();
         return provider != null;
     }
 
@@ -151,4 +151,143 @@ public sealed class InstrumentationPropertyTests
 
         return ReferenceEquals(tracerBuilder, result);
     }
+
+    #region EncinaOpenTelemetryOptions Invariants
+
+    /// <summary>
+    /// Default options should have EnableMessagingEnrichers set to true.
+    /// </summary>
+    [Fact]
+    public void DefaultOptions_EnableMessagingEnrichers_IsTrue()
+    {
+        // Arrange
+        var options = new EncinaOpenTelemetryOptions();
+
+        // Act
+        var result = options.EnableMessagingEnrichers;
+
+        // Assert
+        Assert.True(result);
+    }
+
+    /// <summary>
+    /// Default options should have default service name "Encina".
+    /// </summary>
+    [Fact]
+    public void DefaultOptions_ServiceName_IsEncina()
+    {
+        // Arrange
+        var options = new EncinaOpenTelemetryOptions();
+
+        // Act
+        var result = options.ServiceName;
+
+        // Assert
+        Assert.Equal("Encina", result);
+    }
+
+    /// <summary>
+    /// Default options should have default service version "1.0.0".
+    /// </summary>
+    [Fact]
+    public void DefaultOptions_ServiceVersion_Is100()
+    {
+        // Arrange
+        var options = new EncinaOpenTelemetryOptions();
+
+        // Act
+        var result = options.ServiceVersion;
+
+        // Assert
+        Assert.Equal("1.0.0", result);
+    }
+
+    /// <summary>
+    /// Property: EnableMessagingEnrichers can be toggled to any boolean value.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public bool EnableMessagingEnrichers_AcceptsBooleanValue(bool enabled)
+    {
+        var options = new EncinaOpenTelemetryOptions
+        {
+            EnableMessagingEnrichers = enabled
+        };
+        return options.EnableMessagingEnrichers == enabled;
+    }
+
+    /// <summary>
+    /// Property: Options with custom configuration preserve all values.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public bool Options_PreservesAllConfiguredValues(
+        NonEmptyString name,
+        NonEmptyString version,
+        bool enableEnrichers)
+    {
+        var options = new EncinaOpenTelemetryOptions
+        {
+            ServiceName = name.Get,
+            ServiceVersion = version.Get,
+            EnableMessagingEnrichers = enableEnrichers
+        };
+
+        return options.ServiceName == name.Get
+               && options.ServiceVersion == version.Get
+               && options.EnableMessagingEnrichers == enableEnrichers;
+    }
+
+    #endregion
+
+    #region DI Registration Invariants
+
+    /// <summary>
+    /// Property: WithEncina with custom options preserves the configuration.
+    /// </summary>
+    [Property(MaxTest = 50)]
+    public bool WithEncina_WithCustomOptions_PreservesConfiguration(
+        NonEmptyString name,
+        bool enableEnrichers)
+    {
+        var services = new ServiceCollection();
+        var customOptions = new EncinaOpenTelemetryOptions
+        {
+            ServiceName = name.Get,
+            EnableMessagingEnrichers = enableEnrichers
+        };
+
+        var builder = services.AddOpenTelemetry().WithEncina(customOptions);
+
+        // Should return the builder (fluent API)
+        return builder != null;
+    }
+
+    /// <summary>
+    /// Property: Multiple AddEncinaInstrumentation calls should not throw.
+    /// </summary>
+    /// <remarks>
+    /// MaxTest is limited to 5 to reduce BuildServiceProvider invocations
+    /// which are expensive operations.
+    /// </remarks>
+    [Property(MaxTest = 5)]
+    public bool AddEncinaInstrumentation_MultipleCalls_DoesNotThrow(PositiveInt countRaw)
+    {
+        var count = Math.Min(countRaw.Get, 5); // Limit to prevent slowness
+
+        var services = new ServiceCollection();
+        var telemetryBuilder = services.AddOpenTelemetry();
+
+        telemetryBuilder.WithTracing(builder =>
+        {
+            for (var i = 0; i < count; i++)
+            {
+                builder.AddEncinaInstrumentation();
+            }
+        });
+
+        // Should not throw
+        using var provider = services.BuildServiceProvider();
+        return provider != null;
+    }
+
+    #endregion
 }

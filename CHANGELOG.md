@@ -60,6 +60,23 @@ Epic initiative to refactor all Encina tests to use `Encina.Testing.*` infrastru
 - **Phase 3** (#501): Messaging package tests - **CLOSED**
 - **Phase 4** (#502): Database provider tests (ADO, Dapper, EF Core) - **IN PROGRESS**
 - **Phase 7** (#505): Web Integration tests (AspNetCore, Refit, gRPC, SignalR) - **CLOSED**
+- **Phase 8** (#506): Resilience & Observability tests (Polly, OpenTelemetry) - **CLOSED**
+
+**Phase 8 Coverage Results** (all ≥85% target met):
+
+| Package | Coverage | Tests |
+|---------|----------|-------|
+| Encina.Polly | 89.3% | 214 |
+| Encina.OpenTelemetry | 92.0% | 71 |
+
+**Test Fixes Applied (Phase 8)**:
+
+- Fixed `BackoffTypeTests.cs`: Changed `values.Count` to `values.Length` (.NET 10 breaking change)
+- Fixed `BulkheadManagerTests.cs`: Changed `Func<Task>` to async lambda with await for ValueTask
+- Fixed `AdaptiveRateLimiterGuardsTests.cs`: Added async/await and fixed lambda types
+- Fixed `BulkheadManagerGuardsTests.cs`: Fixed ValueTask handling in tests
+- Fixed `RateLimitingPipelineBehaviorGuardsTests.cs`: Changed `System.Threading.RateLimiting` to `Encina.Polly` namespace
+- Fixed `ServiceCollectionExtensionsTests.cs` (OpenTelemetry): Removed incorrect assertion about options registration
 
 **Phase 7 Coverage Results** (all ≥85% target met):
 
@@ -948,91 +965,91 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
 #### AI/LLM Patterns Issues (12 new features planned based on December 29, 2025 research)
 
 - **MCP (Model Context Protocol) Support** (Issue #481) - MCP server/client integration
-    - `MCPServerBuilder` for creating MCP servers in C#
-    - `MCPClientBehavior` for consuming external MCP tools
-    - Native integration with `IEncina` - expose handlers as AI tools
-    - SSE and HTTP transports
-    - Azure Functions support for remote MCP servers
-    - Priority: HIGH - Industry standard adopted by OpenAI, Anthropic, Microsoft
-  - **Semantic Caching Pipeline Behavior** (Issue #482) - Embedding-based cache
-    - `SemanticCachingPipelineBehavior<TRequest, TResponse>`
-    - `ISemanticCacheProvider` abstraction with Redis, Qdrant providers
-    - Similarity threshold configurable (default 0.95)
-    - Reduces LLM costs by 40-70%, latency from 850ms to <120ms
-    - New packages planned: `Encina.AI.Caching.Redis`, `Encina.AI.Caching.Qdrant`
-    - Priority: HIGH - Major cost reduction
-  - **AI Guardrails & Safety Pipeline** (Issue #483) - Security for AI applications
-    - `PromptInjectionDetectionBehavior` - OWASP #1 threat for LLMs
-    - `PIIDetectionBehavior` - Detect and redact sensitive data
-    - `ContentModerationBehavior` - Filter harmful content
-    - `IGuardrailProvider` abstraction with Azure Prompt Shields, AWS Bedrock, OpenGuardrails
-    - Configurable actions: Block, Warn, Log, Redact
-    - New package planned: `Encina.AI.Safety`
-    - Priority: HIGH - Essential for production AI
-  - **RAG Pipeline Patterns** (Issue #484) - Retrieval-Augmented Generation
-    - `IRagPipeline<TQuery, TResponse>` abstraction
-    - Query rewriting (multi-query, HyDE), chunk retrieval, re-ranking
-    - Hybrid search (keyword + semantic)
-    - Agentic RAG with query planning
-    - Citation/source tracking
-    - New package planned: `Encina.AI.RAG`
-    - Priority: HIGH - Most demanded LLM pattern
-  - **Token Budget & Cost Management** (Issue #485) - LLM cost control
-    - `TokenBudgetPipelineBehavior<TRequest, TResponse>`
-    - `ITokenBudgetStore` with Redis/SQL providers
-    - Per-user/tenant/request type limits
-    - Cost estimation and reporting
-    - Automatic fallback to cheaper models
-    - Priority: MEDIUM - Enterprise cost control
-  - **LLM Observability Integration** (Issue #486) - AI-specific metrics
-    - Enhancement to `Encina.OpenTelemetry`
-    - `LLMActivityEnricher` with GenAI semantic conventions
-    - Token usage metrics (input/output/cached/reasoning)
-    - Time to first token (TTFT) measurement
-    - Cost attribution per model/user/tenant
-    - Integration with Langfuse, Datadog LLM Observability
-    - Priority: HIGH - Production monitoring
-  - **Multi-Agent Orchestration Patterns** (Issue #487) - AI agent workflows
-    - `IAgent` and `IAgentHandler<TRequest, TResponse>` interfaces
-    - Orchestration patterns: Sequential, Concurrent, Handoff, GroupChat, Magentic
-    - `IAgentSelector` for dynamic routing
-    - Human-in-the-Loop (HITL) support
-    - Cross-language agents via MCP
-    - Semantic Kernel adapter: `SemanticKernelAgentAdapter`
-    - New package planned: `Encina.Agents`
-    - Priority: MEDIUM - Microsoft Agent Framework
-  - **Structured Output Handler** (Issue #488) - JSON schema enforcement
-    - `IStructuredOutputHandler<TRequest, TOutput>` interface
-    - `IJsonSchemaGenerator` with System.Text.Json support
-    - Response validation with retry on failure
-    - Fallback parsing for edge cases
-    - Priority: MEDIUM - Schema guarantees
-  - **Function Calling Orchestration** (Issue #489) - LLM tool use
-    - `IFunctionCallingOrchestrator` interface
-    - `[AIFunction]` attribute for handler decoration
-    - Auto/Manual/Confirm invocation modes
-    - Parallel function calls support
-    - Semantic Kernel plugin adapter: `EncinaPluginAdapter`
-    - Priority: MEDIUM - Native LLM feature
-  - **Vector Store Abstraction** (Issue #490) - Embedding storage
-    - `IVectorStore` and `IVectorRecord` abstractions
-    - Integration with `IEmbeddingGenerator` (Microsoft.Extensions.AI)
-    - Metadata filtering, hybrid search, batch operations
-    - New packages planned: `Encina.VectorData`, `Encina.VectorData.Qdrant`, `Encina.VectorData.AzureSearch`, `Encina.VectorData.Milvus`, `Encina.VectorData.Chroma`, `Encina.VectorData.InMemory`
-    - Priority: HIGH - Foundation for RAG and Semantic Cache
-  - **Prompt Management & Versioning** (Issue #491) - Enterprise prompt governance
-    - `IPromptRepository` and `IPromptTemplateEngine`
-    - Versioned prompt templates with A/B testing
-    - Prompt analytics and performance tracking
-    - Storage providers: FileSystem (YAML/JSON), Database, Git
-    - Priority: LOW - Enterprise governance
-  - **AI Streaming Pipeline Enhancement** (Issue #492) - Token-level streaming
-    - `IAIStreamRequest<TChunk>` and `TokenChunk` types
-    - `BackpressureStreamBehavior` for slow consumers
-    - SSE endpoint helper in `Encina.AspNetCore`
-    - Time to first token (TTFT) measurement
-    - Integration with `IChatClient.CompleteStreamingAsync`
-    - Priority: MEDIUM - UX enhancement
+  - `MCPServerBuilder` for creating MCP servers in C#
+  - `MCPClientBehavior` for consuming external MCP tools
+  - Native integration with `IEncina` - expose handlers as AI tools
+  - SSE and HTTP transports
+  - Azure Functions support for remote MCP servers
+  - Priority: HIGH - Industry standard adopted by OpenAI, Anthropic, Microsoft
+- **Semantic Caching Pipeline Behavior** (Issue #482) - Embedding-based cache
+  - `SemanticCachingPipelineBehavior<TRequest, TResponse>`
+  - `ISemanticCacheProvider` abstraction with Redis, Qdrant providers
+  - Similarity threshold configurable (default 0.95)
+  - Reduces LLM costs by 40-70%, latency from 850ms to <120ms
+  - New packages planned: `Encina.AI.Caching.Redis`, `Encina.AI.Caching.Qdrant`
+  - Priority: HIGH - Major cost reduction
+- **AI Guardrails & Safety Pipeline** (Issue #483) - Security for AI applications
+  - `PromptInjectionDetectionBehavior` - OWASP #1 threat for LLMs
+  - `PIIDetectionBehavior` - Detect and redact sensitive data
+  - `ContentModerationBehavior` - Filter harmful content
+  - `IGuardrailProvider` abstraction with Azure Prompt Shields, AWS Bedrock, OpenGuardrails
+  - Configurable actions: Block, Warn, Log, Redact
+  - New package planned: `Encina.AI.Safety`
+  - Priority: HIGH - Essential for production AI
+- **RAG Pipeline Patterns** (Issue #484) - Retrieval-Augmented Generation
+  - `IRagPipeline<TQuery, TResponse>` abstraction
+  - Query rewriting (multi-query, HyDE), chunk retrieval, re-ranking
+  - Hybrid search (keyword + semantic)
+  - Agentic RAG with query planning
+  - Citation/source tracking
+  - New package planned: `Encina.AI.RAG`
+  - Priority: HIGH - Most demanded LLM pattern
+- **Token Budget & Cost Management** (Issue #485) - LLM cost control
+  - `TokenBudgetPipelineBehavior<TRequest, TResponse>`
+  - `ITokenBudgetStore` with Redis/SQL providers
+  - Per-user/tenant/request type limits
+  - Cost estimation and reporting
+  - Automatic fallback to cheaper models
+  - Priority: MEDIUM - Enterprise cost control
+- **LLM Observability Integration** (Issue #486) - AI-specific metrics
+  - Enhancement to `Encina.OpenTelemetry`
+  - `LLMActivityEnricher` with GenAI semantic conventions
+  - Token usage metrics (input/output/cached/reasoning)
+  - Time to first token (TTFT) measurement
+  - Cost attribution per model/user/tenant
+  - Integration with Langfuse, Datadog LLM Observability
+  - Priority: HIGH - Production monitoring
+- **Multi-Agent Orchestration Patterns** (Issue #487) - AI agent workflows
+  - `IAgent` and `IAgentHandler<TRequest, TResponse>` interfaces
+  - Orchestration patterns: Sequential, Concurrent, Handoff, GroupChat, Magentic
+  - `IAgentSelector` for dynamic routing
+  - Human-in-the-Loop (HITL) support
+  - Cross-language agents via MCP
+  - Semantic Kernel adapter: `SemanticKernelAgentAdapter`
+  - New package planned: `Encina.Agents`
+  - Priority: MEDIUM - Microsoft Agent Framework
+- **Structured Output Handler** (Issue #488) - JSON schema enforcement
+  - `IStructuredOutputHandler<TRequest, TOutput>` interface
+  - `IJsonSchemaGenerator` with System.Text.Json support
+  - Response validation with retry on failure
+  - Fallback parsing for edge cases
+  - Priority: MEDIUM - Schema guarantees
+- **Function Calling Orchestration** (Issue #489) - LLM tool use
+  - `IFunctionCallingOrchestrator` interface
+  - `[AIFunction]` attribute for handler decoration
+  - Auto/Manual/Confirm invocation modes
+  - Parallel function calls support
+  - Semantic Kernel plugin adapter: `EncinaPluginAdapter`
+  - Priority: MEDIUM - Native LLM feature
+- **Vector Store Abstraction** (Issue #490) - Embedding storage
+  - `IVectorStore` and `IVectorRecord` abstractions
+  - Integration with `IEmbeddingGenerator` (Microsoft.Extensions.AI)
+  - Metadata filtering, hybrid search, batch operations
+  - New packages planned: `Encina.VectorData`, `Encina.VectorData.Qdrant`, `Encina.VectorData.AzureSearch`, `Encina.VectorData.Milvus`, `Encina.VectorData.Chroma`, `Encina.VectorData.InMemory`
+  - Priority: HIGH - Foundation for RAG and Semantic Cache
+- **Prompt Management & Versioning** (Issue #491) - Enterprise prompt governance
+  - `IPromptRepository` and `IPromptTemplateEngine`
+  - Versioned prompt templates with A/B testing
+  - Prompt analytics and performance tracking
+  - Storage providers: FileSystem (YAML/JSON), Database, Git
+  - Priority: LOW - Enterprise governance
+- **AI Streaming Pipeline Enhancement** (Issue #492) - Token-level streaming
+  - `IAIStreamRequest<TChunk>` and `TokenChunk` types
+  - `BackpressureStreamBehavior` for slow consumers
+  - SSE endpoint helper in `Encina.AspNetCore`
+  - Time to first token (TTFT) measurement
+  - Integration with `IChatClient.CompleteStreamingAsync`
+  - Priority: MEDIUM - UX enhancement
 
 #### Hexagonal Architecture Patterns Issues (10 new features planned based on December 29, 2025 research)
 

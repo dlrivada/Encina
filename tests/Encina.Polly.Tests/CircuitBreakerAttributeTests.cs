@@ -146,6 +146,89 @@ public class CircuitBreakerAttributeTests
         attributeUsage!.ValidOn.ShouldBe(AttributeTargets.Class, "should only be applicable to classes");
     }
 
+    #region Validation Tests
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(-100)]
+    public void FailureThreshold_WithInvalidValue_ShouldThrowArgumentOutOfRangeException(int invalidValue)
+    {
+        // Act & Assert
+        var exception = Should.Throw<ArgumentOutOfRangeException>(
+            () => new CircuitBreakerAttribute { FailureThreshold = invalidValue });
+
+        exception.Message.ShouldContain("FailureThreshold");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(-100)]
+    public void SamplingDurationSeconds_WithInvalidValue_ShouldThrowArgumentOutOfRangeException(int invalidValue)
+    {
+        // Act & Assert
+        var exception = Should.Throw<ArgumentOutOfRangeException>(
+            () => new CircuitBreakerAttribute { SamplingDurationSeconds = invalidValue });
+
+        exception.Message.ShouldContain("SamplingDurationSeconds");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(-100)]
+    public void MinimumThroughput_WithInvalidValue_ShouldThrowArgumentOutOfRangeException(int invalidValue)
+    {
+        // Act & Assert
+        var exception = Should.Throw<ArgumentOutOfRangeException>(
+            () => new CircuitBreakerAttribute { MinimumThroughput = invalidValue });
+
+        exception.Message.ShouldContain("MinimumThroughput");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(-100)]
+    public void DurationOfBreakSeconds_WithInvalidValue_ShouldThrowArgumentOutOfRangeException(int invalidValue)
+    {
+        // Act & Assert
+        var exception = Should.Throw<ArgumentOutOfRangeException>(
+            () => new CircuitBreakerAttribute { DurationOfBreakSeconds = invalidValue });
+
+        exception.Message.ShouldContain("DurationOfBreakSeconds");
+    }
+
+    [Theory]
+    [InlineData(-0.1)]
+    [InlineData(-1.0)]
+    [InlineData(1.1)]
+    [InlineData(2.0)]
+    public void FailureRateThreshold_WithInvalidValue_ShouldThrowArgumentOutOfRangeException(double invalidValue)
+    {
+        // Act & Assert
+        var exception = Should.Throw<ArgumentOutOfRangeException>(
+            () => new CircuitBreakerAttribute { FailureRateThreshold = invalidValue });
+
+        exception.Message.ShouldContain("FailureRateThreshold");
+    }
+
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(0.5)]
+    [InlineData(1.0)]
+    public void FailureRateThreshold_WithValidBoundaryValues_ShouldSucceed(double validValue)
+    {
+        // Act
+        var attribute = new CircuitBreakerAttribute { FailureRateThreshold = validValue };
+
+        // Assert
+        attribute.FailureRateThreshold.ShouldBe(validValue);
+    }
+
+    #endregion
+
     [CircuitBreakerAttribute(FailureThreshold = 3, DurationOfBreakSeconds = 15)]
     private sealed record TestCircuitBreakerRequest : IRequest<string>;
 }

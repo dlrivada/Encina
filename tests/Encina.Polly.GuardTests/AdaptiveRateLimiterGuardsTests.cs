@@ -7,7 +7,7 @@ namespace Encina.Polly.GuardTests;
 public class AdaptiveRateLimiterGuardsTests
 {
     [Fact]
-    public void AcquireAsync_NullKey_ThrowsArgumentNullException()
+    public async Task AcquireAsync_NullKey_ThrowsArgumentNullException()
     {
         // Arrange
         var rateLimiter = new AdaptiveRateLimiter();
@@ -20,7 +20,7 @@ public class AdaptiveRateLimiterGuardsTests
     }
 
     [Fact]
-    public void AcquireAsync_NullAttribute_ThrowsArgumentNullException()
+    public async Task AcquireAsync_NullAttribute_ThrowsArgumentNullException()
     {
         // Arrange
         var rateLimiter = new AdaptiveRateLimiter();
@@ -65,7 +65,7 @@ public class AdaptiveRateLimiterGuardsTests
         string key = null!;
 
         // Act & Assert
-        var act = () => rateLimiter.GetState(key);
+        Action act = () => _ = rateLimiter.GetState(key);
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("key");
     }

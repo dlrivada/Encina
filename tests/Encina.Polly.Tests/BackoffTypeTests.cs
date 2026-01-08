@@ -43,7 +43,7 @@ public class BackoffTypeTests
         var values = Enum.GetValues<BackoffType>();
 
         // Assert
-        values.Count.ShouldBe(3, "should have exactly Constant, Linear, and Exponential");
+        values.Length.ShouldBe(3, "should have exactly Constant, Linear, and Exponential");
     }
 
     [Fact]

@@ -296,8 +296,7 @@ public class BulkheadManagerTests : IDisposable
         manager.Dispose();
 
         // Assert
-        Func<Task> action = () => manager.TryAcquireAsync("test", config);
-        await Should.ThrowAsync<ObjectDisposedException>(action);
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await manager.TryAcquireAsync("test", config));
     }
 
     [Fact]
