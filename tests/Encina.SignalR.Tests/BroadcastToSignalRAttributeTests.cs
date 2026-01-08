@@ -11,6 +11,8 @@ public sealed class BroadcastToSignalRAttributeTests
     [Fact]
     public void DefaultValues_AreCorrect()
     {
+        // Arrange - no setup required
+
         // Act
         var attribute = new BroadcastToSignalRAttribute();
 
@@ -92,11 +94,11 @@ public sealed class BroadcastToSignalRAttributeTests
     {
         // Arrange & Act
         var type = typeof(TestBroadcastNotification);
-        var attribute = type.GetCustomAttributes(typeof(BroadcastToSignalRAttribute), false)
-            .FirstOrDefault() as BroadcastToSignalRAttribute;
+        var attribute = (BroadcastToSignalRAttribute)type
+            .GetCustomAttributes(typeof(BroadcastToSignalRAttribute), false)
+            .Single();
 
         // Assert
-        attribute.ShouldNotBeNull();
         attribute.Method.ShouldBe("TestMethod");
     }
 
@@ -104,19 +106,18 @@ public sealed class BroadcastToSignalRAttributeTests
     public void Attribute_UsageSettings_AreCorrect()
     {
         // Arrange
-        var attributeUsage = typeof(BroadcastToSignalRAttribute)
+        var attributeUsage = (AttributeUsageAttribute)typeof(BroadcastToSignalRAttribute)
             .GetCustomAttributes(typeof(AttributeUsageAttribute), false)
-            .FirstOrDefault() as AttributeUsageAttribute;
+            .Single();
 
         // Assert
-        attributeUsage.ShouldNotBeNull();
         attributeUsage.ValidOn.ShouldBe(AttributeTargets.Class);
         attributeUsage.AllowMultiple.ShouldBeFalse();
         attributeUsage.Inherited.ShouldBeTrue();
     }
 
     [Fact]
-    public void Attribute_CanHaveMultipleTargetGroups()
+    public void GetTargetGroupsList_ParsesCommaSeparatedValues_WithTrimming()
     {
         // Arrange
         var attribute = new BroadcastToSignalRAttribute
@@ -124,24 +125,53 @@ public sealed class BroadcastToSignalRAttributeTests
             TargetGroups = "Group1, Group2, Group3"
         };
 
+        // Act
+        var groups = attribute.GetTargetGroupsList();
+
         // Assert
-        attribute.TargetGroups.ShouldContain("Group1");
-        attribute.TargetGroups.ShouldContain("Group2");
-        attribute.TargetGroups.ShouldContain("Group3");
+        groups.ShouldBe(["Group1", "Group2", "Group3"]);
     }
 
     [Fact]
-    public void Attribute_CanHavePlaceholderInTargetUsers()
+    public void GetTargetGroupsList_ReturnsEmptyArray_WhenTargetGroupsIsNull()
+    {
+        // Arrange
+        var attribute = new BroadcastToSignalRAttribute();
+
+        // Act
+        var groups = attribute.GetTargetGroupsList();
+
+        // Assert
+        groups.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void GetTargetUsersList_ParsesCommaSeparatedPlaceholders_WithTrimming()
     {
         // Arrange
         var attribute = new BroadcastToSignalRAttribute
         {
-            TargetUsers = "{CustomerId},{OwnerId}"
+            TargetUsers = "{CustomerId}, {OwnerId}"
         };
 
+        // Act
+        var users = attribute.GetTargetUsersList();
+
         // Assert
-        attribute.TargetUsers.ShouldContain("{CustomerId}");
-        attribute.TargetUsers.ShouldContain("{OwnerId}");
+        users.ShouldBe(["{CustomerId}", "{OwnerId}"]);
+    }
+
+    [Fact]
+    public void GetTargetUsersList_ReturnsEmptyArray_WhenTargetUsersIsNull()
+    {
+        // Arrange
+        var attribute = new BroadcastToSignalRAttribute();
+
+        // Act
+        var users = attribute.GetTargetUsersList();
+
+        // Assert
+        users.ShouldBeEmpty();
     }
 
     // Test notification type for attribute tests

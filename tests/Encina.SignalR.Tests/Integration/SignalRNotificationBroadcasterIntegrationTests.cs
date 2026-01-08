@@ -47,7 +47,7 @@ public sealed class SignalRNotificationBroadcasterIntegrationTests : IDisposable
     public async Task BroadcastAsync_WithoutBroadcastAttribute_DoesNotThrow()
     {
         // Arrange
-        var notification = new TestPlainNotification("test-data");
+        var notification = new IntegrationTestPlainNotification("test-data");
 
         // Act & Assert - Should not throw even without hub context
         await _broadcaster.BroadcastAsync(notification);
@@ -57,7 +57,7 @@ public sealed class SignalRNotificationBroadcasterIntegrationTests : IDisposable
     public async Task BroadcastAsync_WithBroadcastAttribute_DoesNotThrow()
     {
         // Arrange
-        var notification = new TestBroadcastNotification("broadcast-data");
+        var notification = new IntegrationTestBroadcastNotification("broadcast-data");
 
         // Act & Assert - Should not throw (no actual hub context in test)
         await _broadcaster.BroadcastAsync(notification);
@@ -67,7 +67,7 @@ public sealed class SignalRNotificationBroadcasterIntegrationTests : IDisposable
     public async Task BroadcastAsync_WithConditionalProperty_True_AttemptsBroadcast()
     {
         // Arrange
-        var notification = new TestConditionalNotification("data", true);
+        var notification = new IntegrationTestConditionalNotification("data", true);
 
         // Act & Assert - Should not throw
         await _broadcaster.BroadcastAsync(notification);
@@ -77,7 +77,7 @@ public sealed class SignalRNotificationBroadcasterIntegrationTests : IDisposable
     public async Task BroadcastAsync_WithConditionalProperty_False_SkipsBroadcast()
     {
         // Arrange
-        var notification = new TestConditionalNotification("data", false);
+        var notification = new IntegrationTestConditionalNotification("data", false);
 
         // Act & Assert - Should not throw, but should skip broadcasting
         await _broadcaster.BroadcastAsync(notification);
@@ -87,7 +87,7 @@ public sealed class SignalRNotificationBroadcasterIntegrationTests : IDisposable
     public async Task BroadcastAsync_WithTargetUsers_AttemptsBroadcast()
     {
         // Arrange
-        var notification = new TestTargetedUserNotification("user-123", "message");
+        var notification = new IntegrationTestTargetedUserNotification("user-123", "message");
 
         // Act & Assert - Should not throw
         await _broadcaster.BroadcastAsync(notification);
@@ -97,7 +97,7 @@ public sealed class SignalRNotificationBroadcasterIntegrationTests : IDisposable
     public async Task BroadcastAsync_WithTargetGroups_AttemptsBroadcast()
     {
         // Arrange
-        var notification = new TestTargetedGroupNotification("group-abc", "message");
+        var notification = new IntegrationTestTargetedGroupNotification("group-abc", "message");
 
         // Act & Assert - Should not throw
         await _broadcaster.BroadcastAsync(notification);
@@ -118,20 +118,20 @@ public sealed class SignalRNotificationBroadcasterIntegrationTests : IDisposable
         await using var sp = services.BuildServiceProvider();
         var broadcaster = sp.GetRequiredService<ISignalRNotificationBroadcaster>();
 
-        var notification = new TestBroadcastNotification("disabled-broadcast");
+        var notification = new IntegrationTestBroadcastNotification("disabled-broadcast");
 
         // Act & Assert - Should not throw
         await broadcaster.BroadcastAsync(notification);
     }
 
     [Fact]
-    public void SignalROptions_DefaultValues_AreCorrect()
+    public void SignalROptions_ConfiguredValues_AreApplied()
     {
         // Act
         var options = _serviceProvider.GetRequiredService<IOptions<SignalROptions>>().Value;
 
-        // Assert
-        options.EnableNotificationBroadcast.ShouldBeTrue(); // We enabled it in setup
+        // Assert - Verify the configured value from test setup is applied
+        options.EnableNotificationBroadcast.ShouldBeTrue();
     }
 
     public void Dispose()
@@ -145,28 +145,28 @@ public sealed class SignalRNotificationBroadcasterIntegrationTests : IDisposable
 /// <summary>
 /// Notification without BroadcastToSignalR attribute - should not be broadcast.
 /// </summary>
-public sealed record TestPlainNotification(string Data) : INotification;
+internal sealed record IntegrationTestPlainNotification(string Data) : INotification;
 
 /// <summary>
 /// Notification with BroadcastToSignalR attribute - should be broadcast to all clients.
 /// </summary>
 [BroadcastToSignalR(Method = "TestBroadcast")]
-public sealed record TestBroadcastNotification(string Data) : INotification;
+internal sealed record IntegrationTestBroadcastNotification(string Data) : INotification;
 
 /// <summary>
 /// Notification with conditional broadcasting based on property value.
 /// </summary>
 [BroadcastToSignalR(Method = "ConditionalBroadcast", ConditionalProperty = "ShouldBroadcast")]
-public sealed record TestConditionalNotification(string Data, bool ShouldBroadcast) : INotification;
+internal sealed record IntegrationTestConditionalNotification(string Data, bool ShouldBroadcast) : INotification;
 
 /// <summary>
 /// Notification targeted to specific users using placeholder.
 /// </summary>
 [BroadcastToSignalR(Method = "UserMessage", TargetUsers = "{UserId}")]
-public sealed record TestTargetedUserNotification(string UserId, string Message) : INotification;
+internal sealed record IntegrationTestTargetedUserNotification(string UserId, string Message) : INotification;
 
 /// <summary>
 /// Notification targeted to specific groups using placeholder.
 /// </summary>
 [BroadcastToSignalR(Method = "GroupMessage", TargetGroups = "{GroupId}")]
-public sealed record TestTargetedGroupNotification(string GroupId, string Message) : INotification;
+internal sealed record IntegrationTestTargetedGroupNotification(string GroupId, string Message) : INotification;

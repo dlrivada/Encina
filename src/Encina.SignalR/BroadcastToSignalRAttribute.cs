@@ -95,4 +95,28 @@ public sealed class BroadcastToSignalRAttribute : Attribute
     /// </code>
     /// </example>
     public string? ConditionalProperty { get; set; }
+
+    /// <summary>
+    /// Gets the target users as a parsed array.
+    /// </summary>
+    /// <returns>
+    /// An array of user identifiers, or an empty array if <see cref="TargetUsers"/> is null or empty.
+    /// Values are trimmed and empty entries are removed.
+    /// </returns>
+    public string[] GetTargetUsersList() =>
+        string.IsNullOrWhiteSpace(TargetUsers)
+            ? []
+            : TargetUsers.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    /// <summary>
+    /// Gets the target groups as a parsed array.
+    /// </summary>
+    /// <returns>
+    /// An array of group names, or an empty array if <see cref="TargetGroups"/> is null or empty.
+    /// Values are trimmed and empty entries are removed.
+    /// </returns>
+    public string[] GetTargetGroupsList() =>
+        string.IsNullOrWhiteSpace(TargetGroups)
+            ? []
+            : TargetGroups.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }

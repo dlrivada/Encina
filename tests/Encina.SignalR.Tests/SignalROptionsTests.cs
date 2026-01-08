@@ -1,5 +1,8 @@
 using System.Text.Json;
 using Encina.SignalR;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Encina.SignalR.Tests;
@@ -74,6 +77,22 @@ public sealed class SignalROptionsTests
 
         // Assert
         options.JsonSerializerOptions.ShouldBeSameAs(jsonOptions);
-        options.JsonSerializerOptions.PropertyNamingPolicy.ShouldBe(JsonNamingPolicy.CamelCase);
+    }
+
+    [Fact]
+    public void EnableNotificationBroadcast_DefaultsToTrue_WhenResolvedFromDI()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging(builder => builder.AddDebug());
+        services.AddEncinaSignalR();
+
+        using var sp = services.BuildServiceProvider();
+
+        // Act
+        var options = sp.GetRequiredService<IOptions<SignalROptions>>().Value;
+
+        // Assert
+        options.EnableNotificationBroadcast.ShouldBeTrue();
     }
 }

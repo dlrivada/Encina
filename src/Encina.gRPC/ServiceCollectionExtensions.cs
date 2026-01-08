@@ -34,6 +34,7 @@ public static class ServiceCollectionExtensions
             opt.EnableCompression = options.EnableCompression;
         });
 
+        services.TryAddSingleton<ITypeResolver, CachingTypeResolver>();
         services.TryAddScoped<IGrpcEncinaService, GrpcEncinaService>();
 
         return services;

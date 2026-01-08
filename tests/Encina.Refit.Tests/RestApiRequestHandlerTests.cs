@@ -1,5 +1,6 @@
 using LanguageExt;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Refit;
@@ -173,36 +174,40 @@ public class RestApiRequestHandlerTests
     [Fact]
     public async Task Handle_ShouldLogExecutingApiCall()
     {
-        // Arrange
-        // Source-generated loggers check IsEnabled before logging
-        // We need to return true for the log level being checked
-        _mockLogger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+        // Arrange - Use FakeLogger to verify actual log output
+        var fakeLogger = new FakeLogger<RestApiRequestHandler<TestRequest, ITestApiClient, TestResponse>>();
+        var handler = new RestApiRequestHandler<TestRequest, ITestApiClient, TestResponse>(_mockApiClient, fakeLogger);
         var request = new TestRequest();
         var cancellationToken = CancellationToken.None;
 
         // Act
-        await _handler.Handle(request, cancellationToken);
+        var result = await handler.Handle(request, cancellationToken);
 
-        // Assert - Source-generated loggers use ILogger.Log<TState>
-        // Verify IsEnabled was checked for Debug level (EventId 1 = Executing API call)
-        _mockLogger.Received().IsEnabled(LogLevel.Debug);
+        // Assert - Verify the log entry was actually written
+        result.ShouldBeSuccess();
+        var logEntry = fakeLogger.Collector.GetSnapshot()
+            .FirstOrDefault(r => r.Level == LogLevel.Debug && r.Message.Contains("Executing API call"));
+        logEntry.ShouldNotBeNull("Expected a Debug log entry containing 'Executing API call'");
     }
 
     [Fact]
     public async Task Handle_Success_ShouldLogApiCallSucceeded()
     {
-        // Arrange
-        // Source-generated loggers check IsEnabled before logging
-        _mockLogger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+        // Arrange - Use FakeLogger to verify actual log output
+        var fakeLogger = new FakeLogger<RestApiRequestHandler<TestRequest, ITestApiClient, TestResponse>>();
+        var handler = new RestApiRequestHandler<TestRequest, ITestApiClient, TestResponse>(_mockApiClient, fakeLogger);
         var request = new TestRequest();
         var cancellationToken = CancellationToken.None;
 
         // Act
-        await _handler.Handle(request, cancellationToken);
+        var result = await handler.Handle(request, cancellationToken);
 
-        // Assert - Verify Debug logging was checked (success path logs at Debug level)
-        // After a successful call, both "Executing" and "Succeeded" logs are at Debug level
-        _mockLogger.Received(2).IsEnabled(LogLevel.Debug);
+        // Assert - Verify success and that completion was logged
+        result.ShouldBeSuccess();
+        result.IfRight(response => response.Data.ShouldBe("Success"));
+        var logEntry = fakeLogger.Collector.GetSnapshot()
+            .FirstOrDefault(r => r.Level == LogLevel.Debug && r.Message.Contains("succeeded"));
+        logEntry.ShouldNotBeNull("Expected a Debug log entry containing 'succeeded'");
     }
 
     // Test helpers
@@ -213,16 +218,16 @@ public class RestApiRequestHandlerTests
 
     public class TestResponse
     {
-        public string Data { get; set; } = string.Empty;
+        public string Data { get; init; } = string.Empty;
     }
 
     public class TestRequest : IRestApiRequest<ITestApiClient, TestResponse>
     {
-        public bool ShouldThrowApiException { get; set; }
-        public bool ShouldThrowHttpRequestException { get; set; }
-        public bool ShouldThrowTaskCanceledException { get; set; }
-        public bool ShouldThrowUnexpectedException { get; set; }
-        public CancellationToken CancellationTokenToThrow { get; set; }
+        public bool ShouldThrowApiException { get; init; }
+        public bool ShouldThrowHttpRequestException { get; init; }
+        public bool ShouldThrowTaskCanceledException { get; init; }
+        public bool ShouldThrowUnexpectedException { get; init; }
+        public CancellationToken CancellationTokenToThrow { get; init; }
 
         public async Task<TestResponse> ExecuteAsync(ITestApiClient apiClient, CancellationToken cancellationToken)
         {

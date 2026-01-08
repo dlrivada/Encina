@@ -33,7 +33,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaHealthChecks();
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         options.Registrations.ShouldContain(r => r.Name == "encina");
     }
@@ -50,7 +50,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaHealthChecks(tags: customTags);
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = options.Registrations.First(r => r.Name == "encina");
         registration.Tags.ShouldContain("encina");
@@ -70,7 +70,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaHealthChecks(failureStatus: AspNetHealthStatus.Degraded);
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = options.Registrations.First(r => r.Name == "encina");
         registration.FailureStatus.ShouldBe(AspNetHealthStatus.Degraded);
@@ -99,7 +99,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaOutbox();
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = options.Registrations.FirstOrDefault(r => r.Name == "encina-outbox");
         registration.ShouldNotBeNull();
@@ -121,7 +121,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaOutbox(name: "my-outbox-check");
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         options.Registrations.ShouldContain(r => r.Name == "my-outbox-check");
     }
@@ -149,7 +149,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaInbox();
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = options.Registrations.FirstOrDefault(r => r.Name == "encina-inbox");
         registration.ShouldNotBeNull();
@@ -181,7 +181,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaSaga();
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = options.Registrations.FirstOrDefault(r => r.Name == "encina-saga");
         registration.ShouldNotBeNull();
@@ -213,7 +213,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaScheduling();
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = options.Registrations.FirstOrDefault(r => r.Name == "encina-scheduling");
         registration.ShouldNotBeNull();
@@ -243,7 +243,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaHealthCheck<TestCustomHealthCheck>("custom-check");
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = options.Registrations.FirstOrDefault(r => r.Name == "custom-check");
         registration.ShouldNotBeNull();
@@ -260,17 +260,18 @@ public sealed class HealthCheckBuilderExtensionsTests
         Should.Throw<ArgumentNullException>(() => builder.AddEncinaHealthCheck<TestCustomHealthCheck>("test"));
     }
 
-    [Fact]
-    public void AddEncinaHealthCheck_WithNullOrEmptyName_ThrowsArgumentException()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AddEncinaHealthCheck_WithNullOrEmptyName_ThrowsArgumentException(string? name)
     {
         // Arrange
         var services = new ServiceCollection();
         var builder = services.AddHealthChecks();
 
         // Act & Assert
-        Should.Throw<ArgumentException>(() => builder.AddEncinaHealthCheck<TestCustomHealthCheck>(null!));
-        Should.Throw<ArgumentException>(() => builder.AddEncinaHealthCheck<TestCustomHealthCheck>(""));
-        Should.Throw<ArgumentException>(() => builder.AddEncinaHealthCheck<TestCustomHealthCheck>("   "));
+        Should.Throw<ArgumentException>(() => builder.AddEncinaHealthCheck<TestCustomHealthCheck>(name!));
     }
 
     [Fact]
@@ -284,7 +285,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaModuleHealthChecks();
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = options.Registrations.FirstOrDefault(r => r.Name == "encina-modules");
         registration.ShouldNotBeNull();
@@ -319,7 +320,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaModuleHealthChecks();
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = options.Registrations.First(r => r.Name == "encina-modules");
         var healthCheckInstance = registration.Factory(sp);
@@ -337,7 +338,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaModuleHealthChecks();
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = options.Registrations.First(r => r.Name == "encina-modules");
         var healthCheckInstance = registration.Factory(sp);
@@ -355,7 +356,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaModuleHealthChecks<TestModuleWithHealthChecks>();
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = options.Registrations.FirstOrDefault(r => r.Name.Contains("module"));
         registration.ShouldNotBeNull();
@@ -383,7 +384,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaModuleHealthChecks<TestModuleWithHealthChecks>();
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = options.Registrations.First(r => r.Name.Contains("module"));
         var healthCheckInstance = registration.Factory(sp);
@@ -404,18 +405,29 @@ public sealed class HealthCheckBuilderExtensionsTests
         builder.AddEncinaOutbox(options: options);
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var healthCheckOptions = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = healthCheckOptions.Registrations.First(r => r.Name == "encina-outbox");
         registration.ShouldNotBeNull();
+
+        // Verify options are propagated by creating the health check instance
+        var healthCheckInstance = registration.Factory(sp);
+        var adapter = healthCheckInstance.ShouldBeOfType<EncinaHealthCheckAdapter>();
+        var innerHealthCheck = GetInnerHealthCheck<OutboxHealthCheck>(adapter);
+        var configuredOptions = GetPrivateField<OutboxHealthCheckOptions>(innerHealthCheck, "_options");
+        configuredOptions.PendingMessageWarningThreshold.ShouldBe(100);
     }
 
     [Fact]
-    public void AddEncinaSaga_WithOptions_PassesOptionsToHealthCheck()
+    public async Task AddEncinaSaga_WithOptions_PassesOptionsToHealthCheck()
     {
         // Arrange
         var services = new ServiceCollection();
         var sagaStore = Substitute.For<ISagaStore>();
+        sagaStore.GetStuckSagasAsync(Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IEnumerable<SagaState>>([]));
+        sagaStore.GetExpiredSagasAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IEnumerable<SagaState>>([]));
         services.AddSingleton(sagaStore);
         var builder = services.AddHealthChecks();
         var options = new SagaHealthCheckOptions { SagaWarningThreshold = 50 };
@@ -423,19 +435,29 @@ public sealed class HealthCheckBuilderExtensionsTests
         // Act
         builder.AddEncinaSaga(options: options);
 
-        // Assert
-        var sp = services.BuildServiceProvider();
+        // Assert - Verify options by executing the health check and checking result data
+        using var sp = services.BuildServiceProvider();
         var healthCheckOptions = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = healthCheckOptions.Registrations.First(r => r.Name == "encina-saga");
         registration.ShouldNotBeNull();
+
+        var healthCheckInstance = registration.Factory(sp);
+        var adapter = healthCheckInstance.ShouldBeOfType<EncinaHealthCheckAdapter>();
+
+        // Execute health check and verify options through result data
+        var context = new HealthCheckContext { Registration = registration };
+        var result = await adapter.CheckHealthAsync(context);
+        result.Data["warning_threshold"].ShouldBe(50);
     }
 
     [Fact]
-    public void AddEncinaScheduling_WithOptions_PassesOptionsToHealthCheck()
+    public async Task AddEncinaScheduling_WithOptions_PassesOptionsToHealthCheck()
     {
         // Arrange
         var services = new ServiceCollection();
         var scheduledMessageStore = Substitute.For<IScheduledMessageStore>();
+        scheduledMessageStore.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IEnumerable<ScheduledMessage>>([]));
         services.AddSingleton(scheduledMessageStore);
         var builder = services.AddHealthChecks();
         var options = new SchedulingHealthCheckOptions { OverdueWarningThreshold = 10 };
@@ -443,11 +465,19 @@ public sealed class HealthCheckBuilderExtensionsTests
         // Act
         builder.AddEncinaScheduling(options: options);
 
-        // Assert
-        var sp = services.BuildServiceProvider();
+        // Assert - Verify options by executing the health check and checking result data
+        using var sp = services.BuildServiceProvider();
         var healthCheckOptions = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = healthCheckOptions.Registrations.First(r => r.Name == "encina-scheduling");
         registration.ShouldNotBeNull();
+
+        var healthCheckInstance = registration.Factory(sp);
+        var adapter = healthCheckInstance.ShouldBeOfType<EncinaHealthCheckAdapter>();
+
+        // Execute health check and verify options through result data
+        var context = new HealthCheckContext { Registration = registration };
+        var result = await adapter.CheckHealthAsync(context);
+        result.Data["warning_threshold"].ShouldBe(10);
     }
 
     // Test helpers

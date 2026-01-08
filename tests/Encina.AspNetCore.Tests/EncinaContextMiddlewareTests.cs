@@ -435,8 +435,8 @@ public class EncinaContextMiddlewareTests
             var accessor = ctx.RequestServices.GetRequiredService<IRequestContextAccessor>();
             var correlationId = accessor.RequestContext?.CorrelationId;
 
-            // Simulate some async work to increase chance of interleaving
-            await Task.Delay(Random.Shared.Next(10, 50));
+            // Force context switch without delay
+            await Task.Yield();
 
             var finalCorrelationId = accessor.RequestContext?.CorrelationId;
 

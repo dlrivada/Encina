@@ -182,7 +182,7 @@ public class RestApiRequestHandlerIntegrationTests : IClassFixture<EncinaRefitMo
     [Fact]
     public async Task Handle_EmptyResponseBody_ShouldHandleGracefully()
     {
-        // Arrange - Stub returns 200 but with empty body
+        // Arrange - Stub returns 204 No Content (empty body is expected)
         _fixture.Stub("GET", "/posts/1", statusCode: 204);
 
         var request = new GetPostRequest(1);
@@ -190,9 +190,9 @@ public class RestApiRequestHandlerIntegrationTests : IClassFixture<EncinaRefitMo
         // Act
         var result = await _handler.Handle(request, CancellationToken.None);
 
-        // Assert - Empty response might cause deserialization issue
-        // The handler should handle this gracefully
-        result.ShouldBeError();
+        // Assert - 204 No Content is a valid success response
+        // The handler should handle empty body gracefully
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -230,10 +230,10 @@ public interface ITestPostApi
 // Test models
 public sealed class Post
 {
-    public int Id { get; set; }
-    public int UserId { get; set; }
-    public string Title { get; set; } = string.Empty;
-    public string Body { get; set; } = string.Empty;
+    public int Id { get; init; }
+    public int UserId { get; init; }
+    public string Title { get; init; } = string.Empty;
+    public string Body { get; init; } = string.Empty;
 }
 
 // Test request

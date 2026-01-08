@@ -231,26 +231,43 @@ public class RefitClientIntegrationTests : IClassFixture<EncinaWireMockFixture>,
     }
 
     [Fact]
-    public async Task WireMock_SequenceResponses_ShouldReturnInOrder()
+    public async Task GetTodoSequence_WhenFirstResponseSucceeds_ReturnsTodo()
     {
-        // Arrange - First call returns success, second call returns error
-        // Use a unique path to avoid conflicts with other tests
-        _fixture.StubSequence("GET", "/todos/sequence-test",
+        // Arrange
+        const string scenario = "first-success";
+        ConfigureTodoSequenceStub(scenario);
+
+        // Act
+        var result = await _todoApi.GetTodoSequenceAsync(scenario);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.Id.ShouldBe(1);
+        result.Title.ShouldBe("First Call");
+    }
+
+    [Fact]
+    public async Task GetTodoSequence_WhenSecondResponseFails_ThrowsRateLimitException()
+    {
+        // Arrange
+        const string scenario = "second-ratelimit";
+        ConfigureTodoSequenceStub(scenario);
+        _ = await _todoApi.GetTodoSequenceAsync(scenario); // Consume first response to advance stub sequence
+
+        // Act & Assert
+        var exception = await Should.ThrowAsync<ApiException>(async () =>
+        {
+            await _todoApi.GetTodoSequenceAsync(scenario);
+        });
+
+        exception.StatusCode.ShouldBe(System.Net.HttpStatusCode.TooManyRequests);
+    }
+
+    private void ConfigureTodoSequenceStub(string scenario)
+    {
+        _fixture.StubSequence("GET", $"/todos/sequence/{scenario}",
             (new Todo { Id = 1, Title = "First Call", Completed = false, UserId = 1 }, 200),
             (new { error = "Rate limited" }, 429));
-
-        // Act - First call (using direct HTTP)
-        using var httpClient = new HttpClient { BaseAddress = new Uri(_fixture.BaseUrl) };
-        var response1 = await httpClient.GetAsync("/todos/sequence-test");
-
-        // Assert - First call succeeds
-        response1.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
-
-        // Act - Second call (same endpoint)
-        var response2 = await httpClient.GetAsync("/todos/sequence-test");
-
-        // Assert - Second call fails with rate limit
-        response2.StatusCode.ShouldBe(System.Net.HttpStatusCode.TooManyRequests);
     }
 
     // Test APIs
@@ -258,6 +275,9 @@ public class RefitClientIntegrationTests : IClassFixture<EncinaWireMockFixture>,
     {
         [Get("/todos/{id}")]
         Task<Todo> GetTodoAsync(int id);
+
+        [Get("/todos/sequence/{scenario}")]
+        Task<Todo> GetTodoSequenceAsync(string scenario);
 
         [Post("/todos")]
         Task<Todo> CreateTodoAsync([Body] Todo todo);
@@ -278,14 +298,14 @@ public class RefitClientIntegrationTests : IClassFixture<EncinaWireMockFixture>,
     // Test models
     public sealed class Todo
     {
-        public int Id { get; set; }
-        public string Title { get; set; } = string.Empty;
-        public bool Completed { get; set; }
-        public int UserId { get; set; }
+        public int Id { get; init; }
+        public string Title { get; init; } = string.Empty;
+        public bool Completed { get; init; }
+        public int UserId { get; init; }
     }
 
     public sealed class HeadersResponse
     {
-        public Dictionary<string, string> Headers { get; set; } = new();
+        public Dictionary<string, string> Headers { get; init; } = new();
     }
 }

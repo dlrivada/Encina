@@ -40,7 +40,7 @@ public sealed class SignalRNotificationBroadcasterTests
         // Arrange
         var options = Options.Create(new SignalROptions { EnableNotificationBroadcast = false });
         var broadcaster = new SignalRNotificationBroadcaster(_serviceProvider, options, _logger);
-        var notification = new TestNotification("Test");
+        var notification = new NotificationWithoutAttribute("Test");
 
         // Act - should not throw
         await broadcaster.BroadcastAsync(notification);
@@ -86,15 +86,17 @@ public sealed class SignalRNotificationBroadcasterTests
         services.AddLogging();
         services.AddSignalR();
         services.AddEncinaSignalR();
-        var sp = services.BuildServiceProvider();
-        var broadcaster = sp.GetRequiredService<ISignalRNotificationBroadcaster>();
+        using var sp = services.BuildServiceProvider();
         var notification = new BroadcastableNotification("Test Message");
 
-        // Act - should not throw even without connected clients
-        await broadcaster.BroadcastAsync(notification);
+        // Act
+        var broadcaster = sp.GetRequiredService<ISignalRNotificationBroadcaster>();
+        var task = broadcaster.BroadcastAsync(notification);
+        await task;
 
-        // Assert - no exception means success
-        Assert.True(true);
+        // Assert
+        broadcaster.ShouldNotBeNull();
+        task.IsFaulted.ShouldBeFalse();
     }
 
     [Fact]
@@ -108,8 +110,8 @@ public sealed class SignalRNotificationBroadcasterTests
         // Act
         await broadcaster.BroadcastAsync(notification);
 
-        // Assert - conditional check should skip broadcast
-        // The notification has ShouldBroadcast = false, so it should be skipped
+        // Assert - conditional check should skip broadcast, so GetService should not be called
+        _serviceProvider.DidNotReceive().GetService(Arg.Any<Type>());
     }
 
     [Fact]
@@ -247,8 +249,11 @@ public sealed class SignalRNotificationBroadcasterTests
     }
 
     // Test notification types
-    private sealed record TestNotification(string Message);
 
+    /// <summary>
+    /// A notification without the BroadcastToSignalR attribute - used to test that
+    /// notifications without the attribute are not broadcast.
+    /// </summary>
     private sealed record NotificationWithoutAttribute(string Message) : INotification;
 
     [BroadcastToSignalR]

@@ -24,7 +24,7 @@ namespace Encina.Refit.Tests;
 /// </list>
 /// </para>
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait("Category", "Integration")]
 public class RefitMockingExamplesTests : IClassFixture<EncinaWireMockFixture>, IAsyncLifetime
 {
     private static readonly string[] SearchResults = ["result1", "result2"];
@@ -167,9 +167,10 @@ public class RefitMockingExamplesTests : IClassFixture<EncinaWireMockFixture>, I
                     .WithStatusCode(401)
                     .WithBodyAsJson(new { error = "Unauthorized" }));
 
-        // Act - With auth header
-        _httpClient.DefaultRequestHeaders.Add("Authorization", "Bearer valid-token");
-        var authorizedResponse = await _httpClient.GetAsync("/api/protected");
+        // Act - With auth header (use request-scoped header to avoid leaking to other tests)
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/protected");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "valid-token");
+        var authorizedResponse = await _httpClient.SendAsync(request);
 
         // Assert
         authorizedResponse.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
@@ -520,9 +521,10 @@ public class RefitMockingExamplesTests : IClassFixture<EncinaWireMockFixture>, I
         // Arrange
         _fixture.StubGet("/api/inspect", new { data = "test" });
 
-        // Act
-        _httpClient.DefaultRequestHeaders.Add("X-Trace-Id", "trace-123");
-        await _httpClient.GetAsync("/api/inspect");
+        // Act - Use request-scoped header to avoid leaking to other tests
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/inspect");
+        request.Headers.Add("X-Trace-Id", "trace-123");
+        await _httpClient.SendAsync(request);
 
         // Assert
         var requests = _fixture.GetReceivedRequests();

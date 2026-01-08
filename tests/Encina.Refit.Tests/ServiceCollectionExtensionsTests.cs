@@ -18,7 +18,7 @@ public class ServiceCollectionExtensionsTests
 
         // Act
         services.AddEncinaRefitClient<ITestApi>();
-        var serviceProvider = services.BuildServiceProvider();
+        using var serviceProvider = services.BuildServiceProvider();
 
         // Assert
         var client = serviceProvider.GetService<ITestApi>();
@@ -44,7 +44,7 @@ public class ServiceCollectionExtensionsTests
             capturedBaseAddress = client.BaseAddress;
             capturedTimeout = client.Timeout;
         });
-        var serviceProvider = services.BuildServiceProvider();
+        using var serviceProvider = services.BuildServiceProvider();
 
         // Trigger the configuration by resolving the Refit client
         var refitClient = serviceProvider.GetRequiredService<ITestApi>();
@@ -72,7 +72,7 @@ public class ServiceCollectionExtensionsTests
 
         // Act
         services.AddEncinaRefitClient<ITestApi>(refitSettings);
-        var serviceProvider = services.BuildServiceProvider();
+        using var serviceProvider = services.BuildServiceProvider();
 
         // Assert
         var client = serviceProvider.GetService<ITestApi>();
@@ -91,7 +91,7 @@ public class ServiceCollectionExtensionsTests
             {
                 ContentSerializer = new SystemTextJsonContentSerializer()
             });
-        var serviceProvider = services.BuildServiceProvider();
+        using var serviceProvider = services.BuildServiceProvider();
 
         // Assert
         var client = serviceProvider.GetService<ITestApi>();
@@ -117,7 +117,6 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        var configureWasCalled = false;
         bool hasCustomHeader = false;
         string? customHeaderValue = null;
 
@@ -126,7 +125,6 @@ public class ServiceCollectionExtensionsTests
             .ConfigureHttpClient(client =>
             {
                 client.DefaultRequestHeaders.Add("X-Custom-Header", "TestValue");
-                configureWasCalled = true;
                 hasCustomHeader = client.DefaultRequestHeaders.Contains("X-Custom-Header");
                 customHeaderValue = client.DefaultRequestHeaders.GetValues("X-Custom-Header").First();
             })
@@ -140,7 +138,6 @@ public class ServiceCollectionExtensionsTests
         var refitClient = serviceProvider.GetRequiredService<ITestApi>();
         refitClient.ShouldNotBeNull();
 
-        configureWasCalled.ShouldBeTrue();
         hasCustomHeader.ShouldBeTrue();
         customHeaderValue.ShouldBe("TestValue");
     }

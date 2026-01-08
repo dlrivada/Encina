@@ -15,11 +15,9 @@ namespace Encina.SignalR.Tests.Integration;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Service", "SignalR")]
-public sealed class EncinaHubIntegrationTests : IDisposable
+public sealed class EncinaHubIntegrationTests
 {
-    private readonly ServiceProvider _serviceProvider;
-
-    public EncinaHubIntegrationTests()
+    private static ServiceProvider CreateServiceProvider()
     {
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.AddDebug().SetMinimumLevel(LogLevel.Debug));
@@ -30,14 +28,17 @@ public sealed class EncinaHubIntegrationTests : IDisposable
             options.IncludeDetailedErrors = true;
         });
 
-        _serviceProvider = services.BuildServiceProvider();
+        return services.BuildServiceProvider();
     }
 
     [Fact]
     public void Encina_CanBeResolved_FromServiceProvider()
     {
+        // Arrange
+        using var sp = CreateServiceProvider();
+
         // Act
-        var encina = _serviceProvider.GetService<IEncina>();
+        var encina = sp.GetService<IEncina>();
 
         // Assert
         encina.ShouldNotBeNull();
@@ -47,7 +48,8 @@ public sealed class EncinaHubIntegrationTests : IDisposable
     public async Task Encina_SendsQuery_ReturnsResponse()
     {
         // Arrange
-        var encina = _serviceProvider.GetRequiredService<IEncina>();
+        using var sp = CreateServiceProvider();
+        var encina = sp.GetRequiredService<IEncina>();
         var query = new HubTestQuery("test-value");
 
         // Act
@@ -65,7 +67,8 @@ public sealed class EncinaHubIntegrationTests : IDisposable
     public async Task Encina_SendsCommand_ReturnsResponse()
     {
         // Arrange
-        var encina = _serviceProvider.GetRequiredService<IEncina>();
+        using var sp = CreateServiceProvider();
+        var encina = sp.GetRequiredService<IEncina>();
         var command = new HubTestCommand("command-data");
 
         // Act
@@ -79,7 +82,8 @@ public sealed class EncinaHubIntegrationTests : IDisposable
     public async Task Encina_PublishesNotification_Succeeds()
     {
         // Arrange
-        var encina = _serviceProvider.GetRequiredService<IEncina>();
+        using var sp = CreateServiceProvider();
+        var encina = sp.GetRequiredService<IEncina>();
         var notification = new HubTestNotification("notification-data");
 
         // Act
@@ -92,8 +96,11 @@ public sealed class EncinaHubIntegrationTests : IDisposable
     [Fact]
     public void SignalROptions_IncludeDetailedErrors_IsConfigured()
     {
+        // Arrange
+        using var sp = CreateServiceProvider();
+
         // Act
-        var options = _serviceProvider.GetRequiredService<IOptions<SignalROptions>>().Value;
+        var options = sp.GetRequiredService<IOptions<SignalROptions>>().Value;
 
         // Assert
         options.IncludeDetailedErrors.ShouldBeTrue();
@@ -141,20 +148,15 @@ public sealed class EncinaHubIntegrationTests : IDisposable
         options.JsonSerializerOptions.ShouldNotBeNull();
         options.JsonSerializerOptions.ShouldBeSameAs(customOptions);
     }
-
-    public void Dispose()
-    {
-        _serviceProvider.Dispose();
-    }
 }
 
 // Test types for EncinaHub integration tests
 
-public sealed record HubTestQuery(string Value) : IQuery<HubTestResponse>;
+internal sealed record HubTestQuery(string Value) : IQuery<HubTestResponse>;
 
-public sealed record HubTestResponse(string Value);
+internal sealed record HubTestResponse(string Value);
 
-public sealed class HubTestQueryHandler : IQueryHandler<HubTestQuery, HubTestResponse>
+internal sealed class HubTestQueryHandler : IQueryHandler<HubTestQuery, HubTestResponse>
 {
     public Task<Either<EncinaError, HubTestResponse>> Handle(
         HubTestQuery request,
@@ -165,9 +167,9 @@ public sealed class HubTestQueryHandler : IQueryHandler<HubTestQuery, HubTestRes
     }
 }
 
-public sealed record HubTestCommand(string Data) : ICommand<Unit>;
+internal sealed record HubTestCommand(string Data) : ICommand<Unit>;
 
-public sealed class HubTestCommandHandler : ICommandHandler<HubTestCommand, Unit>
+internal sealed class HubTestCommandHandler : ICommandHandler<HubTestCommand, Unit>
 {
     public Task<Either<EncinaError, Unit>> Handle(
         HubTestCommand request,
@@ -177,9 +179,9 @@ public sealed class HubTestCommandHandler : ICommandHandler<HubTestCommand, Unit
     }
 }
 
-public sealed record HubTestNotification(string Data) : INotification;
+internal sealed record HubTestNotification(string Data) : INotification;
 
-public sealed class HubTestNotificationHandler : INotificationHandler<HubTestNotification>
+internal sealed class HubTestNotificationHandler : INotificationHandler<HubTestNotification>
 {
     public Task<Either<EncinaError, Unit>> Handle(
         HubTestNotification notification,

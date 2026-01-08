@@ -70,9 +70,16 @@ public sealed class GrpcEncinaServicePropertyTests : IDisposable
         var results = new List<Either<EncinaError, byte[]>>();
         var enumerator = _grpcService.StreamAsync(requestType, requestData).GetAsyncEnumerator();
 
-        while (enumerator.MoveNextAsync().GetAwaiter().GetResult())
+        try
         {
-            results.Add(enumerator.Current);
+            while (enumerator.MoveNextAsync().GetAwaiter().GetResult())
+            {
+                results.Add(enumerator.Current);
+            }
+        }
+        finally
+        {
+            enumerator.DisposeAsync().GetAwaiter().GetResult();
         }
 
         return results.Count == 1 && results[0].IsLeft;
@@ -85,11 +92,11 @@ public sealed class GrpcEncinaServicePropertyTests : IDisposable
 }
 
 // Test types for property tests
-public sealed record PropertyTestQuery(string Value) : IQuery<PropertyTestResponse>;
+internal sealed record PropertyTestQuery(string Value) : IQuery<PropertyTestResponse>;
 
-public sealed record PropertyTestResponse(string Value);
+internal sealed record PropertyTestResponse(string Value);
 
-public sealed class PropertyTestQueryHandler : IQueryHandler<PropertyTestQuery, PropertyTestResponse>
+internal sealed class PropertyTestQueryHandler : IQueryHandler<PropertyTestQuery, PropertyTestResponse>
 {
     public Task<Either<EncinaError, PropertyTestResponse>> Handle(
         PropertyTestQuery request,

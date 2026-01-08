@@ -13,84 +13,86 @@ namespace Encina.SignalR.Tests;
 /// <summary>
 /// Tests for the <see cref="EncinaHub"/> class.
 /// </summary>
-public sealed class EncinaHubTests : IDisposable
+public sealed class EncinaHubTests
 {
-    private readonly IEncina _encina;
-    private readonly IOptions<SignalROptions> _options;
-    private readonly ILogger<TestEncinaHub> _logger;
-    private readonly TestEncinaHub _hub;
-
-    public EncinaHubTests()
+    /// <summary>
+    /// Creates a new test hub with fresh mocks for each test.
+    /// Each call returns an isolated hub with its own IEncina, IOptions, and ILogger instances.
+    /// </summary>
+    private static TestEncinaHub CreateHub(SignalROptions? options = null)
     {
-        _encina = Substitute.For<IEncina>();
-        _options = Options.Create(new SignalROptions());
-        _logger = Substitute.For<ILogger<TestEncinaHub>>();
-        _hub = new TestEncinaHub(_encina, _options, _logger);
-
-        // Setup mock hub context
-        var hubContext = Substitute.For<HubCallerContext>();
-        hubContext.ConnectionAborted.Returns(CancellationToken.None);
-        _hub.SetContext(hubContext);
-    }
-
-    public void Dispose()
-    {
-        _hub.Dispose();
+        var encina = Substitute.For<IEncina>();
+        var opts = Microsoft.Extensions.Options.Options.Create(options ?? new SignalROptions());
+        var logger = Substitute.For<ILogger<TestEncinaHub>>();
+        var hub = new TestEncinaHub(encina, opts, logger);
+        hub.Context = CreateMockHubContext();
+        return hub;
     }
 
     [Fact]
     public void Constructor_SetsEncinaProperty()
     {
+        // Act
+        using var hub = CreateHub();
+
         // Assert
-        _hub.GetEncina().ShouldBeSameAs(_encina);
+        Assert.NotNull(hub.GetEncina());
     }
 
     [Fact]
     public async Task SendCommand_WithUnknownType_ReturnsTypeNotFoundError()
     {
         // Arrange
+        using var hub = CreateHub();
         var json = JsonSerializer.SerializeToElement(new { Value = "test" });
 
         // Act
-        var result = await _hub.SendCommand("NonExistent.Command", json);
+        var result = await hub.SendCommand("NonExistent.Command", json);
 
         // Assert
-        result.ShouldNotBeNull();
-        AssertIsFailedResponse(result);
-        AssertHasErrorCode(result, "command.type_not_found");
+        Assert.NotNull(result);
+        var response = ParseHubResponse(result);
+        AssertIsFailedResponse(response);
+        AssertHasErrorCode(response, "command.type_not_found");
     }
 
     [Fact]
     public async Task SendQuery_WithUnknownType_ReturnsTypeNotFoundError()
     {
         // Arrange
+        using var hub = CreateHub();
         var json = JsonSerializer.SerializeToElement(new { Value = "test" });
 
         // Act
-        var result = await _hub.SendQuery("NonExistent.Query", json);
+        var result = await hub.SendQuery("NonExistent.Query", json);
 
         // Assert
-        result.ShouldNotBeNull();
-        AssertIsFailedResponse(result);
-        AssertHasErrorCode(result, "query.type_not_found");
+        Assert.NotNull(result);
+        var response = ParseHubResponse(result);
+        AssertIsFailedResponse(response);
+        AssertHasErrorCode(response, "query.type_not_found");
     }
 
     [Fact]
     public async Task PublishNotification_WithUnknownType_DoesNotThrow()
     {
         // Arrange
+        using var hub = CreateHub();
         var json = JsonSerializer.SerializeToElement(new { Value = "test" });
 
-        // Act - should not throw
-        await _hub.PublishNotification("NonExistent.Notification", json);
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            hub.PublishNotification("NonExistent.Notification", json));
 
-        // Assert - no exception means success
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]
     public async Task SendCommand_WhenExceptionOccurs_ReturnsErrorResponse()
     {
         // Arrange
+        using var hub = CreateHub();
         var json = JsonSerializer.SerializeToElement(new { Message = "test" });
         var typeName = typeof(TestCommand).AssemblyQualifiedName!;
 
@@ -98,201 +100,217 @@ public sealed class EncinaHubTests : IDisposable
         // because our mock doesn't handle the specific command type
 
         // Act
-        var result = await _hub.SendCommand(typeName, json);
+        var result = await hub.SendCommand(typeName, json);
 
         // Assert
-        result.ShouldNotBeNull();
+        Assert.NotNull(result);
         // The result should be an error response (either exception or failed to process)
-        AssertIsFailedResponse(result);
+        var response = ParseHubResponse(result);
+        AssertIsFailedResponse(response);
     }
 
     [Fact]
     public async Task SendQuery_WhenExceptionOccurs_ReturnsErrorResponse()
     {
         // Arrange
+        using var hub = CreateHub();
         var json = JsonSerializer.SerializeToElement(new { Query = "test" });
-        var typeName = typeof(TestQuery).AssemblyQualifiedName!;
-
-        // Act
-        var result = await _hub.SendQuery(typeName, json);
-
-        // Assert
-        result.ShouldNotBeNull();
-        AssertIsFailedResponse(result);
-    }
-
-    [Fact]
-    public async Task PublishNotification_WhenExceptionOccurs_DoesNotThrow()
-    {
-        // Arrange
-        var json = JsonSerializer.SerializeToElement(new { Message = "test" });
-        var typeName = typeof(TestHubNotification).AssemblyQualifiedName!;
-
-        // Act - should not throw even if Encina.Publish throws
-        await _hub.PublishNotification(typeName, json);
-
-        // Assert - no exception
-    }
-
-    [Fact]
-    public void ResolveType_WithExactTypeName_ReturnsType()
-    {
-        // Arrange
-        var typeName = typeof(TestCommand).AssemblyQualifiedName!;
-
-        // Act
-        var type = _hub.TestResolveType(typeName);
-
-        // Assert
-        type.ShouldBe(typeof(TestCommand));
-    }
-
-    [Fact]
-    public void ResolveType_WithSimpleName_ReturnsType()
-    {
-        // Arrange - use a well-known type that should be resolvable
-        var typeName = nameof(TestCommand);
-
-        // Act
-        var type = _hub.TestResolveType(typeName);
-
-        // Assert
-        type.ShouldBe(typeof(TestCommand));
-    }
-
-    [Fact]
-    public void ResolveType_WithNonExistentType_ReturnsNull()
-    {
-        // Arrange
-        var typeName = "NonExistent.Type.That.Does.Not.Exist";
-
-        // Act
-        var type = _hub.TestResolveType(typeName);
-
-        // Assert
-        type.ShouldBeNull();
-    }
-
-    [Fact]
-    public async Task SendCommand_WithDetailedErrorsEnabled_IncludesDetails()
-    {
-        // Arrange
-        var options = Options.Create(new SignalROptions { IncludeDetailedErrors = true });
-        using var hub = new TestEncinaHub(_encina, options, _logger);
-        var hubContext = Substitute.For<HubCallerContext>();
-        hubContext.ConnectionAborted.Returns(CancellationToken.None);
-        hub.SetContext(hubContext);
-
-        var json = JsonSerializer.SerializeToElement(new { Value = "test" });
-        var typeName = typeof(TestCommand).AssemblyQualifiedName!;
-
-        // Act
-        var result = await hub.SendCommand(typeName, json);
-
-        // Assert
-        result.ShouldNotBeNull();
-    }
-
-    [Fact]
-    public async Task SendQuery_WithDetailedErrorsEnabled_IncludesDetails()
-    {
-        // Arrange
-        var options = Options.Create(new SignalROptions { IncludeDetailedErrors = true });
-        using var hub = new TestEncinaHub(_encina, options, _logger);
-        var hubContext = Substitute.For<HubCallerContext>();
-        hubContext.ConnectionAborted.Returns(CancellationToken.None);
-        hub.SetContext(hubContext);
-
-        var json = JsonSerializer.SerializeToElement(new { Value = "test" });
         var typeName = typeof(TestQuery).AssemblyQualifiedName!;
 
         // Act
         var result = await hub.SendQuery(typeName, json);
 
         // Assert
-        result.ShouldNotBeNull();
+        Assert.NotNull(result);
+        var response = ParseHubResponse(result);
+        AssertIsFailedResponse(response);
+    }
+
+    [Fact]
+    public async Task PublishNotification_WhenExceptionOccurs_DoesNotThrow()
+    {
+        // Arrange
+        using var hub = CreateHub();
+        var json = JsonSerializer.SerializeToElement(new { Message = "test" });
+        var typeName = typeof(TestHubNotification).AssemblyQualifiedName!;
+
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            hub.PublishNotification(typeName, json));
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void ResolveType_WithExactTypeName_ReturnsType()
+    {
+        // Arrange
+        using var hub = CreateHub();
+        var typeName = typeof(TestCommand).AssemblyQualifiedName!;
+
+        // Act
+        var type = hub.TestResolveType(typeName);
+
+        // Assert
+        Assert.Equal(typeof(TestCommand), type);
+    }
+
+    [Fact]
+    public void ResolveType_WithSimpleName_ReturnsType()
+    {
+        // Arrange
+        using var hub = CreateHub();
+        var typeName = nameof(TestCommand);
+
+        // Act
+        var type = hub.TestResolveType(typeName);
+
+        // Assert
+        Assert.Equal(typeof(TestCommand), type);
+    }
+
+    [Fact]
+    public void ResolveType_WithNonExistentType_ReturnsNull()
+    {
+        // Arrange
+        using var hub = CreateHub();
+        var typeName = "NonExistent.Type.That.Does.Not.Exist";
+
+        // Act
+        var type = hub.TestResolveType(typeName);
+
+        // Assert
+        Assert.Null(type);
+    }
+
+    [Fact]
+    public async Task SendCommand_WithDetailedErrorsEnabled_IncludesExceptionDetails()
+    {
+        // Arrange
+        using var hub = CreateHub(new SignalROptions { IncludeDetailedErrors = true });
+        var json = JsonSerializer.SerializeToElement(new { Value = "test" });
+        var typeName = "NonExistent.CommandType"; // This will trigger type_not_found error
+
+        // Act
+        var result = await hub.SendCommand(typeName, json);
+
+        // Assert - Verify detailed error message is included
+        Assert.NotNull(result);
+        var response = ParseHubResponse(result);
+        AssertIsFailedResponse(response);
+        AssertHasErrorCode(response, "command.type_not_found");
+        AssertErrorMessageContains(response, typeName);
+    }
+
+    [Fact]
+    public async Task SendQuery_WithDetailedErrorsEnabled_IncludesExceptionDetails()
+    {
+        // Arrange
+        using var hub = CreateHub(new SignalROptions { IncludeDetailedErrors = true });
+        var json = JsonSerializer.SerializeToElement(new { Value = "test" });
+        var typeName = "NonExistent.QueryType"; // This will trigger type_not_found error
+
+        // Act
+        var result = await hub.SendQuery(typeName, json);
+
+        // Assert - Verify detailed error message is included
+        Assert.NotNull(result);
+        var response = ParseHubResponse(result);
+        AssertIsFailedResponse(response);
+        AssertHasErrorCode(response, "query.type_not_found");
+        AssertErrorMessageContains(response, typeName);
     }
 
     [Fact]
     public async Task SendCommand_WithNullDeserialization_ReturnsDeserializationError()
     {
         // Arrange
-        // Create a JSON that would deserialize to null for a record type
+        using var hub = CreateHub();
         var json = JsonSerializer.SerializeToElement<object?>(null);
         var typeName = typeof(TestCommand).AssemblyQualifiedName!;
 
         // Act
-        var result = await _hub.SendCommand(typeName, json);
+        var result = await hub.SendCommand(typeName, json);
 
         // Assert
-        result.ShouldNotBeNull();
-        AssertIsFailedResponse(result);
+        Assert.NotNull(result);
+        var response = ParseHubResponse(result);
+        AssertIsFailedResponse(response);
     }
 
     [Fact]
     public async Task SendQuery_WithNullDeserialization_ReturnsDeserializationError()
     {
         // Arrange
+        using var hub = CreateHub();
         var json = JsonSerializer.SerializeToElement<object?>(null);
         var typeName = typeof(TestQuery).AssemblyQualifiedName!;
 
         // Act
-        var result = await _hub.SendQuery(typeName, json);
+        var result = await hub.SendQuery(typeName, json);
 
         // Assert
-        result.ShouldNotBeNull();
-        AssertIsFailedResponse(result);
+        Assert.NotNull(result);
+        var response = ParseHubResponse(result);
+        AssertIsFailedResponse(response);
     }
 
     [Fact]
     public async Task PublishNotification_WithNullDeserialization_DoesNotThrow()
     {
         // Arrange
+        using var hub = CreateHub();
         var json = JsonSerializer.SerializeToElement<object?>(null);
         var typeName = typeof(TestHubNotification).AssemblyQualifiedName!;
 
-        // Act - should not throw
-        await _hub.PublishNotification(typeName, json);
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            hub.PublishNotification(typeName, json));
 
-        // Assert - no exception
+        // Assert
+        Assert.Null(exception);
     }
 
-    private static void AssertIsFailedResponse(object result)
+    private sealed record HubResponse(bool success, ErrorInfo? error);
+
+    private sealed record ErrorInfo(string code, string? message);
+
+    private static HubResponse ParseHubResponse(object result)
     {
-        // The response should have a 'success' property set to false
-        var successProp = result.GetType().GetProperty("success");
-        if (successProp != null)
-        {
-            var successValue = successProp.GetValue(result);
-            ((bool)successValue!).ShouldBeFalse();
-        }
-        // If there's no 'success' property, we can't verify - but the test passed if we got here
+        var json = JsonSerializer.Serialize(result);
+        return JsonSerializer.Deserialize<HubResponse>(json)
+            ?? throw new InvalidOperationException("Failed to parse hub response");
     }
 
-    private static void AssertHasErrorCode(object result, string expectedCode)
+    private static void AssertIsFailedResponse(HubResponse response)
     {
-        // The response should have an 'error.code' property
-        var errorProp = result.GetType().GetProperty("error");
-        if (errorProp != null)
-        {
-            var errorValue = errorProp.GetValue(result);
-            if (errorValue != null)
-            {
-                var codeProp = errorValue.GetType().GetProperty("code");
-                if (codeProp != null)
-                {
-                    var codeValue = codeProp.GetValue(errorValue);
-                    ((string)codeValue!).ShouldBe(expectedCode);
-                    return;
-                }
-            }
-        }
-        // If we couldn't find the error code, fail the assertion
-        Assert.Fail($"Expected error code '{expectedCode}' not found in result");
+        Assert.False(response.success, "Expected 'success' property to be false for a failed response");
+    }
+
+    private static void AssertHasErrorCode(HubResponse response, string expectedCode)
+    {
+        Assert.NotNull(response.error);
+        Assert.Equal(expectedCode, response.error.code);
+    }
+
+    private static void AssertErrorMessageContains(HubResponse response, string expectedContent)
+    {
+        Assert.NotNull(response.error);
+        Assert.NotNull(response.error.message);
+        Assert.Contains(expectedContent, response.error.message);
+    }
+
+    private static HubCallerContext CreateMockHubContext()
+    {
+        var hubContext = Substitute.For<HubCallerContext>();
+        hubContext.ConnectionId.Returns("test-connection-id");
+        hubContext.ConnectionAborted.Returns(CancellationToken.None);
+        return hubContext;
     }
 
     // Test hub implementation for testing abstract EncinaHub
-    public sealed class TestEncinaHub : EncinaHub
+    private sealed class TestEncinaHub : EncinaHub
     {
         public TestEncinaHub(IEncina encina, IOptions<SignalROptions> options, ILogger logger)
             : base(encina, options, logger)
@@ -302,19 +320,12 @@ public sealed class EncinaHubTests : IDisposable
         public IEncina GetEncina() => Encina;
 
         public Type? TestResolveType(string typeName) => ResolveType(typeName);
-
-        public void SetContext(HubCallerContext context)
-        {
-            // Use reflection to set the Context property (it has a private setter in Hub)
-            var contextProperty = typeof(Hub).GetProperty("Context");
-            contextProperty?.SetValue(this, context);
-        }
     }
 
     // Test types for hub tests
-    public sealed record TestCommand(string Message) : IRequest<string>;
+    private sealed record TestCommand(string Message) : IRequest<string>;
 
-    public sealed record TestQuery(string Query) : IRequest<string>;
+    private sealed record TestQuery(string Query) : IRequest<string>;
 
-    public sealed record TestHubNotification(string Message) : INotification;
+    private sealed record TestHubNotification(string Message) : INotification;
 }

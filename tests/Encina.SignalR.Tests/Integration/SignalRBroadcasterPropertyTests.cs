@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.SignalR.Tests.Integration;
 
@@ -15,7 +16,7 @@ namespace Encina.SignalR.Tests.Integration;
 [Trait("Service", "SignalR")]
 public sealed class SignalRBroadcasterPropertyTests : IDisposable
 {
-    private readonly ServiceProvider _serviceProvider;
+    private readonly ServiceProvider _sharedProvider;
     private readonly ISignalRNotificationBroadcaster _broadcaster;
 
     public SignalRBroadcasterPropertyTests()
@@ -28,110 +29,78 @@ public sealed class SignalRBroadcasterPropertyTests : IDisposable
             options.EnableNotificationBroadcast = true;
         });
 
-        _serviceProvider = services.BuildServiceProvider();
-        _broadcaster = _serviceProvider.GetRequiredService<ISignalRNotificationBroadcaster>();
-    }
-
-    [Property(MaxTest = 20)]
-    public bool BroadcastAsync_NeverThrows_WithValidNotification(PositiveInt seed)
-    {
-        var notification = new PropertyBroadcastNotification($"test-data-{seed.Get}");
-
-        try
-        {
-            _broadcaster.BroadcastAsync(notification).GetAwaiter().GetResult();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    [Property(MaxTest = 20)]
-    public bool BroadcastAsync_NeverThrows_WithPlainNotification(PositiveInt seed)
-    {
-        var notification = new PropertyPlainNotification($"plain-data-{seed.Get}");
-
-        try
-        {
-            _broadcaster.BroadcastAsync(notification).GetAwaiter().GetResult();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    [Property(MaxTest = 20)]
-    public bool BroadcastAsync_NeverThrows_WithConditionalNotification(PositiveInt seed, bool shouldBroadcast)
-    {
-        var notification = new PropertyConditionalNotification($"conditional-{seed.Get}", shouldBroadcast);
-
-        try
-        {
-            _broadcaster.BroadcastAsync(notification).GetAwaiter().GetResult();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    [Property(MaxTest = 20)]
-    public bool BroadcastAsync_NeverThrows_WithTargetedUserNotification(PositiveInt userId, PositiveInt messageId)
-    {
-        var notification = new PropertyTargetedUserNotification($"user-{userId.Get}", $"message-{messageId.Get}");
-
-        try
-        {
-            _broadcaster.BroadcastAsync(notification).GetAwaiter().GetResult();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    [Property(MaxTest = 20)]
-    public bool BroadcastAsync_NeverThrows_WithTargetedGroupNotification(PositiveInt groupId, PositiveInt messageId)
-    {
-        var notification = new PropertyTargetedGroupNotification($"group-{groupId.Get}", $"message-{messageId.Get}");
-
-        try
-        {
-            _broadcaster.BroadcastAsync(notification).GetAwaiter().GetResult();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    [Fact]
-    public void SignalROptions_EnableNotificationBroadcast_DefaultsToTrue()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging(builder => builder.AddDebug());
-        services.AddEncinaSignalR();
-
-        using var sp = services.BuildServiceProvider();
-
-        // Act
-        var options = sp.GetRequiredService<IOptions<SignalROptions>>().Value;
-
-        // Assert
-        Assert.True(options.EnableNotificationBroadcast);
+        _sharedProvider = services.BuildServiceProvider();
+        _broadcaster = _sharedProvider.GetRequiredService<ISignalRNotificationBroadcaster>();
     }
 
     public void Dispose()
     {
-        _serviceProvider.Dispose();
+        _sharedProvider.Dispose();
+    }
+
+    [Property(MaxTest = 50)]
+    public async Task BroadcastAsync_NeverThrows_WithValidNotification(PositiveInt seed)
+    {
+        // Arrange
+        var notification = new PropertyBroadcastNotification($"test-data-{seed.Get}");
+
+        // Act & Assert - exception propagates to FsCheck if thrown
+        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification).AsTask());
+    }
+
+    [Property(MaxTest = 50)]
+    public async Task BroadcastAsync_NeverThrows_WithPlainNotification(PositiveInt seed)
+    {
+        // Arrange
+        var notification = new PropertyPlainNotification($"plain-data-{seed.Get}");
+
+        // Act & Assert - plain notifications (no attribute) should complete without error
+        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification).AsTask());
+
+        // Verify the notification data is preserved
+        notification.Data.ShouldStartWith("plain-data-");
+        notification.Data.ShouldContain(seed.Get.ToString());
+    }
+
+    [Property(MaxTest = 50)]
+    public async Task BroadcastAsync_NeverThrows_WithConditionalNotification(PositiveInt seed, bool shouldBroadcast)
+    {
+        // Arrange
+        var notification = new PropertyConditionalNotification($"conditional-{seed.Get}", shouldBroadcast);
+
+        // Act & Assert - conditional notifications should complete regardless of condition value
+        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification).AsTask());
+
+        // Verify conditional property is correctly set
+        notification.ShouldBroadcast.ShouldBe(shouldBroadcast);
+    }
+
+    [Property(MaxTest = 50)]
+    public async Task BroadcastAsync_NeverThrows_WithTargetedUserNotification(PositiveInt userId, PositiveInt messageId)
+    {
+        // Arrange
+        var notification = new PropertyTargetedUserNotification($"user-{userId.Get}", $"message-{messageId.Get}");
+
+        // Act & Assert - targeted user notifications should complete without error
+        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification).AsTask());
+
+        // Verify targeting properties are preserved
+        notification.UserId.ShouldStartWith("user-");
+        notification.Message.ShouldStartWith("message-");
+    }
+
+    [Property(MaxTest = 50)]
+    public async Task BroadcastAsync_NeverThrows_WithTargetedGroupNotification(PositiveInt groupId, PositiveInt messageId)
+    {
+        // Arrange
+        var notification = new PropertyTargetedGroupNotification($"group-{groupId.Get}", $"message-{messageId.Get}");
+
+        // Act & Assert - targeted group notifications should complete without error
+        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification).AsTask());
+
+        // Verify targeting properties are preserved
+        notification.GroupId.ShouldStartWith("group-");
+        notification.Message.ShouldStartWith("message-");
     }
 }
 
@@ -140,28 +109,28 @@ public sealed class SignalRBroadcasterPropertyTests : IDisposable
 /// <summary>
 /// Plain notification for property tests (no attribute).
 /// </summary>
-public sealed record PropertyPlainNotification(string Data) : INotification;
+internal sealed record PropertyPlainNotification(string Data) : INotification;
 
 /// <summary>
 /// Broadcast notification for property tests.
 /// </summary>
 [BroadcastToSignalR(Method = "PropertyBroadcast")]
-public sealed record PropertyBroadcastNotification(string Data) : INotification;
+internal sealed record PropertyBroadcastNotification(string Data) : INotification;
 
 /// <summary>
 /// Conditional notification for property tests.
 /// </summary>
 [BroadcastToSignalR(Method = "PropertyConditional", ConditionalProperty = "ShouldBroadcast")]
-public sealed record PropertyConditionalNotification(string Data, bool ShouldBroadcast) : INotification;
+internal sealed record PropertyConditionalNotification(string Data, bool ShouldBroadcast) : INotification;
 
 /// <summary>
 /// Targeted user notification for property tests.
 /// </summary>
 [BroadcastToSignalR(Method = "PropertyUserMessage", TargetUsers = "{UserId}")]
-public sealed record PropertyTargetedUserNotification(string UserId, string Message) : INotification;
+internal sealed record PropertyTargetedUserNotification(string UserId, string Message) : INotification;
 
 /// <summary>
 /// Targeted group notification for property tests.
 /// </summary>
 [BroadcastToSignalR(Method = "PropertyGroupMessage", TargetGroups = "{GroupId}")]
-public sealed record PropertyTargetedGroupNotification(string GroupId, string Message) : INotification;
+internal sealed record PropertyTargetedGroupNotification(string GroupId, string Message) : INotification;

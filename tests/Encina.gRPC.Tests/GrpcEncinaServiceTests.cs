@@ -15,6 +15,7 @@ public sealed class GrpcEncinaServiceTests
 {
     private readonly IEncina _encina;
     private readonly ILogger<GrpcEncinaService> _logger;
+    private readonly ITypeResolver _typeResolver;
     private readonly IOptions<EncinaGrpcOptions> _options;
     private readonly GrpcEncinaService _service;
 
@@ -22,8 +23,9 @@ public sealed class GrpcEncinaServiceTests
     {
         _encina = Substitute.For<IEncina>();
         _logger = Substitute.For<ILogger<GrpcEncinaService>>();
+        _typeResolver = Substitute.For<ITypeResolver>();
         _options = Options.Create(new EncinaGrpcOptions());
-        _service = new GrpcEncinaService(_encina, _logger, _options);
+        _service = new GrpcEncinaService(_encina, _logger, _typeResolver, _options);
     }
 
     [Fact]
@@ -31,7 +33,7 @@ public sealed class GrpcEncinaServiceTests
     {
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new GrpcEncinaService(null!, _logger, _options));
+            new GrpcEncinaService(null!, _logger, _typeResolver, _options));
     }
 
     [Fact]
@@ -39,7 +41,15 @@ public sealed class GrpcEncinaServiceTests
     {
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new GrpcEncinaService(_encina, null!, _options));
+            new GrpcEncinaService(_encina, null!, _typeResolver, _options));
+    }
+
+    [Fact]
+    public void Constructor_WithNullTypeResolver_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() =>
+            new GrpcEncinaService(_encina, _logger, null!, _options));
     }
 
     [Fact]
@@ -47,7 +57,7 @@ public sealed class GrpcEncinaServiceTests
     {
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new GrpcEncinaService(_encina, _logger, null!));
+            new GrpcEncinaService(_encina, _logger, _typeResolver, null!));
     }
 
     [Fact]
@@ -152,6 +162,7 @@ public sealed class GrpcEncinaServiceTests
         // Arrange - create test notification type in the current assembly
         var typeName = typeof(TestNotificationForGrpc).AssemblyQualifiedName!;
         var invalidJson = "{invalid json"u8.ToArray();
+        _typeResolver.ResolveRequestType(typeName).Returns(typeof(TestNotificationForGrpc));
 
         // Act
         var result = await _service.SendAsync(typeName, invalidJson);
@@ -160,9 +171,8 @@ public sealed class GrpcEncinaServiceTests
         result.IsLeft.ShouldBeTrue();
         result.IfLeft(error =>
         {
-            // Should return either GRPC_SEND_FAILED (exception) or GRPC_DESERIALIZE_FAILED
-            error.GetCode().IfSome(code =>
-                (code == "GRPC_SEND_FAILED" || code == "GRPC_DESERIALIZE_FAILED").ShouldBeTrue());
+            // Deserialization is performed before send attempt, so malformed JSON always returns GRPC_DESERIALIZE_FAILED
+            error.GetCode().IfSome(code => code.ShouldBe("GRPC_DESERIALIZE_FAILED"));
         });
     }
 
@@ -172,6 +182,7 @@ public sealed class GrpcEncinaServiceTests
         // Arrange
         var typeName = typeof(TestNotificationForGrpc).AssemblyQualifiedName!;
         var invalidJson = "{invalid json"u8.ToArray();
+        _typeResolver.ResolveNotificationType(typeName).Returns(typeof(TestNotificationForGrpc));
 
         // Act
         var result = await _service.PublishAsync(typeName, invalidJson);
@@ -180,8 +191,8 @@ public sealed class GrpcEncinaServiceTests
         result.IsLeft.ShouldBeTrue();
         result.IfLeft(error =>
         {
-            error.GetCode().IfSome(code =>
-                (code == "GRPC_PUBLISH_FAILED" || code == "GRPC_DESERIALIZE_FAILED").ShouldBeTrue());
+            // Deserialization is performed before publish attempt, so malformed JSON always returns GRPC_DESERIALIZE_FAILED
+            error.GetCode().IfSome(code => code.ShouldBe("GRPC_DESERIALIZE_FAILED"));
         });
     }
 
@@ -191,6 +202,7 @@ public sealed class GrpcEncinaServiceTests
         // Arrange - use a type that doesn't implement IRequest<>
         var typeName = typeof(NonRequestType).AssemblyQualifiedName!;
         var data = JsonSerializer.SerializeToUtf8Bytes(new NonRequestType("test"));
+        _typeResolver.ResolveRequestType(typeName).Returns(typeof(NonRequestType));
 
         // Act
         var result = await _service.SendAsync(typeName, data);
@@ -199,25 +211,35 @@ public sealed class GrpcEncinaServiceTests
         result.IsLeft.ShouldBeTrue();
         result.IfLeft(error =>
         {
-            error.GetCode().IfSome(code =>
-                (code == "GRPC_RESPONSE_TYPE_NOT_FOUND" || code == "GRPC_SEND_FAILED").ShouldBeTrue());
+            // Type check for IRequest<> interface happens before any send attempt,
+            // so NonRequestType (which doesn't implement IRequest<>) deterministically returns this error
+            error.GetCode().IfSome(code => code.ShouldBe("GRPC_RESPONSE_TYPE_NOT_FOUND"));
         });
     }
 
     [Fact]
-    public async Task SendAsync_WithCancellation_PropagatesCancellation()
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2012:Use ValueTasks correctly", Justification = "Mock setup pattern")]
+    public async Task SendAsync_WithCancellation_PropagatesCancellationToken()
     {
         // Arrange
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
-        var data = JsonSerializer.SerializeToUtf8Bytes(new { });
+        var typeName = typeof(TestCommandForGrpc).AssemblyQualifiedName!;
+        var data = JsonSerializer.SerializeToUtf8Bytes(new TestCommandForGrpc("test"));
+        _typeResolver.ResolveRequestType(typeName).Returns(typeof(TestCommandForGrpc));
 
-        // Act - this tests that cancellation token is passed through
-        // Even with unknown type, the token should be passed
-        var result = await _service.SendAsync("Unknown.Type", data, cts.Token);
+        _encina.Send(
+                Arg.Any<TestCommandForGrpc>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(
+                LanguageExt.Prelude.Right<EncinaError, LanguageExt.Unit>(LanguageExt.Unit.Default)));
 
-        // Assert - type not found before any async operation
-        result.IsLeft.ShouldBeTrue();
+        // Act
+        await _service.SendAsync(typeName, data, cts.Token);
+
+        // Assert - verify the cancellation token was passed through to Encina
+        await _encina.Received(1).Send(
+            Arg.Any<TestCommandForGrpc>(),
+            Arg.Is<CancellationToken>(ct => ct == cts.Token));
     }
 
     [Fact]
@@ -227,11 +249,14 @@ public sealed class GrpcEncinaServiceTests
         // Arrange
         var typeName = typeof(TestNotificationForGrpc).AssemblyQualifiedName!;
         var data = JsonSerializer.SerializeToUtf8Bytes(new TestNotificationForGrpc("test"));
+        _typeResolver.ResolveNotificationType(typeName).Returns(typeof(TestNotificationForGrpc));
 
-        // Configure mock to return success
+        // Configure mock to return success only when deserialized notification has expected Message
         var successResult = LanguageExt.Prelude.Right<EncinaError, LanguageExt.Unit>(LanguageExt.Unit.Default);
-        _encina.Publish(Arg.Any<TestNotificationForGrpc>(), Arg.Any<CancellationToken>())
-            .ReturnsForAnyArgs(ValueTask.FromResult(successResult));
+        _encina.Publish(
+                Arg.Is<TestNotificationForGrpc>(n => n.Message == "test"),
+                Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(successResult));
 
         // Act
         var result = await _service.PublishAsync(typeName, data);
@@ -246,12 +271,18 @@ public sealed class GrpcEncinaServiceTests
         // Arrange - use a type that requires a non-null value
         var typeName = typeof(TestNotificationForGrpc).AssemblyQualifiedName!;
         var emptyJson = "null"u8.ToArray();
+        _typeResolver.ResolveRequestType(typeName).Returns(typeof(TestNotificationForGrpc));
 
         // Act
         var result = await _service.SendAsync(typeName, emptyJson);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error =>
+        {
+            error.GetCode().IfSome(code =>
+                code.ShouldBe("GRPC_DESERIALIZE_FAILED"));
+        });
     }
 
     [Fact]
@@ -260,6 +291,7 @@ public sealed class GrpcEncinaServiceTests
         // Arrange
         var typeName = typeof(TestNotificationForGrpc).AssemblyQualifiedName!;
         var emptyJson = "null"u8.ToArray();
+        _typeResolver.ResolveNotificationType(typeName).Returns(typeof(TestNotificationForGrpc));
 
         // Act
         var result = await _service.PublishAsync(typeName, emptyJson);
@@ -274,31 +306,37 @@ public sealed class GrpcEncinaServiceTests
     }
 
     [Fact]
-    public async Task SendAsync_CalledTwiceWithSameType_UsesCacheOnSecondCall()
+    public async Task SendAsync_CalledTwiceWithSameType_CallsTypeResolverEachTime()
     {
         // Arrange
+        const string typeName = "Unknown.Type, Assembly";
         var data = JsonSerializer.SerializeToUtf8Bytes(new { });
+        _typeResolver.ResolveRequestType(typeName).Returns((Type?)null);
 
-        // Act - call twice to trigger cache hit
-        await _service.SendAsync("Unknown.Type, Assembly", data);
-        var result = await _service.SendAsync("Unknown.Type, Assembly", data);
+        // Act - call twice
+        await _service.SendAsync(typeName, data);
+        await _service.SendAsync(typeName, data);
 
-        // Assert - both should return type not found (cache returns null for unknown types)
-        result.IsLeft.ShouldBeTrue();
+        // Assert - type resolver is called for each SendAsync call
+        // (caching is the responsibility of ITypeResolver implementation)
+        _typeResolver.Received(2).ResolveRequestType(typeName);
     }
 
     [Fact]
-    public async Task PublishAsync_CalledTwiceWithSameType_UsesCacheOnSecondCall()
+    public async Task PublishAsync_CalledTwiceWithSameType_CallsTypeResolverEachTime()
     {
         // Arrange
+        const string typeName = "Unknown.Type, Assembly";
         var data = JsonSerializer.SerializeToUtf8Bytes(new { });
+        _typeResolver.ResolveNotificationType(typeName).Returns((Type?)null);
 
-        // Act - call twice to trigger cache hit
-        await _service.PublishAsync("Unknown.Type, Assembly", data);
-        var result = await _service.PublishAsync("Unknown.Type, Assembly", data);
+        // Act - call twice
+        await _service.PublishAsync(typeName, data);
+        await _service.PublishAsync(typeName, data);
 
-        // Assert - both should return type not found
-        result.IsLeft.ShouldBeTrue();
+        // Assert - type resolver is called for each PublishAsync call
+        // (caching is the responsibility of ITypeResolver implementation)
+        _typeResolver.Received(2).ResolveNotificationType(typeName);
     }
 
     [Fact]
@@ -322,6 +360,9 @@ public sealed class GrpcEncinaServiceTests
 
     // Test notification type for serialization tests
     public sealed record TestNotificationForGrpc(string Message) : INotification;
+
+    // Test command type for Send tests
+    public sealed record TestCommandForGrpc(string Value) : ICommand<LanguageExt.Unit>;
 
     // Type that doesn't implement IRequest<> - used for testing responseType null path
     public sealed record NonRequestType(string Value);

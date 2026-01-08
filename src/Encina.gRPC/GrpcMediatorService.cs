@@ -13,26 +13,29 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
 {
     private readonly IEncina _encina;
     private readonly ILogger<GrpcEncinaService> _logger;
-    private readonly Dictionary<string, Type> _requestTypeCache = new();
-    private readonly Dictionary<string, Type> _notificationTypeCache = new();
+    private readonly ITypeResolver _typeResolver;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GrpcEncinaService"/> class.
     /// </summary>
     /// <param name="encina">The Encina instance.</param>
     /// <param name="logger">The logger instance.</param>
+    /// <param name="typeResolver">The type resolver for resolving request and notification types.</param>
     /// <param name="options">The configuration options (reserved for future use).</param>
     public GrpcEncinaService(
         IEncina encina,
         ILogger<GrpcEncinaService> logger,
+        ITypeResolver typeResolver,
         IOptions<EncinaGrpcOptions> options)
     {
         ArgumentNullException.ThrowIfNull(encina);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(typeResolver);
         ArgumentNullException.ThrowIfNull(options);
 
         _encina = encina;
         _logger = logger;
+        _typeResolver = typeResolver;
         _ = options.Value; // Reserved for future use
     }
 
@@ -49,7 +52,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         {
             Log.ProcessingRequest(_logger, requestType);
 
-            var type = ResolveType(requestType, _requestTypeCache);
+            var type = _typeResolver.ResolveRequestType(requestType);
             if (type is null)
             {
                 return Left<EncinaError, byte[]>(
@@ -71,7 +74,16 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             // IEncina.Send<TResponse> has 1 generic parameter (the response type)
             var sendMethod = typeof(IEncina)
                 .GetMethods()
-                .First(m => m.Name == "Send" && m.GetGenericArguments().Length == 1);
+                .FirstOrDefault(m => m.Name == "Send" && m.GetGenericArguments().Length == 1);
+
+            if (sendMethod is null)
+            {
+                return Left<EncinaError, byte[]>(
+                    EncinaErrors.Create(
+                        "GRPC_SEND_METHOD_NOT_FOUND",
+                        $"IEncina does not expose a generic Send<TResponse> method. " +
+                        $"Ensure the IEncina interface defines a Send method with exactly one generic type parameter."));
+            }
 
             var responseType = type.GetInterfaces()
                 .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>))
@@ -86,24 +98,34 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             }
 
             var genericMethod = sendMethod.MakeGenericMethod(responseType);
-            var task = (dynamic)genericMethod.Invoke(_encina, [request, cancellationToken])!;
+            var invokeResult = genericMethod.Invoke(_encina, [request, cancellationToken])
+                ?? throw new InvalidOperationException(
+                    $"IEncina.Send<{responseType.Name}> returned null. " +
+                    $"The method must return a non-null ValueTask.");
+            var task = (dynamic)invokeResult;
             dynamic result = await task;
 
-            // result is Either<EncinaError, TResponse> - check IsRight/IsLeft and extract value
-            if ((bool)result.IsRight)
-            {
-                // Use IfRight to get the actual response value
-                object? responseValue = null;
-                result.IfRight((Action<object>)(r => responseValue = r));
-                var responseBytes = JsonSerializer.SerializeToUtf8Bytes(responseValue, responseType);
-                return Right<EncinaError, byte[]>(responseBytes);
-            }
-            else
-            {
-                EncinaError error = default;
-                result.IfLeft((Action<EncinaError>)(e => error = e));
-                return Left<EncinaError, byte[]>(error);
-            }
+            return ExtractEitherResult(result, responseType, requestType);
+        }
+        catch (GrpcSerializationException ex)
+        {
+            Log.FailedToProcessRequest(_logger, ex, requestType);
+
+            return Left<EncinaError, byte[]>(
+                EncinaErrors.FromException(
+                    "GRPC_SERIALIZE_FAILED",
+                    ex.InnerException ?? ex,
+                    $"Failed to serialize response for request of type '{requestType}'."));
+        }
+        catch (JsonException ex)
+        {
+            Log.FailedToProcessRequest(_logger, ex, requestType);
+
+            return Left<EncinaError, byte[]>(
+                EncinaErrors.FromException(
+                    "GRPC_DESERIALIZE_FAILED",
+                    ex,
+                    $"Failed to deserialize request of type '{requestType}'."));
         }
         catch (Exception ex)
         {
@@ -130,7 +152,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         {
             Log.ProcessingNotification(_logger, notificationType);
 
-            var type = ResolveType(notificationType, _notificationTypeCache);
+            var type = _typeResolver.ResolveNotificationType(notificationType);
             if (type is null)
             {
                 return Left<EncinaError, Unit>(
@@ -152,13 +174,36 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             // IEncina.Publish<TNotification> returns ValueTask<Either<EncinaError, Unit>>
             var publishMethod = typeof(IEncina)
                 .GetMethods()
-                .First(m => m.Name == "Publish" && m.GetGenericArguments().Length == 1);
+                .FirstOrDefault(m => m.Name == "Publish" && m.GetGenericArguments().Length == 1);
+
+            if (publishMethod is null)
+            {
+                return Left<EncinaError, Unit>(
+                    EncinaErrors.Create(
+                        "GRPC_PUBLISH_METHOD_NOT_FOUND",
+                        $"IEncina does not expose a generic Publish<TNotification> method. " +
+                        $"Ensure the IEncina interface defines a Publish method with exactly one generic type parameter."));
+            }
 
             var genericMethod = publishMethod.MakeGenericMethod(type);
-            var task = (dynamic)genericMethod.Invoke(_encina, [notification, cancellationToken])!;
+            var invokeResult = genericMethod.Invoke(_encina, [notification, cancellationToken])
+                ?? throw new InvalidOperationException(
+                    $"IEncina.Publish<{type.Name}> returned null. " +
+                    $"The method must return a non-null ValueTask.");
+            var task = (dynamic)invokeResult;
             Either<EncinaError, Unit> result = await task;
 
             return result;
+        }
+        catch (JsonException ex)
+        {
+            Log.FailedToProcessNotification(_logger, ex, notificationType);
+
+            return Left<EncinaError, Unit>(
+                EncinaErrors.FromException(
+                    "GRPC_DESERIALIZE_FAILED",
+                    ex,
+                    $"Failed to deserialize notification of type '{notificationType}'."));
         }
         catch (Exception ex)
         {
@@ -187,19 +232,80 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
                 "Streaming is not yet implemented."));
     }
 
-    private static Type? ResolveType(string typeName, Dictionary<string, Type> cache)
+    /// <summary>
+    /// Extracts the result from a dynamic Either&lt;EncinaError, T&gt; and serializes it to bytes.
+    /// </summary>
+    /// <param name="result">The dynamic Either result from reflection invocation.</param>
+    /// <param name="responseType">The response type for serialization.</param>
+    /// <param name="contextTypeName">The type name for error context (request or notification type).</param>
+    /// <returns>Either an error or the serialized response bytes.</returns>
+    /// <exception cref="GrpcSerializationException">
+    /// Thrown when serialization of the response fails. This exception wraps the underlying
+    /// <see cref="JsonException"/> to distinguish serialization errors from deserialization errors.
+    /// </exception>
+    private static Either<EncinaError, byte[]> ExtractEitherResult(
+        dynamic result,
+        Type responseType,
+        string contextTypeName)
     {
-        if (cache.TryGetValue(typeName, out var cachedType))
+        if ((bool)result.IsRight)
         {
-            return cachedType;
+            object? responseValue = null;
+
+            // The cast to Action<object> is safe due to contravariance: Either<L,R>.IfRight expects
+            // an Action<R>, and since any R can be assigned to object, Action<object> is a valid
+            // contravariant substitution. This allows us to capture the strongly-typed response
+            // value without knowing R at compile time when working with dynamic Either instances.
+            result.IfRight((Action<object>)(r => responseValue = r));
+
+            // Validate that the response is not null before serialization.
+            // A null response from IEncina.Send indicates an unexpected state.
+            if (responseValue is null)
+            {
+                return Left<EncinaError, byte[]>(
+                    EncinaErrors.Create(
+                        "GRPC_NULL_RESPONSE",
+                        $"The response for request '{contextTypeName}' was null. " +
+                        $"Expected a non-null value of type '{responseType.Name}'."));
+            }
+
+            try
+            {
+                var responseBytes = JsonSerializer.SerializeToUtf8Bytes(responseValue, responseType);
+                return Right<EncinaError, byte[]>(responseBytes);
+            }
+            catch (JsonException ex)
+            {
+                // Wrap in a custom exception to distinguish from deserialization errors
+                throw new GrpcSerializationException(
+                    $"Failed to serialize response of type '{responseType.Name}' for request '{contextTypeName}'.",
+                    ex);
+            }
         }
 
-        var type = Type.GetType(typeName);
-        if (type is not null)
+        EncinaError? error = null;
+        result.IfLeft((Action<EncinaError>)(e => error = e));
+
+        if (error is null)
         {
-            cache[typeName] = type;
+            return Left<EncinaError, byte[]>(
+                EncinaErrors.Create(
+                    "GRPC_ERROR_EXTRACTION_FAILED",
+                    $"Failed to extract error from Either.Left for type '{contextTypeName}'."));
         }
 
-        return type;
+        return Left<EncinaError, byte[]>(error);
+    }
+}
+
+/// <summary>
+/// Exception thrown when serialization of a gRPC response fails.
+/// Used to distinguish serialization errors from deserialization errors.
+/// </summary>
+internal sealed class GrpcSerializationException : Exception
+{
+    public GrpcSerializationException(string message, JsonException innerException)
+        : base(message, innerException)
+    {
     }
 }

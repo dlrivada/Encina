@@ -7,12 +7,14 @@ This document describes the testing patterns used in `Encina.AspNetCore.Tests` t
 ### HostBuilder vs WebApplicationFactory
 
 **When to use HostBuilder with TestServer:**
+
 - Middleware testing (direct control over pipeline order)
 - Testing specific middleware behavior in isolation
 - Custom authentication/authorization scenarios
 - Testing context propagation
 
 **When to use WebApplicationFactory:**
+
 - Full application integration tests
 - Testing endpoints with controllers
 - Testing with real routing
@@ -49,6 +51,7 @@ private static async Task<IHost> CreateTestHost(
 ```
 
 **Benefits:**
+
 - Explicit middleware ordering control
 - Easy to inject custom services
 - Clear test isolation
@@ -232,6 +235,7 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
 ```
 
 Usage:
+
 ```csharp
 using var host = await CreateTestHost(
     endpoint,
@@ -258,6 +262,7 @@ request.Headers.Add("X-Test-Tenant", "tenant-456");
 4. **Test isolation** - Each test should create its own host instance
 5. **Async all the way** - Use async/await consistently
 6. **Clear assertions** - Use descriptive assertion messages
+7. **Test performance** - Tests building a full `ServiceProvider` or using `TestServer` are integration tests and can be slow. Tag them with `[Trait("Category", "Integration")]` and consider maintaining a separate fast unit test suite. For example, `SignalRBroadcasterPropertyTests.cs` builds a full `ServiceProvider` per test and should be tagged as integration to align with the "<1ms per test" guideline for unit tests.
 
 ## Migration Guide
 

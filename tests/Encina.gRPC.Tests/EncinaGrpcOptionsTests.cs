@@ -1,4 +1,5 @@
 using Encina.gRPC;
+using Shouldly;
 using Xunit;
 
 namespace Encina.gRPC.Tests;
@@ -24,8 +25,10 @@ public sealed class EncinaGrpcOptionsTests
         options.EnableCompression.ShouldBeFalse();
     }
 
+    #region Boolean Property Tests
+
     [Fact]
-    public void EnableReflection_CanBeSetToFalse()
+    public void EnableReflection_CanBeDisabled()
     {
         // Arrange
         var options = new EncinaGrpcOptions();
@@ -38,7 +41,7 @@ public sealed class EncinaGrpcOptionsTests
     }
 
     [Fact]
-    public void EnableHealthChecks_CanBeSetToFalse()
+    public void EnableHealthChecks_CanBeDisabled()
     {
         // Arrange
         var options = new EncinaGrpcOptions();
@@ -49,6 +52,36 @@ public sealed class EncinaGrpcOptionsTests
         // Assert
         options.EnableHealthChecks.ShouldBeFalse();
     }
+
+    [Fact]
+    public void EnableLoggingInterceptor_CanBeDisabled()
+    {
+        // Arrange
+        var options = new EncinaGrpcOptions();
+
+        // Act
+        options.EnableLoggingInterceptor = false;
+
+        // Assert
+        options.EnableLoggingInterceptor.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void EnableCompression_CanBeEnabled()
+    {
+        // Arrange
+        var options = new EncinaGrpcOptions();
+
+        // Act
+        options.EnableCompression = true;
+
+        // Assert
+        options.EnableCompression.ShouldBeTrue();
+    }
+
+    #endregion
+
+    #region Message Size Property Tests
 
     [Fact]
     public void MaxReceiveMessageSize_CanBeCustomized()
@@ -76,18 +109,43 @@ public sealed class EncinaGrpcOptionsTests
         options.MaxSendMessageSize.ShouldBe(16 * 1024 * 1024);
     }
 
-    [Fact]
-    public void EnableLoggingInterceptor_CanBeSetToFalse()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(int.MinValue)]
+    [InlineData(int.MaxValue)]
+    public void MaxReceiveMessageSize_AcceptsBoundaryValues(int value)
     {
         // Arrange
         var options = new EncinaGrpcOptions();
 
         // Act
-        options.EnableLoggingInterceptor = false;
+        options.MaxReceiveMessageSize = value;
 
-        // Assert
-        options.EnableLoggingInterceptor.ShouldBeFalse();
+        // Assert - property accepts any int value (validation deferred to gRPC runtime)
+        options.MaxReceiveMessageSize.ShouldBe(value);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(int.MinValue)]
+    [InlineData(int.MaxValue)]
+    public void MaxSendMessageSize_AcceptsBoundaryValues(int value)
+    {
+        // Arrange
+        var options = new EncinaGrpcOptions();
+
+        // Act
+        options.MaxSendMessageSize = value;
+
+        // Assert - property accepts any int value (validation deferred to gRPC runtime)
+        options.MaxSendMessageSize.ShouldBe(value);
+    }
+
+    #endregion
+
+    #region DefaultDeadline Property Tests
 
     [Fact]
     public void DefaultDeadline_CanBeCustomized()
@@ -103,15 +161,46 @@ public sealed class EncinaGrpcOptionsTests
     }
 
     [Fact]
-    public void EnableCompression_CanBeSetToTrue()
+    public void DefaultDeadline_Zero_AcceptsValue()
     {
         // Arrange
         var options = new EncinaGrpcOptions();
 
         // Act
-        options.EnableCompression = true;
+        options.DefaultDeadline = TimeSpan.Zero;
+
+        // Assert - property accepts zero (may mean no deadline)
+        options.DefaultDeadline.ShouldBe(TimeSpan.Zero);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(-1000)]
+    public void DefaultDeadline_Negative_AcceptsValue(int milliseconds)
+    {
+        // Arrange
+        var options = new EncinaGrpcOptions();
+        var negativeSpan = TimeSpan.FromMilliseconds(milliseconds);
+
+        // Act
+        options.DefaultDeadline = negativeSpan;
+
+        // Assert - property accepts negative values (validation deferred to gRPC runtime)
+        options.DefaultDeadline.ShouldBe(negativeSpan);
+    }
+
+    [Fact]
+    public void DefaultDeadline_MaxValue_AcceptsValue()
+    {
+        // Arrange
+        var options = new EncinaGrpcOptions();
+
+        // Act
+        options.DefaultDeadline = TimeSpan.MaxValue;
 
         // Assert
-        options.EnableCompression.ShouldBeTrue();
+        options.DefaultDeadline.ShouldBe(TimeSpan.MaxValue);
     }
+
+    #endregion
 }

@@ -11,6 +11,7 @@ namespace Encina.gRPC.Tests;
 public sealed class ServiceCollectionExtensionsTests
 {
     [Fact]
+    [Trait("Category", "Unit")]
     public void AddEncinaGrpc_RegistersRequiredServices()
     {
         // Arrange
@@ -22,7 +23,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddEncinaGrpc();
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         using var scope = sp.CreateScope();
         var grpcService = scope.ServiceProvider.GetService<IGrpcEncinaService>();
         grpcService.ShouldNotBeNull();
@@ -49,7 +50,7 @@ public sealed class ServiceCollectionExtensionsTests
         });
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<EncinaGrpcOptions>>().Value;
         options.EnableReflection.ShouldBeFalse();
         options.EnableHealthChecks.ShouldBeFalse();
@@ -82,7 +83,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddEncinaGrpc(null);
 
         // Assert
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<EncinaGrpcOptions>>().Value;
         options.EnableReflection.ShouldBeTrue();
         options.EnableHealthChecks.ShouldBeTrue();

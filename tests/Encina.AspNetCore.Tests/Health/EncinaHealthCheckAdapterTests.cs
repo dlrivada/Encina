@@ -225,7 +225,10 @@ public sealed class EncinaHealthCheckAdapterTests
     {
         // Use reflection to create instance since class is internal
         var type = typeof(EncinaHealthCheckAdapter);
-        var constructor = type.GetConstructor([typeof(IEncinaHealthCheck)])!;
+        var constructor = type.GetConstructor([typeof(IEncinaHealthCheck)])
+            ?? throw new InvalidOperationException(
+                $"{nameof(EncinaHealthCheckAdapter)} must have a public constructor accepting {nameof(IEncinaHealthCheck)}. " +
+                "If the constructor signature changed, update this test helper.");
         return (EncinaHealthCheckAdapter)constructor.Invoke([healthCheck]);
     }
 
@@ -235,9 +238,20 @@ public sealed class EncinaHealthCheckAdapterTests
         {
             Registration = new HealthCheckRegistration(
                 "test-check",
-                Substitute.For<IHealthCheck>(),
+                new NoOpHealthCheck(),
                 null,
                 null)
         };
+    }
+
+    /// <summary>
+    /// Lightweight stub for IHealthCheck used in test context creation.
+    /// </summary>
+    private sealed class NoOpHealthCheck : IHealthCheck
+    {
+        public Task<HealthCheckResult> CheckHealthAsync(
+            HealthCheckContext context,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(HealthCheckResult.Healthy());
     }
 }

@@ -157,7 +157,7 @@ public sealed class GrpcEncinaServiceIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task SendAsync_WithCancellation_ThrowsOrReturnsErrorOrSucceeds()
+    public async Task SendAsync_WithPreCancelledToken_HandlesGracefully()
     {
         // Arrange
         using var cts = new CancellationTokenSource();
@@ -167,19 +167,22 @@ public sealed class GrpcEncinaServiceIntegrationTests : IDisposable
         var requestType = typeof(TestQuery).AssemblyQualifiedName!;
         var requestData = JsonSerializer.SerializeToUtf8Bytes(request);
 
-        // Act & Assert - May throw, return error, or succeed if operation completes before observing token
-        try
+        // Act
+        Either<EncinaError, byte[]>? result = null;
+        var exception = await Record.ExceptionAsync(async () =>
         {
-            var result = await _grpcService.SendAsync(requestType, requestData, cts.Token);
-            // If it doesn't throw, either behavior is acceptable:
-            // - IsLeft (error due to cancellation)
-            // - IsRight (completed before cancellation was observed)
-            // In this test, we just verify the call completes without unhandled exception
-            (result.IsLeft || result.IsRight).ShouldBeTrue();
+            result = await _grpcService.SendAsync(requestType, requestData, cts.Token);
+        });
+
+        // Assert - Handler may complete before observing cancellation
+        // Acceptable outcomes: throw, return Left (error), or return Right (success)
+        if (exception is not null)
+        {
+            exception.ShouldBeOfType<OperationCanceledException>();
         }
-        catch (OperationCanceledException)
+        else
         {
-            // Expected behavior - cancellation observed
+            result.ShouldNotBeNull();
         }
     }
 
