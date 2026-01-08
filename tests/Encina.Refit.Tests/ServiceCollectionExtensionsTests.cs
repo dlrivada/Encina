@@ -31,20 +31,29 @@ public class ServiceCollectionExtensionsTests
         // Arrange
         var services = new ServiceCollection();
         var baseAddress = new Uri("https://api.test.com");
+        var configureWasCalled = false;
+        Uri? capturedBaseAddress = null;
+        TimeSpan capturedTimeout = default;
 
-        // Act
+        // Act - Use a callback to verify configuration is applied
         services.AddEncinaRefitClient<ITestApi>(client =>
         {
             client.BaseAddress = baseAddress;
             client.Timeout = TimeSpan.FromSeconds(30);
+            configureWasCalled = true;
+            capturedBaseAddress = client.BaseAddress;
+            capturedTimeout = client.Timeout;
         });
         var serviceProvider = services.BuildServiceProvider();
 
+        // Trigger the configuration by resolving the Refit client
+        var refitClient = serviceProvider.GetRequiredService<ITestApi>();
+
         // Assert
-        var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
-        var httpClient = httpClientFactory.CreateClient("ITestApi");
-        httpClient.BaseAddress.ShouldBe(baseAddress);
-        httpClient.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
+        refitClient.ShouldNotBeNull();
+        configureWasCalled.ShouldBeTrue();
+        capturedBaseAddress.ShouldBe(baseAddress);
+        capturedTimeout.ShouldBe(TimeSpan.FromSeconds(30));
     }
 
     [Fact]
@@ -108,22 +117,32 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
+        var configureWasCalled = false;
+        bool hasCustomHeader = false;
+        string? customHeaderValue = null;
 
         // Act
         var builder = services.AddEncinaRefitClient<ITestApi>()
             .ConfigureHttpClient(client =>
             {
                 client.DefaultRequestHeaders.Add("X-Custom-Header", "TestValue");
+                configureWasCalled = true;
+                hasCustomHeader = client.DefaultRequestHeaders.Contains("X-Custom-Header");
+                customHeaderValue = client.DefaultRequestHeaders.GetValues("X-Custom-Header").First();
             })
             .SetHandlerLifetime(TimeSpan.FromMinutes(5));
 
         // Assert
         builder.ShouldNotBeNull();
         var serviceProvider = services.BuildServiceProvider();
-        var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
-        var httpClient = httpClientFactory.CreateClient("ITestApi");
-        httpClient.DefaultRequestHeaders.Contains("X-Custom-Header").ShouldBeTrue();
-        httpClient.DefaultRequestHeaders.GetValues("X-Custom-Header").First().ShouldBe("TestValue");
+
+        // Trigger configuration by resolving the Refit client
+        var refitClient = serviceProvider.GetRequiredService<ITestApi>();
+        refitClient.ShouldNotBeNull();
+
+        configureWasCalled.ShouldBeTrue();
+        hasCustomHeader.ShouldBeTrue();
+        customHeaderValue.ShouldBe("TestValue");
     }
 
     [Fact]
@@ -132,17 +151,29 @@ public class ServiceCollectionExtensionsTests
         // Arrange
         var services = new ServiceCollection();
         var refitSettings = new RefitSettings();
+        var expectedBaseAddress = new Uri("https://test.com");
+        var configureWasCalled = false;
+        Uri? capturedBaseAddress = null;
 
         // Act
         var builder = services.AddEncinaRefitClient<ITestApi>(refitSettings)
-            .ConfigureHttpClient(client => client.BaseAddress = new Uri("https://test.com"));
+            .ConfigureHttpClient(client =>
+            {
+                client.BaseAddress = expectedBaseAddress;
+                configureWasCalled = true;
+                capturedBaseAddress = client.BaseAddress;
+            });
 
         // Assert
         builder.ShouldNotBeNull();
         var serviceProvider = services.BuildServiceProvider();
-        var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
-        var httpClient = httpClientFactory.CreateClient("ITestApi");
-        httpClient.BaseAddress.ShouldBe(new Uri("https://test.com"));
+
+        // Trigger configuration by resolving the Refit client
+        var refitClient = serviceProvider.GetRequiredService<ITestApi>();
+        refitClient.ShouldNotBeNull();
+
+        configureWasCalled.ShouldBeTrue();
+        capturedBaseAddress.ShouldBe(expectedBaseAddress);
     }
 
     [Fact]
@@ -150,18 +181,30 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
+        var expectedTimeout = TimeSpan.FromSeconds(60);
+        var configureWasCalled = false;
+        TimeSpan capturedTimeout = default;
 
         // Act
         var builder = services.AddEncinaRefitClient<ITestApi>(
             sp => new RefitSettings())
-            .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(60));
+            .ConfigureHttpClient(client =>
+            {
+                client.Timeout = expectedTimeout;
+                configureWasCalled = true;
+                capturedTimeout = client.Timeout;
+            });
 
         // Assert
         builder.ShouldNotBeNull();
         var serviceProvider = services.BuildServiceProvider();
-        var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
-        var httpClient = httpClientFactory.CreateClient("ITestApi");
-        httpClient.Timeout.ShouldBe(TimeSpan.FromSeconds(60));
+
+        // Trigger configuration by resolving the Refit client
+        var refitClient = serviceProvider.GetRequiredService<ITestApi>();
+        refitClient.ShouldNotBeNull();
+
+        configureWasCalled.ShouldBeTrue();
+        capturedTimeout.ShouldBe(expectedTimeout);
     }
 
     // Test helper

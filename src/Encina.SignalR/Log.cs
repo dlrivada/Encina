@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.SignalR;
@@ -5,6 +6,7 @@ namespace Encina.SignalR;
 /// <summary>
 /// High-performance logging methods using LoggerMessage source generators.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal static partial class Log
 {
     // SignalRNotificationBroadcaster: EventIds 1-10

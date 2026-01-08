@@ -132,7 +132,7 @@ public sealed class SignalRHealthCheckTests
     }
 
     [Fact]
-    public void Constructor_WithCustomTags_UsesCustomTags()
+    public void Constructor_WithCustomTags_UsesCustomTagsPlusEncina()
     {
         // Arrange
         var serviceProvider = Substitute.For<IServiceProvider>();
@@ -147,6 +147,10 @@ public sealed class SignalRHealthCheckTests
         // Assert
         healthCheck.Tags.ShouldContain("custom");
         healthCheck.Tags.ShouldContain("tags");
-        healthCheck.Tags.ShouldNotContain("encina");
+        // "encina" tag is always included per base class design (EncinaHealthCheck.EnsureEncinaTag)
+        healthCheck.Tags.ShouldContain("encina");
+        // But the other default tags should NOT be present when custom tags are provided
+        healthCheck.Tags.ShouldNotContain("messaging");
+        healthCheck.Tags.ShouldNotContain("signalr");
     }
 }

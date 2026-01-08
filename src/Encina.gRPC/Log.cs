@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.gRPC;
@@ -5,6 +6,7 @@ namespace Encina.gRPC;
 /// <summary>
 /// High-performance logging methods using LoggerMessage source generators.
 /// </summary>
+[ExcludeFromCodeCoverage]
 internal static partial class Log
 {
     [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Processing gRPC request of type {RequestType}")]
