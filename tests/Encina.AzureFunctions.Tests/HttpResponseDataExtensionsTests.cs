@@ -1,8 +1,4 @@
 using System.Net;
-using Shouldly;
-using LanguageExt;
-using Xunit;
-using static LanguageExt.Prelude;
 
 namespace Encina.AzureFunctions.Tests;
 
@@ -17,10 +13,10 @@ public class HttpResponseDataExtensionsTests
             message: "The input is invalid");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.BadRequest);
+        statusCode.ShouldBe((int)HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -32,10 +28,10 @@ public class HttpResponseDataExtensionsTests
             message: "Guard validation failed");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.BadRequest);
+        statusCode.ShouldBe((int)HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -47,10 +43,10 @@ public class HttpResponseDataExtensionsTests
             message: "Authentication required");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        statusCode.ShouldBe((int)HttpStatusCode.Unauthorized);
     }
 
     [Fact]
@@ -62,10 +58,10 @@ public class HttpResponseDataExtensionsTests
             message: "Insufficient permissions");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.Forbidden);
+        statusCode.ShouldBe((int)HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -77,10 +73,10 @@ public class HttpResponseDataExtensionsTests
             message: "User not found");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.NotFound);
+        statusCode.ShouldBe((int)HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -92,10 +88,10 @@ public class HttpResponseDataExtensionsTests
             message: "No handler found");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.NotFound);
+        statusCode.ShouldBe((int)HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -107,10 +103,10 @@ public class HttpResponseDataExtensionsTests
             message: "Resource is missing");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.NotFound);
+        statusCode.ShouldBe((int)HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -122,10 +118,10 @@ public class HttpResponseDataExtensionsTests
             message: "User conflict");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.Conflict);
+        statusCode.ShouldBe((int)HttpStatusCode.Conflict);
     }
 
     [Fact]
@@ -137,10 +133,10 @@ public class HttpResponseDataExtensionsTests
             message: "Email already exists");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.Conflict);
+        statusCode.ShouldBe((int)HttpStatusCode.Conflict);
     }
 
     [Fact]
@@ -152,10 +148,10 @@ public class HttpResponseDataExtensionsTests
             message: "Username is duplicate");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.Conflict);
+        statusCode.ShouldBe((int)HttpStatusCode.Conflict);
     }
 
     [Fact]
@@ -167,10 +163,23 @@ public class HttpResponseDataExtensionsTests
             message: "Something went wrong");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.InternalServerError);
+        statusCode.ShouldBe((int)HttpStatusCode.InternalServerError);
+    }
+
+    [Fact]
+    public void MapErrorCodeToStatusCode_ErrorWithNoCode_Returns500()
+    {
+        // Arrange
+        var error = EncinaErrors.Create(code: "", message: "Something went wrong");
+
+        // Act
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
+
+        // Assert
+        statusCode.ShouldBe((int)HttpStatusCode.InternalServerError);
     }
 
     [Theory]
@@ -183,10 +192,10 @@ public class HttpResponseDataExtensionsTests
         var error = EncinaErrors.Create(code: errorCode, message: "Validation failed");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.BadRequest);
+        statusCode.ShouldBe((int)HttpStatusCode.BadRequest);
     }
 
     [Theory]
@@ -198,10 +207,10 @@ public class HttpResponseDataExtensionsTests
         var error = EncinaErrors.Create(code: errorCode, message: "Authorization failed");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.Forbidden);
+        statusCode.ShouldBe((int)HttpStatusCode.Forbidden);
     }
 
     [Theory]
@@ -214,10 +223,10 @@ public class HttpResponseDataExtensionsTests
         var error = EncinaErrors.Create(code: errorCode, message: "Not found");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.NotFound);
+        statusCode.ShouldBe((int)HttpStatusCode.NotFound);
     }
 
     [Theory]
@@ -230,17 +239,17 @@ public class HttpResponseDataExtensionsTests
         var error = EncinaErrors.Create(code: errorCode, message: "Conflict");
 
         // Act
-        var statusCode = GetStatusCodeForError(error);
+        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
 
         // Assert
-        statusCode.ShouldBe(HttpStatusCode.Conflict);
+        statusCode.ShouldBe((int)HttpStatusCode.Conflict);
     }
 
     [Fact]
     public void GetTitle_Returns400Title()
     {
         // Act
-        var title = GetTitleForStatusCode(400);
+        var title = HttpResponseDataExtensions.GetTitle(400);
 
         // Assert
         title.ShouldBe("Bad Request");
@@ -250,7 +259,7 @@ public class HttpResponseDataExtensionsTests
     public void GetTitle_Returns401Title()
     {
         // Act
-        var title = GetTitleForStatusCode(401);
+        var title = HttpResponseDataExtensions.GetTitle(401);
 
         // Assert
         title.ShouldBe("Unauthorized");
@@ -260,7 +269,7 @@ public class HttpResponseDataExtensionsTests
     public void GetTitle_Returns403Title()
     {
         // Act
-        var title = GetTitleForStatusCode(403);
+        var title = HttpResponseDataExtensions.GetTitle(403);
 
         // Assert
         title.ShouldBe("Forbidden");
@@ -270,7 +279,7 @@ public class HttpResponseDataExtensionsTests
     public void GetTitle_Returns404Title()
     {
         // Act
-        var title = GetTitleForStatusCode(404);
+        var title = HttpResponseDataExtensions.GetTitle(404);
 
         // Assert
         title.ShouldBe("Not Found");
@@ -280,7 +289,7 @@ public class HttpResponseDataExtensionsTests
     public void GetTitle_Returns409Title()
     {
         // Act
-        var title = GetTitleForStatusCode(409);
+        var title = HttpResponseDataExtensions.GetTitle(409);
 
         // Assert
         title.ShouldBe("Conflict");
@@ -290,7 +299,7 @@ public class HttpResponseDataExtensionsTests
     public void GetTitle_Returns500Title()
     {
         // Act
-        var title = GetTitleForStatusCode(500);
+        var title = HttpResponseDataExtensions.GetTitle(500);
 
         // Assert
         title.ShouldBe("Internal Server Error");
@@ -300,59 +309,9 @@ public class HttpResponseDataExtensionsTests
     public void GetTitle_ReturnsDefaultTitle_ForUnknownStatusCode()
     {
         // Act
-        var title = GetTitleForStatusCode(418); // I'm a teapot
+        var title = HttpResponseDataExtensions.GetTitle(418); // I'm a teapot
 
         // Assert
         title.ShouldBe("An error occurred");
     }
-
-    // Helper method to simulate the error code to status code mapping
-    // This tests the internal logic without requiring the full Azure Functions infrastructure
-    private static HttpStatusCode GetStatusCodeForError(EncinaError error)
-    {
-        var code = error.GetCode().IfNone(string.Empty).ToLowerInvariant();
-
-        if (code.StartsWith("validation.", StringComparison.Ordinal) ||
-            code == "encina.guard.validation_failed")
-        {
-            return HttpStatusCode.BadRequest;
-        }
-
-        if (code == "authorization.unauthenticated")
-        {
-            return HttpStatusCode.Unauthorized;
-        }
-
-        if (code.StartsWith("authorization.", StringComparison.Ordinal))
-        {
-            return HttpStatusCode.Forbidden;
-        }
-
-        if (code.EndsWith(".not_found", StringComparison.Ordinal) ||
-            code == "encina.request.handler_missing" ||
-            code.EndsWith(".missing", StringComparison.Ordinal))
-        {
-            return HttpStatusCode.NotFound;
-        }
-
-        if (code.EndsWith(".conflict", StringComparison.Ordinal) ||
-            code.EndsWith(".already_exists", StringComparison.Ordinal) ||
-            code.EndsWith(".duplicate", StringComparison.Ordinal))
-        {
-            return HttpStatusCode.Conflict;
-        }
-
-        return HttpStatusCode.InternalServerError;
-    }
-
-    private static string GetTitleForStatusCode(int statusCode) => statusCode switch
-    {
-        400 => "Bad Request",
-        401 => "Unauthorized",
-        403 => "Forbidden",
-        404 => "Not Found",
-        409 => "Conflict",
-        500 => "Internal Server Error",
-        _ => "An error occurred"
-    };
 }

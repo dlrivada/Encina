@@ -1,5 +1,6 @@
+using Encina.Hangfire.Health;
+using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
-using Shouldly;
 
 namespace Encina.Hangfire.Tests;
 
@@ -63,9 +64,97 @@ public class ServiceCollectionExtensionsTests
         services.ShouldNotBeEmpty();
     }
 
-    // Extension methods tests (EnqueueRequest, ScheduleRequest, etc.) require Hangfire infrastructure
-    // These are integration tests and would need a running Hangfire server
-    // For unit tests, we verify the adapters themselves work correctly (tested above)
+    [Fact]
+    public void AddEncinaHangfire_WithConfiguration_AppliesOptions()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configureInvoked = false;
+
+        // Act
+        services.AddEncinaHangfire(options =>
+        {
+            configureInvoked = true;
+        });
+
+        // Assert
+        configureInvoked.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void AddEncinaHangfire_WithHealthCheckEnabled_RegistersHealthCheck()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton(Substitute.For<IServiceProvider>());
+
+        // Act
+        services.AddEncinaHangfire(options =>
+        {
+            options.ProviderHealthCheck.Enabled = true;
+        });
+
+        // Assert
+        services.ShouldContain(sd => sd.ServiceType == typeof(IEncinaHealthCheck));
+        services.ShouldContain(sd => sd.ServiceType == typeof(ProviderHealthCheckOptions));
+    }
+
+    [Fact]
+    public void AddEncinaHangfire_WithHealthCheckDisabled_DoesNotRegisterHealthCheck()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        services.AddEncinaHangfire(options =>
+        {
+            options.ProviderHealthCheck.Enabled = false;
+        });
+
+        // Assert
+        services.ShouldNotContain(sd => sd.ServiceType == typeof(IEncinaHealthCheck));
+    }
+
+    [Fact]
+    public void AddEncinaHangfire_ReturnsServiceCollection()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        var result = services.AddEncinaHangfire();
+
+        // Assert
+        result.ShouldBe(services);
+    }
+
+    [Fact]
+    public void AddEncinaHangfire_DoesNotDuplicateRegistrations()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        services.AddEncinaHangfire();
+        services.AddEncinaHangfire();
+
+        // Assert - Should only have one registration of each type
+        var requestAdapters = services.Count(sd =>
+            sd.ServiceType.IsGenericType &&
+            sd.ServiceType.GetGenericTypeDefinition() == typeof(HangfireRequestJobAdapter<,>));
+
+        var notificationAdapters = services.Count(sd =>
+            sd.ServiceType.IsGenericType &&
+            sd.ServiceType.GetGenericTypeDefinition() == typeof(HangfireNotificationJobAdapter<>));
+
+        requestAdapters.ShouldBe(1);
+        notificationAdapters.ShouldBe(1);
+    }
+
+    // NOTE: Extension methods like EnqueueRequest, ScheduleRequestWithDelay, etc.
+    // cannot be unit tested with mocks because they use Hangfire's expression parsing.
+    // These are integration-tested with a real Hangfire instance in integration tests.
+    // The coverage for ServiceCollectionExtensions focuses on the DI registration logic.
 
     // Test types
     public record TestRequest(string Data) : IRequest<TestResponse>;

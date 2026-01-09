@@ -1,3 +1,5 @@
+using Encina.Messaging.Health;
+using Encina.Quartz.Health;
 using Encina.Quartz.Tests.Fakers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -78,6 +80,94 @@ public class ServiceCollectionExtensionsTests
             sd.ImplementationType != null &&
             typeof(IHostedService).IsAssignableFrom(sd.ImplementationType));
         hostedServiceDescriptor.ShouldNotBeNull("IHostedService for Quartz should be registered");
+    }
+
+    [Fact]
+    public void AddEncinaQuartz_ReturnsServiceCollection()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        var result = services.AddEncinaQuartz();
+
+        // Assert
+        result.ShouldBe(services);
+    }
+
+    [Fact]
+    public void AddEncinaQuartz_WithOptionsConfiguration_AppliesOptions()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var optionsConfigureCalled = false;
+
+        // Act
+        services.AddEncinaQuartz(configureOptions: options =>
+        {
+            optionsConfigureCalled = true;
+        });
+
+        // Assert
+        optionsConfigureCalled.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void AddEncinaQuartz_WithHealthCheckEnabled_RegistersHealthCheck()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton(Substitute.For<ISchedulerFactory>());
+
+        // Act
+        services.AddEncinaQuartz(configureOptions: options =>
+        {
+            options.ProviderHealthCheck.Enabled = true;
+        });
+
+        // Assert
+        services.ShouldContain(sd => sd.ServiceType == typeof(IEncinaHealthCheck));
+        services.ShouldContain(sd => sd.ServiceType == typeof(ProviderHealthCheckOptions));
+    }
+
+    [Fact]
+    public void AddEncinaQuartz_WithHealthCheckDisabled_DoesNotRegisterHealthCheck()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        services.AddEncinaQuartz(configureOptions: options =>
+        {
+            options.ProviderHealthCheck.Enabled = false;
+        });
+
+        // Assert
+        services.ShouldNotContain(sd => sd.ServiceType == typeof(IEncinaHealthCheck));
+    }
+
+    [Fact]
+    public void AddEncinaQuartz_WithBothConfigureAndOptions_AppliesBoth()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var quartzConfigureCalled = false;
+        var optionsConfigureCalled = false;
+
+        // Act
+        services.AddEncinaQuartz(
+            configure: config =>
+            {
+                quartzConfigureCalled = true;
+            },
+            configureOptions: options =>
+            {
+                optionsConfigureCalled = true;
+            });
+
+        // Assert
+        quartzConfigureCalled.ShouldBeTrue();
+        optionsConfigureCalled.ShouldBeTrue();
     }
 
     // Note: ScheduleRequest, ScheduleNotification, AddRequestJob, and AddNotificationJob
