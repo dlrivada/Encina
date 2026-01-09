@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using Encina.Messaging.Health;
 using Encina.Quartz.Health;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,15 +12,23 @@ namespace Encina.Quartz.IntegrationTests.Health;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Scheduler", "Quartz")]
+[Collection("Quartz HealthCheck")]
 public sealed class QuartzHealthCheckIntegrationTests : IAsyncLifetime
 {
     private IScheduler? _scheduler;
     private ServiceProvider? _serviceProvider;
+    private static readonly string SchedulerName = $"HealthCheckTests_{Guid.NewGuid():N}";
 
     public async Task InitializeAsync()
     {
-        // Create and start a real Quartz scheduler
-        var factory = new StdSchedulerFactory();
+        // Create and start a real Quartz scheduler with unique name
+        var properties = new NameValueCollection
+        {
+            ["quartz.scheduler.instanceName"] = SchedulerName,
+            ["quartz.threadPool.threadCount"] = "3",
+            ["quartz.jobStore.type"] = "Quartz.Simpl.RAMJobStore, Quartz"
+        };
+        var factory = new StdSchedulerFactory(properties);
         _scheduler = await factory.GetScheduler();
         await _scheduler.Start();
 
