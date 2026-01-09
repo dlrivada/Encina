@@ -1,3 +1,4 @@
+using Encina.Quartz.Tests.Fakers;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
@@ -12,6 +13,8 @@ public class QuartzRequestJobTests
     private readonly FakeLogger<QuartzRequestJob<TestRequest, TestResponse>> _logger;
     private readonly QuartzRequestJob<TestRequest, TestResponse> _job;
     private readonly IJobExecutionContext _context;
+    private readonly TestRequestFaker _requestFaker;
+    private readonly TestResponseFaker _responseFaker;
 
     public QuartzRequestJobTests()
     {
@@ -19,6 +22,8 @@ public class QuartzRequestJobTests
         _logger = new FakeLogger<QuartzRequestJob<TestRequest, TestResponse>>();
         _job = new QuartzRequestJob<TestRequest, TestResponse>(_encina, _logger);
         _context = Substitute.For<IJobExecutionContext>();
+        _requestFaker = new TestRequestFaker();
+        _responseFaker = new TestResponseFaker();
 
         // Setup default JobDataMap
         var jobDetail = Substitute.For<IJobDetail>();
@@ -32,8 +37,8 @@ public class QuartzRequestJobTests
     public async Task Execute_WithSuccessfulRequest_CompletesSuccessfully()
     {
         // Arrange
-        var request = new TestRequest("test-data");
-        var expectedResponse = new TestResponse("success");
+        var request = _requestFaker.WithData("test-data").Generate();
+        var expectedResponse = _responseFaker.WithSuccess().Generate();
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, TestResponse>(expectedResponse));
@@ -53,7 +58,7 @@ public class QuartzRequestJobTests
     public async Task Execute_WithFailedRequest_ThrowsJobExecutionException()
     {
         // Arrange
-        var request = new TestRequest("test-data");
+        var request = _requestFaker.WithData("test-data").Generate();
         var error = EncinaErrors.Create("test.error", "Test error message");
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
@@ -79,10 +84,10 @@ public class QuartzRequestJobTests
     public async Task Execute_LogsExecutionStart()
     {
         // Arrange
-        var request = new TestRequest("test-data");
+        var request = _requestFaker.Generate();
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, TestResponse>(new TestResponse("success")));
+            .Returns(Right<EncinaError, TestResponse>(_responseFaker.WithSuccess().Generate()));
 
         // Act
         await _job.Execute(_context);
@@ -98,10 +103,10 @@ public class QuartzRequestJobTests
     public async Task Execute_OnSuccess_LogsCompletion()
     {
         // Arrange
-        var request = new TestRequest("test-data");
+        var request = _requestFaker.Generate();
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, TestResponse>(new TestResponse("success")));
+            .Returns(Right<EncinaError, TestResponse>(_responseFaker.WithSuccess().Generate()));
 
         // Act
         await _job.Execute(_context);
@@ -117,21 +122,14 @@ public class QuartzRequestJobTests
     public async Task Execute_OnFailure_LogsError()
     {
         // Arrange
-        var request = new TestRequest("test-data");
+        var request = _requestFaker.Generate();
         var error = EncinaErrors.Create("test.error", "Test error");
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, TestResponse>(error));
 
-        // Act
-        try
-        {
-            await _job.Execute(_context);
-        }
-        catch (JobExecutionException)
-        {
-            // Expected
-        }
+        // Act & Assert
+        await Assert.ThrowsAsync<JobExecutionException>(async () => await _job.Execute(_context));
 
         // Assert
         var logEntry = _logger.Collector.GetSnapshot()
@@ -144,7 +142,7 @@ public class QuartzRequestJobTests
     public async Task Execute_WhenExceptionThrown_LogsAndWrapsInJobExecutionException()
     {
         // Arrange
-        var request = new TestRequest("test-data");
+        var request = _requestFaker.Generate();
         var exception = new InvalidOperationException("Test exception");
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
@@ -165,12 +163,12 @@ public class QuartzRequestJobTests
     public async Task Execute_PassesCancellationToken()
     {
         // Arrange
-        var request = new TestRequest("test-data");
+        var request = _requestFaker.Generate();
         var cts = new CancellationTokenSource();
         _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
         _context.CancellationToken.Returns(cts.Token);
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, TestResponse>(new TestResponse("success")));
+            .Returns(Right<EncinaError, TestResponse>(_responseFaker.WithSuccess().Generate()));
 
         // Act
         await _job.Execute(_context);
@@ -180,8 +178,4 @@ public class QuartzRequestJobTests
             Arg.Any<TestRequest>(),
             Arg.Is<CancellationToken>(ct => ct == cts.Token));
     }
-
-    // Test types
-    public record TestRequest(string Data) : IRequest<TestResponse>;
-    public record TestResponse(string Result);
 }

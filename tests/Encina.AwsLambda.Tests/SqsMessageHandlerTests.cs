@@ -1,9 +1,10 @@
 using System.Text.Json.Serialization;
 using Amazon.Lambda.SQSEvents;
-using Shouldly;
+using Encina.TestInfrastructure.Extensions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AwsLambda.Tests;
@@ -128,7 +129,7 @@ public class SqsMessageHandlerTests
             _ => Task.FromResult(Either<EncinaError, int>.Right(1)));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -151,7 +152,7 @@ public class SqsMessageHandlerTests
             });
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.ShouldBeError();
         processedCount.ShouldBe(1); // Should stop after first failure
     }
 
@@ -165,8 +166,8 @@ public class SqsMessageHandlerTests
         var result = SqsMessageHandler.DeserializeMessage<TestMessage>(record);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(msg => msg.Value.ShouldBe(42));
+        var message = result.ShouldBeSuccess();
+        message.Value.ShouldBe(42);
     }
 
     [Fact]
@@ -179,8 +180,7 @@ public class SqsMessageHandlerTests
         var result = SqsMessageHandler.DeserializeMessage<TestMessage>(record);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error => error.GetCode().IfSome(code => code.ShouldBe("sqs.deserialization_failed")));
+        result.ShouldBeErrorWithCode("sqs.deserialization_failed");
     }
 
     [Fact]

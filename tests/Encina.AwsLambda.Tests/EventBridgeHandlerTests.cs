@@ -1,10 +1,10 @@
 using System.Text.Json.Serialization;
 using Amazon.Lambda.CloudWatchEvents;
 using Encina.TestInfrastructure.Extensions;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AwsLambda.Tests;
@@ -31,7 +31,7 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.ShouldBeRight("order-123");
+        result.ShouldBeSuccess("order-123");
     }
 
     [Fact]
@@ -52,11 +52,7 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.LeftToSeq().Single();
-        var code = error.GetCode();
-        code.IsSome.ShouldBeTrue();
-        code.IfSome(c => c.ShouldBe("eventbridge.detail_null"));
+        result.ShouldBeErrorWithCode("eventbridge.detail_null");
     }
 
     [Fact]
@@ -73,11 +69,7 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.LeftToSeq().Single();
-        var code = error.GetCode();
-        code.IsSome.ShouldBeTrue();
-        code.IfSome(c => c.ShouldBe("order.failed"));
+        result.ShouldBeErrorWithCode("order.failed");
     }
 
     [Fact]
@@ -93,11 +85,7 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        var error = result.LeftToSeq().Single();
-        var code = error.GetCode();
-        code.IsSome.ShouldBeTrue();
-        code.IfSome(c => c.ShouldBe("eventbridge.processing_failed"));
+        result.ShouldBeErrorWithCode("eventbridge.processing_failed");
     }
 
     [Fact]
@@ -113,7 +101,7 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
     [Fact]
@@ -139,9 +127,7 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        var value = result.RightToSeq().Single();
-        value.ShouldBe("order-123");
+        result.ShouldBeSuccess("order-123");
     }
 
     [Fact]
@@ -157,8 +143,7 @@ public class EventBridgeHandlerTests
             _logger);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error => error.GetCode().IfSome(code => code.ShouldBe("eventbridge.deserialization_failed")));
+        result.ShouldBeErrorWithCode("eventbridge.deserialization_failed");
     }
 
     [Fact]

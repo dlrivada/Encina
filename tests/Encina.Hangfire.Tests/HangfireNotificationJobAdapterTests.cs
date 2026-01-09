@@ -1,108 +1,101 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 
 namespace Encina.Hangfire.Tests;
 
 public class HangfireNotificationJobAdapterTests
 {
-    private readonly IEncina _Encina;
-    private readonly ILogger<HangfireNotificationJobAdapter<TestNotification>> _logger;
-    private readonly HangfireNotificationJobAdapter<TestNotification> _adapter;
+    private readonly IEncina _encina;
+    private readonly FakeLogger<HangfireNotificationJobAdapter<Fakers.TestNotificationData>> _logger;
+    private readonly HangfireNotificationJobAdapter<Fakers.TestNotificationData> _adapter;
 
     public HangfireNotificationJobAdapterTests()
     {
-        _Encina = Substitute.For<IEncina>();
-        _logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
-        _adapter = new HangfireNotificationJobAdapter<TestNotification>(_Encina, _logger);
+        _encina = Substitute.For<IEncina>();
+        _logger = new FakeLogger<HangfireNotificationJobAdapter<Fakers.TestNotificationData>>();
+        _adapter = new HangfireNotificationJobAdapter<Fakers.TestNotificationData>(_encina, _logger);
     }
 
     [Fact]
     public async Task PublishAsync_PublishesNotification()
     {
         // Arrange
-        var notification = new TestNotification("test-message");
+        var notification = new Fakers.TestNotificationFaker().WithMessage("test-message").Generate();
 
         // Act
         await _adapter.PublishAsync(notification);
 
         // Assert
-        await _Encina.Received(1).Publish(
-            Arg.Is<TestNotification>(n => n.Message == "test-message"),
+        await _encina.Received(1).Publish(
+            Arg.Is<Fakers.TestNotificationData>(n => n.Message == "test-message"),
             Arg.Any<CancellationToken>());
     }
 
-    [Fact(Skip = "Issue #6: LoggerMessage delegates incompatible with NSubstitute.Received()")]
+    [Fact]
     public async Task PublishAsync_LogsPublishingStart()
     {
         // Arrange
-        var notification = new TestNotification("test-message");
+        var notification = new Fakers.TestNotificationFaker().WithMessage("test-message").Generate();
 
         // Act
         await _adapter.PublishAsync(notification);
 
         // Assert
-        _logger.Received().Log(
-            LogLevel.Information,
-            Arg.Any<EventId>(),
-            Arg.Is<object>(o => o.ToString()!.Contains("Publishing Hangfire notification")),
-            null,
-            Arg.Any<Func<object, Exception?, string>>());
+        var logEntry = _logger.Collector.GetSnapshot()
+            .FirstOrDefault(r => r.Message.Contains("Publishing Hangfire notification"));
+        logEntry.ShouldNotBeNull();
+        logEntry!.Level.ShouldBe(LogLevel.Information);
     }
 
-    [Fact(Skip = "Issue #6: LoggerMessage delegates incompatible with NSubstitute.Received()")]
+    [Fact]
     public async Task PublishAsync_OnSuccess_LogsCompletion()
     {
         // Arrange
-        var notification = new TestNotification("test-message");
+        var notification = new Fakers.TestNotificationFaker().WithMessage("test-message").Generate();
 
         // Act
         await _adapter.PublishAsync(notification);
 
         // Assert
-        _logger.Received().Log(
-            LogLevel.Information,
-            Arg.Any<EventId>(),
-            Arg.Is<object>(o => o.ToString()!.Contains("completed successfully")),
-            null,
-            Arg.Any<Func<object, Exception?, string>>());
+        var logEntry = _logger.Collector.GetSnapshot()
+            .FirstOrDefault(r => r.Message.Contains("completed successfully"));
+        logEntry.ShouldNotBeNull();
+        logEntry!.Level.ShouldBe(LogLevel.Information);
     }
 
-    [Fact(Skip = "Issue #6: LoggerMessage delegates incompatible with NSubstitute.Received()")]
+    [Fact]
     public async Task PublishAsync_WhenExceptionThrown_LogsAndRethrows()
     {
         // Arrange
-        var notification = new TestNotification("test-message");
+        var notification = new Fakers.TestNotificationFaker().WithMessage("test-message").Generate();
         var exception = new InvalidOperationException("Test exception");
-        _Encina.When(m => m.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>()))
+        _encina.When(m => m.Publish(Arg.Any<Fakers.TestNotificationData>(), Arg.Any<CancellationToken>()))
             .Do(_ => throw exception);
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _adapter.PublishAsync(notification));
 
-        _logger.Received().Log(
-            LogLevel.Error,
-            Arg.Any<EventId>(),
-            Arg.Is<object>(o => o.ToString()!.Contains("Unhandled exception")),
-            exception,
-            Arg.Any<Func<object, Exception?, string>>());
+        var logEntry = _logger.Collector.GetSnapshot()
+            .FirstOrDefault(r => r.Message.Contains("Unhandled exception"));
+        logEntry.ShouldNotBeNull();
+        logEntry!.Level.ShouldBe(LogLevel.Error);
+        logEntry.Exception.ShouldBe(exception);
     }
 
     [Fact]
     public async Task PublishAsync_PassesCancellationToken()
     {
         // Arrange
-        var notification = new TestNotification("test-message");
-        var cts = new CancellationTokenSource();
+        var notification = new Fakers.TestNotificationFaker().WithMessage("test-message").Generate();
+        using var cts = new CancellationTokenSource();
 
         // Act
         await _adapter.PublishAsync(notification, cts.Token);
 
         // Assert
-        await _Encina.Received(1).Publish(
-            Arg.Any<TestNotification>(),
+        await _encina.Received(1).Publish(
+            Arg.Any<Fakers.TestNotificationData>(),
             Arg.Is<CancellationToken>(ct => ct == cts.Token));
     }
-
-    // Test type
-    public record TestNotification(string Message) : INotification;
 }

@@ -62,6 +62,27 @@ Epic initiative to refactor all Encina tests to use `Encina.Testing.*` infrastru
 - **Phase 7** (#505): Web Integration tests (AspNetCore, Refit, gRPC, SignalR) - **CLOSED**
 - **Phase 8** (#506): Resilience & Observability tests (Polly, OpenTelemetry) - **CLOSED**
 - **Phase 9** (#507): Validation Provider tests (FluentValidation, DataAnnotations, MiniValidator) - **CLOSED**
+- **Phase 10** (#508): Serverless & Scheduling tests (AwsLambda, AzureFunctions, Hangfire, Quartz) - **CLOSED**
+
+**Phase 10 Results** (Serverless & Scheduling):
+
+| Package | Tests | Improvements |
+|---------|-------|--------------|
+| Encina.AwsLambda.Tests | 97 | EitherAssertions, Bogus fakers |
+| Encina.AzureFunctions.Tests | 124 | EitherAssertions, Bogus fakers |
+| Encina.Hangfire.Tests | 29 | FakeLogger (7 skipped tests enabled), EitherAssertions |
+| Encina.Hangfire.IntegrationTests | 10 | Bogus fakers |
+| Encina.Quartz.Tests | 36 | Bogus fakers, EitherAssertions |
+| Encina.Quartz.IntegrationTests | 9 | Bogus fakers |
+| **Total** | **305** | Zero skipped, zero warnings |
+
+**Key Improvements (Phase 10)**:
+
+- Replaced `Substitute.For<ILogger<T>>()` with `FakeLogger<T>` for Hangfire tests (resolves Issue #6)
+- Enabled 7 previously skipped Hangfire logging tests using Microsoft.Extensions.Diagnostics.Testing
+- Applied `ShouldBeSuccess()` / `ShouldBeError()` EitherAssertions across all packages
+- Created Bogus fakers for test data generation in all 4 serverless/scheduling packages
+- Added global using for `Encina.TestInfrastructure.Extensions` in all test projects
 
 **Phase 9 Coverage Results** (all ≥85% target met):
 

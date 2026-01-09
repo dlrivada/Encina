@@ -392,11 +392,13 @@ public sealed class HealthCheckBuilderExtensionsTests
     }
 
     [Fact]
-    public void AddEncinaOutbox_WithOptions_PassesOptionsToHealthCheck()
+    public async Task AddEncinaOutbox_WithOptions_PassesOptionsToHealthCheck()
     {
         // Arrange
         var services = new ServiceCollection();
         var outboxStore = Substitute.For<IOutboxStore>();
+        outboxStore.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IEnumerable<IOutboxMessage>>([]));
         services.AddSingleton(outboxStore);
         var builder = services.AddHealthChecks();
         var options = new OutboxHealthCheckOptions { PendingMessageWarningThreshold = 100 };
@@ -404,18 +406,19 @@ public sealed class HealthCheckBuilderExtensionsTests
         // Act
         builder.AddEncinaOutbox(options: options);
 
-        // Assert
+        // Assert - Verify options by executing the health check and checking result data
         using var sp = services.BuildServiceProvider();
         var healthCheckOptions = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
         var registration = healthCheckOptions.Registrations.First(r => r.Name == "encina-outbox");
         registration.ShouldNotBeNull();
 
-        // Verify options are propagated by creating the health check instance
         var healthCheckInstance = registration.Factory(sp);
         var adapter = healthCheckInstance.ShouldBeOfType<EncinaHealthCheckAdapter>();
-        var innerHealthCheck = GetInnerHealthCheck<OutboxHealthCheck>(adapter);
-        var configuredOptions = GetPrivateField<OutboxHealthCheckOptions>(innerHealthCheck, "_options");
-        configuredOptions.PendingMessageWarningThreshold.ShouldBe(100);
+
+        // Execute health check and verify options through result data
+        var context = new HealthCheckContext { Registration = registration };
+        var result = await adapter.CheckHealthAsync(context);
+        result.Data["warning_threshold"].ShouldBe(100);
     }
 
     [Fact]
@@ -425,9 +428,9 @@ public sealed class HealthCheckBuilderExtensionsTests
         var services = new ServiceCollection();
         var sagaStore = Substitute.For<ISagaStore>();
         sagaStore.GetStuckSagasAsync(Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IEnumerable<SagaState>>([]));
+            .Returns(Task.FromResult<IEnumerable<ISagaState>>([]));
         sagaStore.GetExpiredSagasAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IEnumerable<SagaState>>([]));
+            .Returns(Task.FromResult<IEnumerable<ISagaState>>([]));
         services.AddSingleton(sagaStore);
         var builder = services.AddHealthChecks();
         var options = new SagaHealthCheckOptions { SagaWarningThreshold = 50 };
@@ -457,7 +460,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         var services = new ServiceCollection();
         var scheduledMessageStore = Substitute.For<IScheduledMessageStore>();
         scheduledMessageStore.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IEnumerable<ScheduledMessage>>([]));
+            .Returns(Task.FromResult<IEnumerable<IScheduledMessage>>([]));
         services.AddSingleton(scheduledMessageStore);
         var builder = services.AddHealthChecks();
         var options = new SchedulingHealthCheckOptions { OverdueWarningThreshold = 10 };

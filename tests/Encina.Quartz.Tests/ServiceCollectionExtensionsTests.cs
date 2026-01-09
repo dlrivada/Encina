@@ -1,3 +1,4 @@
+using Encina.Quartz.Tests.Fakers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Quartz;
@@ -83,9 +84,4 @@ public class ServiceCollectionExtensionsTests
     // are extension methods that require IScheduler or IServiceCollectionQuartzConfigurator
     // These would be better tested as integration tests with a running Quartz scheduler
     // For unit tests, we've verified the service registration works correctly
-
-    // Test types
-    public record TestRequest(string Data) : IRequest<TestResponse>;
-    public record TestResponse(string Result);
-    public record TestNotification(string Message) : INotification;
 }

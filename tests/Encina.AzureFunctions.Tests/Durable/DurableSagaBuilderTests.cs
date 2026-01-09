@@ -1,4 +1,5 @@
 using Encina.AzureFunctions.Durable;
+using Encina.AzureFunctions.Tests.Fakers;
 using Shouldly;
 using Xunit;
 
@@ -238,16 +239,5 @@ public class DurableSagaBuilderTests
 
         saga.Steps[2].StepName.ShouldBe("ShipOrder");
         saga.Steps[2].SkipCompensationOnFailure.ShouldBeTrue();
-    }
-
-    private sealed class TestSagaData
-    {
-        public string? Value { get; set; }
-    }
-
-    private sealed class OrderSagaData
-    {
-        public Guid OrderId { get; set; }
-        public decimal Amount { get; set; }
     }
 }

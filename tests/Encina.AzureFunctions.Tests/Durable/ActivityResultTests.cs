@@ -1,6 +1,7 @@
 using Encina.AzureFunctions.Durable;
-using Shouldly;
+using Encina.TestInfrastructure.Extensions;
 using LanguageExt;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AzureFunctions.Tests.Durable;
@@ -59,8 +60,8 @@ public class ActivityResultTests
         var either = result.ToEither();
 
         // Assert
-        either.IsRight.ShouldBeTrue();
-        either.IfRight(v => v.ShouldBe(42));
+        var value = either.ShouldBeSuccess();
+        value.ShouldBe(42);
     }
 
     [Fact]
@@ -73,11 +74,8 @@ public class ActivityResultTests
         var either = result.ToEither();
 
         // Assert
-        either.IsLeft.ShouldBeTrue();
-        var error = either.LeftToSeq().Single();
+        var error = either.ShouldBeErrorWithCode("test.error");
         error.Message.ShouldBe("Test error");
-        error.GetCode().IsSome.ShouldBeTrue();
-        error.GetCode().IfSome(c => c.ShouldBe("test.error"));
     }
 
     [Fact]
@@ -150,8 +148,8 @@ public class ActivityResultTests
         var roundtripped = activityResult.ToEither();
 
         // Assert
-        roundtripped.IsRight.ShouldBeTrue();
-        roundtripped.IfRight(v => v.ShouldBe("test value"));
+        var value = roundtripped.ShouldBeSuccess();
+        value.ShouldBe("test value");
     }
 
     [Fact]
@@ -166,10 +164,7 @@ public class ActivityResultTests
         var roundtripped = activityResult.ToEither();
 
         // Assert
-        roundtripped.IsLeft.ShouldBeTrue();
-        var err = roundtripped.LeftToSeq().Single();
-        err.GetCode().IsSome.ShouldBeTrue();
-        err.GetCode().IfSome(c => c.ShouldBe("roundtrip.error"));
+        var err = roundtripped.ShouldBeErrorWithCode("roundtrip.error");
         err.Message.ShouldBe("Roundtrip error message");
     }
 }

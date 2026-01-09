@@ -1,6 +1,7 @@
 using Encina.AzureFunctions.Durable;
-using Shouldly;
+using Encina.AzureFunctions.Tests.Fakers;
 using LanguageExt;
+using Shouldly;
 using Xunit;
 
 // Alias to avoid conflict with LanguageExt's Partition
@@ -128,8 +129,9 @@ public class FanOutFanInExtensionsTests
     public void Partition_WithComplexType_WorksCorrectly()
     {
         // Arrange
-        var item1 = new TestItem { Id = 1, Name = "Item 1" };
-        var item2 = new TestItem { Id = 2, Name = "Item 2" };
+        var faker = new TestItemFaker();
+        var item1 = faker.WithId(1).WithName("Item 1").Generate();
+        var item2 = faker.WithId(2).WithName("Item 2").Generate();
         var error = EncinaErrors.Create("error", "Error");
         var results = new List<Either<EncinaError, TestItem>>
         {
@@ -144,11 +146,5 @@ public class FanOutFanInExtensionsTests
         // Assert
         successes.Select(x => x.Id).ShouldBe([1, 2], ignoreOrder: true);
         failures.ShouldHaveSingleItem();
-    }
-
-    private sealed class TestItem
-    {
-        public int Id { get; set; }
-        public string Name { get; set; } = string.Empty;
     }
 }

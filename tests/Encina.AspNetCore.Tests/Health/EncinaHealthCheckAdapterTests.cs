@@ -249,9 +249,9 @@ public sealed class EncinaHealthCheckAdapterTests
     /// </summary>
     private sealed class NoOpHealthCheck : IHealthCheck
     {
-        public Task<HealthCheckResult> CheckHealthAsync(
+        public Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult> CheckHealthAsync(
             HealthCheckContext context,
             CancellationToken cancellationToken = default)
-            => Task.FromResult(HealthCheckResult.Healthy());
+            => Task.FromResult(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy());
     }
 }

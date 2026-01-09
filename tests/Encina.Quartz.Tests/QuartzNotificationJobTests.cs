@@ -1,3 +1,4 @@
+using Encina.Quartz.Tests.Fakers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using Quartz;
@@ -10,6 +11,7 @@ public class QuartzNotificationJobTests
     private readonly FakeLogger<QuartzNotificationJob<TestNotification>> _logger;
     private readonly QuartzNotificationJob<TestNotification> _job;
     private readonly IJobExecutionContext _context;
+    private readonly TestNotificationFaker _notificationFaker;
 
     public QuartzNotificationJobTests()
     {
@@ -17,6 +19,7 @@ public class QuartzNotificationJobTests
         _logger = new FakeLogger<QuartzNotificationJob<TestNotification>>();
         _job = new QuartzNotificationJob<TestNotification>(_encina, _logger);
         _context = Substitute.For<IJobExecutionContext>();
+        _notificationFaker = new TestNotificationFaker();
 
         // Setup default JobDataMap
         var jobDetail = Substitute.For<IJobDetail>();
@@ -30,7 +33,7 @@ public class QuartzNotificationJobTests
     public async Task Execute_PublishesNotification()
     {
         // Arrange
-        var notification = new TestNotification("test-message");
+        var notification = _notificationFaker.WithMessage("test-message").Generate();
         _context.JobDetail.JobDataMap.Put(QuartzConstants.NotificationKey, notification);
 
         // Act
@@ -57,7 +60,7 @@ public class QuartzNotificationJobTests
     public async Task Execute_LogsPublishingStart()
     {
         // Arrange
-        var notification = new TestNotification("test-message");
+        var notification = _notificationFaker.Generate();
         _context.JobDetail.JobDataMap.Put(QuartzConstants.NotificationKey, notification);
 
         // Act
@@ -74,7 +77,7 @@ public class QuartzNotificationJobTests
     public async Task Execute_OnSuccess_LogsCompletion()
     {
         // Arrange
-        var notification = new TestNotification("test-message");
+        var notification = _notificationFaker.Generate();
         _context.JobDetail.JobDataMap.Put(QuartzConstants.NotificationKey, notification);
 
         // Act
@@ -91,7 +94,7 @@ public class QuartzNotificationJobTests
     public async Task Execute_WhenExceptionThrown_LogsAndWrapsInJobExecutionException()
     {
         // Arrange
-        var notification = new TestNotification("test-message");
+        var notification = _notificationFaker.Generate();
         var exception = new InvalidOperationException("Test exception");
         _context.JobDetail.JobDataMap.Put(QuartzConstants.NotificationKey, notification);
         _encina.When(m => m.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>()))
@@ -112,7 +115,7 @@ public class QuartzNotificationJobTests
     public async Task Execute_PassesCancellationToken()
     {
         // Arrange
-        var notification = new TestNotification("test-message");
+        var notification = _notificationFaker.Generate();
         var cts = new CancellationTokenSource();
         _context.JobDetail.JobDataMap.Put(QuartzConstants.NotificationKey, notification);
         _context.CancellationToken.Returns(cts.Token);
@@ -125,7 +128,4 @@ public class QuartzNotificationJobTests
             Arg.Any<TestNotification>(),
             Arg.Is<CancellationToken>(ct => ct == cts.Token));
     }
-
-    // Test type
-    public record TestNotification(string Message) : INotification;
 }
