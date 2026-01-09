@@ -32,7 +32,7 @@ jobs:
           dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
@@ -41,7 +41,7 @@ jobs:
             ${{ runner.os }}-nuget
 
       - name: Cache dotnet tools
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.dotnet/tools
           key: ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
