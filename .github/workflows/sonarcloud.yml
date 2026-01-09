@@ -97,13 +97,15 @@ jobs:
             /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="src/Encina.Testing*/**/*.cs,src/Encina.Aspire.Testing/**/*.cs,tests/Encina.TestInfrastructure/**/*.cs" \
             /d:sonar.cpd.exclusions="src/Encina.Dapper.*/**/*.cs,src/Encina.Dapper.*/Scripts/*.sql,src/Encina.ADO.*/**/*.cs,src/Encina.ADO.*/Scripts/*.sql,src/Encina.Testing*/**/*.cs" \
-            /d:sonar.issue.ignore.multicriteria=e1,e2,e3 \
+            /d:sonar.issue.ignore.multicriteria=e1,e2,e3,e4 \
             /d:sonar.issue.ignore.multicriteria.e1.ruleKey=csharpsquid:S2077 \
             /d:sonar.issue.ignore.multicriteria.e1.resourceKey="src/Encina.Dapper.*/**/*Store*.cs" \
             /d:sonar.issue.ignore.multicriteria.e2.ruleKey=csharpsquid:S2077 \
             /d:sonar.issue.ignore.multicriteria.e2.resourceKey="src/Encina.ADO.*/**/*Store*.cs" \
             /d:sonar.issue.ignore.multicriteria.e3.ruleKey=plsql:S1523 \
-            /d:sonar.issue.ignore.multicriteria.e3.resourceKey="src/**/Scripts/*.sql"
+            /d:sonar.issue.ignore.multicriteria.e3.resourceKey="src/**/Scripts/*.sql" \
+            /d:sonar.issue.ignore.multicriteria.e4.ruleKey=csharpsquid:S2699 \
+            /d:sonar.issue.ignore.multicriteria.e4.resourceKey="tests/**/*PropertyTests*/**/*.cs"
 
           # Rebuild for SonarScanner analysis (required by sonarscanner)
           dotnet build Encina.slnx --configuration Release --no-restore --no-incremental
