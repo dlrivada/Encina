@@ -13,6 +13,11 @@ namespace Encina.Validation;
 public sealed class ValidationResult
 {
     /// <summary>
+    /// The prefix used in validation error messages.
+    /// </summary>
+    public const string ValidationFailedPrefix = "Validation failed";
+
+    /// <summary>
     /// Gets a successful validation result with no errors.
     /// </summary>
     public static ValidationResult Success { get; } = new(ImmutableArray<ValidationError>.Empty);
@@ -80,7 +85,7 @@ public sealed class ValidationResult
             ? $"{e.PropertyName}: {e.ErrorMessage}"
             : e.ErrorMessage);
 
-        return $"Validation failed for {requestTypeName} with {Errors.Length} error(s): {string.Join(", ", errorMessages)}";
+        return $"{ValidationFailedPrefix} for {requestTypeName} with {Errors.Length} error(s): {string.Join(", ", errorMessages)}";
     }
 }
 

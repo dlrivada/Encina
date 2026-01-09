@@ -23,7 +23,9 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
-![Mutation Score](https://img.shields.io/badge/mutation-79.75%25-4C934C.svg)
+[![Mutation Score](https://img.shields.io/badge/mutation-79.75%25-4C934C.svg)](https://img.shields.io/badge/mutation-79.75%25-4C934C.svg)
+<!-- AI -->
+[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/dlrivada/Encina?logo=coderabbit)](https://img.shields.io/coderabbit/prs/github/dlrivada/Encina?logo=coderabbit) ![Claude](https://img.shields.io/badge/Claude-D97757?style=for-the-badge&logo=claude&logoColor=white) ![Dependabot](https://img.shields.io/badge/dependabot-025E8C?style=for-the-badge&logo=dependabot&logoColor=white) ![GitHub Copilot](https://img.shields.io/badge/github_copilot-8957E5?style=for-the-badge&logo=github-copilot&logoColor=white)
 
 **Build resilient .NET applications with Railway Oriented Programming.**
 
@@ -397,7 +399,7 @@ public sealed class LoggingBehavior<TRequest, TResponse>
 
 ## Project Structure
 
-```
+```text
 src/
 ├── Encina/                    # Core library
 ├── Encina.Messaging/          # Messaging abstractions

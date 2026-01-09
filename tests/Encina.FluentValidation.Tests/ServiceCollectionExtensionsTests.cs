@@ -37,7 +37,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddEncinaFluentValidation(assembly);
 
         // Assert
-        var provider = services.BuildServiceProvider();
+        using var provider = services.BuildServiceProvider();
         var behavior = provider.GetService<IPipelineBehavior<TestCommand, string>>();
         behavior.ShouldNotBeNull();
         behavior.ShouldBeOfType<global::Encina.Validation.ValidationPipelineBehavior<TestCommand, string>>();
@@ -54,7 +54,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddEncinaFluentValidation(assembly);
 
         // Assert
-        var provider = services.BuildServiceProvider();
+        using var provider = services.BuildServiceProvider();
 
         var testValidators = provider.GetServices<IValidator<TestCommand>>().ToList();
         testValidators.ShouldNotBeEmpty();
@@ -156,7 +156,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddEncinaFluentValidation(assembly1, assembly2);
 
         // Assert
-        var provider = services.BuildServiceProvider();
+        using var provider = services.BuildServiceProvider();
         var validators = provider.GetServices<IValidator<TestCommand>>().ToList();
         validators.ShouldNotBeEmpty();
     }
@@ -168,16 +168,21 @@ public sealed class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         var assembly = typeof(ServiceCollectionExtensionsTests).Assembly;
 
-        // Act
+        // Act - Call multiple times
+        services.AddEncinaFluentValidation(assembly);
         services.AddEncinaFluentValidation(assembly);
         services.AddEncinaFluentValidation(assembly);
 
         // Assert
-        var provider = services.BuildServiceProvider();
-        var validators = provider.GetServices<IValidator<TestCommand>>().ToList();
+        using var provider = services.BuildServiceProvider();
 
-        // TryAddEnumerable should prevent duplicates
+        // TryAddEnumerable should prevent duplicate validators
+        var validators = provider.GetServices<IValidator<TestCommand>>().ToList();
         validators.Count.ShouldBe(1);
+
+        // TryAddTransient should prevent duplicate behaviors
+        var behaviors = provider.GetServices<IPipelineBehavior<TestCommand, string>>().ToList();
+        behaviors.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -189,11 +194,69 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddEncinaFluentValidation(assembly);
 
         // Act
-        var provider = services.BuildServiceProvider();
+        using var provider = services.BuildServiceProvider();
         var behavior = provider.GetService<IPipelineBehavior<TestCommand, string>>();
 
         // Assert
         behavior.ShouldNotBeNull();
         behavior.ShouldBeOfType<global::Encina.Validation.ValidationPipelineBehavior<TestCommand, string>>();
+    }
+
+    [Fact]
+    public void AddEncinaFluentValidation_ShouldRegisterValidationOrchestrator()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var assembly = typeof(ServiceCollectionExtensionsTests).Assembly;
+
+        // Act
+        services.AddEncinaFluentValidation(assembly);
+
+        // Assert
+        using var provider = services.BuildServiceProvider();
+        var orchestrator = provider.GetService<ValidationOrchestrator>();
+        orchestrator.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void AddEncinaFluentValidation_ShouldRegisterFluentValidationProvider()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var assembly = typeof(ServiceCollectionExtensionsTests).Assembly;
+
+        // Act
+        services.AddEncinaFluentValidation(assembly);
+
+        // Assert
+        using var provider = services.BuildServiceProvider();
+        var validationProvider = provider.GetService<IValidationProvider>();
+        validationProvider.ShouldNotBeNull();
+        validationProvider.ShouldBeOfType<FluentValidationProvider>();
+    }
+
+    [Fact]
+    public void AddEncinaFluentValidation_LifetimeConfiguration_ShouldWorkWithValidationPipeline()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var assembly = typeof(ServiceCollectionExtensionsTests).Assembly;
+
+        // Act
+        services.AddEncinaFluentValidation(ServiceLifetime.Scoped, assembly);
+
+        // Assert
+        using var provider = services.BuildServiceProvider();
+
+        using var scope1 = provider.CreateScope();
+        using var scope2 = provider.CreateScope();
+
+        var validator1 = scope1.ServiceProvider.GetService<IValidator<TestCommand>>();
+        var validator2 = scope2.ServiceProvider.GetService<IValidator<TestCommand>>();
+
+        // Different scopes should have different instances for scoped lifetime
+        validator1.ShouldNotBeNull();
+        validator2.ShouldNotBeNull();
+        ReferenceEquals(validator1, validator2).ShouldBeFalse();
     }
 }

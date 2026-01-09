@@ -61,6 +61,26 @@ Epic initiative to refactor all Encina tests to use `Encina.Testing.*` infrastru
 - **Phase 4** (#502): Database provider tests (ADO, Dapper, EF Core) - **IN PROGRESS**
 - **Phase 7** (#505): Web Integration tests (AspNetCore, Refit, gRPC, SignalR) - **CLOSED**
 - **Phase 8** (#506): Resilience & Observability tests (Polly, OpenTelemetry) - **CLOSED**
+- **Phase 9** (#507): Validation Provider tests (FluentValidation, DataAnnotations, MiniValidator) - **CLOSED**
+
+**Phase 9 Coverage Results** (all ≥85% target met):
+
+| Package | Line Coverage | Branch Coverage | Tests |
+|---------|---------------|-----------------|-------|
+| Encina.FluentValidation | 96.7% | 90.5% | 20 |
+| Encina.DataAnnotations | 100% | 90% | 20 |
+| Encina.MiniValidator | 100% | 100% | 17 |
+
+**Test Categories Implemented (Phase 9)**:
+
+- Null input invariants (ArgumentNullException handling)
+- Validation idempotency (same request → same result)
+- Error aggregation (multiple failures captured)
+- PropertyName inclusion for field-level errors
+- ValidationResult invariants (IsValid/IsInvalid mutually exclusive)
+- ServiceCollection extension tests (DI registration)
+- Context metadata propagation (UserId, TenantId)
+- Cross-provider consistency tests (13 tests verifying all providers behave identically)
 
 **Phase 8 Coverage Results** (all ≥85% target met):
 

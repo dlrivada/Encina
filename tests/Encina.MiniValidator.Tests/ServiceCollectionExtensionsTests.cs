@@ -44,15 +44,14 @@ public sealed class ServiceCollectionExtensionsTests
         // Arrange
         var services = new ServiceCollection();
 
-        // Act
+        // Act - Call multiple times
+        services.AddMiniValidation();
         services.AddMiniValidation();
         services.AddMiniValidation();
 
-        // Assert
+        // Assert - TryAddTransient prevents duplicate behavior registration
         var provider = services.BuildServiceProvider();
         var behaviors = provider.GetServices<IPipelineBehavior<TestCommand, string>>().ToList();
-
-        // TryAddTransient should prevent duplicates
         behaviors.Count.ShouldBe(1);
     }
 
@@ -72,5 +71,60 @@ public sealed class ServiceCollectionExtensionsTests
         behavior1.ShouldNotBeNull();
         behavior2.ShouldNotBeNull();
         behavior1.ShouldNotBeSameAs(behavior2); // Transient = new instance each time
+    }
+
+    [Fact]
+    public void AddMiniValidation_ShouldRegisterValidationOrchestrator()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        services.AddMiniValidation();
+
+        // Assert
+        var provider = services.BuildServiceProvider();
+        var orchestrator = provider.GetService<ValidationOrchestrator>();
+        orchestrator.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void AddMiniValidation_ShouldRegisterMiniValidationProvider()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        services.AddMiniValidation();
+
+        // Assert
+        var provider = services.BuildServiceProvider();
+        var validationProvider = provider.GetService<IValidationProvider>();
+        validationProvider.ShouldNotBeNull();
+        validationProvider.ShouldBeOfType<MiniValidationProvider>();
+    }
+
+    [Fact]
+    public void AddMiniValidation_MultipleCallsWithDifferentScopes_ShouldWorkCorrectly()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        services.AddMiniValidation();
+
+        // Assert
+        var provider = services.BuildServiceProvider();
+
+        using var scope1 = provider.CreateScope();
+        using var scope2 = provider.CreateScope();
+
+        var behavior1 = scope1.ServiceProvider.GetService<IPipelineBehavior<TestCommand, string>>();
+        var behavior2 = scope2.ServiceProvider.GetService<IPipelineBehavior<TestCommand, string>>();
+
+        // Transient means different instances in different scopes
+        behavior1.ShouldNotBeNull();
+        behavior2.ShouldNotBeNull();
+        behavior1.ShouldNotBeSameAs(behavior2);
     }
 }
