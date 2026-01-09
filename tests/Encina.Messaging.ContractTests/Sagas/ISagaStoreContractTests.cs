@@ -457,10 +457,17 @@ internal sealed class InMemorySagaStateForContract : ISagaState
 
 /// <summary>
 /// In-memory implementation of ISagaStore for contract testing.
+/// Uses a fixed "now" time to ensure deterministic test behavior.
 /// </summary>
 internal sealed class InMemorySagaStoreForContract : ISagaStore
 {
     private readonly List<InMemorySagaStateForContract> _sagas = [];
+
+    /// <summary>
+    /// The fixed UTC time used for "now" calculations in tests.
+    /// Matches <see cref="ISagaStoreContractTests.FixedUtcNow"/>.
+    /// </summary>
+    private static readonly DateTime FixedUtcNow = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
 
     public Task<ISagaState?> GetAsync(Guid sagaId, CancellationToken cancellationToken = default)
     {
@@ -507,7 +514,8 @@ internal sealed class InMemorySagaStoreForContract : ISagaStore
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var cutoff = DateTime.UtcNow.Subtract(olderThan);
+        // Use FixedUtcNow for deterministic test behavior
+        var cutoff = FixedUtcNow.Subtract(olderThan);
         var stuck = _sagas
             .Where(s => s.Status == SagaStatus.Running || s.Status == SagaStatus.Compensating)
             .Where(s => s.LastUpdatedAtUtc < cutoff)
@@ -522,9 +530,9 @@ internal sealed class InMemorySagaStoreForContract : ISagaStore
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var now = DateTime.UtcNow;
+        // Use FixedUtcNow for deterministic test behavior
         var expired = _sagas
-            .Where(s => s.TimeoutAtUtc.HasValue && s.TimeoutAtUtc <= now)
+            .Where(s => s.TimeoutAtUtc.HasValue && s.TimeoutAtUtc <= FixedUtcNow)
             .Where(s => s.Status != SagaStatus.Completed && s.Status != SagaStatus.Failed)
             .Take(batchSize)
             .Cast<ISagaState>()

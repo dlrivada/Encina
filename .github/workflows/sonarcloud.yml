@@ -19,8 +19,20 @@ jobs:
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
 
     steps:
+      - name: Free disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          # Remove unnecessary tools to free space
+          sudo rm -rf /usr/share/dotnet/sdk/7.* /usr/share/dotnet/sdk/8.* || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -31,55 +43,76 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
       - name: Restore dependencies
         run: dotnet restore Encina.slnx
 
-      - name: Run tests with coverage
-        # Run tests before SonarCloud to generate coverage reports
-        # Note: Marten/Testing are now included after fixing issue #494 (AggregateBase moved to DomainModeling)
+      - name: Build solution
+        run: dotnet build Encina.slnx --configuration Release --no-restore
+
+      - name: Run tests with coverage (Core packages)
+        # Run tests using solution filters to reduce memory and disk usage
+        # Exclude: LoadTests, IntegrationTests, Benchmarks, and Encina.Testing.* packages
+        # (testing infrastructure cannot test itself - see testing-dogfooding-plan.md section 3.2)
         run: |
-          for proj in $(find tests -name "*.csproj" | grep -v -E "(LoadTests|IntegrationTests)"); do
-            echo "Testing: $proj"
-            dotnet test "$proj" --configuration Release --no-build \
-              --collect "XPlat Code Coverage" \
-              --results-directory artifacts/test-results \
-              -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
-          done
+          mkdir -p artifacts/test-results
+
+          # Run tests for core packages using solution filters
+          # This is more efficient than iterating over individual projects
+          dotnet test Encina.Core.slnf --configuration Release --no-build \
+            --collect "XPlat Code Coverage" \
+            --results-directory artifacts/test-results \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
+
+          dotnet test Encina.Messaging.slnf --configuration Release --no-build \
+            --collect "XPlat Code Coverage" \
+            --results-directory artifacts/test-results \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
+
+          dotnet test Encina.Validation.slnf --configuration Release --no-build \
+            --collect "XPlat Code Coverage" \
+            --results-directory artifacts/test-results \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
+
+      - name: Clean build artifacts to free space
+        run: |
+          # Remove obj folders to free disk space before SonarCloud scan
+          find . -type d -name 'obj' -exec rm -rf {} + 2>/dev/null || true
+          echo "Disk space after cleaning obj folders:"
+          df -h
+
+      - name: Install SonarScanner
+        run: dotnet tool install --global dotnet-sonarscanner
 
       - name: SonarCloud Scan
-        uses: highbyte/sonarscan-dotnet@252f699a9c4e005bf3902d44a1c6c0aea43c678e # v2.5.0
-        with:
-          sonarProjectKey: dlrivada_Encina
-          sonarProjectName: Encina
-          sonarOrganization: dlrivada
-          dotnetBuildArguments: Encina.slnx --configuration Release
-          # Disable tests in SonarCloud action - we run them separately above
-          dotnetDisableTests: true
-          # XPlat Code Coverage generates coverage.opencover.xml in a GUID subdirectory
-          # Note: sonar.sources and sonar.tests are NOT supported by Scanner for .NET (auto-computed)
-          # CPD exclusions for intentional duplication (Issue #12):
-          # - SQL scripts: dialect-specific DDL (TOP vs LIMIT, GETUTCDATE vs NOW, etc.)
-          # - Store implementations: SQL dialect differences
-          # - Entities, Factories, Behaviors: Provider-specific implementations with similar patterns
-          # - Log.cs: High-perf logging (will be consolidated in future refactoring)
-          # - ServiceCollectionExtensions: DI registration with provider-specific types
-          # Security Hotspot S2077 (SQL Injection) suppression for store files:
-          # All store files use SqlIdentifierValidator.ValidateTableName() which validates table names
-          # against a safe regex pattern, preventing SQL injection. Only parameterized queries are used
-          # for data values. See: src/Encina.Messaging/SqlIdentifierValidator.cs
-          # S1523 (RCE) suppression for SQL scripts:
-          # These are static DDL scripts executed manually by DBAs. No dynamic code injection.
-          # EXECUTE IMMEDIATE in Oracle scripts uses only literal strings.
-          sonarBeginArguments: >-
-            /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml"
-            /d:sonar.cpd.exclusions="src/Encina.Dapper.*/**/*.cs,src/Encina.Dapper.*/Scripts/*.sql,src/Encina.ADO.*/**/*.cs,src/Encina.ADO.*/Scripts/*.sql"
-            /d:sonar.issue.ignore.multicriteria=e1,e2,e3
-            /d:sonar.issue.ignore.multicriteria.e1.ruleKey=csharpsquid:S2077
-            /d:sonar.issue.ignore.multicriteria.e1.resourceKey=src/Encina.Dapper.*/**/*Store*.cs
-            /d:sonar.issue.ignore.multicriteria.e2.ruleKey=csharpsquid:S2077
-            /d:sonar.issue.ignore.multicriteria.e2.resourceKey=src/Encina.ADO.*/**/*Store*.cs
-            /d:sonar.issue.ignore.multicriteria.e3.ruleKey=plsql:S1523
-            /d:sonar.issue.ignore.multicriteria.e3.resourceKey=src/**/Scripts/*.sql
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet sonarscanner begin \
+            /k:"dlrivada_Encina" \
+            /o:"dlrivada" \
+            /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml" \
+            /d:sonar.coverage.exclusions="src/Encina.Testing*/**/*.cs,src/Encina.Aspire.Testing/**/*.cs,tests/Encina.TestInfrastructure/**/*.cs" \
+            /d:sonar.cpd.exclusions="src/Encina.Dapper.*/**/*.cs,src/Encina.Dapper.*/Scripts/*.sql,src/Encina.ADO.*/**/*.cs,src/Encina.ADO.*/Scripts/*.sql,src/Encina.Testing*/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria=e1,e2,e3 \
+            /d:sonar.issue.ignore.multicriteria.e1.ruleKey=csharpsquid:S2077 \
+            /d:sonar.issue.ignore.multicriteria.e1.resourceKey="src/Encina.Dapper.*/**/*Store*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e2.ruleKey=csharpsquid:S2077 \
+            /d:sonar.issue.ignore.multicriteria.e2.resourceKey="src/Encina.ADO.*/**/*Store*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e3.ruleKey=plsql:S1523 \
+            /d:sonar.issue.ignore.multicriteria.e3.resourceKey="src/**/Scripts/*.sql"
+
+          # Rebuild for SonarScanner analysis (required by sonarscanner)
+          dotnet build Encina.slnx --configuration Release --no-restore --no-incremental
+
+          dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"

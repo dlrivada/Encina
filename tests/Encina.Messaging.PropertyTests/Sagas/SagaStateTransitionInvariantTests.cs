@@ -336,6 +336,7 @@ public sealed class SagaStateTransitionInvariantTests
         var state = new TestSagaState
         {
             StartedAtUtc = _fixedUtcNow,
+            LastUpdatedAtUtc = completedAt, // Must be >= StartedAtUtc
             CompletedAtUtc = completedAt
         };
 
@@ -351,6 +352,7 @@ public sealed class SagaStateTransitionInvariantTests
         var state = new TestSagaState
         {
             StartedAtUtc = _fixedUtcNow,
+            LastUpdatedAtUtc = _fixedUtcNow, // Must be >= StartedAtUtc
             CompletedAtUtc = null
         };
 
@@ -468,7 +470,9 @@ public sealed class SagaStateTransitionInvariantTests
         var state = new TestSagaState
         {
             Status = SagaStatus.Failed,
-            ErrorMessage = errorMessage.Get
+            ErrorMessage = errorMessage.Get,
+            StartedAtUtc = _fixedUtcNow,
+            LastUpdatedAtUtc = _fixedUtcNow // Must be >= StartedAtUtc
         };
 
         return state.IsValid();

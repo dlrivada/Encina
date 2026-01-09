@@ -559,12 +559,16 @@ public static class BoundedContextExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(factory);
 
-        services.AddSingleton<BoundedContextModule>(sp =>
+        // Register as both TContext and BoundedContextModule for flexible resolution
+        services.AddSingleton(sp =>
         {
             var context = factory(sp);
             context.Configure(services);
             return context;
         });
+
+        // Also register as base type for polymorphic access
+        services.AddSingleton<BoundedContextModule>(sp => sp.GetRequiredService<TContext>());
 
         return services;
     }

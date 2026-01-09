@@ -125,6 +125,11 @@ These packages **cannot use their own infrastructure**:
 | `Encina.Testing.FsCheck` | Self-reference |
 | `Encina.Testing.Pact` | Self-reference |
 | `Encina.Aspire.Testing` | Self-reference |
+| `Encina.TestInfrastructure` | Test fixtures and shared utilities |
+
+> **Note on Code Coverage**: These packages are excluded from SonarCloud and other coverage metrics
+> (see `.github/workflows/sonarcloud.yml`). They are tested indirectly through the packages that
+> use them, and low coverage numbers for these packages should not affect quality gates.
 
 ### 3.3 Partial Migration (Special Cases)
 
