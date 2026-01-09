@@ -302,8 +302,13 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
 /// Exception thrown when serialization of a gRPC response fails.
 /// Used to distinguish serialization errors from deserialization errors.
 /// </summary>
-internal sealed class GrpcSerializationException : Exception
+public sealed class GrpcSerializationException : Exception
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GrpcSerializationException"/> class.
+    /// </summary>
+    /// <param name="message">The error message that explains the reason for the exception.</param>
+    /// <param name="innerException">The JSON exception that caused this exception.</param>
     public GrpcSerializationException(string message, JsonException innerException)
         : base(message, innerException)
     {

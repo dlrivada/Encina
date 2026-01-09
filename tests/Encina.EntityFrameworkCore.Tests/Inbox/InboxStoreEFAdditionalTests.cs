@@ -94,8 +94,12 @@ public class InboxStoreEFAdditionalTests : IDisposable
     [Fact]
     public async Task MarkAsProcessedAsync_NonExistentMessage_DoesNotThrow()
     {
-        // Act & Assert - Should not throw for non-existent message
-        await _store.MarkAsProcessedAsync("non-existent-id", "response");
+        // Act - Should not throw for non-existent message
+        var exception = await Record.ExceptionAsync(() =>
+            _store.MarkAsProcessedAsync("non-existent-id", "response"));
+
+        // Assert
+        exception.ShouldBeNull();
     }
 
     #endregion
@@ -121,8 +125,12 @@ public class InboxStoreEFAdditionalTests : IDisposable
     [Fact]
     public async Task MarkAsFailedAsync_NonExistentMessage_DoesNotThrow()
     {
-        // Act & Assert - Should not throw for non-existent message
-        await _store.MarkAsFailedAsync("non-existent-id", "error", DateTime.UtcNow);
+        // Act - Should not throw for non-existent message
+        var exception = await Record.ExceptionAsync(() =>
+            _store.MarkAsFailedAsync("non-existent-id", "error", DateTime.UtcNow));
+
+        // Assert
+        exception.ShouldBeNull();
     }
 
     [Fact]
@@ -167,8 +175,12 @@ public class InboxStoreEFAdditionalTests : IDisposable
     [Fact]
     public async Task RemoveExpiredMessagesAsync_EmptyMessageIds_DoesNothing()
     {
-        // Act & Assert - Should not throw
-        await _store.RemoveExpiredMessagesAsync([]);
+        // Act - Should not throw
+        var exception = await Record.ExceptionAsync(() =>
+            _store.RemoveExpiredMessagesAsync([]));
+
+        // Assert
+        exception.ShouldBeNull();
     }
 
     #endregion
@@ -186,8 +198,12 @@ public class InboxStoreEFAdditionalTests : IDisposable
     [Fact]
     public async Task IncrementRetryCountAsync_NonExistentMessage_DoesNotThrow()
     {
-        // Act & Assert - Should not throw for non-existent message
-        await _store.IncrementRetryCountAsync("non-existent-id");
+        // Act - Should not throw for non-existent message
+        var exception = await Record.ExceptionAsync(() =>
+            _store.IncrementRetryCountAsync("non-existent-id"));
+
+        // Assert
+        exception.ShouldBeNull();
     }
 
     [Fact]

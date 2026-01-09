@@ -130,11 +130,15 @@ public sealed class ServiceCollectionExtensionsIntegrationTests : IDisposable
         // Arrange
         var request = new IntegrationTestRequest("recurring-request-test");
 
-        // Act & Assert - Should not throw
-        _recurringJobManager.AddOrUpdateRecurringRequest<IntegrationTestRequest, string>(
-            "test-recurring-request",
-            request,
-            Cron.Daily());
+        // Act
+        var exception = Record.Exception(() =>
+            _recurringJobManager.AddOrUpdateRecurringRequest<IntegrationTestRequest, string>(
+                "test-recurring-request",
+                request,
+                Cron.Daily()));
+
+        // Assert
+        exception.ShouldBeNull();
     }
 
     [Fact]
@@ -144,12 +148,16 @@ public sealed class ServiceCollectionExtensionsIntegrationTests : IDisposable
         var request = new IntegrationTestRequest("recurring-request-options-test");
         var options = new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc };
 
-        // Act & Assert - Should not throw
-        _recurringJobManager.AddOrUpdateRecurringRequest<IntegrationTestRequest, string>(
-            "test-recurring-request-options",
-            request,
-            Cron.Hourly(),
-            options);
+        // Act
+        var exception = Record.Exception(() =>
+            _recurringJobManager.AddOrUpdateRecurringRequest<IntegrationTestRequest, string>(
+                "test-recurring-request-options",
+                request,
+                Cron.Hourly(),
+                options));
+
+        // Assert
+        exception.ShouldBeNull();
     }
 
     [Fact]
@@ -158,11 +166,15 @@ public sealed class ServiceCollectionExtensionsIntegrationTests : IDisposable
         // Arrange
         var notification = new IntegrationTestNotification("recurring-notification-test");
 
-        // Act & Assert - Should not throw
-        _recurringJobManager.AddOrUpdateRecurringNotification(
-            "test-recurring-notification",
-            notification,
-            Cron.Weekly());
+        // Act
+        var exception = Record.Exception(() =>
+            _recurringJobManager.AddOrUpdateRecurringNotification(
+                "test-recurring-notification",
+                notification,
+                Cron.Weekly()));
+
+        // Assert
+        exception.ShouldBeNull();
     }
 
     [Fact]
@@ -172,12 +184,16 @@ public sealed class ServiceCollectionExtensionsIntegrationTests : IDisposable
         var notification = new IntegrationTestNotification("recurring-notification-options-test");
         var options = new RecurringJobOptions { TimeZone = TimeZoneInfo.Local };
 
-        // Act & Assert - Should not throw
-        _recurringJobManager.AddOrUpdateRecurringNotification(
-            "test-recurring-notification-options",
-            notification,
-            Cron.Monthly(),
-            options);
+        // Act
+        var exception = Record.Exception(() =>
+            _recurringJobManager.AddOrUpdateRecurringNotification(
+                "test-recurring-notification-options",
+                notification,
+                Cron.Monthly(),
+                options));
+
+        // Assert
+        exception.ShouldBeNull();
     }
 }
 

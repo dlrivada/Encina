@@ -108,12 +108,16 @@ public sealed class OutboxProcessorIntegrationTests : IDisposable
         using var cts = new CancellationTokenSource();
 
         // Act
-        await processor.StartAsync(cts.Token);
-        await Task.Delay(50);
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await processor.StartAsync(cts.Token);
+            await Task.Delay(50);
+            cts.Cancel();
+            await processor.StopAsync(CancellationToken.None);
+        });
 
-        // Assert - No exception means success
+        // Assert
+        exception.ShouldBeNull();
     }
 
     [Fact]
@@ -130,11 +134,15 @@ public sealed class OutboxProcessorIntegrationTests : IDisposable
         using var cts = new CancellationTokenSource();
 
         // Act
-        await processor.StartAsync(cts.Token);
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await processor.StartAsync(cts.Token);
+            cts.Cancel();
+            await processor.StopAsync(CancellationToken.None);
+        });
 
-        // Assert - No exception means success
+        // Assert
+        exception.ShouldBeNull();
     }
 
     #endregion
@@ -157,12 +165,16 @@ public sealed class OutboxProcessorIntegrationTests : IDisposable
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
 
         // Act
-        await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
-        cts.Cancel();
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await processor.StartAsync(cts.Token);
+            await Task.Delay(100);
+            cts.Cancel();
+            await processor.StopAsync(CancellationToken.None);
+        });
 
-        // Assert - No exception means success
-        await processor.StopAsync(CancellationToken.None);
+        // Assert
+        exception.ShouldBeNull();
     }
 
     [Fact]

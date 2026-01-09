@@ -87,13 +87,15 @@ public sealed class DeadLetterCleanupProcessorTests
         using var cts = new CancellationTokenSource();
 
         // Act
-        await processor.StartAsync(cts.Token);
-        await Task.Delay(50); // Give some time for the background task
-        await processor.StopAsync(cts.Token);
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await processor.StartAsync(cts.Token);
+            await Task.Delay(50); // Give some time for the background task
+            await processor.StopAsync(cts.Token);
+        });
 
-        // Assert - CreateScope is not called because CreateAsyncScope is the extension method
-        // Just verify the processor started and stopped without exception
-        processor.ShouldNotBeNull();
+        // Assert
+        exception.ShouldBeNull();
     }
 
     [Fact]
@@ -112,12 +114,15 @@ public sealed class DeadLetterCleanupProcessorTests
         using var cts = new CancellationTokenSource();
 
         // Act
-        await processor.StartAsync(cts.Token);
-        await Task.Delay(50);
-        await processor.StopAsync(cts.Token);
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await processor.StartAsync(cts.Token);
+            await Task.Delay(50);
+            await processor.StopAsync(cts.Token);
+        });
 
-        // Assert - processor should have exited early
-        processor.ShouldNotBeNull();
+        // Assert
+        exception.ShouldBeNull();
     }
 
     #endregion
@@ -152,21 +157,20 @@ public sealed class DeadLetterCleanupProcessorTests
         using var cts = new CancellationTokenSource();
 
         // Act
-        await processor.StartAsync(cts.Token);
-        await Task.Delay(100); // Allow time for cleanup loop
-        cts.Cancel();
-
-        try
+        var exception = await Record.ExceptionAsync(async () =>
         {
+            await processor.StartAsync(cts.Token);
+            await Task.Delay(100); // Allow time for cleanup loop
+            cts.Cancel();
             await processor.StopAsync(default);
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected
-        }
+        });
 
-        // Assert - processor was started and should have tried to access store
-        processor.ShouldNotBeNull();
+        // Assert - processor should start and stop without throwing
+        // OperationCanceledException is acceptable when cancellation is requested
+        if (exception is not null and not OperationCanceledException)
+        {
+            exception.ShouldBeNull();
+        }
     }
 
     [Fact]
@@ -186,11 +190,15 @@ public sealed class DeadLetterCleanupProcessorTests
         using var cts = new CancellationTokenSource();
 
         // Act
-        await processor.StartAsync(cts.Token);
-        cts.Cancel();
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await processor.StartAsync(cts.Token);
+            cts.Cancel();
+            await processor.StopAsync(default);
+        });
 
-        // Assert - should not throw
-        await processor.StopAsync(default);
+        // Assert - should exit gracefully without throwing
+        exception.ShouldBeNull();
     }
 
     #endregion
@@ -226,12 +234,16 @@ public sealed class DeadLetterCleanupProcessorTests
         using var cts = new CancellationTokenSource();
 
         // Act
-        await processor.StartAsync(cts.Token);
-        await Task.Delay(50);
-        cts.Cancel();
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await processor.StartAsync(cts.Token);
+            await Task.Delay(50);
+            cts.Cancel();
+            await processor.StopAsync(default);
+        });
 
-        // Assert - should not throw despite store errors
-        await processor.StopAsync(default);
+        // Assert - should not throw despite store errors (errors are logged, not propagated)
+        exception.ShouldBeNull();
     }
 
     #endregion
