@@ -81,13 +81,6 @@ jobs:
             --results-directory artifacts/test-results \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
 
-      - name: Clean build artifacts to free space
-        run: |
-          # Remove obj folders to free disk space before SonarCloud scan
-          find . -type d -name 'obj' -exec rm -rf {} + 2>/dev/null || true
-          echo "Disk space after cleaning obj folders:"
-          df -h
-
       - name: Install SonarScanner
         run: dotnet tool install --global dotnet-sonarscanner
 
