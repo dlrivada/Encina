@@ -1,6 +1,8 @@
 using Encina.AzureFunctions.Durable;
 using Encina.AzureFunctions.Tests.Fakers;
 using LanguageExt;
+using Microsoft.DurableTask;
+using NSubstitute;
 using Shouldly;
 using Xunit;
 
@@ -11,6 +13,173 @@ namespace Encina.AzureFunctions.Tests.Durable;
 
 public class FanOutFanInExtensionsTests
 {
+    #region FanOutAsync Guard Clauses
+
+    [Fact]
+    public async Task FanOutAsync_WithNullContext_ThrowsArgumentNullException()
+    {
+        // Arrange
+        TaskOrchestrationContext? context = null;
+        var inputs = new[] { 1, 2, 3 };
+
+        // Act & Assert
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await FanOut.FanOutAsync<int, string>(context!, "ActivityName", inputs));
+    }
+
+    [Fact]
+    public async Task FanOutAsync_WithNullActivityName_ThrowsArgumentException()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        var inputs = new[] { 1, 2, 3 };
+
+        // Act & Assert
+        await Should.ThrowAsync<ArgumentException>(async () =>
+            await FanOut.FanOutAsync<int, string>(context, null!, inputs));
+    }
+
+    [Fact]
+    public async Task FanOutAsync_WithEmptyActivityName_ThrowsArgumentException()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        var inputs = new[] { 1, 2, 3 };
+
+        // Act & Assert
+        await Should.ThrowAsync<ArgumentException>(async () =>
+            await FanOut.FanOutAsync<int, string>(context, string.Empty, inputs));
+    }
+
+    [Fact]
+    public async Task FanOutAsync_WithNullInputs_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        IEnumerable<int>? inputs = null;
+
+        // Act & Assert
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await FanOut.FanOutAsync<int, string>(context, "ActivityName", inputs!));
+    }
+
+    [Fact]
+    public async Task FanOutAsync_WithEmptyInputs_ReturnsEmptyList()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        var inputs = Array.Empty<int>();
+
+        // Act
+        var result = await FanOut.FanOutAsync<int, string>(context, "ActivityName", inputs);
+
+        // Assert
+        result.ShouldBeEmpty();
+    }
+
+    #endregion
+
+    #region FanOutWithResultAsync Guard Clauses
+
+    [Fact]
+    public async Task FanOutWithResultAsync_WithNullContext_ThrowsArgumentNullException()
+    {
+        // Arrange
+        TaskOrchestrationContext? context = null;
+        var inputs = new[] { 1, 2, 3 };
+
+        // Act & Assert
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await FanOut.FanOutWithResultAsync<int, string>(context!, "ActivityName", inputs));
+    }
+
+    [Fact]
+    public async Task FanOutWithResultAsync_WithNullActivityName_ThrowsArgumentException()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        var inputs = new[] { 1, 2, 3 };
+
+        // Act & Assert
+        await Should.ThrowAsync<ArgumentException>(async () =>
+            await FanOut.FanOutWithResultAsync<int, string>(context, null!, inputs));
+    }
+
+    [Fact]
+    public async Task FanOutWithResultAsync_WithEmptyActivityName_ThrowsArgumentException()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        var inputs = new[] { 1, 2, 3 };
+
+        // Act & Assert
+        await Should.ThrowAsync<ArgumentException>(async () =>
+            await FanOut.FanOutWithResultAsync<int, string>(context, string.Empty, inputs));
+    }
+
+    [Fact]
+    public async Task FanOutWithResultAsync_WithNullInputs_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        IEnumerable<int>? inputs = null;
+
+        // Act & Assert
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await FanOut.FanOutWithResultAsync<int, string>(context, "ActivityName", inputs!));
+    }
+
+    [Fact]
+    public async Task FanOutWithResultAsync_WithEmptyInputs_ReturnsEmptyList()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        var inputs = Array.Empty<int>();
+
+        // Act
+        var result = await FanOut.FanOutWithResultAsync<int, string>(context, "ActivityName", inputs);
+
+        // Assert
+        result.ShouldBeEmpty();
+    }
+
+    #endregion
+
+    #region FanOutMultipleAsync Guard Clauses
+
+    [Fact]
+    public async Task FanOutMultipleAsync_TwoActivities_WithNullContext_ThrowsArgumentNullException()
+    {
+        // Arrange
+        TaskOrchestrationContext? context = null;
+
+        // Act & Assert
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await FanOut.FanOutMultipleAsync<string, int>(
+                context!,
+                ("Activity1", "input1"),
+                ("Activity2", 42)));
+    }
+
+    [Fact]
+    public async Task FanOutMultipleAsync_ThreeActivities_WithNullContext_ThrowsArgumentNullException()
+    {
+        // Arrange
+        TaskOrchestrationContext? context = null;
+
+        // Act & Assert
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await FanOut.FanOutMultipleAsync<string, int, bool>(
+                context!,
+                ("Activity1", "input1"),
+                ("Activity2", 42),
+                ("Activity3", true)));
+    }
+
+    #endregion
+
+    #region Partition Tests
+
     [Fact]
     public void Partition_WithAllSuccesses_ReturnsAllInSuccessList()
     {
@@ -147,4 +316,6 @@ public class FanOutFanInExtensionsTests
         successes.Select(x => x.Id).ShouldBe([1, 2], ignoreOrder: true);
         failures.ShouldHaveSingleItem();
     }
+
+    #endregion
 }

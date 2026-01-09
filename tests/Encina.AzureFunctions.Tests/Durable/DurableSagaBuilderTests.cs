@@ -7,6 +7,79 @@ namespace Encina.AzureFunctions.Tests.Durable;
 
 public class DurableSagaBuilderTests
 {
+    #region DurableSagaError Tests
+
+    [Fact]
+    public void DurableSagaError_CanBeCreated()
+    {
+        // Arrange & Act
+        var error = new DurableSagaError
+        {
+            FailedStep = "ProcessPayment",
+            OriginalError = EncinaErrors.Create("payment.failed", "Payment processing failed"),
+            CompensationErrors = new Dictionary<string, EncinaError?>
+            {
+                ["ReserveInventory"] = null
+            },
+            WasCompensated = true
+        };
+
+        // Assert
+        error.FailedStep.ShouldBe("ProcessPayment");
+        error.OriginalError.Message.ShouldContain("Payment processing failed");
+        error.CompensationErrors.ShouldContainKey("ReserveInventory");
+        error.CompensationErrors["ReserveInventory"].ShouldBeNull();
+        error.WasCompensated.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void DurableSagaError_WithPartialCompensation_CanTrackFailedCompensations()
+    {
+        // Arrange
+        var compensationError = EncinaErrors.Create("inventory.release_failed", "Could not release inventory");
+
+        // Act
+        var error = new DurableSagaError
+        {
+            FailedStep = "ShipOrder",
+            OriginalError = EncinaErrors.Create("shipping.failed", "Shipping failed"),
+            CompensationErrors = new Dictionary<string, EncinaError?>
+            {
+                ["ProcessPayment"] = null, // Refund succeeded
+                ["ReserveInventory"] = compensationError // Release failed
+            },
+            WasCompensated = false
+        };
+
+        // Assert
+        error.WasCompensated.ShouldBeFalse();
+        error.CompensationErrors["ProcessPayment"].ShouldBeNull();
+        var inventoryError = error.CompensationErrors["ReserveInventory"];
+        inventoryError.ShouldNotBeNull();
+        inventoryError.Value.Message.ShouldContain("Could not release inventory");
+    }
+
+    [Fact]
+    public void DurableSagaError_WithNoCompensations_HasEmptyDictionary()
+    {
+        // Arrange & Act
+        var error = new DurableSagaError
+        {
+            FailedStep = "FirstStep",
+            OriginalError = EncinaErrors.Create("first.failed", "First step failed"),
+            CompensationErrors = [],
+            WasCompensated = true // No compensations to run
+        };
+
+        // Assert
+        error.CompensationErrors.ShouldBeEmpty();
+        error.WasCompensated.ShouldBeTrue();
+    }
+
+    #endregion
+
+    #region DurableSagaBuilder.Create Tests
+
     [Fact]
     public void Create_ReturnsNewBuilder()
     {
@@ -240,4 +313,6 @@ public class DurableSagaBuilderTests
         saga.Steps[2].StepName.ShouldBe("ShipOrder");
         saga.Steps[2].SkipCompensationOnFailure.ShouldBeTrue();
     }
+
+    #endregion
 }
