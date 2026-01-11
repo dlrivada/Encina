@@ -1,6 +1,6 @@
 using Encina.AzureFunctions.Durable;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AzureFunctions.ContractTests.Durable;

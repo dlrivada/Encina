@@ -1,6 +1,6 @@
 using System.Net;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AwsLambda.Tests;

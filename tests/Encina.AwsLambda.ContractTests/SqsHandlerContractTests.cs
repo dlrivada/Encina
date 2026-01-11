@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 using Amazon.Lambda.SQSEvents;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AwsLambda.ContractTests;

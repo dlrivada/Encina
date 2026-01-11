@@ -109,6 +109,9 @@ public sealed class SqliteRespawner : IAsyncDisposable
             foreach (var table in _tables!)
             {
                 await using var deleteCommand = connection.CreateCommand();
+                // Table names come from sqlite_master system table, not from user input,
+                // so SQL injection is not possible here. The names are already validated
+                // identifiers that exist in the database schema.
                 deleteCommand.CommandText = $"DELETE FROM \"{table}\";";
                 await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
             }

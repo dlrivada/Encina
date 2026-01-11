@@ -81,7 +81,7 @@ public sealed class ScheduledMessageStoreEF : IScheduledMessageStore
     public async Task MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(errorMessage);
@@ -94,13 +94,13 @@ public sealed class ScheduledMessageStoreEF : IScheduledMessageStore
 
         message.ErrorMessage = errorMessage;
         message.RetryCount++;
-        message.NextRetryAtUtc = nextRetryAt;
+        message.NextRetryAtUtc = nextRetryAtUtc;
     }
 
     /// <inheritdoc/>
     public async Task RescheduleRecurringMessageAsync(
         Guid messageId,
-        DateTime nextScheduledAt,
+        DateTime nextScheduledAtUtc,
         CancellationToken cancellationToken = default)
     {
         var message = await _dbContext.Set<ScheduledMessage>()
@@ -109,7 +109,7 @@ public sealed class ScheduledMessageStoreEF : IScheduledMessageStore
         if (message == null)
             return;
 
-        message.ScheduledAtUtc = nextScheduledAt;
+        message.ScheduledAtUtc = nextScheduledAtUtc;
         message.ProcessedAtUtc = null;
         message.ErrorMessage = null;
         message.RetryCount = 0;

@@ -298,7 +298,7 @@ public abstract class IOutboxStoreContractTests : IAsyncLifetime
         await store.SaveChangesAsync();
 
         // Act
-        await store.MarkAsFailedAsync(id, "Error", nextRetryAt: null);
+        await store.MarkAsFailedAsync(id, "Error", nextRetryAtUtc: null);
         await store.SaveChangesAsync();
 
         // Assert - should not throw
@@ -316,7 +316,7 @@ public abstract class IOutboxStoreContractTests : IAsyncLifetime
         var nonExistentId = Guid.NewGuid();
 
         // Act
-        var act = async () => await store.MarkAsFailedAsync(nonExistentId, "Error", nextRetryAt: null);
+        var act = async () => await store.MarkAsFailedAsync(nonExistentId, "Error", nextRetryAtUtc: null);
 
         // Assert
         var ex = await act.ShouldThrowAsync<KeyNotFoundException>();
@@ -441,7 +441,7 @@ internal sealed class InMemoryOutboxStoreForContract : IOutboxStore
     public Task MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         var message = _messages.FirstOrDefault(m => m.Id == messageId)
@@ -449,7 +449,7 @@ internal sealed class InMemoryOutboxStoreForContract : IOutboxStore
 
         message.ErrorMessage = errorMessage;
         message.RetryCount++;
-        message.NextRetryAtUtc = nextRetryAt;
+        message.NextRetryAtUtc = nextRetryAtUtc;
         return Task.CompletedTask;
     }
 

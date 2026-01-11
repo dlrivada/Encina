@@ -27,16 +27,16 @@ public interface ISagaStore
     /// <summary>
     /// Adds a new saga to the store.
     /// </summary>
-    /// <param name="saga">The saga state to add.</param>
+    /// <param name="sagaState">The saga state to add.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task AddAsync(ISagaState saga, CancellationToken cancellationToken = default);
+    Task AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates an existing saga's state.
     /// </summary>
-    /// <param name="saga">The saga state to update.</param>
+    /// <param name="sagaState">The saga state to update.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task UpdateAsync(ISagaState saga, CancellationToken cancellationToken = default);
+    Task UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets sagas that are stuck or need retry.

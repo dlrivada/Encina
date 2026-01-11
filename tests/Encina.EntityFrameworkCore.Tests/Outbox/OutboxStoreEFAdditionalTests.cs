@@ -1,8 +1,8 @@
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.Messaging.Outbox;
-using Shouldly;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
+using Shouldly;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.Tests.Outbox;
@@ -66,8 +66,12 @@ public class OutboxStoreEFAdditionalTests : IDisposable
     [Fact]
     public async Task MarkAsProcessedAsync_NonExistentMessage_DoesNotThrow()
     {
-        // Act & Assert - Should not throw for non-existent message
-        await _store.MarkAsProcessedAsync(Guid.NewGuid());
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            _store.MarkAsProcessedAsync(Guid.NewGuid()));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion
@@ -85,8 +89,12 @@ public class OutboxStoreEFAdditionalTests : IDisposable
     [Fact]
     public async Task MarkAsFailedAsync_NonExistentMessage_DoesNotThrow()
     {
-        // Act & Assert - Should not throw for non-existent message
-        await _store.MarkAsFailedAsync(Guid.NewGuid(), "Error", DateTime.UtcNow);
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            _store.MarkAsFailedAsync(Guid.NewGuid(), "Error", DateTime.UtcNow));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]

@@ -16,7 +16,6 @@ public sealed class AmazonSQSHealthCheck : EncinaHealthCheck
     public const string DefaultName = "encina-amazon-sqs";
 
     private readonly IServiceProvider _serviceProvider;
-    private readonly ProviderHealthCheckOptions _options;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AmazonSQSHealthCheck"/> class.
@@ -29,7 +28,6 @@ public sealed class AmazonSQSHealthCheck : EncinaHealthCheck
         : base(options?.Name ?? DefaultName, options?.Tags ?? ["encina", "messaging", "amazon-sqs", "ready"])
     {
         _serviceProvider = serviceProvider;
-        _options = options ?? new ProviderHealthCheckOptions();
     }
 
     /// <inheritdoc/>

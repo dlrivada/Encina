@@ -1,8 +1,8 @@
 using System.Runtime.CompilerServices;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using NBomber.CSharp;
+using Shouldly;
 using Xunit.Abstractions;
 using static LanguageExt.Prelude;
 

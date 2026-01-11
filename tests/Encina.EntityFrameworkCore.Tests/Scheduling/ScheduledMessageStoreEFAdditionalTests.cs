@@ -1,8 +1,8 @@
 using Encina.EntityFrameworkCore.Scheduling;
 using Encina.Messaging.Scheduling;
-using Shouldly;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
+using Shouldly;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.Tests.Scheduling;
@@ -66,8 +66,12 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
     [Fact]
     public async Task MarkAsProcessedAsync_NonExistentMessage_DoesNotThrow()
     {
-        // Act & Assert - Should not throw for non-existent message
-        await _store.MarkAsProcessedAsync(Guid.NewGuid());
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            _store.MarkAsProcessedAsync(Guid.NewGuid()));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion
@@ -85,8 +89,12 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
     [Fact]
     public async Task MarkAsFailedAsync_NonExistentMessage_DoesNotThrow()
     {
-        // Act & Assert - Should not throw for non-existent message
-        await _store.MarkAsFailedAsync(Guid.NewGuid(), "Error", DateTime.UtcNow);
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            _store.MarkAsFailedAsync(Guid.NewGuid(), "Error", DateTime.UtcNow));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -126,8 +134,12 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
     [Fact]
     public async Task RescheduleRecurringMessageAsync_NonExistentMessage_DoesNotThrow()
     {
-        // Act & Assert - Should not throw for non-existent message
-        await _store.RescheduleRecurringMessageAsync(Guid.NewGuid(), DateTime.UtcNow.AddDays(1));
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            _store.RescheduleRecurringMessageAsync(Guid.NewGuid(), DateTime.UtcNow.AddDays(1)));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -175,8 +187,12 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
     [Fact]
     public async Task CancelAsync_NonExistentMessage_DoesNotThrow()
     {
-        // Act & Assert - Should not throw for non-existent message
-        await _store.CancelAsync(Guid.NewGuid());
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            _store.CancelAsync(Guid.NewGuid()));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion

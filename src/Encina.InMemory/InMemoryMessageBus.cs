@@ -168,35 +168,46 @@ public sealed class InMemoryMessageBus : IInMemoryMessageBus, IDisposable
     {
         await foreach (var message in _channel.Reader.ReadAllAsync(cancellationToken))
         {
-            try
-            {
-                Interlocked.Decrement(ref _pendingCount);
-                var messageType = message.GetType();
+            await ProcessSingleMessageAsync(message).ConfigureAwait(false);
+        }
+    }
 
-                if (_subscribers.TryGetValue(messageType, out var handlers))
-                {
-                    foreach (var handler in handlers.ToArray())
-                    {
-                        try
-                        {
-                            // Use reflection to invoke the typed handler
-                            var invokeMethod = handler.GetType().GetMethod("Invoke");
-                            if (invokeMethod?.Invoke(handler, [message]) is ValueTask task)
-                            {
-                                await task.ConfigureAwait(false);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.ErrorProcessingMessage(_logger, ex, messageType.Name);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
+    private async Task ProcessSingleMessageAsync(object message)
+    {
+        try
+        {
+            Interlocked.Decrement(ref _pendingCount);
+            var messageType = message.GetType();
+
+            if (!_subscribers.TryGetValue(messageType, out var handlers))
             {
-                Log.ErrorProcessingQueuedMessage(_logger, ex);
+                return;
             }
+
+            foreach (var handler in handlers.ToArray())
+            {
+                await InvokeHandlerAsync(handler, message, messageType).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.ErrorProcessingQueuedMessage(_logger, ex);
+        }
+    }
+
+    private async Task InvokeHandlerAsync(object handler, object message, Type messageType)
+    {
+        try
+        {
+            var invokeMethod = handler.GetType().GetMethod("Invoke");
+            if (invokeMethod?.Invoke(handler, [message]) is ValueTask task)
+            {
+                await task.ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.ErrorProcessingMessage(_logger, ex, messageType.Name);
         }
     }
 

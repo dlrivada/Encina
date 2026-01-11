@@ -123,14 +123,14 @@ public sealed class FakeOutboxStore : IOutboxStore
     public Task MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         if (_messages.TryGetValue(messageId, out var message))
         {
             message.ErrorMessage = errorMessage;
             message.RetryCount++;
-            message.NextRetryAtUtc = nextRetryAt;
+            message.NextRetryAtUtc = nextRetryAtUtc;
 
             lock (_lock)
             {

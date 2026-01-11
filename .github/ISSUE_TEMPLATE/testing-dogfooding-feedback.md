@@ -76,8 +76,7 @@ Error message here
 
 ## Checklist
 
-- [ ] I've checked the [reference examples](../tests/Encina.Testing.Examples/)
-- [ ] I've checked the [common patterns doc](../docs/plans/checklists/common-patterns-and-edge-cases.md)
+- [ ] I've checked the reference examples in `tests/Encina.Testing.Examples/`
 - [ ] I've searched existing issues for duplicates
 
 ---

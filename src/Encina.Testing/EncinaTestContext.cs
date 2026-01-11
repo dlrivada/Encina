@@ -1,8 +1,8 @@
+using System.Text.Json;
 using Encina.Messaging.Sagas;
 using Encina.Testing.Fakes.Stores;
 using Encina.Testing.Time;
 using LanguageExt;
-using System.Text.Json;
 
 namespace Encina.Testing;
 

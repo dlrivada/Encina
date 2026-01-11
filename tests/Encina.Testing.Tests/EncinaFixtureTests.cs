@@ -1,6 +1,6 @@
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.Testing.Tests;

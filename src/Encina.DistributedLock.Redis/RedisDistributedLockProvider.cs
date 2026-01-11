@@ -175,7 +175,6 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
 
     private sealed class LockHandle : ILockHandle
     {
-        private readonly RedisDistributedLockProvider _provider;
         private readonly IDatabase _database;
         private readonly string _lockKey;
         private readonly string _lockValue;
@@ -210,7 +209,8 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
             DateTime expiresAtUtc,
             ILogger logger)
         {
-            _provider = provider;
+            // provider reserved for future use (e.g., auto-renewal coordination)
+            _ = provider;
             _database = database;
             _lockKey = lockKey;
             _lockValue = lockValue;

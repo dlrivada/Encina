@@ -106,13 +106,13 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
     public async Task MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         var filter = Builders<OutboxMessage>.Filter.Eq(m => m.Id, messageId);
         var update = Builders<OutboxMessage>.Update
             .Set(m => m.ErrorMessage, errorMessage)
-            .Set(m => m.NextRetryAtUtc, nextRetryAt)
+            .Set(m => m.NextRetryAtUtc, nextRetryAtUtc)
             .Inc(m => m.RetryCount, 1);
 
         var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);

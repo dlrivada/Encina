@@ -73,7 +73,7 @@ public static class FailureSimulationExtensions
     /// because they are system-generated for internal message tracking.
     /// </param>
     /// <param name="errorMessage">The error message to set.</param>
-    /// <param name="nextRetryAt">Optional next retry time.</param>
+    /// <param name="nextRetryAtUtc">Optional next retry time.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="app"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="messageId"/> is <see cref="Guid.Empty"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the message is not found.</exception>
@@ -81,7 +81,7 @@ public static class FailureSimulationExtensions
         this DistributedApplication app,
         Guid messageId,
         string errorMessage = "Simulated failure for testing",
-        DateTime? nextRetryAt = null)
+        DateTime? nextRetryAtUtc = null)
     {
         ArgumentNullException.ThrowIfNull(app);
         if (messageId == Guid.Empty)
@@ -95,7 +95,7 @@ public static class FailureSimulationExtensions
 
         message.ErrorMessage = errorMessage;
         message.RetryCount++;
-        message.NextRetryAtUtc = nextRetryAt ?? DateTime.UtcNow.AddMinutes(1);
+        message.NextRetryAtUtc = nextRetryAtUtc ?? DateTime.UtcNow.AddMinutes(1);
     }
 
     /// <summary>
@@ -133,7 +133,7 @@ public static class FailureSimulationExtensions
     /// because they are typically provided by external message brokers (e.g., correlation IDs, message IDs from RabbitMQ/Azure Service Bus).
     /// </param>
     /// <param name="errorMessage">The error message to set.</param>
-    /// <param name="nextRetryAt">Optional next retry time.</param>
+    /// <param name="nextRetryAtUtc">Optional next retry time.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="app"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="messageId"/> is null, empty, or whitespace.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the message is not found.</exception>
@@ -141,7 +141,7 @@ public static class FailureSimulationExtensions
         this DistributedApplication app,
         string messageId,
         string errorMessage = "Simulated failure for testing",
-        DateTime? nextRetryAt = null)
+        DateTime? nextRetryAtUtc = null)
     {
         ArgumentNullException.ThrowIfNull(app);
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
@@ -152,7 +152,7 @@ public static class FailureSimulationExtensions
 
         message.ErrorMessage = errorMessage;
         message.RetryCount++;
-        message.NextRetryAtUtc = nextRetryAt ?? DateTime.UtcNow.AddMinutes(1);
+        message.NextRetryAtUtc = nextRetryAtUtc ?? DateTime.UtcNow.AddMinutes(1);
     }
 
     /// <summary>

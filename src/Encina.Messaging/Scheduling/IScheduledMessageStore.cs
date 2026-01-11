@@ -47,23 +47,23 @@ public interface IScheduledMessageStore
     /// </summary>
     /// <param name="messageId">The message ID.</param>
     /// <param name="errorMessage">The error message.</param>
-    /// <param name="nextRetryAt">When to retry next.</param>
+    /// <param name="nextRetryAtUtc">When to retry next (UTC).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Reschedules a recurring message for its next execution.
     /// </summary>
     /// <param name="messageId">The message ID.</param>
-    /// <param name="nextScheduledAt">When to execute next.</param>
+    /// <param name="nextScheduledAtUtc">When to execute next (UTC).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task RescheduleRecurringMessageAsync(
         Guid messageId,
-        DateTime nextScheduledAt,
+        DateTime nextScheduledAtUtc,
         CancellationToken cancellationToken = default);
 
     /// <summary>

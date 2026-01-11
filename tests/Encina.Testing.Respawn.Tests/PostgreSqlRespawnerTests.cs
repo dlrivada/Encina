@@ -117,7 +117,11 @@ public sealed class PostgreSqlRespawnerTests
         var respawner = new PostgreSqlRespawner(ValidConnectionString);
 
         // Act & Assert - should not throw
-        await respawner.DisposeAsync();
-        await respawner.DisposeAsync();
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await respawner.DisposeAsync();
+            await respawner.DisposeAsync();
+        });
+        Assert.Null(exception);
     }
 }

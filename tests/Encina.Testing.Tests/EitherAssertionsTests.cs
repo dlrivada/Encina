@@ -1,5 +1,5 @@
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.Testing.Tests;

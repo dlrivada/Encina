@@ -76,26 +76,51 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
 
         var cacheKey = _keyGenerator.GenerateKey<TRequest, TResponse>(request, context);
 
+        var (found, cachedValue) = await TryGetFromCacheAsync(cacheKey, context.CorrelationId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (found)
+        {
+            return cachedValue!;
+        }
+
+        // Execute handler
+        var result = await nextStep().ConfigureAwait(false);
+
+        // Cache successful responses only
+        if (result.IsRight)
+        {
+            await TryCacheResultAsync(result, cacheKey, context.CorrelationId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return result;
+    }
+
+    private async ValueTask<(bool Found, TResponse? Value)> TryGetFromCacheAsync(
+        string cacheKey,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            // Try to get from cache
             var cached = await _cacheProvider.GetAsync<CacheEntry<TResponse>>(cacheKey, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (cached is not null)
+            if (cached is null)
             {
-                LogCacheHit(_logger, typeof(TRequest).Name, cacheKey, context.CorrelationId);
-
-                // Handle sliding expiration refresh
-                if (CacheAttribute.SlidingExpiration)
-                {
-                    _ = _cacheProvider.RefreshAsync(cacheKey, cancellationToken);
-                }
-
-                return cached.Value;
+                LogCacheMiss(_logger, typeof(TRequest).Name, cacheKey, correlationId);
+                return (false, default);
             }
 
-            LogCacheMiss(_logger, typeof(TRequest).Name, cacheKey, context.CorrelationId);
+            LogCacheHit(_logger, typeof(TRequest).Name, cacheKey, correlationId);
+
+            if (CacheAttribute!.SlidingExpiration)
+            {
+                _ = _cacheProvider.RefreshAsync(cacheKey, cancellationToken);
+            }
+
+            return (true, cached.Value);
         }
         catch (Exception ex)
         {
@@ -106,57 +131,61 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
                 throw;
             }
 
-            // Continue without cache on error
+            return (false, default);
         }
+    }
 
-        // Execute handler
-        var result = await nextStep().ConfigureAwait(false);
-
-        // Cache successful responses only
-        if (result.IsRight)
+    private async Task TryCacheResultAsync(
+        Either<EncinaError, TResponse> result,
+        string cacheKey,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        try
         {
-            try
+            var entry = new CacheEntry<TResponse>
             {
-                var entry = new CacheEntry<TResponse>
-                {
-                    Value = result.Match(
-                        Right: v => v,
-                        Left: _ => default!),
-                    CachedAtUtc = DateTime.UtcNow
-                };
+                Value = result.Match(Right: v => v, Left: _ => default!),
+                CachedAtUtc = DateTime.UtcNow
+            };
 
-                if (CacheAttribute.SlidingExpiration)
-                {
-                    await _cacheProvider.SetWithSlidingExpirationAsync(
-                        cacheKey,
-                        entry,
-                        CacheAttribute.Duration,
-                        CacheAttribute.MaxAbsoluteExpiration,
-                        cancellationToken).ConfigureAwait(false);
-                }
-                else
-                {
-                    await _cacheProvider.SetAsync(
-                        cacheKey,
-                        entry,
-                        CacheAttribute.Duration,
-                        cancellationToken).ConfigureAwait(false);
-                }
+            await StoreCacheEntryAsync(entry, cacheKey, cancellationToken).ConfigureAwait(false);
 
-                LogCacheSet(_logger, typeof(TRequest).Name, cacheKey, CacheAttribute.DurationSeconds, context.CorrelationId);
-            }
-            catch (Exception ex)
+            LogCacheSet(_logger, typeof(TRequest).Name, cacheKey, CacheAttribute!.DurationSeconds, correlationId);
+        }
+        catch (Exception ex)
+        {
+            LogCacheError(_logger, typeof(TRequest).Name, cacheKey, ex);
+
+            if (_options.ThrowOnCacheErrors)
             {
-                LogCacheError(_logger, typeof(TRequest).Name, cacheKey, ex);
-
-                if (_options.ThrowOnCacheErrors)
-                {
-                    throw;
-                }
+                throw;
             }
         }
+    }
 
-        return result;
+    private async Task StoreCacheEntryAsync(
+        CacheEntry<TResponse> entry,
+        string cacheKey,
+        CancellationToken cancellationToken)
+    {
+        if (CacheAttribute!.SlidingExpiration)
+        {
+            await _cacheProvider.SetWithSlidingExpirationAsync(
+                cacheKey,
+                entry,
+                CacheAttribute.Duration,
+                CacheAttribute.MaxAbsoluteExpiration,
+                cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            await _cacheProvider.SetAsync(
+                cacheKey,
+                entry,
+                CacheAttribute.Duration,
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 
     [LoggerMessage(

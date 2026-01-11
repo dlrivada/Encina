@@ -57,12 +57,16 @@ public sealed class OutboxProcessorLifecycleTests : IDisposable
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
         // Act
-        await processor.StartAsync(cts.Token);
-        await Task.Delay(50);
-        cts.Cancel();
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await processor.StartAsync(cts.Token);
+            await Task.Delay(50);
+            cts.Cancel();
+            await processor.StopAsync(CancellationToken.None);
+        });
 
-        // Assert - Should not throw
-        await processor.StopAsync(CancellationToken.None);
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -79,11 +83,15 @@ public sealed class OutboxProcessorLifecycleTests : IDisposable
         using var cts = new CancellationTokenSource();
 
         // Act
-        await processor.StartAsync(cts.Token);
-        cts.Cancel();
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await processor.StartAsync(cts.Token);
+            cts.Cancel();
+            await processor.StopAsync(CancellationToken.None);
+        });
 
-        // Assert - Should complete gracefully
-        await processor.StopAsync(CancellationToken.None);
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -101,13 +109,17 @@ public sealed class OutboxProcessorLifecycleTests : IDisposable
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
 
-        // Act & Assert - Should complete without error
-        await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        // Act
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await processor.StartAsync(cts.Token);
+            await Task.Delay(100);
+            cts.Cancel();
+            await processor.StopAsync(CancellationToken.None);
+        });
 
-        // No exception means success
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -121,24 +133,29 @@ public sealed class OutboxProcessorLifecycleTests : IDisposable
         var logger = NullLogger<OutboxProcessor>.Instance;
         var processor = new OutboxProcessor(_serviceProvider, options, logger);
 
-        // Act - Start and stop multiple times
-        using (var cts1 = new CancellationTokenSource())
+        // Act
+        var exception = await Record.ExceptionAsync(async () =>
         {
-            await processor.StartAsync(cts1.Token);
-            await Task.Delay(20);
-            cts1.Cancel();
-            await processor.StopAsync(CancellationToken.None);
-        }
+            // Start and stop multiple times
+            using (var cts1 = new CancellationTokenSource())
+            {
+                await processor.StartAsync(cts1.Token);
+                await Task.Delay(20);
+                cts1.Cancel();
+                await processor.StopAsync(CancellationToken.None);
+            }
 
-        using (var cts2 = new CancellationTokenSource())
-        {
-            await processor.StartAsync(cts2.Token);
-            await Task.Delay(20);
-            cts2.Cancel();
-            await processor.StopAsync(CancellationToken.None);
-        }
+            using (var cts2 = new CancellationTokenSource())
+            {
+                await processor.StartAsync(cts2.Token);
+                await Task.Delay(20);
+                cts2.Cancel();
+                await processor.StopAsync(CancellationToken.None);
+            }
+        });
 
-        // Assert - Should complete without error
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion

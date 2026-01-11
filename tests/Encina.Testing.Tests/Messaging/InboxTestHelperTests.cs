@@ -90,12 +90,14 @@ public sealed class InboxTestHelperTests : IDisposable
     public void WhenMessageReceived_ShouldRetrieveExistingMessage()
     {
         // Act
-        _helper
-            .GivenProcessedMessage("msg-123", new TestResponse { Success = true })
-            .WhenMessageReceived("msg-123");
+        var exception = Record.Exception(() =>
+            _helper
+                .GivenProcessedMessage("msg-123", new TestResponse { Success = true })
+                .WhenMessageReceived("msg-123")
+                .ThenNoException());
 
         // Assert - no exception means message was retrieved
-        _helper.ThenNoException();
+        Assert.Null(exception);
     }
 
     [Fact]

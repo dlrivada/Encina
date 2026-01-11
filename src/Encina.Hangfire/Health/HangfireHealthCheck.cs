@@ -16,7 +16,6 @@ public sealed class HangfireHealthCheck : EncinaHealthCheck
     public const string DefaultName = "encina-hangfire";
 
     private readonly IServiceProvider _serviceProvider;
-    private readonly ProviderHealthCheckOptions _options;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HangfireHealthCheck"/> class.
@@ -29,7 +28,6 @@ public sealed class HangfireHealthCheck : EncinaHealthCheck
         : base(options?.Name ?? DefaultName, options?.Tags ?? ["encina", "scheduling", "hangfire", "ready"])
     {
         _serviceProvider = serviceProvider;
-        _options = options ?? new ProviderHealthCheckOptions();
     }
 
     /// <inheritdoc/>

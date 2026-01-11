@@ -71,7 +71,7 @@ public sealed class InboxStoreEF : IInboxStore
     public async Task MarkAsFailedAsync(
         string messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageId);
@@ -85,7 +85,7 @@ public sealed class InboxStoreEF : IInboxStore
 
         message.ErrorMessage = errorMessage;
         message.RetryCount++;
-        message.NextRetryAtUtc = nextRetryAt;
+        message.NextRetryAtUtc = nextRetryAtUtc;
     }
 
     /// <inheritdoc/>

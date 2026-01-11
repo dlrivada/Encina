@@ -278,8 +278,12 @@ public sealed class EncinaPactFixtureTests : IAsyncLifetime, IDisposable
     public void Dispose_CanBeCalledMultipleTimes()
     {
         // Act & Assert - should not throw
-        _sut.Dispose();
-        _sut.Dispose();
+        var exception = Record.Exception(() =>
+        {
+            _sut.Dispose();
+            _sut.Dispose();
+        });
+        Assert.Null(exception);
     }
 
     private sealed class TestService { }

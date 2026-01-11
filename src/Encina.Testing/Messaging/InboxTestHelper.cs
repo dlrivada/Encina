@@ -44,7 +44,6 @@ public sealed class InboxTestHelper : IDisposable
     private readonly FakeTimeProvider _timeProvider;
     private bool _whenExecuted;
     private Exception? _caughtException;
-    private string? _lastCheckedMessageId;
     private IInboxMessage? _lastRetrievedMessage;
 
     /// <summary>
@@ -99,7 +98,6 @@ public sealed class InboxTestHelper : IDisposable
         _store.Clear();
         _whenExecuted = false;
         _caughtException = null;
-        _lastCheckedMessageId = null;
         _lastRetrievedMessage = null;
         return this;
     }
@@ -124,7 +122,6 @@ public sealed class InboxTestHelper : IDisposable
         _store.Clear();
         _whenExecuted = false;
         _caughtException = null;
-        _lastCheckedMessageId = null;
         _lastRetrievedMessage = null;
 
         var message = new FakeInboxMessage
@@ -154,7 +151,6 @@ public sealed class InboxTestHelper : IDisposable
         _store.Clear();
         _whenExecuted = false;
         _caughtException = null;
-        _lastCheckedMessageId = null;
         _lastRetrievedMessage = null;
 
         var message = new FakeInboxMessage
@@ -186,7 +182,6 @@ public sealed class InboxTestHelper : IDisposable
         _store.Clear();
         _whenExecuted = false;
         _caughtException = null;
-        _lastCheckedMessageId = null;
         _lastRetrievedMessage = null;
 
         var message = new FakeInboxMessage
@@ -216,7 +211,6 @@ public sealed class InboxTestHelper : IDisposable
         _store.Clear();
         _whenExecuted = false;
         _caughtException = null;
-        _lastCheckedMessageId = null;
         _lastRetrievedMessage = null;
 
         var message = new FakeInboxMessage
@@ -244,8 +238,6 @@ public sealed class InboxTestHelper : IDisposable
     {
         ArgumentNullException.ThrowIfNull(messageId);
 
-        _lastCheckedMessageId = messageId;
-
         return WhenAsync(async () =>
         {
             _lastRetrievedMessage = await _store.GetMessageAsync(messageId);
@@ -261,8 +253,6 @@ public sealed class InboxTestHelper : IDisposable
     public InboxTestHelper WhenMessageRegistered(string messageId, string requestType = "TestRequest")
     {
         ArgumentNullException.ThrowIfNull(messageId);
-
-        _lastCheckedMessageId = messageId;
 
         return WhenAsync(async () =>
         {
@@ -291,8 +281,6 @@ public sealed class InboxTestHelper : IDisposable
         ArgumentNullException.ThrowIfNull(messageId);
         ArgumentNullException.ThrowIfNull(response);
 
-        _lastCheckedMessageId = messageId;
-
         return WhenAsync(async () =>
         {
             var serializedResponse = JsonSerializer.Serialize(response, JsonOptions);
@@ -309,8 +297,6 @@ public sealed class InboxTestHelper : IDisposable
     public InboxTestHelper WhenMessageFailed(string messageId, string errorMessage = "Test failure")
     {
         ArgumentNullException.ThrowIfNull(messageId);
-
-        _lastCheckedMessageId = messageId;
 
         return WhenAsync(async () =>
         {

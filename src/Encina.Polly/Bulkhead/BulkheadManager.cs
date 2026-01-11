@@ -98,7 +98,6 @@ public sealed class BulkheadManager : IBulkheadManager, IDisposable
         private readonly SemaphoreSlim _semaphore;
         private readonly int _maxConcurrency;
         private readonly int _maxQueuedActions;
-        private readonly TimeProvider _timeProvider;
 
         private long _totalAcquired;
         private long _totalRejected;
@@ -109,7 +108,8 @@ public sealed class BulkheadManager : IBulkheadManager, IDisposable
         {
             _maxConcurrency = config.MaxConcurrency;
             _maxQueuedActions = config.MaxQueuedActions;
-            _timeProvider = timeProvider;
+            // timeProvider reserved for future use (e.g., timeout tracking, metrics)
+            _ = timeProvider;
 
             // Semaphore starts with full capacity (maxConcurrency)
             _semaphore = new SemaphoreSlim(config.MaxConcurrency, config.MaxConcurrency);

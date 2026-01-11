@@ -1,7 +1,7 @@
 using System.Net;
-using Shouldly;
 using FsCheck;
 using FsCheck.Xunit;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AzureFunctions.PropertyTests;

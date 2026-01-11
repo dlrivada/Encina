@@ -3,11 +3,11 @@ using Amazon.Lambda.CloudWatchEvents;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SQSEvents;
 using Encina.AwsLambda.Health;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AwsLambda.GuardTests;

@@ -75,8 +75,12 @@ public sealed class MemoryPubSubProviderTests
     [Fact]
     public async Task PublishAsync_WithNoSubscribers_DoesNotThrow()
     {
-        // Act & Assert - should complete without exception
-        await _sut.PublishAsync("no-subscribers", "message", CancellationToken.None);
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            _sut.PublishAsync("no-subscribers", "message", CancellationToken.None));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]

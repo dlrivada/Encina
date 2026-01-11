@@ -1,5 +1,5 @@
-using Encina.Testing.Mutations;
 using System.Reflection;
+using Encina.Testing.Mutations;
 using Shouldly;
 using Xunit;
 

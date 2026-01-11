@@ -1,10 +1,9 @@
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.Messaging.Sagas;
-using Shouldly;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
+using Shouldly;
 using Xunit;
-
 using EfSagaStatus = Encina.EntityFrameworkCore.Sagas.SagaStatus;
 
 namespace Encina.EntityFrameworkCore.Tests.Sagas;

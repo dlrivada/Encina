@@ -459,15 +459,15 @@ public sealed class SchedulingTestHelper : IDisposable
     /// Reschedules a recurring message to its next occurrence.
     /// </summary>
     /// <param name="messageId">The message ID to reschedule.</param>
-    /// <param name="nextScheduledAt">The next scheduled time.</param>
+    /// <param name="nextScheduledAtUtc">The next scheduled time.</param>
     /// <returns>This helper for method chaining.</returns>
-    public SchedulingTestHelper WhenMessageRescheduled(Guid messageId, DateTime nextScheduledAt)
+    public SchedulingTestHelper WhenMessageRescheduled(Guid messageId, DateTime nextScheduledAtUtc)
     {
         _lastMessageId = messageId;
 
         return WhenAsync(async () =>
         {
-            await _store.RescheduleRecurringMessageAsync(messageId, nextScheduledAt);
+            await _store.RescheduleRecurringMessageAsync(messageId, nextScheduledAtUtc);
         });
     }
 

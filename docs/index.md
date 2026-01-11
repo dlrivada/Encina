@@ -85,7 +85,6 @@ result.Match(
 ## Resources
 
 - [GitHub Repository](https://github.com/dlrivada/Encina)
-- [Quality & Security Roadmap](https://github.com/dlrivada/Encina/blob/main/QUALITY_SECURITY_ROADMAP.md)
 - [Contributing Guide](https://github.com/dlrivada/Encina/blob/main/CONTRIBUTING.md)
 
 ---

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Security.Claims;
-using Shouldly;
 using Microsoft.AspNetCore.TestHost;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AspNetCore.Tests;

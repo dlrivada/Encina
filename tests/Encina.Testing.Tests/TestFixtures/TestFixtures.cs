@@ -1,8 +1,8 @@
 using System.Threading;
 using System.Threading.Tasks;
+using Encina;
 using LanguageExt;
 using static LanguageExt.Prelude;
-using Encina;
 
 namespace Encina.Testing.Tests.TestFixtures;
 

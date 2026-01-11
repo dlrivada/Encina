@@ -1,7 +1,7 @@
 using Encina.AzureFunctions.Durable;
 using Encina.Messaging.Health;
-using Shouldly;
 using Microsoft.Extensions.Options;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AzureFunctions.Tests.Durable;

@@ -138,8 +138,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 55, Level = LogLevel.Warning, Message = "Scheduled message {MessageId} not found for marking as failed")]
     public static partial void ScheduledMessageNotFoundForFailed(ILogger logger, Guid messageId);
 
-    [LoggerMessage(EventId = 56, Level = LogLevel.Debug, Message = "Rescheduled message {MessageId} for {NextScheduledAt}")]
-    public static partial void RescheduledMessage(ILogger logger, Guid messageId, DateTime nextScheduledAt);
+    [LoggerMessage(EventId = 56, Level = LogLevel.Debug, Message = "Rescheduled message {MessageId} for {NextScheduledAtUtc}")]
+    public static partial void RescheduledMessage(ILogger logger, Guid messageId, DateTime nextScheduledAtUtc);
 
     [LoggerMessage(EventId = 57, Level = LogLevel.Warning, Message = "Scheduled message {MessageId} not found for rescheduling")]
     public static partial void ScheduledMessageNotFoundForRescheduling(ILogger logger, Guid messageId);

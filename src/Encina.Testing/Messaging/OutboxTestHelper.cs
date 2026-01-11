@@ -253,19 +253,19 @@ public sealed class OutboxTestHelper : IDisposable
     /// </summary>
     /// <param name="messageId">The message ID to mark as failed.</param>
     /// <param name="errorMessage">The error message.</param>
-    /// <param name="nextRetryAt">When to retry next.</param>
+    /// <param name="nextRetryAtUtc">When to retry next.</param>
     /// <returns>This helper for method chaining.</returns>
     public OutboxTestHelper WhenMessageFailed(
         Guid messageId,
         string errorMessage = "Test failure",
-        DateTime? nextRetryAt = null)
+        DateTime? nextRetryAtUtc = null)
     {
         return WhenAsync(async () =>
         {
             await _store.MarkAsFailedAsync(
                 messageId,
                 errorMessage,
-                nextRetryAt ?? _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(5));
+                nextRetryAtUtc ?? _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(5));
         });
     }
 

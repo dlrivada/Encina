@@ -1,8 +1,8 @@
+using Encina.Testing.Handlers;
+using Encina.Testing.Tests.TestFixtures;
 using LanguageExt;
 using Shouldly;
-using Encina.Testing.Handlers;
 using static LanguageExt.Prelude;
-using Encina.Testing.Tests.TestFixtures;
 
 namespace Encina.Testing.Tests.Handlers;
 

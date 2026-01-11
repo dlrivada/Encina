@@ -1,10 +1,10 @@
+using System.Net;
 using Encina.Caching.Redis.Health;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
 using StackExchange.Redis;
-using System.Net;
 
 namespace Encina.Caching.Redis.Tests.Health;
 

@@ -263,8 +263,12 @@ public sealed class MemoryCacheProviderTests : IDisposable
         // Arrange
         var nonExistingKey = _keyFaker.Generate();
 
-        // Act & Assert - should complete without exception
-        await _sut.RemoveAsync(nonExistingKey, CancellationToken.None);
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            _sut.RemoveAsync(nonExistingKey, CancellationToken.None));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion

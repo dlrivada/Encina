@@ -15,7 +15,6 @@ public sealed class NATSHealthCheck : EncinaHealthCheck
     public const string DefaultName = "encina-nats";
 
     private readonly IServiceProvider _serviceProvider;
-    private readonly ProviderHealthCheckOptions _options;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NATSHealthCheck"/> class.
@@ -28,7 +27,6 @@ public sealed class NATSHealthCheck : EncinaHealthCheck
         : base(options?.Name ?? DefaultName, options?.Tags ?? ["encina", "messaging", "nats", "ready"])
     {
         _serviceProvider = serviceProvider;
-        _options = options ?? new ProviderHealthCheckOptions();
     }
 
     /// <inheritdoc/>

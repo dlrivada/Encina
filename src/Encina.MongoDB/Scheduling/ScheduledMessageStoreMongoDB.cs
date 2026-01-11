@@ -112,13 +112,13 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
     public async Task MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         var filter = Builders<ScheduledMessage>.Filter.Eq(m => m.Id, messageId);
         var update = Builders<ScheduledMessage>.Update
             .Set(m => m.ErrorMessage, errorMessage)
-            .Set(m => m.NextRetryAtUtc, nextRetryAt)
+            .Set(m => m.NextRetryAtUtc, nextRetryAtUtc)
             .Inc(m => m.RetryCount, 1);
 
         var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -136,12 +136,12 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
     /// <inheritdoc />
     public async Task RescheduleRecurringMessageAsync(
         Guid messageId,
-        DateTime nextScheduledAt,
+        DateTime nextScheduledAtUtc,
         CancellationToken cancellationToken = default)
     {
         var filter = Builders<ScheduledMessage>.Filter.Eq(m => m.Id, messageId);
         var update = Builders<ScheduledMessage>.Update
-            .Set(m => m.ScheduledAtUtc, nextScheduledAt)
+            .Set(m => m.ScheduledAtUtc, nextScheduledAtUtc)
             .Set(m => m.ProcessedAtUtc, null)
             .Set(m => m.ErrorMessage, null)
             .Set(m => m.RetryCount, 0)
@@ -155,7 +155,7 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
         }
         else
         {
-            Log.RescheduledMessage(_logger, messageId, nextScheduledAt);
+            Log.RescheduledMessage(_logger, messageId, nextScheduledAtUtc);
         }
     }
 

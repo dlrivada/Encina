@@ -15,7 +15,6 @@ public sealed class AzureServiceBusHealthCheck : EncinaHealthCheck
     public const string DefaultName = "encina-azure-servicebus";
 
     private readonly IServiceProvider _serviceProvider;
-    private readonly ProviderHealthCheckOptions _options;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AzureServiceBusHealthCheck"/> class.
@@ -28,7 +27,6 @@ public sealed class AzureServiceBusHealthCheck : EncinaHealthCheck
         : base(options?.Name ?? DefaultName, options?.Tags ?? ["encina", "messaging", "azure-servicebus", "ready"])
     {
         _serviceProvider = serviceProvider;
-        _options = options ?? new ProviderHealthCheckOptions();
     }
 
     /// <inheritdoc/>

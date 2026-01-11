@@ -137,7 +137,7 @@ public sealed class OutboxStoreADO : IOutboxStore
     public async Task MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         if (messageId == Guid.Empty)
@@ -155,7 +155,7 @@ public sealed class OutboxStoreADO : IOutboxStore
         command.CommandText = sql;
         AddParameter(command, "@Id", messageId);
         AddParameter(command, "@ErrorMessage", errorMessage);
-        AddParameter(command, "@NextRetryAtUtc", nextRetryAt);
+        AddParameter(command, "@NextRetryAtUtc", nextRetryAtUtc);
 
         if (_connection.State != ConnectionState.Open)
             await OpenConnectionAsync(cancellationToken);

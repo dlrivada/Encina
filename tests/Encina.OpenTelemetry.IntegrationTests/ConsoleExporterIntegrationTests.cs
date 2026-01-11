@@ -1,8 +1,8 @@
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Shouldly;
 using Xunit;
 
 namespace Encina.OpenTelemetry.Tests.Integration;

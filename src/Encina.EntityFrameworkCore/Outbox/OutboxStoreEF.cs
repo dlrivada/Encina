@@ -85,7 +85,7 @@ public sealed class OutboxStoreEF : IOutboxStore
     public async Task MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(errorMessage);
@@ -98,7 +98,7 @@ public sealed class OutboxStoreEF : IOutboxStore
 
         message.ErrorMessage = errorMessage;
         message.RetryCount++;
-        message.NextRetryAtUtc = nextRetryAt;
+        message.NextRetryAtUtc = nextRetryAtUtc;
     }
 
     /// <inheritdoc/>

@@ -1,8 +1,8 @@
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using NBomber.CSharp;
 using OpenTelemetry.Trace;
+using Shouldly;
 using Xunit;
 using Xunit.Abstractions;
 

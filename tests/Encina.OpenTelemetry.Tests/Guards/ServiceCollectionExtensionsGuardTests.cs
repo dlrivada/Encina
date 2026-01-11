@@ -1,5 +1,5 @@
-using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 using Xunit;
 
 namespace Encina.OpenTelemetry.Tests.Guards;

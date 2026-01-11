@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 #pragma warning disable CA1861 // Prefer static readonly array for test data

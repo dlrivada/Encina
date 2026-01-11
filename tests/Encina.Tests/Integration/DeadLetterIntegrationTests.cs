@@ -2,11 +2,11 @@ using Encina.Messaging;
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Health;
 using Encina.Messaging.Recoverability;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.Tests.Integration;

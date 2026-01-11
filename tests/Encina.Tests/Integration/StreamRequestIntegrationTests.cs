@@ -1,11 +1,11 @@
 using System.Runtime.CompilerServices;
 using Encina.Testing;
 using Encina.Testing.Shouldly;
-using EitherShoudlyExt = Encina.Testing.Shouldly.EitherShouldlyExtensions;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 using static LanguageExt.Prelude;
+using EitherShoudlyExt = Encina.Testing.Shouldly.EitherShouldlyExtensions;
 
 #pragma warning disable CA1861 // Prefer static readonly array for test data
 

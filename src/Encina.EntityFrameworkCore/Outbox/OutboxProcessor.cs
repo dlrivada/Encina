@@ -86,12 +86,34 @@ public sealed class OutboxProcessor : BackgroundService
     {
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DbContext>();
-        var Encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+        var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
 
+        var pendingMessages = await GetPendingMessagesAsync(dbContext, cancellationToken);
+
+        if (pendingMessages.Count == 0)
+        {
+            return;
+        }
+
+        Log.ProcessingPendingOutboxMessages(_logger, pendingMessages.Count);
+
+        var (successCount, failureCount) = await ProcessMessagesAsync(pendingMessages, encina, cancellationToken);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (successCount > 0 || failureCount > 0)
+        {
+            Log.ProcessedOutboxMessages(_logger, successCount + failureCount, successCount, failureCount);
+        }
+    }
+
+    private async Task<List<OutboxMessage>> GetPendingMessagesAsync(
+        DbContext dbContext,
+        CancellationToken cancellationToken)
+    {
         var now = DateTime.UtcNow;
 
-        // Query pending messages
-        var pendingMessages = await dbContext.Set<OutboxMessage>()
+        return await dbContext.Set<OutboxMessage>()
             .Where(m =>
                 m.ProcessedAtUtc == null &&
                 (m.NextRetryAtUtc == null || m.NextRetryAtUtc <= now) &&
@@ -99,74 +121,101 @@ public sealed class OutboxProcessor : BackgroundService
             .OrderBy(m => m.CreatedAtUtc)
             .Take(_options.BatchSize)
             .ToListAsync(cancellationToken);
+    }
 
-        if (pendingMessages.Count == 0)
-            return;
-
-        Log.ProcessingPendingOutboxMessages(_logger, pendingMessages.Count);
-
+    private async Task<(int SuccessCount, int FailureCount)> ProcessMessagesAsync(
+        List<OutboxMessage> messages,
+        IEncina encina,
+        CancellationToken cancellationToken)
+    {
         var successCount = 0;
         var failureCount = 0;
 
-        foreach (var message in pendingMessages)
+        foreach (var message in messages)
         {
-            try
+            var success = await ProcessSingleMessageAsync(message, encina, cancellationToken);
+
+            if (success)
             {
-                // Deserialize notification
-                var notificationType = Type.GetType(message.NotificationType);
-                if (notificationType == null)
-                {
-                    Log.TypeNotFound(_logger, message.NotificationType, message.Id);
-
-                    message.ErrorMessage = $"Type not found: {message.NotificationType}";
-                    message.RetryCount++;
-                    message.NextRetryAtUtc = CalculateNextRetry(message.RetryCount);
-                    failureCount++;
-                    continue;
-                }
-
-                var notification = JsonSerializer.Deserialize(message.Content, notificationType, JsonOptions);
-                if (notification == null)
-                {
-                    Log.DeserializationFailed(_logger, message.Id);
-
-                    message.ErrorMessage = "Deserialization failed";
-                    message.RetryCount++;
-                    message.NextRetryAtUtc = CalculateNextRetry(message.RetryCount);
-                    failureCount++;
-                    continue;
-                }
-
-                // Publish notification
-                await Encina.Publish((INotification)notification, cancellationToken);
-
-                // Mark as processed
-                message.ProcessedAtUtc = DateTime.UtcNow;
-                message.ErrorMessage = null;
                 successCount++;
-
-                Log.PublishedNotification(_logger, notificationType.Name, message.Id);
             }
-            catch (Exception ex)
+            else
             {
-                Log.ErrorProcessingOutboxMessage(_logger, ex, message.Id);
-
-                message.ErrorMessage = ex.Message;
-                message.RetryCount++;
-                message.NextRetryAtUtc = message.RetryCount < _options.MaxRetries
-                    ? CalculateNextRetry(message.RetryCount)
-                    : null;
                 failureCount++;
             }
         }
 
-        // Save changes
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return (successCount, failureCount);
+    }
 
-        if (successCount > 0 || failureCount > 0)
+    private async Task<bool> ProcessSingleMessageAsync(
+        OutboxMessage message,
+        IEncina encina,
+        CancellationToken cancellationToken)
+    {
+        try
         {
-            Log.ProcessedOutboxMessages(_logger, successCount + failureCount, successCount, failureCount);
+            var notification = DeserializeNotification(message);
+
+            if (notification is null)
+            {
+                return false;
+            }
+
+            await encina.Publish(notification, cancellationToken);
+
+            message.ProcessedAtUtc = DateTime.UtcNow;
+            message.ErrorMessage = null;
+
+            Log.PublishedNotification(_logger, notification.GetType().Name, message.Id);
+            return true;
         }
+        catch (Exception ex)
+        {
+            HandleProcessingError(message, ex);
+            return false;
+        }
+    }
+
+    private INotification? DeserializeNotification(OutboxMessage message)
+    {
+        var notificationType = Type.GetType(message.NotificationType);
+
+        if (notificationType is null)
+        {
+            Log.TypeNotFound(_logger, message.NotificationType, message.Id);
+            MarkMessageForRetry(message, $"Type not found: {message.NotificationType}");
+            return null;
+        }
+
+        var notification = JsonSerializer.Deserialize(message.Content, notificationType, JsonOptions);
+
+        if (notification is null)
+        {
+            Log.DeserializationFailed(_logger, message.Id);
+            MarkMessageForRetry(message, "Deserialization failed");
+            return null;
+        }
+
+        return (INotification)notification;
+    }
+
+    private void MarkMessageForRetry(OutboxMessage message, string errorMessage)
+    {
+        message.ErrorMessage = errorMessage;
+        message.RetryCount++;
+        message.NextRetryAtUtc = CalculateNextRetry(message.RetryCount);
+    }
+
+    private void HandleProcessingError(OutboxMessage message, Exception ex)
+    {
+        Log.ErrorProcessingOutboxMessage(_logger, ex, message.Id);
+
+        message.ErrorMessage = ex.Message;
+        message.RetryCount++;
+        message.NextRetryAtUtc = message.RetryCount < _options.MaxRetries
+            ? CalculateNextRetry(message.RetryCount)
+            : null;
     }
 
     private DateTime CalculateNextRetry(int retryCount)

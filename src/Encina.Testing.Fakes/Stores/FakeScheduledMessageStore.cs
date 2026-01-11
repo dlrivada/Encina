@@ -141,7 +141,7 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
     public Task MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         lock (_lock)
@@ -150,7 +150,7 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
             {
                 message.ErrorMessage = errorMessage;
                 message.RetryCount++;
-                message.NextRetryAtUtc = nextRetryAt;
+                message.NextRetryAtUtc = nextRetryAtUtc;
                 _failedMessageIds.Add(messageId);
             }
         }
@@ -161,14 +161,14 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
     /// <inheritdoc />
     public Task RescheduleRecurringMessageAsync(
         Guid messageId,
-        DateTime nextScheduledAt,
+        DateTime nextScheduledAtUtc,
         CancellationToken cancellationToken = default)
     {
         lock (_lock)
         {
             if (_messages.TryGetValue(messageId, out var message))
             {
-                message.ScheduledAtUtc = nextScheduledAt;
+                message.ScheduledAtUtc = nextScheduledAtUtc;
                 message.ProcessedAtUtc = null;
                 message.ErrorMessage = null;
                 message.RetryCount = 0;

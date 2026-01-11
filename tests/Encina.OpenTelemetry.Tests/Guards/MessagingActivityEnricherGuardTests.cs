@@ -4,8 +4,8 @@ using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.OpenTelemetry.Enrichers;
-using Shouldly;
 using NSubstitute;
+using Shouldly;
 using Xunit;
 
 namespace Encina.OpenTelemetry.Tests.Guards;

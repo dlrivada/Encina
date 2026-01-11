@@ -53,8 +53,11 @@ public sealed class ModuleLifecycleHostedServiceTests
         var registry = new ModuleRegistry([regularModule]);
         var service = new ModuleLifecycleHostedService(registry, _logger);
 
-        // Act & Assert (should not throw)
-        await service.StartAsync(CancellationToken.None);
+        // Act
+        var exception = await Record.ExceptionAsync(() => service.StartAsync(CancellationToken.None));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -149,8 +152,11 @@ public sealed class ModuleLifecycleHostedServiceTests
         var registry = new ModuleRegistry([regularModule]);
         var service = new ModuleLifecycleHostedService(registry, _logger);
 
-        // Act & Assert (should not throw)
-        await service.StopAsync(CancellationToken.None);
+        // Act
+        var exception = await Record.ExceptionAsync(() => service.StopAsync(CancellationToken.None));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]

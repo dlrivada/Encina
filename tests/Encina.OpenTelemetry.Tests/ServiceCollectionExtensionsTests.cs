@@ -1,7 +1,7 @@
-using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Shouldly;
 using Xunit;
 
 namespace Encina.OpenTelemetry.Tests;

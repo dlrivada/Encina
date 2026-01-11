@@ -47,12 +47,12 @@ public interface IOutboxStore
     /// </summary>
     /// <param name="messageId">The message ID.</param>
     /// <param name="errorMessage">The error message.</param>
-    /// <param name="nextRetryAt">When to retry next.</param>
+    /// <param name="nextRetryAtUtc">When to retry next (UTC).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default);
 
     /// <summary>

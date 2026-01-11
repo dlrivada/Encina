@@ -57,50 +57,50 @@ public sealed class SagaStoreMongoDB : ISagaStore
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(ISagaState saga, CancellationToken cancellationToken = default)
+    public async Task AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(saga);
+        ArgumentNullException.ThrowIfNull(sagaState);
 
-        var mongoSaga = saga as SagaState ?? new SagaState
+        var mongoSaga = sagaState as SagaState ?? new SagaState
         {
-            SagaId = saga.SagaId,
-            SagaType = saga.SagaType,
-            Data = saga.Data,
-            Status = saga.Status,
-            CurrentStep = saga.CurrentStep,
-            StartedAtUtc = saga.StartedAtUtc,
-            CompletedAtUtc = saga.CompletedAtUtc,
-            ErrorMessage = saga.ErrorMessage,
-            LastUpdatedAtUtc = saga.LastUpdatedAtUtc
+            SagaId = sagaState.SagaId,
+            SagaType = sagaState.SagaType,
+            Data = sagaState.Data,
+            Status = sagaState.Status,
+            CurrentStep = sagaState.CurrentStep,
+            StartedAtUtc = sagaState.StartedAtUtc,
+            CompletedAtUtc = sagaState.CompletedAtUtc,
+            ErrorMessage = sagaState.ErrorMessage,
+            LastUpdatedAtUtc = sagaState.LastUpdatedAtUtc
         };
 
         await _collection.InsertOneAsync(mongoSaga, cancellationToken: cancellationToken).ConfigureAwait(false);
-        Log.CreatedSaga(_logger, saga.SagaId, saga.SagaType);
+        Log.CreatedSaga(_logger, sagaState.SagaId, sagaState.SagaType);
     }
 
     /// <inheritdoc />
-    public async Task UpdateAsync(ISagaState saga, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(saga);
+        ArgumentNullException.ThrowIfNull(sagaState);
 
-        var filter = Builders<SagaState>.Filter.Eq(s => s.SagaId, saga.SagaId);
+        var filter = Builders<SagaState>.Filter.Eq(s => s.SagaId, sagaState.SagaId);
         var update = Builders<SagaState>.Update
-            .Set(s => s.Data, saga.Data)
-            .Set(s => s.Status, saga.Status)
-            .Set(s => s.CurrentStep, saga.CurrentStep)
-            .Set(s => s.CompletedAtUtc, saga.CompletedAtUtc)
-            .Set(s => s.ErrorMessage, saga.ErrorMessage)
+            .Set(s => s.Data, sagaState.Data)
+            .Set(s => s.Status, sagaState.Status)
+            .Set(s => s.CurrentStep, sagaState.CurrentStep)
+            .Set(s => s.CompletedAtUtc, sagaState.CompletedAtUtc)
+            .Set(s => s.ErrorMessage, sagaState.ErrorMessage)
             .Set(s => s.LastUpdatedAtUtc, DateTime.UtcNow);
 
         var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 
         if (result.ModifiedCount == 0)
         {
-            Log.SagaNotFoundForStateUpdate(_logger, saga.SagaId);
+            Log.SagaNotFoundForStateUpdate(_logger, sagaState.SagaId);
         }
         else
         {
-            Log.UpdatedSagaState(_logger, saga.SagaId, saga.CurrentStep);
+            Log.UpdatedSagaState(_logger, sagaState.SagaId, sagaState.CurrentStep);
         }
     }
 

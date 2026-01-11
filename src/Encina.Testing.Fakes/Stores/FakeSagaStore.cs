@@ -49,22 +49,22 @@ public sealed class FakeSagaStore : ISagaStore
     }
 
     /// <inheritdoc />
-    public Task AddAsync(ISagaState saga, CancellationToken cancellationToken = default)
+    public Task AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(saga);
+        ArgumentNullException.ThrowIfNull(sagaState);
 
-        var fakeSaga = saga as FakeSagaState ?? new FakeSagaState
+        var fakeSaga = sagaState as FakeSagaState ?? new FakeSagaState
         {
-            SagaId = saga.SagaId,
-            SagaType = saga.SagaType,
-            Data = saga.Data,
-            Status = saga.Status,
-            CurrentStep = saga.CurrentStep,
-            StartedAtUtc = saga.StartedAtUtc,
-            CompletedAtUtc = saga.CompletedAtUtc,
-            ErrorMessage = saga.ErrorMessage,
-            LastUpdatedAtUtc = saga.LastUpdatedAtUtc,
-            TimeoutAtUtc = saga.TimeoutAtUtc
+            SagaId = sagaState.SagaId,
+            SagaType = sagaState.SagaType,
+            Data = sagaState.Data,
+            Status = sagaState.Status,
+            CurrentStep = sagaState.CurrentStep,
+            StartedAtUtc = sagaState.StartedAtUtc,
+            CompletedAtUtc = sagaState.CompletedAtUtc,
+            ErrorMessage = sagaState.ErrorMessage,
+            LastUpdatedAtUtc = sagaState.LastUpdatedAtUtc,
+            TimeoutAtUtc = sagaState.TimeoutAtUtc
         };
 
         _sagas[fakeSaga.SagaId] = fakeSaga;
@@ -74,20 +74,20 @@ public sealed class FakeSagaStore : ISagaStore
     }
 
     /// <inheritdoc />
-    public Task UpdateAsync(ISagaState saga, CancellationToken cancellationToken = default)
+    public Task UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(saga);
+        ArgumentNullException.ThrowIfNull(sagaState);
 
-        if (_sagas.TryGetValue(saga.SagaId, out var existing))
+        if (_sagas.TryGetValue(sagaState.SagaId, out var existing))
         {
-            existing.SagaType = saga.SagaType;
-            existing.Data = saga.Data;
-            existing.Status = saga.Status;
-            existing.CurrentStep = saga.CurrentStep;
-            existing.CompletedAtUtc = saga.CompletedAtUtc;
-            existing.ErrorMessage = saga.ErrorMessage;
+            existing.SagaType = sagaState.SagaType;
+            existing.Data = sagaState.Data;
+            existing.Status = sagaState.Status;
+            existing.CurrentStep = sagaState.CurrentStep;
+            existing.CompletedAtUtc = sagaState.CompletedAtUtc;
+            existing.ErrorMessage = sagaState.ErrorMessage;
             existing.LastUpdatedAtUtc = DateTime.UtcNow;
-            existing.TimeoutAtUtc = saga.TimeoutAtUtc;
+            existing.TimeoutAtUtc = sagaState.TimeoutAtUtc;
 
             _updatedSagas.Add(existing.Clone());
         }

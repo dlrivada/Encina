@@ -1,7 +1,7 @@
 using Amazon.Lambda.APIGatewayEvents;
 using Amazon.Lambda.Core;
-using Shouldly;
 using NSubstitute;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AwsLambda.Tests;

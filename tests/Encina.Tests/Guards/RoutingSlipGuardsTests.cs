@@ -1,8 +1,8 @@
 using Encina.Messaging.RoutingSlip;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.Tests.Guards;

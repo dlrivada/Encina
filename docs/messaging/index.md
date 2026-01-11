@@ -60,5 +60,5 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>();
 
 - [Messaging Transports](transports.md) - Choose the right transport for your use case
 - [Saga Patterns](sagas.md) - Learn about Orchestration vs Choreography
-- [Outbox Pattern](outbox.md) - Reliable event publishing *(coming soon)*
-- [Inbox Pattern](inbox.md) - Idempotent message processing *(coming soon)*
+- Outbox Pattern - Reliable event publishing *(documentation coming soon)*
+- Inbox Pattern - Idempotent message processing *(documentation coming soon)*

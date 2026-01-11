@@ -1,7 +1,7 @@
 using Encina.AzureFunctions.Durable;
-using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AzureFunctions.GuardTests.Durable;

@@ -1,5 +1,5 @@
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.Tests.Guards;
 

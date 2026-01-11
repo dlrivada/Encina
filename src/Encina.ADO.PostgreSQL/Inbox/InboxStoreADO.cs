@@ -137,7 +137,7 @@ public sealed class InboxStoreADO : IInboxStore
     public async Task MarkAsFailedAsync(
         string messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageId);
@@ -155,7 +155,7 @@ public sealed class InboxStoreADO : IInboxStore
         command.CommandText = sql;
         AddParameter(command, "@MessageId", messageId);
         AddParameter(command, "@ErrorMessage", errorMessage);
-        AddParameter(command, "@NextRetryAtUtc", nextRetryAt);
+        AddParameter(command, "@NextRetryAtUtc", nextRetryAtUtc);
 
         if (_connection.State != ConnectionState.Open)
             await OpenConnectionAsync(cancellationToken);

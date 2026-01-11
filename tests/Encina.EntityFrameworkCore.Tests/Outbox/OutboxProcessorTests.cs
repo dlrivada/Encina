@@ -84,12 +84,16 @@ public sealed class OutboxProcessorTests
         using var cts = new CancellationTokenSource();
 
         // Act
-        await processor.StartAsync(cts.Token);
-        await Task.Delay(10);
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await processor.StartAsync(cts.Token);
+            await Task.Delay(10);
+            cts.Cancel();
+            await processor.StopAsync(CancellationToken.None);
+        });
 
-        // Assert - Should not throw
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -107,11 +111,15 @@ public sealed class OutboxProcessorTests
         using var cts = new CancellationTokenSource();
 
         // Act
-        await processor.StartAsync(cts.Token);
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await processor.StartAsync(cts.Token);
+            cts.Cancel();
+            await processor.StopAsync(CancellationToken.None);
+        });
 
-        // Assert - Should complete without throwing
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion

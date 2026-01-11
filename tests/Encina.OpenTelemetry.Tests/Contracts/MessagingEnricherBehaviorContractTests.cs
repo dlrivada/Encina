@@ -4,9 +4,9 @@ using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.OpenTelemetry.Behaviors;
-using Shouldly;
 using LanguageExt;
 using NSubstitute;
+using Shouldly;
 using Xunit;
 
 namespace Encina.OpenTelemetry.Tests.Contracts;

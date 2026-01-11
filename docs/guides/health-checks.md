@@ -231,7 +231,6 @@ The `AspNetCore.HealthChecks.*` ecosystem provides health checks for most infras
 | Cache | Package | NuGet |
 |-------|---------|-------|
 | Redis | `AspNetCore.HealthChecks.Redis` | [![NuGet](https://img.shields.io/nuget/v/AspNetCore.HealthChecks.Redis.svg)](https://www.nuget.org/packages/AspNetCore.HealthChecks.Redis/) |
-| Memcached | `AspNetCore.HealthChecks.Memcached` | [![NuGet](https://img.shields.io/nuget/v/AspNetCore.HealthChecks.Memcached.svg)](https://www.nuget.org/packages/AspNetCore.HealthChecks.Memcached/) |
 
 ### Message Brokers
 
@@ -255,7 +254,6 @@ The `AspNetCore.HealthChecks.*` ecosystem provides health checks for most infras
 | Service | Package | NuGet |
 |---------|---------|-------|
 | HTTP/URLs | `AspNetCore.HealthChecks.Uris` | [![NuGet](https://img.shields.io/nuget/v/AspNetCore.HealthChecks.Uris.svg)](https://www.nuget.org/packages/AspNetCore.HealthChecks.Uris/) |
-| gRPC | `AspNetCore.HealthChecks.Grpc` | [![NuGet](https://img.shields.io/nuget/v/AspNetCore.HealthChecks.Grpc.svg)](https://www.nuget.org/packages/AspNetCore.HealthChecks.Grpc/) |
 | SignalR | `AspNetCore.HealthChecks.SignalR` | [![NuGet](https://img.shields.io/nuget/v/AspNetCore.HealthChecks.SignalR.svg)](https://www.nuget.org/packages/AspNetCore.HealthChecks.SignalR/) |
 
 ### Health Check UI

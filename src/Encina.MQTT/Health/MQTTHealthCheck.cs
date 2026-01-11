@@ -15,7 +15,6 @@ public sealed class MQTTHealthCheck : EncinaHealthCheck
     public const string DefaultName = "encina-mqtt";
 
     private readonly IServiceProvider _serviceProvider;
-    private readonly ProviderHealthCheckOptions _options;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MQTTHealthCheck"/> class.
@@ -28,7 +27,6 @@ public sealed class MQTTHealthCheck : EncinaHealthCheck
         : base(options?.Name ?? DefaultName, options?.Tags ?? ["encina", "messaging", "mqtt", "ready"])
     {
         _serviceProvider = serviceProvider;
-        _options = options ?? new ProviderHealthCheckOptions();
     }
 
     /// <inheritdoc/>

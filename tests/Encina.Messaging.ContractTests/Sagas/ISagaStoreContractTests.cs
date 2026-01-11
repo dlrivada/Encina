@@ -475,15 +475,15 @@ internal sealed class InMemorySagaStoreForContract : ISagaStore
         return Task.FromResult<ISagaState?>(saga);
     }
 
-    public Task AddAsync(ISagaState saga, CancellationToken cancellationToken = default)
+    public Task AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(saga);
+        ArgumentNullException.ThrowIfNull(sagaState);
 
-        if (saga is not InMemorySagaStateForContract inMemorySaga)
+        if (sagaState is not InMemorySagaStateForContract inMemorySaga)
         {
             throw new ArgumentException(
-                $"Saga must be of type {nameof(InMemorySagaStateForContract)}, but was {saga.GetType().Name}.",
-                nameof(saga));
+                $"Saga must be of type {nameof(InMemorySagaStateForContract)}, but was {sagaState.GetType().Name}.",
+                nameof(sagaState));
         }
 
         if (_sagas.Any(s => s.SagaId == inMemorySaga.SagaId))
@@ -495,9 +495,9 @@ internal sealed class InMemorySagaStoreForContract : ISagaStore
         return Task.CompletedTask;
     }
 
-    public Task UpdateAsync(ISagaState saga, CancellationToken cancellationToken = default)
+    public Task UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
-        if (saga is InMemorySagaStateForContract inMemorySaga)
+        if (sagaState is InMemorySagaStateForContract inMemorySaga)
         {
             var existing = _sagas.FirstOrDefault(s => s.SagaId == inMemorySaga.SagaId);
             if (existing != null)

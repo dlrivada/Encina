@@ -237,7 +237,6 @@ public sealed class DurableSaga<TData>
 {
     private readonly IReadOnlyList<DurableSagaStep<TData>> _steps;
     private readonly TaskOptions? _defaultRetryOptions;
-    private readonly TimeSpan? _timeout;
 
     internal DurableSaga(
         IReadOnlyList<DurableSagaStep<TData>> steps,
@@ -246,7 +245,8 @@ public sealed class DurableSaga<TData>
     {
         _steps = steps;
         _defaultRetryOptions = defaultRetryOptions;
-        _timeout = timeout;
+        // timeout is reserved for future use when saga-level timeouts are implemented
+        _ = timeout;
     }
 
     /// <summary>

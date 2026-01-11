@@ -100,7 +100,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
     public async Task MarkAsFailedAsync(
         string messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(messageId);
@@ -108,7 +108,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
         var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
         var update = Builders<InboxMessage>.Update
             .Set(m => m.ErrorMessage, errorMessage)
-            .Set(m => m.NextRetryAtUtc, nextRetryAt)
+            .Set(m => m.NextRetryAtUtc, nextRetryAtUtc)
             .Inc(m => m.RetryCount, 1);
 
         var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);

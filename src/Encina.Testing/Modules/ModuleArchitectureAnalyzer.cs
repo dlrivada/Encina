@@ -1,11 +1,11 @@
 using ArchUnitNET.Fluent;
 using ArchUnitNET.Loader;
 using Encina.Modules;
-using Shouldly;
 using Microsoft.Extensions.Logging;
+using Shouldly;
 using ReflectionAssembly = System.Reflection.Assembly;
-using ReflectionType = System.Type;
 using ReflectionBindingFlags = System.Reflection.BindingFlags;
+using ReflectionType = System.Type;
 
 namespace Encina.Testing.Modules;
 

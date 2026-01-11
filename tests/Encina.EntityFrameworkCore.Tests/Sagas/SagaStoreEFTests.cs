@@ -1,6 +1,6 @@
 using Encina.EntityFrameworkCore.Sagas;
-using Shouldly;
 using Microsoft.EntityFrameworkCore;
+using Shouldly;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.Tests.Sagas;

@@ -164,7 +164,8 @@ public class AggregateTestBaseTests
         test.TestWhen(order => order.SubmitWithValidation());
 
         // Assert - should be able to use ThenThrows
-        test.TestThenThrows<InvalidOperationException>();
+        var thrownException = test.TestThenThrows<InvalidOperationException>();
+        Assert.NotNull(thrownException);
     }
 
     #endregion
@@ -315,7 +316,8 @@ public class AggregateTestBaseTests
         });
 
         // Assert
-        test.TestThenEvents(typeof(OrderCreated), typeof(ItemAdded));
+        var exception = Record.Exception(() => test.TestThenEvents(typeof(OrderCreated), typeof(ItemAdded)));
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -373,7 +375,8 @@ public class AggregateTestBaseTests
         test.TestWhen(order => order.SubmitIdempotent());
 
         // Assert
-        test.TestThenNoEvents();
+        var exception = Record.Exception(() => test.TestThenNoEvents());
+        Assert.Null(exception);
     }
 
     [Fact]

@@ -140,7 +140,7 @@ public sealed class MessagingFakerExamples
         await store.MarkAsFailedAsync(
             messageId,
             errorMessage: "Connection timeout",
-            nextRetryAt: DateTime.UtcNow.AddMinutes(5));
+            nextRetryAtUtc: DateTime.UtcNow.AddMinutes(5));
 
         // Assert
         store.FailedMessageIds.ShouldContain(messageId);

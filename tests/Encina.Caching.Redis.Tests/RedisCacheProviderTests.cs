@@ -169,11 +169,12 @@ public sealed class RedisCacheProviderTests
         var key = "test-key";
         var value = new TestData { Id = 456, Name = "Stored" };
 
-        // Act - verify SetAsync completes without exception
-        await provider.SetAsync(key, value, TimeSpan.FromMinutes(10), CancellationToken.None);
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            provider.SetAsync(key, value, TimeSpan.FromMinutes(10), CancellationToken.None));
 
-        // Assert - method completed successfully (StringSetAsync was called internally)
-        // Note: NSubstitute auto-stubs all methods on mocked interfaces
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -183,11 +184,12 @@ public sealed class RedisCacheProviderTests
         var provider = CreateProvider();
         var key = "test-key";
 
-        // Act - verify SetAsync completes without exception when no expiration is provided
-        await provider.SetAsync(key, "value", null, CancellationToken.None);
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            provider.SetAsync(key, "value", null, CancellationToken.None));
 
-        // Assert - method completed successfully (default expiration is used internally)
-        // The implementation uses _options.DefaultExpiration when null is passed
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -525,9 +527,11 @@ public sealed class RedisCacheProviderTests
         var slidingExpiration = TimeSpan.FromMinutes(5);
 
         // Act
-        await provider.SetWithSlidingExpirationAsync(key, value, slidingExpiration, null, CancellationToken.None);
+        var exception = await Record.ExceptionAsync(() =>
+            provider.SetWithSlidingExpirationAsync(key, value, slidingExpiration, null, CancellationToken.None));
 
-        // Assert - method completed successfully
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -541,14 +545,16 @@ public sealed class RedisCacheProviderTests
         var absoluteExpiration = TimeSpan.FromHours(1);
 
         // Act
-        await provider.SetWithSlidingExpirationAsync(
-            key,
-            value,
-            slidingExpiration,
-            absoluteExpiration,
-            CancellationToken.None);
+        var exception = await Record.ExceptionAsync(() =>
+            provider.SetWithSlidingExpirationAsync(
+                key,
+                value,
+                slidingExpiration,
+                absoluteExpiration,
+                CancellationToken.None));
 
-        // Assert - method completed successfully (both value and metadata stored)
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion

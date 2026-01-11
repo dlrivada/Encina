@@ -1,9 +1,9 @@
 using Encina.Marten.Projections;
-using Shouldly;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.Marten.Tests.Projections;
 

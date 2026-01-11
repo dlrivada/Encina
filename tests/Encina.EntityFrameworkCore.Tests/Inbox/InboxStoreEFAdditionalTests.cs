@@ -1,8 +1,8 @@
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.Messaging.Inbox;
-using Shouldly;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
+using Shouldly;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.Tests.Inbox;

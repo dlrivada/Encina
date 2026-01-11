@@ -1,6 +1,6 @@
 using Encina.AzureFunctions.Durable;
-using Shouldly;
 using Microsoft.DurableTask;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AzureFunctions.ContractTests.Durable;

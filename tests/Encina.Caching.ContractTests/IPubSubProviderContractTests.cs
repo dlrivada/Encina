@@ -69,8 +69,12 @@ public abstract class IPubSubProviderContractTests : IAsyncLifetime
     [Fact]
     public async Task PublishAsync_WithNoSubscribers_DoesNotThrow()
     {
-        // Act & Assert - should not throw when no subscribers
-        await Provider.PublishAsync("no-subscribers", "message", CancellationToken.None);
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            Provider.PublishAsync("no-subscribers", "message", CancellationToken.None));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion

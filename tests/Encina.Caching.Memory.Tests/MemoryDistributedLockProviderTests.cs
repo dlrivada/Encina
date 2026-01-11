@@ -487,9 +487,15 @@ public sealed class MemoryDistributedLockProviderTests
             TimeSpan.FromMinutes(5),
             CancellationToken.None);
 
-        // Act & Assert - double dispose should not throw
-        await lockHandle.DisposeAsync();
-        await lockHandle.DisposeAsync(); // Should complete without exception
+        // Act
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await lockHandle.DisposeAsync();
+            await lockHandle.DisposeAsync();
+        });
+
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion

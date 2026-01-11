@@ -358,9 +358,15 @@ public abstract class InboxStoreContractTests : IAsyncLifetime
         // Arrange
         var store = CreateStore();
 
-        // Act & Assert - should not throw
-        await store.RemoveExpiredMessagesAsync([]);
-        await store.SaveChangesAsync();
+        // Act - should not throw when called with empty list
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await store.RemoveExpiredMessagesAsync([]);
+            await store.SaveChangesAsync();
+        });
+
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion
@@ -468,14 +474,14 @@ internal sealed class InMemoryInboxStoreForContract : IInboxStore
     public Task MarkAsFailedAsync(
         string messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         var message = _messages.FirstOrDefault(m => m.MessageId == messageId);
         if (message != null)
         {
             message.ErrorMessage = errorMessage;
-            message.NextRetryAtUtc = nextRetryAt;
+            message.NextRetryAtUtc = nextRetryAtUtc;
         }
         return Task.CompletedTask;
     }

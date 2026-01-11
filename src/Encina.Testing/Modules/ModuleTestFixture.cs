@@ -1,14 +1,14 @@
 using System.Reflection;
-using Encina.Modules;
-using Encina.Testing.Fakes;
-using Encina.Testing.Fakes.Factories;
-using Encina.Testing.Fakes.Stores;
-using Encina.Testing.Time;
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Encina.Modules;
+using Encina.Testing.Fakes;
+using Encina.Testing.Fakes.Factories;
+using Encina.Testing.Fakes.Stores;
+using Encina.Testing.Time;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 

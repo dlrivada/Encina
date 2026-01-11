@@ -35,30 +35,30 @@ public sealed class SagaStoreEF : ISagaStore
     }
 
     /// <inheritdoc/>
-    public async Task AddAsync(ISagaState saga, CancellationToken cancellationToken = default)
+    public async Task AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(saga);
+        ArgumentNullException.ThrowIfNull(sagaState);
 
-        if (saga is not SagaState efSaga)
+        if (sagaState is not SagaState efSaga)
         {
             throw new InvalidOperationException(
                 $"SagaStoreEF requires saga state of type {nameof(SagaState)}, " +
-                $"but received {saga.GetType().Name}");
+                $"but received {sagaState.GetType().Name}");
         }
 
         await _dbContext.Set<SagaState>().AddAsync(efSaga, cancellationToken);
     }
 
     /// <inheritdoc/>
-    public Task UpdateAsync(ISagaState saga, CancellationToken cancellationToken = default)
+    public Task UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(saga);
+        ArgumentNullException.ThrowIfNull(sagaState);
 
-        if (saga is not SagaState efSaga)
+        if (sagaState is not SagaState efSaga)
         {
             throw new InvalidOperationException(
                 $"SagaStoreEF requires saga state of type {nameof(SagaState)}, " +
-                $"but received {saga.GetType().Name}");
+                $"but received {sagaState.GetType().Name}");
         }
 
         // EF Core tracks changes automatically, no need for explicit Update call

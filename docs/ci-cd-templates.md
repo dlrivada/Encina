@@ -467,5 +467,4 @@ Or configure Stryker to exclude slow tests:
 
 - [GitHub Actions Reusable Workflows](https://docs.github.com/en/actions/using-workflows/reusing-workflows)
 - [.NET SDK Actions](https://github.com/actions/setup-dotnet)
-- [Encina Testing Documentation](./testing.md)
 - [Issue #173](https://github.com/dlrivada/Encina/issues/173)

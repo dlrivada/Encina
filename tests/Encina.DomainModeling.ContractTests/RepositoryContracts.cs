@@ -1,6 +1,6 @@
 using System.Reflection;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.DomainModeling.ContractTests;
 

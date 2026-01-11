@@ -1,7 +1,7 @@
 using System.Security.Claims;
-using Shouldly;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
+using Shouldly;
 using Xunit;
 using static LanguageExt.Prelude;
 

@@ -2,9 +2,9 @@ using System.Runtime.CompilerServices;
 using Encina.Testing.FsCheck;
 using FsCheck;
 using FsCheck.Fluent;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 #pragma warning disable CA1861 // Prefer static readonly array for test data

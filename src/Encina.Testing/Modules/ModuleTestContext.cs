@@ -1,6 +1,6 @@
+using Encina.Testing.Fakes.Stores;
 using LanguageExt;
 using Shouldly;
-using Encina.Testing.Fakes.Stores;
 
 namespace Encina.Testing.Modules;
 

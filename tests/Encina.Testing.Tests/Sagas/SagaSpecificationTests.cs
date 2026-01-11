@@ -1,6 +1,6 @@
+using Encina.Testing.Sagas;
 using LanguageExt;
 using Shouldly;
-using Encina.Testing.Sagas;
 using static LanguageExt.Prelude;
 
 namespace Encina.Testing.Tests.Sagas;
@@ -714,7 +714,8 @@ public sealed class SagaSpecificationTests
         await spec.CallWhenComplete();
 
         // Act & Assert (should not throw)
-        spec.CallThenCompleted();
+        var exception = Record.Exception(() => spec.CallThenCompleted());
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -736,7 +737,8 @@ public sealed class SagaSpecificationTests
         await spec.CallWhenComplete();
 
         // Act & Assert (should not throw)
-        spec.CallThenFailed();
+        var exception = Record.Exception(() => spec.CallThenFailed());
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -747,7 +749,8 @@ public sealed class SagaSpecificationTests
         await spec.CallWhenComplete();
 
         // Act & Assert (should not throw)
-        spec.CallThenFailed("Step 1");
+        var exception = Record.Exception(() => spec.CallThenFailed("Step 1"));
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -758,7 +761,8 @@ public sealed class SagaSpecificationTests
         await spec.CallWhenCompensate(1);
 
         // Act & Assert (should not throw)
-        spec.CallThenCompensated();
+        var exception = Record.Exception(() => spec.CallThenCompensated());
+        Assert.Null(exception);
     }
 
     [Fact]

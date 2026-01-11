@@ -102,9 +102,11 @@ public sealed class RedisPubSubProviderTests
             .Returns(1L);
 
         // Act
-        await provider.PublishAsync(channel, message, CancellationToken.None);
+        var exception = await Record.ExceptionAsync(() =>
+            provider.PublishAsync(channel, message, CancellationToken.None));
 
-        // Assert - method completes without exception
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion
@@ -147,9 +149,11 @@ public sealed class RedisPubSubProviderTests
             .Returns(1L);
 
         // Act
-        await provider.PublishAsync(channel, message, CancellationToken.None);
+        var exception = await Record.ExceptionAsync(() =>
+            provider.PublishAsync(channel, message, CancellationToken.None));
 
-        // Assert - method completes without exception
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion
@@ -353,9 +357,11 @@ public sealed class RedisPubSubProviderTests
         var channel = "test-channel";
 
         // Act
-        await provider.UnsubscribeAsync(channel, CancellationToken.None);
+        var exception = await Record.ExceptionAsync(() =>
+            provider.UnsubscribeAsync(channel, CancellationToken.None));
 
-        // Assert - method completes without exception
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion
@@ -394,9 +400,11 @@ public sealed class RedisPubSubProviderTests
         var pattern = "test:*";
 
         // Act
-        await provider.UnsubscribePatternAsync(pattern, CancellationToken.None);
+        var exception = await Record.ExceptionAsync(() =>
+            provider.UnsubscribePatternAsync(pattern, CancellationToken.None));
 
-        // Assert - method completes without exception
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion

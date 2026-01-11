@@ -43,7 +43,6 @@ public sealed class SagaTestHelper : IDisposable
     private readonly FakeTimeProvider _timeProvider;
     private bool _whenExecuted;
     private Exception? _caughtException;
-    private Guid _lastSagaId;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaTestHelper"/> class.
@@ -97,7 +96,6 @@ public sealed class SagaTestHelper : IDisposable
         _store.Clear();
         _whenExecuted = false;
         _caughtException = null;
-        _lastSagaId = Guid.Empty;
         return this;
     }
 
@@ -121,7 +119,6 @@ public sealed class SagaTestHelper : IDisposable
         _store.Clear();
         _whenExecuted = false;
         _caughtException = null;
-        _lastSagaId = sagaId;
 
         var saga = new FakeSagaState
         {
@@ -163,7 +160,6 @@ public sealed class SagaTestHelper : IDisposable
         _store.Clear();
         _whenExecuted = false;
         _caughtException = null;
-        _lastSagaId = sagaId;
 
         var saga = new FakeSagaState
         {
@@ -199,7 +195,6 @@ public sealed class SagaTestHelper : IDisposable
         _store.Clear();
         _whenExecuted = false;
         _caughtException = null;
-        _lastSagaId = sagaId;
 
         var saga = new FakeSagaState
         {
@@ -239,7 +234,6 @@ public sealed class SagaTestHelper : IDisposable
         _store.Clear();
         _whenExecuted = false;
         _caughtException = null;
-        _lastSagaId = sagaId;
 
         var saga = new FakeSagaState
         {
@@ -277,7 +271,6 @@ public sealed class SagaTestHelper : IDisposable
         _store.Clear();
         _whenExecuted = false;
         _caughtException = null;
-        _lastSagaId = sagaId;
 
         var saga = new FakeSagaState
         {
@@ -335,8 +328,6 @@ public sealed class SagaTestHelper : IDisposable
     {
         ArgumentNullException.ThrowIfNull(data);
 
-        _lastSagaId = sagaId;
-
         return WhenAsync(async () =>
         {
             var saga = new FakeSagaState
@@ -364,8 +355,6 @@ public sealed class SagaTestHelper : IDisposable
     /// <returns>This helper for method chaining.</returns>
     public SagaTestHelper WhenSagaAdvancesToNextStep(Guid sagaId)
     {
-        _lastSagaId = sagaId;
-
         return WhenAsync(async () =>
         {
             var saga = await _store.GetAsync(sagaId);
@@ -404,8 +393,6 @@ public sealed class SagaTestHelper : IDisposable
     {
         ArgumentNullException.ThrowIfNull(data);
 
-        _lastSagaId = sagaId;
-
         return WhenAsync(async () =>
         {
             var saga = await _store.GetAsync(sagaId);
@@ -439,8 +426,6 @@ public sealed class SagaTestHelper : IDisposable
     /// <returns>This helper for method chaining.</returns>
     public SagaTestHelper WhenSagaCompletes(Guid sagaId)
     {
-        _lastSagaId = sagaId;
-
         return WhenAsync(async () =>
         {
             var saga = await _store.GetAsync(sagaId);
@@ -475,8 +460,6 @@ public sealed class SagaTestHelper : IDisposable
     /// <returns>This helper for method chaining.</returns>
     public SagaTestHelper WhenSagaStartsCompensating(Guid sagaId, string errorMessage = "Step failed")
     {
-        _lastSagaId = sagaId;
-
         return WhenAsync(async () =>
         {
             var saga = await _store.GetAsync(sagaId);
@@ -511,8 +494,6 @@ public sealed class SagaTestHelper : IDisposable
     /// <returns>This helper for method chaining.</returns>
     public SagaTestHelper WhenSagaFails(Guid sagaId, string errorMessage = "Saga failed")
     {
-        _lastSagaId = sagaId;
-
         return WhenAsync(async () =>
         {
             var saga = await _store.GetAsync(sagaId);
@@ -546,8 +527,6 @@ public sealed class SagaTestHelper : IDisposable
     /// <returns>This helper for method chaining.</returns>
     public SagaTestHelper WhenSagaTimesOut(Guid sagaId)
     {
-        _lastSagaId = sagaId;
-
         return WhenAsync(async () =>
         {
             var saga = await _store.GetAsync(sagaId);

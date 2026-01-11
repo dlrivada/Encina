@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text.Json;
-using Shouldly;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
+using Shouldly;
 using Xunit;
 
 namespace Encina.AspNetCore.Tests;

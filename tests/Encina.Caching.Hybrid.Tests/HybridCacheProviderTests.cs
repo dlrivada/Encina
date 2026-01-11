@@ -280,8 +280,12 @@ public sealed class HybridCacheProviderTests : IDisposable
         // Arrange
         var key = _keyFaker.Generate();
 
-        // Act & Assert - should not throw
-        await _sut.RemoveAsync(key, CancellationToken.None);
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            _sut.RemoveAsync(key, CancellationToken.None));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     [Fact]

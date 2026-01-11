@@ -110,13 +110,13 @@ public sealed class FakeInboxStore : IInboxStore
     public Task MarkAsFailedAsync(
         string messageId,
         string errorMessage,
-        DateTime? nextRetryAt,
+        DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         if (_messages.TryGetValue(messageId, out var message))
         {
             message.ErrorMessage = errorMessage;
-            message.NextRetryAtUtc = nextRetryAt;
+            message.NextRetryAtUtc = nextRetryAtUtc;
 
             lock (_lock)
             {

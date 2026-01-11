@@ -125,8 +125,9 @@ public sealed class AggregateTestBaseContractTests
             order.AddItem("Product", 1);
         });
 
-        // Should pass - exact order
-        test.TestThenEvents(typeof(OrderCreated), typeof(ItemAdded));
+        // Should pass - exact order (ThenEvents throws if order doesn't match)
+        var exception = Record.Exception(() => test.TestThenEvents(typeof(OrderCreated), typeof(ItemAdded)));
+        Assert.Null(exception);
     }
 
     [Fact]

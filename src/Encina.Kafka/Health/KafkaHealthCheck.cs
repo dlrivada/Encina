@@ -15,7 +15,6 @@ public sealed class KafkaHealthCheck : EncinaHealthCheck
     public const string DefaultName = "encina-kafka";
 
     private readonly IServiceProvider _serviceProvider;
-    private readonly ProviderHealthCheckOptions _options;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="KafkaHealthCheck"/> class.
@@ -28,7 +27,6 @@ public sealed class KafkaHealthCheck : EncinaHealthCheck
         : base(options?.Name ?? DefaultName, options?.Tags ?? ["encina", "messaging", "kafka", "ready"])
     {
         _serviceProvider = serviceProvider;
-        _options = options ?? new ProviderHealthCheckOptions();
     }
 
     /// <inheritdoc/>
