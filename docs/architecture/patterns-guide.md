@@ -878,7 +878,7 @@ result.Match(
 
 ## Further Reading
 
-- [Encina Pattern](https://refactoring.guru/design-patterns/Encina)
+- [Mediator Pattern](https://refactoring.guru/design-patterns/mediator)
 - [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/)
 - [Chain of Responsibility](https://refactoring.guru/design-patterns/chain-of-responsibility)
 - [Decorator Pattern](https://refactoring.guru/design-patterns/decorator)
