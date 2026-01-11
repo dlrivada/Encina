@@ -390,6 +390,9 @@ public sealed class MessagingFakerExamples
             cachedResponse: "Already processed result",
             requestType: "CreateOrder");
 
+        // When - Receive same message again (duplicate attempt)
+        helper.WhenMessageReceived(messageId);
+
         // Then - Should detect duplicate
         helper.ThenMessageWasAlreadyProcessed(messageId);
 

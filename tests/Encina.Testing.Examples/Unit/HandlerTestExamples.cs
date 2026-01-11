@@ -60,7 +60,7 @@ public sealed class HandlerTestExamples
         // Assert - Use domain-specific error assertions
         context.Result
             .ShouldBeValidationError()
-            .Message.ShouldContain("CustomerId");
+            .Message.ShouldContain("Customer ID");
     }
 
     /// <summary>

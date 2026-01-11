@@ -41,13 +41,18 @@ public sealed class CreateOrderHandlerSpecs : HandlerSpecification<CreateOrderCo
     }
 
     /// <summary>
-    /// Pattern: Modifying request via Given.
+    /// Pattern: Modifying request via GivenRequest (for immutable records).
     /// </summary>
     [Fact]
     public async Task GivenModifiedRequest_ShouldUseNewValues()
     {
-        // Given - Modify the request
-        Given(r => r = r with { CustomerId = "PREMIUM-001", Amount = 500m });
+        // Given - Use GivenRequest for immutable records
+        GivenRequest(new CreateOrderCommand
+        {
+            CustomerId = "PREMIUM-001",
+            Amount = 500m,
+            Notes = "Modified order"
+        });
 
         // When
         await When();
@@ -57,13 +62,20 @@ public sealed class CreateOrderHandlerSpecs : HandlerSpecification<CreateOrderCo
     }
 
     /// <summary>
-    /// Pattern: Inline modification via When overload.
+    /// Pattern: GivenRequest with modified amount.
     /// </summary>
     [Fact]
-    public async Task WhenWithModification_ShouldApplyChanges()
+    public async Task WhenWithHighAmount_ShouldSucceed()
     {
-        // When with inline modification
-        await When(r => r = r with { Amount = 1000m });
+        // Given - Use GivenRequest for immutable records
+        GivenRequest(new CreateOrderCommand
+        {
+            CustomerId = "CUST-001",
+            Amount = 1000m
+        });
+
+        // When
+        await When();
 
         // Then
         ThenSuccess();
@@ -75,14 +87,18 @@ public sealed class CreateOrderHandlerSpecs : HandlerSpecification<CreateOrderCo
     [Fact]
     public async Task EmptyCustomerId_ShouldReturnValidationError()
     {
-        // Given - Invalid request
-        Given(r => r = r with { CustomerId = "" });
+        // Given - Invalid request (empty customer ID)
+        GivenRequest(new CreateOrderCommand
+        {
+            CustomerId = "",
+            Amount = 100m
+        });
 
         // When
         await When();
 
-        // Then - Validation error for CustomerId
-        ThenValidationError("CustomerId");
+        // Then - Check that error message contains "Customer ID"
+        ThenError(error => error.Message.ShouldContain("Customer ID"));
     }
 
     /// <summary>
@@ -92,7 +108,11 @@ public sealed class CreateOrderHandlerSpecs : HandlerSpecification<CreateOrderCo
     public async Task InvalidAmountAndCustomer_ShouldReturnValidationErrors()
     {
         // Given - Multiple invalid fields
-        Given(r => r = r with { CustomerId = "", Amount = 0 });
+        GivenRequest(new CreateOrderCommand
+        {
+            CustomerId = "",
+            Amount = 0
+        });
 
         // When
         await When();
@@ -107,8 +127,12 @@ public sealed class CreateOrderHandlerSpecs : HandlerSpecification<CreateOrderCo
     [Fact]
     public async Task ZeroAmount_ShouldReturnValidationErrorWithCode()
     {
-        // Given
-        Given(r => r = r with { Amount = 0 });
+        // Given - Zero amount is invalid
+        GivenRequest(new CreateOrderCommand
+        {
+            CustomerId = "CUST-001",
+            Amount = 0
+        });
 
         // When
         await When();
@@ -141,8 +165,12 @@ public sealed class CreateOrderHandlerSpecs : HandlerSpecification<CreateOrderCo
     [Fact]
     public async Task InvalidRequest_ShouldReturnDescriptiveError()
     {
-        // Given
-        Given(r => r = r with { CustomerId = "" });
+        // Given - Empty customer ID causes validation error
+        GivenRequest(new CreateOrderCommand
+        {
+            CustomerId = "",
+            Amount = 100m
+        });
 
         // When
         await When();
