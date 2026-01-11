@@ -242,7 +242,7 @@ public class SchedulingProviderComparisonBenchmarks
         await _store.MarkAsFailedAsync(
             messageId: id,
             errorMessage: "Execution failed - simulated error",
-            nextRetryAt: DateTime.UtcNow.AddMinutes(5));
+            nextRetryAtUtc: DateTime.UtcNow.AddMinutes(5));
         await _store.SaveChangesAsync();
     }
 
