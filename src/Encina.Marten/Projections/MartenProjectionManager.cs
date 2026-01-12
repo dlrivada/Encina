@@ -75,162 +75,251 @@ public sealed class MartenProjectionManager : IProjectionManager
 
         try
         {
-            ProjectionLog.StartingRebuild(_logger, projectionName);
-
-            UpdateStatus(projectionName, status =>
-            {
-                status.State = ProjectionState.Rebuilding;
-                status.IsRebuilding = true;
-                status.RebuildProgressPercent = 0;
-                status.StartedAtUtc = DateTime.UtcNow;
-                status.ErrorMessage = null;
-            });
-
-            // Delete existing read models if requested
-            if (options.DeleteExisting)
-            {
-                await using var deleteSession = _store.LightweightSession();
-                deleteSession.DeleteWhere<TReadModel>(_ => true);
-                await deleteSession.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            }
-
-            // Get total event count for progress tracking
-            await using var countSession = _store.QuerySession();
-            var totalEvents = await countSession.Events
-                .QueryAllRawEvents()
-                .CountAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            if (totalEvents == 0)
-            {
-                UpdateStatus(projectionName, status =>
-                {
-                    status.State = ProjectionState.Stopped;
-                    status.IsRebuilding = false;
-                    status.RebuildProgressPercent = 100;
-                    status.LastProcessedAtUtc = DateTime.UtcNow;
-                });
-
-                ProjectionLog.CompletedRebuild(_logger, projectionName, 0);
-                return Right<EncinaError, long>(0);
-            }
-
-            long eventsProcessed = 0;
-            var batchSize = options.BatchSize;
-            long position = options.StartPosition;
-            var endPosition = options.EndPosition ?? long.MaxValue;
-
-            // Process events in batches
-            while (position < endPosition && !cancellationToken.IsCancellationRequested)
-            {
-                await using var session = _store.LightweightSession();
-                var projection = _serviceProvider.GetRequiredService(registration.ProjectionType);
-
-                var events = await session.Events
-                    .QueryAllRawEvents()
-                    .Where(e => e.Sequence > position)
-                    .OrderBy(e => e.Sequence)
-                    .Take(batchSize)
-                    .ToListAsync(cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (events.Count == 0)
-                {
-                    break;
-                }
-
-                foreach (var eventData in events)
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        return Left<EncinaError, long>(
-                            EncinaErrors.Create(
-                                ProjectionErrorCodes.Cancelled,
-                                "Rebuild was cancelled."));
-                    }
-
-                    var eventType = eventData.Data.GetType();
-                    var handlerInfo = registration.GetHandlerInfo(eventType);
-
-                    if (handlerInfo != null)
-                    {
-                        var context = CreateContext(eventData);
-
-                        await ApplyEventAsync(
-                            session,
-                            projection,
-                            eventData.Data,
-                            context,
-                            registration,
-                            handlerInfo.Value,
-                            cancellationToken).ConfigureAwait(false);
-                    }
-
-                    position = eventData.Sequence;
-                    eventsProcessed++;
-                }
-
-                await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-                // Update progress
-                var progressPercent = (int)((eventsProcessed * 100) / totalEvents);
-                UpdateStatus(projectionName, status =>
-                {
-                    status.RebuildProgressPercent = progressPercent;
-                    status.LastProcessedPosition = position;
-                    status.EventsProcessed = eventsProcessed;
-                    status.LastProcessedAtUtc = DateTime.UtcNow;
-                });
-
-                ProjectionLog.RebuildProgress(_logger, projectionName, progressPercent, eventsProcessed);
-                options.OnProgress?.Invoke(progressPercent, eventsProcessed);
-            }
-
-            UpdateStatus(projectionName, status =>
-            {
-                status.State = ProjectionState.Stopped;
-                status.IsRebuilding = false;
-                status.RebuildProgressPercent = 100;
-                status.LastProcessedPosition = position;
-                status.EventsProcessed = eventsProcessed;
-                status.LastProcessedAtUtc = DateTime.UtcNow;
-            });
-
-            ProjectionLog.CompletedRebuild(_logger, projectionName, eventsProcessed);
-
-            return Right<EncinaError, long>(eventsProcessed);
+            return await ExecuteRebuildAsync<TReadModel>(registration, options, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            UpdateStatus(projectionName, status =>
-            {
-                status.State = ProjectionState.Stopped;
-                status.IsRebuilding = false;
-                status.ErrorMessage = "Rebuild was cancelled.";
-            });
-
-            return Left<EncinaError, long>(
-                EncinaErrors.Create(
-                    ProjectionErrorCodes.Cancelled,
-                    "Rebuild was cancelled."));
+            return HandleRebuildCancellation(projectionName);
         }
         catch (Exception ex)
         {
-            ProjectionLog.ErrorRebuild(_logger, ex, projectionName);
-
-            UpdateStatus(projectionName, status =>
-            {
-                status.State = ProjectionState.Faulted;
-                status.IsRebuilding = false;
-                status.ErrorMessage = ex.Message;
-            });
-
-            return Left<EncinaError, long>(
-                EncinaErrors.FromException(
-                    ProjectionErrorCodes.RebuildFailed,
-                    ex,
-                    $"Failed to rebuild projection {projectionName}."));
+            return HandleRebuildException(projectionName, ex);
         }
+    }
+
+    private async Task<Either<EncinaError, long>> ExecuteRebuildAsync<TReadModel>(
+        ProjectionRegistration registration,
+        RebuildOptions options,
+        CancellationToken cancellationToken)
+        where TReadModel : class, IReadModel
+    {
+        var projectionName = registration.ProjectionName;
+
+        ProjectionLog.StartingRebuild(_logger, projectionName);
+        UpdateStatusForRebuildStart(projectionName);
+
+        if (options.DeleteExisting)
+        {
+            await DeleteExistingReadModelsAsync<TReadModel>(cancellationToken).ConfigureAwait(false);
+        }
+
+        var totalEvents = await GetTotalEventCountAsync(cancellationToken).ConfigureAwait(false);
+
+        if (totalEvents == 0)
+        {
+            return HandleNoEventsToRebuild(projectionName);
+        }
+
+        return await ProcessEventBatchesAsync<TReadModel>(
+            registration, options, totalEvents, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void UpdateStatusForRebuildStart(string projectionName)
+    {
+        UpdateStatus(projectionName, status =>
+        {
+            status.State = ProjectionState.Rebuilding;
+            status.IsRebuilding = true;
+            status.RebuildProgressPercent = 0;
+            status.StartedAtUtc = DateTime.UtcNow;
+            status.ErrorMessage = null;
+        });
+    }
+
+    private async Task DeleteExistingReadModelsAsync<TReadModel>(CancellationToken cancellationToken)
+        where TReadModel : class, IReadModel
+    {
+        await using var deleteSession = _store.LightweightSession();
+        deleteSession.DeleteWhere<TReadModel>(_ => true);
+        await deleteSession.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<int> GetTotalEventCountAsync(CancellationToken cancellationToken)
+    {
+        await using var countSession = _store.QuerySession();
+        return await countSession.Events
+            .QueryAllRawEvents()
+            .CountAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private Either<EncinaError, long> HandleNoEventsToRebuild(string projectionName)
+    {
+        UpdateStatus(projectionName, status =>
+        {
+            status.State = ProjectionState.Stopped;
+            status.IsRebuilding = false;
+            status.RebuildProgressPercent = 100;
+            status.LastProcessedAtUtc = DateTime.UtcNow;
+        });
+
+        ProjectionLog.CompletedRebuild(_logger, projectionName, 0);
+        return Right<EncinaError, long>(0);
+    }
+
+    private async Task<Either<EncinaError, long>> ProcessEventBatchesAsync<TReadModel>(
+        ProjectionRegistration registration,
+        RebuildOptions options,
+        int totalEvents,
+        CancellationToken cancellationToken)
+        where TReadModel : class, IReadModel
+    {
+        var projectionName = registration.ProjectionName;
+        long eventsProcessed = 0;
+        long position = options.StartPosition;
+        var endPosition = options.EndPosition ?? long.MaxValue;
+
+        while (position < endPosition && !cancellationToken.IsCancellationRequested)
+        {
+            var batchResult = await ProcessSingleBatchAsync(
+                registration, options.BatchSize, position, cancellationToken).ConfigureAwait(false);
+
+            if (batchResult.EventCount == 0)
+            {
+                break;
+            }
+
+            if (batchResult.WasCancelled)
+            {
+                return Left<EncinaError, long>(
+                    EncinaErrors.Create(ProjectionErrorCodes.Cancelled, "Rebuild was cancelled."));
+            }
+
+            position = batchResult.LastPosition;
+            eventsProcessed += batchResult.EventCount;
+
+            UpdateRebuildProgress(projectionName, position, eventsProcessed, totalEvents, options);
+        }
+
+        return CompleteRebuild(projectionName, position, eventsProcessed);
+    }
+
+    private async Task<BatchResult> ProcessSingleBatchAsync(
+        ProjectionRegistration registration,
+        int batchSize,
+        long position,
+        CancellationToken cancellationToken)
+    {
+        await using var session = _store.LightweightSession();
+        var projection = _serviceProvider.GetRequiredService(registration.ProjectionType);
+
+        var events = await session.Events
+            .QueryAllRawEvents()
+            .Where(e => e.Sequence > position)
+            .OrderBy(e => e.Sequence)
+            .Take(batchSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (events.Count == 0)
+        {
+            return BatchResult.Empty;
+        }
+
+        foreach (var eventData in events)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return BatchResult.Cancelled;
+            }
+
+            await ProcessSingleEventAsync(session, projection, eventData, registration, cancellationToken)
+                .ConfigureAwait(false);
+
+            position = eventData.Sequence;
+        }
+
+        await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return new BatchResult(events.Count, position, false);
+    }
+
+    private static async Task ProcessSingleEventAsync(
+        IDocumentSession session,
+        object projection,
+        IEvent eventData,
+        ProjectionRegistration registration,
+        CancellationToken cancellationToken)
+    {
+        var eventType = eventData.Data.GetType();
+        var handlerInfo = registration.GetHandlerInfo(eventType);
+
+        if (handlerInfo != null)
+        {
+            var context = CreateContext(eventData);
+            await ApplyEventAsync(session, projection, eventData.Data, context, registration, handlerInfo.Value, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private void UpdateRebuildProgress(
+        string projectionName,
+        long position,
+        long eventsProcessed,
+        int totalEvents,
+        RebuildOptions options)
+    {
+        var progressPercent = (int)((eventsProcessed * 100) / totalEvents);
+        UpdateStatus(projectionName, status =>
+        {
+            status.RebuildProgressPercent = progressPercent;
+            status.LastProcessedPosition = position;
+            status.EventsProcessed = eventsProcessed;
+            status.LastProcessedAtUtc = DateTime.UtcNow;
+        });
+
+        ProjectionLog.RebuildProgress(_logger, projectionName, progressPercent, eventsProcessed);
+        options.OnProgress?.Invoke(progressPercent, eventsProcessed);
+    }
+
+    private Either<EncinaError, long> CompleteRebuild(string projectionName, long position, long eventsProcessed)
+    {
+        UpdateStatus(projectionName, status =>
+        {
+            status.State = ProjectionState.Stopped;
+            status.IsRebuilding = false;
+            status.RebuildProgressPercent = 100;
+            status.LastProcessedPosition = position;
+            status.EventsProcessed = eventsProcessed;
+            status.LastProcessedAtUtc = DateTime.UtcNow;
+        });
+
+        ProjectionLog.CompletedRebuild(_logger, projectionName, eventsProcessed);
+        return Right<EncinaError, long>(eventsProcessed);
+    }
+
+    private Either<EncinaError, long> HandleRebuildCancellation(string projectionName)
+    {
+        UpdateStatus(projectionName, status =>
+        {
+            status.State = ProjectionState.Stopped;
+            status.IsRebuilding = false;
+            status.ErrorMessage = "Rebuild was cancelled.";
+        });
+
+        return Left<EncinaError, long>(
+            EncinaErrors.Create(ProjectionErrorCodes.Cancelled, "Rebuild was cancelled."));
+    }
+
+    private Either<EncinaError, long> HandleRebuildException(string projectionName, Exception ex)
+    {
+        ProjectionLog.ErrorRebuild(_logger, ex, projectionName);
+
+        UpdateStatus(projectionName, status =>
+        {
+            status.State = ProjectionState.Faulted;
+            status.IsRebuilding = false;
+            status.ErrorMessage = ex.Message;
+        });
+
+        return Left<EncinaError, long>(
+            EncinaErrors.FromException(ProjectionErrorCodes.RebuildFailed, ex, $"Failed to rebuild projection {projectionName}."));
+    }
+
+    private readonly record struct BatchResult(int EventCount, long LastPosition, bool WasCancelled)
+    {
+        public static BatchResult Empty => new(0, 0, false);
+        public static BatchResult Cancelled => new(0, 0, true);
     }
 
     /// <inheritdoc />

@@ -269,41 +269,60 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         where TRequest : class
     {
         var quorumCount = definition.GetEffectiveQuorumCount();
-        var results = new List<ScatterExecutionResult<TResponse>>();
-        var successCount = 0;
-        var completedCount = 0;
-        var lockObj = new object();
+        var tracker = new QuorumTracker(quorumCount);
 
-        var tasks = definition.ScatterHandlers.Select(async handler =>
+        var tasks = CreateQuorumHandlerTasks(definition, request, operationId, linkedCts, tracker);
+        var results = await CollectQuorumResults(tasks).ConfigureAwait(false);
+
+        return ValidateQuorumReached(results, quorumCount, operationId);
+    }
+
+    private List<Task<ScatterExecutionResult<TResponse>>> CreateQuorumHandlerTasks<TRequest, TResponse>(
+        BuiltScatterGatherDefinition<TRequest, TResponse> definition,
+        TRequest request,
+        Guid operationId,
+        CancellationTokenSource linkedCts,
+        QuorumTracker tracker)
+        where TRequest : class
+    {
+        return definition.ScatterHandlers.Select(handler =>
+            ExecuteQuorumHandler(handler, request, operationId, linkedCts, tracker, definition.ScatterCount)).ToList();
+    }
+
+    private async Task<ScatterExecutionResult<TResponse>> ExecuteQuorumHandler<TRequest, TResponse>(
+        ScatterDefinition<TRequest, TResponse> handler,
+        TRequest request,
+        Guid operationId,
+        CancellationTokenSource linkedCts,
+        QuorumTracker tracker,
+        int totalCount)
+        where TRequest : class
+    {
+        try
         {
-            try
-            {
-                var result = await ExecuteScatterHandlerAsync(handler, request, operationId, linkedCts.Token).ConfigureAwait(false);
+            var result = await ExecuteScatterHandlerAsync(handler, request, operationId, linkedCts.Token).ConfigureAwait(false);
 
-                lock (lockObj)
+            if (result.IsSuccess && tracker.RecordSuccess())
+            {
+                ScatterGatherLog.QuorumReached(_logger, operationId, tracker.SuccessCount, totalCount);
+                if (_options.CancelRemainingOnStrategyComplete)
                 {
-                    completedCount++;
-                    if (result.IsSuccess)
-                    {
-                        successCount++;
-                        if (successCount >= quorumCount)
-                        {
-                            ScatterGatherLog.QuorumReached(_logger, operationId, successCount, definition.ScatterCount);
-                            if (_options.CancelRemainingOnStrategyComplete)
-                            {
-                                linkedCts.Cancel();
-                            }
-                        }
-                    }
+                    await linkedCts.CancelAsync().ConfigureAwait(false);
                 }
+            }
 
-                return result;
-            }
-            catch (OperationCanceledException)
-            {
-                return CreateCancelledResult<TResponse>(handler.Name);
-            }
-        }).ToList();
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            return CreateCancelledResult<TResponse>(handler.Name);
+        }
+    }
+
+    private static async ValueTask<List<ScatterExecutionResult<TResponse>>> CollectQuorumResults<TResponse>(
+        List<Task<ScatterExecutionResult<TResponse>>> tasks)
+    {
+        var results = new List<ScatterExecutionResult<TResponse>>();
 
         try
         {
@@ -312,7 +331,6 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         }
         catch (OperationCanceledException)
         {
-            // Collect what we have
             foreach (var task in tasks)
             {
                 if (task.IsCompletedSuccessfully)
@@ -322,8 +340,16 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
             }
         }
 
-        // Validate quorum was reached
+        return results;
+    }
+
+    private Either<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>> ValidateQuorumReached<TResponse>(
+        List<ScatterExecutionResult<TResponse>> results,
+        int quorumCount,
+        Guid operationId)
+    {
         var finalSuccessCount = results.Count(r => r.IsSuccess);
+
         if (finalSuccessCount < quorumCount)
         {
             ScatterGatherLog.QuorumNotReached(_logger, operationId, finalSuccessCount, quorumCount);
@@ -334,6 +360,23 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         }
 
         return Right<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>(results);
+    }
+
+    private sealed class QuorumTracker(int quorumCount)
+    {
+        private int _successCount;
+        private readonly object _lockObj = new();
+
+        public int SuccessCount => _successCount;
+
+        public bool RecordSuccess()
+        {
+            lock (_lockObj)
+            {
+                _successCount++;
+                return _successCount == quorumCount;
+            }
+        }
     }
 
     private async ValueTask<ScatterExecutionResult<TResponse>> ExecuteScatterHandlerAsync<TRequest, TResponse>(

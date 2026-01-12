@@ -148,91 +148,19 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
                     EncinaError.New($"[{RecoverabilityErrorCodes.Cancelled}] Operation was cancelled"));
             }
 
-            var startTime = DateTime.UtcNow;
+            var attemptResult = await ExecuteSingleAttemptAsync(
+                recoverabilityContext, nextStep, attempt).ConfigureAwait(false);
 
-            try
+            lastResult = attemptResult.Result;
+
+            if (attemptResult.ShouldReturn)
             {
-                lastResult = await nextStep().ConfigureAwait(false);
-
-                if (lastResult.IsRight)
-                {
-                    if (attempt > 0)
-                    {
-                        RecoverabilityLog.SucceededAfterRetry(
-                            _logger,
-                            recoverabilityContext.CorrelationId ?? "unknown",
-                            typeof(TRequest).Name,
-                            attempt);
-                    }
-                    return lastResult;
-                }
-
-                // Handle Left (error) result
-                var error = lastResult.Match(
-                    Right: _ => throw new InvalidOperationException("Unexpected Right value"),
-                    Left: e => e);
-
-                var duration = DateTime.UtcNow - startTime;
-                var errorException = error.Exception.MatchUnsafe(ex => ex, () => null);
-                var classification = _errorClassifier.Classify(error, errorException);
-
-                recoverabilityContext.RecordFailedAttempt(error, errorException, classification, duration);
-
-                // If permanent error, don't retry
-                if (classification == ErrorClassification.Permanent)
-                {
-                    RecoverabilityLog.PermanentErrorOnAttempt(
-                        _logger,
-                        recoverabilityContext.CorrelationId ?? "unknown",
-                        typeof(TRequest).Name,
-                        attempt + 1,
-                        error.Message);
-                    return lastResult;
-                }
-
-                // Log transient error
-                RecoverabilityLog.TransientErrorOnAttempt(
-                    _logger,
-                    recoverabilityContext.CorrelationId ?? "unknown",
-                    typeof(TRequest).Name,
-                    attempt + 1,
-                    _options.ImmediateRetries + 1,
-                    error.Message);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                var duration = DateTime.UtcNow - startTime;
-                var error = EncinaError.New(ex, $"[{RecoverabilityErrorCodes.ExceptionThrown}] {ex.Message}");
-
-                var classification = _errorClassifier.Classify(error, ex);
-                recoverabilityContext.RecordFailedAttempt(error, ex, classification, duration);
-
-                lastResult = Either<EncinaError, TResponse>.Left(error);
-
-                if (classification == ErrorClassification.Permanent)
-                {
-                    RecoverabilityLog.PermanentExceptionOnAttempt(
-                        _logger,
-                        ex,
-                        recoverabilityContext.CorrelationId ?? "unknown",
-                        typeof(TRequest).Name,
-                        attempt + 1);
-                    return lastResult;
-                }
-
-                RecoverabilityLog.TransientExceptionOnAttempt(
-                    _logger,
-                    ex,
-                    recoverabilityContext.CorrelationId ?? "unknown",
-                    typeof(TRequest).Name,
-                    attempt + 1,
-                    _options.ImmediateRetries + 1);
+                return lastResult;
             }
 
             attempt++;
             recoverabilityContext.IncrementImmediateRetry();
 
-            // Delay before next retry (except on last attempt)
             if (attempt <= _options.ImmediateRetries)
             {
                 var delay = CalculateImmediateRetryDelay(attempt);
@@ -247,6 +175,133 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             _options.ImmediateRetries);
 
         return lastResult;
+    }
+
+    private async ValueTask<AttemptResult> ExecuteSingleAttemptAsync(
+        RecoverabilityContext recoverabilityContext,
+        RequestHandlerCallback<TResponse> nextStep,
+        int attempt)
+    {
+        var startTime = DateTime.UtcNow;
+
+        try
+        {
+            var result = await nextStep().ConfigureAwait(false);
+
+            if (result.IsRight)
+            {
+                LogSuccessAfterRetry(recoverabilityContext, attempt);
+                return AttemptResult.Success(result);
+            }
+
+            return HandleErrorResult(result, recoverabilityContext, startTime, attempt);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return HandleException(ex, recoverabilityContext, startTime, attempt);
+        }
+    }
+
+    private void LogSuccessAfterRetry(RecoverabilityContext recoverabilityContext, int attempt)
+    {
+        if (attempt > 0)
+        {
+            RecoverabilityLog.SucceededAfterRetry(
+                _logger,
+                recoverabilityContext.CorrelationId ?? "unknown",
+                typeof(TRequest).Name,
+                attempt);
+        }
+    }
+
+    private AttemptResult HandleErrorResult(
+        Either<EncinaError, TResponse> result,
+        RecoverabilityContext recoverabilityContext,
+        DateTime startTime,
+        int attempt)
+    {
+        var error = result.Match(
+            Right: _ => throw new InvalidOperationException("Unexpected Right value"),
+            Left: e => e);
+
+        var duration = DateTime.UtcNow - startTime;
+        var errorException = error.Exception.MatchUnsafe(ex => ex, () => null);
+        var classification = _errorClassifier.Classify(error, errorException);
+
+        recoverabilityContext.RecordFailedAttempt(error, errorException, classification, duration);
+
+        if (classification == ErrorClassification.Permanent)
+        {
+            RecoverabilityLog.PermanentErrorOnAttempt(
+                _logger,
+                recoverabilityContext.CorrelationId ?? "unknown",
+                typeof(TRequest).Name,
+                attempt + 1,
+                error.Message);
+            return AttemptResult.PermanentFailure(result);
+        }
+
+        RecoverabilityLog.TransientErrorOnAttempt(
+            _logger,
+            recoverabilityContext.CorrelationId ?? "unknown",
+            typeof(TRequest).Name,
+            attempt + 1,
+            _options.ImmediateRetries + 1,
+            error.Message);
+
+        return AttemptResult.TransientFailure(result);
+    }
+
+    private AttemptResult HandleException(
+        Exception ex,
+        RecoverabilityContext recoverabilityContext,
+        DateTime startTime,
+        int attempt)
+    {
+        var duration = DateTime.UtcNow - startTime;
+        var error = EncinaError.New(ex, $"[{RecoverabilityErrorCodes.ExceptionThrown}] {ex.Message}");
+        var classification = _errorClassifier.Classify(error, ex);
+
+        recoverabilityContext.RecordFailedAttempt(error, ex, classification, duration);
+
+        var result = Either<EncinaError, TResponse>.Left(error);
+
+        if (classification == ErrorClassification.Permanent)
+        {
+            RecoverabilityLog.PermanentExceptionOnAttempt(
+                _logger,
+                ex,
+                recoverabilityContext.CorrelationId ?? "unknown",
+                typeof(TRequest).Name,
+                attempt + 1);
+            return AttemptResult.PermanentFailure(result);
+        }
+
+        RecoverabilityLog.TransientExceptionOnAttempt(
+            _logger,
+            ex,
+            recoverabilityContext.CorrelationId ?? "unknown",
+            typeof(TRequest).Name,
+            attempt + 1,
+            _options.ImmediateRetries + 1);
+
+        return AttemptResult.TransientFailure(result);
+    }
+
+    private readonly struct AttemptResult
+    {
+        public Either<EncinaError, TResponse> Result { get; }
+        public bool ShouldReturn { get; }
+
+        private AttemptResult(Either<EncinaError, TResponse> result, bool shouldReturn)
+        {
+            Result = result;
+            ShouldReturn = shouldReturn;
+        }
+
+        public static AttemptResult Success(Either<EncinaError, TResponse> result) => new(result, true);
+        public static AttemptResult PermanentFailure(Either<EncinaError, TResponse> result) => new(result, true);
+        public static AttemptResult TransientFailure(Either<EncinaError, TResponse> result) => new(result, false);
     }
 
     private TimeSpan CalculateImmediateRetryDelay(int attempt)
