@@ -30,7 +30,6 @@ public sealed class InboxStoreDapper : IInboxStore
     public async Task<IInboxMessage?> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
-        ArgumentNullException.ThrowIfNull(messageId);
 
         var sql = $@"
             SELECT *
