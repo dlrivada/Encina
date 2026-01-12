@@ -68,7 +68,7 @@ public sealed partial class RedisCacheProvider : ICacheProvider
         }
 
         LogCacheHit(_logger, prefixedKey);
-        return JsonSerializer.Deserialize<T>((string)value!, _jsonOptions);
+        return JsonSerializer.Deserialize<T>(value.ToString(), _jsonOptions);
     }
 
     /// <inheritdoc/>
@@ -238,7 +238,7 @@ public sealed partial class RedisCacheProvider : ICacheProvider
             return await Database.KeyExistsAsync(prefixedKey).ConfigureAwait(false);
         }
 
-        var metadata = JsonSerializer.Deserialize<SlidingMetadata>((string)metadataJson!, _jsonOptions);
+        var metadata = JsonSerializer.Deserialize<SlidingMetadata>(metadataJson.ToString(), _jsonOptions);
         if (metadata is null || DateTime.UtcNow >= metadata.AbsoluteExpirationUtc)
         {
             // Absolute expiration reached

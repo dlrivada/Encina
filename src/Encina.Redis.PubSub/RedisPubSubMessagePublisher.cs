@@ -98,7 +98,7 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
         {
             try
             {
-                var wrapper = JsonSerializer.Deserialize<RedisMessageWrapper<TMessage>>((string)message.Message!);
+                var wrapper = JsonSerializer.Deserialize<RedisMessageWrapper<TMessage>>(message.Message.ToString());
                 if (wrapper?.Payload is not null)
                 {
                     await handler(wrapper.Payload).ConfigureAwait(false);
@@ -134,7 +134,7 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
         {
             try
             {
-                var wrapper = JsonSerializer.Deserialize<RedisMessageWrapper<TMessage>>((string)message.Message!);
+                var wrapper = JsonSerializer.Deserialize<RedisMessageWrapper<TMessage>>(message.Message.ToString());
                 if (wrapper?.Payload is not null)
                 {
                     await handler(message.Channel!, wrapper.Payload).ConfigureAwait(false);
