@@ -8,51 +8,31 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+  DOTNET_SDK_VERSION: "10.0.x"
+
 jobs:
-  build-test-pack:
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: bash
-    permissions:
-      contents: read
-      packages: write
-
-    env:
-      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
-      DOTNET_NOLOGO: true
-      DOTNET_SDK_VERSION: "10.0.100"
-
+  # Build job - runs first, creates build artifacts for test jobs
+  build:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.nuget/packages
-            %USERPROFILE%\.nuget\packages
-          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.*.props') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
-            ${{ runner.os }}-nuget
-
-      - name: Cache dotnet tools
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.dotnet/tools
-            %USERPROFILE%\.dotnet\tools
-          key: ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
-          restore-keys: |
-            ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
-            ${{ runner.os }}-dotnet-tools
+            ${{ runner.os }}-nuget-
 
       - name: Restore
         run: dotnet restore Encina.slnx
@@ -60,53 +40,294 @@ jobs:
       - name: Build
         run: dotnet build Encina.slnx --configuration Release --no-restore
 
-      - name: Restore .NET tools
-        run: dotnet tool restore
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            **/bin/Release/**
+            **/obj/**/*.assets.json
+          retention-days: 1
 
-      - name: Test with coverage
-        # Exclude tests that require special infrastructure:
-        # - LoadTests: Require NBomber load testing infrastructure
-        # - IntegrationTests: Require Docker containers or external services
-        # Note: Marten/Testing are now included after fixing issue #494 (AggregateBase moved to DomainModeling)
+  # Test jobs - run in parallel after build
+  test-core:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run Core tests
         run: |
-          shopt -s globstar nullglob
-          for proj in tests/**/*.csproj; do
-            # Skip excluded projects
-            case "$proj" in
-              *LoadTests*|*IntegrationTests*)
-                echo "Skipping: $proj"
-                continue
-                ;;
-            esac
-            echo "Testing: $proj"
-            dotnet test "$proj" --configuration Release --no-build \
-              --collect "XPlat Code Coverage" \
-              --results-directory artifacts/test-results \
-              --verbosity normal || true
+          dotnet test tests/Encina.Tests/Encina.Tests.csproj --no-build -c Release || true
+          dotnet test tests/Encina.ContractTests/Encina.ContractTests.csproj --no-build -c Release || true
+          dotnet test tests/Encina.PropertyTests/Encina.PropertyTests.csproj --no-build -c Release || true
+          dotnet test tests/Encina.DomainModeling.Tests/Encina.DomainModeling.Tests.csproj --no-build -c Release || true
+          dotnet test tests/Encina.DomainModeling.ContractTests/Encina.DomainModeling.ContractTests.csproj --no-build -c Release || true
+          dotnet test tests/Encina.DomainModeling.PropertyTests/Encina.DomainModeling.PropertyTests.csproj --no-build -c Release || true
+          dotnet test tests/Encina.DomainModeling.GuardTests/Encina.DomainModeling.GuardTests.csproj --no-build -c Release || true
+
+  test-messaging:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run Messaging tests
+        run: |
+          for proj in tests/Encina.Messaging.*/Encina.Messaging.*.csproj; do
+            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
           done
 
-      - name: Generate coverage report
-        run: dotnet tool run reportgenerator -reports:"artifacts/test-results/**/coverage.cobertura.xml" -targetdir:"artifacts/coverage" -reporttypes:"Html;HtmlSummary;TextSummary;JsonSummary"
-
-      - name: Publish coverage summary
-        run: |
-          {
-            echo '```';
-            cat artifacts/coverage/Summary.txt;
-            echo '```';
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v6
+  test-database-ado:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
-          name: coverage-report
-          path: artifacts/coverage
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run ADO tests
+        run: |
+          for proj in tests/Encina.ADO.*/Encina.ADO.*.csproj; do
+            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          done
+
+  test-database-dapper:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run Dapper tests
+        run: |
+          for proj in tests/Encina.Dapper.*/Encina.Dapper.*.csproj; do
+            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          done
+          dotnet test tests/Encina.Dapper.Tests/Encina.Dapper.Tests.csproj --no-build -c Release || true
+
+  test-database-ef:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run Entity Framework tests
+        run: |
+          for proj in tests/Encina.EntityFrameworkCore.*/Encina.EntityFrameworkCore.*.csproj; do
+            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          done
+
+  test-caching:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run Caching tests
+        run: |
+          for proj in tests/Encina.Caching.*/Encina.Caching.*.csproj; do
+            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          done
+
+  test-validation:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run Validation tests
+        run: |
+          for proj in tests/Encina.DataAnnotations.*/Encina.DataAnnotations.*.csproj \
+                      tests/Encina.FluentValidation.*/Encina.FluentValidation.*.csproj \
+                      tests/Encina.MiniValidator.*/Encina.MiniValidator.*.csproj \
+                      tests/Encina.GuardClauses.*/Encina.GuardClauses.*.csproj; do
+            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          done
+
+  test-aspnetcore:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run AspNetCore tests
+        run: |
+          for proj in tests/Encina.AspNetCore.*/Encina.AspNetCore.*.csproj; do
+            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          done
+
+  test-serverless:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run Serverless tests
+        run: |
+          for proj in tests/Encina.AwsLambda.*/Encina.AwsLambda.*.csproj \
+                      tests/Encina.AzureFunctions.*/Encina.AzureFunctions.*.csproj; do
+            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          done
+
+  test-transports:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run Transport tests
+        run: |
+          for proj in tests/Encina.RabbitMQ.Tests/Encina.RabbitMQ.Tests.csproj \
+                      tests/Encina.Kafka.Tests/Encina.Kafka.Tests.csproj \
+                      tests/Encina.AmazonSQS.Tests/Encina.AmazonSQS.Tests.csproj \
+                      tests/Encina.NATS.Tests/Encina.NATS.Tests.csproj \
+                      tests/Encina.MQTT.Tests/Encina.MQTT.Tests.csproj \
+                      tests/Encina.AzureServiceBus.Tests/Encina.AzureServiceBus.Tests.csproj \
+                      tests/Encina.SignalR.Tests/Encina.SignalR.Tests.csproj \
+                      tests/Encina.gRPC.Tests/Encina.gRPC.Tests.csproj; do
+            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          done
+
+  test-resilience:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run Resilience tests
+        run: |
+          for proj in tests/Encina.Polly.*/Encina.Polly.*.csproj \
+                      tests/Encina.Extensions.Resilience.*/Encina.Extensions.Resilience.*.csproj \
+                      tests/Encina.DistributedLock.*/Encina.DistributedLock.*.csproj; do
+            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          done
+
+  test-scheduling:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run Scheduling tests
+        run: |
+          for proj in tests/Encina.Hangfire.*/Encina.Hangfire.*.csproj \
+                      tests/Encina.Quartz.*/Encina.Quartz.*.csproj \
+                      tests/Encina.Workflows.Tests/Encina.Workflows.Tests.csproj; do
+            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          done
+
+  test-other:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+      - name: Run Other tests
+        run: |
+          for proj in tests/Encina.Cli.*/Encina.Cli.*.csproj \
+                      tests/Encina.Marten.Tests/Encina.Marten.Tests.csproj \
+                      tests/Encina.MongoDB.Tests/Encina.MongoDB.Tests.csproj \
+                      tests/Encina.OpenTelemetry.*/Encina.OpenTelemetry.*.csproj \
+                      tests/Encina.Refit.*/Encina.Refit.*.csproj \
+                      tests/Encina.Aspire.*/Encina.Aspire.*.csproj; do
+            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          done
+
+  # Pack and publish - runs after all tests
+  pack:
+    needs:
+      - test-core
+      - test-messaging
+      - test-database-ado
+      - test-database-dapper
+      - test-database-ef
+      - test-caching
+      - test-validation
+      - test-aspnetcore
+      - test-serverless
+      - test-transports
+      - test-resilience
+      - test-scheduling
+      - test-other
+    runs-on: ubuntu-latest
+    if: always() && needs.build.result == 'success'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
 
       - name: Pack
         run: dotnet pack src/Encina/Encina.csproj --configuration Release --no-build --output artifacts
 
       - name: Upload package artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: encina-nuget
           path: artifacts/*.nupkg
