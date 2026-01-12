@@ -46,16 +46,16 @@ public sealed partial class Encina
             using var activity = EncinaDiagnostics.ActivitySource.HasListeners()
                 ? EncinaDiagnostics.ActivitySource.StartActivity("Encina.Publish", ActivityKind.Internal)
                 : null;
-            activity?.SetTag("Encina.notification_type", notificationType.FullName);
-            activity?.SetTag("Encina.notification_name", notificationType.Name);
-            activity?.SetTag("Encina.notification_kind", "notification");
+            activity?.SetTag(ActivityTagNames.NotificationType, notificationType.FullName);
+            activity?.SetTag(ActivityTagNames.NotificationName, notificationType.Name);
+            activity?.SetTag(ActivityTagNames.NotificationKind, "notification");
 
             // --- HANDLER RESOLUTION PHASE ---
             // Resolve ALL handlers registered for this notification type
             // Multiple handlers can be registered for the same notification (observer pattern)
             var handlerType = typeof(INotificationHandler<>).MakeGenericType(notificationType);
             var handlersList = serviceProvider.GetServices(handlerType).Where(h => h is not null).Cast<object>().ToList();
-            activity?.SetTag("Encina.handler_count", handlersList.Count);
+            activity?.SetTag(ActivityTagNames.HandlerCount, handlersList.Count);
 
             // Zero handlers is not an error - notifications are fire-and-forget
             if (handlersList.Count == 0)
@@ -67,7 +67,7 @@ public sealed partial class Encina
 
             // --- EXECUTION PHASE ---
             // Use the configured dispatch strategy (Sequential, Parallel, or ParallelWhenAll)
-            activity?.SetTag("Encina.dispatch_strategy", Encina._notificationOptions.Strategy.ToString());
+            activity?.SetTag(ActivityTagNames.DispatchStrategy, Encina._notificationOptions.Strategy.ToString());
 
             var result = await Encina._dispatchStrategy.DispatchAsync(
                 handlersList,
@@ -109,7 +109,7 @@ public sealed partial class Encina
 
             var errorCode = error.GetEncinaCode();
             activity?.SetStatus(ActivityStatusCode.Error, error.Message);
-            activity?.SetTag("Encina.failure_reason", errorCode);
+            activity?.SetTag(ActivityTagNames.FailureReason, errorCode);
             var exception = error.Exception.Match(
                 Some: ex => (Exception?)ex,
                 None: () => null);

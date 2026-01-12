@@ -1,0 +1,104 @@
+namespace Encina.OpenTelemetry;
+
+/// <summary>
+/// Defines constant tag names for OpenTelemetry messaging activities.
+/// </summary>
+/// <remarks>
+/// These constants follow OpenTelemetry semantic conventions for messaging systems
+/// with Encina-specific values and extensions.
+/// </remarks>
+public static class ActivityTagNames
+{
+    /// <summary>
+    /// Messaging system tags following OpenTelemetry semantic conventions.
+    /// </summary>
+    public static class Messaging
+    {
+        /// <summary>Tag name for the messaging system identifier.</summary>
+        public const string System = "messaging.system";
+
+        /// <summary>Tag name for the operation name (publish, receive, schedule).</summary>
+        public const string OperationName = "messaging.operation.name";
+
+        /// <summary>Tag name for the message identifier.</summary>
+        public const string MessageId = "messaging.message.id";
+
+        /// <summary>Tag name for the message type.</summary>
+        public const string MessageType = "messaging.message.type";
+
+        /// <summary>Tag name indicating if the message was processed.</summary>
+        public const string Processed = "messaging.message.processed";
+
+        /// <summary>Tag name for the timestamp when the message was processed.</summary>
+        public const string ProcessedAt = "messaging.message.processed_at";
+
+        /// <summary>Tag name for the retry count.</summary>
+        public const string RetryCount = "messaging.message.retry_count";
+
+        /// <summary>Tag name for the error message.</summary>
+        public const string Error = "messaging.message.error";
+
+        /// <summary>Tag name for the scheduled execution time.</summary>
+        public const string ScheduledAt = "messaging.message.scheduled_at";
+
+        /// <summary>Tag name indicating if the message is recurring.</summary>
+        public const string IsRecurring = "messaging.message.is_recurring";
+
+        /// <summary>Tag name for the cron expression.</summary>
+        public const string CronExpression = "messaging.message.cron_expression";
+    }
+
+    /// <summary>
+    /// Messaging system identifier values.
+    /// </summary>
+    public static class Systems
+    {
+        /// <summary>Outbox messaging system identifier.</summary>
+        public const string Outbox = "encina.outbox";
+
+        /// <summary>Inbox messaging system identifier.</summary>
+        public const string Inbox = "encina.inbox";
+
+        /// <summary>Scheduling messaging system identifier.</summary>
+        public const string Scheduling = "encina.scheduling";
+    }
+
+    /// <summary>
+    /// Messaging operation name values.
+    /// </summary>
+    public static class Operations
+    {
+        /// <summary>Publish operation for outbox messages.</summary>
+        public const string Publish = "publish";
+
+        /// <summary>Receive operation for inbox messages.</summary>
+        public const string Receive = "receive";
+
+        /// <summary>Schedule operation for scheduled messages.</summary>
+        public const string Schedule = "schedule";
+    }
+
+    /// <summary>
+    /// Saga-specific tags.
+    /// </summary>
+    public static class Saga
+    {
+        /// <summary>Tag name for the saga identifier.</summary>
+        public const string Id = "saga.id";
+
+        /// <summary>Tag name for the saga type.</summary>
+        public const string Type = "saga.type";
+
+        /// <summary>Tag name for the saga status.</summary>
+        public const string Status = "saga.status";
+
+        /// <summary>Tag name for the current saga step.</summary>
+        public const string CurrentStep = "saga.current_step";
+
+        /// <summary>Tag name for the saga completion timestamp.</summary>
+        public const string CompletedAt = "saga.completed_at";
+
+        /// <summary>Tag name for the saga error message.</summary>
+        public const string Error = "saga.error";
+    }
+}

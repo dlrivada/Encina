@@ -17,10 +17,10 @@ internal static class EncinaDiagnostics
         }
 
         var activity = ActivitySource.StartActivity("Encina.Send", ActivityKind.Internal);
-        activity?.SetTag("Encina.request_type", requestType.FullName);
-        activity?.SetTag("Encina.request_name", requestType.Name);
-        activity?.SetTag("Encina.response_type", responseType.FullName);
-        activity?.SetTag("Encina.request_kind", requestKind);
+        activity?.SetTag(ActivityTagNames.RequestType, requestType.FullName);
+        activity?.SetTag(ActivityTagNames.RequestName, requestType.Name);
+        activity?.SetTag(ActivityTagNames.ResponseType, responseType.FullName);
+        activity?.SetTag(ActivityTagNames.RequestKind, requestKind);
         return activity;
     }
 
@@ -33,7 +33,7 @@ internal static class EncinaDiagnostics
 
         if (!string.IsNullOrWhiteSpace(errorCode))
         {
-            activity.SetTag("Encina.failure_reason", errorCode);
+            activity.SetTag(ActivityTagNames.FailureReason, errorCode);
         }
 
         activity.SetStatus(isSuccess ? ActivityStatusCode.Ok : ActivityStatusCode.Error, errorMessage);
@@ -48,15 +48,15 @@ internal static class EncinaDiagnostics
         }
 
         var activity = ActivitySource.StartActivity("Encina.Stream", ActivityKind.Internal);
-        activity?.SetTag("Encina.request_type", requestType.FullName);
-        activity?.SetTag("Encina.request_name", requestType.Name);
-        activity?.SetTag("Encina.item_type", itemType.FullName);
-        activity?.SetTag("Encina.item_name", itemType.Name);
+        activity?.SetTag(ActivityTagNames.RequestType, requestType.FullName);
+        activity?.SetTag(ActivityTagNames.RequestName, requestType.Name);
+        activity?.SetTag(ActivityTagNames.ItemType, itemType.FullName);
+        activity?.SetTag(ActivityTagNames.ItemName, itemType.Name);
         return activity;
     }
 
     internal static void RecordStreamItemCount(Activity? activity, int itemCount)
     {
-        activity?.SetTag("Encina.stream_item_count", itemCount);
+        activity?.SetTag(ActivityTagNames.StreamItemCount, itemCount);
     }
 }

@@ -73,10 +73,10 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse>(IFuncti
             return;
         }
 
-        activity.SetTag("Encina.request_kind", "command");
-        activity.SetTag("Encina.request_type", typeof(TCommand).FullName);
-        activity.SetTag("Encina.request_name", typeof(TCommand).Name);
-        activity.SetTag("Encina.response_type", typeof(TResponse).FullName);
+        activity.SetTag(ActivityTagNames.RequestKind, "command");
+        activity.SetTag(ActivityTagNames.RequestType, typeof(TCommand).FullName);
+        activity.SetTag(ActivityTagNames.RequestName, typeof(TCommand).Name);
+        activity.SetTag(ActivityTagNames.ResponseType, typeof(TResponse).FullName);
     }
 
     private async ValueTask<Either<EncinaError, TResponse>> ExecuteWithActivityTracking(
@@ -105,14 +105,14 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse>(IFuncti
     private static void RecordCancellation(Activity? activity)
     {
         activity?.SetStatus(ActivityStatusCode.Error, "cancelled");
-        activity?.SetTag("Encina.cancelled", true);
+        activity?.SetTag(ActivityTagNames.Cancelled, true);
     }
 
     private static void RecordException(Activity? activity, Exception ex)
     {
         activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-        activity?.SetTag("exception.type", ex.GetType().FullName);
-        activity?.SetTag("exception.message", ex.Message);
+        activity?.SetTag(ActivityTagNames.ExceptionType, ex.GetType().FullName);
+        activity?.SetTag(ActivityTagNames.ExceptionMessage, ex.Message);
     }
 
     private void RecordOutcome(Activity? activity, Either<EncinaError, TResponse> outcome)
@@ -139,31 +139,31 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse>(IFuncti
     private void RecordFunctionalFailure(Activity? activity, string? failureReason, object? capturedFailure)
     {
         activity?.SetStatus(ActivityStatusCode.Error, failureReason);
-        activity?.SetTag("Encina.functional_failure", true);
+        activity?.SetTag(ActivityTagNames.FunctionalFailure, true);
 
         if (!string.IsNullOrWhiteSpace(failureReason))
         {
-            activity?.SetTag("Encina.failure_reason", failureReason);
+            activity?.SetTag(ActivityTagNames.FailureReason, failureReason);
         }
 
         var errorCode = _failureDetector.TryGetErrorCode(capturedFailure);
         if (!string.IsNullOrWhiteSpace(errorCode))
         {
-            activity?.SetTag("Encina.failure_code", errorCode);
+            activity?.SetTag(ActivityTagNames.FailureCode, errorCode);
         }
 
         var errorMessage = _failureDetector.TryGetErrorMessage(capturedFailure);
         if (!string.IsNullOrWhiteSpace(errorMessage))
         {
-            activity?.SetTag("Encina.failure_message", errorMessage);
+            activity?.SetTag(ActivityTagNames.FailureMessage, errorMessage);
         }
     }
 
     private static Unit RecordErrorOutcome(Activity? activity, EncinaError error)
     {
         activity?.SetStatus(ActivityStatusCode.Error, error.Message);
-        activity?.SetTag("Encina.pipeline_failure", true);
-        activity?.SetTag("Encina.failure_reason", error.GetEncinaCode());
+        activity?.SetTag(ActivityTagNames.PipelineFailure, true);
+        activity?.SetTag(ActivityTagNames.FailureReason, error.GetEncinaCode());
         return Unit.Default;
     }
 }

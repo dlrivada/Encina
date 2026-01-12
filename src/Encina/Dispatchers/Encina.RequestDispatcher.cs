@@ -97,8 +97,8 @@ public sealed partial class Encina
                 // --- EXECUTION PHASE ---
                 // Handler is valid - proceed with pipeline execution
                 Log.ProcessingRequest(Encina._logger, requestType.Name, handler!.GetType().Name);
-                activity?.SetTag("Encina.handler", handler.GetType().FullName);
-                activity?.SetTag("Encina.handler_count", 1);
+                activity?.SetTag(ActivityTagNames.Handler, handler.GetType().FullName);
+                activity?.SetTag(ActivityTagNames.HandlerCount, 1);
 
                 // Invoke the handler through the full pipeline:
                 // 1. Pipeline behaviors (in order of registration)

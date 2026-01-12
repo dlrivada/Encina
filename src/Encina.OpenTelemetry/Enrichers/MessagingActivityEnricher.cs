@@ -23,25 +23,25 @@ public static class MessagingActivityEnricher
             return;
         }
 
-        activity.SetTag("messaging.system", "encina.outbox");
-        activity.SetTag("messaging.operation.name", "publish");
-        activity.SetTag("messaging.message.id", message.Id.ToString());
-        activity.SetTag("messaging.message.type", message.NotificationType);
-        activity.SetTag("messaging.message.processed", message.IsProcessed);
+        activity.SetTag(ActivityTagNames.Messaging.System, ActivityTagNames.Systems.Outbox);
+        activity.SetTag(ActivityTagNames.Messaging.OperationName, ActivityTagNames.Operations.Publish);
+        activity.SetTag(ActivityTagNames.Messaging.MessageId, message.Id.ToString());
+        activity.SetTag(ActivityTagNames.Messaging.MessageType, message.NotificationType);
+        activity.SetTag(ActivityTagNames.Messaging.Processed, message.IsProcessed);
 
         if (message.ProcessedAtUtc.HasValue)
         {
-            activity.SetTag("messaging.message.processed_at", message.ProcessedAtUtc.Value.ToString("O"));
+            activity.SetTag(ActivityTagNames.Messaging.ProcessedAt, message.ProcessedAtUtc.Value.ToString("O"));
         }
 
         if (message.RetryCount > 0)
         {
-            activity.SetTag("messaging.message.retry_count", message.RetryCount);
+            activity.SetTag(ActivityTagNames.Messaging.RetryCount, message.RetryCount);
         }
 
         if (!string.IsNullOrWhiteSpace(message.ErrorMessage))
         {
-            activity.SetTag("messaging.message.error", message.ErrorMessage);
+            activity.SetTag(ActivityTagNames.Messaging.Error, message.ErrorMessage);
         }
     }
 
@@ -57,25 +57,25 @@ public static class MessagingActivityEnricher
             return;
         }
 
-        activity.SetTag("messaging.system", "encina.inbox");
-        activity.SetTag("messaging.operation.name", "receive");
-        activity.SetTag("messaging.message.id", message.MessageId);
-        activity.SetTag("messaging.message.type", message.RequestType);
-        activity.SetTag("messaging.message.processed", message.IsProcessed);
+        activity.SetTag(ActivityTagNames.Messaging.System, ActivityTagNames.Systems.Inbox);
+        activity.SetTag(ActivityTagNames.Messaging.OperationName, ActivityTagNames.Operations.Receive);
+        activity.SetTag(ActivityTagNames.Messaging.MessageId, message.MessageId);
+        activity.SetTag(ActivityTagNames.Messaging.MessageType, message.RequestType);
+        activity.SetTag(ActivityTagNames.Messaging.Processed, message.IsProcessed);
 
         if (message.ProcessedAtUtc.HasValue)
         {
-            activity.SetTag("messaging.message.processed_at", message.ProcessedAtUtc.Value.ToString("O"));
+            activity.SetTag(ActivityTagNames.Messaging.ProcessedAt, message.ProcessedAtUtc.Value.ToString("O"));
         }
 
         if (message.RetryCount > 0)
         {
-            activity.SetTag("messaging.message.retry_count", message.RetryCount);
+            activity.SetTag(ActivityTagNames.Messaging.RetryCount, message.RetryCount);
         }
 
         if (!string.IsNullOrWhiteSpace(message.ErrorMessage))
         {
-            activity.SetTag("messaging.message.error", message.ErrorMessage);
+            activity.SetTag(ActivityTagNames.Messaging.Error, message.ErrorMessage);
         }
     }
 
@@ -91,19 +91,19 @@ public static class MessagingActivityEnricher
             return;
         }
 
-        activity.SetTag("saga.id", sagaState.SagaId.ToString());
-        activity.SetTag("saga.type", sagaState.SagaType);
-        activity.SetTag("saga.status", sagaState.Status);
-        activity.SetTag("saga.current_step", sagaState.CurrentStep);
+        activity.SetTag(ActivityTagNames.Saga.Id, sagaState.SagaId.ToString());
+        activity.SetTag(ActivityTagNames.Saga.Type, sagaState.SagaType);
+        activity.SetTag(ActivityTagNames.Saga.Status, sagaState.Status);
+        activity.SetTag(ActivityTagNames.Saga.CurrentStep, sagaState.CurrentStep);
 
         if (sagaState.CompletedAtUtc.HasValue)
         {
-            activity.SetTag("saga.completed_at", sagaState.CompletedAtUtc.Value.ToString("O"));
+            activity.SetTag(ActivityTagNames.Saga.CompletedAt, sagaState.CompletedAtUtc.Value.ToString("O"));
         }
 
         if (!string.IsNullOrWhiteSpace(sagaState.ErrorMessage))
         {
-            activity.SetTag("saga.error", sagaState.ErrorMessage);
+            activity.SetTag(ActivityTagNames.Saga.Error, sagaState.ErrorMessage);
         }
     }
 
@@ -119,32 +119,32 @@ public static class MessagingActivityEnricher
             return;
         }
 
-        activity.SetTag("messaging.system", "encina.scheduling");
-        activity.SetTag("messaging.operation.name", "schedule");
-        activity.SetTag("messaging.message.id", message.Id.ToString());
-        activity.SetTag("messaging.message.type", message.RequestType);
-        activity.SetTag("messaging.message.scheduled_at", message.ScheduledAtUtc.ToString("O"));
-        activity.SetTag("messaging.message.processed", message.IsProcessed);
-        activity.SetTag("messaging.message.is_recurring", message.IsRecurring);
+        activity.SetTag(ActivityTagNames.Messaging.System, ActivityTagNames.Systems.Scheduling);
+        activity.SetTag(ActivityTagNames.Messaging.OperationName, ActivityTagNames.Operations.Schedule);
+        activity.SetTag(ActivityTagNames.Messaging.MessageId, message.Id.ToString());
+        activity.SetTag(ActivityTagNames.Messaging.MessageType, message.RequestType);
+        activity.SetTag(ActivityTagNames.Messaging.ScheduledAt, message.ScheduledAtUtc.ToString("O"));
+        activity.SetTag(ActivityTagNames.Messaging.Processed, message.IsProcessed);
+        activity.SetTag(ActivityTagNames.Messaging.IsRecurring, message.IsRecurring);
 
         if (message.ProcessedAtUtc.HasValue)
         {
-            activity.SetTag("messaging.message.processed_at", message.ProcessedAtUtc.Value.ToString("O"));
+            activity.SetTag(ActivityTagNames.Messaging.ProcessedAt, message.ProcessedAtUtc.Value.ToString("O"));
         }
 
         if (message.IsRecurring && !string.IsNullOrWhiteSpace(message.CronExpression))
         {
-            activity.SetTag("messaging.message.cron_expression", message.CronExpression);
+            activity.SetTag(ActivityTagNames.Messaging.CronExpression, message.CronExpression);
         }
 
         if (message.RetryCount > 0)
         {
-            activity.SetTag("messaging.message.retry_count", message.RetryCount);
+            activity.SetTag(ActivityTagNames.Messaging.RetryCount, message.RetryCount);
         }
 
         if (!string.IsNullOrWhiteSpace(message.ErrorMessage))
         {
-            activity.SetTag("messaging.message.error", message.ErrorMessage);
+            activity.SetTag(ActivityTagNames.Messaging.Error, message.ErrorMessage);
         }
     }
 }
