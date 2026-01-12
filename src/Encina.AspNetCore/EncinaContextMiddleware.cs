@@ -109,7 +109,7 @@ public sealed class EncinaContextMiddleware
     private string? ExtractUserId(HttpContext context)
     {
         var user = context.User;
-        if (user?.Identity?.IsAuthenticated != true)
+        if (user?.Identity?.IsAuthenticated is not true)
         {
             return null;
         }
@@ -143,7 +143,7 @@ public sealed class EncinaContextMiddleware
     {
         // 1. Try to get from claims (preferred for authenticated users)
         var user = context.User;
-        if (user?.Identity?.IsAuthenticated == true)
+        if (user?.Identity?.IsAuthenticated is true)
         {
             var tenantClaim = user.FindFirst(_options.TenantIdClaimType);
             if (tenantClaim != null)

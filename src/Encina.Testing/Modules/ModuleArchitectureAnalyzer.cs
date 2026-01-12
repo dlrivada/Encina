@@ -224,7 +224,7 @@ public sealed class ModuleArchitectureAnalyzer
     private bool CheckDependency(ModuleInfo source, ModuleInfo target)
     {
         var sourceTypes = source.Assembly.GetTypes()
-            .Where(t => t.Namespace?.StartsWith(source.Namespace, StringComparison.Ordinal) == true);
+            .Where(t => t.Namespace?.StartsWith(source.Namespace, StringComparison.Ordinal) is true);
 
         foreach (var sourceType in sourceTypes)
         {
@@ -243,7 +243,7 @@ public sealed class ModuleArchitectureAnalyzer
         {
             var referencedTypes = GetReferencedTypes(sourceType);
             return referencedTypes.Any(t =>
-                t.Namespace?.StartsWith(target.Namespace, StringComparison.Ordinal) == true);
+                t.Namespace?.StartsWith(target.Namespace, StringComparison.Ordinal) is true);
         }
         catch (System.Reflection.ReflectionTypeLoadException rtle)
         {

@@ -192,11 +192,11 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
             query = query.Where(m => m.CorrelationId == filter.CorrelationId);
         }
 
-        if (filter.ExcludeReplayed == true)
+        if (filter.ExcludeReplayed is true)
         {
             query = query.Where(m => !m.IsReplayed);
         }
-        else if (filter.ExcludeReplayed == false)
+        else if (filter.ExcludeReplayed is false)
         {
             query = query.Where(m => m.IsReplayed);
         }

@@ -430,7 +430,7 @@ public abstract class AggregateTestBase<TAggregate, TId>
             "Version",
             System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
 
-        if (versionProperty?.CanWrite == true)
+        if (versionProperty?.CanWrite is true)
         {
             var currentVersion = (int)versionProperty.GetValue(aggregate)!;
             versionProperty.SetValue(aggregate, currentVersion + 1);

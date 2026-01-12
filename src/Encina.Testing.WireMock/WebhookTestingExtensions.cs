@@ -14,6 +14,11 @@ namespace Encina.Testing.WireMock;
 /// </remarks>
 public static class WebhookTestingExtensions
 {
+    /// <summary>
+    /// Maximum length of body content to show in error messages.
+    /// </summary>
+    private const int MaxBodyPreviewLength = 200;
+
     private static readonly JsonSerializerOptions DefaultJsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -273,8 +278,8 @@ public static class WebhookTestingExtensions
             }
             catch (JsonException ex)
             {
-                var bodyPreview = webhook.Body.Length > 200
-                    ? webhook.Body[..200] + "..."
+                var bodyPreview = webhook.Body.Length > MaxBodyPreviewLength
+                    ? webhook.Body[..MaxBodyPreviewLength] + "..."
                     : webhook.Body;
                 throw new InvalidOperationException(
                     $"Webhook [{i}] at path '{path}' failed to deserialize to {typeof(T).Name}. Body preview: {bodyPreview}",
@@ -283,8 +288,8 @@ public static class WebhookTestingExtensions
 
             if (deserialized is null)
             {
-                var bodyPreview = webhook.Body.Length > 200
-                    ? webhook.Body[..200] + "..."
+                var bodyPreview = webhook.Body.Length > MaxBodyPreviewLength
+                    ? webhook.Body[..MaxBodyPreviewLength] + "..."
                     : webhook.Body;
                 throw new InvalidOperationException(
                     $"Webhook [{i}] at path '{path}' deserialized to null for type {typeof(T).Name}. Body preview: {bodyPreview}");

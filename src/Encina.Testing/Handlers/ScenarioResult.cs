@@ -238,7 +238,7 @@ public sealed class ScenarioResult<TResponse>
                 message.Contains(propertyName, StringComparison.OrdinalIgnoreCase) ||
                 metadata.Any(m =>
                     m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
-                    m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) == true);
+                    m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
 
             Xunit.Assert.True(
                 containsProperty,

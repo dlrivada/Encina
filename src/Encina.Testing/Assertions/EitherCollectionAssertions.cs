@@ -349,7 +349,7 @@ public static class EitherCollectionAssertions
             var metadata = error.GetMetadata();
             var containsProperty = error.Message.Contains(propertyName, StringComparison.OrdinalIgnoreCase) ||
                                    metadata.Any(m => m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
-                                                     m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) == true);
+                                                     m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
 
             if (containsProperty)
             {

@@ -91,14 +91,14 @@ public static class LambdaContextExtensions
         var claimType = options?.TenantIdClaimType ?? "tenant_id";
 
         // Try to get from headers
-        if (request.Headers?.TryGetValue(headerName, out var tenantId) == true &&
+        if (request.Headers?.TryGetValue(headerName, out var tenantId) is true &&
             !string.IsNullOrEmpty(tenantId))
         {
             return tenantId;
         }
 
         // Try to get from authorizer claims (API Gateway authorizer)
-        if (request.RequestContext?.Authorizer?.TryGetValue("claims", out var claimsObj) == true &&
+        if (request.RequestContext?.Authorizer?.TryGetValue("claims", out var claimsObj) is true &&
             claimsObj is JsonElement claims)
         {
             if (claims.TryGetProperty(claimType, out var tenantClaim))
@@ -108,7 +108,7 @@ public static class LambdaContextExtensions
         }
 
         // Try to get from authorizer claims as dictionary
-        if (request.RequestContext?.Authorizer?.TryGetValue(claimType, out var tenantFromAuth) == true &&
+        if (request.RequestContext?.Authorizer?.TryGetValue(claimType, out var tenantFromAuth) is true &&
             tenantFromAuth is string tenantStr)
         {
             return tenantStr;
@@ -136,7 +136,7 @@ public static class LambdaContextExtensions
         var claimType = options?.UserIdClaimType ?? "sub";
 
         // Try to get from authorizer claims (API Gateway authorizer)
-        if (request.RequestContext?.Authorizer?.TryGetValue("claims", out var claimsObj) == true &&
+        if (request.RequestContext?.Authorizer?.TryGetValue("claims", out var claimsObj) is true &&
             claimsObj is JsonElement claims)
         {
             if (claims.TryGetProperty(claimType, out var userClaim))
@@ -146,14 +146,14 @@ public static class LambdaContextExtensions
         }
 
         // Try to get from authorizer claims as dictionary
-        if (request.RequestContext?.Authorizer?.TryGetValue(claimType, out var userFromAuth) == true &&
+        if (request.RequestContext?.Authorizer?.TryGetValue(claimType, out var userFromAuth) is true &&
             userFromAuth is string userStr)
         {
             return userStr;
         }
 
         // Try principalId from authorizer
-        if (request.RequestContext?.Authorizer?.TryGetValue("principalId", out var principalId) == true &&
+        if (request.RequestContext?.Authorizer?.TryGetValue("principalId", out var principalId) is true &&
             principalId is string principal)
         {
             return principal;

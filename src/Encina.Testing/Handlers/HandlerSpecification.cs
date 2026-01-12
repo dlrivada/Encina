@@ -465,7 +465,7 @@ public abstract class HandlerSpecification<TRequest, TResponse>
         var metadata = error.GetMetadata();
         return metadata.Any(m =>
             m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
-            m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) == true);
+            m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
     }
 
     #endregion

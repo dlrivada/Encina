@@ -8,6 +8,11 @@ namespace Encina.Messaging;
 /// </summary>
 public static partial class SqlIdentifierValidator
 {
+    /// <summary>
+    /// Maximum length for SQL identifiers per SQL Server standard (128 characters).
+    /// </summary>
+    private const int MaxSqlIdentifierLength = 128;
+
     // Valid SQL identifier: starts with letter or underscore, contains only letters, digits, underscores
     // Also allows schema-qualified names like "dbo.TableName" or "[schema].[table]"
     [GeneratedRegex(@"^(\[?[a-zA-Z_][a-zA-Z0-9_]*\]?\.)?(\[?[a-zA-Z_][a-zA-Z0-9_]*\]?)$", RegexOptions.Compiled)]
@@ -37,10 +42,10 @@ public static partial class SqlIdentifierValidator
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName, paramName);
 
-        if (tableName.Length > 128)
+        if (tableName.Length > MaxSqlIdentifierLength)
         {
             throw new ArgumentException(
-                "Table name exceeds maximum length of 128 characters.",
+                $"Table name exceeds maximum length of {MaxSqlIdentifierLength} characters.",
                 paramName);
         }
 
@@ -65,7 +70,7 @@ public static partial class SqlIdentifierValidator
         if (string.IsNullOrWhiteSpace(tableName))
             return false;
 
-        if (tableName.Length > 128)
+        if (tableName.Length > MaxSqlIdentifierLength)
             return false;
 
         return ValidIdentifierRegex().IsMatch(tableName);

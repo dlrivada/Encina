@@ -203,7 +203,7 @@ public abstract class EncinaHub : Hub
                 // Try simple name match
                 type = assembly.GetTypes().FirstOrDefault(t =>
                     t.Name.Equals(typeName, StringComparison.OrdinalIgnoreCase) ||
-                    t.FullName?.Equals(typeName, StringComparison.OrdinalIgnoreCase) == true);
+                    t.FullName?.Equals(typeName, StringComparison.OrdinalIgnoreCase) is true);
 
                 if (type != null)
                 {

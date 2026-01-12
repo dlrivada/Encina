@@ -119,7 +119,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
         var user = httpContext.User;
 
         // Check if user is authenticated (if any [Authorize] attribute requires it)
-        if (user?.Identity?.IsAuthenticated != true)
+        if (user?.Identity?.IsAuthenticated is not true)
         {
             return Left<EncinaError, TResponse>(EncinaErrors.Create(
                 code: "authorization.unauthenticated",

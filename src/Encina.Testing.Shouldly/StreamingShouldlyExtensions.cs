@@ -3,12 +3,7 @@ using Shouldly;
 
 namespace Encina.Testing.Shouldly;
 
-// TODO: Consider adding streaming-first variants that iterate until a match is found without
-// collecting the entire stream, e.g.:
-// - ShouldContainSuccessStreamingAsync: iterates until first Right is found, returns immediately
-// - ShouldContainErrorStreamingAsync: iterates until first Left is found, returns immediately
-// - FirstOrDefaultSuccessAsync: returns first Right or default without collecting
-// These would be suitable for infinite or very large streams where full materialization is not feasible.
+// For streaming-first variants (infinite/large streams), see GitHub Issue #529.
 
 /// <summary>
 /// Shouldly assertion extensions for <see cref="IAsyncEnumerable{T}"/> of <see cref="Either{L,R}"/> types.
@@ -151,9 +146,6 @@ public static class StreamingShouldlyExtensions
 
     #region Contains Assertions
 
-    // TODO: Add ShouldContainSuccessStreamingAsync that iterates until first Right is found
-    // without collecting the entire stream - suitable for infinite/large streams.
-
     /// <summary>
     /// Asserts that at least one streaming result is a success (Right).
     /// </summary>
@@ -181,9 +173,6 @@ public static class StreamingShouldlyExtensions
         var results = await source.CollectAsync(cancellationToken);
         return results.ShouldContainSuccess(customMessage);
     }
-
-    // TODO: Add ShouldContainErrorStreamingAsync that iterates until first Left is found
-    // without collecting the entire stream - suitable for infinite/large streams.
 
     /// <summary>
     /// Asserts that at least one streaming result is an error (Left).
@@ -338,7 +327,7 @@ public static class StreamingShouldlyExtensions
             var metadata = error.GetMetadata();
             var containsProperty = error.Message.Contains(propertyName, StringComparison.OrdinalIgnoreCase) ||
                                    metadata.Any(m => m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
-                                                     m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) == true);
+                                                     m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
 
             if (containsProperty)
             {

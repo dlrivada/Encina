@@ -327,7 +327,7 @@ public static class EitherAssertions
         // Check if property name is in the error message or metadata
         var containsProperty = error.Message.Contains(propertyName, StringComparison.OrdinalIgnoreCase) ||
                                metadata.Any(m => m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
-                                                 m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) == true);
+                                                 m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
 
         Assert.True(
             containsProperty,
