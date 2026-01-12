@@ -73,11 +73,11 @@ internal sealed class ModuleRegistry : IModuleRegistry
     {
         var duplicates = modules
             .GroupBy(m => m.Name, StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() > 1)
+            .Where(g => g.Skip(1).Any())
             .Select(g => g.Key)
             .ToList();
 
-        if (duplicates.Count > 0)
+        if (duplicates.Count != 0)
         {
             throw new ArgumentException(
                 $"Duplicate module names detected: {string.Join(", ", duplicates)}. " +
