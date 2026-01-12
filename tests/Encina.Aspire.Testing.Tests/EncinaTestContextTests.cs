@@ -166,11 +166,11 @@ public sealed class EncinaTestContextTests
         context.ClearAll();
 
         // Assert
-        outboxStore.Messages.ShouldBeEmpty();
-        inboxStore.Messages.ShouldBeEmpty();
-        sagaStore.Sagas.ShouldBeEmpty();
-        scheduledStore.Messages.ShouldBeEmpty();
-        deadLetterStore.Messages.ShouldBeEmpty();
+        outboxStore.GetMessages().ShouldBeEmpty();
+        inboxStore.GetMessages().ShouldBeEmpty();
+        sagaStore.GetSagas().ShouldBeEmpty();
+        scheduledStore.GetMessages().ShouldBeEmpty();
+        deadLetterStore.GetMessages().ShouldBeEmpty();
     }
 
     [Fact]
@@ -195,8 +195,8 @@ public sealed class EncinaTestContextTests
         context.ClearAll();
 
         // Assert
-        outboxStore.Messages.ShouldNotBeEmpty(); // Should NOT be cleared
-        inboxStore.Messages.ShouldBeEmpty(); // Should be cleared
+        outboxStore.GetMessages().ShouldNotBeEmpty(); // Should NOT be cleared
+        inboxStore.GetMessages().ShouldBeEmpty(); // Should be cleared
     }
 
     [Fact]
@@ -215,8 +215,8 @@ public sealed class EncinaTestContextTests
         context.ClearOutbox();
 
         // Assert
-        outboxStore.Messages.ShouldBeEmpty();
-        inboxStore.Messages.ShouldNotBeEmpty();
+        outboxStore.GetMessages().ShouldBeEmpty();
+        inboxStore.GetMessages().ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -235,8 +235,8 @@ public sealed class EncinaTestContextTests
         context.ClearInbox();
 
         // Assert
-        outboxStore.Messages.ShouldNotBeEmpty();
-        inboxStore.Messages.ShouldBeEmpty();
+        outboxStore.GetMessages().ShouldNotBeEmpty();
+        inboxStore.GetMessages().ShouldBeEmpty();
     }
 
     [Fact]
@@ -255,8 +255,8 @@ public sealed class EncinaTestContextTests
         context.ClearSagas();
 
         // Assert
-        sagaStore.Sagas.ShouldBeEmpty();
-        outboxStore.Messages.ShouldNotBeEmpty();
+        sagaStore.GetSagas().ShouldBeEmpty();
+        outboxStore.GetMessages().ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -275,8 +275,8 @@ public sealed class EncinaTestContextTests
         context.ClearScheduledMessages();
 
         // Assert
-        scheduledStore.Messages.ShouldBeEmpty();
-        outboxStore.Messages.ShouldNotBeEmpty();
+        scheduledStore.GetMessages().ShouldBeEmpty();
+        outboxStore.GetMessages().ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -295,7 +295,7 @@ public sealed class EncinaTestContextTests
         context.ClearDeadLetter();
 
         // Assert
-        deadLetterStore.Messages.ShouldBeEmpty();
-        outboxStore.Messages.ShouldNotBeEmpty();
+        deadLetterStore.GetMessages().ShouldBeEmpty();
+        outboxStore.GetMessages().ShouldNotBeEmpty();
     }
 }

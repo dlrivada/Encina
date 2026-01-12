@@ -29,8 +29,8 @@ public sealed class FakeSagaStoreTests
         await _sut.AddAsync(saga);
 
         // Assert
-        _sut.Sagas.Count.ShouldBe(1);
-        _sut.AddedSagas.Count.ShouldBe(1);
+        _sut.GetSagas().Count.ShouldBe(1);
+        _sut.GetAddedSagas().Count.ShouldBe(1);
         _sut.GetSaga(saga.SagaId).ShouldNotBeNull();
     }
 
@@ -90,7 +90,7 @@ public sealed class FakeSagaStoreTests
         updated!.Status.ShouldBe("Completed");
         updated.CurrentStep.ShouldBe(3);
         updated.CompletedAtUtc.ShouldNotBeNull();
-        _sut.UpdatedSagas.Count.ShouldBe(1);
+        _sut.GetUpdatedSagas().Count.ShouldBe(1);
     }
 
     [Fact]
@@ -232,9 +232,9 @@ public sealed class FakeSagaStoreTests
         _sut.Clear();
 
         // Assert
-        _sut.Sagas.ShouldBeEmpty();
-        _sut.AddedSagas.ShouldBeEmpty();
-        _sut.UpdatedSagas.ShouldBeEmpty();
+        _sut.GetSagas().ShouldBeEmpty();
+        _sut.GetAddedSagas().ShouldBeEmpty();
+        _sut.GetUpdatedSagas().ShouldBeEmpty();
         _sut.SaveChangesCallCount.ShouldBe(0);
     }
 }

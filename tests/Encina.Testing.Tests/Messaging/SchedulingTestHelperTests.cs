@@ -28,7 +28,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
         _helper.GivenNoScheduledMessages();
 
         // Assert
-        _helper.Store.Messages.ShouldBeEmpty();
+        _helper.Store.GetMessages().ShouldBeEmpty();
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
             scheduledIn: TimeSpan.FromHours(24));
 
         // Assert
-        var message = _helper.Store.Messages.First();
+        var message = _helper.Store.GetMessages().First();
         message.ScheduledAtUtc.ShouldBeGreaterThan(_helper.TimeProvider.GetUtcNow().UtcDateTime);
         message.IsRecurring.ShouldBeFalse();
     }
@@ -55,7 +55,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
             nextRunIn: TimeSpan.FromHours(12));
 
         // Assert
-        var message = _helper.Store.Messages.First();
+        var message = _helper.Store.GetMessages().First();
         message.IsRecurring.ShouldBeTrue();
         message.CronExpression.ShouldBe("0 0 * * *");
     }
@@ -67,7 +67,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
         _helper.GivenDueMessage(new SendReminderCommand { UserId = "user-123" });
 
         // Assert
-        var message = _helper.Store.Messages.First();
+        var message = _helper.Store.GetMessages().First();
         message.ScheduledAtUtc.ShouldBeLessThanOrEqualTo(_helper.TimeProvider.GetUtcNow().UtcDateTime);
     }
 
@@ -78,7 +78,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
         _helper.GivenProcessedMessage(new SendReminderCommand { UserId = "user-123" });
 
         // Assert
-        var message = _helper.Store.Messages.First();
+        var message = _helper.Store.GetMessages().First();
         message.IsProcessed.ShouldBeTrue();
         message.ProcessedAtUtc.ShouldNotBeNull();
     }
@@ -93,7 +93,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
             errorMessage: "Service unavailable");
 
         // Assert
-        var message = _helper.Store.Messages.First();
+        var message = _helper.Store.GetMessages().First();
         message.RetryCount.ShouldBe(2);
         message.ErrorMessage.ShouldBe("Service unavailable");
     }
@@ -105,7 +105,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
         _helper.GivenCancelledMessage(new SendReminderCommand { UserId = "user-123" });
 
         // Assert
-        var message = _helper.Store.Messages.First();
+        var message = _helper.Store.GetMessages().First();
         message.IsCancelled.ShouldBeTrue();
     }
 
@@ -122,7 +122,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
             .WhenMessageScheduled(new SendReminderCommand { UserId = "user-123" }, TimeSpan.FromHours(1));
 
         // Assert
-        _helper.Store.AddedMessages.Count.ShouldBe(1);
+        _helper.Store.GetAddedMessages().Count.ShouldBe(1);
         _helper.LastMessageId.ShouldNotBe(Guid.Empty);
     }
 
@@ -138,7 +138,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
                 TimeSpan.FromHours(12));
 
         // Assert
-        var message = _helper.Store.Messages.First();
+        var message = _helper.Store.GetMessages().First();
         message.IsRecurring.ShouldBeTrue();
     }
 
@@ -153,7 +153,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
         _helper.WhenMessageProcessed(messageId);
 
         // Assert
-        _helper.Store.ProcessedMessageIds.ShouldContain(messageId);
+        _helper.Store.GetProcessedMessageIds().ShouldContain(messageId);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
         _helper.WhenLastMessageProcessed();
 
         // Assert
-        _helper.Store.ProcessedMessageIds.ShouldContain(_helper.LastMessageId);
+        _helper.Store.GetProcessedMessageIds().ShouldContain(_helper.LastMessageId);
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
         _helper.WhenMessageFailed(messageId, "Connection timeout");
 
         // Assert
-        _helper.Store.FailedMessageIds.ShouldContain(messageId);
+        _helper.Store.GetFailedMessageIds().ShouldContain(messageId);
     }
 
     [Fact]
@@ -196,7 +196,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
         _helper.WhenMessageCancelled(messageId);
 
         // Assert
-        _helper.Store.CancelledMessageIds.ShouldContain(messageId);
+        _helper.Store.GetCancelledMessageIds().ShouldContain(messageId);
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public sealed class SchedulingTestHelperTests : IDisposable
         _helper.WhenMessageRescheduled(messageId, nextTime);
 
         // Assert
-        _helper.Store.RescheduledMessageIds.ShouldContain(messageId);
+        _helper.Store.GetRescheduledMessageIds().ShouldContain(messageId);
     }
 
     #endregion

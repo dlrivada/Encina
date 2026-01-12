@@ -22,8 +22,8 @@ public sealed class FakeOutboxStoreTests
         await _sut.AddAsync(message);
 
         // Assert
-        _sut.Messages.Count.ShouldBe(1);
-        _sut.AddedMessages.Count.ShouldBe(1);
+        _sut.GetMessages().Count.ShouldBe(1);
+        _sut.GetAddedMessages().Count.ShouldBe(1);
         _sut.GetMessage(message.Id).ShouldNotBeNull();
     }
 
@@ -119,7 +119,7 @@ public sealed class FakeOutboxStoreTests
         var updated = _sut.GetMessage(message.Id);
         updated!.IsProcessed.ShouldBeTrue();
         updated.ProcessedAtUtc.ShouldNotBeNull();
-        _sut.ProcessedMessageIds.ShouldContain(message.Id);
+        _sut.GetProcessedMessageIds().ShouldContain(message.Id);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public sealed class FakeOutboxStoreTests
         updated!.ErrorMessage.ShouldBe("Test error");
         updated.RetryCount.ShouldBe(1);
         updated.NextRetryAtUtc.ShouldBe(nextRetry);
-        _sut.FailedMessageIds.ShouldContain(message.Id);
+        _sut.GetFailedMessageIds().ShouldContain(message.Id);
     }
 
     [Fact]
@@ -174,10 +174,10 @@ public sealed class FakeOutboxStoreTests
         _sut.Clear();
 
         // Assert
-        _sut.Messages.ShouldBeEmpty();
-        _sut.AddedMessages.ShouldBeEmpty();
-        _sut.ProcessedMessageIds.ShouldBeEmpty();
-        _sut.FailedMessageIds.ShouldBeEmpty();
+        _sut.GetMessages().ShouldBeEmpty();
+        _sut.GetAddedMessages().ShouldBeEmpty();
+        _sut.GetProcessedMessageIds().ShouldBeEmpty();
+        _sut.GetFailedMessageIds().ShouldBeEmpty();
         _sut.SaveChangesCallCount.ShouldBe(0);
     }
 

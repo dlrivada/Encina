@@ -29,7 +29,7 @@ public sealed class SagaTestHelperTests : IDisposable
         _helper.GivenNoSagas();
 
         // Assert
-        _helper.Store.Sagas.ShouldBeEmpty();
+        _helper.Store.GetSagas().ShouldBeEmpty();
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public sealed class SagaTestHelperTests : IDisposable
                 new OrderSagaData { OrderId = "ORD-123" });
 
         // Assert
-        _helper.Store.AddedSagas.Count.ShouldBe(1);
+        _helper.Store.GetAddedSagas().Count.ShouldBe(1);
     }
 
     [Fact]

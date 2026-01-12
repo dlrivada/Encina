@@ -23,7 +23,7 @@ public sealed class MessagingTestHelpersPropertyTests
             .GivenEmptyOutbox()
             .WhenMessageAdded(notification);
 
-        return helper.Store.AddedMessages.Count == 1;
+        return helper.Store.GetAddedMessages().Count == 1;
     }
 
     [Property(MaxTest = 50)]
@@ -38,7 +38,7 @@ public sealed class MessagingTestHelpersPropertyTests
             helper.WhenMessageAdded(new TestNotification { Value = $"msg-{i}" });
         }
 
-        return helper.Store.AddedMessages.Count == messageCount;
+        return helper.Store.GetAddedMessages().Count == messageCount;
     }
 
     [Property(MaxTest = 100)]
@@ -58,7 +58,7 @@ public sealed class MessagingTestHelpersPropertyTests
         helper.Store.AddAsync(message).GetAwaiter().GetResult();
         helper.WhenMessageProcessed(messageId);
 
-        return helper.Store.ProcessedMessageIds.Contains(messageId);
+        return helper.Store.GetProcessedMessageIds().Contains(messageId);
     }
 
     [Property(MaxTest = 100)]
@@ -85,7 +85,7 @@ public sealed class MessagingTestHelpersPropertyTests
         // Clear
         helper.GivenEmptyOutbox();
 
-        return helper.Store.Messages.Count == 0;
+        return helper.Store.GetMessages().Count == 0;
     }
 
     #endregion
@@ -114,7 +114,7 @@ public sealed class MessagingTestHelpersPropertyTests
         helper.WhenMessageRegistered(id1.Get, "Test1");
         helper.WhenMessageRegistered(id2.Get, "Test2");
 
-        return helper.Store.Messages.Count == 2;
+        return helper.Store.GetMessages().Count == 2;
     }
 
     [Property(MaxTest = 100)]
@@ -142,7 +142,7 @@ public sealed class MessagingTestHelpersPropertyTests
         // Clear
         helper.GivenEmptyInbox();
 
-        return helper.Store.Messages.Count == 0;
+        return helper.Store.GetMessages().Count == 0;
     }
 
     [Property(MaxTest = 100)]
@@ -152,7 +152,7 @@ public sealed class MessagingTestHelpersPropertyTests
         helper.GivenEmptyInbox();
         helper.WhenMessageRegistered(messageId.Get, "TestType");
 
-        return helper.Store.AddedMessages.Count == 1;
+        return helper.Store.GetAddedMessages().Count == 1;
     }
 
     #endregion
@@ -255,7 +255,7 @@ public sealed class MessagingTestHelpersPropertyTests
             sagaId,
             new TestSagaData { OrderId = "ORD-1" });
 
-        return helper.Store.AddedSagas.Count == 1;
+        return helper.Store.GetAddedSagas().Count == 1;
     }
 
     #endregion
@@ -274,7 +274,7 @@ public sealed class MessagingTestHelpersPropertyTests
             .GivenNoScheduledMessages()
             .WhenMessageScheduled(new TestRequest { Id = "1" }, TimeSpan.FromMinutes(minutes));
 
-        var message = helper.Store.Messages.First();
+        var message = helper.Store.GetMessages().First();
         return message.ScheduledAtUtc >= startTime.AddMinutes(minutes);
     }
 
@@ -322,7 +322,7 @@ public sealed class MessagingTestHelpersPropertyTests
                 "0 0 * * *", // Daily at midnight
                 TimeSpan.FromHours(1));
 
-        var message = helper.Store.Messages.First();
+        var message = helper.Store.GetMessages().First();
         return message.IsRecurring && message.CronExpression == "0 0 * * *";
     }
 
@@ -335,7 +335,7 @@ public sealed class MessagingTestHelpersPropertyTests
 
         helper.WhenMessageProcessed(actualMessageId);
 
-        helper.Store.ProcessedMessageIds.ShouldContain(actualMessageId);
+        helper.Store.GetProcessedMessageIds().ShouldContain(actualMessageId);
     }
 
     [Property(MaxTest = 50)]
@@ -350,7 +350,7 @@ public sealed class MessagingTestHelpersPropertyTests
         // Clear
         helper.GivenNoScheduledMessages();
 
-        return helper.Store.Messages.Count == 0;
+        return helper.Store.GetMessages().Count == 0;
     }
 
     [Property(MaxTest = 100)]

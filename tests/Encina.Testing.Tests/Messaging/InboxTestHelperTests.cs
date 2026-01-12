@@ -28,7 +28,7 @@ public sealed class InboxTestHelperTests : IDisposable
         _helper.GivenEmptyInbox();
 
         // Assert
-        _helper.Store.Messages.ShouldBeEmpty();
+        _helper.Store.GetMessages().ShouldBeEmpty();
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public sealed class InboxTestHelperTests : IDisposable
             .WhenMessageRegistered("new-msg", "TestRequest");
 
         // Assert
-        _helper.Store.AddedMessages.Count.ShouldBe(1);
+        _helper.Store.GetAddedMessages().Count.ShouldBe(1);
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public sealed class InboxTestHelperTests : IDisposable
             .WhenMessageProcessed("msg-123", new TestResponse { Success = true });
 
         // Assert
-        _helper.Store.ProcessedMessageIds.ShouldContain("msg-123");
+        _helper.Store.GetProcessedMessageIds().ShouldContain("msg-123");
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public sealed class InboxTestHelperTests : IDisposable
             .WhenMessageFailed("msg-123", "Processing error");
 
         // Assert
-        _helper.Store.FailedMessageIds.ShouldContain("msg-123");
+        _helper.Store.GetFailedMessageIds().ShouldContain("msg-123");
     }
 
     #endregion

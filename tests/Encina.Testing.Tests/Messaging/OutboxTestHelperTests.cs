@@ -30,7 +30,7 @@ public sealed class OutboxTestHelperTests : IDisposable
         _helper.GivenEmptyOutbox();
 
         // Assert
-        _helper.Store.Messages.ShouldBeEmpty();
+        _helper.Store.GetMessages().ShouldBeEmpty();
     }
 
     [Fact]
@@ -40,8 +40,8 @@ public sealed class OutboxTestHelperTests : IDisposable
         _helper.GivenPendingMessage(new TestNotification { Value = "test" });
 
         // Assert
-        _helper.Store.Messages.Count.ShouldBe(1);
-        _helper.Store.Messages.First().ProcessedAtUtc.ShouldBeNull();
+        _helper.Store.GetMessages().Count.ShouldBe(1);
+        _helper.Store.GetMessages().First().ProcessedAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -51,8 +51,8 @@ public sealed class OutboxTestHelperTests : IDisposable
         _helper.GivenProcessedMessage(new TestNotification { Value = "test" });
 
         // Assert
-        _helper.Store.Messages.Count.ShouldBe(1);
-        _helper.Store.Messages.First().ProcessedAtUtc.ShouldNotBeNull();
+        _helper.Store.GetMessages().Count.ShouldBe(1);
+        _helper.Store.GetMessages().First().ProcessedAtUtc.ShouldNotBeNull();
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class OutboxTestHelperTests : IDisposable
         _helper.GivenFailedMessage(new TestNotification { Value = "test" }, retryCount: 3, errorMessage: "Failed");
 
         // Assert
-        var message = _helper.Store.Messages.First();
+        var message = _helper.Store.GetMessages().First();
         message.RetryCount.ShouldBe(3);
         message.ErrorMessage.ShouldBe("Failed");
     }
@@ -80,7 +80,7 @@ public sealed class OutboxTestHelperTests : IDisposable
             .WhenMessageAdded(new TestNotification { Value = "test" });
 
         // Assert
-        _helper.Store.AddedMessages.Count.ShouldBe(1);
+        _helper.Store.GetAddedMessages().Count.ShouldBe(1);
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public sealed class OutboxTestHelperTests : IDisposable
         _helper.WhenMessageProcessed(messageId);
 
         // Assert
-        _helper.Store.ProcessedMessageIds.ShouldContain(messageId);
+        _helper.Store.GetProcessedMessageIds().ShouldContain(messageId);
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public sealed class OutboxTestHelperTests : IDisposable
         _helper.WhenMessageFailed(messageId, "Error message");
 
         // Assert
-        _helper.Store.FailedMessageIds.ShouldContain(messageId);
+        _helper.Store.GetFailedMessageIds().ShouldContain(messageId);
     }
 
     [Fact]

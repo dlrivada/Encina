@@ -188,8 +188,8 @@ public sealed class EncinaTestFixtureTests : IDisposable
         _fixture.ClearStores();
 
         // Assert
-        _fixture.Outbox.Messages.ShouldBeEmpty();
-        _fixture.Outbox.AddedMessages.ShouldBeEmpty();
+        _fixture.Outbox.GetMessages().ShouldBeEmpty();
+        _fixture.Outbox.GetAddedMessages().ShouldBeEmpty();
     }
 
     [Fact]
