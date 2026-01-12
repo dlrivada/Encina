@@ -223,76 +223,100 @@ public sealed class ModuleArchitectureAnalyzer
 
     private bool CheckDependency(ModuleInfo source, ModuleInfo target)
     {
-        // Check if any type in source namespace depends on types in target namespace
         var sourceTypes = source.Assembly.GetTypes()
             .Where(t => t.Namespace?.StartsWith(source.Namespace, StringComparison.Ordinal) == true);
 
         foreach (var sourceType in sourceTypes)
         {
-            // Check referenced types
-            try
+            if (HasDependencyOnTarget(sourceType, source, target))
             {
-                var referencedTypes = GetReferencedTypes(sourceType);
-                if (referencedTypes.Any(t =>
-                    t.Namespace?.StartsWith(target.Namespace, StringComparison.Ordinal) == true))
-                {
-                    return true;
-                }
-            }
-            catch (System.Reflection.ReflectionTypeLoadException rtle)
-            {
-                // Log loader exceptions with context so issues are visible during analysis.
-                var asmName = source.Assembly.GetName().Name ?? "<unknown assembly>";
-                if (_logger is not null)
-                {
-                    _failedToLoadTypes(_logger, sourceType.FullName ?? sourceType.Name ?? "<unknown type>", asmName, rtle);
-                    foreach (var le in rtle.LoaderExceptions)
-                    {
-                        if (le is null) continue;
-                        _loaderExceptionLog(_logger,
-                            asmName,
-                            sourceType.FullName ?? sourceType.Name ?? "<unknown type>",
-                            le.GetType().Name,
-                            le.Message ?? string.Empty,
-                            le.StackTrace ?? string.Empty,
-                            le);
-                    }
-                }
-                else
-                {
-                    // Fallback to console if no logger was provided.
-                    Console.Error.WriteLine($"ModuleArchitectureAnalyzer: failed to load types for {sourceType.FullName} in assembly {asmName} - LoaderExceptions:");
-                    foreach (var le in rtle.LoaderExceptions)
-                    {
-                        if (le is null) continue;
-                        Console.Error.WriteLine($" - {le.GetType().Name}: {le.Message}\n{le.StackTrace}");
-                    }
-                }
-                // Continue analysis for other types
-            }
-            catch (Exception ex)
-            {
-                // Unexpected exception - log full details with context and continue
-                var asmName = source.Assembly.GetName().Name ?? "<unknown assembly>";
-                if (_logger is not null)
-                {
-                    _analysisErrorLog(_logger,
-                        sourceType.FullName ?? sourceType.Name ?? "<unknown type>",
-                        asmName,
-                        ex.GetType().Name,
-                        ex.Message ?? string.Empty,
-                        ex.StackTrace ?? string.Empty,
-                        ex);
-                }
-                else
-                {
-                    Console.Error.WriteLine($"ModuleArchitectureAnalyzer: error analyzing type {sourceType.FullName} in assembly {asmName}: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
-                }
-                // Continue analyzing other types rather than failing the whole analysis
+                return true;
             }
         }
 
         return false;
+    }
+
+    private bool HasDependencyOnTarget(ReflectionType sourceType, ModuleInfo source, ModuleInfo target)
+    {
+        try
+        {
+            var referencedTypes = GetReferencedTypes(sourceType);
+            return referencedTypes.Any(t =>
+                t.Namespace?.StartsWith(target.Namespace, StringComparison.Ordinal) == true);
+        }
+        catch (System.Reflection.ReflectionTypeLoadException rtle)
+        {
+            LogReflectionTypeLoadException(sourceType, source.Assembly, rtle);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            LogAnalysisException(sourceType, source.Assembly, ex);
+            return false;
+        }
+    }
+
+    private void LogReflectionTypeLoadException(ReflectionType sourceType, ReflectionAssembly assembly, System.Reflection.ReflectionTypeLoadException rtle)
+    {
+        var asmName = assembly.GetName().Name ?? "<unknown assembly>";
+        var typeName = sourceType.FullName ?? sourceType.Name ?? "<unknown type>";
+
+        if (_logger is not null)
+        {
+            _failedToLoadTypes(_logger, typeName, asmName, rtle);
+            LogLoaderExceptions(asmName, typeName, rtle.LoaderExceptions);
+        }
+        else
+        {
+            Console.Error.WriteLine($"ModuleArchitectureAnalyzer: failed to load types for {typeName} in assembly {asmName} - LoaderExceptions:");
+            WriteLoaderExceptionsToConsole(rtle.LoaderExceptions);
+        }
+    }
+
+    private void LogLoaderExceptions(string asmName, string typeName, Exception?[] loaderExceptions)
+    {
+        foreach (var le in loaderExceptions)
+        {
+            if (le is null) continue;
+            _loaderExceptionLog(_logger!,
+                asmName,
+                typeName,
+                le.GetType().Name,
+                le.Message ?? string.Empty,
+                le.StackTrace ?? string.Empty,
+                le);
+        }
+    }
+
+    private static void WriteLoaderExceptionsToConsole(Exception?[] loaderExceptions)
+    {
+        foreach (var le in loaderExceptions)
+        {
+            if (le is null) continue;
+            Console.Error.WriteLine($" - {le.GetType().Name}: {le.Message}\n{le.StackTrace}");
+        }
+    }
+
+    private void LogAnalysisException(ReflectionType sourceType, ReflectionAssembly assembly, Exception ex)
+    {
+        var asmName = assembly.GetName().Name ?? "<unknown assembly>";
+        var typeName = sourceType.FullName ?? sourceType.Name ?? "<unknown type>";
+
+        if (_logger is not null)
+        {
+            _analysisErrorLog(_logger,
+                typeName,
+                asmName,
+                ex.GetType().Name,
+                ex.Message ?? string.Empty,
+                ex.StackTrace ?? string.Empty,
+                ex);
+        }
+        else
+        {
+            Console.Error.WriteLine($"ModuleArchitectureAnalyzer: error analyzing type {typeName} in assembly {asmName}: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+        }
     }
 
     private static HashSet<ReflectionType> GetReferencedTypes(ReflectionType type)

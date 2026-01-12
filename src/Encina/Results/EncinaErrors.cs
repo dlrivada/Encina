@@ -48,6 +48,11 @@ public static class EncinaErrors
 /// <summary>
 /// Internal exception used to capture Encina failure metadata without leaking it.
 /// </summary>
+/// <remarks>
+/// This exception is intentionally internal to encapsulate error metadata
+/// without exposing implementation details to library consumers.
+/// </remarks>
+#pragma warning disable S3871 // Exception types should be "public" - Intentionally internal for encapsulation
 internal sealed class EncinaException(
     string code,
     string message,

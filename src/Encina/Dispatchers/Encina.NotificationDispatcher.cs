@@ -367,14 +367,5 @@ public sealed partial class Encina
                 || candidateType.IsAssignableFrom(parameterType);
         }
 
-        private static bool IsCancellationCode(string errorCode)
-        {
-            if (string.IsNullOrWhiteSpace(errorCode))
-            {
-                return false;
-            }
-
-            return errorCode.Contains("cancelled", StringComparison.OrdinalIgnoreCase);
-        }
     }
 }

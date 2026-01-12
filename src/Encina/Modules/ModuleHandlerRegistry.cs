@@ -55,40 +55,45 @@ internal sealed class ModuleHandlerRegistry : IModuleHandlerRegistry
     {
         foreach (var descriptor in descriptors)
         {
-            var assembly = descriptor.HandlerAssembly;
-            var module = descriptor.Module;
-
-            // Scan for IRequestHandler<,> implementations
-            foreach (var type in assembly.GetTypes())
-            {
-                if (type.IsAbstract || type.IsInterface)
-                {
-                    continue;
-                }
-
-                foreach (var iface in type.GetInterfaces())
-                {
-                    if (!iface.IsGenericType)
-                    {
-                        continue;
-                    }
-
-                    var genericDef = iface.GetGenericTypeDefinition();
-                    if (genericDef == typeof(IRequestHandler<,>))
-                    {
-                        var args = iface.GetGenericArguments();
-                        var requestType = args[0];
-                        var responseType = args[1];
-
-                        // Cache the mapping
-                        _requestToModuleCache[(requestType, responseType)] = module;
-
-                        // Also cache the handler type directly
-                        _handlerModuleCache[type] = module;
-                    }
-                }
-            }
+            PopulateModuleHandlers(descriptor);
         }
+    }
+
+    private void PopulateModuleHandlers(ModuleDescriptor descriptor)
+    {
+        var assembly = descriptor.HandlerAssembly;
+        var module = descriptor.Module;
+
+        foreach (var type in assembly.GetTypes())
+        {
+            if (type.IsAbstract || type.IsInterface)
+            {
+                continue;
+            }
+
+            ProcessTypeInterfaces(type, module);
+        }
+    }
+
+    private void ProcessTypeInterfaces(Type type, IModule module)
+    {
+        foreach (var iface in type.GetInterfaces())
+        {
+            if (!IsRequestHandlerInterface(iface))
+            {
+                continue;
+            }
+
+            var args = iface.GetGenericArguments();
+            _requestToModuleCache[(args[0], args[1])] = module;
+            _handlerModuleCache[type] = module;
+        }
+    }
+
+    private static bool IsRequestHandlerInterface(Type iface)
+    {
+        return iface.IsGenericType &&
+               iface.GetGenericTypeDefinition() == typeof(IRequestHandler<,>);
     }
 
     /// <inheritdoc />

@@ -146,7 +146,10 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
 /// <remarks>
 /// This allows the resilience pipeline to treat business errors (Left in Either)
 /// as exceptions that can be retried, circuit-broken, etc.
+/// This exception is intentionally internal as it is an implementation detail
+/// of the resilience pipeline and should not be exposed to consumers.
 /// </remarks>
+#pragma warning disable S3871 // Exception types should be "public" - Intentionally internal for encapsulation
 internal sealed class EncinaResilienceException : Exception
 {
     /// <summary>

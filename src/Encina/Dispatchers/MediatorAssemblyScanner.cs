@@ -18,13 +18,7 @@ internal static class EncinaAssemblyScanner
 
     private static AssemblyScanResult ScanAssembly(Assembly assembly)
     {
-        var handlerRegistrations = new List<TypeRegistration>();
-        var notificationRegistrations = new List<TypeRegistration>();
-        var pipelineRegistrations = new List<TypeRegistration>();
-        var preProcessorRegistrations = new List<TypeRegistration>();
-        var postProcessorRegistrations = new List<TypeRegistration>();
-        var streamHandlerRegistrations = new List<TypeRegistration>();
-        var streamPipelineRegistrations = new List<TypeRegistration>();
+        var result = new ScanResultBuilder();
 
         foreach (var type in GetLoadableTypes(assembly))
         {
@@ -33,75 +27,114 @@ internal static class EncinaAssemblyScanner
                 continue;
             }
 
-            foreach (var implementedInterface in type.GetInterfaces().Where(i => i.IsGenericType))
-            {
-                var genericDefinition = implementedInterface.GetGenericTypeDefinition();
-
-                if (genericDefinition == typeof(IRequestHandler<,>))
-                {
-                    handlerRegistrations.Add(new TypeRegistration(implementedInterface, type));
-                }
-                else if (genericDefinition == typeof(INotificationHandler<>))
-                {
-                    notificationRegistrations.Add(new TypeRegistration(implementedInterface, type));
-                }
-                else if (genericDefinition == typeof(IPipelineBehavior<,>))
-                {
-                    // Skip ValidationPipelineBehavior - it requires ValidationOrchestrator
-                    // which is only registered by validation packages (FluentValidation, DataAnnotations, etc.)
-                    if (type.FullName == "Encina.Validation.ValidationPipelineBehavior`2")
-                    {
-                        continue;
-                    }
-
-                    // Skip ModuleBehaviorAdapter - it has 3 type parameters but IPipelineBehavior has 2
-                    // It is registered explicitly via AddEncinaModuleBehavior extension method
-                    if (type.FullName?.StartsWith("Encina.Modules.ModuleBehaviorAdapter`", StringComparison.Ordinal) == true)
-                    {
-                        continue;
-                    }
-
-                    var serviceType = implementedInterface.ContainsGenericParameters
-                        ? typeof(IPipelineBehavior<,>)
-                        : implementedInterface;
-                    pipelineRegistrations.Add(new TypeRegistration(serviceType, type));
-                }
-                else if (genericDefinition == typeof(IRequestPreProcessor<>))
-                {
-                    var serviceType = implementedInterface.ContainsGenericParameters
-                        ? typeof(IRequestPreProcessor<>)
-                        : implementedInterface;
-                    preProcessorRegistrations.Add(new TypeRegistration(serviceType, type));
-                }
-                else if (genericDefinition == typeof(IRequestPostProcessor<,>))
-                {
-                    var serviceType = implementedInterface.ContainsGenericParameters
-                        ? typeof(IRequestPostProcessor<,>)
-                        : implementedInterface;
-                    postProcessorRegistrations.Add(new TypeRegistration(serviceType, type));
-                }
-                else if (genericDefinition == typeof(IStreamRequestHandler<,>))
-                {
-                    streamHandlerRegistrations.Add(new TypeRegistration(implementedInterface, type));
-                }
-                else if (genericDefinition == typeof(IStreamPipelineBehavior<,>))
-                {
-                    var serviceType = implementedInterface.ContainsGenericParameters
-                        ? typeof(IStreamPipelineBehavior<,>)
-                        : implementedInterface;
-                    streamPipelineRegistrations.Add(new TypeRegistration(serviceType, type));
-                }
-            }
+            ProcessType(type, result);
         }
 
-        return new AssemblyScanResult(
-            handlerRegistrations,
-            notificationRegistrations,
-            pipelineRegistrations,
-            preProcessorRegistrations,
-            postProcessorRegistrations,
-            streamHandlerRegistrations,
-            streamPipelineRegistrations);
+        return result.Build();
+    }
+
+    private static void ProcessType(Type type, ScanResultBuilder result)
+    {
+        foreach (var implementedInterface in type.GetInterfaces().Where(i => i.IsGenericType))
+        {
+            var genericDefinition = implementedInterface.GetGenericTypeDefinition();
+            ProcessInterface(type, implementedInterface, genericDefinition, result);
+        }
+    }
+
+    private static void ProcessInterface(Type type, Type implementedInterface, Type genericDefinition, ScanResultBuilder result)
+    {
+        if (genericDefinition == typeof(IRequestHandler<,>))
+        {
+            result.Handlers.Add(new TypeRegistration(implementedInterface, type));
+            return;
+        }
+
+        if (genericDefinition == typeof(INotificationHandler<>))
+        {
+            result.Notifications.Add(new TypeRegistration(implementedInterface, type));
+            return;
+        }
+
+        if (genericDefinition == typeof(IPipelineBehavior<,>))
+        {
+            TryAddPipelineBehavior(type, implementedInterface, result);
+            return;
+        }
+
+        if (genericDefinition == typeof(IRequestPreProcessor<>))
+        {
+            AddWithOpenGenericFallback(result.PreProcessors, implementedInterface, type, typeof(IRequestPreProcessor<>));
+            return;
+        }
+
+        if (genericDefinition == typeof(IRequestPostProcessor<,>))
+        {
+            AddWithOpenGenericFallback(result.PostProcessors, implementedInterface, type, typeof(IRequestPostProcessor<,>));
+            return;
+        }
+
+        if (genericDefinition == typeof(IStreamRequestHandler<,>))
+        {
+            result.StreamHandlers.Add(new TypeRegistration(implementedInterface, type));
+            return;
+        }
+
+        if (genericDefinition == typeof(IStreamPipelineBehavior<,>))
+        {
+            AddWithOpenGenericFallback(result.StreamPipelines, implementedInterface, type, typeof(IStreamPipelineBehavior<,>));
+        }
+    }
+
+    private static void TryAddPipelineBehavior(Type type, Type implementedInterface, ScanResultBuilder result)
+    {
+        // Skip ValidationPipelineBehavior - it requires ValidationOrchestrator
+        // which is only registered by validation packages (FluentValidation, DataAnnotations, etc.)
+        if (type.FullName == "Encina.Validation.ValidationPipelineBehavior`2")
+        {
+            return;
+        }
+
+        // Skip ModuleBehaviorAdapter - it has 3 type parameters but IPipelineBehavior has 2
+        // It is registered explicitly via AddEncinaModuleBehavior extension method
+        if (type.FullName?.StartsWith("Encina.Modules.ModuleBehaviorAdapter`", StringComparison.Ordinal) == true)
+        {
+            return;
+        }
+
+        AddWithOpenGenericFallback(result.Pipelines, implementedInterface, type, typeof(IPipelineBehavior<,>));
+    }
+
+    private static void AddWithOpenGenericFallback(
+        List<TypeRegistration> registrations,
+        Type implementedInterface,
+        Type implementationType,
+        Type openGenericType)
+    {
+        var serviceType = implementedInterface.ContainsGenericParameters
+            ? openGenericType
+            : implementedInterface;
+        registrations.Add(new TypeRegistration(serviceType, implementationType));
+    }
+
+    private sealed class ScanResultBuilder
+    {
+        public List<TypeRegistration> Handlers { get; } = [];
+        public List<TypeRegistration> Notifications { get; } = [];
+        public List<TypeRegistration> Pipelines { get; } = [];
+        public List<TypeRegistration> PreProcessors { get; } = [];
+        public List<TypeRegistration> PostProcessors { get; } = [];
+        public List<TypeRegistration> StreamHandlers { get; } = [];
+        public List<TypeRegistration> StreamPipelines { get; } = [];
+
+        public AssemblyScanResult Build() => new(
+            Handlers,
+            Notifications,
+            Pipelines,
+            PreProcessors,
+            PostProcessors,
+            StreamHandlers,
+            StreamPipelines);
     }
 
     private static IEnumerable<Type?> GetLoadableTypes(Assembly assembly)
