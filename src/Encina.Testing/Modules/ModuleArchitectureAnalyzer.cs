@@ -223,18 +223,9 @@ public sealed class ModuleArchitectureAnalyzer
 
     private bool CheckDependency(ModuleInfo source, ModuleInfo target)
     {
-        var sourceTypes = source.Assembly.GetTypes()
-            .Where(t => t.Namespace?.StartsWith(source.Namespace, StringComparison.Ordinal) is true);
-
-        foreach (var sourceType in sourceTypes)
-        {
-            if (HasDependencyOnTarget(sourceType, source, target))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return source.Assembly.GetTypes()
+            .Where(t => t.Namespace?.StartsWith(source.Namespace, StringComparison.Ordinal) is true)
+            .Any(sourceType => HasDependencyOnTarget(sourceType, source, target));
     }
 
     private bool HasDependencyOnTarget(ReflectionType sourceType, ModuleInfo source, ModuleInfo target)

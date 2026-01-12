@@ -110,7 +110,7 @@ public sealed class MartenProjectionManager : IProjectionManager
             return HandleNoEventsToRebuild(projectionName);
         }
 
-        return await ProcessEventBatchesAsync<TReadModel>(
+        return await ProcessEventBatchesAsync(
             registration, options, totalEvents, cancellationToken).ConfigureAwait(false);
     }
 
@@ -157,12 +157,11 @@ public sealed class MartenProjectionManager : IProjectionManager
         return Right<EncinaError, long>(0);
     }
 
-    private async Task<Either<EncinaError, long>> ProcessEventBatchesAsync<TReadModel>(
+    private async Task<Either<EncinaError, long>> ProcessEventBatchesAsync(
         ProjectionRegistration registration,
         RebuildOptions options,
         int totalEvents,
         CancellationToken cancellationToken)
-        where TReadModel : class, IReadModel
     {
         var projectionName = registration.ProjectionName;
         long eventsProcessed = 0;
