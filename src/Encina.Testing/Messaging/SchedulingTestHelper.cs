@@ -591,7 +591,7 @@ public sealed class SchedulingTestHelper : IDisposable
 
         if (!_store.WasMessageScheduled<TRequest>())
         {
-            var scheduledTypes = _store.AddedMessages.Select(m => m.RequestType).Distinct();
+            var scheduledTypes = _store.GetAddedMessages().Select(m => m.RequestType).Distinct();
             throw new InvalidOperationException(
                 $"Expected message of type '{typeof(TRequest).FullName}' to be scheduled " +
                 $"but found: [{string.Join(", ", scheduledTypes)}]");
@@ -613,7 +613,7 @@ public sealed class SchedulingTestHelper : IDisposable
         var requestType = typeof(TRequest).FullName ?? typeof(TRequest).Name;
         var now = _timeProvider.GetUtcNow().UtcDateTime;
 
-        var dueMessages = _store.Messages
+        var dueMessages = _store.GetMessages()
             .Where(m => m.RequestType == requestType &&
                         !m.IsProcessed &&
                         !m.IsCancelled &&
@@ -665,7 +665,7 @@ public sealed class SchedulingTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        if (!_store.ProcessedMessageIds.Contains(messageId))
+        if (!_store.GetProcessedMessageIds().Contains(messageId))
         {
             throw new InvalidOperationException(
                 $"Expected message {messageId} to be marked as processed but it was not.");
@@ -693,7 +693,7 @@ public sealed class SchedulingTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        if (!_store.FailedMessageIds.Contains(messageId))
+        if (!_store.GetFailedMessageIds().Contains(messageId))
         {
             throw new InvalidOperationException(
                 $"Expected message {messageId} to be marked as failed but it was not.");
@@ -712,7 +712,7 @@ public sealed class SchedulingTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        if (!_store.CancelledMessageIds.Contains(messageId))
+        if (!_store.GetCancelledMessageIds().Contains(messageId))
         {
             throw new InvalidOperationException(
                 $"Expected message {messageId} to be cancelled but it was not.");
@@ -731,7 +731,7 @@ public sealed class SchedulingTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        if (!_store.RescheduledMessageIds.Contains(messageId))
+        if (!_store.GetRescheduledMessageIds().Contains(messageId))
         {
             throw new InvalidOperationException(
                 $"Expected message {messageId} to be rescheduled but it was not.");
@@ -749,10 +749,10 @@ public sealed class SchedulingTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        if (_store.AddedMessages.Count > 0)
+        if (_store.GetAddedMessages().Count > 0)
         {
             throw new InvalidOperationException(
-                $"Expected no scheduled messages but found {_store.AddedMessages.Count}.");
+                $"Expected no scheduled messages but found {_store.GetAddedMessages().Count}.");
         }
 
         return this;
@@ -768,7 +768,7 @@ public sealed class SchedulingTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        var actualCount = _store.AddedMessages.Count;
+        var actualCount = _store.GetAddedMessages().Count;
         if (actualCount != expectedCount)
         {
             throw new InvalidOperationException(
@@ -839,7 +839,7 @@ public sealed class SchedulingTestHelper : IDisposable
         EnsureWhenExecuted();
 
         var requestType = typeof(TRequest).FullName ?? typeof(TRequest).Name;
-        var message = _store.AddedMessages.FirstOrDefault(m => m.RequestType == requestType);
+        var message = _store.GetAddedMessages().FirstOrDefault(m => m.RequestType == requestType);
 
         if (message is null)
         {

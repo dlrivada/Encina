@@ -386,7 +386,7 @@ public sealed class OutboxTestHelper : IDisposable
 
         if (!_store.WasMessageAdded<TNotification>())
         {
-            var addedTypes = _store.AddedMessages.Select(m => m.NotificationType).Distinct();
+            var addedTypes = _store.GetAddedMessages().Select(m => m.NotificationType).Distinct();
             throw new InvalidOperationException(
                 $"Expected outbox to contain message of type '{typeof(TNotification).FullName}' " +
                 $"but found: [{string.Join(", ", addedTypes)}]");
@@ -409,7 +409,7 @@ public sealed class OutboxTestHelper : IDisposable
         ThenNoException();
 
         var notificationType = typeof(TNotification).FullName;
-        var matchingMessages = _store.AddedMessages
+        var matchingMessages = _store.GetAddedMessages()
             .Where(m => m.NotificationType == notificationType)
             .ToList();
 
@@ -448,11 +448,11 @@ public sealed class OutboxTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        if (_store.AddedMessages.Count > 0)
+        if (_store.GetAddedMessages().Count > 0)
         {
-            var types = _store.AddedMessages.Select(m => m.NotificationType).Distinct();
+            var types = _store.GetAddedMessages().Select(m => m.NotificationType).Distinct();
             throw new InvalidOperationException(
-                $"Expected outbox to be empty but found {_store.AddedMessages.Count} message(s): [{string.Join(", ", types)}]");
+                $"Expected outbox to be empty but found {_store.GetAddedMessages().Count} message(s): [{string.Join(", ", types)}]");
         }
 
         return this;
@@ -468,7 +468,7 @@ public sealed class OutboxTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        var actualCount = _store.AddedMessages.Count;
+        var actualCount = _store.GetAddedMessages().Count;
         if (actualCount != expectedCount)
         {
             throw new InvalidOperationException(
@@ -488,7 +488,7 @@ public sealed class OutboxTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        if (!_store.ProcessedMessageIds.Contains(messageId))
+        if (!_store.GetProcessedMessageIds().Contains(messageId))
         {
             throw new InvalidOperationException(
                 $"Expected message {messageId} to be marked as processed but it was not.");
@@ -507,7 +507,7 @@ public sealed class OutboxTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        if (!_store.FailedMessageIds.Contains(messageId))
+        if (!_store.GetFailedMessageIds().Contains(messageId))
         {
             throw new InvalidOperationException(
                 $"Expected message {messageId} to be marked as failed but it was not.");
@@ -526,7 +526,7 @@ public sealed class OutboxTestHelper : IDisposable
         EnsureWhenExecuted();
 
         var notificationType = typeof(TNotification).FullName;
-        var message = _store.AddedMessages.FirstOrDefault(m => m.NotificationType == notificationType);
+        var message = _store.GetAddedMessages().FirstOrDefault(m => m.NotificationType == notificationType);
 
         if (message is null)
         {
@@ -548,7 +548,7 @@ public sealed class OutboxTestHelper : IDisposable
         EnsureWhenExecuted();
 
         var notificationType = typeof(TNotification).FullName;
-        return _store.AddedMessages
+        return _store.GetAddedMessages()
             .Where(m => m.NotificationType == notificationType)
             .Select(m => JsonSerializer.Deserialize<TNotification>(m.Content, JsonOptions))
             .Where(n => n is not null)

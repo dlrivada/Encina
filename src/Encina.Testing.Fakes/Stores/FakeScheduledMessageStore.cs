@@ -25,43 +25,46 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
     private readonly object _lock = new();
 
     /// <summary>
-    /// Gets all messages currently in the store.
+    /// Gets a snapshot of all messages currently in the store.
     /// </summary>
-    public IReadOnlyCollection<FakeScheduledMessage> Messages
+    /// <returns>A point-in-time copy of all messages.</returns>
+    public IReadOnlyCollection<FakeScheduledMessage> GetMessages()
     {
-        get
+        lock (_lock)
         {
-            lock (_lock)
-            {
-                return _messages.Values.ToList().AsReadOnly();
-            }
+            return _messages.Values.ToList().AsReadOnly();
         }
     }
 
     /// <summary>
-    /// Gets all messages that have been added (for verification).
+    /// Gets a snapshot of all messages that have been added (for verification).
     /// </summary>
-    public IReadOnlyList<IScheduledMessage> AddedMessages => _addedMessages.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of added messages.</returns>
+    public IReadOnlyList<IScheduledMessage> GetAddedMessages() => _addedMessages.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets the IDs of messages that have been marked as processed.
+    /// Gets a snapshot of the IDs of messages that have been marked as processed.
     /// </summary>
-    public IReadOnlyList<Guid> ProcessedMessageIds => _processedMessageIds.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of processed message IDs.</returns>
+    public IReadOnlyList<Guid> GetProcessedMessageIds() => _processedMessageIds.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets the IDs of messages that have been marked as failed.
+    /// Gets a snapshot of the IDs of messages that have been marked as failed.
     /// </summary>
-    public IReadOnlyList<Guid> FailedMessageIds => _failedMessageIds.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of failed message IDs.</returns>
+    public IReadOnlyList<Guid> GetFailedMessageIds() => _failedMessageIds.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets the IDs of messages that have been cancelled.
+    /// Gets a snapshot of the IDs of messages that have been cancelled.
     /// </summary>
-    public IReadOnlyList<Guid> CancelledMessageIds => _cancelledMessageIds.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of cancelled message IDs.</returns>
+    public IReadOnlyList<Guid> GetCancelledMessageIds() => _cancelledMessageIds.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets the IDs of messages that have been rescheduled.
+    /// Gets a snapshot of the IDs of messages that have been rescheduled.
     /// </summary>
-    public IReadOnlyList<Guid> RescheduledMessageIds => _rescheduledMessageIds.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of rescheduled message IDs.</returns>
+    public IReadOnlyList<Guid> GetRescheduledMessageIds() => _rescheduledMessageIds.ToList().AsReadOnly();
 
     /// <summary>
     /// Gets the number of times <see cref="SaveChangesAsync"/> was called.

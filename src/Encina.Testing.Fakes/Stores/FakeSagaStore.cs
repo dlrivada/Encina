@@ -22,19 +22,22 @@ public sealed class FakeSagaStore : ISagaStore
     private readonly object _lock = new();
 
     /// <summary>
-    /// Gets all sagas currently in the store.
+    /// Gets a snapshot of all sagas currently in the store.
     /// </summary>
-    public IReadOnlyCollection<FakeSagaState> Sagas => _sagas.Values.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of all sagas.</returns>
+    public IReadOnlyCollection<FakeSagaState> GetSagas() => _sagas.Values.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets all sagas that have been added (for verification).
+    /// Gets a snapshot of all sagas that have been added (for verification).
     /// </summary>
-    public IReadOnlyList<ISagaState> AddedSagas => _addedSagas.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of added sagas.</returns>
+    public IReadOnlyList<ISagaState> GetAddedSagas() => _addedSagas.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets all sagas that have been updated (for verification).
+    /// Gets a snapshot of all sagas that have been updated (for verification).
     /// </summary>
-    public IReadOnlyList<ISagaState> UpdatedSagas => _updatedSagas.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of updated sagas.</returns>
+    public IReadOnlyList<ISagaState> GetUpdatedSagas() => _updatedSagas.ToList().AsReadOnly();
 
     /// <summary>
     /// Gets the number of times <see cref="SaveChangesAsync"/> was called.

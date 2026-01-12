@@ -16,9 +16,9 @@ namespace Encina.Testing.Fakes.Stores;
 /// <para>
 /// This store tracks all operations for verification in tests:
 /// <list type="bullet">
-/// <item><description><see cref="AddedMessages"/>: All messages added to the store</description></item>
-/// <item><description><see cref="ProcessedMessageIds"/>: IDs of messages marked as processed</description></item>
-/// <item><description><see cref="FailedMessageIds"/>: IDs of messages marked as failed</description></item>
+/// <item><description><see cref="GetAddedMessages"/>: All messages added to the store</description></item>
+/// <item><description><see cref="GetProcessedMessageIds"/>: IDs of messages marked as processed</description></item>
+/// <item><description><see cref="GetFailedMessageIds"/>: IDs of messages marked as failed</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -31,24 +31,28 @@ public sealed class FakeOutboxStore : IOutboxStore
     private readonly object _lock = new();
 
     /// <summary>
-    /// Gets all messages currently in the store.
+    /// Gets a snapshot of all messages currently in the store.
     /// </summary>
-    public IReadOnlyCollection<FakeOutboxMessage> Messages => _messages.Values.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of all messages.</returns>
+    public IReadOnlyCollection<FakeOutboxMessage> GetMessages() => _messages.Values.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets all messages that have been added (for verification).
+    /// Gets a snapshot of all messages that have been added (for verification).
     /// </summary>
-    public IReadOnlyList<IOutboxMessage> AddedMessages => _addedMessages.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of added messages.</returns>
+    public IReadOnlyList<IOutboxMessage> GetAddedMessages() => _addedMessages.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets the IDs of messages that have been marked as processed.
+    /// Gets a snapshot of the IDs of messages that have been marked as processed.
     /// </summary>
-    public IReadOnlyList<Guid> ProcessedMessageIds => _processedMessageIds.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of processed message IDs.</returns>
+    public IReadOnlyList<Guid> GetProcessedMessageIds() => _processedMessageIds.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets the IDs of messages that have been marked as failed.
+    /// Gets a snapshot of the IDs of messages that have been marked as failed.
     /// </summary>
-    public IReadOnlyList<Guid> FailedMessageIds => _failedMessageIds.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of failed message IDs.</returns>
+    public IReadOnlyList<Guid> GetFailedMessageIds() => _failedMessageIds.ToList().AsReadOnly();
 
     /// <summary>
     /// Gets the number of times <see cref="SaveChangesAsync"/> was called.

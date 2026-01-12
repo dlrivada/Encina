@@ -24,29 +24,34 @@ public sealed class FakeInboxStore : IInboxStore
     private readonly object _lock = new();
 
     /// <summary>
-    /// Gets all messages currently in the store.
+    /// Gets a snapshot of all messages currently in the store.
     /// </summary>
-    public IReadOnlyCollection<FakeInboxMessage> Messages => _messages.Values.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of all messages.</returns>
+    public IReadOnlyCollection<FakeInboxMessage> GetMessages() => _messages.Values.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets all messages that have been added (for verification).
+    /// Gets a snapshot of all messages that have been added (for verification).
     /// </summary>
-    public IReadOnlyList<IInboxMessage> AddedMessages => _addedMessages.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of added messages.</returns>
+    public IReadOnlyList<IInboxMessage> GetAddedMessages() => _addedMessages.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets the IDs of messages that have been marked as processed.
+    /// Gets a snapshot of the IDs of messages that have been marked as processed.
     /// </summary>
-    public IReadOnlyList<string> ProcessedMessageIds => _processedMessageIds.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of processed message IDs.</returns>
+    public IReadOnlyList<string> GetProcessedMessageIds() => _processedMessageIds.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets the IDs of messages that have been marked as failed.
+    /// Gets a snapshot of the IDs of messages that have been marked as failed.
     /// </summary>
-    public IReadOnlyList<string> FailedMessageIds => _failedMessageIds.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of failed message IDs.</returns>
+    public IReadOnlyList<string> GetFailedMessageIds() => _failedMessageIds.ToList().AsReadOnly();
 
     /// <summary>
-    /// Gets the IDs of messages that have been removed.
+    /// Gets a snapshot of the IDs of messages that have been removed.
     /// </summary>
-    public IReadOnlyList<string> RemovedMessageIds => _removedMessageIds.ToList().AsReadOnly();
+    /// <returns>A point-in-time copy of removed message IDs.</returns>
+    public IReadOnlyList<string> GetRemovedMessageIds() => _removedMessageIds.ToList().AsReadOnly();
 
     /// <summary>
     /// Gets the number of times <see cref="SaveChangesAsync"/> was called.

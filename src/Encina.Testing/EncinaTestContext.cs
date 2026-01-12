@@ -233,7 +233,7 @@ public sealed class EncinaTestContext<TResponse>
         var outbox = GetOutbox();
 
         var notificationType = typeof(TNotification).FullName;
-        var matchingMessages = outbox.AddedMessages
+        var matchingMessages = outbox.GetAddedMessages()
             .Where(m => m.NotificationType == notificationType)
             .ToList();
 
@@ -282,7 +282,7 @@ public sealed class EncinaTestContext<TResponse>
         var sagaStore = GetSagaStore();
         var sagaType = typeof(TSaga).FullName;
 
-        var startedSagas = sagaStore.AddedSagas
+        var startedSagas = sagaStore.GetAddedSagas()
             .Where(s => s.SagaType == sagaType)
             .ToList();
 
@@ -306,10 +306,10 @@ public sealed class EncinaTestContext<TResponse>
     {
         var outbox = GetOutbox();
 
-        if (outbox.AddedMessages.Count > 0)
+        if (outbox.GetAddedMessages().Count > 0)
         {
             throw new InvalidOperationException(
-                $"Expected outbox to be empty but it contains {outbox.AddedMessages.Count} message(s).");
+                $"Expected outbox to be empty but it contains {outbox.GetAddedMessages().Count} message(s).");
         }
 
         return this;
@@ -326,7 +326,7 @@ public sealed class EncinaTestContext<TResponse>
     public EncinaTestContext<TResponse> OutboxShouldContainExactly(int expectedCount)
     {
         var outbox = GetOutbox();
-        var actualCount = outbox.AddedMessages.Count;
+        var actualCount = outbox.GetAddedMessages().Count;
 
         if (actualCount != expectedCount)
         {
@@ -461,13 +461,13 @@ public sealed class EncinaTestContext<TResponse>
         var sagaStore = GetSagaStore();
         var sagaType = typeof(TSaga).FullName;
 
-        var timedOutSagas = sagaStore.AddedSagas
+        var timedOutSagas = sagaStore.GetAddedSagas()
             .Where(s => s.SagaType == sagaType && s.Status == SagaStatus.TimedOut)
             .ToList();
 
         if (timedOutSagas.Count == 0)
         {
-            var existingSagas = sagaStore.AddedSagas
+            var existingSagas = sagaStore.GetAddedSagas()
                 .Where(s => s.SagaType == sagaType)
                 .Select(s => s.Status)
                 .ToList();
@@ -496,13 +496,13 @@ public sealed class EncinaTestContext<TResponse>
         var sagaStore = GetSagaStore();
         var sagaType = typeof(TSaga).FullName;
 
-        var completedSagas = sagaStore.AddedSagas
+        var completedSagas = sagaStore.GetAddedSagas()
             .Where(s => s.SagaType == sagaType && s.Status == SagaStatus.Completed)
             .ToList();
 
         if (completedSagas.Count == 0)
         {
-            var existingSagas = sagaStore.AddedSagas
+            var existingSagas = sagaStore.GetAddedSagas()
                 .Where(s => s.SagaType == sagaType)
                 .Select(s => s.Status)
                 .ToList();
@@ -531,13 +531,13 @@ public sealed class EncinaTestContext<TResponse>
         var sagaStore = GetSagaStore();
         var sagaType = typeof(TSaga).FullName;
 
-        var compensatingSagas = sagaStore.AddedSagas
+        var compensatingSagas = sagaStore.GetAddedSagas()
             .Where(s => s.SagaType == sagaType && s.Status == SagaStatus.Compensating)
             .ToList();
 
         if (compensatingSagas.Count == 0)
         {
-            var existingSagas = sagaStore.AddedSagas
+            var existingSagas = sagaStore.GetAddedSagas()
                 .Where(s => s.SagaType == sagaType)
                 .Select(s => s.Status)
                 .ToList();
@@ -566,13 +566,13 @@ public sealed class EncinaTestContext<TResponse>
         var sagaStore = GetSagaStore();
         var sagaType = typeof(TSaga).FullName;
 
-        var failedSagas = sagaStore.AddedSagas
+        var failedSagas = sagaStore.GetAddedSagas()
             .Where(s => s.SagaType == sagaType && s.Status == SagaStatus.Failed)
             .ToList();
 
         if (failedSagas.Count == 0)
         {
-            var existingSagas = sagaStore.AddedSagas
+            var existingSagas = sagaStore.GetAddedSagas()
                 .Where(s => s.SagaType == sagaType)
                 .Select(s => s.Status)
                 .ToList();

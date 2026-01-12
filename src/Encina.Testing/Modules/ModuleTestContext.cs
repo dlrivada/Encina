@@ -183,7 +183,7 @@ public sealed class ModuleTestContext<TResponse>
     public ModuleTestContext<TResponse> OutboxShouldBeEmpty()
     {
         var outbox = GetOutboxStore();
-        outbox.Messages.ShouldBeEmpty("Expected outbox to be empty");
+        outbox.GetMessages().ShouldBeEmpty("Expected outbox to be empty");
         return this;
     }
 

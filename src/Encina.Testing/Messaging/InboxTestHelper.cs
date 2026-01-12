@@ -502,10 +502,10 @@ public sealed class InboxTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        if (_store.Messages.Count > 0)
+        if (_store.GetMessages().Count > 0)
         {
             throw new InvalidOperationException(
-                $"Expected inbox to be empty but found {_store.Messages.Count} message(s).");
+                $"Expected inbox to be empty but found {_store.GetMessages().Count} message(s).");
         }
 
         return this;
@@ -521,7 +521,7 @@ public sealed class InboxTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        var actualCount = _store.Messages.Count;
+        var actualCount = _store.GetMessages().Count;
         if (actualCount != expectedCount)
         {
             throw new InvalidOperationException(
@@ -541,7 +541,7 @@ public sealed class InboxTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        if (!_store.ProcessedMessageIds.Contains(messageId))
+        if (!_store.GetProcessedMessageIds().Contains(messageId))
         {
             throw new InvalidOperationException(
                 $"Expected message '{messageId}' to be marked as processed but it was not.");
@@ -560,7 +560,7 @@ public sealed class InboxTestHelper : IDisposable
         EnsureWhenExecuted();
         ThenNoException();
 
-        if (!_store.FailedMessageIds.Contains(messageId))
+        if (!_store.GetFailedMessageIds().Contains(messageId))
         {
             throw new InvalidOperationException(
                 $"Expected message '{messageId}' to be marked as failed but it was not.");

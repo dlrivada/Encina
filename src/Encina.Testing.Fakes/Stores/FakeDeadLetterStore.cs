@@ -26,17 +26,15 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     /// Gets a snapshot of all messages currently in the store.
     /// </summary>
     /// <remarks>
-    /// Returns a point-in-time copy of the messages. Each access creates a new snapshot
+    /// Returns a point-in-time copy of the messages. Each call creates a new snapshot
     /// for thread-safety. For repeated access in the same scope, cache the result locally.
     /// </remarks>
-    public IReadOnlyCollection<FakeDeadLetterMessage> Messages
+    /// <returns>A point-in-time copy of all messages.</returns>
+    public IReadOnlyCollection<FakeDeadLetterMessage> GetMessages()
     {
-        get
+        lock (_lock)
         {
-            lock (_lock)
-            {
-                return _messages.Values.ToList().AsReadOnly();
-            }
+            return _messages.Values.ToList().AsReadOnly();
         }
     }
 
@@ -44,17 +42,15 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     /// Gets a snapshot of all messages that have been added (for verification).
     /// </summary>
     /// <remarks>
-    /// Returns a point-in-time copy. Each access creates a new snapshot for thread-safety.
+    /// Returns a point-in-time copy. Each call creates a new snapshot for thread-safety.
     /// For repeated access in the same scope, cache the result locally.
     /// </remarks>
-    public IReadOnlyList<IDeadLetterMessage> AddedMessages
+    /// <returns>A point-in-time copy of added messages.</returns>
+    public IReadOnlyList<IDeadLetterMessage> GetAddedMessages()
     {
-        get
+        lock (_lock)
         {
-            lock (_lock)
-            {
-                return _addedMessages.ToList().AsReadOnly();
-            }
+            return _addedMessages.ToList().AsReadOnly();
         }
     }
 
@@ -62,17 +58,15 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     /// Gets a snapshot of the IDs of messages that have been replayed.
     /// </summary>
     /// <remarks>
-    /// Returns a point-in-time copy. Each access creates a new snapshot for thread-safety.
+    /// Returns a point-in-time copy. Each call creates a new snapshot for thread-safety.
     /// For repeated access in the same scope, cache the result locally.
     /// </remarks>
-    public IReadOnlyList<Guid> ReplayedMessageIds
+    /// <returns>A point-in-time copy of replayed message IDs.</returns>
+    public IReadOnlyList<Guid> GetReplayedMessageIds()
     {
-        get
+        lock (_lock)
         {
-            lock (_lock)
-            {
-                return _replayedMessageIds.ToList().AsReadOnly();
-            }
+            return _replayedMessageIds.ToList().AsReadOnly();
         }
     }
 
@@ -80,17 +74,15 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     /// Gets a snapshot of the IDs of messages that have been deleted.
     /// </summary>
     /// <remarks>
-    /// Returns a point-in-time copy. Each access creates a new snapshot for thread-safety.
+    /// Returns a point-in-time copy. Each call creates a new snapshot for thread-safety.
     /// For repeated access in the same scope, cache the result locally.
     /// </remarks>
-    public IReadOnlyList<Guid> DeletedMessageIds
+    /// <returns>A point-in-time copy of deleted message IDs.</returns>
+    public IReadOnlyList<Guid> GetDeletedMessageIds()
     {
-        get
+        lock (_lock)
         {
-            lock (_lock)
-            {
-                return _deletedMessageIds.ToList().AsReadOnly();
-            }
+            return _deletedMessageIds.ToList().AsReadOnly();
         }
     }
 
