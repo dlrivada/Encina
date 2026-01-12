@@ -319,12 +319,16 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v4
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
         with:
-          name: build-output
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.*.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Pack
-        run: dotnet pack src/Encina/Encina.csproj --configuration Release --no-build --output artifacts
+        run: dotnet pack src/Encina/Encina.csproj --configuration Release --output artifacts
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
