@@ -125,7 +125,7 @@ public static class DistributedApplicationExtensions
         var effectiveTimeout = timeout ?? context.Options.DefaultWaitTimeout;
 
         await WaitForConditionAsync(
-            () => context.OutboxStore.AddedMessages.Any(predicate),
+            () => context.OutboxStore.GetAddedMessages().Any(predicate),
             effectiveTimeout,
             context.Options.PollingInterval,
             $"Outbox message matching predicate was not found within {effectiveTimeout.TotalSeconds} seconds.",
@@ -143,7 +143,7 @@ public static class DistributedApplicationExtensions
         ArgumentNullException.ThrowIfNull(app);
 
         var store = app.GetOutboxStore();
-        return store.Messages.Where(m => !m.IsProcessed).ToList().AsReadOnly();
+        return store.GetMessages().Where(m => !m.IsProcessed).ToList().AsReadOnly();
     }
 
     #endregion
@@ -173,7 +173,7 @@ public static class DistributedApplicationExtensions
         var effectiveTimeout = timeout ?? context.Options.DefaultWaitTimeout;
 
         await WaitForConditionAsync(
-            () => context.InboxStore.ProcessedMessageIds.Contains(messageId),
+            () => context.InboxStore.GetProcessedMessageIds().Contains(messageId),
             effectiveTimeout,
             context.Options.PollingInterval,
             $"Inbox message '{messageId}' was not processed within {effectiveTimeout.TotalSeconds} seconds.",
@@ -202,7 +202,7 @@ public static class DistributedApplicationExtensions
         var requestType = typeof(TMessage).FullName ?? typeof(TMessage).Name;
 
         await WaitForConditionAsync(
-            () => context.InboxStore.Messages.Any(m =>
+            () => context.InboxStore.GetMessages().Any(m =>
                 m.RequestType == requestType && m.IsProcessed),
             effectiveTimeout,
             context.Options.PollingInterval,
@@ -240,7 +240,7 @@ public static class DistributedApplicationExtensions
         await WaitForConditionAsync(
             () =>
             {
-                var sagas = context.SagaStore.Sagas
+                var sagas = context.SagaStore.GetSagas()
                     .Where(s => string.Equals(s.SagaType, sagaType, StringComparison.Ordinal));
 
                 if (predicate != null)
@@ -282,7 +282,7 @@ public static class DistributedApplicationExtensions
         await WaitForConditionAsync(
             () =>
             {
-                var sagas = context.SagaStore.Sagas
+                var sagas = context.SagaStore.GetSagas()
                     .Where(s => string.Equals(s.SagaType, sagaType, StringComparison.Ordinal));
 
                 if (predicate != null)
@@ -312,7 +312,7 @@ public static class DistributedApplicationExtensions
         var store = app.GetSagaStore();
         var sagaType = typeof(TSaga).FullName ?? typeof(TSaga).Name;
 
-        return store.Sagas
+        return store.GetSagas()
             .Where(s => string.Equals(s.SagaType, sagaType, StringComparison.Ordinal) &&
                         s.Status == SagaStatus.Running)
             .ToList()
@@ -345,7 +345,7 @@ public static class DistributedApplicationExtensions
         var messageType = typeof(TMessage).FullName ?? typeof(TMessage).Name;
 
         await WaitForConditionAsync(
-            () => context.DeadLetterStore.Messages.Any(m => m.RequestType == messageType),
+            () => context.DeadLetterStore.GetMessages().Any(m => m.RequestType == messageType),
             effectiveTimeout,
             context.Options.PollingInterval,
             $"Dead letter message of type '{messageType}' was not found within {effectiveTimeout.TotalSeconds} seconds.",
@@ -363,7 +363,7 @@ public static class DistributedApplicationExtensions
         ArgumentNullException.ThrowIfNull(app);
 
         var store = app.Services.GetRequiredService<FakeDeadLetterStore>();
-        return store.Messages;
+        return store.GetMessages();
     }
 
     #endregion
@@ -396,7 +396,7 @@ public static class DistributedApplicationExtensions
         await WaitForConditionAsync(
             () =>
             {
-                var processedCount = context.OutboxStore.Messages.Count(m => m.IsProcessed);
+                var processedCount = context.OutboxStore.GetMessages().Count(m => m.IsProcessed);
                 return processedCount >= expectedMessageCount;
             },
             effectiveTimeout,
