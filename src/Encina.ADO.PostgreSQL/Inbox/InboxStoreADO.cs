@@ -30,7 +30,6 @@ public sealed class InboxStoreADO : IInboxStore
     /// <inheritdoc />
     public async Task<IInboxMessage?> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(messageId);
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
         var sql = $@"
@@ -112,7 +111,6 @@ public sealed class InboxStoreADO : IInboxStore
         string? response,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(messageId);
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
         var sql = $@"
@@ -140,7 +138,6 @@ public sealed class InboxStoreADO : IInboxStore
         DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(messageId);
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
 
@@ -226,7 +223,6 @@ public sealed class InboxStoreADO : IInboxStore
         ArgumentNullException.ThrowIfNull(messageIds);
         if (!messageIds.Any())
             return;
-        ArgumentNullException.ThrowIfNull(messageIds);
 
         var idList = string.Join(",", messageIds.Select(id => $"'{id.Replace("'", "''", StringComparison.Ordinal)}'"));
         var sql = $@"

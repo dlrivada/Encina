@@ -164,8 +164,6 @@ public sealed class InboxStoreADO : IInboxStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
-        ArgumentNullException.ThrowIfNull(messageId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
 
         var sql = $@"
             UPDATE {_tableName}
@@ -249,7 +247,6 @@ public sealed class InboxStoreADO : IInboxStore
         ArgumentNullException.ThrowIfNull(messageIds);
         if (!messageIds.Any())
             return;
-        ArgumentNullException.ThrowIfNull(messageIds);
 
         var idList = string.Join(",", messageIds.Select(id => $"'{id.Replace("'", "''", StringComparison.Ordinal)}'"));
         var sql = $@"

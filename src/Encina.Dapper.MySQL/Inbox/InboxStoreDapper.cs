@@ -80,8 +80,6 @@ public sealed class InboxStoreDapper : IInboxStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
-        ArgumentNullException.ThrowIfNull(messageId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
 
         var sql = $@"
             UPDATE {_tableName}
@@ -127,7 +125,6 @@ public sealed class InboxStoreDapper : IInboxStore
         ArgumentNullException.ThrowIfNull(messageIds);
         if (!messageIds.Any())
             return;
-        ArgumentNullException.ThrowIfNull(messageIds);
 
         var sql = $@"
             DELETE FROM {_tableName}
