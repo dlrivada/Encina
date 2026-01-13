@@ -64,9 +64,21 @@ internal sealed class ModuleHandlerRegistry : IModuleHandlerRegistry
         var assembly = descriptor.HandlerAssembly;
         var module = descriptor.Module;
 
-        foreach (var type in assembly.GetTypes().Where(t => !t.IsAbstract && !t.IsInterface))
+        foreach (var type in GetLoadableTypes(assembly).Where(t => !t.IsAbstract && !t.IsInterface))
         {
             ProcessTypeInterfaces(type, module);
+        }
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null)!;
         }
     }
 

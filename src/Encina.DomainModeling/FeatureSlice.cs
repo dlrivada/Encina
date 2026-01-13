@@ -204,7 +204,7 @@ public sealed class FeatureSliceConfiguration
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
-        var sliceTypes = assembly.GetTypes()
+        var sliceTypes = GetLoadableTypes(assembly)
             .Where(t => t.IsClass && !t.IsAbstract)
             .Where(t => typeof(FeatureSlice).IsAssignableFrom(t));
 
@@ -216,6 +216,18 @@ public sealed class FeatureSliceConfiguration
         }
 
         return this;
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null)!;
+        }
     }
 }
 
@@ -292,7 +304,7 @@ public static class FeatureSliceExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(assembly);
 
-        var sliceTypes = assembly.GetTypes()
+        var sliceTypes = GetLoadableTypes(assembly)
             .Where(t => t.IsClass && !t.IsAbstract)
             .Where(t => typeof(FeatureSlice).IsAssignableFrom(t));
 
@@ -305,6 +317,18 @@ public static class FeatureSliceExtensions
         }
 
         return services;
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null)!;
+        }
     }
 
     /// <summary>
@@ -423,7 +447,7 @@ public static class UseCaseHandlerExtensions
 
         var handlerInterface = typeof(IUseCaseHandler);
 
-        var handlerTypes = assembly.GetTypes()
+        var handlerTypes = GetLoadableTypes(assembly)
             .Where(t => t.IsClass && !t.IsAbstract)
             .Where(t => handlerInterface.IsAssignableFrom(t));
 
@@ -442,6 +466,18 @@ public static class UseCaseHandlerExtensions
         }
 
         return services;
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null)!;
+        }
     }
 
     /// <summary>

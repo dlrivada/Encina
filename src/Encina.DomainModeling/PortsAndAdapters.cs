@@ -311,7 +311,7 @@ public static class PortRegistrationExtensions
         var portType = typeof(IPort);
 
         // Find all concrete classes implementing IPort interfaces
-        var adapterTypes = assembly.GetTypes()
+        var adapterTypes = GetLoadableTypes(assembly)
             .Where(t => t.IsClass && !t.IsAbstract)
             .Select(t => new
             {
@@ -361,5 +361,17 @@ public static class PortRegistrationExtensions
         }
 
         return services;
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null)!;
+        }
     }
 }

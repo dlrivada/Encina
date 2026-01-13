@@ -306,7 +306,7 @@ public static class ApplicationServiceRegistrationExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(assembly);
 
-        var applicationServiceTypes = assembly.GetTypes()
+        var applicationServiceTypes = GetLoadableTypes(assembly)
             .Where(t => t.IsClass &&
                 !t.IsAbstract &&
                 typeof(IApplicationService).IsAssignableFrom(t));
@@ -330,5 +330,17 @@ public static class ApplicationServiceRegistrationExtensions
         }
 
         return services;
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null)!;
+        }
     }
 }

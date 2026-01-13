@@ -163,7 +163,7 @@ public sealed class EventUpcasterRegistry
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
-        var upcasterTypes = assembly.GetTypes()
+        var upcasterTypes = GetLoadableTypes(assembly)
             .Where(t => t is { IsAbstract: false, IsInterface: false }
                 && typeof(IEventUpcaster).IsAssignableFrom(t)
                 && t.GetConstructor(Type.EmptyTypes) != null);
@@ -195,6 +195,18 @@ public sealed class EventUpcasterRegistry
         {
             _upcasters.Clear();
             _allUpcasters.Clear();
+        }
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null)!;
         }
     }
 }

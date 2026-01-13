@@ -117,7 +117,7 @@ public static class ServiceCollectionExtensions
         var validatorType = typeof(IValidator<>);
 
         var validatorTypes = assemblies
-            .SelectMany(assembly => assembly.GetTypes())
+            .SelectMany(GetLoadableTypes)
             .Where(type =>
                 type is { IsClass: true, IsAbstract: false } &&
                 type.GetInterfaces().Any(i =>
@@ -138,6 +138,21 @@ public static class ServiceCollectionExtensions
                 var descriptor = new ServiceDescriptor(@interface, validator, lifetime);
                 services.TryAddEnumerable(descriptor);
             }
+        }
+    }
+
+    /// <summary>
+    /// Safely gets types from an assembly, handling ReflectionTypeLoadException.
+    /// </summary>
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null)!;
         }
     }
 }

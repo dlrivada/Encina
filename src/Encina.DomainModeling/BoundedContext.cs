@@ -579,7 +579,7 @@ public static class BoundedContextExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(assembly);
 
-        var contextTypes = assembly.GetTypes()
+        var contextTypes = GetLoadableTypes(assembly)
             .Where(t => t.IsClass && !t.IsAbstract)
             .Where(t => typeof(BoundedContextModule).IsAssignableFrom(t) ||
                         typeof(IBoundedContextModule).IsAssignableFrom(t));
@@ -629,7 +629,19 @@ public static class BoundedContextExtensions
         ArgumentNullException.ThrowIfNull(assembly);
         ArgumentException.ThrowIfNullOrWhiteSpace(contextName);
 
-        return assembly.GetTypes()
+        return GetLoadableTypes(assembly)
             .Where(t => t.GetCustomAttribute<BoundedContextAttribute>()?.ContextName == contextName);
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null)!;
+        }
     }
 }

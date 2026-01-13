@@ -417,7 +417,7 @@ public static class ResultMapperRegistrationExtensions
         var mapperInterface = typeof(IResultMapper<,>);
         var asyncMapperInterface = typeof(IAsyncResultMapper<,>);
 
-        var mapperTypes = assembly.GetTypes()
+        var mapperTypes = GetLoadableTypes(assembly)
             .Where(t => t.IsClass && !t.IsAbstract)
             .Select(t => new
             {
@@ -442,5 +442,17 @@ public static class ResultMapperRegistrationExtensions
         }
 
         return services;
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null)!;
+        }
     }
 }

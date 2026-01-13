@@ -140,7 +140,7 @@ public sealed class ModuleArchitectureAnalyzer
 
         foreach (var assembly in _assemblies)
         {
-            var moduleTypes = assembly.GetTypes()
+            var moduleTypes = GetLoadableTypes(assembly)
                 .Where(t => typeof(IModule).IsAssignableFrom(t)
                     && t.IsClass
                     && !t.IsAbstract);
@@ -223,7 +223,7 @@ public sealed class ModuleArchitectureAnalyzer
 
     private bool CheckDependency(ModuleInfo source, ModuleInfo target)
     {
-        return source.Assembly.GetTypes()
+        return GetLoadableTypes(source.Assembly)
             .Where(t => t.Namespace?.StartsWith(source.Namespace, StringComparison.Ordinal) is true)
             .Any(sourceType => HasDependencyOnTarget(sourceType, source, target));
     }
@@ -459,6 +459,18 @@ public sealed class ModuleArchitectureAnalyzer
 
         cycle.Add(cycleStart); // Complete the cycle
         return cycle;
+    }
+
+    private static IEnumerable<ReflectionType> GetLoadableTypes(ReflectionAssembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (System.Reflection.ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null)!;
+        }
     }
 }
 
