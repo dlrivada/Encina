@@ -109,7 +109,7 @@ public interface IProjectionHandler<in TEvent, TReadModel>
 /// to create the initial <c>OrderSummary</c> read model.
 /// </para>
 /// </remarks>
-public interface IProjectionCreator<in TEvent, TReadModel>
+public interface IProjectionCreator<in TEvent, out TReadModel>
     where TEvent : class
     where TReadModel : class, IReadModel
 {
@@ -133,7 +133,7 @@ public interface IProjectionCreator<in TEvent, TReadModel>
 /// This is useful for aggregates that have a "deleted" or "archived" state.
 /// </para>
 /// </remarks>
-public interface IProjectionDeleter<in TEvent, TReadModel>
+public interface IProjectionDeleter<in TEvent, in TReadModel>
     where TEvent : class
     where TReadModel : class, IReadModel
 {

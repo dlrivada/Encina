@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Encina.DomainModeling;
 
 namespace Encina.Testing.EventSourcing;
@@ -409,6 +410,8 @@ public abstract class AggregateTestBase<TAggregate, TId>
     /// </summary>
     /// <param name="aggregate">The aggregate to apply the event to.</param>
     /// <param name="event">The event to apply.</param>
+    [SuppressMessage("SonarAnalyzer.CSharp", "S3011:Reflection should not be used to increase accessibility",
+        Justification = "Test helper must invoke protected Apply method to simulate event replay in Given/When/Then pattern")]
     private static void ApplyEventToAggregate(TAggregate aggregate, object @event)
     {
         // Use reflection to call the protected Apply method

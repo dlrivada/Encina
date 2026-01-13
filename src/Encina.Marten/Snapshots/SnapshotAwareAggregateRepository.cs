@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Encina.DomainModeling;
 using LanguageExt;
 using Marten;
@@ -307,6 +308,8 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
     /// <summary>
     /// Applies an event to the aggregate using reflection to invoke the protected Apply method.
     /// </summary>
+    [SuppressMessage("SonarAnalyzer.CSharp", "S3011:Reflection should not be used to increase accessibility",
+        Justification = "Required to replay events on aggregate after snapshot restoration - Apply is protected by design")]
     private static void ApplyEvent(TAggregate aggregate, object @event)
     {
         // Access the protected Apply method via the RaiseEvent mechanism

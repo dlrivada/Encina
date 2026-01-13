@@ -120,13 +120,20 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
     }
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<Either<EncinaError, TResult>> SubscribeAsync<TSubscription, TResult>(
+    public IAsyncEnumerable<Either<EncinaError, TResult>> SubscribeAsync<TSubscription, TResult>(
         TSubscription subscription,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
         where TSubscription : class
     {
         ArgumentNullException.ThrowIfNull(subscription);
 
+        return SubscribeAsyncIterator<TSubscription, TResult>(cancellationToken);
+    }
+
+    private async IAsyncEnumerable<Either<EncinaError, TResult>> SubscribeAsyncIterator<TSubscription, TResult>(
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+        where TSubscription : class
+    {
         if (!_options.EnableSubscriptions)
         {
             yield return Left<EncinaError, TResult>( // NOSONAR S6966: LanguageExt Left is a pure function

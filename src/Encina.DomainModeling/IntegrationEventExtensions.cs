@@ -171,6 +171,15 @@ public static class IntegrationEventMappingExtensions
         ArgumentNullException.ThrowIfNull(domainEvents);
         ArgumentNullException.ThrowIfNull(mapper);
 
+        return MapAllIterator(domainEvents, mapper);
+    }
+
+    private static IEnumerable<TIntegration> MapAllIterator<TDomain, TIntegration>(
+        IEnumerable<TDomain> domainEvents,
+        IDomainEventToIntegrationEventMapper<TDomain, TIntegration> mapper)
+        where TDomain : IDomainEvent
+        where TIntegration : IIntegrationEvent
+    {
         foreach (var domainEvent in domainEvents)
         {
             yield return mapper.Map(domainEvent);
