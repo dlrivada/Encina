@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LanguageExt;
 
 namespace Encina.DomainModeling;
@@ -97,6 +98,8 @@ public abstract class DomainBuilder<T, TBuilder>
 /// Rules are accumulated and validated before creating the aggregate.
 /// </para>
 /// </remarks>
+[SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+    Justification = "Three generic parameters are required: TAggregate for the entity type, TId for the aggregate identity type, and TBuilder for CRTP fluent API pattern.")]
 public abstract class AggregateBuilder<TAggregate, TId, TBuilder>
     : DomainBuilder<TAggregate, TBuilder>
     where TAggregate : IAggregateRoot<TId>

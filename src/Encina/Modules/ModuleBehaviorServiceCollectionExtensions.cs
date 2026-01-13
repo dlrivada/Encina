@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -37,6 +38,8 @@ public static class ModuleBehaviorServiceCollectionExtensions
     /// services.AddEncinaModuleBehavior&lt;OrderModule, CreateOrderCommand, OrderId, CreateOrderAuditBehavior&gt;();
     /// </code>
     /// </example>
+    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+        Justification = "Four generic parameters are required: module type, request type, response type, and behavior implementation type.")]
     public static IServiceCollection AddEncinaModuleBehavior<TModule, TRequest, TResponse, TBehavior>(
         this IServiceCollection services)
         where TModule : class, IModule
@@ -78,6 +81,8 @@ public static class ModuleBehaviorServiceCollectionExtensions
     /// <param name="services">The service collection to add the behavior to.</param>
     /// <param name="lifetime">The service lifetime for the behavior.</param>
     /// <returns>The same <see cref="IServiceCollection"/> for chaining.</returns>
+    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+        Justification = "Four generic parameters are required: module type, request type, response type, and behavior implementation type.")]
     public static IServiceCollection AddEncinaModuleBehavior<TModule, TRequest, TResponse, TBehavior>(
         this IServiceCollection services,
         ServiceLifetime lifetime)

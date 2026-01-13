@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LanguageExt;
 using static LanguageExt.Prelude;
 
@@ -34,6 +35,8 @@ public static class EitherExtensions
     /// <summary>
     /// Combines three Either results into a tuple.
     /// </summary>
+    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+        Justification = "Four generic parameters are inherent to combining three Either values with a common error type. This is a functional programming pattern.")]
     public static Either<TError, (T1, T2, T3)> Combine<TError, T1, T2, T3>(
         this Either<TError, T1> first,
         Either<TError, T2> second,
@@ -47,6 +50,8 @@ public static class EitherExtensions
     /// <summary>
     /// Combines four Either results into a tuple.
     /// </summary>
+    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+        Justification = "Five generic parameters are inherent to combining four Either values with a common error type. This is a functional programming pattern.")]
     public static Either<TError, (T1, T2, T3, T4)> Combine<TError, T1, T2, T3, T4>(
         this Either<TError, T1> first,
         Either<TError, T2> second,

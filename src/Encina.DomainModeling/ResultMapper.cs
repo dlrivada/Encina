@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -330,6 +331,8 @@ public static class ResultMapperExtensions
         }
     }
 
+    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+        Justification = "Three generic parameters are required for mapper composition: source, intermediate, and target types.")]
     private sealed class ComposedResultMapper<TSource, TIntermediate, TTarget>(
         IResultMapper<TSource, TIntermediate> first,
         IResultMapper<TIntermediate, TTarget> second)

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LanguageExt;
 using static LanguageExt.Prelude;
 
@@ -37,6 +38,8 @@ public interface IAsyncDomainEventToIntegrationEventMapper<in TDomainEvent, TInt
 /// <typeparam name="TDomainEvent">The domain event type to map from.</typeparam>
 /// <typeparam name="TIntegrationEvent">The integration event type to map to.</typeparam>
 /// <typeparam name="TError">The error type for failed mappings.</typeparam>
+[SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+    Justification = "Three generic parameters are required for ROP: domain event input, integration event output, and custom error type.")]
 public interface IFallibleDomainEventToIntegrationEventMapper<in TDomainEvent, TIntegrationEvent, TError>
     where TDomainEvent : IDomainEvent
     where TIntegrationEvent : IIntegrationEvent
@@ -266,6 +269,8 @@ public static class IntegrationEventMappingExtensions
         return new CompositeMapper<TDomain, TIntermediate, TIntegration>(firstMapper, secondMapper);
     }
 
+    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+        Justification = "Three generic parameters are required for mapper composition: source, intermediate, and target types.")]
     private sealed class CompositeMapper<TDomain, TIntermediate, TIntegration>(
         IDomainEventToIntegrationEventMapper<TDomain, TIntermediate> first,
         IDomainEventToIntegrationEventMapper<TIntermediate, TIntegration> second)

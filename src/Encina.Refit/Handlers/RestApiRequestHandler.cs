@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Refit;
@@ -17,6 +18,8 @@ namespace Encina.Refit;
 /// - Converts HTTP errors to EncinaError (Railway Oriented Programming)
 /// - Handles ApiException (from Refit) and general exceptions
 /// </remarks>
+[SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+    Justification = "Three generic parameters are required: request type, API client interface type, and response type for type-safe REST API handling.")]
 public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TResponse>
     : IRequestHandler<TRequest, TResponse>
     where TRequest : IRestApiRequest<TApiClient, TResponse>

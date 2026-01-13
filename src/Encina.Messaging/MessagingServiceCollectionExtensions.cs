@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Encina.Messaging.ContentRouter;
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Health;
@@ -36,6 +37,8 @@ public static class MessagingServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="config">The messaging configuration.</param>
     /// <returns>The service collection for chaining.</returns>
+    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+        Justification = "Nine generic parameters are required to support provider-specific implementations for all messaging patterns (Outbox, Inbox, Saga, Scheduling). This is an internal API used by provider packages.")]
     public static IServiceCollection AddMessagingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
         this IServiceCollection services,
         MessagingConfiguration config)
@@ -142,6 +145,8 @@ public static class MessagingServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="config">The messaging configuration.</param>
     /// <returns>The service collection for chaining.</returns>
+    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+        Justification = "Five generic parameters are required to support provider-specific implementations for core messaging patterns (Outbox, Inbox). This is an internal API used by provider packages.")]
     public static IServiceCollection AddMessagingServicesCore<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TOutboxProcessor>(
         this IServiceCollection services,
         MessagingConfiguration config)

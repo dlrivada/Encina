@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LanguageExt;
 
 namespace Encina.Modules;
@@ -23,6 +24,8 @@ namespace Encina.Modules;
 /// the wrapped behavior and passes directly to the next step in the pipeline.
 /// </para>
 /// </remarks>
+[SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+    Justification = "Three generic parameters are required: module type for scoping, request type for pipeline, and response type for the result.")]
 internal sealed class ModuleBehaviorAdapter<TModule, TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TModule : class, IModule
     where TRequest : IRequest<TResponse>

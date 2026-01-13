@@ -127,12 +127,11 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
     {
         ArgumentNullException.ThrowIfNull(subscription);
 
-        return SubscribeAsyncIterator<TSubscription, TResult>(cancellationToken);
+        return SubscribeAsyncIterator<TResult>(cancellationToken);
     }
 
-    private async IAsyncEnumerable<Either<EncinaError, TResult>> SubscribeAsyncIterator<TSubscription, TResult>(
+    private async IAsyncEnumerable<Either<EncinaError, TResult>> SubscribeAsyncIterator<TResult>(
         [EnumeratorCancellation] CancellationToken cancellationToken)
-        where TSubscription : class
     {
         if (!_options.EnableSubscriptions)
         {
