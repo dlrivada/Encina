@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using ArchUnitNET.Fluent;
 using ArchUnitNET.Loader;
 using Encina.Modules;
@@ -303,6 +304,8 @@ public sealed class ModuleArchitectureAnalyzer
         }
     }
 
+    [SuppressMessage("SonarAnalyzer.CSharp", "S3011:Reflection should not be used to increase accessibility",
+        Justification = "Architecture analyzer must inspect all members (including non-public) to detect cross-module dependencies")]
     private static HashSet<ReflectionType> GetReferencedTypes(ReflectionType type)
     {
         var types = new HashSet<ReflectionType>();

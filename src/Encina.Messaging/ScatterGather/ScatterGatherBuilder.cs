@@ -253,16 +253,19 @@ public sealed class ScatterGatherBuilder<TRequest, TResponse>
                 $"Quorum count ({_quorumCount.Value}) cannot exceed the number of scatter handlers ({_scatterHandlers.Count}).");
         }
 
+        var options = new ScatterGatherExecutionOptions(
+            Strategy: _strategy,
+            Timeout: _timeout,
+            QuorumCount: _quorumCount,
+            ExecuteInParallel: _executeInParallel,
+            MaxDegreeOfParallelism: _maxDegreeOfParallelism,
+            Metadata: _metadata?.AsReadOnly());
+
         return new BuiltScatterGatherDefinition<TRequest, TResponse>(
             _name,
             [.. _scatterHandlers.OrderBy(h => h.Priority)],
             _gatherHandler,
-            _strategy,
-            _timeout,
-            _quorumCount,
-            _executeInParallel,
-            _maxDegreeOfParallelism,
-            _metadata?.AsReadOnly());
+            options);
     }
 
     internal void AddScatterHandler(ScatterDefinition<TRequest, TResponse> handler)

@@ -7,6 +7,22 @@ using LanguageExt;
 namespace Encina.Testing;
 
 /// <summary>
+/// Shared configuration for EncinaTestContext.
+/// </summary>
+internal static class EncinaTestContextDefaults
+{
+    /// <summary>
+    /// Gets the JSON serializer options used for saga state deserialization.
+    /// </summary>
+    internal static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = false
+    };
+}
+
+/// <summary>
 /// Test context for fluent assertion chaining after sending a request.
 /// </summary>
 /// <typeparam name="TResponse">The response type from the request.</typeparam>
@@ -33,13 +49,6 @@ namespace Encina.Testing;
 public sealed class EncinaTestContext<TResponse>
 {
     private const string NoSagasFoundMessage = "No sagas of this type were found.";
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        WriteIndented = false
-    };
 
     private readonly Either<EncinaError, TResponse> _result;
     private readonly EncinaTestFixture _fixture;
@@ -252,7 +261,7 @@ public sealed class EncinaTestContext<TResponse>
             {
                 var deserializedNotification = JsonSerializer.Deserialize<TNotification>(
                     message.Content,
-                    JsonOptions);
+                    EncinaTestContextDefaults.JsonOptions);
 
                 if (deserializedNotification is not null && predicate(deserializedNotification))
                 {

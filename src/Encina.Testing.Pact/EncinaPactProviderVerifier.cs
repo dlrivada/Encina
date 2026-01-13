@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -34,6 +35,8 @@ namespace Encina.Testing.Pact;
 /// </code>
 /// </para>
 /// </remarks>
+[SuppressMessage("SonarAnalyzer.CSharp", "S3011:Reflection should not be used to increase accessibility",
+    Justification = "Pact verifier uses reflection to invoke internal ExtractFromEither method for generic type handling")]
 public sealed class EncinaPactProviderVerifier : IDisposable
 {
     private static readonly JsonSerializerOptions s_defaultJsonOptions = new()

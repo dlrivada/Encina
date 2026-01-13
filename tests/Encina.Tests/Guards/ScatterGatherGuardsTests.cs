@@ -162,25 +162,25 @@ public sealed class ScatterGatherGuardsTests
     [Fact]
     public void BuiltScatterGatherDefinition_NullName_ThrowsArgumentException()
     {
+        var options = new ScatterGatherExecutionOptions(GatherStrategy.WaitForAll);
         Should.Throw<ArgumentException>(() =>
             new BuiltScatterGatherDefinition<TestRequest, TestResponse>(
                 null!,
                 [new ScatterDefinition<TestRequest, TestResponse>("H", (r, c) => ValueTask.FromResult(Right<EncinaError, TestResponse>(new TestResponse(0))))],
                 (r, c) => ValueTask.FromResult(Right<EncinaError, TestResponse>(new TestResponse(0))),
-                GatherStrategy.WaitForAll,
-                null, null, true, null, null));
+                options));
     }
 
     [Fact]
     public void BuiltScatterGatherDefinition_EmptyHandlers_ThrowsArgumentException()
     {
+        var options = new ScatterGatherExecutionOptions(GatherStrategy.WaitForAll);
         Should.Throw<ArgumentException>(() =>
             new BuiltScatterGatherDefinition<TestRequest, TestResponse>(
                 "Test",
                 [],
                 (r, c) => ValueTask.FromResult(Right<EncinaError, TestResponse>(new TestResponse(0))),
-                GatherStrategy.WaitForAll,
-                null, null, true, null, null));
+                options));
     }
 
     public sealed record TestRequest(string Query);

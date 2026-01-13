@@ -3,6 +3,23 @@ using LanguageExt;
 namespace Encina.Messaging.ScatterGather;
 
 /// <summary>
+/// Options for a specific scatter-gather execution.
+/// </summary>
+/// <param name="Strategy">The gather strategy.</param>
+/// <param name="Timeout">Optional timeout for the operation.</param>
+/// <param name="QuorumCount">Optional quorum count for <see cref="GatherStrategy.WaitForQuorum"/>.</param>
+/// <param name="ExecuteInParallel">Whether to execute scatter handlers in parallel.</param>
+/// <param name="MaxDegreeOfParallelism">Optional maximum degree of parallelism.</param>
+/// <param name="Metadata">Optional metadata for the operation.</param>
+public sealed record ScatterGatherExecutionOptions(
+    GatherStrategy Strategy,
+    TimeSpan? Timeout = null,
+    int? QuorumCount = null,
+    bool ExecuteInParallel = true,
+    int? MaxDegreeOfParallelism = null,
+    IReadOnlyDictionary<string, object>? Metadata = null);
+
+/// <summary>
 /// Represents an immutable, fully-configured scatter-gather definition ready for execution.
 /// </summary>
 /// <typeparam name="TRequest">The type of request.</typeparam>
@@ -63,42 +80,42 @@ public sealed class BuiltScatterGatherDefinition<TRequest, TResponse>
     /// <summary>
     /// Initializes a new instance of the <see cref="BuiltScatterGatherDefinition{TRequest, TResponse}"/> class.
     /// </summary>
+    /// <param name="name">The name of the scatter-gather operation.</param>
+    /// <param name="scatterHandlers">The scatter handler definitions.</param>
+    /// <param name="gatherHandler">The gather handler function.</param>
+    /// <param name="options">The execution options.</param>
     public BuiltScatterGatherDefinition(
         string name,
         IReadOnlyList<ScatterDefinition<TRequest, TResponse>> scatterHandlers,
         Func<IReadOnlyList<ScatterExecutionResult<TResponse>>, CancellationToken, ValueTask<Either<EncinaError, TResponse>>> gatherHandler,
-        GatherStrategy strategy,
-        TimeSpan? timeout,
-        int? quorumCount,
-        bool executeInParallel,
-        int? maxDegreeOfParallelism,
-        IReadOnlyDictionary<string, object>? metadata)
+        ScatterGatherExecutionOptions options)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(scatterHandlers);
         ArgumentNullException.ThrowIfNull(gatherHandler);
+        ArgumentNullException.ThrowIfNull(options);
 
         if (scatterHandlers.Count == 0)
         {
             throw new ArgumentException("At least one scatter handler is required.", nameof(scatterHandlers));
         }
 
-        if (strategy == GatherStrategy.WaitForQuorum && quorumCount.HasValue && quorumCount.Value > scatterHandlers.Count)
+        if (options.Strategy == GatherStrategy.WaitForQuorum && options.QuorumCount.HasValue && options.QuorumCount.Value > scatterHandlers.Count)
         {
             throw new ArgumentException(
-                $"Quorum count ({quorumCount.Value}) cannot exceed scatter handler count ({scatterHandlers.Count}).",
-                nameof(quorumCount));
+                $"Quorum count ({options.QuorumCount.Value}) cannot exceed scatter handler count ({scatterHandlers.Count}).",
+                nameof(options));
         }
 
         Name = name;
         ScatterHandlers = scatterHandlers;
         GatherHandler = gatherHandler;
-        Strategy = strategy;
-        Timeout = timeout;
-        QuorumCount = quorumCount;
-        ExecuteInParallel = executeInParallel;
-        MaxDegreeOfParallelism = maxDegreeOfParallelism;
-        Metadata = metadata;
+        Strategy = options.Strategy;
+        Timeout = options.Timeout;
+        QuorumCount = options.QuorumCount;
+        ExecuteInParallel = options.ExecuteInParallel;
+        MaxDegreeOfParallelism = options.MaxDegreeOfParallelism;
+        Metadata = options.Metadata;
     }
 
     /// <summary>

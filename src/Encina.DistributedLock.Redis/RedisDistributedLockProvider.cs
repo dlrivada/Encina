@@ -69,7 +69,8 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
             {
                 var now = DateTime.UtcNow;
                 LogLockAcquired(_logger, resource, lockValue);
-                return new LockHandle(this, Database, lockKey, lockValue, resource, now, now.Add(expiry), _logger);
+                var context = new LockHandleContext(Database, lockKey, lockValue, resource, now, now.Add(expiry), _logger);
+                return new LockHandle(context);
             }
 
             await Task.Delay(retry, cancellationToken).ConfigureAwait(false);
@@ -106,7 +107,8 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
             {
                 var now = DateTime.UtcNow;
                 LogLockAcquired(_logger, resource, lockValue);
-                return new LockHandle(this, Database, lockKey, lockValue, resource, now, now.Add(expiry), _logger);
+                var context = new LockHandleContext(Database, lockKey, lockValue, resource, now, now.Add(expiry), _logger);
+                return new LockHandle(context);
             }
 
             await Task.Delay(retryInterval, cancellationToken).ConfigureAwait(false);
@@ -173,13 +175,23 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
         Message = "Failed to acquire lock on resource: {Resource}")]
     private static partial void LogLockFailed(ILogger logger, string resource);
 
+    /// <summary>
+    /// Context information for a lock handle.
+    /// </summary>
+    private sealed record LockHandleContext(
+        IDatabase Database,
+        string LockKey,
+        string LockValue,
+        string Resource,
+        DateTime AcquiredAtUtc,
+        DateTime ExpiresAtUtc,
+        ILogger Logger);
+
     private sealed class LockHandle : ILockHandle
     {
-        private readonly IDatabase _database;
-        private readonly string _lockKey;
-        private readonly string _lockValue;
-        private readonly ILogger _logger;
+        private readonly LockHandleContext _context;
         private bool _disposed;
+        private DateTime _expiresAtUtc;
 
         // Lua script to safely release the lock only if we own it
         private const string ReleaseLockScript = """
@@ -199,32 +211,17 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
             end
             """;
 
-        public LockHandle(
-            RedisDistributedLockProvider provider,
-            IDatabase database,
-            string lockKey,
-            string lockValue,
-            string resource,
-            DateTime acquiredAtUtc,
-            DateTime expiresAtUtc,
-            ILogger logger)
+        public LockHandle(LockHandleContext context)
         {
-            // provider reserved for future use (e.g., auto-renewal coordination)
-            _ = provider;
-            _database = database;
-            _lockKey = lockKey;
-            _lockValue = lockValue;
-            Resource = resource;
-            LockId = lockValue;
-            AcquiredAtUtc = acquiredAtUtc;
-            ExpiresAtUtc = expiresAtUtc;
-            _logger = logger;
+            ArgumentNullException.ThrowIfNull(context);
+            _context = context;
+            _expiresAtUtc = context.ExpiresAtUtc;
         }
 
-        public string Resource { get; }
-        public string LockId { get; }
-        public DateTime AcquiredAtUtc { get; }
-        public DateTime ExpiresAtUtc { get; private set; }
+        public string Resource => _context.Resource;
+        public string LockId => _context.LockValue;
+        public DateTime AcquiredAtUtc => _context.AcquiredAtUtc;
+        public DateTime ExpiresAtUtc => _expiresAtUtc;
         public bool IsReleased => _disposed;
 
         public async Task<bool> ExtendAsync(TimeSpan extension, CancellationToken cancellationToken = default)
@@ -236,14 +233,14 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
 
             var extensionMs = (long)extension.TotalMilliseconds;
 
-            var result = await _database.ScriptEvaluateAsync(
+            var result = await _context.Database.ScriptEvaluateAsync(
                 ExtendLockScript,
-                [_lockKey],
-                [_lockValue, extensionMs]).ConfigureAwait(false);
+                [_context.LockKey],
+                [_context.LockValue, extensionMs]).ConfigureAwait(false);
 
             if ((int)result == 1)
             {
-                ExpiresAtUtc = DateTime.UtcNow.Add(extension);
+                _expiresAtUtc = DateTime.UtcNow.Add(extension);
                 return true;
             }
 
@@ -261,12 +258,12 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
 
             try
             {
-                await _database.ScriptEvaluateAsync(
+                await _context.Database.ScriptEvaluateAsync(
                     ReleaseLockScript,
-                    [_lockKey],
-                    [_lockValue]).ConfigureAwait(false);
+                    [_context.LockKey],
+                    [_context.LockValue]).ConfigureAwait(false);
 
-                LogLockReleased(_logger, Resource, LockId);
+                LogLockReleased(_context.Logger, Resource, LockId);
             }
             catch
             {
