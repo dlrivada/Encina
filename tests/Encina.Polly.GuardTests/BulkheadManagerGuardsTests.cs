@@ -34,7 +34,7 @@ public class BulkheadManagerGuardsTests : IDisposable
         var config = new BulkheadAttribute();
 
         // Act & Assert
-        var ex = await Should.ThrowAsync<ArgumentNullException>(() => _manager.TryAcquireAsync(key, config));
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => _manager.TryAcquireAsync(key, config).AsTask());
         ex.ParamName.ShouldBe("key");
     }
 
@@ -46,7 +46,7 @@ public class BulkheadManagerGuardsTests : IDisposable
         BulkheadAttribute config = null!;
 
         // Act & Assert
-        var ex = await Should.ThrowAsync<ArgumentNullException>(() => _manager.TryAcquireAsync(key, config));
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => _manager.TryAcquireAsync(key, config).AsTask());
         ex.ParamName.ShouldBe("config");
     }
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Encina.SignalR;
 using FsCheck;
 using FsCheck.Xunit;
@@ -45,7 +46,7 @@ public sealed class SignalRBroadcasterPropertyTests : IDisposable
         var notification = new PropertyBroadcastNotification($"test-data-{seed.Get}");
 
         // Act & Assert - exception propagates to FsCheck if thrown
-        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification).AsTask());
+        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification));
     }
 
     [Property(MaxTest = 50)]
@@ -55,11 +56,11 @@ public sealed class SignalRBroadcasterPropertyTests : IDisposable
         var notification = new PropertyPlainNotification($"plain-data-{seed.Get}");
 
         // Act & Assert - plain notifications (no attribute) should complete without error
-        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification).AsTask());
+        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification));
 
         // Verify the notification data is preserved
         notification.Data.ShouldStartWith("plain-data-");
-        notification.Data.ShouldContain(seed.Get.ToString());
+        notification.Data.ShouldContain(seed.Get.ToString(CultureInfo.InvariantCulture));
     }
 
     [Property(MaxTest = 50)]
@@ -69,7 +70,7 @@ public sealed class SignalRBroadcasterPropertyTests : IDisposable
         var notification = new PropertyConditionalNotification($"conditional-{seed.Get}", shouldBroadcast);
 
         // Act & Assert - conditional notifications should complete regardless of condition value
-        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification).AsTask());
+        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification));
 
         // Verify conditional property is correctly set
         notification.ShouldBroadcast.ShouldBe(shouldBroadcast);
@@ -82,7 +83,7 @@ public sealed class SignalRBroadcasterPropertyTests : IDisposable
         var notification = new PropertyTargetedUserNotification($"user-{userId.Get}", $"message-{messageId.Get}");
 
         // Act & Assert - targeted user notifications should complete without error
-        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification).AsTask());
+        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification));
 
         // Verify targeting properties are preserved
         notification.UserId.ShouldStartWith("user-");
@@ -96,7 +97,7 @@ public sealed class SignalRBroadcasterPropertyTests : IDisposable
         var notification = new PropertyTargetedGroupNotification($"group-{groupId.Get}", $"message-{messageId.Get}");
 
         // Act & Assert - targeted group notifications should complete without error
-        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification).AsTask());
+        await Should.NotThrowAsync(() => _broadcaster.BroadcastAsync(notification));
 
         // Verify targeting properties are preserved
         notification.GroupId.ShouldStartWith("group-");

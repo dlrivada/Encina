@@ -1,5 +1,6 @@
 using LanguageExt;
 using Microsoft.Extensions.Logging;
+using Polly;
 using Polly.Registry;
 using Polly.Timeout;
 using Encina.Extensions.Resilience;
@@ -36,7 +37,8 @@ public class StandardResiliencePipelineBehaviorContractTests
 
         // Assert
         handleMethod.ShouldNotBeNull();
-        handleMethod!.ReturnType.ShouldBeAssignableTo<ValueTask<Either<EncinaError, TestResponse>>>();
+        var expectedReturnType = typeof(ValueTask<Either<EncinaError, TestResponse>>);
+        handleMethod!.ReturnType.ShouldBe(expectedReturnType);
     }
 
     [Fact]

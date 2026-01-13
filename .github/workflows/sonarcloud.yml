@@ -57,14 +57,14 @@ jobs:
       - name: Build solution
         run: dotnet build Encina.slnx --configuration Release --no-restore
 
-      - name: Run tests with coverage (Core packages)
+      - name: Run tests with coverage (All packages)
         # Run tests using solution filters to reduce memory and disk usage
         # Exclude: LoadTests, IntegrationTests, Benchmarks, and Encina.Testing.* packages
         # (testing infrastructure cannot test itself - see testing-dogfooding-plan.md section 3.2)
         run: |
           mkdir -p artifacts/test-results
 
-          # Run tests for core packages using solution filters
+          # Run tests for all packages using solution filters
           # This is more efficient than iterating over individual projects
           dotnet test Encina.Core.slnf --configuration Release --no-build \
             --collect "XPlat Code Coverage" \
@@ -80,6 +80,43 @@ jobs:
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
+
+          # Database.slnf commented out temporarily - has projects not in main solution
+          # dotnet test Encina.Database.slnf --configuration Release --no-build \
+          #   --collect "XPlat Code Coverage" \
+          #   --results-directory artifacts/test-results \
+          #   -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
+
+          dotnet test Encina.Caching.slnf --configuration Release --no-build \
+            --collect "XPlat Code Coverage" \
+            --results-directory artifacts/test-results \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
+
+          dotnet test Encina.Resilience.slnf --configuration Release --no-build \
+            --collect "XPlat Code Coverage" \
+            --results-directory artifacts/test-results \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
+
+          dotnet test Encina.Web.slnf --configuration Release --no-build \
+            --collect "XPlat Code Coverage" \
+            --results-directory artifacts/test-results \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
+
+          dotnet test Encina.Observability.slnf --configuration Release --no-build \
+            --collect "XPlat Code Coverage" \
+            --results-directory artifacts/test-results \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
+
+          dotnet test Encina.DistributedLock.slnf --configuration Release --no-build \
+            --collect "XPlat Code Coverage" \
+            --results-directory artifacts/test-results \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
+
+          # EventSourcing.slnf commented out temporarily - has projects not in main solution
+          # dotnet test Encina.EventSourcing.slnf --configuration Release --no-build \
+          #   --collect "XPlat Code Coverage" \
+          #   --results-directory artifacts/test-results \
+          #   -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
 
       - name: Install SonarScanner
         run: dotnet tool install --global dotnet-sonarscanner

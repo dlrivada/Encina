@@ -68,8 +68,8 @@ public class IRestApiRequestContractTests
         var attributes = apiClientTypeParameter.GenericParameterAttributes;
 
         // Assert
-        (attributes & GenericParameterAttributes.ReferenceTypeConstraint).ShouldNotBe(0,
-            "TApiClient must have a class constraint");
+        ((attributes & GenericParameterAttributes.ReferenceTypeConstraint) != GenericParameterAttributes.None)
+            .ShouldBeTrue("TApiClient must have a class constraint");
     }
 
     [Fact]

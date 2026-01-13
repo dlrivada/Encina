@@ -67,8 +67,10 @@ public class RedisHealthCheckIntegrationTests
         var serviceProvider = CreateServiceProvider();
         var healthCheck = new RedisHealthCheck(serviceProvider, options);
 
-        // Assert
-        healthCheck.Tags.ShouldBe(customTags);
+        // Assert - health check adds "encina" tag by default
+        healthCheck.Tags.ShouldContain("custom");
+        healthCheck.Tags.ShouldContain("tags");
+        healthCheck.Tags.ShouldContain("encina");
     }
 
     private ServiceProvider CreateServiceProvider()

@@ -80,7 +80,7 @@ public class ServiceCollectionExtensionsContractTests
         {
             method.IsGenericMethod.ShouldBeTrue();
             var genericArguments = method.GetGenericArguments();
-            genericArguments.Count.ShouldBe(1);
+            genericArguments.Length.ShouldBe(1);
             genericArguments[0].Name.ShouldBe("TApiClient");
         }
     }
@@ -97,7 +97,8 @@ public class ServiceCollectionExtensionsContractTests
         var attributes = genericParameter.GenericParameterAttributes;
 
         // Assert
-        (attributes & GenericParameterAttributes.ReferenceTypeConstraint).ShouldNotBe(0);
+        ((attributes & GenericParameterAttributes.ReferenceTypeConstraint) != GenericParameterAttributes.None)
+            .ShouldBeTrue();
     }
 
     [Fact]

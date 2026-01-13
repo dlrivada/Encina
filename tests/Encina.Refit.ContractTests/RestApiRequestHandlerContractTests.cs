@@ -93,7 +93,7 @@ public class RestApiRequestHandlerContractTests
         // Assert
         constructor.ShouldNotBeNull();
         var parameters = constructor!.GetParameters();
-        parameters.Count.ShouldBe(2);
+        parameters.Length.ShouldBe(2);
         parameters[0].ParameterType.ShouldBe(typeof(ITestApiClient));
         parameters[1].ParameterType.ShouldBe(typeof(ILogger<RestApiRequestHandler<TestRequest, ITestApiClient, string>>));
     }

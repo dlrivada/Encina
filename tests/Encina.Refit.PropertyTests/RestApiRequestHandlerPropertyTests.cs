@@ -1,4 +1,5 @@
-﻿using LanguageExt;
+﻿using FsCheck;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Refit;

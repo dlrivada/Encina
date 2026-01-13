@@ -15,7 +15,7 @@ public class AdaptiveRateLimiterGuardsTests
         string key = null!;
 
         // Act & Assert
-        var ex = await Should.ThrowAsync<ArgumentNullException>(() => rateLimiter.AcquireAsync(key, attribute, CancellationToken.None));
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => rateLimiter.AcquireAsync(key, attribute, CancellationToken.None).AsTask());
         ex.ParamName.ShouldBe("key");
     }
 
@@ -27,7 +27,7 @@ public class AdaptiveRateLimiterGuardsTests
         RateLimitAttribute attribute = null!;
 
         // Act & Assert
-        var ex = await Should.ThrowAsync<ArgumentNullException>(() => rateLimiter.AcquireAsync("test-key", attribute, CancellationToken.None));
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() => rateLimiter.AcquireAsync("test-key", attribute, CancellationToken.None).AsTask());
         ex.ParamName.ShouldBe("config");
     }
 

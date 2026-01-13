@@ -122,7 +122,7 @@ public class ServiceCollectionExtensionsContractTests
         var genericArguments = method!.GetGenericArguments();
 
         // Assert
-        genericArguments.Count.ShouldBe(2);
+        genericArguments.Length.ShouldBe(2);
         genericArguments[0].Name.ShouldBe("TRequest");
         genericArguments[1].Name.ShouldBe("TResponse");
 
