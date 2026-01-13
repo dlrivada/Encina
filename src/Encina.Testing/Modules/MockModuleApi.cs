@@ -38,7 +38,7 @@ public sealed class MockModuleApi<TModuleApi> where TModuleApi : class
     {
         if (!typeof(TModuleApi).IsInterface)
         {
-            throw new ArgumentException($"TModuleApi must be an interface type. {typeof(TModuleApi).FullName} is not an interface.", nameof(TModuleApi));
+            throw new ArgumentException($"Type parameter TModuleApi must be an interface type. {typeof(TModuleApi).FullName} is not an interface.");
         }
     }
 

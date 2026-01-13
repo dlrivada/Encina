@@ -210,7 +210,7 @@ public static class ProjectScaffolder
             """;
     }
 
-    private static string GenerateWorkerProgram(ProjectOptions options)
+    private static string GenerateWorkerProgram(ProjectOptions _)
     {
         return $$"""
             using Encina;
@@ -226,7 +226,7 @@ public static class ProjectScaffolder
             """;
     }
 
-    private static string GenerateConsoleProgram(ProjectOptions options)
+    private static string GenerateConsoleProgram(ProjectOptions _)
     {
         return $$"""
             using Encina;
