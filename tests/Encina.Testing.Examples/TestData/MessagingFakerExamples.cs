@@ -37,7 +37,7 @@ public sealed class MessagingFakerExamples
 
         // Assert - Use WasMessageAdded for verification
         store.WasMessageAdded<OrderCreatedEvent>().ShouldBeTrue();
-        store.AddedMessages.Count.ShouldBe(1);
+        store.GetAddedMessages().Count.ShouldBe(1);
     }
 
     /// <summary>
@@ -85,7 +85,7 @@ public sealed class MessagingFakerExamples
         await store.AddAsync(message);
 
         // Assert - Access messages directly for detailed checks
-        var addedMessages = store.AddedMessages;
+        var addedMessages = store.GetAddedMessages();
         addedMessages.Count.ShouldBe(1);
         addedMessages[0].Content.ShouldContain(orderId.ToString());
     }
@@ -112,7 +112,7 @@ public sealed class MessagingFakerExamples
         await store.MarkAsProcessedAsync(messageId);
 
         // Assert
-        store.ProcessedMessageIds.ShouldContain(messageId);
+        store.GetProcessedMessageIds().ShouldContain(messageId);
         var processedMessage = store.GetMessage(messageId);
         processedMessage.ShouldNotBeNull();
         processedMessage.IsProcessed.ShouldBeTrue();
@@ -143,7 +143,7 @@ public sealed class MessagingFakerExamples
             nextRetryAtUtc: DateTime.UtcNow.AddMinutes(5));
 
         // Assert
-        store.FailedMessageIds.ShouldContain(messageId);
+        store.GetFailedMessageIds().ShouldContain(messageId);
         var failedMessage = store.GetMessage(messageId);
         failedMessage!.ErrorMessage.ShouldBe("Connection timeout");
     }
@@ -194,8 +194,8 @@ public sealed class MessagingFakerExamples
         store.Clear();
 
         // Assert
-        store.Messages.Count.ShouldBe(0);
-        store.AddedMessages.Count.ShouldBe(0);
+        store.GetMessages().Count.ShouldBe(0);
+        store.GetAddedMessages().Count.ShouldBe(0);
     }
 
     /// <summary>
