@@ -7,4 +7,4 @@ rootCommand.Subcommands.Add(NewCommand.Create());
 rootCommand.Subcommands.Add(GenerateCommand.Create());
 rootCommand.Subcommands.Add(AddCommand.Create());
 
-return rootCommand.Parse(args).Invoke();
+return await rootCommand.Parse(args).InvokeAsync();
