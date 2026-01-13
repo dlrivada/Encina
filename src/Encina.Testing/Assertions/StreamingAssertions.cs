@@ -350,9 +350,10 @@ public static class StreamingAssertions
         string? message = null,
         CancellationToken cancellationToken = default)
     {
-        await foreach (var result in source.WithCancellation(cancellationToken))
+        await using var enumerator = source.GetAsyncEnumerator(cancellationToken);
+        if (await enumerator.MoveNextAsync())
         {
-            return result.ShouldBeSuccess(message);
+            return enumerator.Current.ShouldBeSuccess(message);
         }
 
         Assert.Fail(message ?? "Expected at least one result but the stream was empty");
@@ -373,9 +374,10 @@ public static class StreamingAssertions
         string? message = null,
         CancellationToken cancellationToken = default)
     {
-        await foreach (var result in source.WithCancellation(cancellationToken))
+        await using var enumerator = source.GetAsyncEnumerator(cancellationToken);
+        if (await enumerator.MoveNextAsync())
         {
-            return result.ShouldBeError(message);
+            return enumerator.Current.ShouldBeError(message);
         }
 
         Assert.Fail(message ?? "Expected at least one result but the stream was empty");
