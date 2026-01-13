@@ -77,7 +77,6 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
 
         // Try initial execution + immediate retries
         var result = await ExecuteWithImmediateRetriesAsync(
-            request,
             recoverabilityContext,
             nextStep,
             cancellationToken).ConfigureAwait(false);
@@ -132,7 +131,6 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     }
 
     private async ValueTask<Either<EncinaError, TResponse>> ExecuteWithImmediateRetriesAsync(
-        TRequest _, // request not used directly; handler delegate contains request binding
         RecoverabilityContext recoverabilityContext,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)

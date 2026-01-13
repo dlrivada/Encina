@@ -54,22 +54,32 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public async Task AddAsync_WithNullRequest_ThrowsArgumentNullException()
     {
+        var context = new DeadLetterContext(EncinaError.New("test"), null, "Test", 1, DateTime.UtcNow);
         await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await _orchestrator.AddAsync<object>(null!, EncinaError.New("test"), null, "Test", 1, DateTime.UtcNow));
+            await _orchestrator.AddAsync<object>(null!, context));
+    }
+
+    [Fact]
+    public async Task AddAsync_WithNullContext_ThrowsArgumentNullException()
+    {
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await _orchestrator.AddAsync("request", null!));
     }
 
     [Fact]
     public async Task AddAsync_WithNullSourcePattern_ThrowsArgumentException()
     {
+        var context = new DeadLetterContext(EncinaError.New("test"), null, null!, 1, DateTime.UtcNow);
         await Should.ThrowAsync<ArgumentException>(async () =>
-            await _orchestrator.AddAsync("request", EncinaError.New("test"), null, null!, 1, DateTime.UtcNow));
+            await _orchestrator.AddAsync("request", context));
     }
 
     [Fact]
     public async Task AddAsync_WithEmptySourcePattern_ThrowsArgumentException()
     {
+        var context = new DeadLetterContext(EncinaError.New("test"), null, "", 1, DateTime.UtcNow);
         await Should.ThrowAsync<ArgumentException>(async () =>
-            await _orchestrator.AddAsync("request", EncinaError.New("test"), null, "", 1, DateTime.UtcNow));
+            await _orchestrator.AddAsync("request", context));
     }
 
     [Fact]
@@ -90,13 +100,8 @@ public sealed class DeadLetterOrchestratorTests
             .Returns(createdMessage);
 
         // Act
-        var result = await _orchestrator.AddAsync(
-            request,
-            error,
-            null,
-            sourcePattern,
-            3,
-            firstFailedAt);
+        var context = new DeadLetterContext(error, null, sourcePattern, 3, firstFailedAt);
+        var result = await _orchestrator.AddAsync(request, context);
 
         // Assert
         result.ShouldBe(createdMessage);
@@ -127,13 +132,8 @@ public sealed class DeadLetterOrchestratorTests
             .Returns(createdMessage);
 
         // Act
-        await _orchestrator.AddAsync(
-            new TestRequest("test"),
-            EncinaError.New("Test error"),
-            null,
-            "Test",
-            1,
-            DateTime.UtcNow);
+        var context = new DeadLetterContext(EncinaError.New("Test error"), null, "Test", 1, DateTime.UtcNow);
+        await _orchestrator.AddAsync(new TestRequest("test"), context);
 
         // Assert
         callbackInvoked.ShouldBeTrue();
@@ -156,13 +156,8 @@ public sealed class DeadLetterOrchestratorTests
             .Returns(createdMessage);
 
         // Act
-        await _orchestrator.AddAsync(
-            new TestRequest("test"),
-            EncinaError.New("Test error"),
-            null,
-            "Test",
-            1,
-            DateTime.UtcNow);
+        var context = new DeadLetterContext(EncinaError.New("Test error"), null, "Test", 1, DateTime.UtcNow);
+        await _orchestrator.AddAsync(new TestRequest("test"), context);
 
         // Assert
         capturedData.ShouldNotBeNull();

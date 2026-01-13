@@ -111,16 +111,7 @@ public sealed class DelayedRetrySchedulerTests
         var delayedRetryAttempt = 0;
 
         var mockMessage = CreateMockMessage();
-        messageFactory.Create(
-            Arg.Any<Guid>(),
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<int>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<string?>())
+        messageFactory.Create(Arg.Any<DelayedRetryMessageData>())
             .Returns(mockMessage);
 
         // Act
@@ -142,16 +133,7 @@ public sealed class DelayedRetrySchedulerTests
         var delayedRetryAttempt = 2;
 
         var mockMessage = CreateMockMessage();
-        messageFactory.Create(
-            Arg.Any<Guid>(),
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<int>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<string?>())
+        messageFactory.Create(Arg.Any<DelayedRetryMessageData>())
             .Returns(mockMessage);
 
         // Act
@@ -159,15 +141,12 @@ public sealed class DelayedRetrySchedulerTests
 
         // Assert
         messageFactory.Received(1).Create(
-            Arg.Any<Guid>(),
-            context.Id,
-            Arg.Is<string>(s => s.Contains(nameof(TestRequest))),
-            Arg.Is<string>(s => s.Contains("42")),
-            Arg.Any<string>(),
-            delayedRetryAttempt,
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime>(),
-            correlationId);
+            Arg.Is<DelayedRetryMessageData>(d =>
+                d.RecoverabilityContextId == context.Id &&
+                d.RequestType.Contains(nameof(TestRequest)) &&
+                d.RequestContent.Contains("42") &&
+                d.DelayedRetryAttempt == delayedRetryAttempt &&
+                d.CorrelationId == correlationId));
     }
 
     [Fact]
@@ -180,16 +159,7 @@ public sealed class DelayedRetrySchedulerTests
         var delay = TimeSpan.FromSeconds(30);
 
         var mockMessage = CreateMockMessage();
-        messageFactory.Create(
-            Arg.Any<Guid>(),
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<int>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<string?>())
+        messageFactory.Create(Arg.Any<DelayedRetryMessageData>())
             .Returns(mockMessage);
 
         // Act
@@ -197,15 +167,7 @@ public sealed class DelayedRetrySchedulerTests
 
         // Assert
         messageFactory.Received(1).Create(
-            Arg.Any<Guid>(),
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<int>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime>(),
-            Arg.Is<string?>(s => s == null));
+            Arg.Is<DelayedRetryMessageData>(d => d.CorrelationId == null));
     }
 
     [Fact]
@@ -217,20 +179,10 @@ public sealed class DelayedRetrySchedulerTests
         var context = CreateContext();
         var delay = TimeSpan.FromMinutes(5);
 
-        DateTime capturedScheduledAt = default;
-        DateTime capturedExecuteAt = default;
+        DelayedRetryMessageData? capturedData = null;
 
         var mockMessage = CreateMockMessage();
-        messageFactory.Create(
-            Arg.Any<Guid>(),
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<int>(),
-            Arg.Do<DateTime>(d => capturedScheduledAt = d),
-            Arg.Do<DateTime>(d => capturedExecuteAt = d),
-            Arg.Any<string?>())
+        messageFactory.Create(Arg.Do<DelayedRetryMessageData>(d => capturedData = d))
             .Returns(mockMessage);
 
         // Act
@@ -239,11 +191,12 @@ public sealed class DelayedRetrySchedulerTests
         var afterCall = DateTime.UtcNow;
 
         // Assert
-        capturedScheduledAt.ShouldBeGreaterThanOrEqualTo(beforeCall);
-        capturedScheduledAt.ShouldBeLessThanOrEqualTo(afterCall);
+        capturedData.ShouldNotBeNull();
+        capturedData.ScheduledAtUtc.ShouldBeGreaterThanOrEqualTo(beforeCall);
+        capturedData.ScheduledAtUtc.ShouldBeLessThanOrEqualTo(afterCall);
 
-        var expectedExecuteAt = capturedScheduledAt.Add(delay);
-        capturedExecuteAt.ShouldBe(expectedExecuteAt);
+        var expectedExecuteAt = capturedData.ScheduledAtUtc.Add(delay);
+        capturedData.ExecuteAtUtc.ShouldBe(expectedExecuteAt);
     }
 
     [Fact]
@@ -256,26 +209,18 @@ public sealed class DelayedRetrySchedulerTests
         var context = CreateContext(lastError: exception);
         var delay = TimeSpan.FromSeconds(30);
 
-        string capturedContextContent = string.Empty;
+        DelayedRetryMessageData? capturedData = null;
 
         var mockMessage = CreateMockMessage();
-        messageFactory.Create(
-            Arg.Any<Guid>(),
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Do<string>(s => capturedContextContent = s),
-            Arg.Any<int>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<string?>())
+        messageFactory.Create(Arg.Do<DelayedRetryMessageData>(d => capturedData = d))
             .Returns(mockMessage);
 
         // Act
         await scheduler.ScheduleRetryAsync(request, context, delay, 0);
 
         // Assert
-        capturedContextContent.ShouldContain("Test error message");
+        capturedData.ShouldNotBeNull();
+        capturedData.ContextContent.ShouldContain("Test error message");
     }
 
     #endregion

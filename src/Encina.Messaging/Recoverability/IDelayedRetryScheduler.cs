@@ -110,6 +110,29 @@ public interface IDelayedRetryMessage
 }
 
 /// <summary>
+/// Data required to create a delayed retry message.
+/// </summary>
+/// <param name="Id">The unique identifier for this delayed retry.</param>
+/// <param name="RecoverabilityContextId">The recoverability context ID this retry belongs to.</param>
+/// <param name="RequestType">The fully qualified type name of the request.</param>
+/// <param name="RequestContent">The serialized request content.</param>
+/// <param name="ContextContent">The serialized recoverability context.</param>
+/// <param name="DelayedRetryAttempt">The delayed retry attempt number (0-based).</param>
+/// <param name="ScheduledAtUtc">When the retry was scheduled (UTC).</param>
+/// <param name="ExecuteAtUtc">When the retry should execute (UTC).</param>
+/// <param name="CorrelationId">The correlation ID from the original request.</param>
+public sealed record DelayedRetryMessageData(
+    Guid Id,
+    Guid RecoverabilityContextId,
+    string RequestType,
+    string RequestContent,
+    string ContextContent,
+    int DelayedRetryAttempt,
+    DateTime ScheduledAtUtc,
+    DateTime ExecuteAtUtc,
+    string? CorrelationId);
+
+/// <summary>
 /// Factory for creating delayed retry messages.
 /// </summary>
 public interface IDelayedRetryMessageFactory
@@ -117,26 +140,9 @@ public interface IDelayedRetryMessageFactory
     /// <summary>
     /// Creates a new delayed retry message.
     /// </summary>
-    /// <param name="id">The unique identifier.</param>
-    /// <param name="recoverabilityContextId">The recoverability context ID.</param>
-    /// <param name="requestType">The request type name.</param>
-    /// <param name="requestContent">The serialized request.</param>
-    /// <param name="contextContent">The serialized context.</param>
-    /// <param name="delayedRetryAttempt">The delayed retry attempt number.</param>
-    /// <param name="scheduledAtUtc">When the retry was scheduled.</param>
-    /// <param name="executeAtUtc">When the retry should execute.</param>
-    /// <param name="correlationId">The correlation ID.</param>
+    /// <param name="data">The data for the delayed retry message.</param>
     /// <returns>A new delayed retry message.</returns>
-    IDelayedRetryMessage Create(
-        Guid id,
-        Guid recoverabilityContextId,
-        string requestType,
-        string requestContent,
-        string contextContent,
-        int delayedRetryAttempt,
-        DateTime scheduledAtUtc,
-        DateTime executeAtUtc,
-        string? correlationId);
+    IDelayedRetryMessage Create(DelayedRetryMessageData data);
 }
 
 /// <summary>

@@ -5,6 +5,23 @@ using Microsoft.Extensions.Logging;
 namespace Encina.Messaging.DeadLetter;
 
 /// <summary>
+/// Context for adding a message to the Dead Letter Queue.
+/// </summary>
+/// <param name="Error">The error that caused the failure.</param>
+/// <param name="Exception">The exception, if any.</param>
+/// <param name="SourcePattern">The source pattern (e.g., Recoverability, Outbox).</param>
+/// <param name="TotalRetryAttempts">Total retry attempts made before dead-lettering.</param>
+/// <param name="FirstFailedAtUtc">When the message first failed.</param>
+/// <param name="CorrelationId">Optional correlation ID for tracing.</param>
+public sealed record DeadLetterContext(
+    EncinaError Error,
+    Exception? Exception,
+    string SourcePattern,
+    int TotalRetryAttempts,
+    DateTime FirstFailedAtUtc,
+    string? CorrelationId = null);
+
+/// <summary>
 /// Orchestrates Dead Letter Queue operations.
 /// </summary>
 /// <remarks>
@@ -59,27 +76,18 @@ public sealed class DeadLetterOrchestrator
     /// </summary>
     /// <typeparam name="TRequest">The request type.</typeparam>
     /// <param name="request">The failed request.</param>
-    /// <param name="error">The error that caused the failure.</param>
-    /// <param name="exception">The exception, if any.</param>
-    /// <param name="sourcePattern">The source pattern.</param>
-    /// <param name="totalRetryAttempts">Total retry attempts made.</param>
-    /// <param name="firstFailedAtUtc">When the message first failed.</param>
-    /// <param name="correlationId">The correlation ID.</param>
+    /// <param name="context">The dead letter context with failure details.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The created dead letter message.</returns>
     public async Task<IDeadLetterMessage> AddAsync<TRequest>(
         TRequest request,
-        EncinaError error,
-        Exception? exception,
-        string sourcePattern,
-        int totalRetryAttempts,
-        DateTime firstFailedAtUtc,
-        string? correlationId = null,
+        DeadLetterContext context,
         CancellationToken cancellationToken = default)
         where TRequest : notnull
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrEmpty(sourcePattern);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentException.ThrowIfNullOrEmpty(context.SourcePattern);
 
         var requestType = typeof(TRequest).AssemblyQualifiedName ?? typeof(TRequest).FullName ?? typeof(TRequest).Name;
         var requestContent = JsonSerializer.Serialize(request, JsonOptions);
@@ -92,16 +100,16 @@ public sealed class DeadLetterOrchestrator
             Id: Guid.NewGuid(),
             RequestType: requestType,
             RequestContent: requestContent,
-            ErrorMessage: error.Message,
-            SourcePattern: sourcePattern,
-            TotalRetryAttempts: totalRetryAttempts,
-            FirstFailedAtUtc: firstFailedAtUtc,
+            ErrorMessage: context.Error.Message,
+            SourcePattern: context.SourcePattern,
+            TotalRetryAttempts: context.TotalRetryAttempts,
+            FirstFailedAtUtc: context.FirstFailedAtUtc,
             DeadLetteredAtUtc: now,
             ExpiresAtUtc: expiresAt,
-            CorrelationId: correlationId,
-            ExceptionType: exception?.GetType().FullName,
-            ExceptionMessage: exception?.Message,
-            ExceptionStackTrace: exception?.StackTrace);
+            CorrelationId: context.CorrelationId,
+            ExceptionType: context.Exception?.GetType().FullName,
+            ExceptionMessage: context.Exception?.Message,
+            ExceptionStackTrace: context.Exception?.StackTrace);
 
         var message = _messageFactory.Create(data);
 
@@ -112,10 +120,10 @@ public sealed class DeadLetterOrchestrator
             _logger,
             message.Id,
             requestType,
-            sourcePattern,
-            error.Message,
-            totalRetryAttempts,
-            correlationId);
+            context.SourcePattern,
+            context.Error.Message,
+            context.TotalRetryAttempts,
+            context.CorrelationId);
 
         // Invoke custom callback if configured
         if (_options.OnDeadLetter is not null)

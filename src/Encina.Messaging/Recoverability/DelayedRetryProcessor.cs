@@ -178,7 +178,6 @@ public sealed class DelayedRetryProcessor : BackgroundService
                         message,
                         request,
                         nextDelayedRetryAttempt,
-                        result.ErrorMessage ?? "Unknown error",
                         cancellationToken).ConfigureAwait(false);
 
                     await store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
@@ -271,7 +270,6 @@ public sealed class DelayedRetryProcessor : BackgroundService
         IDelayedRetryMessage originalMessage,
         object request,
         int nextDelayedRetryAttempt,
-        string _, // lastError reserved for future use (e.g., error chain logging)
         CancellationToken cancellationToken)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();

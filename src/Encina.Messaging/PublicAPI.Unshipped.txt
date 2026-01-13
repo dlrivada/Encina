@@ -354,8 +354,19 @@ Encina.Messaging.Recoverability.IDelayedRetryMessage.ExecuteAtUtc.get -> System.
 Encina.Messaging.Recoverability.IDelayedRetryMessage.CorrelationId.get -> string?
 Encina.Messaging.Recoverability.IDelayedRetryMessage.ProcessedAtUtc.get -> System.DateTime?
 Encina.Messaging.Recoverability.IDelayedRetryMessage.ErrorMessage.get -> string?
+Encina.Messaging.Recoverability.DelayedRetryMessageData
+Encina.Messaging.Recoverability.DelayedRetryMessageData.ContextContent.get -> string!
+Encina.Messaging.Recoverability.DelayedRetryMessageData.CorrelationId.get -> string?
+Encina.Messaging.Recoverability.DelayedRetryMessageData.DelayedRetryAttempt.get -> int
+Encina.Messaging.Recoverability.DelayedRetryMessageData.DelayedRetryMessageData(System.Guid Id, System.Guid RecoverabilityContextId, string! RequestType, string! RequestContent, string! ContextContent, int DelayedRetryAttempt, System.DateTime ScheduledAtUtc, System.DateTime ExecuteAtUtc, string? CorrelationId) -> void
+Encina.Messaging.Recoverability.DelayedRetryMessageData.ExecuteAtUtc.get -> System.DateTime
+Encina.Messaging.Recoverability.DelayedRetryMessageData.Id.get -> System.Guid
+Encina.Messaging.Recoverability.DelayedRetryMessageData.RecoverabilityContextId.get -> System.Guid
+Encina.Messaging.Recoverability.DelayedRetryMessageData.RequestContent.get -> string!
+Encina.Messaging.Recoverability.DelayedRetryMessageData.RequestType.get -> string!
+Encina.Messaging.Recoverability.DelayedRetryMessageData.ScheduledAtUtc.get -> System.DateTime
 Encina.Messaging.Recoverability.IDelayedRetryMessageFactory
-Encina.Messaging.Recoverability.IDelayedRetryMessageFactory.Create(System.Guid id, System.Guid recoverabilityContextId, string! requestType, string! requestContent, string! contextContent, int delayedRetryAttempt, System.DateTime scheduledAtUtc, System.DateTime executeAtUtc, string? correlationId) -> Encina.Messaging.Recoverability.IDelayedRetryMessage!
+Encina.Messaging.Recoverability.IDelayedRetryMessageFactory.Create(Encina.Messaging.Recoverability.DelayedRetryMessageData! data) -> Encina.Messaging.Recoverability.IDelayedRetryMessage!
 Encina.Messaging.Recoverability.IDelayedRetryStore
 Encina.Messaging.Recoverability.IDelayedRetryStore.AddAsync(Encina.Messaging.Recoverability.IDelayedRetryMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Messaging.Recoverability.IDelayedRetryStore.GetPendingMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Messaging.Recoverability.IDelayedRetryMessage!>!>!

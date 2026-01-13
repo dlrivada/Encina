@@ -72,14 +72,14 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var error = EncinaError.New("[test] Test error");
 
         // Act
-        var message = await orchestrator.AddAsync(
-            request,
+        var context = new DeadLetterContext(
             error,
-            exception: null,
-            sourcePattern: DeadLetterSourcePatterns.Recoverability,
-            totalRetryAttempts: 3,
-            firstFailedAtUtc: DateTime.UtcNow.AddMinutes(-5),
-            correlationId: "test-correlation");
+            null,
+            DeadLetterSourcePatterns.Recoverability,
+            3,
+            DateTime.UtcNow.AddMinutes(-5),
+            "test-correlation");
+        var message = await orchestrator.AddAsync(request, context);
 
         // Assert
         message.ShouldNotBeNull();
@@ -104,13 +104,8 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var exception = new InvalidOperationException("Test exception message");
 
         // Act
-        var message = await orchestrator.AddAsync(
-            request,
-            error,
-            exception,
-            sourcePattern: DeadLetterSourcePatterns.Outbox,
-            totalRetryAttempts: 1,
-            firstFailedAtUtc: DateTime.UtcNow);
+        var context = new DeadLetterContext(error, exception, DeadLetterSourcePatterns.Outbox, 1, DateTime.UtcNow);
+        var message = await orchestrator.AddAsync(request, context);
 
         // Assert
         message.ExceptionType.ShouldBe("System.InvalidOperationException");
@@ -127,11 +122,11 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
 
         // Add multiple messages
         await orchestrator.AddAsync(
-            new FailingRequest { Value = 1 }, error, null,
-            DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow);
+            new FailingRequest { Value = 1 },
+            new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow));
         await orchestrator.AddAsync(
-            new FailingRequest { Value = 2 }, error, null,
-            DeadLetterSourcePatterns.Outbox, 1, DateTime.UtcNow);
+            new FailingRequest { Value = 2 },
+            new DeadLetterContext(error, null, DeadLetterSourcePatterns.Outbox, 1, DateTime.UtcNow));
 
         // Act
         var count = await orchestrator.GetPendingCountAsync();
@@ -148,14 +143,14 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var error = EncinaError.New("[test] Error");
 
         await orchestrator.AddAsync(
-            new FailingRequest { Value = 1 }, error, null,
-            DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow);
+            new FailingRequest { Value = 1 },
+            new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow));
         await orchestrator.AddAsync(
-            new FailingRequest { Value = 2 }, error, null,
-            DeadLetterSourcePatterns.Recoverability, 2, DateTime.UtcNow);
+            new FailingRequest { Value = 2 },
+            new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 2, DateTime.UtcNow));
         await orchestrator.AddAsync(
-            new FailingRequest { Value = 3 }, error, null,
-            DeadLetterSourcePatterns.Outbox, 1, DateTime.UtcNow);
+            new FailingRequest { Value = 3 },
+            new DeadLetterContext(error, null, DeadLetterSourcePatterns.Outbox, 1, DateTime.UtcNow));
 
         // Act
         var stats = await orchestrator.GetStatisticsAsync();
@@ -182,11 +177,11 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var error = EncinaError.New("[test] Error");
 
         await orchestrator.AddAsync(
-            new FailingRequest { Value = 1 }, error, null,
-            DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow);
+            new FailingRequest { Value = 1 },
+            new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow));
         await orchestrator.AddAsync(
-            new FailingRequest { Value = 2 }, error, null,
-            DeadLetterSourcePatterns.Outbox, 1, DateTime.UtcNow);
+            new FailingRequest { Value = 2 },
+            new DeadLetterContext(error, null, DeadLetterSourcePatterns.Outbox, 1, DateTime.UtcNow));
 
         // Act
         var allMessages = await manager.GetMessagesAsync();
@@ -208,8 +203,8 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var error = EncinaError.New("[test] Error");
 
         var message = await orchestrator.AddAsync(
-            new FailingRequest { Value = 1 }, error, null,
-            DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow);
+            new FailingRequest { Value = 1 },
+            new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow));
 
         // Act
         var deleted = await manager.DeleteAsync(message.Id);
@@ -229,11 +224,11 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         var error = EncinaError.New("[test] Error");
 
         await orchestrator.AddAsync(
-            new FailingRequest { Value = 1 }, error, null,
-            DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow);
+            new FailingRequest { Value = 1 },
+            new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow));
         await orchestrator.AddAsync(
-            new FailingRequest { Value = 2 }, error, null,
-            DeadLetterSourcePatterns.Outbox, 1, DateTime.UtcNow);
+            new FailingRequest { Value = 2 },
+            new DeadLetterContext(error, null, DeadLetterSourcePatterns.Outbox, 1, DateTime.UtcNow));
 
         // Act
         var deletedCount = await manager.DeleteAllAsync(
@@ -275,8 +270,8 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         for (int i = 0; i < 5; i++)
         {
             await orchestrator.AddAsync(
-                new FailingRequest { Value = i }, error, null,
-                DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow);
+                new FailingRequest { Value = i },
+                new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow));
         }
 
         var healthCheck = new DeadLetterHealthCheck(_store!);
@@ -301,8 +296,8 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         for (int i = 0; i < 15; i++)
         {
             await orchestrator.AddAsync(
-                new FailingRequest { Value = i }, error, null,
-                DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow);
+                new FailingRequest { Value = i },
+                new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow));
         }
 
         var healthCheck = new DeadLetterHealthCheck(_store!);
@@ -327,8 +322,8 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
         for (int i = 0; i < 150; i++)
         {
             await orchestrator.AddAsync(
-                new FailingRequest { Value = i }, error, null,
-                DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow);
+                new FailingRequest { Value = i },
+                new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 1, DateTime.UtcNow));
         }
 
         var healthCheck = new DeadLetterHealthCheck(_store!);

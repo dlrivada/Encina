@@ -64,16 +64,18 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
         var now = DateTime.UtcNow;
         var executeAt = now.Add(delay);
 
-        var message = _messageFactory.Create(
-            id: Guid.NewGuid(),
-            recoverabilityContextId: context.Id,
-            requestType: requestType,
-            requestContent: requestContent,
-            contextContent: contextContent,
-            delayedRetryAttempt: delayedRetryAttempt,
-            scheduledAtUtc: now,
-            executeAtUtc: executeAt,
-            correlationId: context.CorrelationId);
+        var messageData = new DelayedRetryMessageData(
+            Id: Guid.NewGuid(),
+            RecoverabilityContextId: context.Id,
+            RequestType: requestType,
+            RequestContent: requestContent,
+            ContextContent: contextContent,
+            DelayedRetryAttempt: delayedRetryAttempt,
+            ScheduledAtUtc: now,
+            ExecuteAtUtc: executeAt,
+            CorrelationId: context.CorrelationId);
+
+        var message = _messageFactory.Create(messageData);
 
         await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
 

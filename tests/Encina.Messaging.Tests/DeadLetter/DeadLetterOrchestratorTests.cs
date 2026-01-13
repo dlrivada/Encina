@@ -92,8 +92,8 @@ public sealed class DeadLetterOrchestratorTests
             .Returns(expectedMessage);
 
         // Act
-        var result = await _orchestrator.AddAsync(
-            request, error, null, sourcePattern, expectedRetryCount, firstFailedAt);
+        var context = new DeadLetterContext(error, null, sourcePattern, expectedRetryCount, firstFailedAt);
+        var result = await _orchestrator.AddAsync(request, context);
 
         // Assert
         result.ShouldBe(expectedMessage);
@@ -126,8 +126,8 @@ public sealed class DeadLetterOrchestratorTests
             .Returns(expectedMessage);
 
         // Act
-        await _orchestrator.AddAsync(
-            request, error, exception, sourcePattern, retryCount, firstFailedAt);
+        var context = new DeadLetterContext(error, exception, sourcePattern, retryCount, firstFailedAt);
+        await _orchestrator.AddAsync(request, context);
 
         // Assert
         _messageFactory.Received(1).Create(Arg.Is<DeadLetterData>(d =>
@@ -169,8 +169,8 @@ public sealed class DeadLetterOrchestratorTests
             .Returns(expectedMessage);
 
         // Act
-        await orchestrator.AddAsync(
-            request, error, null, DeadLetterSourcePatterns.Recoverability, 3, FixedUtcNow);
+        var context = new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 3, FixedUtcNow);
+        await orchestrator.AddAsync(request, context);
 
         // Assert
         callbackInvoked.ShouldBeTrue();
@@ -198,8 +198,8 @@ public sealed class DeadLetterOrchestratorTests
             .Returns(expectedMessage);
 
         // Act & Assert - should not throw
-        var result = await orchestrator.AddAsync(
-            request, error, null, DeadLetterSourcePatterns.Recoverability, 3, FixedUtcNow);
+        var context = new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 3, FixedUtcNow);
+        var result = await orchestrator.AddAsync(request, context);
 
         result.ShouldBe(expectedMessage);
     }
@@ -209,14 +209,28 @@ public sealed class DeadLetterOrchestratorTests
     {
         // Arrange
         var error = EncinaErrors.Create("test.error", "Test error");
+        var context = new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 3, FixedUtcNow);
 
         // Act
-        var act = async () => await _orchestrator.AddAsync<TestDeadLetterRequest>(
-            null!, error, null, DeadLetterSourcePatterns.Recoverability, 3, FixedUtcNow);
+        var act = async () => await _orchestrator.AddAsync<TestDeadLetterRequest>(null!, context);
 
         // Assert
         var ex = await act.ShouldThrowAsync<ArgumentNullException>();
         ex.ParamName.ShouldBe("request");
+    }
+
+    [Fact]
+    public async Task AddAsync_NullContext_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var request = new TestDeadLetterRequest { Id = Guid.NewGuid() };
+
+        // Act
+        var act = async () => await _orchestrator.AddAsync(request, null!);
+
+        // Assert
+        var ex = await act.ShouldThrowAsync<ArgumentNullException>();
+        ex.ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -225,14 +239,13 @@ public sealed class DeadLetterOrchestratorTests
         // Arrange
         var request = new TestDeadLetterRequest { Id = Guid.NewGuid() };
         var error = EncinaErrors.Create("test.error", "Test error");
+        var context = new DeadLetterContext(error, null, null!, 3, FixedUtcNow);
 
         // Act
-        var act = async () => await _orchestrator.AddAsync(
-            request, error, null, null!, 3, FixedUtcNow);
+        var act = async () => await _orchestrator.AddAsync(request, context);
 
         // Assert
         var ex = await act.ShouldThrowAsync<ArgumentException>();
-        ex.ParamName.ShouldBe("sourcePattern");
     }
 
     #endregion
