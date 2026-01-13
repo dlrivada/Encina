@@ -27,14 +27,8 @@ internal sealed class SequentialDispatchStrategy : INotificationDispatchStrategy
         CancellationToken cancellationToken)
         where TNotification : INotification
     {
-        for (var i = 0; i < handlers.Count; i++)
+        foreach (var handler in handlers.Where(h => h is not null))
         {
-            var handler = handlers[i];
-            if (handler is null)
-            {
-                continue;
-            }
-
             var result = await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
             if (result.IsLeft)
             {
