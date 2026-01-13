@@ -19,6 +19,8 @@ namespace Encina.Polly;
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
 public sealed class CircuitBreakerAttribute : Attribute
 {
+    private const string MustBeGreaterThanZero = "Value must be greater than 0.";
+
     private int _failureThreshold = 5;
     private int _samplingDurationSeconds = 60;
     private int _minimumThroughput = 10;
@@ -37,7 +39,7 @@ public sealed class CircuitBreakerAttribute : Attribute
         get => _failureThreshold;
         init => _failureThreshold = value > 0
             ? value
-            : throw new ArgumentOutOfRangeException(nameof(FailureThreshold), value, "Value must be greater than 0.");
+            : throw new ArgumentOutOfRangeException(nameof(FailureThreshold), value, MustBeGreaterThanZero);
     }
 
     /// <summary>
@@ -53,7 +55,7 @@ public sealed class CircuitBreakerAttribute : Attribute
         get => _samplingDurationSeconds;
         init => _samplingDurationSeconds = value > 0
             ? value
-            : throw new ArgumentOutOfRangeException(nameof(SamplingDurationSeconds), value, "Value must be greater than 0.");
+            : throw new ArgumentOutOfRangeException(nameof(SamplingDurationSeconds), value, MustBeGreaterThanZero);
     }
 
     /// <summary>
@@ -69,7 +71,7 @@ public sealed class CircuitBreakerAttribute : Attribute
         get => _minimumThroughput;
         init => _minimumThroughput = value > 0
             ? value
-            : throw new ArgumentOutOfRangeException(nameof(MinimumThroughput), value, "Value must be greater than 0.");
+            : throw new ArgumentOutOfRangeException(nameof(MinimumThroughput), value, MustBeGreaterThanZero);
     }
 
     /// <summary>
@@ -85,7 +87,7 @@ public sealed class CircuitBreakerAttribute : Attribute
         get => _durationOfBreakSeconds;
         init => _durationOfBreakSeconds = value > 0
             ? value
-            : throw new ArgumentOutOfRangeException(nameof(DurationOfBreakSeconds), value, "Value must be greater than 0.");
+            : throw new ArgumentOutOfRangeException(nameof(DurationOfBreakSeconds), value, MustBeGreaterThanZero);
     }
 
     /// <summary>

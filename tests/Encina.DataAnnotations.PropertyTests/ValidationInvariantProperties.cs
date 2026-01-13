@@ -370,7 +370,7 @@ public sealed class ValidationInvariantProperties : PropertyTestBase
 
             var validationProvider = provider.GetService<IValidationProvider>();
 
-            return validationProvider is not null && validationProvider is DataAnnotationsValidationProvider;
+            return validationProvider is DataAnnotationsValidationProvider;
         });
     }
 

@@ -11,6 +11,9 @@ namespace Encina.gRPC;
 /// </summary>
 public sealed class GrpcEncinaService : IGrpcEncinaService
 {
+    private const string GrpcTypeNotFound = "GrpcTypeNotFound";
+    private const string GrpcDeserializeFailed = "GrpcDeserializeFailed";
+
     private readonly IEncina _encina;
     private readonly ILogger<GrpcEncinaService> _logger;
     private readonly ITypeResolver _typeResolver;
@@ -57,7 +60,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             {
                 return Left<EncinaError, byte[]>(
                     EncinaErrors.Create(
-                        "GRPC_TYPE_NOT_FOUND",
+                        "GrpcTypeNotFound",
                         $"Request type '{requestType}' not found."));
             }
 
@@ -66,7 +69,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             {
                 return Left<EncinaError, byte[]>(
                     EncinaErrors.Create(
-                        "GRPC_DESERIALIZE_FAILED",
+                        "GrpcDeserializeFailed",
                         "Failed to deserialize request."));
             }
 
@@ -123,7 +126,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
 
             return Left<EncinaError, byte[]>(
                 EncinaErrors.FromException(
-                    "GRPC_DESERIALIZE_FAILED",
+                    "GrpcDeserializeFailed",
                     ex,
                     $"Failed to deserialize request of type '{requestType}'."));
         }
@@ -157,7 +160,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             {
                 return Left<EncinaError, Unit>(
                     EncinaErrors.Create(
-                        "GRPC_TYPE_NOT_FOUND",
+                        "GrpcTypeNotFound",
                         $"Notification type '{notificationType}' not found."));
             }
 
@@ -166,7 +169,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             {
                 return Left<EncinaError, Unit>(
                     EncinaErrors.Create(
-                        "GRPC_DESERIALIZE_FAILED",
+                        "GrpcDeserializeFailed",
                         "Failed to deserialize notification."));
             }
 
@@ -201,7 +204,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
 
             return Left<EncinaError, Unit>(
                 EncinaErrors.FromException(
-                    "GRPC_DESERIALIZE_FAILED",
+                    "GrpcDeserializeFailed",
                     ex,
                     $"Failed to deserialize notification of type '{notificationType}'."));
         }
