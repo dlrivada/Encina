@@ -1,4 +1,3 @@
-using System.Text.Json;
 using LanguageExt;
 using Microsoft.DurableTask;
 
@@ -33,12 +32,6 @@ namespace Encina.AzureFunctions.Durable;
 /// </example>
 public static class OrchestrationContextExtensions
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
-
     /// <summary>
     /// Calls an activity function and returns the result as an Either, catching any failures.
     /// </summary>

@@ -106,7 +106,7 @@ public sealed class CacheEntryFaker<T> : Faker<CacheEntry<T>>
         return this;
     }
 
-    private static string GenerateKey(Faker f)
+    private static string GenerateKey(Faker _)
     {
         var keyFaker = new CacheKeyFaker();
         return keyFaker.Generate();

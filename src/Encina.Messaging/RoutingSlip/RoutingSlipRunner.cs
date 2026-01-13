@@ -186,7 +186,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
 
     private async Task CompensateAsync<TData>(
         RoutingSlipContext<TData> context,
-        TData currentData,
+        TData _,
         CancellationToken cancellationToken)
         where TData : class
     {

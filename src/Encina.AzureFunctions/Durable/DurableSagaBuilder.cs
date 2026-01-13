@@ -332,7 +332,7 @@ public sealed class DurableSaga<TData>
         TaskOrchestrationContext context,
         Stack<DurableSagaStep<TData>> executedSteps,
         TData currentData,
-        DurableSagaStep<TData> failedStep)
+        DurableSagaStep<TData> _)
     {
         var compensationErrors = new Dictionary<string, EncinaError?>();
 

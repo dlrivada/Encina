@@ -99,12 +99,10 @@ public static class LambdaContextExtensions
 
         // Try to get from authorizer claims (API Gateway authorizer)
         if (request.RequestContext?.Authorizer?.TryGetValue("claims", out var claimsObj) is true &&
-            claimsObj is JsonElement claims)
+            claimsObj is JsonElement claims &&
+            claims.TryGetProperty(claimType, out var tenantClaim))
         {
-            if (claims.TryGetProperty(claimType, out var tenantClaim))
-            {
-                return tenantClaim.GetString();
-            }
+            return tenantClaim.GetString();
         }
 
         // Try to get from authorizer claims as dictionary
@@ -137,12 +135,10 @@ public static class LambdaContextExtensions
 
         // Try to get from authorizer claims (API Gateway authorizer)
         if (request.RequestContext?.Authorizer?.TryGetValue("claims", out var claimsObj) is true &&
-            claimsObj is JsonElement claims)
+            claimsObj is JsonElement claims &&
+            claims.TryGetProperty(claimType, out var userClaim))
         {
-            if (claims.TryGetProperty(claimType, out var userClaim))
-            {
-                return userClaim.GetString();
-            }
+            return userClaim.GetString();
         }
 
         // Try to get from authorizer claims as dictionary

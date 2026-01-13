@@ -288,7 +288,6 @@ public static class ApiGatewayResponseExtensions
         public int Status { get; set; }
         public string Title { get; set; } = string.Empty;
         public string? Detail { get; set; }
-        public string? Instance { get; set; }
         public Dictionary<string, object?> Extensions { get; } = [];
     }
 }
