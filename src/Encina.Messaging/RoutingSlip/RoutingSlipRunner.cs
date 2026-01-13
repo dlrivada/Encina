@@ -111,7 +111,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
                     RoutingSlipLog.StepFailed(_logger, routingSlipId, stepsExecuted + 1, step.Name, error.Message);
 
                     // Run compensation for completed steps (in reverse order)
-                    await CompensateAsync(context, currentData, cancellationToken).ConfigureAwait(false);
+                    await CompensateAsync(context, cancellationToken).ConfigureAwait(false);
 
                     stopwatch.Stop();
                     return error;
@@ -169,7 +169,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
             RoutingSlipLog.Cancelled(_logger, routingSlipId);
 
             // Run compensation for completed steps
-            await CompensateAsync(context, currentData, CancellationToken.None).ConfigureAwait(false);
+            await CompensateAsync(context, CancellationToken.None).ConfigureAwait(false);
 
             return EncinaErrors.Create(RoutingSlipErrorCodes.HandlerCancelled, "Routing slip was cancelled");
         }
@@ -178,15 +178,14 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
             RoutingSlipLog.Exception(_logger, routingSlipId, ex.Message, ex);
 
             // Run compensation for completed steps
-            await CompensateAsync(context, currentData, CancellationToken.None).ConfigureAwait(false);
+            await CompensateAsync(context, CancellationToken.None).ConfigureAwait(false);
 
             return EncinaErrors.Create(RoutingSlipErrorCodes.HandlerFailed, ex.Message);
         }
     }
 
-    private async Task CompensateAsync<TData>( // NOSONAR S1172: TData parameter reserved for future compensation data access
+    private async Task CompensateAsync<TData>(
         RoutingSlipContext<TData> context,
-        TData _,
         CancellationToken cancellationToken)
         where TData : class
     {

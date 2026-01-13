@@ -283,7 +283,7 @@ public sealed class DurableSaga<TData>
                     var error = result.Match(Left: e => e, Right: _ => default!);
 
                     // Step failed - begin compensation
-                    var compensationResult = await CompensateAsync(context, executedSteps, currentData, step);
+                    var compensationResult = await CompensateAsync(context, executedSteps, currentData);
 
                     return new DurableSagaError
                     {
@@ -307,13 +307,7 @@ public sealed class DurableSaga<TData>
         catch (Exception ex)
         {
             // Unexpected error - try to compensate
-            var dummyStep = new DurableSagaStep<TData>
-            {
-                StepName = "Unknown",
-                ExecuteActivityName = "Unknown"
-            };
-
-            var compensationResult = await CompensateAsync(context, executedSteps, currentData, dummyStep);
+            var compensationResult = await CompensateAsync(context, executedSteps, currentData);
 
             return new DurableSagaError
             {
@@ -331,8 +325,7 @@ public sealed class DurableSaga<TData>
     private async Task<Dictionary<string, EncinaError?>> CompensateAsync(
         TaskOrchestrationContext context,
         Stack<DurableSagaStep<TData>> executedSteps,
-        TData currentData,
-        DurableSagaStep<TData> _)
+        TData currentData)
     {
         var compensationErrors = new Dictionary<string, EncinaError?>();
 
