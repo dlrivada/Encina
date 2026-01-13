@@ -11,6 +11,31 @@ namespace Encina.ADO.Oracle.Inbox;
 /// </summary>
 public sealed class InboxStoreADO : IInboxStore
 {
+    // Column name constants
+    private const string ColumnMessageId = "MessageId";
+    private const string ColumnRequestType = "RequestType";
+    private const string ColumnReceivedAtUtc = "ReceivedAtUtc";
+    private const string ColumnProcessedAtUtc = "ProcessedAtUtc";
+    private const string ColumnExpiresAtUtc = "ExpiresAtUtc";
+    private const string ColumnResponse = "Response";
+    private const string ColumnErrorMessage = "ErrorMessage";
+    private const string ColumnRetryCount = "RetryCount";
+    private const string ColumnNextRetryAtUtc = "NextRetryAtUtc";
+    private const string ColumnMetadata = "Metadata";
+
+    // Parameter name constants
+    private const string ParamMessageId = ":MessageId";
+    private const string ParamRequestType = ":RequestType";
+    private const string ParamReceivedAtUtc = ":ReceivedAtUtc";
+    private const string ParamProcessedAtUtc = ":ProcessedAtUtc";
+    private const string ParamExpiresAtUtc = ":ExpiresAtUtc";
+    private const string ParamResponse = ":Response";
+    private const string ParamErrorMessage = ":ErrorMessage";
+    private const string ParamRetryCount = ":RetryCount";
+    private const string ParamNextRetryAtUtc = ":NextRetryAtUtc";
+    private const string ParamMetadata = ":Metadata";
+    private const string ParamBatchSize = ":BatchSize";
+
     private readonly IDbConnection _connection;
     private readonly string _tableName;
 
@@ -34,11 +59,11 @@ public sealed class InboxStoreADO : IInboxStore
         var sql = $@"
             SELECT *
             FROM {_tableName}
-            WHERE MessageId = :MessageId";
+            WHERE {ColumnMessageId} = {ParamMessageId}";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
-        AddParameter(command, ":MessageId", messageId);
+        AddParameter(command, ParamMessageId, messageId);
 
         if (_connection.State != ConnectionState.Open)
             await OpenConnectionAsync(cancellationToken);
@@ -48,26 +73,26 @@ public sealed class InboxStoreADO : IInboxStore
         {
             return new InboxMessage
             {
-                MessageId = reader.GetString(reader.GetOrdinal("MessageId")),
-                RequestType = reader.GetString(reader.GetOrdinal("RequestType")),
-                ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal("ReceivedAtUtc")),
-                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("ProcessedAtUtc"))
+                MessageId = reader.GetString(reader.GetOrdinal(ColumnMessageId)),
+                RequestType = reader.GetString(reader.GetOrdinal(ColumnRequestType)),
+                ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal(ColumnReceivedAtUtc)),
+                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal(ColumnProcessedAtUtc))
                     ? null
-                    : reader.GetDateTime(reader.GetOrdinal("ProcessedAtUtc")),
-                ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal("ExpiresAtUtc")),
-                Response = reader.IsDBNull(reader.GetOrdinal("Response"))
+                    : reader.GetDateTime(reader.GetOrdinal(ColumnProcessedAtUtc)),
+                ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal(ColumnExpiresAtUtc)),
+                Response = reader.IsDBNull(reader.GetOrdinal(ColumnResponse))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("Response")),
-                ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
+                    : reader.GetString(reader.GetOrdinal(ColumnResponse)),
+                ErrorMessage = reader.IsDBNull(reader.GetOrdinal(ColumnErrorMessage))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("ErrorMessage")),
-                RetryCount = reader.GetInt32(reader.GetOrdinal("RetryCount")),
-                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("NextRetryAtUtc"))
+                    : reader.GetString(reader.GetOrdinal(ColumnErrorMessage)),
+                RetryCount = reader.GetInt32(reader.GetOrdinal(ColumnRetryCount)),
+                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal(ColumnNextRetryAtUtc))
                     ? null
-                    : reader.GetDateTime(reader.GetOrdinal("NextRetryAtUtc")),
-                Metadata = reader.IsDBNull(reader.GetOrdinal("Metadata"))
+                    : reader.GetDateTime(reader.GetOrdinal(ColumnNextRetryAtUtc)),
+                Metadata = reader.IsDBNull(reader.GetOrdinal(ColumnMetadata))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("Metadata"))
+                    : reader.GetString(reader.GetOrdinal(ColumnMetadata))
             };
         }
 
@@ -81,22 +106,22 @@ public sealed class InboxStoreADO : IInboxStore
 
         var sql = $@"
             INSERT INTO {_tableName}
-            (MessageId, RequestType, ReceivedAtUtc, ProcessedAtUtc, ExpiresAtUtc, Response, ErrorMessage, RetryCount, NextRetryAtUtc, Metadata)
+            ({ColumnMessageId}, {ColumnRequestType}, {ColumnReceivedAtUtc}, {ColumnProcessedAtUtc}, {ColumnExpiresAtUtc}, {ColumnResponse}, {ColumnErrorMessage}, {ColumnRetryCount}, {ColumnNextRetryAtUtc}, {ColumnMetadata})
             VALUES
-            (:MessageId, :RequestType, :ReceivedAtUtc, :ProcessedAtUtc, :ExpiresAtUtc, :Response, :ErrorMessage, :RetryCount, :NextRetryAtUtc, :Metadata)";
+            ({ParamMessageId}, {ParamRequestType}, {ParamReceivedAtUtc}, {ParamProcessedAtUtc}, {ParamExpiresAtUtc}, {ParamResponse}, {ParamErrorMessage}, {ParamRetryCount}, {ParamNextRetryAtUtc}, {ParamMetadata})";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
-        AddParameter(command, ":MessageId", message.MessageId);
-        AddParameter(command, ":RequestType", message.RequestType);
-        AddParameter(command, ":ReceivedAtUtc", message.ReceivedAtUtc);
-        AddParameter(command, ":ProcessedAtUtc", message.ProcessedAtUtc);
-        AddParameter(command, ":ExpiresAtUtc", message.ExpiresAtUtc);
-        AddParameter(command, ":Response", message.Response);
-        AddParameter(command, ":ErrorMessage", message.ErrorMessage);
-        AddParameter(command, ":RetryCount", message.RetryCount);
-        AddParameter(command, ":NextRetryAtUtc", message.NextRetryAtUtc);
-        AddParameter(command, ":Metadata", (message as InboxMessage)?.Metadata);
+        AddParameter(command, ParamMessageId, message.MessageId);
+        AddParameter(command, ParamRequestType, message.RequestType);
+        AddParameter(command, ParamReceivedAtUtc, message.ReceivedAtUtc);
+        AddParameter(command, ParamProcessedAtUtc, message.ProcessedAtUtc);
+        AddParameter(command, ParamExpiresAtUtc, message.ExpiresAtUtc);
+        AddParameter(command, ParamResponse, message.Response);
+        AddParameter(command, ParamErrorMessage, message.ErrorMessage);
+        AddParameter(command, ParamRetryCount, message.RetryCount);
+        AddParameter(command, ParamNextRetryAtUtc, message.NextRetryAtUtc);
+        AddParameter(command, ParamMetadata, (message as InboxMessage)?.Metadata);
 
         if (_connection.State != ConnectionState.Open)
             await OpenConnectionAsync(cancellationToken);
@@ -114,15 +139,15 @@ public sealed class InboxStoreADO : IInboxStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = SYS_EXTRACT_UTC(SYSTIMESTAMP),
-                Response = :Response,
-                ErrorMessage = NULL
-            WHERE MessageId = :MessageId";
+            SET {ColumnProcessedAtUtc} = SYS_EXTRACT_UTC(SYSTIMESTAMP),
+                {ColumnResponse} = {ParamResponse},
+                {ColumnErrorMessage} = NULL
+            WHERE {ColumnMessageId} = {ParamMessageId}";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
-        AddParameter(command, ":MessageId", messageId);
-        AddParameter(command, ":Response", response);
+        AddParameter(command, ParamMessageId, messageId);
+        AddParameter(command, ParamResponse, response);
 
         if (_connection.State != ConnectionState.Open)
             await OpenConnectionAsync(cancellationToken);
@@ -144,16 +169,16 @@ public sealed class InboxStoreADO : IInboxStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ErrorMessage = :ErrorMessage,
-                RetryCount = RetryCount + 1,
-                NextRetryAtUtc = :NextRetryAtUtc
-            WHERE MessageId = :MessageId";
+            SET {ColumnErrorMessage} = {ParamErrorMessage},
+                {ColumnRetryCount} = {ColumnRetryCount} + 1,
+                {ColumnNextRetryAtUtc} = {ParamNextRetryAtUtc}
+            WHERE {ColumnMessageId} = {ParamMessageId}";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
-        AddParameter(command, ":MessageId", messageId);
-        AddParameter(command, ":ErrorMessage", errorMessage);
-        AddParameter(command, ":NextRetryAtUtc", nextRetryAtUtc);
+        AddParameter(command, ParamMessageId, messageId);
+        AddParameter(command, ParamErrorMessage, errorMessage);
+        AddParameter(command, ParamNextRetryAtUtc, nextRetryAtUtc);
 
         if (_connection.State != ConnectionState.Open)
             await OpenConnectionAsync(cancellationToken);
@@ -171,14 +196,14 @@ public sealed class InboxStoreADO : IInboxStore
         var sql = $@"
             SELECT *
             FROM {_tableName}
-            WHERE ExpiresAtUtc < SYS_EXTRACT_UTC(SYSTIMESTAMP)
-              AND ProcessedAtUtc IS NOT NULL
-            ORDER BY ExpiresAtUtc
-            FETCH FIRST :BatchSize ROWS ONLY";
+            WHERE {ColumnExpiresAtUtc} < SYS_EXTRACT_UTC(SYSTIMESTAMP)
+              AND {ColumnProcessedAtUtc} IS NOT NULL
+            ORDER BY {ColumnExpiresAtUtc}
+            FETCH FIRST {ParamBatchSize} ROWS ONLY";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
-        AddParameter(command, ":BatchSize", batchSize);
+        AddParameter(command, ParamBatchSize, batchSize);
 
         var messages = new List<InboxMessage>();
 
@@ -190,26 +215,26 @@ public sealed class InboxStoreADO : IInboxStore
         {
             messages.Add(new InboxMessage
             {
-                MessageId = reader.GetString(reader.GetOrdinal("MessageId")),
-                RequestType = reader.GetString(reader.GetOrdinal("RequestType")),
-                ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal("ReceivedAtUtc")),
-                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("ProcessedAtUtc"))
+                MessageId = reader.GetString(reader.GetOrdinal(ColumnMessageId)),
+                RequestType = reader.GetString(reader.GetOrdinal(ColumnRequestType)),
+                ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal(ColumnReceivedAtUtc)),
+                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal(ColumnProcessedAtUtc))
                     ? null
-                    : reader.GetDateTime(reader.GetOrdinal("ProcessedAtUtc")),
-                ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal("ExpiresAtUtc")),
-                Response = reader.IsDBNull(reader.GetOrdinal("Response"))
+                    : reader.GetDateTime(reader.GetOrdinal(ColumnProcessedAtUtc)),
+                ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal(ColumnExpiresAtUtc)),
+                Response = reader.IsDBNull(reader.GetOrdinal(ColumnResponse))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("Response")),
-                ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
+                    : reader.GetString(reader.GetOrdinal(ColumnResponse)),
+                ErrorMessage = reader.IsDBNull(reader.GetOrdinal(ColumnErrorMessage))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("ErrorMessage")),
-                RetryCount = reader.GetInt32(reader.GetOrdinal("RetryCount")),
-                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("NextRetryAtUtc"))
+                    : reader.GetString(reader.GetOrdinal(ColumnErrorMessage)),
+                RetryCount = reader.GetInt32(reader.GetOrdinal(ColumnRetryCount)),
+                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal(ColumnNextRetryAtUtc))
                     ? null
-                    : reader.GetDateTime(reader.GetOrdinal("NextRetryAtUtc")),
-                Metadata = reader.IsDBNull(reader.GetOrdinal("Metadata"))
+                    : reader.GetDateTime(reader.GetOrdinal(ColumnNextRetryAtUtc)),
+                Metadata = reader.IsDBNull(reader.GetOrdinal(ColumnMetadata))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("Metadata"))
+                    : reader.GetString(reader.GetOrdinal(ColumnMetadata))
             });
         }
 
@@ -229,7 +254,7 @@ public sealed class InboxStoreADO : IInboxStore
         var idList = string.Join(",", messageIds.Select(id => $"'{id.Replace("'", "''", StringComparison.Ordinal)}'"));
         var sql = $@"
             DELETE FROM {_tableName}
-            WHERE MessageId IN ({idList})";
+            WHERE {ColumnMessageId} IN ({idList})";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
@@ -247,12 +272,12 @@ public sealed class InboxStoreADO : IInboxStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET RetryCount = RetryCount + 1
-            WHERE MessageId = :MessageId";
+            SET {ColumnRetryCount} = {ColumnRetryCount} + 1
+            WHERE {ColumnMessageId} = {ParamMessageId}";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
-        AddParameter(command, ":MessageId", messageId);
+        AddParameter(command, ParamMessageId, messageId);
 
         if (_connection.State != ConnectionState.Open)
             await OpenConnectionAsync(cancellationToken);

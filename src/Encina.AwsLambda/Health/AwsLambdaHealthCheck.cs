@@ -14,6 +14,7 @@ namespace Encina.AwsLambda.Health;
 /// </remarks>
 public sealed class AwsLambdaHealthCheck : IEncinaHealthCheck
 {
+    private const string UnknownStatus = "unknown";
     private readonly EncinaAwsLambdaOptions _options;
 
     /// <summary>
@@ -50,10 +51,10 @@ public sealed class AwsLambdaHealthCheck : IEncinaHealthCheck
 
         if (isInLambda)
         {
-            data["functionName"] = Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME") ?? "unknown";
-            data["functionVersion"] = Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_VERSION") ?? "unknown";
-            data["region"] = Environment.GetEnvironmentVariable("AWS_REGION") ?? "unknown";
-            data["memoryLimitMB"] = Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_MEMORY_SIZE") ?? "unknown";
+            data["functionName"] = Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME") ?? UnknownStatus;
+            data["functionVersion"] = Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_VERSION") ?? UnknownStatus;
+            data["region"] = Environment.GetEnvironmentVariable("AWS_REGION") ?? UnknownStatus;
+            data["memoryLimitMB"] = Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_MEMORY_SIZE") ?? UnknownStatus;
         }
 
         var result = new HealthCheckResult(

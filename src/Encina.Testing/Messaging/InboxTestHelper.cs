@@ -33,6 +33,8 @@ namespace Encina.Testing.Messaging;
 /// </example>
 public sealed class InboxTestHelper : IDisposable
 {
+    private const string DefaultRequestType = "TestRequest";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -144,7 +146,7 @@ public sealed class InboxTestHelper : IDisposable
     /// <param name="messageId">The unique message ID.</param>
     /// <param name="requestType">The request type name.</param>
     /// <returns>This helper for method chaining.</returns>
-    public InboxTestHelper GivenPendingMessage(string messageId, string requestType = "TestRequest")
+    public InboxTestHelper GivenPendingMessage(string messageId, string requestType = DefaultRequestType)
     {
         ArgumentNullException.ThrowIfNull(messageId);
 
@@ -187,7 +189,7 @@ public sealed class InboxTestHelper : IDisposable
         var message = new FakeInboxMessage
         {
             MessageId = messageId,
-            RequestType = "TestRequest",
+            RequestType = DefaultRequestType,
             ReceivedAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(-10),
             ExpiresAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(7),
             RetryCount = retryCount,
@@ -216,7 +218,7 @@ public sealed class InboxTestHelper : IDisposable
         var message = new FakeInboxMessage
         {
             MessageId = messageId,
-            RequestType = "TestRequest",
+            RequestType = DefaultRequestType,
             ReceivedAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-10),
             ExpiresAtUtc = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-1) // Already expired
         };
@@ -250,7 +252,7 @@ public sealed class InboxTestHelper : IDisposable
     /// <param name="messageId">The unique message ID.</param>
     /// <param name="requestType">The request type name.</param>
     /// <returns>This helper for method chaining.</returns>
-    public InboxTestHelper WhenMessageRegistered(string messageId, string requestType = "TestRequest")
+    public InboxTestHelper WhenMessageRegistered(string messageId, string requestType = DefaultRequestType)
     {
         ArgumentNullException.ThrowIfNull(messageId);
 

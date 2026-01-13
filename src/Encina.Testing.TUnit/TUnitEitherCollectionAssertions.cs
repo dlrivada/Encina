@@ -12,6 +12,8 @@ namespace Encina.Testing.TUnit;
 /// </remarks>
 public static class TUnitEitherCollectionAssertions
 {
+    private const string UnreachableMessage = "Unreachable";
+
     /// <summary>
     /// Asserts that all results in the collection are successes (Right).
     /// </summary>
@@ -36,7 +38,7 @@ public static class TUnitEitherCollectionAssertions
             .Because($"Expected all results to be success, but found {errors.Count} errors:\n{string.Join("\n", errors)}");
 
         return resultList
-            .Select(r => r.Match(Right: v => v, Left: _ => throw new InvalidOperationException("Unreachable")))
+            .Select(r => r.Match(Right: v => v, Left: _ => throw new InvalidOperationException(UnreachableMessage)))
             .ToList();
     }
 
@@ -64,7 +66,7 @@ public static class TUnitEitherCollectionAssertions
             .Because($"Expected all results to be errors, but found {successes.Count} successes:\n{string.Join("\n", successes)}");
 
         return resultList
-            .Select(r => r.Match(Right: _ => throw new InvalidOperationException("Unreachable"), Left: e => e))
+            .Select(r => r.Match(Right: _ => throw new InvalidOperationException(UnreachableMessage), Left: e => e))
             .ToList();
     }
 
@@ -162,7 +164,7 @@ public static class TUnitEitherCollectionAssertions
 
         return results
             .Where(r => r.IsRight)
-            .Select(r => r.Match(Right: v => v, Left: _ => throw new InvalidOperationException("Unreachable")))
+            .Select(r => r.Match(Right: v => v, Left: _ => throw new InvalidOperationException(UnreachableMessage)))
             .ToList();
     }
 
@@ -180,7 +182,7 @@ public static class TUnitEitherCollectionAssertions
 
         return results
             .Where(r => r.IsLeft)
-            .Select(r => r.Match(Right: _ => throw new InvalidOperationException("Unreachable"), Left: e => e))
+            .Select(r => r.Match(Right: _ => throw new InvalidOperationException(UnreachableMessage), Left: e => e))
             .ToList();
     }
 }

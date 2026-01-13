@@ -29,6 +29,8 @@ namespace Encina.Testing;
 /// </example>
 public static class EitherCollectionAssertions
 {
+    private const string UnreachableMessage = "Unreachable";
+
     #region All Success/Error Assertions
 
     /// <summary>
@@ -59,7 +61,7 @@ public static class EitherCollectionAssertions
 
         return resultList.Select(r => r.Match(
             Right: v => v,
-            Left: _ => throw new InvalidOperationException("Unreachable"))).ToList();
+            Left: _ => throw new InvalidOperationException(UnreachableMessage))).ToList();
     }
 
     /// <summary>
@@ -100,7 +102,7 @@ public static class EitherCollectionAssertions
         }
 
         return resultList.Select(r => r.Match(
-            Right: _ => throw new InvalidOperationException("Unreachable"),
+            Right: _ => throw new InvalidOperationException(UnreachableMessage),
             Left: e => e)).ToList();
     }
 
@@ -139,7 +141,7 @@ public static class EitherCollectionAssertions
             {
                 return result.Match(
                     Right: v => v,
-                    Left: _ => throw new InvalidOperationException("Unreachable"));
+                    Left: _ => throw new InvalidOperationException(UnreachableMessage));
             }
         }
 
@@ -177,7 +179,7 @@ public static class EitherCollectionAssertions
             if (result.IsLeft)
             {
                 return result.Match(
-                    Right: _ => throw new InvalidOperationException("Unreachable"),
+                    Right: _ => throw new InvalidOperationException(UnreachableMessage),
                     Left: e => e);
             }
         }
@@ -225,7 +227,7 @@ public static class EitherCollectionAssertions
 
         return successResults.Select(r => r.Match(
             Right: v => v,
-            Left: _ => throw new InvalidOperationException("Unreachable"))).ToList();
+            Left: _ => throw new InvalidOperationException(UnreachableMessage))).ToList();
     }
 
     /// <summary>
@@ -263,7 +265,7 @@ public static class EitherCollectionAssertions
             message ?? $"Expected {expectedCount} error result(s) but found {actualCount}");
 
         return errorResults.Select(r => r.Match(
-            Right: _ => throw new InvalidOperationException("Unreachable"),
+            Right: _ => throw new InvalidOperationException(UnreachableMessage),
             Left: e => e)).ToList();
     }
 
@@ -297,7 +299,7 @@ public static class EitherCollectionAssertions
             .Where(r => r.IsRight)
             .Select(r => r.Match(
                 Right: v => v,
-                Left: _ => throw new InvalidOperationException("Unreachable")))
+                Left: _ => throw new InvalidOperationException(UnreachableMessage)))
             .ToList();
     }
 
@@ -314,7 +316,7 @@ public static class EitherCollectionAssertions
         return results
             .Where(r => r.IsLeft)
             .Select(r => r.Match(
-                Right: _ => throw new InvalidOperationException("Unreachable"),
+                Right: _ => throw new InvalidOperationException(UnreachableMessage),
                 Left: e => e))
             .ToList();
     }

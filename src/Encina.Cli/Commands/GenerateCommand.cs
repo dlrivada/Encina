@@ -9,6 +9,13 @@ namespace Encina.Cli.Commands;
 /// </summary>
 internal static class GenerateCommand
 {
+    private const string OutputOptionName = "--output";
+    private const string OutputOptionAlias = "-o";
+    private const string OutputOptionDescription = "The output directory for the generated files";
+    private const string NamespaceOptionName = "--namespace";
+    private const string NamespaceOptionAlias = "-n";
+    private const string NamespaceOptionDescription = "The namespace for the generated files";
+
     public static Command Create()
     {
         var command = new Command("generate", "Generate Encina components")
@@ -36,14 +43,14 @@ internal static class GenerateCommand
             Description = "The response type (e.g., OrderId). Defaults to Unit."
         };
 
-        var outputOption = new Option<string?>("--output", "-o")
+        var outputOption = new Option<string?>(OutputOptionName, OutputOptionAlias)
         {
-            Description = "The output directory for the generated files"
+            Description = OutputOptionDescription
         };
 
-        var namespaceOption = new Option<string?>("--namespace", "-n")
+        var namespaceOption = new Option<string?>(NamespaceOptionName, NamespaceOptionAlias)
         {
-            Description = "The namespace for the generated files"
+            Description = NamespaceOptionDescription
         };
 
         var command = new Command("handler", "Generate a command handler")
@@ -83,14 +90,14 @@ internal static class GenerateCommand
             Required = true
         };
 
-        var outputOption = new Option<string?>("--output", "-o")
+        var outputOption = new Option<string?>(OutputOptionName, OutputOptionAlias)
         {
-            Description = "The output directory for the generated files"
+            Description = OutputOptionDescription
         };
 
-        var namespaceOption = new Option<string?>("--namespace", "-n")
+        var namespaceOption = new Option<string?>(NamespaceOptionName, NamespaceOptionAlias)
         {
-            Description = "The namespace for the generated files"
+            Description = NamespaceOptionDescription
         };
 
         var command = new Command("query", "Generate a query handler")
@@ -129,14 +136,14 @@ internal static class GenerateCommand
             Required = true
         };
 
-        var outputOption = new Option<string?>("--output", "-o")
+        var outputOption = new Option<string?>(OutputOptionName, OutputOptionAlias)
         {
-            Description = "The output directory for the generated files"
+            Description = OutputOptionDescription
         };
 
-        var namespaceOption = new Option<string?>("--namespace", "-n")
+        var namespaceOption = new Option<string?>(NamespaceOptionName, NamespaceOptionAlias)
         {
-            Description = "The namespace for the generated files"
+            Description = NamespaceOptionDescription
         };
 
         var command = new Command("saga", "Generate a saga definition")
@@ -167,14 +174,14 @@ internal static class GenerateCommand
             Description = "The name of the notification (e.g., OrderCreated)"
         };
 
-        var outputOption = new Option<string?>("--output", "-o")
+        var outputOption = new Option<string?>(OutputOptionName, OutputOptionAlias)
         {
-            Description = "The output directory for the generated files"
+            Description = OutputOptionDescription
         };
 
-        var namespaceOption = new Option<string?>("--namespace", "-n")
+        var namespaceOption = new Option<string?>(NamespaceOptionName, NamespaceOptionAlias)
         {
-            Description = "The namespace for the generated files"
+            Description = NamespaceOptionDescription
         };
 
         var command = new Command("notification", "Generate a notification and handler")

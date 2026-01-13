@@ -133,7 +133,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         {
             DelayedRetryProcessorLog.ProcessingRetry(
                 _logger,
-                message.CorrelationId ?? "unknown",
+                message.CorrelationId ?? RecoverabilityConstants.Unknown,
                 message.RequestType,
                 message.DelayedRetryAttempt + 1);
 
@@ -163,7 +163,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
                 await store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
                 DelayedRetryProcessorLog.RetrySucceeded(
                     _logger,
-                    message.CorrelationId ?? "unknown",
+                    message.CorrelationId ?? RecoverabilityConstants.Unknown,
                     message.RequestType,
                     message.DelayedRetryAttempt + 1);
             }
@@ -291,7 +291,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
         DelayedRetryProcessorLog.SchedulingNextRetry(
             _logger,
-            originalMessage.CorrelationId ?? "unknown",
+            originalMessage.CorrelationId ?? RecoverabilityConstants.Unknown,
             originalMessage.RequestType,
             nextDelayedRetryAttempt + 1,
             _options.DelayedRetries.Length,
@@ -354,7 +354,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
     {
         DelayedRetryProcessorLog.PermanentFailure(
             _logger,
-            message.CorrelationId ?? "unknown",
+            message.CorrelationId ?? RecoverabilityConstants.Unknown,
             message.RequestType,
             message.DelayedRetryAttempt + 1);
 
@@ -377,7 +377,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
                 DelayedRetryProcessorLog.OnPermanentFailureCallbackFailed(
                     _logger,
                     ex,
-                    message.CorrelationId ?? "unknown",
+                    message.CorrelationId ?? RecoverabilityConstants.Unknown,
                     message.RequestType);
             }
         }

@@ -38,6 +38,8 @@ namespace Encina.AwsLambda;
 /// </example>
 public static class SqsMessageHandler
 {
+    private const string SqsDeserializationFailedCode = "sqs.deserialization_failed";
+
     /// <summary>
     /// Processes SQS messages in a batch, returning partial failure responses.
     /// </summary>
@@ -129,7 +131,7 @@ public static class SqsMessageHandler
                     var message = JsonSerializer.Deserialize<TMessage>(record.Body, jsonOptions);
                     if (message is null)
                     {
-                        return EncinaErrors.Create("sqs.deserialization_failed", "Failed to deserialize SQS message body");
+                        return EncinaErrors.Create(SqsDeserializationFailedCode, "Failed to deserialize SQS message body");
                     }
 
                     return await processMessage(message);
@@ -137,7 +139,7 @@ public static class SqsMessageHandler
                 catch (JsonException ex)
                 {
                     logger?.LogError(ex, "Failed to deserialize SQS message {MessageId}", record.MessageId);
-                    return EncinaErrors.Create("sqs.deserialization_failed", $"JSON deserialization failed: {ex.Message}", ex);
+                    return EncinaErrors.Create(SqsDeserializationFailedCode, $"JSON deserialization failed: {ex.Message}", ex);
                 }
             },
             logger,
@@ -194,14 +196,14 @@ public static class SqsMessageHandler
             var message = JsonSerializer.Deserialize<T>(record.Body, jsonOptions);
             if (message is null)
             {
-                return EncinaErrors.Create("sqs.deserialization_failed", "Deserialized message was null");
+                return EncinaErrors.Create(SqsDeserializationFailedCode, "Deserialized message was null");
             }
 
             return message;
         }
         catch (JsonException ex)
         {
-            return EncinaErrors.Create("sqs.deserialization_failed", $"JSON deserialization failed: {ex.Message}", ex);
+            return EncinaErrors.Create(SqsDeserializationFailedCode, $"JSON deserialization failed: {ex.Message}", ex);
         }
     }
 }

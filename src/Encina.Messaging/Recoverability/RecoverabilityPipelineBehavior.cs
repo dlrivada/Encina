@@ -95,7 +95,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
                 _logger,
                 context.CorrelationId,
                 typeof(TRequest).Name,
-                recoverabilityContext.LastError?.Message ?? "unknown");
+                recoverabilityContext.LastError?.Message ?? RecoverabilityConstants.Unknown);
 
             await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
             return result;
@@ -170,7 +170,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
 
         RecoverabilityLog.ImmediateRetriesExhausted(
             _logger,
-            recoverabilityContext.CorrelationId ?? "unknown",
+            recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
             typeof(TRequest).Name,
             _options.ImmediateRetries);
 
@@ -208,7 +208,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         {
             RecoverabilityLog.SucceededAfterRetry(
                 _logger,
-                recoverabilityContext.CorrelationId ?? "unknown",
+                recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
                 typeof(TRequest).Name,
                 attempt);
         }
@@ -234,7 +234,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         {
             RecoverabilityLog.PermanentErrorOnAttempt(
                 _logger,
-                recoverabilityContext.CorrelationId ?? "unknown",
+                recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
                 typeof(TRequest).Name,
                 attempt + 1,
                 error.Message);
@@ -243,7 +243,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
 
         RecoverabilityLog.TransientErrorOnAttempt(
             _logger,
-            recoverabilityContext.CorrelationId ?? "unknown",
+            recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
             typeof(TRequest).Name,
             attempt + 1,
             _options.ImmediateRetries + 1,
@@ -271,7 +271,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             RecoverabilityLog.PermanentExceptionOnAttempt(
                 _logger,
                 ex,
-                recoverabilityContext.CorrelationId ?? "unknown",
+                recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
                 typeof(TRequest).Name,
                 attempt + 1);
             return AttemptResult.PermanentFailure(result);
@@ -280,7 +280,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         RecoverabilityLog.TransientExceptionOnAttempt(
             _logger,
             ex,
-            recoverabilityContext.CorrelationId ?? "unknown",
+            recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
             typeof(TRequest).Name,
             attempt + 1,
             _options.ImmediateRetries + 1);
@@ -340,7 +340,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
 
         RecoverabilityLog.MessagePermanentlyFailed(
             _logger,
-            recoverabilityContext.CorrelationId ?? "unknown",
+            recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
             typeof(TRequest).Name,
             recoverabilityContext.TotalAttempts);
 
@@ -355,11 +355,22 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
                 RecoverabilityLog.OnPermanentFailureCallbackFailed(
                     _logger,
                     ex,
-                    recoverabilityContext.CorrelationId ?? "unknown",
+                    recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
                     typeof(TRequest).Name);
             }
         }
     }
+}
+
+/// <summary>
+/// Constants used across recoverability components.
+/// </summary>
+internal static class RecoverabilityConstants
+{
+    /// <summary>
+    /// Default fallback value for unknown correlation IDs or error messages.
+    /// </summary>
+    public const string Unknown = "unknown";
 }
 
 /// <summary>

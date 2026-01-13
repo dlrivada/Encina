@@ -71,6 +71,8 @@ public sealed class EncinaPactProviderVerifier : IDisposable
         ?? throw new InvalidOperationException(
             $"Failed to find method '{nameof(IEncina.Publish)}' on {nameof(IEncina)} with expected signature. This is a bug in EncinaPactProviderVerifier.");
 
+    private const string EncinaInternalErrorCode = "encina.internal";
+
     /// <summary>
     /// Event raised when an assembly type loading warning occurs during type discovery.
     /// </summary>
@@ -471,7 +473,7 @@ public sealed class EncinaPactProviderVerifier : IDisposable
 
         if (resultTask is null)
         {
-            return (500, new PactErrorResponse(false, "encina.internal", "Handler invocation returned null"));
+            return (500, new PactErrorResponse(false, EncinaInternalErrorCode, "Handler invocation returned null"));
         }
 
         var result = await resultTask.Value;
@@ -497,7 +499,7 @@ public sealed class EncinaPactProviderVerifier : IDisposable
 
         if (resultTask is null)
         {
-            return (500, new PactErrorResponse(false, "encina.internal", "Publish invocation returned null"));
+            return (500, new PactErrorResponse(false, EncinaInternalErrorCode, "Publish invocation returned null"));
         }
 
         var result = await resultTask.Value;
@@ -511,7 +513,7 @@ public sealed class EncinaPactProviderVerifier : IDisposable
     {
         if (result is null)
         {
-            return (500, new PactErrorResponse(false, "encina.internal", "Handler returned null"));
+            return (500, new PactErrorResponse(false, EncinaInternalErrorCode, "Handler returned null"));
         }
 
         // Delegate to a generic helper method that can use LanguageExt's Either<L,R>.Match directly.
@@ -540,7 +542,7 @@ public sealed class EncinaPactProviderVerifier : IDisposable
     {
         if (result is not Either<EncinaError, TResponse> either)
         {
-            return (500, new PactErrorResponse(false, "encina.internal", $"Expected Either<EncinaError, {typeof(TResponse).Name}> but got {result.GetType().Name}"));
+            return (500, new PactErrorResponse(false, EncinaInternalErrorCode, $"Expected Either<EncinaError, {typeof(TResponse).Name}> but got {result.GetType().Name}"));
         }
 
         return either.Match(

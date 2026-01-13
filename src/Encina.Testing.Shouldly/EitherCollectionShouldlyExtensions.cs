@@ -29,6 +29,8 @@ namespace Encina.Testing.Shouldly;
 /// </example>
 public static class EitherCollectionShouldlyExtensions
 {
+    private const string UnreachableMessage = "Unreachable";
+
     /// <summary>
     /// Asserts that all results in the collection are successes (Right).
     /// </summary>
@@ -58,7 +60,7 @@ public static class EitherCollectionShouldlyExtensions
 
         return resultList.Select(r => r.Match(
             Right: v => v,
-            Left: _ => throw new InvalidOperationException("Unreachable"))).ToList();
+            Left: _ => throw new InvalidOperationException(UnreachableMessage))).ToList();
     }
 
     /// <summary>
@@ -103,7 +105,7 @@ public static class EitherCollectionShouldlyExtensions
         }
 
         return resultList.Select(r => r.Match(
-            Right: _ => throw new InvalidOperationException("Unreachable"),
+            Right: _ => throw new InvalidOperationException(UnreachableMessage),
             Left: e => e)).ToList();
     }
 
@@ -127,7 +129,7 @@ public static class EitherCollectionShouldlyExtensions
             {
                 return result.Match(
                     Right: v => v,
-                    Left: _ => throw new InvalidOperationException("Unreachable"));
+                    Left: _ => throw new InvalidOperationException(UnreachableMessage));
             }
         }
 
@@ -154,7 +156,7 @@ public static class EitherCollectionShouldlyExtensions
             if (result.IsLeft)
             {
                 return result.Match(
-                    Right: _ => throw new InvalidOperationException("Unreachable"),
+                    Right: _ => throw new InvalidOperationException(UnreachableMessage),
                     Left: e => e);
             }
         }
@@ -186,7 +188,7 @@ public static class EitherCollectionShouldlyExtensions
 
         return successResults.Select(r => r.Match(
             Right: v => v,
-            Left: _ => throw new InvalidOperationException("Unreachable"))).ToList();
+            Left: _ => throw new InvalidOperationException(UnreachableMessage))).ToList();
     }
 
     /// <summary>
@@ -211,7 +213,7 @@ public static class EitherCollectionShouldlyExtensions
             customMessage ?? $"Expected {expectedCount} errors but found {actualCount} (of {resultList.Count} total)");
 
         return errorResults.Select(r => r.Match(
-            Right: _ => throw new InvalidOperationException("Unreachable"),
+            Right: _ => throw new InvalidOperationException(UnreachableMessage),
             Left: e => e)).ToList();
     }
 
@@ -229,7 +231,7 @@ public static class EitherCollectionShouldlyExtensions
             .Where(r => r.IsRight)
             .Select(r => r.Match(
                 Right: v => v,
-                Left: _ => throw new InvalidOperationException("Unreachable")))
+                Left: _ => throw new InvalidOperationException(UnreachableMessage)))
             .ToList();
     }
 
@@ -246,7 +248,7 @@ public static class EitherCollectionShouldlyExtensions
         return results
             .Where(r => r.IsLeft)
             .Select(r => r.Match(
-                Right: _ => throw new InvalidOperationException("Unreachable"),
+                Right: _ => throw new InvalidOperationException(UnreachableMessage),
                 Left: e => e))
             .ToList();
     }

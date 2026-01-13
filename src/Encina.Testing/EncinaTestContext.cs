@@ -32,6 +32,8 @@ namespace Encina.Testing;
 /// </example>
 public sealed class EncinaTestContext<TResponse>
 {
+    private const string NoSagasFoundMessage = "No sagas of this type were found.";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -474,7 +476,7 @@ public sealed class EncinaTestContext<TResponse>
 
             var statusInfo = existingSagas.Count > 0
                 ? $"Found sagas with status: {string.Join(", ", existingSagas)}"
-                : "No sagas of this type were found.";
+                : NoSagasFoundMessage;
 
             throw new InvalidOperationException(
                 $"Expected saga of type '{typeof(TSaga).Name}' to have timed out but it didn't. {statusInfo}");
@@ -509,7 +511,7 @@ public sealed class EncinaTestContext<TResponse>
 
             var statusInfo = existingSagas.Count > 0
                 ? $"Found sagas with status: {string.Join(", ", existingSagas)}"
-                : "No sagas of this type were found.";
+                : NoSagasFoundMessage;
 
             throw new InvalidOperationException(
                 $"Expected saga of type '{typeof(TSaga).Name}' to have completed but it didn't. {statusInfo}");
@@ -544,7 +546,7 @@ public sealed class EncinaTestContext<TResponse>
 
             var statusInfo = existingSagas.Count > 0
                 ? $"Found sagas with status: {string.Join(", ", existingSagas)}"
-                : "No sagas of this type were found.";
+                : NoSagasFoundMessage;
 
             throw new InvalidOperationException(
                 $"Expected saga of type '{typeof(TSaga).Name}' to be compensating but it wasn't. {statusInfo}");
@@ -579,7 +581,7 @@ public sealed class EncinaTestContext<TResponse>
 
             var statusInfo = existingSagas.Count > 0
                 ? $"Found sagas with status: {string.Join(", ", existingSagas)}"
-                : "No sagas of this type were found.";
+                : NoSagasFoundMessage;
 
             throw new InvalidOperationException(
                 $"Expected saga of type '{typeof(TSaga).Name}' to have failed but it didn't. {statusInfo}");

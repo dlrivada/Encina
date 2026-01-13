@@ -9,6 +9,8 @@ namespace Encina.Testing.Pact;
 /// </summary>
 public static class PactExtensions
 {
+    private const string PactDeserializationErrorCode = "pact.deserialization";
+
     private static readonly JsonSerializerOptions DefaultJsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -156,7 +158,7 @@ public static class PactExtensions
                 if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
                 {
                     return Either<EncinaError, TResponse>.Left(
-                        EncinaErrors.Create("pact.deserialization", "No content to deserialize"));
+                        EncinaErrors.Create(PactDeserializationErrorCode, "No content to deserialize"));
                 }
 
                 var content = await response.Content.ReadFromJsonAsync<TResponse>(
@@ -166,7 +168,7 @@ public static class PactExtensions
                 return content is not null
                     ? Either<EncinaError, TResponse>.Right(content)
                     : Either<EncinaError, TResponse>.Left(
-                        EncinaErrors.Create("pact.deserialization", "Failed to deserialize response"));
+                        EncinaErrors.Create(PactDeserializationErrorCode, "Failed to deserialize response"));
             }
 
             var errorContent = await response.Content.ReadFromJsonAsync<PactErrorResponse>(
@@ -186,12 +188,12 @@ public static class PactExtensions
         catch (JsonException ex)
         {
             return Either<EncinaError, TResponse>.Left(
-                EncinaErrors.Create("pact.deserialization", $"JSON deserialization failed: {ex.Message}"));
+                EncinaErrors.Create(PactDeserializationErrorCode, $"JSON deserialization failed: {ex.Message}"));
         }
         catch (NotSupportedException ex)
         {
             return Either<EncinaError, TResponse>.Left(
-                EncinaErrors.Create("pact.deserialization", $"Unsupported content type: {ex.Message}"));
+                EncinaErrors.Create(PactDeserializationErrorCode, $"Unsupported content type: {ex.Message}"));
         }
         catch (HttpRequestException ex)
         {

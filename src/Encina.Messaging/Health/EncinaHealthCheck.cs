@@ -32,6 +32,8 @@ namespace Encina.Messaging.Health;
 /// </example>
 public abstract class EncinaHealthCheck : IEncinaHealthCheck
 {
+    private const string HealthCheckTag = "encina";
+
     private readonly string _name;
     private readonly IReadOnlyCollection<string> _tags;
 
@@ -52,15 +54,15 @@ public abstract class EncinaHealthCheck : IEncinaHealthCheck
     {
         if (tags is null || tags.Count == 0)
         {
-            return ["encina"];
+            return [HealthCheckTag];
         }
 
-        if (tags.Contains("encina", StringComparer.OrdinalIgnoreCase))
+        if (tags.Contains(HealthCheckTag, StringComparer.OrdinalIgnoreCase))
         {
             return tags;
         }
 
-        return ["encina", .. tags];
+        return [HealthCheckTag, .. tags];
     }
 
     /// <inheritdoc />
@@ -113,11 +115,11 @@ public abstract class EncinaHealthCheck : IEncinaHealthCheck
         }
 
         // Ensure "encina" is always included in custom tags
-        if (customTags.Contains("encina", StringComparer.OrdinalIgnoreCase))
+        if (customTags.Contains(HealthCheckTag, StringComparer.OrdinalIgnoreCase))
         {
             return customTags;
         }
 
-        return ["encina", .. customTags];
+        return [HealthCheckTag, .. customTags];
     }
 }
