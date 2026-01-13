@@ -1,7 +1,7 @@
-using Shouldly;
-using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.Messaging.Outbox;
+using Microsoft.EntityFrameworkCore;
+using Shouldly;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.ContractTests.Outbox;

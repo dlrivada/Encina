@@ -1,8 +1,8 @@
-using Shouldly;
+using Encina.Extensions.Resilience;
 using Microsoft.Extensions.DependencyInjection;
 using Polly;
 using Polly.Registry;
-using Encina.Extensions.Resilience;
+using Shouldly;
 using Xunit;
 
 namespace Encina.Extensions.Resilience.Tests;

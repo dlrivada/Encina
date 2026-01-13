@@ -1,6 +1,6 @@
-using Shouldly;
-using Polly;
 using Encina.Extensions.Resilience;
+using Polly;
+using Shouldly;
 using Xunit;
 
 namespace Encina.Extensions.Resilience.Tests;

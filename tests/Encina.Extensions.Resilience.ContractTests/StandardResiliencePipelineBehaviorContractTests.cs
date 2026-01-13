@@ -1,9 +1,9 @@
+using Encina.Extensions.Resilience;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Registry;
 using Polly.Timeout;
-using Encina.Extensions.Resilience;
 using Xunit;
 
 namespace Encina.Extensions.Resilience.ContractTests;

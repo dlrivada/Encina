@@ -1,9 +1,9 @@
+using System.Reflection;
+using Encina.Refit;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using Encina.Refit;
 using Shouldly;
-using System.Reflection;
 
 namespace Encina.Refit.ContractTests;
 

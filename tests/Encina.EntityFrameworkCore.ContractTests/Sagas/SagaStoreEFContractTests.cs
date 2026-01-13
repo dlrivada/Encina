@@ -1,7 +1,7 @@
-using Shouldly;
-using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.Messaging.Sagas;
+using Microsoft.EntityFrameworkCore;
+using Shouldly;
 using Xunit;
 using SagaStatus = Encina.EntityFrameworkCore.Sagas.SagaStatus;
 

@@ -1,8 +1,8 @@
-﻿using FsCheck;
+﻿using Encina.Extensions.Resilience;
+using FsCheck;
 using FsCheck.Fluent;
 using FsCheck.Xunit;
 using Polly;
-using Encina.Extensions.Resilience;
 
 namespace Encina.Extensions.Resilience.PropertyTests;
 

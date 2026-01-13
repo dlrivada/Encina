@@ -1,4 +1,5 @@
-﻿using FsCheck;
+﻿using Encina.Extensions.Resilience;
+using FsCheck;
 using FsCheck.Fluent;
 using FsCheck.Xunit;
 using LanguageExt;
@@ -6,7 +7,6 @@ using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Registry;
 using Polly.Timeout;
-using Encina.Extensions.Resilience;
 
 namespace Encina.Extensions.Resilience.PropertyTests;
 

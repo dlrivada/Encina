@@ -1,9 +1,9 @@
 using System.Text.Json;
 using Encina.SignalR;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.AspNetCore.SignalR;
 
 namespace Encina.SignalR.Tests.Integration;
 

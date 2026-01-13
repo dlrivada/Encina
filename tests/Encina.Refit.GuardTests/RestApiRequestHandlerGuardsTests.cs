@@ -1,7 +1,7 @@
-using Shouldly;
+using Encina.Refit;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using Encina.Refit;
+using Shouldly;
 
 namespace Encina.Refit.GuardTests;
 

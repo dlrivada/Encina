@@ -1,8 +1,8 @@
+using System.Reflection;
+using Encina.Refit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
 using Refit;
-using Encina.Refit;
-using System.Reflection;
 
 namespace Encina.Refit.ContractTests;
 

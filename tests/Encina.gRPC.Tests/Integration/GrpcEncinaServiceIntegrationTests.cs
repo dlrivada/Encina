@@ -1,9 +1,9 @@
 using System.Text.Json;
 using Encina.gRPC;
 using LanguageExt;
-using static LanguageExt.Prelude;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using static LanguageExt.Prelude;
 
 namespace Encina.gRPC.Tests.Integration;
 

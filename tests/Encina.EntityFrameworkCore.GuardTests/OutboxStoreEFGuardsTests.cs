@@ -1,6 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.Messaging.Outbox;
+using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.GuardTests;
 

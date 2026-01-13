@@ -1,7 +1,7 @@
 using Encina.SignalR;
 using LanguageExt;
-using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Xunit;

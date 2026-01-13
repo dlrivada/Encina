@@ -1,5 +1,5 @@
-using Shouldly;
 using Encina.EntityFrameworkCore.Scheduling;
+using Shouldly;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.IntegrationTests.Scheduling;

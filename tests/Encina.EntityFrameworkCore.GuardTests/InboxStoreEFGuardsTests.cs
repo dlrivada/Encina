@@ -1,6 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.Messaging.Inbox;
+using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.GuardTests;
 

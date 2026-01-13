@@ -1,6 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Encina.EntityFrameworkCore.Sagas;
+using Microsoft.EntityFrameworkCore;
 using NBomber.CSharp;
-using Encina.EntityFrameworkCore.Sagas;
 using Xunit.Abstractions;
 
 namespace Encina.EntityFrameworkCore.LoadTests.Sagas;

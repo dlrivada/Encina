@@ -1,5 +1,5 @@
-using Encina.Refit;
 using System.Reflection;
+using Encina.Refit;
 
 namespace Encina.Refit.ContractTests;
 

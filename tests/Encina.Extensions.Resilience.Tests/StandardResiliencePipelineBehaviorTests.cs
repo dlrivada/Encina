@@ -1,4 +1,4 @@
-using Shouldly;
+using Encina.Extensions.Resilience;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -6,7 +6,7 @@ using Polly;
 using Polly.CircuitBreaker;
 using Polly.Registry;
 using Polly.Timeout;
-using Encina.Extensions.Resilience;
+using Shouldly;
 using Xunit;
 
 namespace Encina.Extensions.Resilience.Tests;

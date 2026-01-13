@@ -1,11 +1,11 @@
 ﻿using System.Globalization;
+using Encina.Refit;
 using FsCheck;
 using FsCheck.Fluent;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Refit;
-using Encina.Refit;
 
 namespace Encina.Refit.PropertyTests;
 

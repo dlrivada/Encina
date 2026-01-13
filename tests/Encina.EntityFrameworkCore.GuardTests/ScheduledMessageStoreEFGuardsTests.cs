@@ -1,6 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Scheduling;
 using Encina.Messaging.Scheduling;
+using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.GuardTests;
 

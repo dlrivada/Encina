@@ -1,6 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Encina.EntityFrameworkCore.Scheduling;
+using Microsoft.EntityFrameworkCore;
 using NBomber.CSharp;
-using Encina.EntityFrameworkCore.Scheduling;
 using Xunit.Abstractions;
 
 namespace Encina.EntityFrameworkCore.LoadTests.Scheduling;

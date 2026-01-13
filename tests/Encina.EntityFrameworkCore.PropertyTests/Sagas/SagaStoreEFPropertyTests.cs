@@ -1,9 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
-using Microsoft.EntityFrameworkCore;
-using Shouldly;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.Messaging.Sagas;
-
+using Microsoft.EntityFrameworkCore;
+using Shouldly;
 using SagaStatus = Encina.EntityFrameworkCore.Sagas.SagaStatus;
 
 namespace Encina.EntityFrameworkCore.PropertyTests.Sagas;

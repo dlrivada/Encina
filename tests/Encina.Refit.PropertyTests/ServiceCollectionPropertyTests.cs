@@ -1,9 +1,9 @@
-﻿using FsCheck;
+﻿using Encina.Refit;
+using FsCheck;
 using FsCheck.Fluent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
 using Refit;
-using Encina.Refit;
 
 namespace Encina.Refit.PropertyTests;
 

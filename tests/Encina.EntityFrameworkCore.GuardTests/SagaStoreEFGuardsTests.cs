@@ -1,6 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.Messaging.Sagas;
+using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.GuardTests;
 

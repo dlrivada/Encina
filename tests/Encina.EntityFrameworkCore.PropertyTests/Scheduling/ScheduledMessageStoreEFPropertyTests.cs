@@ -1,8 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
-using Microsoft.EntityFrameworkCore;
-using Shouldly;
 using Encina.EntityFrameworkCore.Scheduling;
 using Encina.Messaging.Scheduling;
+using Microsoft.EntityFrameworkCore;
+using Shouldly;
 
 namespace Encina.EntityFrameworkCore.PropertyTests.Scheduling;
 
@@ -483,7 +483,7 @@ public sealed class ScheduledMessageStoreEFPropertyTests : IAsyncLifetime
 
             // Assert
             var stillExists = _dbContext.Set<ScheduledMessage>().Any(m => m.Id == messageId);
-            stillExists.ShouldBeFalse(                "CancelAsync must ALWAYS remove the message completely");
+            stillExists.ShouldBeFalse("CancelAsync must ALWAYS remove the message completely");
         }
     }
 

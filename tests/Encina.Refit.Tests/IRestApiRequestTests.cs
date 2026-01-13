@@ -1,6 +1,6 @@
+using System.Reflection;
 using Encina.Refit;
 using Shouldly;
-using System.Reflection;
 
 namespace Encina.Refit.Tests;
 

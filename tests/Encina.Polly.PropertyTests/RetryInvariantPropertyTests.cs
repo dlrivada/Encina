@@ -1,8 +1,8 @@
+using Encina.TestInfrastructure.PropertyTests;
 using FsCheck;
 using FsCheck.Xunit;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
-using Encina.TestInfrastructure.PropertyTests;
 
 namespace Encina.Polly.PropertyTests;
 

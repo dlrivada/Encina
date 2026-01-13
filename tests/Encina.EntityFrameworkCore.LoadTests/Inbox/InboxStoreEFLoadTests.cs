@@ -1,6 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Encina.EntityFrameworkCore.Inbox;
+using Microsoft.EntityFrameworkCore;
 using NBomber.CSharp;
-using Encina.EntityFrameworkCore.Inbox;
 using Xunit.Abstractions;
 
 namespace Encina.EntityFrameworkCore.LoadTests.Inbox;

@@ -1,6 +1,6 @@
-using Microsoft.Extensions.Logging;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.Messaging.Outbox;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
 

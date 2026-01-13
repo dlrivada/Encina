@@ -1,7 +1,7 @@
-using Shouldly;
-using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Scheduling;
 using Encina.Messaging.Scheduling;
+using Microsoft.EntityFrameworkCore;
+using Shouldly;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.ContractTests.Scheduling;

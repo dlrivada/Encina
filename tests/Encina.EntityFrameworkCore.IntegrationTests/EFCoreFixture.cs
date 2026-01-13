@@ -1,5 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Encina.TestInfrastructure.Fixtures;
+﻿using Encina.TestInfrastructure.Fixtures;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace Encina.EntityFrameworkCore.IntegrationTests;

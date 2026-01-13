@@ -1,11 +1,11 @@
 using System.Text.Json;
 using Encina.SignalR;
 using LanguageExt;
-using static LanguageExt.Prelude;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.AspNetCore.SignalR;
+using static LanguageExt.Prelude;
 
 namespace Encina.SignalR.Tests.Integration;
 

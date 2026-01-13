@@ -1,7 +1,7 @@
+using Encina.EntityFrameworkCore;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Encina.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.GuardTests;
 

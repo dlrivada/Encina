@@ -1,7 +1,7 @@
+using System.Reflection;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Polly.CircuitBreaker;
-using System.Reflection;
 using static LanguageExt.Prelude;
 
 namespace Encina.Polly.Tests;

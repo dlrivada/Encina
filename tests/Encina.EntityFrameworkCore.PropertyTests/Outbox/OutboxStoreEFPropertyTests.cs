@@ -1,8 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
-using Microsoft.EntityFrameworkCore;
-using Shouldly;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.Messaging.Outbox;
+using Microsoft.EntityFrameworkCore;
+using Shouldly;
 
 namespace Encina.EntityFrameworkCore.PropertyTests.Outbox;
 

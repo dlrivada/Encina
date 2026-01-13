@@ -1,10 +1,10 @@
+using Encina.Refit;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Refit;
-using Encina.Refit;
 
 namespace Encina.Refit.Tests;
 

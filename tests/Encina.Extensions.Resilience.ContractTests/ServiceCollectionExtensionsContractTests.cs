@@ -1,6 +1,6 @@
-using Microsoft.Extensions.DependencyInjection;
-using Encina.Extensions.Resilience;
 using System.Reflection;
+using Encina.Extensions.Resilience;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Encina.Extensions.Resilience.ContractTests;

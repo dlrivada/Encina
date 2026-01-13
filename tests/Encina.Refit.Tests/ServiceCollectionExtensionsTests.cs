@@ -1,7 +1,7 @@
+using System.Text.Json;
+using Encina.Refit;
 using Microsoft.Extensions.DependencyInjection;
 using Refit;
-using Encina.Refit;
-using System.Text.Json;
 
 namespace Encina.Refit.Tests;
 
