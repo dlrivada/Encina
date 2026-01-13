@@ -47,7 +47,7 @@ namespace Encina.Marten.Snapshots;
 /// }
 /// </code>
 /// </example>
-public interface ISnapshotable<TAggregate>
+public interface ISnapshotable<TAggregate> // NOSONAR S2326: TAggregate provides type-safe constraint for snapshotable aggregates
     where TAggregate : class, IAggregate
 {
 }

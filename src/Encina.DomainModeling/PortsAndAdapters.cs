@@ -75,7 +75,7 @@ public interface IOutboundPort : IPort { }
 /// the application's internal language and external systems.
 /// </para>
 /// </remarks>
-public interface IAdapter<TPort> where TPort : IPort { }
+public interface IAdapter<TPort> where TPort : IPort { } // NOSONAR S2326: TPort provides type-safe constraint for adapter-port binding
 
 /// <summary>
 /// Base class for adapters with common functionality like logging and error handling.

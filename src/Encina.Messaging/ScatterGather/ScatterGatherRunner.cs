@@ -109,8 +109,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             ScatterGatherLog.ExecutionCancelled(_logger, operationId);
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, ScatterGatherResult<TResponse>>(
+            return Left<EncinaError, ScatterGatherResult<TResponse>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(ScatterGatherErrorCodes.Cancelled, "The scatter-gather operation was cancelled."));
         }
         catch (OperationCanceledException)
@@ -118,15 +117,13 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
             // Timeout
             var timeout = definition.Timeout ?? _options.DefaultTimeout;
             ScatterGatherLog.ExecutionTimedOut(_logger, operationId, timeout);
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, ScatterGatherResult<TResponse>>(
+            return Left<EncinaError, ScatterGatherResult<TResponse>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(ScatterGatherErrorCodes.Timeout, $"The scatter-gather operation timed out after {timeout}."));
         }
         catch (Exception ex)
         {
             ScatterGatherLog.ExecutionException(_logger, operationId, ex.Message, ex);
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, ScatterGatherResult<TResponse>>(
+            return Left<EncinaError, ScatterGatherResult<TResponse>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(ScatterGatherErrorCodes.HandlerFailed, ex.Message));
         }
     }
@@ -356,8 +353,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         if (finalSuccessCount < quorumCount)
         {
             ScatterGatherLog.QuorumNotReached(_logger, operationId, finalSuccessCount, quorumCount);
-            // NOSONAR S6966: LanguageExt Left is a pure function
-            return Left<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>(
+            return Left<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     ScatterGatherErrorCodes.QuorumNotReached,
                     $"Quorum not reached. Required {quorumCount}, got {finalSuccessCount}."));
@@ -463,8 +459,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         }
         catch (OperationCanceledException)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function
-            return Left<EncinaError, TResponse>(
+            return Left<EncinaError, TResponse>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(ScatterGatherErrorCodes.Cancelled, "Gather handler was cancelled."));
         }
         catch (Exception ex)
@@ -486,8 +481,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         if (strategy == GatherStrategy.WaitForAll && successCount < results.Count)
         {
             ScatterGatherLog.AllScattersFailed(_logger, operationId);
-            // NOSONAR S6966: LanguageExt Left is a pure function
-            return Left<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>(
+            return Left<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     ScatterGatherErrorCodes.ScatterFailed,
                     $"Not all scatter handlers succeeded. {successCount}/{results.Count} succeeded."));
@@ -497,8 +491,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         if (strategy != GatherStrategy.WaitForAllAllowPartial && successCount == 0)
         {
             ScatterGatherLog.AllScattersFailed(_logger, operationId);
-            // NOSONAR S6966: LanguageExt Left is a pure function
-            return Left<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>(
+            return Left<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(ScatterGatherErrorCodes.AllScattersFailed, "All scatter handlers failed."));
         }
 

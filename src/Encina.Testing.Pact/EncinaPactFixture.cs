@@ -202,7 +202,7 @@ public sealed class EncinaPactFixture : IAsyncLifetime, IAsyncDisposable, IDispo
     /// This method is intentionally not static to maintain API consistency with the fixture pattern.
     /// </remarks>
 #pragma warning disable CA1822 // Mark members as static - intentionally instance method for API consistency
-    public async Task VerifyAsync(
+    public async Task VerifyAsync( // NOSONAR S2325: Instance method for API consistency with fixture pattern
         EncinaPactConsumerBuilder consumer,
         Func<Uri, Task> testAction)
 #pragma warning restore CA1822
@@ -225,7 +225,7 @@ public sealed class EncinaPactFixture : IAsyncLifetime, IAsyncDisposable, IDispo
     /// This method is intentionally not static to maintain API consistency with the fixture pattern.
     /// </remarks>
 #pragma warning disable CA1822 // Mark members as static - intentionally instance method for API consistency
-    public Task VerifyAsync(
+    public Task VerifyAsync( // NOSONAR S2325: Instance method for API consistency with fixture pattern
         EncinaPactConsumerBuilder consumer,
         Action<Uri> testAction)
 #pragma warning restore CA1822

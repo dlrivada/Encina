@@ -68,8 +68,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         {
             Log.ErrorLoadingAggregate(_logger, ex, typeof(TAggregate).Name, id);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, TAggregate>(
+            return Left<EncinaError, TAggregate>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     MartenErrorCodes.LoadFailed,
                     ex,
@@ -97,8 +96,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         }
         catch (Exception ex)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, TAggregate>(
+            return Left<EncinaError, TAggregate>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     MartenErrorCodes.LoadFailed,
                     ex,
@@ -149,8 +147,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
                 throw;
             }
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     MartenErrorCodes.ConcurrencyConflict,
                     ex,
@@ -160,8 +157,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         {
             Log.ErrorSavingAggregate(_logger, ex, typeof(TAggregate).Name, aggregate.Id);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     MartenErrorCodes.SaveFailed,
                     ex,
@@ -181,8 +177,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
             var uncommittedEvents = aggregate.UncommittedEvents;
             if (uncommittedEvents.Count == 0)
             {
-                // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-                return Left<EncinaError, Unit>(
+                return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                     EncinaErrors.Create(
                         MartenErrorCodes.NoEventsToCreate,
                         "Cannot create aggregate without any events."));
@@ -206,8 +201,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         {
             Log.StreamAlreadyExists(_logger, ex, typeof(TAggregate).Name, aggregate.Id);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     MartenErrorCodes.StreamAlreadyExists,
                     ex,
@@ -217,8 +211,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         {
             Log.ErrorCreatingAggregate(_logger, ex, typeof(TAggregate).Name, aggregate.Id);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     MartenErrorCodes.CreateFailed,
                     ex,
@@ -259,8 +252,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
             {
                 Log.AggregateNotFound(_logger, typeof(TAggregate).Name, id);
 
-                // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-                return Left<EncinaError, TAggregate>(
+                return Left<EncinaError, TAggregate>( // NOSONAR S6966: LanguageExt Left is a pure function
                     EncinaErrors.Create(
                         MartenErrorCodes.AggregateNotFound,
                         $"Aggregate {typeof(TAggregate).Name} with ID {id} was not found."));

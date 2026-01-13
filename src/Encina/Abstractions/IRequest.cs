@@ -13,6 +13,6 @@ namespace Encina;
 /// public sealed record GetInvoiceById(Guid InvoiceId) : IRequest&lt;Option&lt;InvoiceReadModel&gt;&gt;;
 /// </code>
 /// </example>
-public interface IRequest<out TResponse>
+public interface IRequest<out TResponse> // NOSONAR S2326: TResponse is used by handlers via covariance, not in interface body
 {
 }

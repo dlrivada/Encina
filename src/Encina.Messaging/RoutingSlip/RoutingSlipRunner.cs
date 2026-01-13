@@ -184,7 +184,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
         }
     }
 
-    private async Task CompensateAsync<TData>(
+    private async Task CompensateAsync<TData>( // NOSONAR S1172: TData parameter reserved for future compensation data access
         RoutingSlipContext<TData> context,
         TData _,
         CancellationToken cancellationToken)

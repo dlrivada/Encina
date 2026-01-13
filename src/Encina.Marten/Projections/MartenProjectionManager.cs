@@ -65,8 +65,7 @@ public sealed class MartenProjectionManager : IProjectionManager
         var registration = _registry.GetProjectionForReadModel<TReadModel>();
         if (registration == null)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, long>(
+            return Left<EncinaError, long>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     ProjectionErrorCodes.NotRegistered,
                     $"No projection registered for read model {typeof(TReadModel).Name}."));
@@ -181,8 +180,7 @@ public sealed class MartenProjectionManager : IProjectionManager
 
             if (batchResult.WasCancelled)
             {
-                // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-                return Left<EncinaError, long>(
+                return Left<EncinaError, long>( // NOSONAR S6966: LanguageExt Left is a pure function
                     EncinaErrors.Create(ProjectionErrorCodes.Cancelled, "Rebuild was cancelled."));
             }
 
@@ -298,8 +296,7 @@ public sealed class MartenProjectionManager : IProjectionManager
             status.ErrorMessage = "Rebuild was cancelled.";
         });
 
-        // NOSONAR S6966: LanguageExt Left is a pure function
-        return Left<EncinaError, long>(
+        return Left<EncinaError, long>( // NOSONAR S6966: LanguageExt Left is a pure function
             EncinaErrors.Create(ProjectionErrorCodes.Cancelled, "Rebuild was cancelled."));
     }
 
@@ -314,8 +311,7 @@ public sealed class MartenProjectionManager : IProjectionManager
             status.ErrorMessage = ex.Message;
         });
 
-        // NOSONAR S6966: LanguageExt Left is a pure function
-        return Left<EncinaError, long>(
+        return Left<EncinaError, long>( // NOSONAR S6966: LanguageExt Left is a pure function
             EncinaErrors.FromException(ProjectionErrorCodes.RebuildFailed, ex, $"Failed to rebuild projection {projectionName}."));
     }
 
@@ -333,8 +329,7 @@ public sealed class MartenProjectionManager : IProjectionManager
         var registration = _registry.GetProjectionForReadModel<TReadModel>();
         if (registration == null)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function
-            return Task.FromResult(Left<EncinaError, ProjectionStatus>(
+            return Task.FromResult(Left<EncinaError, ProjectionStatus>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     ProjectionErrorCodes.NotRegistered,
                     $"No projection registered for read model {typeof(TReadModel).Name}.")));
@@ -345,8 +340,7 @@ public sealed class MartenProjectionManager : IProjectionManager
             return Task.FromResult(Right<EncinaError, ProjectionStatus>(status)); // NOSONAR S6966: LanguageExt Right is a pure function
         }
 
-        // NOSONAR S6966: LanguageExt Left is a pure function
-        return Task.FromResult(Left<EncinaError, ProjectionStatus>(
+        return Task.FromResult(Left<EncinaError, ProjectionStatus>( // NOSONAR S6966: LanguageExt Left is a pure function
             EncinaErrors.Create(
                 ProjectionErrorCodes.StatusFailed,
                 $"Status not available for projection {registration.ProjectionName}.")));
@@ -368,8 +362,7 @@ public sealed class MartenProjectionManager : IProjectionManager
         var registration = _registry.GetProjectionForReadModel<TReadModel>();
         if (registration == null)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function
-            return Task.FromResult(Left<EncinaError, Unit>(
+            return Task.FromResult(Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     ProjectionErrorCodes.NotRegistered,
                     $"No projection registered for read model {typeof(TReadModel).Name}.")));
@@ -395,8 +388,7 @@ public sealed class MartenProjectionManager : IProjectionManager
         var registration = _registry.GetProjectionForReadModel<TReadModel>();
         if (registration == null)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function
-            return Task.FromResult(Left<EncinaError, Unit>(
+            return Task.FromResult(Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     ProjectionErrorCodes.NotRegistered,
                     $"No projection registered for read model {typeof(TReadModel).Name}.")));
@@ -420,8 +412,7 @@ public sealed class MartenProjectionManager : IProjectionManager
         var registration = _registry.GetProjectionForReadModel<TReadModel>();
         if (registration == null)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function
-            return Task.FromResult(Left<EncinaError, Unit>(
+            return Task.FromResult(Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     ProjectionErrorCodes.NotRegistered,
                     $"No projection registered for read model {typeof(TReadModel).Name}.")));
@@ -445,8 +436,7 @@ public sealed class MartenProjectionManager : IProjectionManager
         var registration = _registry.GetProjectionForReadModel<TReadModel>();
         if (registration == null)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function
-            return Task.FromResult(Left<EncinaError, Unit>(
+            return Task.FromResult(Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     ProjectionErrorCodes.NotRegistered,
                     $"No projection registered for read model {typeof(TReadModel).Name}.")));

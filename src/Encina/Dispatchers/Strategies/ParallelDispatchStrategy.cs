@@ -85,10 +85,9 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
             // Expected when we cancel due to handler error
         }
 
-        // NOSONAR S6966: LanguageExt Left/Right are pure functions, not async operations
         return errorHolder.Error is not null
-            ? Left<EncinaError, Unit>(errorHolder.Error)
-            : Right<EncinaError, Unit>(Unit.Default);
+            ? Left<EncinaError, Unit>(errorHolder.Error) // NOSONAR S6966: LanguageExt Left is a pure function
+            : Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
     }
 
     private static async Task ExecuteWithThrottlingAsync<TNotification>(

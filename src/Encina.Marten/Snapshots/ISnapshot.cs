@@ -6,7 +6,7 @@ namespace Encina.Marten.Snapshots;
 /// Represents a snapshot of an aggregate's state at a specific version.
 /// </summary>
 /// <typeparam name="TAggregate">The aggregate type.</typeparam>
-public interface ISnapshot<TAggregate>
+public interface ISnapshot<TAggregate> // NOSONAR S2326: TAggregate provides type-safe constraint for aggregate snapshots
     where TAggregate : class, IAggregate
 {
     /// <summary>

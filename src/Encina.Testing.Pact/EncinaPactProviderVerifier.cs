@@ -750,12 +750,9 @@ public sealed class EncinaPactProviderVerifier : IDisposable
         // Pact v3+ format: providerStates array
         if (interaction.ProviderStates is { Count: > 0 })
         {
-            foreach (var state in interaction.ProviderStates)
+            foreach (var state in interaction.ProviderStates.Where(s => !string.IsNullOrEmpty(s.Name)))
             {
-                if (!string.IsNullOrEmpty(state.Name))
-                {
-                    await ExecuteProviderStateAsync(state.Name, state.Params);
-                }
+                await ExecuteProviderStateAsync(state.Name!, state.Params);
             }
         }
         // Pact v2 format: single providerState string

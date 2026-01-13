@@ -232,8 +232,7 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
         {
             ProjectionLog.ErrorApplyingEvent(_logger, ex, eventType.Name, registration.ProjectionName);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.ApplyFailed,
                     ex,

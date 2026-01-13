@@ -53,7 +53,7 @@ namespace Encina.Marten.Projections;
 /// }
 /// </code>
 /// </example>
-public interface IProjection<TReadModel>
+public interface IProjection<TReadModel> // NOSONAR S2326: TReadModel provides type-safe constraint for projection registration
     where TReadModel : class, IReadModel
 {
     /// <summary>

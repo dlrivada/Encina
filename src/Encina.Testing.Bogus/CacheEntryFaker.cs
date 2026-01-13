@@ -106,7 +106,7 @@ public sealed class CacheEntryFaker<T> : Faker<CacheEntry<T>>
         return this;
     }
 
-    private static string GenerateKey(Faker _)
+    private static string GenerateKey(Faker _) // NOSONAR S1172: Faker parameter required for Bogus delegate signature
     {
         var keyFaker = new CacheKeyFaker();
         return keyFaker.Generate();

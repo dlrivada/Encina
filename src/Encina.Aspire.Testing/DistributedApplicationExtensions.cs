@@ -416,7 +416,7 @@ public static class DistributedApplicationExtensions
     /// <returns>A task that completes when the saga is completed.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="app"/> is null.</exception>
     /// <exception cref="TimeoutException">Thrown when the saga is not completed within the timeout.</exception>
-    public static async Task WaitForSagaCompletionAsync<TSaga>(
+    public static async Task WaitForSagaCompletionAsync<TSaga>( // NOSONAR S2326: TSaga provides type-safe saga identification in tests
         this DistributedApplication app,
         Guid sagaId,
         TimeSpan? timeout = null,

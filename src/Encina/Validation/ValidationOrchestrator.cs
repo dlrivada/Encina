@@ -46,7 +46,7 @@ public sealed class ValidationOrchestrator
     /// <returns>
     /// <c>Right&lt;Unit&gt;</c> if validation passes, or <c>Left&lt;EncinaError&gt;</c> if validation fails.
     /// </returns>
-    public async ValueTask<Either<EncinaError, Unit>> ValidateAsync<TRequest, TResponse>(
+    public async ValueTask<Either<EncinaError, Unit>> ValidateAsync<TRequest, TResponse>( // NOSONAR S2326: TResponse matches handler signature for type consistency
         TRequest request,
         IRequestContext context,
         CancellationToken cancellationToken)

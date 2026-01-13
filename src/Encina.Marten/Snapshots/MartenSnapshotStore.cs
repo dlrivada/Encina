@@ -64,8 +64,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         {
             SnapshotLog.ErrorLoadingSnapshot(_logger, ex, typeof(TAggregate).Name, aggregateId);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, Snapshot<TAggregate>?>(
+            return Left<EncinaError, Snapshot<TAggregate>?>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     SnapshotErrorCodes.LoadFailed,
                     ex,
@@ -101,8 +100,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         {
             SnapshotLog.ErrorLoadingSnapshot(_logger, ex, typeof(TAggregate).Name, aggregateId);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, Snapshot<TAggregate>?>(
+            return Left<EncinaError, Snapshot<TAggregate>?>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     SnapshotErrorCodes.LoadFailed,
                     ex,
@@ -134,8 +132,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         {
             SnapshotLog.ErrorSavingSnapshot(_logger, ex, typeof(TAggregate).Name, snapshot.AggregateId);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     SnapshotErrorCodes.SaveFailed,
                     ex,
@@ -186,8 +183,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         {
             SnapshotLog.ErrorPruningSnapshots(_logger, ex, typeof(TAggregate).Name, aggregateId);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, int>(
+            return Left<EncinaError, int>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     SnapshotErrorCodes.PruneFailed,
                     ex,
@@ -230,8 +226,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         {
             SnapshotLog.ErrorDeletingSnapshots(_logger, ex, typeof(TAggregate).Name, aggregateId);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, int>(
+            return Left<EncinaError, int>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     SnapshotErrorCodes.DeleteFailed,
                     ex,
@@ -255,8 +250,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         }
         catch (Exception ex)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, bool>(
+            return Left<EncinaError, bool>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     SnapshotErrorCodes.LoadFailed,
                     ex,
@@ -280,8 +274,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         }
         catch (Exception ex)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, int>(
+            return Left<EncinaError, int>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     SnapshotErrorCodes.LoadFailed,
                     ex,

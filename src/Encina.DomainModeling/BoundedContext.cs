@@ -449,18 +449,11 @@ public sealed class BoundedContextValidator
             .SelectMany(c => c.PublishedIntegrationEvents)
             .ToHashSet();
 
-        var errors = new List<string>();
-
-        foreach (var context in _contexts)
-        {
-            foreach (var consumed in context.ConsumedIntegrationEvents)
-            {
-                if (!allPublished.Contains(consumed))
-                {
-                    errors.Add($"{context.ContextName} consumes {consumed.Name} but no context publishes it");
-                }
-            }
-        }
+        var errors = _contexts
+            .SelectMany(context => context.ConsumedIntegrationEvents
+                .Where(consumed => !allPublished.Contains(consumed))
+                .Select(consumed => $"{context.ContextName} consumes {consumed.Name} but no context publishes it"))
+            .ToList();
 
         if (errors.Count > 0)
         {

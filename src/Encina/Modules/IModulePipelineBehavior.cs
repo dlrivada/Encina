@@ -47,7 +47,7 @@ namespace Encina.Modules;
 /// services.AddEncinaModuleBehavior&lt;OrderModule, OrderAuditBehavior&lt;,&gt;&gt;();
 /// </code>
 /// </example>
-public interface IModulePipelineBehavior<TModule, TRequest, TResponse>
+public interface IModulePipelineBehavior<TModule, TRequest, TResponse> // NOSONAR S2326: TModule provides module-scoped behavior routing
     where TModule : class, IModule
     where TRequest : IRequest<TResponse>
 {

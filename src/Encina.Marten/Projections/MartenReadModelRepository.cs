@@ -47,8 +47,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
             {
                 ProjectionLog.ReadModelNotFound(_logger, typeof(TReadModel).Name, id);
 
-                // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-                return Left<EncinaError, TReadModel>(
+                return Left<EncinaError, TReadModel>( // NOSONAR S6966: LanguageExt Left is a pure function
                     EncinaErrors.Create(
                         ProjectionErrorCodes.ReadModelNotFound,
                         $"Read model {typeof(TReadModel).Name} with ID {id} was not found."));
@@ -62,8 +61,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         {
             ProjectionLog.ErrorLoadingReadModel(_logger, ex, typeof(TReadModel).Name, id);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, TReadModel>(
+            return Left<EncinaError, TReadModel>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.QueryFailed,
                     ex,
@@ -96,8 +94,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         {
             ProjectionLog.ErrorLoadingReadModels(_logger, ex, typeof(TReadModel).Name);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, IReadOnlyList<TReadModel>>(
+            return Left<EncinaError, IReadOnlyList<TReadModel>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.QueryFailed,
                     ex,
@@ -128,8 +125,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         {
             ProjectionLog.ErrorQueryingReadModels(_logger, ex, typeof(TReadModel).Name);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, IReadOnlyList<TReadModel>>(
+            return Left<EncinaError, IReadOnlyList<TReadModel>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.QueryFailed,
                     ex,
@@ -159,8 +155,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         {
             ProjectionLog.ErrorStoringReadModel(_logger, ex, typeof(TReadModel).Name, readModel.Id);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.StoreFailed,
                     ex,
@@ -191,8 +186,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         {
             ProjectionLog.ErrorStoringReadModels(_logger, ex, typeof(TReadModel).Name);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.StoreFailed,
                     ex,
@@ -220,8 +214,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         {
             ProjectionLog.ErrorDeletingReadModel(_logger, ex, typeof(TReadModel).Name, id);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.DeleteFailed,
                     ex,
@@ -253,8 +246,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         {
             ProjectionLog.ErrorDeletingAllReadModels(_logger, ex, typeof(TReadModel).Name);
 
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, long>(
+            return Left<EncinaError, long>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.DeleteFailed,
                     ex,
@@ -277,8 +269,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         }
         catch (Exception ex)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, bool>(
+            return Left<EncinaError, bool>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.QueryFailed,
                     ex,
@@ -300,8 +291,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         }
         catch (Exception ex)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, long>(
+            return Left<EncinaError, long>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.QueryFailed,
                     ex,
@@ -326,8 +316,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         }
         catch (Exception ex)
         {
-            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
-            return Left<EncinaError, long>(
+            return Left<EncinaError, long>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.QueryFailed,
                     ex,

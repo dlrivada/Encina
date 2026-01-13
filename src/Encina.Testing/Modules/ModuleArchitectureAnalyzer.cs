@@ -372,12 +372,9 @@ public sealed class ModuleArchitectureAnalyzer
         var recursionStack = new HashSet<string>();
         var path = new Stack<string>();
 
-        foreach (var module in graph.Keys)
+        foreach (var module in graph.Keys.Where(m => !visited.Contains(m)))
         {
-            if (!visited.Contains(module))
-            {
-                DetectCyclesDfs(module, graph, visited, recursionStack, path, circularDeps);
-            }
+            DetectCyclesDfs(module, graph, visited, recursionStack, path, circularDeps);
         }
 
         return circularDeps;

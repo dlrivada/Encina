@@ -210,7 +210,7 @@ public static class ProjectScaffolder
             """;
     }
 
-    private static string GenerateWorkerProgram(ProjectOptions _)
+    private static string GenerateWorkerProgram(ProjectOptions _) // NOSONAR S1172: Signature required for delegate consistency
     {
         return $$"""
             using Encina;
@@ -226,7 +226,7 @@ public static class ProjectScaffolder
             """;
     }
 
-    private static string GenerateConsoleProgram(ProjectOptions _)
+    private static string GenerateConsoleProgram(ProjectOptions _) // NOSONAR S1172: Signature required for delegate consistency
     {
         return $$"""
             using Encina;

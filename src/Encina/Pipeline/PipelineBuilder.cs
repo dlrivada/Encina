@@ -10,7 +10,7 @@ namespace Encina;
 /// </summary>
 /// <typeparam name="TRequest">Request type.</typeparam>
 /// <typeparam name="TResponse">Response type.</typeparam>
-internal interface IPipelineBuilder<TRequest, TResponse>
+internal interface IPipelineBuilder<TRequest, TResponse> // NOSONAR S2326: TRequest constraint enforces type safety
     where TRequest : IRequest<TResponse>
 {
     /// <summary>

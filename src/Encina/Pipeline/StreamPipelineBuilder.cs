@@ -9,7 +9,7 @@ namespace Encina;
 /// </summary>
 /// <typeparam name="TRequest">Stream request type.</typeparam>
 /// <typeparam name="TItem">Type of each item yielded by the stream.</typeparam>
-internal interface IStreamPipelineBuilder<TRequest, TItem>
+internal interface IStreamPipelineBuilder<TRequest, TItem> // NOSONAR S2326: TRequest constraint enforces type safety
     where TRequest : IStreamRequest<TItem>
 {
     /// <summary>

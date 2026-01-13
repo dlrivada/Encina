@@ -32,6 +32,6 @@ namespace Encina;
 /// public sealed record ProcessLargeFileQuery(string FilePath) : IStreamRequest&lt;ProcessedRecord&gt;;
 /// </code>
 /// </example>
-public interface IStreamRequest<out TItem>
+public interface IStreamRequest<out TItem> // NOSONAR S2326: TItem is used by handlers via covariance, not in interface body
 {
 }

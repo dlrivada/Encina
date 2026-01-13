@@ -201,7 +201,7 @@ public sealed class DurableSagaStepBuilder<TData>
 /// Represents a step in a durable saga.
 /// </summary>
 /// <typeparam name="TData">The saga data type.</typeparam>
-public sealed class DurableSagaStep<TData>
+public sealed class DurableSagaStep<TData> // NOSONAR S2326: TData ensures type-safe saga step composition
 {
     /// <summary>
     /// Gets or sets the step name.
