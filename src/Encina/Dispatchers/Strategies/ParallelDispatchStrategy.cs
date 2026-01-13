@@ -58,13 +58,8 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
         var errorHolder = new ErrorHolder();
         var tasks = new List<Task>(handlers.Count);
 
-        foreach (var handler in handlers)
+        foreach (var handler in handlers.Where(h => h is not null))
         {
-            if (handler is null)
-            {
-                continue;
-            }
-
             var capturedHandler = handler;
             tasks.Add(ExecuteWithThrottlingAsync(
                 capturedHandler,

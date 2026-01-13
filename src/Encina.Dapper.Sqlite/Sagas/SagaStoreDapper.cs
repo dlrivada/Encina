@@ -38,7 +38,7 @@ public sealed class SagaStoreDapper : ISagaStore
     public async Task<ISagaState?> GetAsync(Guid sagaId, CancellationToken cancellationToken = default)
     {
         if (sagaId == Guid.Empty)
-            throw new ArgumentException("Saga ID cannot be empty.", nameof(sagaId));
+            throw new ArgumentException(StoreValidationMessages.SagaIdCannotBeEmpty, nameof(sagaId));
         var sql = $@"
             SELECT *
             FROM {_tableName}
@@ -101,9 +101,9 @@ public sealed class SagaStoreDapper : ISagaStore
         CancellationToken cancellationToken = default)
     {
         if (olderThan <= TimeSpan.Zero)
-            throw new ArgumentException("OlderThan must be greater than zero.", nameof(olderThan));
+            throw new ArgumentException(StoreValidationMessages.OlderThanMustBeGreaterThanZero, nameof(olderThan));
         if (batchSize <= 0)
-            throw new ArgumentException("Batch size must be greater than zero.", nameof(batchSize));
+            throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
         var thresholdUtc = _timeProvider.GetUtcNow().UtcDateTime.Subtract(olderThan);
 
         var sql = $@"
@@ -133,7 +133,7 @@ public sealed class SagaStoreDapper : ISagaStore
         CancellationToken cancellationToken = default)
     {
         if (batchSize <= 0)
-            throw new ArgumentException("Batch size must be greater than zero.", nameof(batchSize));
+            throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
 
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"

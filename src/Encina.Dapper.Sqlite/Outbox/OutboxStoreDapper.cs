@@ -82,7 +82,7 @@ public sealed class OutboxStoreDapper : IOutboxStore
     {
         if (messageId == Guid.Empty)
         {
-            throw new ArgumentException("Message ID cannot be empty GUID.", nameof(messageId));
+            throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmptyGuid, nameof(messageId));
         }
 
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
@@ -106,7 +106,7 @@ public sealed class OutboxStoreDapper : IOutboxStore
     {
         if (messageId == Guid.Empty)
         {
-            throw new ArgumentException("Message ID cannot be empty GUID.", nameof(messageId));
+            throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmptyGuid, nameof(messageId));
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);

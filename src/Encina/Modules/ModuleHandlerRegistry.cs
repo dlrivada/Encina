@@ -64,26 +64,16 @@ internal sealed class ModuleHandlerRegistry : IModuleHandlerRegistry
         var assembly = descriptor.HandlerAssembly;
         var module = descriptor.Module;
 
-        foreach (var type in assembly.GetTypes())
+        foreach (var type in assembly.GetTypes().Where(t => !t.IsAbstract && !t.IsInterface))
         {
-            if (type.IsAbstract || type.IsInterface)
-            {
-                continue;
-            }
-
             ProcessTypeInterfaces(type, module);
         }
     }
 
     private void ProcessTypeInterfaces(Type type, IModule module)
     {
-        foreach (var iface in type.GetInterfaces())
+        foreach (var iface in type.GetInterfaces().Where(IsRequestHandlerInterface))
         {
-            if (!IsRequestHandlerInterface(iface))
-            {
-                continue;
-            }
-
             var args = iface.GetGenericArguments();
             _requestToModuleCache[(args[0], args[1])] = module;
             _handlerModuleCache[type] = module;

@@ -46,9 +46,9 @@ public sealed class OutboxStoreDapper : IOutboxStore
         CancellationToken cancellationToken = default)
     {
         if (batchSize <= 0)
-            throw new ArgumentException("Batch size must be greater than zero.", nameof(batchSize));
+            throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
         if (maxRetries < 0)
-            throw new ArgumentException("Max retries cannot be negative.", nameof(maxRetries));
+            throw new ArgumentException(StoreValidationMessages.MaxRetriesCannotBeNegative, nameof(maxRetries));
         var sql = $@"
             SELECT *
             FROM {_tableName}
@@ -69,7 +69,7 @@ public sealed class OutboxStoreDapper : IOutboxStore
     public async Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         if (messageId == Guid.Empty)
-            throw new ArgumentException("Message ID cannot be empty.", nameof(messageId));
+            throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmpty, nameof(messageId));
         var sql = $@"
             UPDATE {_tableName}
             SET ProcessedAtUtc = SYS_EXTRACT_UTC(SYSTIMESTAMP),
@@ -87,7 +87,7 @@ public sealed class OutboxStoreDapper : IOutboxStore
         CancellationToken cancellationToken = default)
     {
         if (messageId == Guid.Empty)
-            throw new ArgumentException("Message ID cannot be empty.", nameof(messageId));
+            throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmpty, nameof(messageId));
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
         var sql = $@"
             UPDATE {_tableName}

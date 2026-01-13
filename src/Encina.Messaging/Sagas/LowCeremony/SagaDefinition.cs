@@ -102,7 +102,7 @@ public sealed class SagaDefinition<TData>
     /// <returns>This saga definition for fluent chaining.</returns>
     public SagaDefinition<TData> WithTimeout(TimeSpan timeout)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero, nameof(timeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
         _timeout = timeout;
         return this;
     }

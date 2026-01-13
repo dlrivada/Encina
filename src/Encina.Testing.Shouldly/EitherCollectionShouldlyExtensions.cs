@@ -122,15 +122,13 @@ public static class EitherCollectionShouldlyExtensions
         string? customMessage = null)
     {
         var resultList = results.ToList();
+        var success = resultList.FirstOrDefault(r => r.IsRight);
 
-        foreach (var result in resultList)
+        if (success.IsRight)
         {
-            if (result.IsRight)
-            {
-                return result.Match(
-                    Right: v => v,
-                    Left: _ => throw new InvalidOperationException(UnreachableMessage));
-            }
+            return success.Match(
+                Right: v => v,
+                Left: _ => throw new InvalidOperationException(UnreachableMessage));
         }
 
         throw new ShouldAssertException(
@@ -150,15 +148,13 @@ public static class EitherCollectionShouldlyExtensions
         string? customMessage = null)
     {
         var resultList = results.ToList();
+        var error = resultList.FirstOrDefault(r => r.IsLeft);
 
-        foreach (var result in resultList)
+        if (error.IsLeft)
         {
-            if (result.IsLeft)
-            {
-                return result.Match(
-                    Right: _ => throw new InvalidOperationException(UnreachableMessage),
-                    Left: e => e);
-            }
+            return error.Match(
+                Right: _ => throw new InvalidOperationException(UnreachableMessage),
+                Left: e => e);
         }
 
         throw new ShouldAssertException(

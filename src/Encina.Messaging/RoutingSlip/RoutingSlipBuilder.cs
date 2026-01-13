@@ -131,7 +131,7 @@ public sealed class RoutingSlipBuilder<TData>
     /// <returns>This builder for fluent chaining.</returns>
     public RoutingSlipBuilder<TData> WithTimeout(TimeSpan timeout)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero, nameof(timeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
         _timeout = timeout;
         return this;
     }

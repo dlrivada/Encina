@@ -67,8 +67,8 @@ public static class CodeGenerator
     public static Task<GenerationResult> GenerateCommandHandlerAsync(HandlerOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Name, nameof(options.Name));
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.OutputDirectory, nameof(options.OutputDirectory));
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.OutputDirectory);
 
         var @namespace = options.Namespace ?? DetectNamespace(options.OutputDirectory);
         var generatedFiles = new List<string>();
@@ -92,9 +92,9 @@ public static class CodeGenerator
     public static Task<GenerationResult> GenerateQueryHandlerAsync(QueryOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Name, nameof(options.Name));
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.ResponseType, nameof(options.ResponseType));
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.OutputDirectory, nameof(options.OutputDirectory));
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.ResponseType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.OutputDirectory);
 
         var @namespace = options.Namespace ?? DetectNamespace(options.OutputDirectory);
         var generatedFiles = new List<string>();
@@ -117,8 +117,8 @@ public static class CodeGenerator
     public static Task<GenerationResult> GenerateSagaAsync(SagaOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Name, nameof(options.Name));
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.OutputDirectory, nameof(options.OutputDirectory));
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.OutputDirectory);
 
         if (options.Steps.Count == 0)
         {
@@ -146,8 +146,8 @@ public static class CodeGenerator
     public static Task<GenerationResult> GenerateNotificationAsync(NotificationOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Name, nameof(options.Name));
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.OutputDirectory, nameof(options.OutputDirectory));
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.OutputDirectory);
 
         var @namespace = options.Namespace ?? DetectNamespace(options.OutputDirectory);
         var generatedFiles = new List<string>();

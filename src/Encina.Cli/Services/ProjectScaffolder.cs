@@ -40,9 +40,9 @@ public static class ProjectScaffolder
     public static Task<ScaffoldResult> CreateProjectAsync(ProjectOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Name, nameof(options.Name));
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Template, nameof(options.Template));
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.OutputDirectory, nameof(options.OutputDirectory));
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Template);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.OutputDirectory);
 
         var template = options.Template.ToLowerInvariant();
         if (!ValidTemplates.Contains(template))

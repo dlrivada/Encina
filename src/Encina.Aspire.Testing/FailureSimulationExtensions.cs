@@ -1,4 +1,5 @@
 using Aspire.Hosting;
+using Encina.Messaging;
 using Encina.Messaging.Sagas;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
@@ -86,7 +87,7 @@ public static class FailureSimulationExtensions
         ArgumentNullException.ThrowIfNull(app);
         if (messageId == Guid.Empty)
         {
-            throw new ArgumentException("Message ID cannot be empty.", nameof(messageId));
+            throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmpty, nameof(messageId));
         }
 
         var store = app.Services.GetRequiredService<FakeOutboxStore>();

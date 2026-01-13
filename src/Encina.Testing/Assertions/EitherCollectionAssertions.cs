@@ -134,15 +134,13 @@ public static class EitherCollectionAssertions
         string? message = null)
     {
         var resultList = results.ToList();
+        var success = resultList.FirstOrDefault(r => r.IsRight);
 
-        foreach (var result in resultList)
+        if (success.IsRight)
         {
-            if (result.IsRight)
-            {
-                return result.Match(
-                    Right: v => v,
-                    Left: _ => throw new InvalidOperationException(UnreachableMessage));
-            }
+            return success.Match(
+                Right: v => v,
+                Left: _ => throw new InvalidOperationException(UnreachableMessage));
         }
 
         Assert.Fail(message ?? $"Expected at least one success but all {resultList.Count} results were errors");
@@ -173,15 +171,13 @@ public static class EitherCollectionAssertions
         string? message = null)
     {
         var resultList = results.ToList();
+        var error = resultList.FirstOrDefault(r => r.IsLeft);
 
-        foreach (var result in resultList)
+        if (error.IsLeft)
         {
-            if (result.IsLeft)
-            {
-                return result.Match(
-                    Right: _ => throw new InvalidOperationException(UnreachableMessage),
-                    Left: e => e);
-            }
+            return error.Match(
+                Right: _ => throw new InvalidOperationException(UnreachableMessage),
+                Left: e => e);
         }
 
         Assert.Fail(message ?? $"Expected at least one error but all {resultList.Count} results were successes");
@@ -340,23 +336,21 @@ public static class EitherCollectionAssertions
     {
         var errors = results.GetErrors();
 
-        foreach (var error in errors)
+        var validationError = errors
+            .Where(e => e.GetCode().IfNone(string.Empty).StartsWith("encina.validation", StringComparison.OrdinalIgnoreCase))
+            .Where(error =>
+            {
+                var metadata = error.GetMetadata();
+                return error.Message.Contains(propertyName, StringComparison.OrdinalIgnoreCase) ||
+                       metadata.Any(m => m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
+                                         m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
+            })
+            .Cast<EncinaError?>()
+            .FirstOrDefault();
+
+        if (validationError.HasValue)
         {
-            var code = error.GetCode().IfNone(string.Empty);
-            if (!code.StartsWith("encina.validation", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var metadata = error.GetMetadata();
-            var containsProperty = error.Message.Contains(propertyName, StringComparison.OrdinalIgnoreCase) ||
-                                   metadata.Any(m => m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
-                                                     m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
-
-            if (containsProperty)
-            {
-                return error;
-            }
+            return validationError.Value;
         }
 
         Assert.Fail(message ?? $"Expected to find a validation error for property '{propertyName}' but none was found");
@@ -410,13 +404,14 @@ public static class EitherCollectionAssertions
     {
         var errors = results.GetErrors();
 
-        foreach (var error in errors)
+        var authError = errors
+            .Where(e => e.GetCode().IfNone(string.Empty).StartsWith("encina.authorization", StringComparison.OrdinalIgnoreCase))
+            .Cast<EncinaError?>()
+            .FirstOrDefault();
+
+        if (authError.HasValue)
         {
-            var code = error.GetCode().IfNone(string.Empty);
-            if (code.StartsWith("encina.authorization", StringComparison.OrdinalIgnoreCase))
-            {
-                return error;
-            }
+            return authError.Value;
         }
 
         Assert.Fail(message ?? "Expected to find an authorization error but none was found");

@@ -49,9 +49,9 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
         CancellationToken cancellationToken = default)
     {
         if (batchSize <= 0)
-            throw new ArgumentException("Batch size must be greater than zero.", nameof(batchSize));
+            throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
         if (maxRetries < 0)
-            throw new ArgumentException("Max retries cannot be negative.", nameof(maxRetries));
+            throw new ArgumentException(StoreValidationMessages.MaxRetriesCannotBeNegative, nameof(maxRetries));
 
         var sql = $@"
             SELECT TOP (@BatchSize) *
@@ -75,7 +75,7 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
     public async Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         if (messageId == Guid.Empty)
-            throw new ArgumentException("Message ID cannot be empty.", nameof(messageId));
+            throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmptyGuid, nameof(messageId));
 
         var sql = $@"
             UPDATE {_tableName}
@@ -95,7 +95,7 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
         CancellationToken cancellationToken = default)
     {
         if (messageId == Guid.Empty)
-            throw new ArgumentException("Message ID cannot be empty.", nameof(messageId));
+            throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmptyGuid, nameof(messageId));
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
 
         var sql = $@"
@@ -123,9 +123,9 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
         CancellationToken cancellationToken = default)
     {
         if (messageId == Guid.Empty)
-            throw new ArgumentException("Message ID cannot be empty.", nameof(messageId));
+            throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmptyGuid, nameof(messageId));
         if (nextScheduledAtUtc < DateTime.UtcNow)
-            throw new ArgumentException("Next scheduled date cannot be in the past.", nameof(nextScheduledAtUtc));
+            throw new ArgumentException(StoreValidationMessages.NextScheduledDateCannotBeInPast, nameof(nextScheduledAtUtc));
 
         var sql = $@"
             UPDATE {_tableName}
@@ -149,7 +149,7 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
     public async Task CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         if (messageId == Guid.Empty)
-            throw new ArgumentException("Message ID cannot be empty.", nameof(messageId));
+            throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmptyGuid, nameof(messageId));
 
         var sql = $@"
             DELETE FROM {_tableName}
