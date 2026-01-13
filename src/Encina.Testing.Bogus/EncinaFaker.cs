@@ -444,11 +444,8 @@ public static class EncinaFakerExtensions
     /// var orderId = new OrderId(value);
     /// </code>
     /// </example>
-    public static Guid GuidStronglyTypedIdValue(this Randomizer randomizer)
-    {
-        ArgumentNullException.ThrowIfNull(randomizer);
-        return randomizer.Guid();
-    }
+    public static Guid GuidStronglyTypedIdValue(this Randomizer randomizer) =>
+        GuidEntityId(randomizer);
 
     /// <summary>
     /// Generates a positive integer value for an IntStronglyTypedId.
@@ -466,13 +463,8 @@ public static class EncinaFakerExtensions
     /// var productId = new ProductId(value);
     /// </code>
     /// </example>
-    public static int IntStronglyTypedIdValue(this Randomizer randomizer, int min = 1, int max = int.MaxValue)
-    {
-        ArgumentNullException.ThrowIfNull(randomizer);
-        ArgumentOutOfRangeException.ThrowIfLessThan(min, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(max, min);
-        return randomizer.Int(min, max);
-    }
+    public static int IntStronglyTypedIdValue(this Randomizer randomizer, int min = 1, int max = int.MaxValue) =>
+        IntEntityId(randomizer, min, max);
 
     /// <summary>
     /// Generates a positive long value for a LongStronglyTypedId.
@@ -490,13 +482,8 @@ public static class EncinaFakerExtensions
     /// var transactionId = new TransactionId(value);
     /// </code>
     /// </example>
-    public static long LongStronglyTypedIdValue(this Randomizer randomizer, long min = 1, long max = long.MaxValue)
-    {
-        ArgumentNullException.ThrowIfNull(randomizer);
-        ArgumentOutOfRangeException.ThrowIfLessThan(min, 1L);
-        ArgumentOutOfRangeException.ThrowIfLessThan(max, min);
-        return randomizer.Long(min, max);
-    }
+    public static long LongStronglyTypedIdValue(this Randomizer randomizer, long min = 1, long max = long.MaxValue) =>
+        LongEntityId(randomizer, min, max);
 
     /// <summary>
     /// Generates a non-empty string value for a StringStronglyTypedId.
@@ -517,14 +504,8 @@ public static class EncinaFakerExtensions
     /// var prefixedSku = new Sku(prefixedValue); // "SKU_a1b2c3d4"
     /// </code>
     /// </example>
-    public static string StringStronglyTypedIdValue(this Randomizer randomizer, int length = 12, string? prefix = null)
-    {
-        ArgumentNullException.ThrowIfNull(randomizer);
-        ArgumentOutOfRangeException.ThrowIfLessThan(length, 1);
-
-        var id = randomizer.AlphaNumeric(length);
-        return string.IsNullOrEmpty(prefix) ? id : $"{prefix}_{id}";
-    }
+    public static string StringStronglyTypedIdValue(this Randomizer randomizer, int length = 12, string? prefix = null) =>
+        StringEntityId(randomizer, length, prefix);
 
     #endregion
 
