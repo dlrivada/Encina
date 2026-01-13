@@ -92,7 +92,7 @@ public sealed partial class RateLimitingPipelineBehavior<TRequest, TResponse> : 
         {
             result = await nextStep().ConfigureAwait(false);
         }
-        catch (Exception)
+        catch
         {
             // Record failure for adaptive adjustment
             _rateLimiter.RecordFailure(key);

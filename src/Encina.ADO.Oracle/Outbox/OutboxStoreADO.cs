@@ -174,13 +174,11 @@ public sealed class OutboxStoreADO : IOutboxStore
         command.Parameters.Add(parameter);
     }
 
-    private static async Task OpenConnectionAsync(CancellationToken cancellationToken)
+    private static Task OpenConnectionAsync(CancellationToken cancellationToken)
     {
         // For OracleConnection, use OpenAsync
-        if (cancellationToken.CanBeCanceled)
-        {
-            await Task.Run(() => { }, cancellationToken);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
     }
 
     private static async Task<IDataReader> ExecuteReaderAsync(IDbCommand command, CancellationToken cancellationToken)

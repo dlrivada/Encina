@@ -271,12 +271,10 @@ public sealed class InboxStoreADO : IInboxStore
         command.Parameters.Add(parameter);
     }
 
-    private static async Task OpenConnectionAsync(CancellationToken cancellationToken)
+    private static Task OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        if (cancellationToken.CanBeCanceled)
-        {
-            await Task.Run(() => { }, cancellationToken);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
     }
 
     private static async Task<IDataReader> ExecuteReaderAsync(IDbCommand command, CancellationToken cancellationToken)
