@@ -73,25 +73,18 @@ public sealed partial class MemoryDistributedLockProvider : IDistributedLockProv
             // Check if there's an existing lock
             if (_locks.TryGetValue(resource, out var existingEntry))
             {
-                // Check if the existing lock has expired
-                if (existingEntry.ExpiresAt <= now)
-                {
-                    // Try to replace the expired lock
-                    if (_locks.TryUpdate(resource, newEntry, existingEntry))
-                    {
-                        LogLockAcquired(_logger, resource, lockId);
-                        return new LockHandle(this, resource, lockId);
-                    }
-                }
-            }
-            else
-            {
-                // No existing lock, try to add
-                if (_locks.TryAdd(resource, newEntry))
+                // Try to replace the expired lock
+                if (existingEntry.ExpiresAt <= now && _locks.TryUpdate(resource, newEntry, existingEntry))
                 {
                     LogLockAcquired(_logger, resource, lockId);
                     return new LockHandle(this, resource, lockId);
                 }
+            }
+            else if (_locks.TryAdd(resource, newEntry))
+            {
+                // No existing lock, try to add
+                LogLockAcquired(_logger, resource, lockId);
+                return new LockHandle(this, resource, lockId);
             }
 
             // Wait before retrying
@@ -125,25 +118,18 @@ public sealed partial class MemoryDistributedLockProvider : IDistributedLockProv
             // Check if there's an existing lock
             if (_locks.TryGetValue(resource, out var existingEntry))
             {
-                // Check if the existing lock has expired
-                if (existingEntry.ExpiresAt <= now)
-                {
-                    // Try to replace the expired lock
-                    if (_locks.TryUpdate(resource, newEntry, existingEntry))
-                    {
-                        LogLockAcquired(_logger, resource, lockId);
-                        return new LockHandle(this, resource, lockId);
-                    }
-                }
-            }
-            else
-            {
-                // No existing lock, try to add
-                if (_locks.TryAdd(resource, newEntry))
+                // Try to replace the expired lock
+                if (existingEntry.ExpiresAt <= now && _locks.TryUpdate(resource, newEntry, existingEntry))
                 {
                     LogLockAcquired(_logger, resource, lockId);
                     return new LockHandle(this, resource, lockId);
                 }
+            }
+            else if (_locks.TryAdd(resource, newEntry))
+            {
+                // No existing lock, try to add
+                LogLockAcquired(_logger, resource, lockId);
+                return new LockHandle(this, resource, lockId);
             }
 
             await Task.Delay(retryInterval, cancellationToken).ConfigureAwait(false);

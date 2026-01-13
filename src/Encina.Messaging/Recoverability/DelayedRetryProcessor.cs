@@ -271,7 +271,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         IDelayedRetryMessage originalMessage,
         object request,
         int nextDelayedRetryAttempt,
-        string lastError,
+        string _, // lastError reserved for future use (e.g., error chain logging)
         CancellationToken cancellationToken)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();

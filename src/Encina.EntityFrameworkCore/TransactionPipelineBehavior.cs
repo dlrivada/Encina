@@ -91,7 +91,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         }
 
         // Get isolation level from attribute or use default
-        var isolationLevel = GetIsolationLevel(request);
+        var isolationLevel = GetIsolationLevel();
 
         Log.BeginningTransaction(_logger, typeof(TRequest).Name, isolationLevel, context.CorrelationId);
 
@@ -152,7 +152,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         return attribute != null;
     }
 
-    private static System.Data.IsolationLevel? GetIsolationLevel(TRequest _)
+    private static System.Data.IsolationLevel? GetIsolationLevel()
     {
         var attribute = typeof(TRequest).GetCustomAttributes(typeof(TransactionAttribute), inherit: true)
             .OfType<TransactionAttribute>()

@@ -66,7 +66,6 @@ internal static class StreamDispatcher
 
     private abstract class StreamRequestHandlerBase
     {
-        public abstract Type HandlerServiceType { get; }
         public abstract object? ResolveHandler(IServiceProvider provider);
         public abstract IAsyncEnumerable<Either<EncinaError, object?>> Handle(
             Encina Encina,
@@ -80,8 +79,6 @@ internal static class StreamDispatcher
         where TRequest : IStreamRequest<TItem>
     {
         private static readonly Type HandlerType = typeof(IStreamRequestHandler<TRequest, TItem>);
-
-        public override Type HandlerServiceType => HandlerType;
 
         public override object? ResolveHandler(IServiceProvider provider)
             => provider.GetService(HandlerType);

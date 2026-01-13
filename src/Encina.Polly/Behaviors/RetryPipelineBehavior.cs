@@ -42,7 +42,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
         }
 
         // Build retry pipeline
-        var pipeline = BuildRetryPipeline(retryAttribute, request);
+        var pipeline = BuildRetryPipeline(retryAttribute);
 
         // Execute with retry
         try
@@ -57,8 +57,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
     }
 
     private ResiliencePipeline<Either<EncinaError, TResponse>> BuildRetryPipeline(
-        RetryAttribute config,
-        TRequest _)
+        RetryAttribute config)
     {
         var requestType = typeof(TRequest).Name;
 
@@ -76,7 +75,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
                     _ => DelayBackoffType.Exponential
                 },
                 ShouldHandle = new PredicateBuilder<Either<EncinaError, TResponse>>()
-                    .HandleResult(result => ShouldRetry(result, config))
+                    .HandleResult(ShouldRetry)
                     .Handle<Exception>(ex => ShouldRetryException(ex, config)),
                 OnRetry = args =>
                 {
@@ -101,7 +100,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
             .Build();
     }
 
-    private static bool ShouldRetry(Either<EncinaError, TResponse> result, RetryAttribute _)
+    private static bool ShouldRetry(Either<EncinaError, TResponse> result)
     {
         // Only retry on Left (error) results
         return result.IsLeft;

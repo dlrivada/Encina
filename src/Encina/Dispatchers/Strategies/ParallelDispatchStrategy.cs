@@ -126,9 +126,12 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
                             Right: _ => EncinaErrors.Unknown);
 
                         // Cancel remaining handlers
+                        // S6966: Cannot use CancelAsync inside lock block
                         try
                         {
+#pragma warning disable S6966 // Await CancelAsync - not possible inside lock statement
                             cts.Cancel();
+#pragma warning restore S6966
                         }
                         catch (ObjectDisposedException)
                         {

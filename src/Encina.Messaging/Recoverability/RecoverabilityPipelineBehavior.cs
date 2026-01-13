@@ -132,7 +132,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     }
 
     private async ValueTask<Either<EncinaError, TResponse>> ExecuteWithImmediateRetriesAsync(
-        TRequest request,
+        TRequest _, // request not used directly; handler delegate contains request binding
         RecoverabilityContext recoverabilityContext,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)

@@ -137,13 +137,13 @@ public sealed partial class Encina(
     }
 
     // Exposed for tests that reflect on the private notification helper to validate handler invocation semantics.
-#pragma warning disable IDE0051 // Remove unused private members - used via reflection in tests
+#pragma warning disable IDE0051, S1144 // Remove unused private members - used via reflection in tests
     private static Task<Either<EncinaError, Unit>> InvokeNotificationHandler<TNotification>(object handler, TNotification notification, CancellationToken cancellationToken)
         where TNotification : INotification
     {
         return NotificationDispatcher.InvokeNotificationHandler(handler, notification, cancellationToken);
     }
-#pragma warning restore IDE0051
+#pragma warning restore IDE0051, S1144
 
     internal static bool IsCancellationCode(string errorCode)
     {
