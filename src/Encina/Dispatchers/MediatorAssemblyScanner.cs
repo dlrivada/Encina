@@ -20,14 +20,9 @@ internal static class EncinaAssemblyScanner
     {
         var result = new ScanResultBuilder();
 
-        foreach (var type in GetLoadableTypes(assembly))
+        foreach (var type in GetLoadableTypes(assembly).Where(t => t is not null && t.IsClass && !t.IsAbstract))
         {
-            if (type is null || !type.IsClass || type.IsAbstract)
-            {
-                continue;
-            }
-
-            ProcessType(type, result);
+            ProcessType(type!, result);
         }
 
         return result.Build();

@@ -316,27 +316,25 @@ public static class StreamingShouldlyExtensions
         var results = await source.CollectAsync(cancellationToken);
         var errors = results.GetErrors();
 
-        foreach (var error in errors)
+        var validationError = errors
+            .Where(e => e.GetCode().IfNone(string.Empty).StartsWith("encina.validation", StringComparison.OrdinalIgnoreCase))
+            .Where(e =>
+            {
+                var metadata = e.GetMetadata();
+                return e.Message.Contains(propertyName, StringComparison.OrdinalIgnoreCase) ||
+                       metadata.Any(m => m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
+                                         m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
+            })
+            .Take(1)
+            .ToList();
+
+        if (validationError.Count == 0)
         {
-            var code = error.GetCode().IfNone(string.Empty);
-            if (!code.StartsWith("encina.validation", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var metadata = error.GetMetadata();
-            var containsProperty = error.Message.Contains(propertyName, StringComparison.OrdinalIgnoreCase) ||
-                                   metadata.Any(m => m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
-                                                     m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
-
-            if (containsProperty)
-            {
-                return error;
-            }
+            throw new ShouldAssertException(
+                customMessage ?? $"Expected to find a validation error for property '{propertyName}' but none was found");
         }
 
-        throw new ShouldAssertException(
-            customMessage ?? $"Expected to find a validation error for property '{propertyName}' but none was found");
+        return validationError[0];
     }
 
     /// <summary>
@@ -393,17 +391,18 @@ public static class StreamingShouldlyExtensions
         var results = await source.CollectAsync(cancellationToken);
         var errors = results.GetErrors();
 
-        foreach (var error in errors)
+        var authError = errors
+            .Where(e => e.GetCode().IfNone(string.Empty).StartsWith("encina.authorization", StringComparison.OrdinalIgnoreCase))
+            .Take(1)
+            .ToList();
+
+        if (authError.Count == 0)
         {
-            var code = error.GetCode().IfNone(string.Empty);
-            if (code.StartsWith("encina.authorization", StringComparison.OrdinalIgnoreCase))
-            {
-                return error;
-            }
+            throw new ShouldAssertException(
+                customMessage ?? "Expected to find an authorization error but none was found");
         }
 
-        throw new ShouldAssertException(
-            customMessage ?? "Expected to find an authorization error but none was found");
+        return authError[0];
     }
 
     /// <summary>

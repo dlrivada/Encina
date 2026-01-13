@@ -200,13 +200,8 @@ public sealed class ModuleArchitectureAnalyzer
 
         foreach (var sourceModule in modules)
         {
-            foreach (var targetModule in modules)
+            foreach (var targetModule in modules.Where(m => m.Name != sourceModule.Name))
             {
-                if (sourceModule.Name == targetModule.Name)
-                {
-                    continue;
-                }
-
                 var hasDependency = CheckDependency(sourceModule, targetModule);
                 if (hasDependency)
                 {
@@ -267,13 +262,12 @@ public sealed class ModuleArchitectureAnalyzer
 
     private void LogLoaderExceptions(string asmName, string typeName, Exception?[] loaderExceptions)
     {
-        foreach (var le in loaderExceptions)
+        foreach (var le in loaderExceptions.Where(e => e is not null))
         {
-            if (le is null) continue;
             _loaderExceptionLog(_logger!,
                 asmName,
                 typeName,
-                le.GetType().Name,
+                le!.GetType().Name,
                 le.Message ?? string.Empty,
                 le.StackTrace ?? string.Empty,
                 le);
@@ -282,10 +276,9 @@ public sealed class ModuleArchitectureAnalyzer
 
     private static void WriteLoaderExceptionsToConsole(Exception?[] loaderExceptions)
     {
-        foreach (var le in loaderExceptions)
+        foreach (var le in loaderExceptions.Where(e => e is not null))
         {
-            if (le is null) continue;
-            Console.Error.WriteLine($" - {le.GetType().Name}: {le.Message}\n{le.StackTrace}");
+            Console.Error.WriteLine($" - {le!.GetType().Name}: {le.Message}\n{le.StackTrace}");
         }
     }
 

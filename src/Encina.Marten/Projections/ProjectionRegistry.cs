@@ -174,13 +174,8 @@ public sealed class ProjectionRegistration
     {
         var interfaces = ProjectionType.GetInterfaces();
 
-        foreach (var iface in interfaces)
+        foreach (var iface in interfaces.Where(i => i.IsGenericType))
         {
-            if (!iface.IsGenericType)
-            {
-                continue;
-            }
-
             var genericDef = iface.GetGenericTypeDefinition();
             var genericArgs = iface.GetGenericArguments();
 

@@ -54,13 +54,8 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
 
         var tasks = new List<Task<(object Handler, Either<EncinaError, Unit> Result)>>(handlers.Count);
 
-        foreach (var handler in handlers)
+        foreach (var handler in handlers.Where(h => h is not null))
         {
-            if (handler is null)
-            {
-                continue;
-            }
-
             var capturedHandler = handler;
             tasks.Add(ExecuteWithThrottlingAsync(capturedHandler, notification, invoker, semaphore, cancellationToken));
         }
