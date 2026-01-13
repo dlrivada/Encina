@@ -110,7 +110,7 @@ public sealed class IntegrationEventCollector
     /// <exception cref="InvalidOperationException">
     /// Thrown when no event of the specified type was captured.
     /// </exception>
-    public TEvent GetFirst<TEvent>() where TEvent : INotification
+    public TEvent GetFirst<TEvent>() where TEvent : class, INotification
     {
         TEvent? result;
         lock (_sync)
@@ -118,13 +118,13 @@ public sealed class IntegrationEventCollector
             result = _events.OfType<TEvent>().FirstOrDefault();
         }
 
-        if (result == null)
+        if (result is null)
         {
             throw new InvalidOperationException(
                 $"No event of type {typeof(TEvent).Name} was captured.");
         }
 
-        return result!;
+        return result;
     }
 
     /// <summary>
@@ -231,7 +231,7 @@ public sealed class IntegrationEventCollector
     /// </summary>
     /// <typeparam name="TEvent">The expected event type.</typeparam>
     /// <returns>An AndConstraint wrapping the event.</returns>
-    public AndConstraint<TEvent> ShouldContainAnd<TEvent>() where TEvent : INotification
+    public AndConstraint<TEvent> ShouldContainAnd<TEvent>() where TEvent : class, INotification
     {
         ShouldContain<TEvent>();
         return new AndConstraint<TEvent>(GetFirst<TEvent>());
