@@ -60,9 +60,9 @@ internal sealed class StreamPipelineBuilder<TRequest, TItem> : IStreamPipelineBu
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
-        // Resolve all stream behaviors from DI (fall back to empty array)
-        var behaviors = serviceProvider.GetServices<IStreamPipelineBehavior<TRequest, TItem>>()?.ToArray()
-                        ?? Array.Empty<IStreamPipelineBehavior<TRequest, TItem>>();
+        // Resolve all stream behaviors from DI
+        // GetServices<T>() never returns null - always empty enumeration
+        var behaviors = serviceProvider.GetServices<IStreamPipelineBehavior<TRequest, TItem>>().ToArray();
 
         // Start with the innermost delegate: handler invocation
         StreamHandlerCallback<TItem> current = () => ExecuteHandlerAsync(_handler, _request, _cancellationToken);

@@ -58,13 +58,11 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
-        // Resolve all pipeline components from DI (fall back to empty arrays)
-        var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>()?.ToArray()
-                        ?? System.Array.Empty<IPipelineBehavior<TRequest, TResponse>>();
-        var preProcessors = serviceProvider.GetServices<IRequestPreProcessor<TRequest>>()?.ToArray()
-                         ?? System.Array.Empty<IRequestPreProcessor<TRequest>>();
-        var postProcessors = serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>()?.ToArray()
-                          ?? System.Array.Empty<IRequestPostProcessor<TRequest, TResponse>>();
+        // Resolve all pipeline components from DI
+        // GetServices<T>() never returns null - always empty enumeration
+        var behaviors = serviceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>().ToArray();
+        var preProcessors = serviceProvider.GetServices<IRequestPreProcessor<TRequest>>().ToArray();
+        var postProcessors = serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>().ToArray();
 
         // Start with the innermost delegate: handler invocation
         RequestHandlerCallback<TResponse> current = () => ExecuteHandlerAsync(_handler, _request, _cancellationToken);
