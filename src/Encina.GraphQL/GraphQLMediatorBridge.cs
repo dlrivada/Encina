@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -130,6 +131,8 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
         return SubscribeAsyncIterator<TResult>(cancellationToken);
     }
 
+    [SuppressMessage("SonarQube", "S1172:Unused method parameters should be removed",
+        Justification = "The cancellationToken parameter with [EnumeratorCancellation] is required for proper async enumerable cancellation support when the implementation is completed.")]
     private async IAsyncEnumerable<Either<EncinaError, TResult>> SubscribeAsyncIterator<TResult>(
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
