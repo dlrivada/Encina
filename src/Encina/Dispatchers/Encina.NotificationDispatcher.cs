@@ -75,7 +75,7 @@ public sealed partial class Encina
                 async (handler, notif, ct) =>
                 {
                     Log.SendingNotification(Encina._logger, notificationType.Name, handler.GetType().Name);
-                    var handlerResult = await InvokeNotificationHandler(handler, notif, ct).ConfigureAwait(false);
+                    var handlerResult = await ExecuteHandlerAsync(handler, notif, ct).ConfigureAwait(false);
 
                     // Log failures
                     if (handlerResult.IsLeft)
@@ -132,13 +132,13 @@ public sealed partial class Encina
         }
 
         /// <summary>
-        /// Invokes a notification handler that now returns Either{EncinaError, Unit}.
+        /// Executes a notification handler that returns Either{EncinaError, Unit}.
         /// </summary>
         /// <remarks>
         /// Since handlers now return Either, they handle their own functional failures.
         /// We only catch unexpected exceptions as a safety net for bugs.
         /// </remarks>
-        internal static async Task<Either<EncinaError, Unit>> InvokeNotificationHandler<TNotification>(object handler, TNotification notification, CancellationToken cancellationToken)
+        internal static async Task<Either<EncinaError, Unit>> ExecuteHandlerAsync<TNotification>(object handler, TNotification notification, CancellationToken cancellationToken)
             where TNotification : INotification
         {
             var handlerType = handler.GetType();

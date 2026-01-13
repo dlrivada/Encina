@@ -141,7 +141,7 @@ public sealed partial class Encina(
     private static Task<Either<EncinaError, Unit>> InvokeNotificationHandler<TNotification>(object handler, TNotification notification, CancellationToken cancellationToken)
         where TNotification : INotification
     {
-        return NotificationDispatcher.InvokeNotificationHandler(handler, notification, cancellationToken);
+        return NotificationDispatcher.ExecuteHandlerAsync(handler, notification, cancellationToken);
     }
 #pragma warning restore IDE0051, S1144
 
