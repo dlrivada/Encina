@@ -1,4 +1,5 @@
 ﻿using FsCheck;
+using FsCheck.Fluent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
 using Refit;
@@ -107,21 +108,17 @@ public class ServiceCollectionPropertyTests
         {
             // Arrange
             var services = new ServiceCollection();
-            var invoked = false;
 
             // Act
-            services.AddEncinaRefitClient<ITestApi>(sp =>
-            {
-                invoked = true;
-                return new RefitSettings
+            services.AddEncinaRefitClient<ITestApi>(_ =>
+                new RefitSettings
                 {
                     ContentSerializer = new SystemTextJsonContentSerializer(
                         new System.Text.Json.JsonSerializerOptions
                         {
                             PropertyNameCaseInsensitive = caseInsensitive
                         })
-                };
-            });
+                });
             var serviceProvider = services.BuildServiceProvider();
             var client = serviceProvider.GetService<ITestApi>();
 

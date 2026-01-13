@@ -1,4 +1,6 @@
-﻿using FsCheck;
+﻿using System.Globalization;
+using FsCheck;
+using FsCheck.Fluent;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -69,7 +71,7 @@ public class RestApiRequestHandlerPropertyTests
 
                 // Assert
                 return result.Match(
-                    Left: error => error.Message.Contains(statusCode.ToString()),
+                    Left: error => error.Message.Contains(statusCode.ToString(CultureInfo.InvariantCulture)),
                     Right: _ => false
                 ).ToProperty();
             });
