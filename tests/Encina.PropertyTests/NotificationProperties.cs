@@ -206,7 +206,7 @@ public sealed class NotificationProperties
 
     private sealed class CallRecorder
     {
-        private readonly List<string> _events = new();
+        private readonly List<string> _events = [];
         private readonly object _lock = new();
 
         public void Add(string entry)

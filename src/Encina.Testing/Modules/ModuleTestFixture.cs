@@ -60,8 +60,8 @@ public sealed class ModuleTestFixture<TModule> : IDisposable, IAsyncDisposable, 
     where TModule : IModule, new()
 {
     private readonly ServiceCollection _services = new();
-    private readonly List<Action<EncinaConfiguration>> _configureActions = new List<Action<EncinaConfiguration>>();
-    private readonly List<Action<IServiceCollection>> _serviceConfigurations = new List<Action<IServiceCollection>>();
+    private readonly List<Action<EncinaConfiguration>> _configureActions = [];
+    private readonly List<Action<IServiceCollection>> _serviceConfigurations = [];
     private readonly TModule _module;
     private readonly IntegrationEventCollector _integrationEvents = new();
     private ServiceProvider? _serviceProvider;

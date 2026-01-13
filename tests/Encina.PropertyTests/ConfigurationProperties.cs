@@ -335,13 +335,8 @@ public sealed class ConfigurationProperties
         var seen = new System.Collections.Generic.HashSet<Type>();
         var ordered = new List<(Type, string)>();
 
-        foreach (var index in indices)
+        foreach (var index in indices.Where(i => i < pool.Length))
         {
-            if (index >= pool.Length)
-            {
-                continue;
-            }
-
             var candidate = pool[index];
             if (seen.Add(candidate.Type))
             {
@@ -451,7 +446,7 @@ public sealed class ConfigurationProperties
 
     private sealed class CallRecorder
     {
-        private readonly List<string> _events = new();
+        private readonly List<string> _events = [];
         private readonly object _lock = new();
 
         public void Add(string entry)

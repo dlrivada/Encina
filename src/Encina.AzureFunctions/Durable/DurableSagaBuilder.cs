@@ -340,7 +340,7 @@ public sealed class DurableSaga<TData>
         {
             var step = executedSteps.Pop();
 
-            if (step.CompensateActivityName == null)
+            if (step.CompensateActivityName is null)
             {
                 continue;
             }

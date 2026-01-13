@@ -148,8 +148,6 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
 
         // RPC pattern implementation would go here
         // For now, return a not implemented error
-        await Task.CompletedTask;
-
         return Left<EncinaError, TResponse>( // NOSONAR S6966: LanguageExt Left is a pure function
             EncinaErrors.Create(
                 "RABBITMQ_RPC_NOT_IMPLEMENTED",

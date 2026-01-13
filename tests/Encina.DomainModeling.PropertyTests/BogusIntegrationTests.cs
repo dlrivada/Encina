@@ -147,7 +147,7 @@ public sealed class BogusIntegrationTests
     private sealed class Order : AggregateRoot<OrderId>
     {
         public string CustomerName { get; private set; } = string.Empty;
-        private readonly List<OrderLineData> _lines = new List<OrderLineData>();
+        private readonly List<OrderLineData> _lines = [];
         public ReadOnlyCollection<OrderLineData> Lines => _lines.AsReadOnly();
 
         private Order(OrderId id) : base(id) { }

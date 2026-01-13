@@ -28,7 +28,7 @@ namespace Encina.Testing.Modules;
 /// </example>
 public sealed class IntegrationEventCollector
 {
-    private readonly List<INotification> _events = new List<INotification>();
+    private readonly List<INotification> _events = [];
     private readonly object _sync = new();
 
     /// <summary>

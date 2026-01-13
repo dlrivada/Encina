@@ -10,7 +10,7 @@ namespace Encina.Tests;
 /// </summary>
 public sealed class ParallelNotificationDispatchTests
 {
-    private readonly List<string> _executionOrder = new();
+    private readonly List<string> _executionOrder = [];
     private readonly object _lock = new();
 
     [Fact]

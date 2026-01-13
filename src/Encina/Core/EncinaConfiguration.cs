@@ -13,10 +13,10 @@ namespace Encina;
 /// </remarks>
 public sealed class EncinaConfiguration
 {
-    private readonly HashSet<Assembly> _assemblies = new();
-    private readonly List<Type> _pipelineBehaviorTypes = new();
-    private readonly List<Type> _requestPreProcessorTypes = new();
-    private readonly List<Type> _requestPostProcessorTypes = new();
+    private readonly HashSet<Assembly> _assemblies = [];
+    private readonly List<Type> _pipelineBehaviorTypes = [];
+    private readonly List<Type> _requestPreProcessorTypes = [];
+    private readonly List<Type> _requestPostProcessorTypes = [];
 
     /// <summary>
     /// Lifetime applied to handlers registered through scanning.
