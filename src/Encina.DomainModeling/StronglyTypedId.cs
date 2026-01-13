@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LanguageExt;
 
 namespace Encina.DomainModeling;
@@ -66,6 +67,8 @@ public interface IStronglyTypedId<out TValue> : IStronglyTypedId
 /// // processOrder(customerId, orderId) won't compile!
 /// </code>
 /// </example>
+[SuppressMessage("SonarAnalyzer.CSharp", "S4035:Seal class or implement IEqualityComparer",
+    Justification = "DDD base class: StronglyTypedId equality is by value + type, derived types inherit this semantic")]
 public abstract class StronglyTypedId<TValue> : IStronglyTypedId<TValue>, IEquatable<StronglyTypedId<TValue>>, IComparable<StronglyTypedId<TValue>>
     where TValue : notnull
 {

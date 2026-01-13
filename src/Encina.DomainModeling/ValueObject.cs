@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Encina.DomainModeling;
 
 /// <summary>
@@ -45,6 +47,8 @@ namespace Encina.DomainModeling;
 /// }
 /// </code>
 /// </example>
+[SuppressMessage("SonarAnalyzer.CSharp", "S4035:Seal class or implement IEqualityComparer",
+    Justification = "DDD base class: ValueObject equality is by components, derived types define their components")]
 public abstract class ValueObject : IEquatable<ValueObject>
 {
     /// <summary>

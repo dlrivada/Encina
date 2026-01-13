@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Encina.DomainModeling;
 
 /// <summary>
@@ -33,6 +35,8 @@ namespace Encina.DomainModeling;
 /// }
 /// </code>
 /// </example>
+[SuppressMessage("SonarAnalyzer.CSharp", "S4035:Seal class or implement IEqualityComparer",
+    Justification = "DDD base class: Entity equality is by ID, derived types inherit this semantic")]
 public abstract class Entity<TId> : IEntity<TId>, IEquatable<Entity<TId>>
     where TId : notnull
 {
