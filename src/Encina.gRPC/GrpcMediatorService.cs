@@ -11,8 +11,8 @@ namespace Encina.gRPC;
 /// </summary>
 public sealed class GrpcEncinaService : IGrpcEncinaService
 {
-    private const string GrpcTypeNotFound = "GrpcTypeNotFound";
-    private const string GrpcDeserializeFailed = "GrpcDeserializeFailed";
+    private const string GrpcTypeNotFound = "GRPC_TYPE_NOT_FOUND";
+    private const string GrpcDeserializeFailed = "GRPC_DESERIALIZE_FAILED";
 
     private readonly IEncina _encina;
     private readonly ILogger<GrpcEncinaService> _logger;
@@ -58,18 +58,18 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             var type = _typeResolver.ResolveRequestType(requestType);
             if (type is null)
             {
-                return Left<EncinaError, byte[]>(
+                return Left<EncinaError, byte[]>( // NOSONAR S6966: Left is a pure function
                     EncinaErrors.Create(
-                        "GrpcTypeNotFound",
+                        GrpcTypeNotFound,
                         $"Request type '{requestType}' not found."));
             }
 
             var request = JsonSerializer.Deserialize(requestData, type);
             if (request is null)
             {
-                return Left<EncinaError, byte[]>(
+                return Left<EncinaError, byte[]>( // NOSONAR S6966: Left is a pure function
                     EncinaErrors.Create(
-                        "GrpcDeserializeFailed",
+                        GrpcDeserializeFailed,
                         "Failed to deserialize request."));
             }
 
@@ -114,7 +114,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         {
             Log.FailedToProcessRequest(_logger, ex, requestType);
 
-            return Left<EncinaError, byte[]>(
+            return Left<EncinaError, byte[]>( // NOSONAR S6966: Left is a pure function
                 EncinaErrors.FromException(
                     "GRPC_SERIALIZE_FAILED",
                     ex.InnerException ?? ex,
@@ -124,9 +124,9 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         {
             Log.FailedToProcessRequest(_logger, ex, requestType);
 
-            return Left<EncinaError, byte[]>(
+            return Left<EncinaError, byte[]>( // NOSONAR S6966: Left is a pure function
                 EncinaErrors.FromException(
-                    "GrpcDeserializeFailed",
+                    GrpcDeserializeFailed,
                     ex,
                     $"Failed to deserialize request of type '{requestType}'."));
         }
@@ -134,7 +134,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         {
             Log.FailedToProcessRequest(_logger, ex, requestType);
 
-            return Left<EncinaError, byte[]>(
+            return Left<EncinaError, byte[]>( // NOSONAR S6966: Left is a pure function
                 EncinaErrors.FromException(
                     "GRPC_SEND_FAILED",
                     ex,
@@ -158,18 +158,18 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             var type = _typeResolver.ResolveNotificationType(notificationType);
             if (type is null)
             {
-                return Left<EncinaError, Unit>(
+                return Left<EncinaError, Unit>( // NOSONAR S6966: Left is a pure function
                     EncinaErrors.Create(
-                        "GrpcTypeNotFound",
+                        GrpcTypeNotFound,
                         $"Notification type '{notificationType}' not found."));
             }
 
             var notification = JsonSerializer.Deserialize(notificationData, type);
             if (notification is null)
             {
-                return Left<EncinaError, Unit>(
+                return Left<EncinaError, Unit>( // NOSONAR S6966: Left is a pure function
                     EncinaErrors.Create(
-                        "GrpcDeserializeFailed",
+                        GrpcDeserializeFailed,
                         "Failed to deserialize notification."));
             }
 
@@ -181,7 +181,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
 
             if (publishMethod is null)
             {
-                return Left<EncinaError, Unit>(
+                return Left<EncinaError, Unit>( // NOSONAR S6966: Left is a pure function
                     EncinaErrors.Create(
                         "GRPC_PUBLISH_METHOD_NOT_FOUND",
                         $"IEncina does not expose a generic Publish<TNotification> method. " +
@@ -202,9 +202,9 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         {
             Log.FailedToProcessNotification(_logger, ex, notificationType);
 
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: Left is a pure function
                 EncinaErrors.FromException(
-                    "GrpcDeserializeFailed",
+                    GrpcDeserializeFailed,
                     ex,
                     $"Failed to deserialize notification of type '{notificationType}'."));
         }
@@ -212,7 +212,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         {
             Log.FailedToProcessNotification(_logger, ex, notificationType);
 
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: Left is a pure function
                 EncinaErrors.FromException(
                     "GRPC_PUBLISH_FAILED",
                     ex,
@@ -263,7 +263,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
 
             // Validate that the response is not null before serialization.
             // A null response from IEncina.Send indicates an unexpected state.
-            if (responseValue is null)
+            if (responseValue is null) // NOSONAR S2583: IfRight lambda assignment not tracked by analyzer
             {
                 return Left<EncinaError, byte[]>(
                     EncinaErrors.Create(
@@ -289,7 +289,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         EncinaError? error = null;
         result.IfLeft((Action<EncinaError>)(e => error = e));
 
-        if (error is null)
+        if (error is null) // NOSONAR S2583: IfLeft lambda assignment not tracked by analyzer
         {
             return Left<EncinaError, byte[]>(
                 EncinaErrors.Create(
