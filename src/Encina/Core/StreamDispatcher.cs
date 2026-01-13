@@ -40,7 +40,7 @@ internal static class StreamDispatcher
                     ["requestType"] = requestType.FullName,
                     ["itemType"] = itemType.FullName
                 });
-            yield return Left<EncinaError, TItem>(error);
+            yield return Left<EncinaError, TItem>(error); // NOSONAR S6966: LanguageExt Left is a pure function
             yield break;
         }
 

@@ -42,6 +42,6 @@ internal sealed class SequentialDispatchStrategy : INotificationDispatchStrategy
             }
         }
 
-        return Right<EncinaError, Unit>(Unit.Default);
+        return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
     }
 }

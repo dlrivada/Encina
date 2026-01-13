@@ -37,13 +37,13 @@ public sealed class QueryMetricsPipelineBehavior<TQuery, TResponse>(IEncinaMetri
         if (!EncinaBehaviorGuards.TryValidateRequest(GetType(), request, out var failure))
         {
             _metrics.TrackFailure(requestKind, requestName, TimeSpan.Zero, failure.GetEncinaCode());
-            return Left<EncinaError, TResponse>(failure);
+            return Left<EncinaError, TResponse>(failure); // NOSONAR S6966: LanguageExt Left is a pure function
         }
 
         if (!EncinaBehaviorGuards.TryValidateNextStep(GetType(), nextStep, out failure))
         {
             _metrics.TrackFailure(requestKind, requestName, TimeSpan.Zero, failure.GetEncinaCode());
-            return Left<EncinaError, TResponse>(failure);
+            return Left<EncinaError, TResponse>(failure); // NOSONAR S6966: LanguageExt Left is a pure function
         }
 
         var startedAt = Stopwatch.GetTimestamp();
@@ -57,7 +57,7 @@ public sealed class QueryMetricsPipelineBehavior<TQuery, TResponse>(IEncinaMetri
         {
             var elapsed = Stopwatch.GetElapsedTime(startedAt);
             _metrics.TrackFailure(requestKind, requestName, elapsed, "cancelled");
-            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, $"Behavior {GetType().Name} cancelled the {typeof(TQuery).Name} request.", ex));
+            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, $"Behavior {GetType().Name} cancelled the {typeof(TQuery).Name} request.", ex)); // NOSONAR S6966: LanguageExt Left is a pure function
         }
         catch (Exception ex)
         {
@@ -65,7 +65,7 @@ public sealed class QueryMetricsPipelineBehavior<TQuery, TResponse>(IEncinaMetri
             var reason = ex.GetType().Name;
             _metrics.TrackFailure(requestKind, requestName, elapsed, reason);
             var error = EncinaErrors.FromException(EncinaErrorCodes.BehaviorException, ex, $"Error running {GetType().Name} for {typeof(TQuery).Name}.");
-            return Left<EncinaError, TResponse>(error);
+            return Left<EncinaError, TResponse>(error); // NOSONAR S6966: LanguageExt Left is a pure function
         }
 
         var totalElapsed = Stopwatch.GetElapsedTime(startedAt);

@@ -75,13 +75,13 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
 
             Log.SuccessfullyPublishedMessage(_logger, typeof(TMessage).Name);
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name);
 
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "RABBITMQ_PUBLISH_FAILED",
                     ex,
@@ -122,13 +122,13 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
 
             Log.SuccessfullySentToQueue(_logger, typeof(TMessage).Name, queueName);
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToSendToQueue(_logger, ex, typeof(TMessage).Name, queueName);
 
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "RABBITMQ_SEND_FAILED",
                     ex,
@@ -150,7 +150,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
         // For now, return a not implemented error
         await Task.CompletedTask;
 
-        return Left<EncinaError, TResponse>(
+        return Left<EncinaError, TResponse>( // NOSONAR S6966: LanguageExt Left is a pure function
             EncinaErrors.Create(
                 "RABBITMQ_RPC_NOT_IMPLEMENTED",
                 "RPC pattern is not yet implemented. Use MassTransit for request/reply patterns."));

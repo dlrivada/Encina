@@ -126,7 +126,7 @@ public sealed class ContentRouterBuilder<TMessage, TResult>
     /// <returns>This builder for fluent chaining.</returns>
     public ContentRouterBuilder<TMessage, TResult> DefaultResult(TResult defaultResult)
     {
-        return Default((_, _) => ValueTask.FromResult(Right<EncinaError, TResult>(defaultResult)));
+        return Default((_, _) => ValueTask.FromResult(Right<EncinaError, TResult>(defaultResult))); // NOSONAR S6966: LanguageExt Right is a pure function
     }
 
     /// <summary>
@@ -259,7 +259,7 @@ public sealed class ContentRouteBuilder<TMessage, TResult>
         return RouteTo(async (message, ct) =>
         {
             var result = await handler(message, ct).ConfigureAwait(false);
-            return Right<EncinaError, TResult>(result);
+            return Right<EncinaError, TResult>(result); // NOSONAR S6966: LanguageExt Right is a pure function
         });
     }
 
@@ -273,7 +273,7 @@ public sealed class ContentRouteBuilder<TMessage, TResult>
         ArgumentNullException.ThrowIfNull(handler);
 
         return RouteTo((message, _) =>
-            ValueTask.FromResult(Right<EncinaError, TResult>(handler(message))));
+            ValueTask.FromResult(Right<EncinaError, TResult>(handler(message)))); // NOSONAR S6966: LanguageExt Right is a pure function
     }
 }
 

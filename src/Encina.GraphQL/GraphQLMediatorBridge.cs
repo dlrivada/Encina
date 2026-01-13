@@ -60,7 +60,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return Left<EncinaError, TResult>(
+            return Left<EncinaError, TResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     "GRAPHQL_TIMEOUT",
                     $"Query timed out after {_options.ExecutionTimeout.TotalSeconds} seconds."));
@@ -69,7 +69,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
         {
             Log.FailedToExecuteQuery(_logger, ex, typeof(TQuery).Name);
 
-            return Left<EncinaError, TResult>(
+            return Left<EncinaError, TResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "GRAPHQL_QUERY_FAILED",
                     ex,
@@ -102,7 +102,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return Left<EncinaError, TResult>(
+            return Left<EncinaError, TResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     "GRAPHQL_TIMEOUT",
                     $"Mutation timed out after {_options.ExecutionTimeout.TotalSeconds} seconds."));
@@ -111,7 +111,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
         {
             Log.FailedToExecuteMutation(_logger, ex, typeof(TMutation).Name);
 
-            return Left<EncinaError, TResult>(
+            return Left<EncinaError, TResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "GRAPHQL_MUTATION_FAILED",
                     ex,
@@ -129,7 +129,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
 
         if (!_options.EnableSubscriptions)
         {
-            yield return Left<EncinaError, TResult>(
+            yield return Left<EncinaError, TResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     "GRAPHQL_SUBSCRIPTIONS_DISABLED",
                     "GraphQL subscriptions are disabled."));
@@ -140,7 +140,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
         // For now, return a not implemented error
         await Task.CompletedTask;
 
-        yield return Left<EncinaError, TResult>(
+        yield return Left<EncinaError, TResult>( // NOSONAR S6966: LanguageExt Left is a pure function
             EncinaErrors.Create(
                 "GRAPHQL_SUBSCRIPTIONS_NOT_IMPLEMENTED",
                 "GraphQL subscriptions require integration with a pub/sub system. " +

@@ -153,7 +153,7 @@ public sealed partial class Encina
                 stopwatch.Stop();
                 metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, EncinaErrorCodes.RequestCancelled);
                 EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: EncinaErrorCodes.RequestCancelled, errorMessage: message);
-                return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestCancelled, message, ex, metadata));
+                return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestCancelled, message, ex, metadata)); // NOSONAR S6966: LanguageExt Left is a pure function
             }
             // Pure ROP: Any other exception (e.g., NullReferenceException, InvalidOperationException)
             // indicates a bug in a handler, behavior, or processor and will propagate to crash the process (fail-fast).

@@ -108,7 +108,7 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
             }
         }
 
-        return Right<EncinaError, Unit>(Unit.Default);
+        return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
     }
 
     /// <inheritdoc />
@@ -129,7 +129,7 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
             }
         }
 
-        return Right<EncinaError, Unit>(Unit.Default);
+        return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
     }
 
     private async Task<Either<EncinaError, Unit>> ApplyEventToProjectionAsync(
@@ -159,7 +159,7 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
             if (handlerInfo == null)
             {
                 ProjectionLog.NoHandlerForEvent(_logger, eventType.Name, projectionName);
-                return Right<EncinaError, Unit>(Unit.Default);
+                return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
             }
 
             object? resultReadModel = null;
@@ -171,7 +171,7 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
                     if (existingReadModel != null)
                     {
                         // Already exists, skip creation
-                        return Right<EncinaError, Unit>(Unit.Default);
+                        return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
                     }
 
                     resultReadModel = handlerInfo.Value.InvokeCreate(projection, @event, context);
@@ -186,7 +186,7 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
                     if (existingReadModel == null)
                     {
                         // No existing read model, nothing to update
-                        return Right<EncinaError, Unit>(Unit.Default);
+                        return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
                     }
 
                     resultReadModel = handlerInfo.Value.InvokeApply(projection, @event, existingReadModel, context);
@@ -226,12 +226,13 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
                     .ConfigureAwait(false);
             }
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             ProjectionLog.ErrorApplyingEvent(_logger, ex, eventType.Name, registration.ProjectionName);
 
+            // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
             return Left<EncinaError, Unit>(
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.ApplyFailed,

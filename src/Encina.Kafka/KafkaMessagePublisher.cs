@@ -73,7 +73,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                 deliveryResult.Partition.Value,
                 deliveryResult.Offset.Value);
 
-            return Right<EncinaError, KafkaDeliveryResult>(
+            return Right<EncinaError, KafkaDeliveryResult>( // NOSONAR S6966: LanguageExt Right is a pure function
                 new KafkaDeliveryResult(
                     deliveryResult.Topic,
                     deliveryResult.Partition.Value,
@@ -84,7 +84,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
         {
             Log.FailedToProduceMessage(_logger, ex, typeof(TMessage).Name, effectiveTopic);
 
-            return Left<EncinaError, KafkaDeliveryResult>(
+            return Left<EncinaError, KafkaDeliveryResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "KAFKA_PRODUCE_FAILED",
                     ex,
@@ -112,7 +112,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
 
                 if (result.IsLeft)
                 {
-                    return Left<EncinaError, IReadOnlyList<KafkaDeliveryResult>>(
+                    return Left<EncinaError, IReadOnlyList<KafkaDeliveryResult>>( // NOSONAR S6966: LanguageExt Left is a pure function
                         result.Match(
                             Right: _ => throw new InvalidOperationException(),
                             Left: error => error));
@@ -121,13 +121,13 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                 result.IfRight(results.Add);
             }
 
-            return Right<EncinaError, IReadOnlyList<KafkaDeliveryResult>>(results);
+            return Right<EncinaError, IReadOnlyList<KafkaDeliveryResult>>(results); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToProduceBatch(_logger, ex, typeof(TMessage).Name);
 
-            return Left<EncinaError, IReadOnlyList<KafkaDeliveryResult>>(
+            return Left<EncinaError, IReadOnlyList<KafkaDeliveryResult>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "KAFKA_BATCH_PRODUCE_FAILED",
                     ex,
@@ -173,7 +173,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                 kafkaMessage,
                 cancellationToken).ConfigureAwait(false);
 
-            return Right<EncinaError, KafkaDeliveryResult>(
+            return Right<EncinaError, KafkaDeliveryResult>( // NOSONAR S6966: LanguageExt Right is a pure function
                 new KafkaDeliveryResult(
                     deliveryResult.Topic,
                     deliveryResult.Partition.Value,
@@ -184,7 +184,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
         {
             Log.FailedToProduceMessageWithHeaders(_logger, ex, typeof(TMessage).Name);
 
-            return Left<EncinaError, KafkaDeliveryResult>(
+            return Left<EncinaError, KafkaDeliveryResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "KAFKA_PRODUCE_HEADERS_FAILED",
                     ex,

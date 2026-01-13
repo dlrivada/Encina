@@ -81,7 +81,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
 
             if (sendMethod is null)
             {
-                return Left<EncinaError, byte[]>(
+                return Left<EncinaError, byte[]>( // NOSONAR S6966: LanguageExt Left is a pure function
                     EncinaErrors.Create(
                         "GRPC_SEND_METHOD_NOT_FOUND",
                         $"IEncina does not expose a generic Send<TResponse> method. " +
@@ -94,7 +94,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
 
             if (responseType is null)
             {
-                return Left<EncinaError, byte[]>(
+                return Left<EncinaError, byte[]>( // NOSONAR S6966: LanguageExt Left is a pure function
                     EncinaErrors.Create(
                         "GRPC_RESPONSE_TYPE_NOT_FOUND",
                         $"Could not determine response type for request '{requestType}'."));
@@ -229,7 +229,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         // Streaming is not yet implemented
         await Task.CompletedTask;
 
-        yield return Left<EncinaError, byte[]>(
+        yield return Left<EncinaError, byte[]>( // NOSONAR S6966: LanguageExt Left is a pure function
             EncinaErrors.Create(
                 "GRPC_STREAMING_NOT_IMPLEMENTED",
                 "Streaming is not yet implemented."));
@@ -265,7 +265,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             // A null response from IEncina.Send indicates an unexpected state.
             if (responseValue is null) // NOSONAR S2583: IfRight lambda assignment not tracked by analyzer
             {
-                return Left<EncinaError, byte[]>(
+                return Left<EncinaError, byte[]>( // NOSONAR S6966: LanguageExt Left is a pure function
                     EncinaErrors.Create(
                         "GRPC_NULL_RESPONSE",
                         $"The response for request '{contextTypeName}' was null. " +
@@ -275,7 +275,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             try
             {
                 var responseBytes = JsonSerializer.SerializeToUtf8Bytes(responseValue, responseType);
-                return Right<EncinaError, byte[]>(responseBytes);
+                return Right<EncinaError, byte[]>(responseBytes); // NOSONAR S6966: LanguageExt Right is a pure function
             }
             catch (JsonException ex)
             {
@@ -291,13 +291,13 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
 
         if (error is null) // NOSONAR S2583: IfLeft lambda assignment not tracked by analyzer
         {
-            return Left<EncinaError, byte[]>(
+            return Left<EncinaError, byte[]>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     "GRPC_ERROR_EXTRACTION_FAILED",
                     $"Failed to extract error from Either.Left for type '{contextTypeName}'."));
         }
 
-        return Left<EncinaError, byte[]>(error);
+        return Left<EncinaError, byte[]>(error); // NOSONAR S6966: LanguageExt Left is a pure function
     }
 }
 

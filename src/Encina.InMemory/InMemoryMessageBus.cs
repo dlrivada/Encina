@@ -102,13 +102,13 @@ public sealed class InMemoryMessageBus : IInMemoryMessageBus, IDisposable
 
             Log.SuccessfullyPublishedMessage(_logger, typeof(TMessage).Name);
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name);
 
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "INMEMORY_PUBLISH_FAILED",
                     ex,
@@ -133,13 +133,13 @@ public sealed class InMemoryMessageBus : IInMemoryMessageBus, IDisposable
 
             Log.SuccessfullyEnqueuedMessage(_logger, typeof(TMessage).Name);
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToEnqueueMessage(_logger, ex, typeof(TMessage).Name);
 
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "INMEMORY_ENQUEUE_FAILED",
                     ex,

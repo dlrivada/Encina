@@ -62,7 +62,7 @@ public sealed partial class Encina
             {
                 Log.NoNotificationHandlers(Encina._logger, notificationType.Name);
                 activity?.SetStatus(ActivityStatusCode.Ok);
-                return Right<EncinaError, Unit>(Unit.Default);
+                return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
             }
 
             // --- EXECUTION PHASE ---
@@ -93,7 +93,7 @@ public sealed partial class Encina
             }
 
             activity?.SetStatus(ActivityStatusCode.Ok);
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
 
         private static bool TryHandleNotificationFailure(Encina Encina, string notificationName, Activity? activity, Either<EncinaError, Unit> result, object handlerInstance)
@@ -151,7 +151,7 @@ public sealed partial class Encina
 
             if (!TryGetNotificationExecutor(handlerType, desiredNotificationType, runtimeNotificationType, notificationName, out var executor, out var failure))
             {
-                return Left<EncinaError, Unit>(failure);
+                return Left<EncinaError, Unit>(failure); // NOSONAR S6966: LanguageExt Left is a pure function
             }
 
             try
@@ -170,7 +170,7 @@ public sealed partial class Encina
                     ["notification"] = notificationName,
                     ["stage"] = "handler"
                 };
-                return Left<EncinaError, Unit>(EncinaErrors.Create(EncinaErrorCodes.NotificationCancelled, message, ex, metadata));
+                return Left<EncinaError, Unit>(EncinaErrors.Create(EncinaErrorCodes.NotificationCancelled, message, ex, metadata)); // NOSONAR S6966: LanguageExt Left is a pure function
             }
             catch (Exception ex)
             {
@@ -186,7 +186,7 @@ public sealed partial class Encina
                     ["exception_type"] = ex.GetType().FullName
                 };
                 var error = EncinaErrors.FromException(EncinaErrorCodes.NotificationException, ex, message, metadata);
-                return Left<EncinaError, Unit>(error);
+                return Left<EncinaError, Unit>(error); // NOSONAR S6966: LanguageExt Left is a pure function
             }
         }
 

@@ -36,7 +36,7 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
     {
         if (handlers.Count == 0)
         {
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
 
         // Single handler - no parallelism needed
@@ -44,7 +44,7 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
         {
             var handler = handlers[0];
             return handler is null
-                ? Right<EncinaError, Unit>(Unit.Default)
+                ? Right<EncinaError, Unit>(Unit.Default) // NOSONAR S6966: LanguageExt Right is a pure function
                 : await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
         }
 
@@ -85,6 +85,7 @@ internal sealed class ParallelDispatchStrategy : INotificationDispatchStrategy
             // Expected when we cancel due to handler error
         }
 
+        // NOSONAR S6966: LanguageExt Left/Right are pure functions, not async operations
         return errorHolder.Error is not null
             ? Left<EncinaError, Unit>(errorHolder.Error)
             : Right<EncinaError, Unit>(Unit.Default);

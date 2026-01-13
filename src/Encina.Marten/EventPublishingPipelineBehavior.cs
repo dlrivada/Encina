@@ -86,6 +86,7 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
 
                 Log.FailedToPublishDomainEvent(_logger, domainEvent.GetType().Name, error.Message);
 
+                // NOSONAR S6966: LanguageExt Left is a pure function, not an async operation
                 return Left<EncinaError, TResponse>(
                     EncinaErrors.Create(
                         MartenErrorCodes.PublishEventsFailed,

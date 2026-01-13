@@ -212,7 +212,7 @@ public sealed class ContentRouter : IContentRouter
 
                     ContentRouterLog.RoutingCompleted(_logger, routingId, 1, stopwatch.Elapsed);
 
-                    return Right<EncinaError, ContentRouterResult<TResult>>(
+                    return Right<EncinaError, ContentRouterResult<TResult>>( // NOSONAR S6966: LanguageExt Right is a pure function
                         new ContentRouterResult<TResult>(
                             [routeResult],
                             matchedRouteCount: 0,
@@ -222,7 +222,7 @@ public sealed class ContentRouter : IContentRouter
                 Left: error =>
                 {
                     stopwatch.Stop();
-                    return Left<EncinaError, ContentRouterResult<TResult>>(error);
+                    return Left<EncinaError, ContentRouterResult<TResult>>(error); // NOSONAR S6966: LanguageExt Left is a pure function
                 });
         }
         catch (Exception ex)

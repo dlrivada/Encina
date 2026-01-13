@@ -37,7 +37,7 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
     {
         if (handlers.Count == 0)
         {
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
 
         // Single handler - no parallelism needed
@@ -45,7 +45,7 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
         {
             var handler = handlers[0];
             return handler is null
-                ? Right<EncinaError, Unit>(Unit.Default)
+                ? Right<EncinaError, Unit>(Unit.Default) // NOSONAR S6966: LanguageExt Right is a pure function
                 : await invoker(handler, notification, cancellationToken).ConfigureAwait(false);
         }
 
@@ -82,16 +82,16 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
 
         if (errors.Count == 0)
         {
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
 
         if (errors.Count == 1)
         {
-            return Left<EncinaError, Unit>(errors[0].Error);
+            return Left<EncinaError, Unit>(errors[0].Error); // NOSONAR S6966: LanguageExt Left is a pure function
         }
 
         // Aggregate multiple errors
-        return Left<EncinaError, Unit>(CreateAggregateError(errors, notification));
+        return Left<EncinaError, Unit>(CreateAggregateError(errors, notification)); // NOSONAR S6966: LanguageExt Left is a pure function
     }
 
     private static async Task<(object Handler, Either<EncinaError, Unit> Result)> ExecuteWithThrottlingAsync<TNotification>(
@@ -114,7 +114,7 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
                 EncinaErrorCodes.NotificationCancelled,
                 $"Handler {handler.GetType().Name} was cancelled.",
                 ex);
-            return (handler, Left<EncinaError, Unit>(error));
+            return (handler, Left<EncinaError, Unit>(error)); // NOSONAR S6966: LanguageExt Left is a pure function
         }
         catch (Exception ex)
         {
@@ -122,7 +122,7 @@ internal sealed class ParallelWhenAllDispatchStrategy : INotificationDispatchStr
                 EncinaErrorCodes.NotificationException,
                 ex,
                 $"Handler {handler.GetType().Name} threw an unexpected exception.");
-            return (handler, Left<EncinaError, Unit>(error));
+            return (handler, Left<EncinaError, Unit>(error)); // NOSONAR S6966: LanguageExt Left is a pure function
         }
         finally
         {

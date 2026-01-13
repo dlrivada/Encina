@@ -64,13 +64,13 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
 
             Log.SuccessfullyPublishedMessage(_logger, subscriberCount);
 
-            return Right<EncinaError, long>(subscriberCount);
+            return Right<EncinaError, long>(subscriberCount); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name, effectiveChannel);
 
-            return Left<EncinaError, long>(
+            return Left<EncinaError, long>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "REDIS_PUBLISH_FAILED",
                     ex,

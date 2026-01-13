@@ -59,7 +59,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
         if (string.IsNullOrEmpty(effectiveQueueUrl))
         {
-            return Left<EncinaError, string>(
+            return Left<EncinaError, string>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     "SQS_QUEUE_NOT_CONFIGURED",
                     "Queue URL is not configured."));
@@ -87,13 +87,13 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
             Log.SuccessfullySentMessage(_logger, typeof(TMessage).Name, response.MessageId);
 
-            return Right<EncinaError, string>(response.MessageId);
+            return Right<EncinaError, string>(response.MessageId); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToSendToQueue(_logger, ex, typeof(TMessage).Name, effectiveQueueUrl);
 
-            return Left<EncinaError, string>(
+            return Left<EncinaError, string>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "SQS_SEND_FAILED",
                     ex,
@@ -114,7 +114,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
         if (string.IsNullOrEmpty(effectiveTopicArn))
         {
-            return Left<EncinaError, string>(
+            return Left<EncinaError, string>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     "SNS_TOPIC_NOT_CONFIGURED",
                     "Topic ARN is not configured."));
@@ -142,13 +142,13 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
             Log.SuccessfullyPublishedMessage(_logger, typeof(TMessage).Name, response.MessageId);
 
-            return Right<EncinaError, string>(response.MessageId);
+            return Right<EncinaError, string>(response.MessageId); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToPublishToTopic(_logger, ex, typeof(TMessage).Name, effectiveTopicArn);
 
-            return Left<EncinaError, string>(
+            return Left<EncinaError, string>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "SNS_PUBLISH_FAILED",
                     ex,
@@ -169,7 +169,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
         if (string.IsNullOrEmpty(effectiveQueueUrl))
         {
-            return Left<EncinaError, IReadOnlyList<string>>(
+            return Left<EncinaError, IReadOnlyList<string>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     "SQS_QUEUE_NOT_CONFIGURED",
                     "Queue URL is not configured."));
@@ -210,13 +210,13 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
             Log.SuccessfullySentBatch(_logger, messageIds.Count);
 
-            return Right<EncinaError, IReadOnlyList<string>>(messageIds);
+            return Right<EncinaError, IReadOnlyList<string>>(messageIds); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToSendBatch(_logger, ex, typeof(TMessage).Name);
 
-            return Left<EncinaError, IReadOnlyList<string>>(
+            return Left<EncinaError, IReadOnlyList<string>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "SQS_BATCH_SEND_FAILED",
                     ex,
@@ -240,7 +240,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
         if (string.IsNullOrEmpty(effectiveQueueUrl))
         {
-            return Left<EncinaError, string>(
+            return Left<EncinaError, string>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     "SQS_QUEUE_NOT_CONFIGURED",
                     "Queue URL is not configured."));
@@ -270,13 +270,13 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
             Log.SuccessfullySentFifoMessage(_logger, response.MessageId);
 
-            return Right<EncinaError, string>(response.MessageId);
+            return Right<EncinaError, string>(response.MessageId); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToSendFifoMessage(_logger, ex, typeof(TMessage).Name);
 
-            return Left<EncinaError, string>(
+            return Left<EncinaError, string>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "SQS_FIFO_SEND_FAILED",
                     ex,

@@ -77,7 +77,7 @@ public static class EitherExtensions
             {
                 return result.Match(
                     Right: _ => throw new InvalidOperationException(),
-                    Left: error => Left<TError, IReadOnlyList<T>>(error));
+                    Left: error => Left<TError, IReadOnlyList<T>>(error)); // NOSONAR S6966: LanguageExt Left is a pure function
             }
 
             list.Add(result.Match(Right: x => x, Left: _ => default!));
@@ -130,8 +130,8 @@ public static class EitherExtensions
 
         return result.Bind(value =>
             predicate(value)
-                ? Right<TError, T>(value)
-                : Left<TError, T>(errorFactory(value)));
+                ? Right<TError, T>(value) // NOSONAR S6966: LanguageExt Right is a pure function
+                : Left<TError, T>(errorFactory(value))); // NOSONAR S6966: LanguageExt Left is a pure function
     }
 
     /// <summary>
@@ -149,7 +149,7 @@ public static class EitherExtensions
         ArgumentNullException.ThrowIfNull(fallback);
 
         return result.Match(
-            Right: value => Right<TError, T>(value),
+            Right: value => Right<TError, T>(value), // NOSONAR S6966: LanguageExt Right is a pure function
             Left: error => fallback(error));
     }
 
@@ -253,7 +253,7 @@ public static class EitherExtensions
 
         return await result.Match(
             Right: async value => await binder(value).ConfigureAwait(false),
-            Left: error => Task.FromResult(Left<TError, TResult>(error)))
+            Left: error => Task.FromResult(Left<TError, TResult>(error))) // NOSONAR S6966: LanguageExt Left is a pure function
             .ConfigureAwait(false);
     }
 
@@ -273,9 +273,9 @@ public static class EitherExtensions
             Right: async value =>
             {
                 var mapped = await mapper(value).ConfigureAwait(false);
-                return Right<TError, TResult>(mapped);
+                return Right<TError, TResult>(mapped); // NOSONAR S6966: LanguageExt Right is a pure function
             },
-            Left: error => Task.FromResult(Left<TError, TResult>(error)))
+            Left: error => Task.FromResult(Left<TError, TResult>(error))) // NOSONAR S6966: LanguageExt Left is a pure function
             .ConfigureAwait(false);
     }
 
@@ -295,9 +295,9 @@ public static class EitherExtensions
             Right: async value =>
             {
                 await action(value).ConfigureAwait(false);
-                return Right<TError, T>(value);
+                return Right<TError, T>(value); // NOSONAR S6966: LanguageExt Right is a pure function
             },
-            Left: error => Task.FromResult(Left<TError, T>(error)))
+            Left: error => Task.FromResult(Left<TError, T>(error))) // NOSONAR S6966: LanguageExt Left is a pure function
             .ConfigureAwait(false);
     }
 
@@ -312,7 +312,7 @@ public static class EitherExtensions
 
         return await result.Match(
             Right: binder,
-            Left: error => Task.FromResult(Left<TError, TResult>(error)))
+            Left: error => Task.FromResult(Left<TError, TResult>(error))) // NOSONAR S6966: LanguageExt Left is a pure function
             .ConfigureAwait(false);
     }
 
@@ -329,9 +329,9 @@ public static class EitherExtensions
             Right: async value =>
             {
                 var mapped = await mapper(value).ConfigureAwait(false);
-                return Right<TError, TResult>(mapped);
+                return Right<TError, TResult>(mapped); // NOSONAR S6966: LanguageExt Right is a pure function
             },
-            Left: error => Task.FromResult(Left<TError, TResult>(error)))
+            Left: error => Task.FromResult(Left<TError, TResult>(error))) // NOSONAR S6966: LanguageExt Left is a pure function
             .ConfigureAwait(false);
     }
 
@@ -368,8 +368,8 @@ public static class EitherExtensions
         ArgumentNullException.ThrowIfNull(errorFactory);
 
         return option.Match(
-            Some: value => Right<TError, T>(value),
-            None: () => Left<TError, T>(errorFactory()));
+            Some: value => Right<TError, T>(value), // NOSONAR S6966: LanguageExt Right is a pure function
+            None: () => Left<TError, T>(errorFactory())); // NOSONAR S6966: LanguageExt Left is a pure function
     }
 
     /// <summary>

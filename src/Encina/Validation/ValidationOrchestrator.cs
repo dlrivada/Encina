@@ -56,7 +56,7 @@ public sealed class ValidationOrchestrator
 
         if (cancellationToken.IsCancellationRequested)
         {
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaError.New("Operation was cancelled before validation."));
         }
 
@@ -68,14 +68,14 @@ public sealed class ValidationOrchestrator
             if (result.IsInvalid)
             {
                 var errorMessage = result.ToErrorMessage(typeof(TRequest).Name);
-                return Left<EncinaError, Unit>(EncinaError.New(errorMessage));
+                return Left<EncinaError, Unit>(EncinaError.New(errorMessage)); // NOSONAR S6966: LanguageExt Left is a pure function
             }
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaError.New(ex, $"Validation cancelled for {typeof(TRequest).Name}."));
         }
     }

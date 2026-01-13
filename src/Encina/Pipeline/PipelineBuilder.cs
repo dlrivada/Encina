@@ -107,7 +107,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
             if (failure.IsSome)
             {
                 var error = failure.Match(err => err, () => EncinaErrors.Unknown);
-                return Left<EncinaError, TResponse>(error);
+                return Left<EncinaError, TResponse>(error); // NOSONAR S6966: LanguageExt Left is a pure function
             }
         }
 
@@ -119,7 +119,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
             var failure = await ExecutePostProcessorAsync(postProcessors[i], request, context, response, cancellationToken).ConfigureAwait(false);
             if (failure.IsSome)
             {
-                return Left<EncinaError, TResponse>(failure.Match(err => err, () => EncinaErrors.Unknown));
+                return Left<EncinaError, TResponse>(failure.Match(err => err, () => EncinaErrors.Unknown)); // NOSONAR S6966: LanguageExt Left is a pure function
             }
         }
 
@@ -159,7 +159,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "handler"
             };
-            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.HandlerCancelled, message, ex, metadata));
+            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.HandlerCancelled, message, ex, metadata)); // NOSONAR S6966: LanguageExt Left is a pure function
         }
         // Any other exception (e.g., NullReferenceException, InvalidOperationException) indicates
         // a bug in the handler and will propagate to let the application crash (fail-fast)
@@ -185,7 +185,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "behavior"
             };
-            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, message, ex, metadata));
+            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, message, ex, metadata)); // NOSONAR S6966: LanguageExt Left is a pure function
         }
         // Pure ROP: Any other exception indicates a bug in the behavior and will propagate (fail-fast)
     }

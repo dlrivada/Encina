@@ -79,13 +79,13 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposab
 
             Log.SuccessfullyPublishedMessage(_logger, effectiveTopic);
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name, effectiveTopic);
 
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "MQTT_PUBLISH_FAILED",
                     ex,

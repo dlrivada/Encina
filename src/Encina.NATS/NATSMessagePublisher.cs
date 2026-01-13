@@ -65,13 +65,13 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
 
             Log.SuccessfullyPublishedMessage(_logger, effectiveSubject);
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name, effectiveSubject);
 
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "NATS_PUBLISH_FAILED",
                     ex,
@@ -111,7 +111,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
 
             if (response is null)
             {
-                return Left<EncinaError, TResponse>(
+                return Left<EncinaError, TResponse>( // NOSONAR S6966: LanguageExt Left is a pure function
                     EncinaErrors.Create(
                         "NATS_DESERIALIZE_FAILED",
                         "Failed to deserialize response."));
@@ -119,11 +119,11 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
 
             Log.SuccessfullyReceivedResponse(_logger, typeof(TRequest).Name);
 
-            return Right<EncinaError, TResponse>(response);
+            return Right<EncinaError, TResponse>(response); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return Left<EncinaError, TResponse>(
+            return Left<EncinaError, TResponse>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     "NATS_REQUEST_TIMEOUT",
                     $"Request timed out after {effectiveTimeout.TotalSeconds} seconds."));
@@ -132,7 +132,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
         {
             Log.FailedToSendRequest(_logger, ex, typeof(TRequest).Name);
 
-            return Left<EncinaError, TResponse>(
+            return Left<EncinaError, TResponse>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "NATS_REQUEST_FAILED",
                     ex,
@@ -151,7 +151,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
 
         if (_jetStream is null)
         {
-            return Left<EncinaError, NATSPublishAck>(
+            return Left<EncinaError, NATSPublishAck>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     "NATS_JETSTREAM_NOT_ENABLED",
                     "JetStream is not enabled. Set UseJetStream = true in options."));
@@ -172,14 +172,14 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
 
             Log.SuccessfullyPublishedToJetStream(_logger, ack.Stream ?? string.Empty, ack.Seq);
 
-            return Right<EncinaError, NATSPublishAck>(
+            return Right<EncinaError, NATSPublishAck>( // NOSONAR S6966: LanguageExt Right is a pure function
                 new NATSPublishAck(ack.Stream ?? string.Empty, ack.Seq, ack.Duplicate));
         }
         catch (Exception ex)
         {
             Log.FailedToPublishToJetStream(_logger, ex, typeof(TMessage).Name);
 
-            return Left<EncinaError, NATSPublishAck>(
+            return Left<EncinaError, NATSPublishAck>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "NATS_JETSTREAM_PUBLISH_FAILED",
                     ex,

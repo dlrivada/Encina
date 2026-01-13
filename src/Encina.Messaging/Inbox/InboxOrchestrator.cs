@@ -218,7 +218,7 @@ public sealed class InboxOrchestrator
 
         if (envelope.IsSuccess && !EqualityComparer<TResponse>.Default.Equals(value, default!))
         {
-            return Right<EncinaError, TResponse>(value!);
+            return Right<EncinaError, TResponse>(value!); // NOSONAR S6966: LanguageExt Right is a pure function
         }
 
         return EncinaErrors.Create(

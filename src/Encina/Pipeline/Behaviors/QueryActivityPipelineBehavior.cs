@@ -32,12 +32,12 @@ public sealed class QueryActivityPipelineBehavior<TQuery, TResponse>(IFunctional
     {
         if (!EncinaBehaviorGuards.TryValidateRequest(GetType(), request, out var failure))
         {
-            return Left<EncinaError, TResponse>(failure);
+            return Left<EncinaError, TResponse>(failure); // NOSONAR S6966: LanguageExt Left is a pure function
         }
 
         if (!EncinaBehaviorGuards.TryValidateNextStep(GetType(), nextStep, out failure))
         {
-            return Left<EncinaError, TResponse>(failure);
+            return Left<EncinaError, TResponse>(failure); // NOSONAR S6966: LanguageExt Left is a pure function
         }
 
         using var activity = StartActivity();

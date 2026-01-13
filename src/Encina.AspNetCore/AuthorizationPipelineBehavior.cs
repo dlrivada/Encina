@@ -106,7 +106,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext == null)
         {
-            return Left<EncinaError, TResponse>(EncinaErrors.Create(
+            return Left<EncinaError, TResponse>(EncinaErrors.Create( // NOSONAR S6966: LanguageExt Left is a pure function
                 code: "authorization.no_http_context",
                 message: "Authorization requires HTTP context but none is available.",
                 details: new Dictionary<string, object?>
@@ -121,7 +121,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
         // Check if user is authenticated (if any [Authorize] attribute requires it)
         if (user?.Identity?.IsAuthenticated is not true)
         {
-            return Left<EncinaError, TResponse>(EncinaErrors.Create(
+            return Left<EncinaError, TResponse>(EncinaErrors.Create( // NOSONAR S6966: LanguageExt Left is a pure function
                 code: "authorization.unauthenticated",
                 message: $"Request '{typeof(TRequest).Name}' requires authentication.",
                 details: new Dictionary<string, object?>
@@ -146,7 +146,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
 
                 if (!policyResult.Succeeded)
                 {
-                    return Left<EncinaError, TResponse>(EncinaErrors.Create(
+                    return Left<EncinaError, TResponse>(EncinaErrors.Create( // NOSONAR S6966: LanguageExt Left is a pure function
                         code: "authorization.policy_failed",
                         message: $"User does not satisfy policy '{authorizeAttribute.Policy}' required by '{typeof(TRequest).Name}'.",
                         details: new Dictionary<string, object?>
@@ -176,7 +176,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
 
                 if (!hasAnyRequiredRole)
                 {
-                    return Left<EncinaError, TResponse>(EncinaErrors.Create(
+                    return Left<EncinaError, TResponse>(EncinaErrors.Create( // NOSONAR S6966: LanguageExt Left is a pure function
                         code: "authorization.insufficient_roles",
                         message: $"User does not have any of the required roles ({string.Join(", ", requiredRoles)}) for '{typeof(TRequest).Name}'.",
                         details: new Dictionary<string, object?>

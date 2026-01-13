@@ -64,13 +64,13 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
 
             Log.SuccessfullySentToQueue(_logger, typeof(TMessage).Name, effectiveQueueName);
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToSendToQueue(_logger, ex, typeof(TMessage).Name, effectiveQueueName);
 
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "AZURE_SB_SEND_FAILED",
                     ex,
@@ -106,13 +106,13 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
 
             Log.SuccessfullyPublishedToTopic(_logger, typeof(TMessage).Name, effectiveTopicName);
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToPublishToTopic(_logger, ex, typeof(TMessage).Name, effectiveTopicName);
 
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "AZURE_SB_PUBLISH_FAILED",
                     ex,
@@ -152,13 +152,13 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
 
             Log.SuccessfullyScheduledMessage(_logger, typeof(TMessage).Name, sequenceNumber);
 
-            return Right<EncinaError, long>(sequenceNumber);
+            return Right<EncinaError, long>(sequenceNumber); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToScheduleMessage(_logger, ex, typeof(TMessage).Name);
 
-            return Left<EncinaError, long>(
+            return Left<EncinaError, long>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "AZURE_SB_SCHEDULE_FAILED",
                     ex,
@@ -183,13 +183,13 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
 
             Log.SuccessfullyCancelledMessage(_logger, sequenceNumber);
 
-            return Right<EncinaError, Unit>(Unit.Default);
+            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
             Log.FailedToCancelMessage(_logger, ex, sequenceNumber);
 
-            return Left<EncinaError, Unit>(
+            return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     "AZURE_SB_CANCEL_FAILED",
                     ex,
