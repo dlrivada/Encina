@@ -3,6 +3,37 @@ using Encina.Messaging.Recoverability;
 namespace Encina.Messaging.DeadLetter;
 
 /// <summary>
+/// Data required to create a dead letter message.
+/// </summary>
+/// <param name="Id">The unique identifier.</param>
+/// <param name="RequestType">The request type name.</param>
+/// <param name="RequestContent">The serialized request content.</param>
+/// <param name="ErrorMessage">The error message.</param>
+/// <param name="SourcePattern">The source pattern that produced this dead letter.</param>
+/// <param name="TotalRetryAttempts">The total number of retry attempts.</param>
+/// <param name="FirstFailedAtUtc">When the message first failed.</param>
+/// <param name="DeadLetteredAtUtc">When the message was moved to DLQ.</param>
+/// <param name="ExpiresAtUtc">When the message expires.</param>
+/// <param name="CorrelationId">The correlation ID.</param>
+/// <param name="ExceptionType">The exception type name.</param>
+/// <param name="ExceptionMessage">The exception message.</param>
+/// <param name="ExceptionStackTrace">The exception stack trace.</param>
+public sealed record DeadLetterData(
+    Guid Id,
+    string RequestType,
+    string RequestContent,
+    string ErrorMessage,
+    string SourcePattern,
+    int TotalRetryAttempts,
+    DateTime FirstFailedAtUtc,
+    DateTime DeadLetteredAtUtc,
+    DateTime? ExpiresAtUtc,
+    string? CorrelationId = null,
+    string? ExceptionType = null,
+    string? ExceptionMessage = null,
+    string? ExceptionStackTrace = null);
+
+/// <summary>
 /// Factory for creating dead letter messages.
 /// </summary>
 /// <remarks>
@@ -14,34 +45,9 @@ public interface IDeadLetterMessageFactory
     /// <summary>
     /// Creates a new dead letter message.
     /// </summary>
-    /// <param name="id">The unique identifier.</param>
-    /// <param name="requestType">The request type name.</param>
-    /// <param name="requestContent">The serialized request content.</param>
-    /// <param name="errorMessage">The error message.</param>
-    /// <param name="sourcePattern">The source pattern that produced this dead letter.</param>
-    /// <param name="totalRetryAttempts">The total number of retry attempts.</param>
-    /// <param name="firstFailedAtUtc">When the message first failed.</param>
-    /// <param name="deadLetteredAtUtc">When the message was moved to DLQ.</param>
-    /// <param name="expiresAtUtc">When the message expires.</param>
-    /// <param name="correlationId">The correlation ID.</param>
-    /// <param name="exceptionType">The exception type name.</param>
-    /// <param name="exceptionMessage">The exception message.</param>
-    /// <param name="exceptionStackTrace">The exception stack trace.</param>
+    /// <param name="data">The data for creating the dead letter message.</param>
     /// <returns>A new dead letter message.</returns>
-    IDeadLetterMessage Create(
-        Guid id,
-        string requestType,
-        string requestContent,
-        string errorMessage,
-        string sourcePattern,
-        int totalRetryAttempts,
-        DateTime firstFailedAtUtc,
-        DateTime deadLetteredAtUtc,
-        DateTime? expiresAtUtc,
-        string? correlationId = null,
-        string? exceptionType = null,
-        string? exceptionMessage = null,
-        string? exceptionStackTrace = null);
+    IDeadLetterMessage Create(DeadLetterData data);
 
     /// <summary>
     /// Creates a dead letter message from a failed message record.

@@ -88,20 +88,22 @@ public sealed class DeadLetterOrchestrator
             ? now.Add(_options.RetentionPeriod.Value)
             : (DateTime?)null;
 
-        var message = _messageFactory.Create(
-            id: Guid.NewGuid(),
-            requestType: requestType,
-            requestContent: requestContent,
-            errorMessage: error.Message,
-            sourcePattern: sourcePattern,
-            totalRetryAttempts: totalRetryAttempts,
-            firstFailedAtUtc: firstFailedAtUtc,
-            deadLetteredAtUtc: now,
-            expiresAtUtc: expiresAt,
-            correlationId: correlationId,
-            exceptionType: exception?.GetType().FullName,
-            exceptionMessage: exception?.Message,
-            exceptionStackTrace: exception?.StackTrace);
+        var data = new DeadLetterData(
+            Id: Guid.NewGuid(),
+            RequestType: requestType,
+            RequestContent: requestContent,
+            ErrorMessage: error.Message,
+            SourcePattern: sourcePattern,
+            TotalRetryAttempts: totalRetryAttempts,
+            FirstFailedAtUtc: firstFailedAtUtc,
+            DeadLetteredAtUtc: now,
+            ExpiresAtUtc: expiresAt,
+            CorrelationId: correlationId,
+            ExceptionType: exception?.GetType().FullName,
+            ExceptionMessage: exception?.Message,
+            ExceptionStackTrace: exception?.StackTrace);
+
+        var message = _messageFactory.Create(data);
 
         await _store.AddAsync(message, cancellationToken);
         await _store.SaveChangesAsync(cancellationToken);

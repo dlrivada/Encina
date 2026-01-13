@@ -86,20 +86,7 @@ public sealed class DeadLetterOrchestratorTests
         createdMessage.RequestType.Returns(typeof(TestRequest).FullName!);
         createdMessage.ErrorMessage.Returns("Test error");
 
-        _messageFactory.Create(
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<int>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>())
+        _messageFactory.Create(Arg.Any<DeadLetterData>())
             .Returns(createdMessage);
 
         // Act
@@ -136,20 +123,7 @@ public sealed class DeadLetterOrchestratorTests
         createdMessage.RequestType.Returns("TestRequest");
         createdMessage.ErrorMessage.Returns("Test error");
 
-        _messageFactory.Create(
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<int>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>())
+        _messageFactory.Create(Arg.Any<DeadLetterData>())
             .Returns(createdMessage);
 
         // Act
@@ -177,21 +151,8 @@ public sealed class DeadLetterOrchestratorTests
         createdMessage.RequestType.Returns("TestRequest");
         createdMessage.ErrorMessage.Returns("Test error");
 
-        DateTime? capturedExpiresAt = null;
-        _messageFactory.Create(
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<int>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime>(),
-            Arg.Do<DateTime?>(x => capturedExpiresAt = x),
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>())
+        DeadLetterData? capturedData = null;
+        _messageFactory.Create(Arg.Do<DeadLetterData>(d => capturedData = d))
             .Returns(createdMessage);
 
         // Act
@@ -204,8 +165,9 @@ public sealed class DeadLetterOrchestratorTests
             DateTime.UtcNow);
 
         // Assert
-        capturedExpiresAt.ShouldNotBeNull();
-        capturedExpiresAt.Value.ShouldBeInRange(
+        capturedData.ShouldNotBeNull();
+        capturedData.ExpiresAtUtc.ShouldNotBeNull();
+        capturedData.ExpiresAtUtc.Value.ShouldBeInRange(
             DateTime.UtcNow.AddDays(6),
             DateTime.UtcNow.AddDays(8));
     }

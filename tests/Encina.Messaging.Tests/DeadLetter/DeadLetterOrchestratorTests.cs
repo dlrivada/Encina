@@ -88,20 +88,7 @@ public sealed class DeadLetterOrchestratorTests
         var expectedRetentionPeriod = _options.RetentionPeriod!.Value;
 
         var expectedMessage = CreateTestDeadLetterMessage(Guid.NewGuid());
-        _messageFactory.Create(
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<int>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>())
+        _messageFactory.Create(Arg.Any<DeadLetterData>())
             .Returns(expectedMessage);
 
         // Act
@@ -128,20 +115,14 @@ public sealed class DeadLetterOrchestratorTests
         var expectedRequestType = typeof(TestDeadLetterRequest).AssemblyQualifiedName!;
         var expectedMessage = CreateTestDeadLetterMessage(Guid.NewGuid());
 
-        _messageFactory.Create(
-            Arg.Any<Guid>(),
-            expectedRequestType,
-            Arg.Any<string>(),
-            error.Message,
-            sourcePattern,
-            retryCount,
-            firstFailedAt,
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime?>(),
-            Arg.Any<string?>(),
-            typeof(InvalidOperationException).FullName,
-            "Something went wrong",
-            Arg.Any<string?>())
+        _messageFactory.Create(Arg.Is<DeadLetterData>(d =>
+            d.RequestType == expectedRequestType &&
+            d.ErrorMessage == error.Message &&
+            d.SourcePattern == sourcePattern &&
+            d.TotalRetryAttempts == retryCount &&
+            d.FirstFailedAtUtc == firstFailedAt &&
+            d.ExceptionType == typeof(InvalidOperationException).FullName &&
+            d.ExceptionMessage == "Something went wrong"))
             .Returns(expectedMessage);
 
         // Act
@@ -149,20 +130,14 @@ public sealed class DeadLetterOrchestratorTests
             request, error, exception, sourcePattern, retryCount, firstFailedAt);
 
         // Assert
-        _messageFactory.Received(1).Create(
-            Arg.Any<Guid>(),
-            expectedRequestType,
-            Arg.Any<string>(),
-            error.Message,
-            sourcePattern,
-            retryCount,
-            firstFailedAt,
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime?>(),
-            Arg.Any<string?>(),
-            typeof(InvalidOperationException).FullName,
-            "Something went wrong",
-            Arg.Any<string?>());
+        _messageFactory.Received(1).Create(Arg.Is<DeadLetterData>(d =>
+            d.RequestType == expectedRequestType &&
+            d.ErrorMessage == error.Message &&
+            d.SourcePattern == sourcePattern &&
+            d.TotalRetryAttempts == retryCount &&
+            d.FirstFailedAtUtc == firstFailedAt &&
+            d.ExceptionType == typeof(InvalidOperationException).FullName &&
+            d.ExceptionMessage == "Something went wrong"));
     }
 
     [Fact]
@@ -190,20 +165,7 @@ public sealed class DeadLetterOrchestratorTests
         var error = EncinaErrors.Create("test.error", "Test error");
         var expectedMessage = CreateTestDeadLetterMessage(Guid.NewGuid());
 
-        _messageFactory.Create(
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<int>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>())
+        _messageFactory.Create(Arg.Any<DeadLetterData>())
             .Returns(expectedMessage);
 
         // Act
@@ -232,20 +194,7 @@ public sealed class DeadLetterOrchestratorTests
         var error = EncinaErrors.Create("test.error", "Test error");
         var expectedMessage = CreateTestDeadLetterMessage(Guid.NewGuid());
 
-        _messageFactory.Create(
-            Arg.Any<Guid>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<int>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<DateTime?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<string?>())
+        _messageFactory.Create(Arg.Any<DeadLetterData>())
             .Returns(expectedMessage);
 
         // Act & Assert - should not throw

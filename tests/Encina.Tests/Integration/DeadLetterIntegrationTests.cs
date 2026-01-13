@@ -508,36 +508,23 @@ public sealed class DeadLetterIntegrationTests : IAsyncLifetime
     /// </summary>
     private sealed class InMemoryDeadLetterMessageFactory : IDeadLetterMessageFactory
     {
-        public IDeadLetterMessage Create(
-            Guid id,
-            string requestType,
-            string requestContent,
-            string errorMessage,
-            string sourcePattern,
-            int totalRetryAttempts,
-            DateTime firstFailedAtUtc,
-            DateTime deadLetteredAtUtc,
-            DateTime? expiresAtUtc,
-            string? correlationId,
-            string? exceptionType,
-            string? exceptionMessage,
-            string? exceptionStackTrace)
+        public IDeadLetterMessage Create(DeadLetterData data)
         {
             return new InMemoryDeadLetterMessage
             {
-                Id = id,
-                RequestType = requestType,
-                RequestContent = requestContent,
-                ErrorMessage = errorMessage,
-                SourcePattern = sourcePattern,
-                TotalRetryAttempts = totalRetryAttempts,
-                FirstFailedAtUtc = firstFailedAtUtc,
-                DeadLetteredAtUtc = deadLetteredAtUtc,
-                ExpiresAtUtc = expiresAtUtc,
-                CorrelationId = correlationId,
-                ExceptionType = exceptionType,
-                ExceptionMessage = exceptionMessage,
-                ExceptionStackTrace = exceptionStackTrace
+                Id = data.Id,
+                RequestType = data.RequestType,
+                RequestContent = data.RequestContent,
+                ErrorMessage = data.ErrorMessage,
+                SourcePattern = data.SourcePattern,
+                TotalRetryAttempts = data.TotalRetryAttempts,
+                FirstFailedAtUtc = data.FirstFailedAtUtc,
+                DeadLetteredAtUtc = data.DeadLetteredAtUtc,
+                ExpiresAtUtc = data.ExpiresAtUtc,
+                CorrelationId = data.CorrelationId,
+                ExceptionType = data.ExceptionType,
+                ExceptionMessage = data.ExceptionMessage,
+                ExceptionStackTrace = data.ExceptionStackTrace
             };
         }
 
