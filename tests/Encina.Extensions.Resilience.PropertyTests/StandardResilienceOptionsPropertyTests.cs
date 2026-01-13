@@ -1,4 +1,5 @@
 ﻿using FsCheck;
+using FsCheck.Fluent;
 using FsCheck.Xunit;
 using Polly;
 using Encina.Extensions.Resilience;
@@ -153,7 +154,7 @@ public class StandardResilienceOptionsPropertyTests
 public class PositiveIntGenerator
 {
     public static Arbitrary<PositiveInt> PositiveInts() =>
-        Arb.From(Gen.Choose(1, 100).Select(x => new PositiveInt(x)));
+        Arb.From(ArbMap.Default.GeneratorFor<PositiveInt>());
 }
 
 /// <summary>

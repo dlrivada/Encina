@@ -1,7 +1,9 @@
 ﻿using FsCheck;
+using FsCheck.Fluent;
 using FsCheck.Xunit;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
+using Polly;
 using Polly.Registry;
 using Polly.Timeout;
 using Encina.Extensions.Resilience;
@@ -135,7 +137,7 @@ public class StandardResiliencePipelineBehaviorPropertyTests
                 var behavior = new StandardResiliencePipelineBehavior<TestRequest, TestResponse>(registry, logger);
 
                 var request = new TestRequest();
-                var context = new RequestContext(correlationId);
+                var context = RequestContext.Create(correlationId);
                 RequestHandlerCallback<TestResponse> nextStep = () =>
                     ValueTask.FromResult<Either<EncinaError, TestResponse>>(expectedResponse);
 
@@ -154,7 +156,8 @@ public class StandardResiliencePipelineBehaviorPropertyTests
     public Property Property_MultipleRequests_DoNotInterfere()
     {
         return Prop.ForAll(
-            Arb.From(Gen.ListOf(3, 10, Gen.Choose(1, 100))),
+            Arb.From(Gen.Choose(3, 10).SelectMany(count =>
+                Gen.ListOf(Gen.Choose(1, 100), count))),
             async (values) =>
             {
                 // Arrange
