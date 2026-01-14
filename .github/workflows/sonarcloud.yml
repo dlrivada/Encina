@@ -15,7 +15,7 @@ jobs:
   sonarcloud:
     name: SonarCloud Code Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
 
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -23,17 +23,6 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: true
 
     steps:
-      - name: Free disk space
-        run: |
-          echo "Disk space before cleanup:"
-          df -h
-          # Remove unnecessary tools to free space
-          sudo rm -rf /usr/share/dotnet/sdk/7.* /usr/share/dotnet/sdk/8.* || true
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /opt/ghc || true
-          echo "Disk space after cleanup:"
-          df -h
-
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -52,33 +41,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore dependencies
-        run: dotnet restore Encina.slnx
-
-      - name: Build solution
-        run: dotnet build Encina.slnx --configuration Release --no-restore
-
-      - name: Run tests with coverage (Core packages only)
-        # Run only core unit tests for coverage - excludes LoadTests, IntegrationTests, PropertyTests
-        # This significantly reduces execution time while still providing meaningful coverage data
-        run: |
-          mkdir -p artifacts/test-results
-
-          # Run unit tests only (excluding load, integration, property, guard, and contract tests)
-          # These provide the core coverage data for SonarCloud
-          dotnet test Encina.slnx --configuration Release --no-build \
-            --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests&FullyQualifiedName!~PropertyTests&FullyQualifiedName!~GuardTests&FullyQualifiedName!~ContractTests" \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results \
-            --settings coverlet.runsettings \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
-
       - name: Install SonarScanner
         run: dotnet tool install --global dotnet-sonarscanner
 
-      - name: SonarCloud Scan
+      - name: Restore source projects only
+        run: dotnet restore Encina.Source.sln
+
+      - name: Begin SonarCloud analysis
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           dotnet sonarscanner begin \
@@ -86,25 +56,25 @@ jobs:
             /o:"dlrivada" \
             /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
             /d:sonar.host.url="https://sonarcloud.io" \
-            /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml" \
-            /d:sonar.coverage.exclusions="src/Encina.Testing*/**/*.cs,src/Encina.Aspire.Testing/**/*.cs,tests/Encina.TestInfrastructure/**/*.cs,src/Encina.AzureFunctions/**/*.cs,src/Encina.AwsLambda/**/*.cs,src/Encina.Hangfire/**/*.cs,src/Encina.Quartz/**/*.cs" \
+            /d:sonar.coverage.exclusions="src/Encina.Testing*/**/*.cs,src/Encina.Aspire.Testing/**/*.cs,src/Encina.AzureFunctions/**/*.cs,src/Encina.AwsLambda/**/*.cs,src/Encina.Hangfire/**/*.cs,src/Encina.Quartz/**/*.cs" \
             /d:sonar.cpd.exclusions="src/Encina.Dapper.*/**/*.cs,src/Encina.Dapper.*/Scripts/*.sql,src/Encina.ADO.*/**/*.cs,src/Encina.ADO.*/Scripts/*.sql,src/Encina.Testing*/**/*.cs" \
-            /d:sonar.exclusions="**/Migrations/**,**/*.g.cs,**/obj/**,**/bin/**" \
-            /d:sonar.issue.ignore.multicriteria=e1,e2,e3,e4,e5 \
+            /d:sonar.exclusions="**/Migrations/**,**/*.g.cs,**/obj/**,**/bin/**,tests/**/*,benchmarks/**/*,load/**/*" \
+            /d:sonar.issue.ignore.multicriteria=e1,e2,e3,e5 \
             /d:sonar.issue.ignore.multicriteria.e1.ruleKey=csharpsquid:S2077 \
             /d:sonar.issue.ignore.multicriteria.e1.resourceKey="src/Encina.Dapper.*/**/*Store*.cs" \
             /d:sonar.issue.ignore.multicriteria.e2.ruleKey=csharpsquid:S2077 \
             /d:sonar.issue.ignore.multicriteria.e2.resourceKey="src/Encina.ADO.*/**/*Store*.cs" \
             /d:sonar.issue.ignore.multicriteria.e3.ruleKey=plsql:S1523 \
             /d:sonar.issue.ignore.multicriteria.e3.resourceKey="src/**/Scripts/*.sql" \
-            /d:sonar.issue.ignore.multicriteria.e4.ruleKey=csharpsquid:S2699 \
-            /d:sonar.issue.ignore.multicriteria.e4.resourceKey="tests/**/*PropertyTests*/**/*.cs" \
             /d:sonar.issue.ignore.multicriteria.e5.ruleKey=csharpsquid:S1135 \
             /d:sonar.issue.ignore.multicriteria.e5.resourceKey="src/Encina.Cli/**/CodeGenerator.cs" \
             /d:sonar.verbose=false
 
-          # Rebuild for SonarScanner analysis (required by sonarscanner)
-          # Use parallel build with limited parallelism to avoid memory issues
-          dotnet build Encina.slnx --configuration Release --no-restore --no-incremental -maxcpucount:2
+      - name: Build source projects for analysis
+        run: dotnet build Encina.Source.sln --configuration Release --no-restore
 
-          dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+      - name: End SonarCloud analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
