@@ -44,7 +44,7 @@ public sealed class ContentRouterLoadTests
             .Build();
 
         const int requestCount = 1000;
-        var random = new Random(42); // Deterministic seed for reproducibility
+        var random = new Random(42); // Deterministic seed for reproducibility // DevSkim: ignore DS148264
 
         // Act
         var stopwatch = Stopwatch.StartNew();
@@ -206,7 +206,7 @@ public sealed class ContentRouterLoadTests
             {
                 var localSuccess = 0;
                 var localError = 0;
-                var random = new Random(workerId); // Deterministic seed per worker
+                var random = new Random(workerId); // Deterministic seed per worker // DevSkim: ignore DS148264
 
                 while (!cts.Token.IsCancellationRequested)
                 {

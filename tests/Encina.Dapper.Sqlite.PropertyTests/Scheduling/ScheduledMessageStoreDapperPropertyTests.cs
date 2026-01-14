@@ -422,7 +422,7 @@ public sealed class ScheduledMessageStoreDapperPropertyTests : IClassFixture<Sql
     public async Task GetDueMessages_AlwaysOrderedByScheduledAtUtc(int messageCount)
     {
         // Arrange
-        var random = new Random(42); // Deterministic
+        var random = new Random(42); // Deterministic // DevSkim: ignore DS148264
         for (var i = 0; i < messageCount; i++)
         {
             var hoursAgo = random.Next(1, 20);
