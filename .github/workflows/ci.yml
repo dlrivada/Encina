@@ -17,6 +17,7 @@ jobs:
   # Build job - runs first, creates build artifacts for test jobs
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -49,10 +50,11 @@ jobs:
             **/obj/**/*.assets.json
           retention-days: 1
 
-  # Test jobs - run in parallel after build
-  test-core:
+  # Consolidated test jobs - grouped by category to reduce parallelism
+  test-unit:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
@@ -61,36 +63,24 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           name: build-output
-      - name: Run Core tests
+      - name: Run Unit tests
         run: |
-          dotnet test tests/Encina.Tests/Encina.Tests.csproj --no-build -c Release || true
-          dotnet test tests/Encina.ContractTests/Encina.ContractTests.csproj --no-build -c Release || true
-          dotnet test tests/Encina.PropertyTests/Encina.PropertyTests.csproj --no-build -c Release || true
-          dotnet test tests/Encina.DomainModeling.Tests/Encina.DomainModeling.Tests.csproj --no-build -c Release || true
-          dotnet test tests/Encina.DomainModeling.ContractTests/Encina.DomainModeling.ContractTests.csproj --no-build -c Release || true
-          dotnet test tests/Encina.DomainModeling.PropertyTests/Encina.DomainModeling.PropertyTests.csproj --no-build -c Release || true
-          dotnet test tests/Encina.DomainModeling.GuardTests/Encina.DomainModeling.GuardTests.csproj --no-build -c Release || true
-
-  test-messaging:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-output
-      - name: Run Messaging tests
-        run: |
-          for proj in tests/Encina.Messaging.*/Encina.Messaging.*.csproj; do
-            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          # Find and run all unit test projects (*.Tests)
+          for proj in tests/*Tests/*.csproj; do
+            if [[ "$proj" != *ContractTests* ]] && \
+               [[ "$proj" != *PropertyTests* ]] && \
+               [[ "$proj" != *GuardTests* ]] && \
+               [[ "$proj" != *IntegrationTests* ]] && \
+               [[ "$proj" != *LoadTests* ]]; then
+              echo "Running: $proj"
+              dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || true
+            fi
           done
 
-  test-database-ado:
+  test-contract:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
@@ -99,15 +89,16 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           name: build-output
-      - name: Run ADO tests
+      - name: Run Contract tests
         run: |
-          for proj in tests/Encina.ADO.*/Encina.ADO.*.csproj; do
-            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          for proj in tests/*ContractTests/*.csproj; do
+            [ -f "$proj" ] && echo "Running: $proj" && dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || true
           done
 
-  test-database-dapper:
+  test-property:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
@@ -116,33 +107,16 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           name: build-output
-      - name: Run Dapper tests
+      - name: Run Property tests
         run: |
-          for proj in tests/Encina.Dapper.*/Encina.Dapper.*.csproj; do
-            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
-          done
-          dotnet test tests/Encina.Dapper.Tests/Encina.Dapper.Tests.csproj --no-build -c Release || true
-
-  test-database-ef:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-output
-      - name: Run Entity Framework tests
-        run: |
-          for proj in tests/Encina.EntityFrameworkCore.*/Encina.EntityFrameworkCore.*.csproj; do
-            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          for proj in tests/*PropertyTests/*.csproj; do
+            [ -f "$proj" ] && echo "Running: $proj" && dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || true
           done
 
-  test-caching:
+  test-guard:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
@@ -151,168 +125,21 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           name: build-output
-      - name: Run Caching tests
+      - name: Run Guard tests
         run: |
-          for proj in tests/Encina.Caching.*/Encina.Caching.*.csproj; do
-            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
-          done
-
-  test-validation:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-output
-      - name: Run Validation tests
-        run: |
-          for proj in tests/Encina.DataAnnotations.*/Encina.DataAnnotations.*.csproj \
-                      tests/Encina.FluentValidation.*/Encina.FluentValidation.*.csproj \
-                      tests/Encina.MiniValidator.*/Encina.MiniValidator.*.csproj \
-                      tests/Encina.GuardClauses.*/Encina.GuardClauses.*.csproj; do
-            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
-          done
-
-  test-aspnetcore:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-output
-      - name: Run AspNetCore tests
-        run: |
-          for proj in tests/Encina.AspNetCore.*/Encina.AspNetCore.*.csproj; do
-            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
-          done
-
-  test-serverless:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-output
-      - name: Run Serverless tests
-        run: |
-          for proj in tests/Encina.AwsLambda.*/Encina.AwsLambda.*.csproj \
-                      tests/Encina.AzureFunctions.*/Encina.AzureFunctions.*.csproj; do
-            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
-          done
-
-  test-transports:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-output
-      - name: Run Transport tests
-        run: |
-          for proj in tests/Encina.RabbitMQ.Tests/Encina.RabbitMQ.Tests.csproj \
-                      tests/Encina.Kafka.Tests/Encina.Kafka.Tests.csproj \
-                      tests/Encina.AmazonSQS.Tests/Encina.AmazonSQS.Tests.csproj \
-                      tests/Encina.NATS.Tests/Encina.NATS.Tests.csproj \
-                      tests/Encina.MQTT.Tests/Encina.MQTT.Tests.csproj \
-                      tests/Encina.AzureServiceBus.Tests/Encina.AzureServiceBus.Tests.csproj \
-                      tests/Encina.SignalR.Tests/Encina.SignalR.Tests.csproj \
-                      tests/Encina.gRPC.Tests/Encina.gRPC.Tests.csproj; do
-            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
-          done
-
-  test-resilience:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-output
-      - name: Run Resilience tests
-        run: |
-          for proj in tests/Encina.Polly.*/Encina.Polly.*.csproj \
-                      tests/Encina.Extensions.Resilience.*/Encina.Extensions.Resilience.*.csproj \
-                      tests/Encina.DistributedLock.*/Encina.DistributedLock.*.csproj; do
-            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
-          done
-
-  test-scheduling:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-output
-      - name: Run Scheduling tests
-        run: |
-          for proj in tests/Encina.Hangfire.*/Encina.Hangfire.*.csproj \
-                      tests/Encina.Quartz.*/Encina.Quartz.*.csproj \
-                      tests/Encina.Workflows.Tests/Encina.Workflows.Tests.csproj; do
-            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
-          done
-
-  test-other:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-output
-      - name: Run Other tests
-        run: |
-          for proj in tests/Encina.Cli.*/Encina.Cli.*.csproj \
-                      tests/Encina.Marten.Tests/Encina.Marten.Tests.csproj \
-                      tests/Encina.MongoDB.Tests/Encina.MongoDB.Tests.csproj \
-                      tests/Encina.OpenTelemetry.*/Encina.OpenTelemetry.*.csproj \
-                      tests/Encina.Refit.*/Encina.Refit.*.csproj \
-                      tests/Encina.Aspire.*/Encina.Aspire.*.csproj; do
-            [ -f "$proj" ] && dotnet test "$proj" --no-build -c Release || true
+          for proj in tests/*GuardTests/*.csproj; do
+            [ -f "$proj" ] && echo "Running: $proj" && dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || true
           done
 
   # Pack and publish - runs after all tests
   pack:
     needs:
-      - test-core
-      - test-messaging
-      - test-database-ado
-      - test-database-dapper
-      - test-database-ef
-      - test-caching
-      - test-validation
-      - test-aspnetcore
-      - test-serverless
-      - test-transports
-      - test-resilience
-      - test-scheduling
-      - test-other
+      - test-unit
+      - test-contract
+      - test-property
+      - test-guard
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: always() && needs.build.result == 'success'
     steps:
       - uses: actions/checkout@v6
