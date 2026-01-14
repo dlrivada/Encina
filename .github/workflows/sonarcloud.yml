@@ -15,7 +15,7 @@ jobs:
   sonarcloud:
     name: SonarCloud Code Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -104,6 +104,7 @@ jobs:
             /d:sonar.verbose=false
 
           # Rebuild for SonarScanner analysis (required by sonarscanner)
-          dotnet build Encina.slnx --configuration Release --no-restore --no-incremental
+          # Use parallel build with limited parallelism to avoid memory issues
+          dotnet build Encina.slnx --configuration Release --no-restore --no-incremental -maxcpucount:2
 
           dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
