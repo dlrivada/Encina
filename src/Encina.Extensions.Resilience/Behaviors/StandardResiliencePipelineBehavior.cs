@@ -36,6 +36,8 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
         ResiliencePipelineProvider<string> pipelineProvider,
         ILogger<StandardResiliencePipelineBehavior<TRequest, TResponse>> logger)
     {
+        ArgumentNullException.ThrowIfNull(pipelineProvider);
+        ArgumentNullException.ThrowIfNull(logger);
         _pipelineProvider = pipelineProvider;
         _logger = logger;
     }

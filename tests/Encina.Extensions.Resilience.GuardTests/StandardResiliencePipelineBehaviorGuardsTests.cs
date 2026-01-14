@@ -63,7 +63,7 @@ public class StandardResiliencePipelineBehaviorGuardsTests
         Should.NotThrow(act);
     }
 
-    // Test helper classes
-    private sealed record TestRequest : IRequest<TestResponse>;
-    private sealed record TestResponse;
+    // Test helper classes - must be public for NSubstitute/Castle.DynamicProxy to create proxies
+    public sealed record TestRequest : IRequest<TestResponse>;
+    public sealed record TestResponse;
 }

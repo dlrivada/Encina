@@ -125,35 +125,51 @@ public static class ServiceCollectionExtensions
 
         var requestTypeName = typeof(TRequest).Name;
 
-        // Register a named resilience pipeline for this specific request type
-        services.AddSingleton<ResiliencePipelineProvider<string>>(sp =>
-        {
-            var existing = sp.GetService<ResiliencePipelineProvider<string>>();
-            if (existing is ResiliencePipelineRegistry<string> registry)
-            {
-                registry.TryAddBuilder(requestTypeName, (builder, context) =>
-                {
-                    builder.AddRateLimiter(options.RateLimiter)
-                        .AddTimeout(options.TotalRequestTimeout)
-                        .AddRetry(options.Retry)
-                        .AddCircuitBreaker(options.CircuitBreaker)
-                        .AddTimeout(options.AttemptTimeout);
-                });
-                return registry;
-            }
+        // Store the pipeline configuration in a list for later registration
+        // This avoids the circular dependency issue when resolving the provider
+        var configurator = new PipelineConfigurator(requestTypeName, options);
 
-            var newRegistry = new ResiliencePipelineRegistry<string>();
-            newRegistry.TryAddBuilder(requestTypeName, (builder, context) =>
+        // Add to the list of pending pipeline configurations
+        if (!PendingPipelineConfigurations.TryGetValue(services, out var configurations))
+        {
+            configurations = [];
+            PendingPipelineConfigurations[services] = configurations;
+        }
+        configurations.Add(configurator);
+
+        // Remove any existing ResiliencePipelineProvider registration and re-register
+        // with all pending configurations
+        var existing = services.FirstOrDefault(d => d.ServiceType == typeof(ResiliencePipelineProvider<string>));
+        if (existing != null)
+        {
+            services.Remove(existing);
+        }
+
+        // Register a new factory that includes all pending configurations
+        var allConfigurations = PendingPipelineConfigurations[services].ToList();
+        services.AddSingleton<ResiliencePipelineProvider<string>>(_ =>
+        {
+            var registry = new ResiliencePipelineRegistry<string>();
+            foreach (var config in allConfigurations)
             {
-                builder.AddRateLimiter(options.RateLimiter)
-                    .AddTimeout(options.TotalRequestTimeout)
-                    .AddRetry(options.Retry)
-                    .AddCircuitBreaker(options.CircuitBreaker)
-                    .AddTimeout(options.AttemptTimeout);
-            });
-            return newRegistry;
+                registry.TryAddBuilder(config.RequestTypeName, (builder, context) =>
+                {
+                    builder.AddRateLimiter(config.Options.RateLimiter)
+                        .AddTimeout(config.Options.TotalRequestTimeout)
+                        .AddRetry(config.Options.Retry)
+                        .AddCircuitBreaker(config.Options.CircuitBreaker)
+                        .AddTimeout(config.Options.AttemptTimeout);
+                });
+            }
+            return registry;
         });
 
         return services;
     }
+
+    // Static dictionary to hold pending pipeline configurations per service collection
+    // This is a workaround for the lack of a proper configuration builder pattern in DI
+    private static readonly Dictionary<IServiceCollection, List<PipelineConfigurator>> PendingPipelineConfigurations = [];
+
+    private sealed record PipelineConfigurator(string RequestTypeName, StandardResilienceOptions Options);
 }

@@ -222,7 +222,8 @@ public class StandardResiliencePipelineBehaviorTests
             Left: e =>
             {
                 _ = e.Exception.Match(
-                    Some: ex => ex.ShouldBeOfType<TaskCanceledException>(),
+                    // OperationCanceledException is the base type - TaskCanceledException derives from it
+                    Some: ex => ex.ShouldBeAssignableTo<OperationCanceledException>(),
                     None: () => throw new InvalidOperationException("Exception should be present")
                 );
                 return true;
@@ -230,9 +231,9 @@ public class StandardResiliencePipelineBehaviorTests
         );
     }
 
-    // Test helper classes
-    private sealed record TestRequest : IRequest<TestResponse>;
-    private sealed record TestResponse
+    // Test helper classes - must be public for NSubstitute/Castle.DynamicProxy to create proxies
+    public sealed record TestRequest : IRequest<TestResponse>;
+    public sealed record TestResponse
     {
         public string Value { get; init; } = string.Empty;
     }

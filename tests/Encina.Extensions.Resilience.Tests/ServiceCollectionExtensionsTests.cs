@@ -192,9 +192,9 @@ public class ServiceCollectionExtensionsTests
         providerDescriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
-    // Test helper classes
-    private sealed record TestRequest : IRequest<TestResponse>;
-    private sealed record TestResponse;
-    private sealed record AnotherRequest : IRequest<AnotherResponse>;
-    private sealed record AnotherResponse;
+    // Test helper classes - must be public for NSubstitute/Castle.DynamicProxy to create proxies
+    public sealed record TestRequest : IRequest<TestResponse>;
+    public sealed record TestResponse;
+    public sealed record AnotherRequest : IRequest<AnotherResponse>;
+    public sealed record AnotherResponse;
 }
