@@ -15,7 +15,7 @@ jobs:
   sonarcloud:
     name: SonarCloud Code Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -58,66 +58,20 @@ jobs:
       - name: Build solution
         run: dotnet build Encina.slnx --configuration Release --no-restore
 
-      - name: Run tests with coverage (All packages)
-        # Run tests using solution filters to reduce memory and disk usage
-        # Exclude: LoadTests, IntegrationTests, Benchmarks, and Encina.Testing.* packages
-        # (testing infrastructure cannot test itself - see testing-dogfooding-plan.md section 3.2)
+      - name: Run tests with coverage (Core packages only)
+        # Run only core unit tests for coverage - excludes LoadTests, IntegrationTests, PropertyTests
+        # This significantly reduces execution time while still providing meaningful coverage data
         run: |
           mkdir -p artifacts/test-results
 
-          # Run tests for all packages using solution filters
-          # This is more efficient than iterating over individual projects
-          dotnet test Encina.Core.slnf --configuration Release --no-build \
+          # Run unit tests only (excluding load, integration, property, guard, and contract tests)
+          # These provide the core coverage data for SonarCloud
+          dotnet test Encina.slnx --configuration Release --no-build \
+            --filter "FullyQualifiedName!~LoadTests&FullyQualifiedName!~IntegrationTests&FullyQualifiedName!~PropertyTests&FullyQualifiedName!~GuardTests&FullyQualifiedName!~ContractTests" \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results \
+            --settings coverlet.runsettings \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
-
-          dotnet test Encina.Messaging.slnf --configuration Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
-
-          dotnet test Encina.Validation.slnf --configuration Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
-
-          # Database.slnf commented out temporarily - has projects not in main solution
-          # dotnet test Encina.Database.slnf --configuration Release --no-build \
-          #   --collect "XPlat Code Coverage" \
-          #   --results-directory artifacts/test-results \
-          #   -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
-
-          dotnet test Encina.Caching.slnf --configuration Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
-
-          dotnet test Encina.Resilience.slnf --configuration Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
-
-          dotnet test Encina.Web.slnf --configuration Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
-
-          dotnet test Encina.Observability.slnf --configuration Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
-
-          dotnet test Encina.DistributedLock.slnf --configuration Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
-
-          # EventSourcing.slnf commented out temporarily - has projects not in main solution
-          # dotnet test Encina.EventSourcing.slnf --configuration Release --no-build \
-          #   --collect "XPlat Code Coverage" \
-          #   --results-directory artifacts/test-results \
-          #   -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover || true
 
       - name: Install SonarScanner
         run: dotnet tool install --global dotnet-sonarscanner
@@ -135,6 +89,7 @@ jobs:
             /d:sonar.cs.opencover.reportsPaths="artifacts/test-results/**/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="src/Encina.Testing*/**/*.cs,src/Encina.Aspire.Testing/**/*.cs,tests/Encina.TestInfrastructure/**/*.cs,src/Encina.AzureFunctions/**/*.cs,src/Encina.AwsLambda/**/*.cs,src/Encina.Hangfire/**/*.cs,src/Encina.Quartz/**/*.cs" \
             /d:sonar.cpd.exclusions="src/Encina.Dapper.*/**/*.cs,src/Encina.Dapper.*/Scripts/*.sql,src/Encina.ADO.*/**/*.cs,src/Encina.ADO.*/Scripts/*.sql,src/Encina.Testing*/**/*.cs" \
+            /d:sonar.exclusions="**/Migrations/**,**/*.g.cs,**/obj/**,**/bin/**" \
             /d:sonar.issue.ignore.multicriteria=e1,e2,e3,e4,e5 \
             /d:sonar.issue.ignore.multicriteria.e1.ruleKey=csharpsquid:S2077 \
             /d:sonar.issue.ignore.multicriteria.e1.resourceKey="src/Encina.Dapper.*/**/*Store*.cs" \
@@ -145,7 +100,8 @@ jobs:
             /d:sonar.issue.ignore.multicriteria.e4.ruleKey=csharpsquid:S2699 \
             /d:sonar.issue.ignore.multicriteria.e4.resourceKey="tests/**/*PropertyTests*/**/*.cs" \
             /d:sonar.issue.ignore.multicriteria.e5.ruleKey=csharpsquid:S1135 \
-            /d:sonar.issue.ignore.multicriteria.e5.resourceKey="src/Encina.Cli/**/CodeGenerator.cs"
+            /d:sonar.issue.ignore.multicriteria.e5.resourceKey="src/Encina.Cli/**/CodeGenerator.cs" \
+            /d:sonar.verbose=false
 
           # Rebuild for SonarScanner analysis (required by sonarscanner)
           dotnet build Encina.slnx --configuration Release --no-restore --no-incremental
