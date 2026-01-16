@@ -44,12 +44,26 @@ jobs:
       - name: Build with analyzers
         run: dotnet build Encina.slnx --configuration Release --no-restore -warnaserror
 
-  # Critical tests only - Core, Messaging, and main packages
-  critical-tests:
+  # Run tests in parallel using matrix strategy
+  test:
     needs: quality-check
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        test-project:
+          - name: UnitTests
+            project: tests/Encina.UnitTests/Encina.UnitTests.csproj
+          - name: IntegrationTests
+            project: tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj
+          - name: ContractTests
+            project: tests/Encina.ContractTests/Encina.ContractTests.csproj
+          - name: PropertyTests
+            project: tests/Encina.PropertyTests/Encina.PropertyTests.csproj
+          - name: GuardTests
+            project: tests/Encina.GuardTests/Encina.GuardTests.csproj
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -73,35 +87,43 @@ jobs:
       - name: Build
         run: dotnet build Encina.slnx --configuration Release --no-restore
 
-      - name: Test Unit Tests (Consolidated)
+      - name: Test ${{ matrix.test-project.name }}
         run: |
-          dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj -c Release --no-build \
+          dotnet test ${{ matrix.test-project.project }} -c Release --no-build \
             --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results || true
+            --results-directory artifacts/test-results/${{ matrix.test-project.name }} \
+            --logger "trx;LogFileName=${{ matrix.test-project.name }}.trx"
 
-      - name: Test Integration Tests (Consolidated)
-        run: |
-          dotnet test tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj -c Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results || true
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results-${{ matrix.test-project.name }}
+          path: artifacts/test-results/${{ matrix.test-project.name }}
+          if-no-files-found: ignore
 
-      - name: Test Contract Tests (Consolidated)
-        run: |
-          dotnet test tests/Encina.ContractTests/Encina.ContractTests.csproj -c Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results || true
+  # Aggregate coverage after all tests complete
+  coverage:
+    needs: test
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - name: Test Property Tests (Consolidated)
-        run: |
-          dotnet test tests/Encina.PropertyTests/Encina.PropertyTests.csproj -c Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results || true
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
 
-      - name: Test Guard Tests (Consolidated)
-        run: |
-          dotnet test tests/Encina.GuardTests/Encina.GuardTests.csproj -c Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results || true
+      - name: Download all test results
+        uses: actions/download-artifact@v6
+        with:
+          path: artifacts/test-results
+          pattern: test-results-*
+          merge-multiple: true
 
       - name: Restore .NET tools
         run: dotnet tool restore
