@@ -4,7 +4,8 @@
 >
 > - [ADR-008: Aspire vs Testcontainers Testing Strategy](../architecture/adr/008-aspire-vs-testcontainers-testing-strategy.md)
 > - [Integration Testing with Docker](./integration-tests.md)
-> - [POC Results](../../tests/Encina.Aspire.POC.Tests/PERFORMANCE-RESULTS.md)
+>
+> **Note**: The Aspire POC project (`Encina.Aspire.POC.Tests`) was archived during the January 2026 test consolidation. See `.backup/tests-old/Encina.Aspire.POC.Tests/` for historical reference.
 
 ---
 
@@ -883,4 +884,4 @@ When considering migration from Testcontainers to Aspire:
 - [Aspire Testing Documentation](https://aspire.dev/testing/write-your-first-test/)
 - [Testcontainers .NET](https://dotnet.testcontainers.org/)
 - [WebApplicationFactory](https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests)
-- [POC Implementation](../../tests/Encina.Aspire.POC.Tests/)
+- POC Implementation: Archived in `.backup/tests-old/Encina.Aspire.POC.Tests/` (January 2026 test consolidation)

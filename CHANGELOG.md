@@ -3876,7 +3876,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - **Custom (Production)**: Implement `IDeadLetterStore` and `IDeadLetterMessageFactory` for your persistence layer (EF Core, Dapper, ADO.NET, NoSQL, etc.)
     - **API Location**: Interface contracts in `Encina.Messaging.DeadLetter` namespace ([IDeadLetterStore.cs](src/Encina.Messaging/DeadLetter/IDeadLetterStore.cs), [IDeadLetterMessageFactory.cs](src/Encina.Messaging/DeadLetter/IDeadLetterMessageFactory.cs))
     - **Contract Tests**: Use `IDeadLetterStoreContractTests` base class to verify custom implementations
-    - **Sample Implementation**: See `InMemoryDeadLetterStore` in [DeadLetterIntegrationTests.cs](tests/Encina.IntegrationTests/DeadLetter/DeadLetterIntegrationTests.cs) for implementation reference
+    - **Sample Implementation**: See [FakeDeadLetterStore.cs](src/Encina.Testing.Fakes/Stores/FakeDeadLetterStore.cs) for implementation reference
   - Example (Testing with built-in FakeDeadLetterStore):
 
     ```csharp
