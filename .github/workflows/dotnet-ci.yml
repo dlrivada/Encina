@@ -48,23 +48,39 @@ jobs:
   test:
     needs: quality-check
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
         test-project:
-          - name: UnitTests
+          # Unit tests split into 4 shards by namespace for parallel execution
+          - name: UnitTests-Testing
             project: tests/Encina.UnitTests/Encina.UnitTests.csproj
+            filter: "FullyQualifiedName~Encina.UnitTests.Testing"
+          - name: UnitTests-Messaging
+            project: tests/Encina.UnitTests/Encina.UnitTests.csproj
+            filter: "FullyQualifiedName~Encina.UnitTests.Messaging|FullyQualifiedName~Encina.UnitTests.Caching"
+          - name: UnitTests-Data
+            project: tests/Encina.UnitTests/Encina.UnitTests.csproj
+            filter: "FullyQualifiedName~Encina.UnitTests.EntityFrameworkCore|FullyQualifiedName~Encina.UnitTests.Dapper|FullyQualifiedName~Encina.UnitTests.ADO|FullyQualifiedName~Encina.UnitTests.MongoDB|FullyQualifiedName~Encina.UnitTests.Marten"
+          - name: UnitTests-Other
+            project: tests/Encina.UnitTests/Encina.UnitTests.csproj
+            filter: "FullyQualifiedName!~Encina.UnitTests.Testing&FullyQualifiedName!~Encina.UnitTests.Messaging&FullyQualifiedName!~Encina.UnitTests.Caching&FullyQualifiedName!~Encina.UnitTests.EntityFrameworkCore&FullyQualifiedName!~Encina.UnitTests.Dapper&FullyQualifiedName!~Encina.UnitTests.ADO&FullyQualifiedName!~Encina.UnitTests.MongoDB&FullyQualifiedName!~Encina.UnitTests.Marten"
+          # Other test projects
           - name: IntegrationTests
             project: tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj
+            filter: ""
           - name: ContractTests
             project: tests/Encina.ContractTests/Encina.ContractTests.csproj
+            filter: ""
           - name: PropertyTests
             project: tests/Encina.PropertyTests/Encina.PropertyTests.csproj
+            filter: ""
           - name: GuardTests
             project: tests/Encina.GuardTests/Encina.GuardTests.csproj
+            filter: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -91,11 +107,21 @@ jobs:
       - name: Test ${{ matrix.test-project.name }}
         id: test
         run: |
-          dotnet test ${{ matrix.test-project.project }} -c Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results/${{ matrix.test-project.name }} \
-            --logger "trx;LogFileName=${{ matrix.test-project.name }}.trx" \
-            -- xunit.parallelizeTestCollections=true
+          FILTER="${{ matrix.test-project.filter }}"
+          if [ -n "$FILTER" ]; then
+            dotnet test ${{ matrix.test-project.project }} -c Release --no-build \
+              --filter "$FILTER" \
+              --collect "XPlat Code Coverage" \
+              --results-directory artifacts/test-results/${{ matrix.test-project.name }} \
+              --logger "trx;LogFileName=${{ matrix.test-project.name }}.trx" \
+              -- xunit.parallelizeTestCollections=true
+          else
+            dotnet test ${{ matrix.test-project.project }} -c Release --no-build \
+              --collect "XPlat Code Coverage" \
+              --results-directory artifacts/test-results/${{ matrix.test-project.name }} \
+              --logger "trx;LogFileName=${{ matrix.test-project.name }}.trx" \
+              -- xunit.parallelizeTestCollections=true
+          fi
         continue-on-error: true
 
       - name: Upload test results
