@@ -44,8 +44,7 @@ public class RedisContainerFixture : ContainerFixtureBase<RedisContainer>
     /// <returns>A pre-configured Redis container.</returns>
     protected override RedisContainer BuildContainer()
     {
-        return new RedisBuilder()
-            .WithImage("redis:7-alpine")
+        return new RedisBuilder("redis:7-alpine")
             .WithCleanUp(true)
             .Build();
     }

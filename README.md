@@ -412,24 +412,14 @@ src/
 └── ...                        # 39 packages total
 
 tests/
-├── Encina.Tests/              # Unit tests
-├── Encina.ContractTests/      # API contract tests
+├── Encina.UnitTests/          # Consolidated unit tests
+├── Encina.IntegrationTests/   # Integration tests
 ├── Encina.PropertyTests/      # Property-based tests
-└── ...                        # 3,800+ tests
-
-benchmarks/
-└── Encina.Benchmarks/         # BenchmarkDotNet harness
-```
-
-## Solution Filters
-
-For focused development, use solution filters:
-
-```bash
-dotnet build Encina.Core.slnf       # Core packages only
-dotnet build Encina.Caching.slnf    # Caching packages only
-dotnet build Encina.Database.slnf   # Database providers only
-dotnet build Encina.Validation.slnf # Validation packages only
+├── Encina.ContractTests/      # API contract tests
+├── Encina.GuardTests/         # Guard clause tests
+├── Encina.LoadTests/          # Load testing harness
+├── Encina.NBomber/            # NBomber scenarios
+└── Encina.BenchmarkTests/     # BenchmarkDotNet benchmarks
 ```
 
 ## Testing

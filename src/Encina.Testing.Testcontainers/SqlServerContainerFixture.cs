@@ -136,8 +136,7 @@ public class SqlServerContainerFixture : ContainerFixtureBase<MsSqlContainer>
     /// <returns>A pre-configured SQL Server container.</returns>
     protected override MsSqlContainer BuildContainer()
     {
-        return new MsSqlBuilder()
-            .WithImage(_image)
+        return new MsSqlBuilder(_image)
             .WithPassword(_password)
             .WithCleanUp(true)
             .Build();

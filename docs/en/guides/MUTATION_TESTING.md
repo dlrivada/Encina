@@ -34,7 +34,7 @@
 
 The dedicated mutation-hardening initiative is paused until new feature work settles. When ready to resume:
 
-1. Re-run `dotnet stryker --project src/Encina/Encina.csproj --test-projects tests/Encina.Tests/Encina.Tests.csproj` to focus on the Encina core mutants (previously IDs 280–366).
+1. Re-run `dotnet stryker --project src/Encina/Encina.csproj --test-projects tests/Encina.UnitTests/Encina.UnitTests.csproj` to focus on the Encina core mutants (previously IDs 280–366).
 2. Investigate any survivors and add unit or property tests around metrics pipeline integration and handler result validation.
 3. Update the mutation badge and dashboard via `scripts/update-mutation-summary.cs` once the new score is recorded.
 

@@ -149,7 +149,7 @@ public sealed class ValidationProviderProperties : PropertyTestBase, IDisposable
     /// 2. Property tests run sequentially within each test method
     /// 3. The blocking call is isolated to test code, not production code
     /// </summary>
-    private static Validation.ValidationResult ValidateSync<TRequest>(
+    private static global::Encina.Validation.ValidationResult ValidateSync<TRequest>(
         IValidationProvider provider,
         TRequest request,
         IRequestContext context)

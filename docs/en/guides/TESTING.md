@@ -6,9 +6,13 @@ This guide explains how to exercise the automated test suites that protect Encin
 
 | Suite | Project | Focus |
 |-------|---------|-------|
-| Unit tests | `tests/Encina.Tests` | Behavioural checks for Encinas, configuration helpers, and built-in pipeline components. |
+| Unit tests | `tests/Encina.UnitTests` | Behavioural checks for Encinas, configuration helpers, and built-in pipeline components. |
+| Integration tests | `tests/Encina.IntegrationTests` | End-to-end tests with real databases via Testcontainers. |
 | Property tests | `tests/Encina.PropertyTests` | Configuration and pipeline invariants validated with FsCheck across varied inputs. |
 | Contract tests | `tests/Encina.ContractTests` | Structural safeguards that assert the public surface keeps its interoperability guarantees. |
+| Guard tests | `tests/Encina.GuardTests` | Guard clause verification for public APIs. |
+| Load tests | `tests/Encina.LoadTests` | High-concurrency stress tests and throughput validation. |
+| Benchmark tests | `tests/Encina.BenchmarkTests` | BenchmarkDotNet performance measurements. |
 
 ## Running The Tests
 
@@ -22,13 +26,25 @@ Use the following filters for a specific layer:
 
 ```pwsh
 # Unit tests only
-dotnet test tests/Encina.Tests/Encina.Tests.csproj
+dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj
+
+# Integration tests only
+dotnet test tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj
 
 # Property tests only
 dotnet test tests/Encina.PropertyTests/Encina.PropertyTests.csproj
 
 # Contract tests only
 dotnet test tests/Encina.ContractTests/Encina.ContractTests.csproj
+
+# Guard tests only
+dotnet test tests/Encina.GuardTests/Encina.GuardTests.csproj
+
+# Load tests only
+dotnet test tests/Encina.LoadTests/Encina.LoadTests.csproj
+
+# Benchmark tests (run via BenchmarkDotNet)
+dotnet run --project tests/Encina.BenchmarkTests/Encina.Benchmarks/Encina.Benchmarks.csproj -c Release
 ```
 
 ## Coverage Snapshot
@@ -42,10 +58,12 @@ dotnet test --configuration Release --collect "XPlat Code Coverage"
 Then regenerate the aggregated report:
 
 ```pwsh
-dotnet tool run reportgenerator -reports:"TestResults/**/*.xml" -targetdir:"artifacts/coverage/latest" -reporttypes:HtmlInline_AzurePipelines;TextSummary
+dotnet tool run reportgenerator -reports:"artifacts/test-results/**/*.xml" -targetdir:"artifacts/coverage/latest" -reporttypes:HtmlInline_AzurePipelines;TextSummary
 ```
 
 The latest HTML and summary output lives under `artifacts/coverage/latest/`.
+
+> **Note**: All test outputs are configured to go to `artifacts/` directory, never to the repository root.
 
 ## Mutation Testing
 

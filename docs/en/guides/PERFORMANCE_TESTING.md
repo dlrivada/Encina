@@ -7,7 +7,7 @@
 
 ## Tooling Plan
 
-- Project scaffold: `benchmarks/Encina.Benchmarks` (BenchmarkDotNet, net10.0).
+- Project scaffold: `tests/Encina.BenchmarkTests/Encina.Benchmarks` (BenchmarkDotNet, net10.0).
 - Scenarios: command send with instrumentation, notification publish across multi-handlers.
 
 ## Execution

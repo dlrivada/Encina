@@ -4,6 +4,8 @@
 >
 > **Objective**: Refactor Encina tests to use its own testing infrastructure (`Encina.Testing.*`), demonstrating its real utility and serving as implementation examples.
 
+> **Historical Note**: This plan was created before the January 2026 test consolidation. Individual test projects mentioned (e.g., `Encina.Tests/`, `Encina.Messaging.Tests/`) have been consolidated into 7 projects under `tests/`. See `docs/plans/test-consolidation-plan.md` for the current test structure.
+
 ---
 
 ## Table of Contents

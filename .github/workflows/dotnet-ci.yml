@@ -73,39 +73,33 @@ jobs:
       - name: Build
         run: dotnet build Encina.slnx --configuration Release --no-restore
 
-      - name: Test Core
+      - name: Test Unit Tests (Consolidated)
         run: |
-          dotnet test tests/Encina.Tests/Encina.Tests.csproj -c Release --no-build \
+          dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj -c Release --no-build \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results || true
 
-      - name: Test Messaging
+      - name: Test Integration Tests (Consolidated)
         run: |
-          dotnet test tests/Encina.Messaging.Tests/Encina.Messaging.Tests.csproj -c Release --no-build \
+          dotnet test tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj -c Release --no-build \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results || true
 
-      - name: Test AspNetCore
+      - name: Test Contract Tests (Consolidated)
         run: |
-          dotnet test tests/Encina.AspNetCore.Tests/Encina.AspNetCore.Tests.csproj -c Release --no-build \
+          dotnet test tests/Encina.ContractTests/Encina.ContractTests.csproj -c Release --no-build \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results || true
 
-      - name: Test EntityFrameworkCore
+      - name: Test Property Tests (Consolidated)
         run: |
-          dotnet test tests/Encina.EntityFrameworkCore.Tests/Encina.EntityFrameworkCore.Tests.csproj -c Release --no-build \
+          dotnet test tests/Encina.PropertyTests/Encina.PropertyTests.csproj -c Release --no-build \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results || true
 
-      - name: Test Caching
+      - name: Test Guard Tests (Consolidated)
         run: |
-          dotnet test tests/Encina.Caching.Tests/Encina.Caching.Tests.csproj -c Release --no-build \
-            --collect "XPlat Code Coverage" \
-            --results-directory artifacts/test-results || true
-
-      - name: Test DomainModeling
-        run: |
-          dotnet test tests/Encina.DomainModeling.Tests/Encina.DomainModeling.Tests.csproj -c Release --no-build \
+          dotnet test tests/Encina.GuardTests/Encina.GuardTests.csproj -c Release --no-build \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results || true
 

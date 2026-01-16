@@ -1,0 +1,146 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Encina.GuardTests</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Test Framework PackageReferences -->
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="Bogus" />
+  </ItemGroup>
+
+  <!-- Additional Test Dependencies -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="Refit" />
+    <PackageReference Include="Polly.Extensions" />
+  </ItemGroup>
+
+  <!-- ASP.NET Core Framework References -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Global Usings -->
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+    <Using Include="NSubstitute" />
+    <Using Include="System" />
+    <Using Include="System.Collections.Generic" />
+    <Using Include="System.Linq" />
+    <Using Include="System.Threading" />
+    <Using Include="System.Threading.Tasks" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Logging" />
+    <Using Include="Microsoft.Extensions.Options" />
+    <Using Include="LanguageExt" />
+    <Using Include="Encina" />
+    <Using Include="Encina.Testing.Fakes" />
+    <Using Include="Encina.Testing.Fakes.Providers" />
+    <Using Include="Bogus" />
+    <Using Include="Encina.GuardClauses" />
+    <Using Include="Encina.Caching" />
+    <Using Include="Encina.Caching.Memory" />
+    <Using Include="Encina.DistributedLock" />
+    <Using Include="Encina.DistributedLock.InMemory" />
+    <Using Include="Encina.DistributedLock.Redis" />
+    <Using Include="Encina.DistributedLock.SqlServer" />
+    <Using Include="Encina.Polly" />
+    <Using Include="Microsoft.Extensions.Logging.Abstractions" />
+    <Using Include="Encina.Testing.Shouldly" />
+    <Using Include="Encina.Validation" />
+    <Using Include="Microsoft.EntityFrameworkCore" />
+    <Using Include="System.Data" />
+    <!-- Messaging -->
+    <Using Include="Encina.Messaging" />
+    <Using Include="Encina.Messaging.Outbox" />
+    <Using Include="Encina.Messaging.Inbox" />
+    <!-- EntityFrameworkCore -->
+    <Using Include="Encina.EntityFrameworkCore" />
+    <!-- Extensions -->
+    <Using Include="Encina.Extensions.Resilience" />
+    <!-- Cli -->
+    <Using Include="Encina.Cli" />
+    <!-- Cloud -->
+    <Using Include="Encina.AwsLambda" />
+    <Using Include="Encina.AzureFunctions" />
+  </ItemGroup>
+
+  <!-- Source Project References -->
+  <ItemGroup>
+    <!-- Core -->
+    <ProjectReference Include="..\..\src\Encina\Encina.csproj" />
+    <ProjectReference Include="..\..\src\Encina.DomainModeling\Encina.DomainModeling.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Messaging\Encina.Messaging.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Caching\Encina.Caching.csproj" />
+    <ProjectReference Include="..\..\src\Encina.FluentValidation\Encina.FluentValidation.csproj" />
+    <ProjectReference Include="..\..\src\Encina.GuardClauses\Encina.GuardClauses.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Polly\Encina.Polly.csproj" />
+    <ProjectReference Include="..\..\src\Encina.DistributedLock\Encina.DistributedLock.csproj" />
+    <ProjectReference Include="..\..\src\Encina.EntityFrameworkCore\Encina.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\src\Encina.AspNetCore\Encina.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\Encina.OpenTelemetry\Encina.OpenTelemetry.csproj" />
+    <ProjectReference Include="..\..\src\Encina.DataAnnotations\Encina.DataAnnotations.csproj" />
+    <ProjectReference Include="..\..\src\Encina.MiniValidator\Encina.MiniValidator.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Quartz\Encina.Quartz.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Marten\Encina.Marten.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Hangfire\Encina.Hangfire.csproj" />
+
+    <!-- Cloud / Serverless -->
+    <ProjectReference Include="..\..\src\Encina.AwsLambda\Encina.AwsLambda.csproj" />
+    <ProjectReference Include="..\..\src\Encina.AzureFunctions\Encina.AzureFunctions.csproj" />
+
+    <!-- Database -->
+    <ProjectReference Include="..\..\src\Encina.Dapper.Sqlite\Encina.Dapper.Sqlite.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Dapper.MySQL\Encina.Dapper.MySQL.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Dapper.Oracle\Encina.Dapper.Oracle.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Dapper.PostgreSQL\Encina.Dapper.PostgreSQL.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Dapper.SqlServer\Encina.Dapper.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\Encina.MongoDB\Encina.MongoDB.csproj" />
+
+    <!-- ADO Providers -->
+    <ProjectReference Include="..\..\src\Encina.ADO.MySQL\Encina.ADO.MySQL.csproj" />
+    <ProjectReference Include="..\..\src\Encina.ADO.Oracle\Encina.ADO.Oracle.csproj" />
+    <ProjectReference Include="..\..\src\Encina.ADO.PostgreSQL\Encina.ADO.PostgreSQL.csproj" />
+    <ProjectReference Include="..\..\src\Encina.ADO.Sqlite\Encina.ADO.Sqlite.csproj" />
+    <ProjectReference Include="..\..\src\Encina.ADO.SqlServer\Encina.ADO.SqlServer.csproj" />
+
+    <!-- Caching Providers -->
+    <ProjectReference Include="..\..\src\Encina.Caching.Memory\Encina.Caching.Memory.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Caching.Redis\Encina.Caching.Redis.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Caching.Hybrid\Encina.Caching.Hybrid.csproj" />
+
+    <!-- Distributed Lock Providers -->
+    <ProjectReference Include="..\..\src\Encina.DistributedLock.Redis\Encina.DistributedLock.Redis.csproj" />
+    <ProjectReference Include="..\..\src\Encina.DistributedLock.SqlServer\Encina.DistributedLock.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\Encina.DistributedLock.InMemory\Encina.DistributedLock.InMemory.csproj" />
+
+    <!-- Web Services -->
+    <ProjectReference Include="..\..\src\Encina.Refit\Encina.Refit.csproj" />
+
+    <!-- CLI -->
+    <ProjectReference Include="..\..\src\Encina.Cli\Encina.Cli.csproj" />
+
+    <!-- Extensions -->
+    <ProjectReference Include="..\..\src\Encina.Extensions.Resilience\Encina.Extensions.Resilience.csproj" />
+
+    <!-- Testing Infrastructure -->
+    <ProjectReference Include="..\..\src\Encina.Testing\Encina.Testing.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Testing.Shouldly\Encina.Testing.Shouldly.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Testing.Bogus\Encina.Testing.Bogus.csproj" />
+    <ProjectReference Include="..\..\src\Encina.Testing.Fakes\Encina.Testing.Fakes.csproj" />
+    <ProjectReference Include="..\Encina.TestInfrastructure\Encina.TestInfrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

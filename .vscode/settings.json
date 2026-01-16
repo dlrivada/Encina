@@ -1,46 +1,23 @@
 {
-  // Use solution filter instead of full solution to prevent MSBuild CLR crashes
-  // Change this to the .slnf you're currently working on:
-  // - Encina.Core.slnf, Encina.Testing.slnf, Encina.Messaging.slnf, etc.
-  "dotnet.defaultSolution": "Encina.Database.slnf",
+  // Use full solution - consolidated tests no longer cause MSBuild CLR crashes
+  "dotnet.defaultSolution": "Encina.slnx",
 
   // Use C# Dev Kit instead of OmniSharp
   "dotnet.server.useOmnisharp": false,
-  
-  // NO ocultar en el explorador → quitamos artifacts/coverage de files.exclude
-  "files.exclude": {
-    // aquí sólo pondrías cosas que realmente quieras ocultar del explorador
-  },
 
-  // Que no se usen en búsquedas
+  // Exclude from search
   "search.exclude": {
     "artifacts/**": true,
-    "coverage/**": true,
-    "**/artifacts/**": true,
-    "**/coverage/**": true
+    ".backup/**": true,
+    "**/bin/**": true,
+    "**/obj/**": true
   },
 
-  // Que los watchers (y muchas extensiones) no se activen en esas carpetas
+  // Exclude from file watcher
   "files.watcherExclude": {
     "artifacts/**": true,
-    "coverage/**": true,
-    "**/artifacts/**": true,
-    "**/coverage/**": true,
-    "docs/MutationPlanPause.md": true,
-    "docs/ZeroExceptionsInitiative.md": true,
-    "docs/internal/testing-roadmap.md": true
-  },
-
-  // ESLint
-  "eslint.workingDirectories": [
-    { "directory": ".", "watch": false }
-  ],
-  "eslint.ignorePatterns": [
-    "artifacts/**",
-    "coverage/**",
-    "docs/MutationPlanPause.md",
-    "docs/ZeroExceptionsInitiative.md",
-    "docs/internal/testing-roadmap.md"
-  ]
+    ".backup/**": true,
+    "**/bin/**": true,
+    "**/obj/**": true
+  }
 }
-

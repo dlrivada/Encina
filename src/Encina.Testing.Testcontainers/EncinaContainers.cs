@@ -57,7 +57,7 @@ public static class EncinaContainers
     public static ConfiguredContainerFixture<MsSqlContainer> SqlServer(Action<MsSqlBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
-        var builder = new MsSqlBuilder()
+        var builder = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest")
             .WithCleanUp(true);
         configure(builder);
         return new ConfiguredContainerFixture<MsSqlContainer>(builder.Build());
@@ -85,7 +85,7 @@ public static class EncinaContainers
     public static ConfiguredContainerFixture<PostgreSqlContainer> PostgreSql(Action<PostgreSqlBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
-        var builder = new PostgreSqlBuilder()
+        var builder = new PostgreSqlBuilder("postgres:16-alpine")
             .WithCleanUp(true);
         configure(builder);
         return new ConfiguredContainerFixture<PostgreSqlContainer>(builder.Build());
@@ -113,7 +113,7 @@ public static class EncinaContainers
     public static ConfiguredContainerFixture<MySqlContainer> MySql(Action<MySqlBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
-        var builder = new MySqlBuilder()
+        var builder = new MySqlBuilder("mysql:8.0")
             .WithCleanUp(true);
         configure(builder);
         return new ConfiguredContainerFixture<MySqlContainer>(builder.Build());
@@ -140,7 +140,7 @@ public static class EncinaContainers
     public static ConfiguredContainerFixture<MongoDbContainer> MongoDb(Action<MongoDbBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
-        var builder = new MongoDbBuilder()
+        var builder = new MongoDbBuilder("mongo:7.0")
             .WithCleanUp(true);
         configure(builder);
         return new ConfiguredContainerFixture<MongoDbContainer>(builder.Build());
@@ -167,7 +167,7 @@ public static class EncinaContainers
     public static ConfiguredContainerFixture<RedisContainer> Redis(Action<RedisBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
-        var builder = new RedisBuilder()
+        var builder = new RedisBuilder("redis:7-alpine")
             .WithCleanUp(true);
         configure(builder);
         return new ConfiguredContainerFixture<RedisContainer>(builder.Build());

@@ -50,11 +50,11 @@ jobs:
             **/obj/**/*.assets.json
           retention-days: 1
 
-  # Unit tests split into 3 groups to avoid timeout
-  test-unit-core:
+  # Unit tests - consolidated project
+  test-unit:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
@@ -63,20 +63,16 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           name: build-output
-      - name: Run Core Unit tests
+      - name: Run Unit tests
         run: |
-          # Core, DomainModeling, Messaging, Testing packages
-          for proj in tests/Encina.Tests/*.csproj \
-                      tests/Encina.DomainModeling.Tests/*.csproj \
-                      tests/Encina.Messaging.Tests/*.csproj \
-                      tests/Encina.Testing.*.Tests/*.csproj; do
-            [ -f "$proj" ] && echo "Running: $proj" && dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || true
-          done
+          dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj --no-build -c Release \
+            --logger "console;verbosity=minimal" || true
 
-  test-unit-data:
+  # Integration tests - consolidated project
+  test-integration:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
@@ -85,83 +81,12 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           name: build-output
-      - name: Run Data Unit tests
+      - name: Run Integration tests
         run: |
-          # Database packages: ADO, Dapper, EntityFrameworkCore, Caching
-          for proj in tests/Encina.ADO.*.Tests/*.csproj \
-                      tests/Encina.Dapper.*.Tests/*.csproj \
-                      tests/Encina.Dapper.Tests/*.csproj \
-                      tests/Encina.EntityFrameworkCore.Tests/*.csproj \
-                      tests/Encina.Caching.*.Tests/*.csproj \
-                      tests/Encina.Caching.Tests/*.csproj; do
-            [ -f "$proj" ] && echo "Running: $proj" && dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || true
-          done
+          dotnet test tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj --no-build -c Release \
+            --logger "console;verbosity=minimal" || true
 
-  test-unit-web:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-output
-      - name: Run Web/Transport Unit tests
-        run: |
-          # Web and transport packages
-          for proj in tests/Encina.AspNetCore.Tests/*.csproj \
-                      tests/Encina.AwsLambda.Tests/*.csproj \
-                      tests/Encina.AzureFunctions.Tests/*.csproj \
-                      tests/Encina.AmazonSQS.Tests/*.csproj \
-                      tests/Encina.AzureServiceBus.Tests/*.csproj \
-                      tests/Encina.RabbitMQ.Tests/*.csproj \
-                      tests/Encina.Kafka.Tests/*.csproj \
-                      tests/Encina.NATS.Tests/*.csproj \
-                      tests/Encina.MQTT.Tests/*.csproj \
-                      tests/Encina.SignalR.Tests/*.csproj \
-                      tests/Encina.gRPC.Tests/*.csproj \
-                      tests/Encina.GraphQL.Tests/*.csproj \
-                      tests/Encina.Refit.Tests/*.csproj; do
-            [ -f "$proj" ] && echo "Running: $proj" && dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || true
-          done
-
-  test-unit-infra:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-output
-      - name: Run Infra Unit tests
-        run: |
-          # Resilience, Validation, Scheduling, and other packages
-          for proj in tests/Encina.Polly.Tests/*.csproj \
-                      tests/Encina.Extensions.Resilience.Tests/*.csproj \
-                      tests/Encina.DistributedLock.*.Tests/*.csproj \
-                      tests/Encina.DistributedLock.Tests/*.csproj \
-                      tests/Encina.DataAnnotations.Tests/*.csproj \
-                      tests/Encina.FluentValidation.Tests/*.csproj \
-                      tests/Encina.MiniValidator.Tests/*.csproj \
-                      tests/Encina.GuardClauses.Tests/*.csproj \
-                      tests/Encina.Hangfire.Tests/*.csproj \
-                      tests/Encina.Quartz.Tests/*.csproj \
-                      tests/Encina.Workflows.Tests/*.csproj \
-                      tests/Encina.OpenTelemetry.Tests/*.csproj \
-                      tests/Encina.Marten.Tests/*.csproj \
-                      tests/Encina.MongoDB.Tests/*.csproj \
-                      tests/Encina.Cli.Tests/*.csproj \
-                      tests/Encina.Aspire.*.Tests/*.csproj; do
-            [ -f "$proj" ] && echo "Running: $proj" && dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || true
-          done
-
+  # Contract tests - consolidated project
   test-contract:
     needs: build
     runs-on: ubuntu-latest
@@ -176,10 +101,10 @@ jobs:
           name: build-output
       - name: Run Contract tests
         run: |
-          for proj in tests/*ContractTests/*.csproj; do
-            [ -f "$proj" ] && echo "Running: $proj" && dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || true
-          done
+          dotnet test tests/Encina.ContractTests/Encina.ContractTests.csproj --no-build -c Release \
+            --logger "console;verbosity=minimal" || true
 
+  # Property tests - consolidated project
   test-property:
     needs: build
     runs-on: ubuntu-latest
@@ -194,10 +119,10 @@ jobs:
           name: build-output
       - name: Run Property tests
         run: |
-          for proj in tests/*PropertyTests/*.csproj; do
-            [ -f "$proj" ] && echo "Running: $proj" && dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || true
-          done
+          dotnet test tests/Encina.PropertyTests/Encina.PropertyTests.csproj --no-build -c Release \
+            --logger "console;verbosity=minimal" || true
 
+  # Guard tests - consolidated project
   test-guard:
     needs: build
     runs-on: ubuntu-latest
@@ -212,17 +137,14 @@ jobs:
           name: build-output
       - name: Run Guard tests
         run: |
-          for proj in tests/*GuardTests/*.csproj; do
-            [ -f "$proj" ] && echo "Running: $proj" && dotnet test "$proj" --no-build -c Release --logger "console;verbosity=minimal" || true
-          done
+          dotnet test tests/Encina.GuardTests/Encina.GuardTests.csproj --no-build -c Release \
+            --logger "console;verbosity=minimal" || true
 
   # Pack and publish - runs after all tests
   pack:
     needs:
-      - test-unit-core
-      - test-unit-data
-      - test-unit-web
-      - test-unit-infra
+      - test-unit
+      - test-integration
       - test-contract
       - test-property
       - test-guard

@@ -79,10 +79,10 @@ A complete index of all resources for the testing dogfooding initiative.
 .\scripts\audit-test-dependencies.ps1 -Path . -OutputFormat Markdown
 
 # Update a specific project
-.\scripts\update-test-dependencies.ps1 -ProjectPath tests\Encina.Tests\Encina.Tests.csproj -DryRun
+.\scripts\update-test-dependencies.ps1 -ProjectPath tests\Encina.UnitTests\Encina.UnitTests.csproj -DryRun
 
 # Add all packages to a project
-.\scripts\update-test-dependencies.ps1 -ProjectPath tests\Encina.Tests\Encina.Tests.csproj -AddAll
+.\scripts\update-test-dependencies.ps1 -ProjectPath tests\Encina.UnitTests\Encina.UnitTests.csproj -AddAll
 ```
 
 ---

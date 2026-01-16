@@ -1,5 +1,7 @@
 # Phase 1: Foundation Checklist
 
+> **Historical Note**: This checklist was created before the January 2026 test consolidation. The individual test projects mentioned have been consolidated into 7 projects under `tests/`. See `docs/plans/test-consolidation-plan.md` for the current test structure.
+
 **Goal**: Add Encina.Testing.* package references without breaking existing tests.
 
 **Estimated Effort**: 1-2 hours per project

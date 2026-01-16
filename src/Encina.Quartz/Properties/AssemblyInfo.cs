@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Encina.Quartz.ContractTests")]
-[assembly: InternalsVisibleTo("Encina.Quartz.PropertyTests")]
-[assembly: InternalsVisibleTo("Encina.Quartz.IntegrationTests")]
-[assembly: InternalsVisibleTo("Encina.Quartz.LoadTests")]
+[assembly: InternalsVisibleTo("Encina.UnitTests")]
+[assembly: InternalsVisibleTo("Encina.IntegrationTests")]
+[assembly: InternalsVisibleTo("Encina.ContractTests")]
+[assembly: InternalsVisibleTo("Encina.PropertyTests")]
+[assembly: InternalsVisibleTo("Encina.LoadTests")]

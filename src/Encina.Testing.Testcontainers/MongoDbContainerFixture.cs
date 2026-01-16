@@ -44,8 +44,7 @@ public class MongoDbContainerFixture : ContainerFixtureBase<MongoDbContainer>
     /// <returns>A pre-configured MongoDB container.</returns>
     protected override MongoDbContainer BuildContainer()
     {
-        return new MongoDbBuilder()
-            .WithImage("mongo:8.1")
+        return new MongoDbBuilder("mongo:8.1")
             .WithCleanUp(true)
             .Build();
     }

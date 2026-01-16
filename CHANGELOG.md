@@ -151,6 +151,8 @@ Epic initiative to refactor all Encina tests to use `Encina.Testing.*` infrastru
 
 #### Solution Filters Reorganization
 
+> **Note**: Solution filters were subsequently deprecated after the January 2026 test consolidation. Tests are now consolidated into 7 projects under `tests/`, and the full solution `Encina.slnx` builds without issues. The `.slnf` files were moved to `.backup/slnf-old/`.
+
 Updated all solution filters (`.slnf` files) to include complete test project coverage.
 
 **Updated Filters** (11 files):
@@ -3874,7 +3876,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - **Custom (Production)**: Implement `IDeadLetterStore` and `IDeadLetterMessageFactory` for your persistence layer (EF Core, Dapper, ADO.NET, NoSQL, etc.)
     - **API Location**: Interface contracts in `Encina.Messaging.DeadLetter` namespace ([IDeadLetterStore.cs](src/Encina.Messaging/DeadLetter/IDeadLetterStore.cs), [IDeadLetterMessageFactory.cs](src/Encina.Messaging/DeadLetter/IDeadLetterMessageFactory.cs))
     - **Contract Tests**: Use `IDeadLetterStoreContractTests` base class to verify custom implementations
-    - **Sample Implementation**: See `InMemoryDeadLetterStore` in [DeadLetterIntegrationTests.cs](tests/Encina.Tests/Integration/DeadLetterIntegrationTests.cs) for implementation reference
+    - **Sample Implementation**: See `InMemoryDeadLetterStore` in [DeadLetterIntegrationTests.cs](tests/Encina.IntegrationTests/DeadLetter/DeadLetterIntegrationTests.cs) for implementation reference
   - Example (Testing with built-in FakeDeadLetterStore):
 
     ```csharp

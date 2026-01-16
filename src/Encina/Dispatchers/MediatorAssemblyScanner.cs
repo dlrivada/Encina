@@ -83,6 +83,13 @@ internal static class EncinaAssemblyScanner
 
     private static void TryAddPipelineBehavior(Type type, Type implementedInterface, ScanResultBuilder result)
     {
+        // Skip nested types - they are typically test helpers or private implementations
+        // that have constructor dependencies which won't be registered in the DI container
+        if (type.IsNested)
+        {
+            return;
+        }
+
         // Skip ValidationPipelineBehavior - it requires ValidationOrchestrator
         // which is only registered by validation packages (FluentValidation, DataAnnotations, etc.)
         if (type.FullName == "Encina.Validation.ValidationPipelineBehavior`2")

@@ -1,7 +1,9 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Encina.AspNetCore.Tests")]
-[assembly: InternalsVisibleTo("Encina.AspNetCore.ContractTests")]
-[assembly: InternalsVisibleTo("Encina.AspNetCore.PropertyTests")]
-[assembly: InternalsVisibleTo("Encina.AspNetCore.LoadTests")]
+[assembly: InternalsVisibleTo("Encina.UnitTests")]
+[assembly: InternalsVisibleTo("Encina.IntegrationTests")]
+[assembly: InternalsVisibleTo("Encina.ContractTests")]
+[assembly: InternalsVisibleTo("Encina.PropertyTests")]
+[assembly: InternalsVisibleTo("Encina.LoadTests")]
+[assembly: InternalsVisibleTo("Encina.Benchmarks")]
 [assembly: InternalsVisibleTo("Encina.AspNetCore.Benchmarks")]

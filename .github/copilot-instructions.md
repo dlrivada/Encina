@@ -13,27 +13,28 @@ src/
 ├── Encina.EntityFrameworkCore/ # EF Core implementation
 ├── Encina.{Provider}/         # Provider-specific implementations
 tests/
-├── {Package}.Tests/           # Unit tests (required)
-├── {Package}.IntegrationTests/ # Integration tests (Docker/Testcontainers)
+├── Encina.UnitTests/          # Consolidated unit tests
+├── Encina.IntegrationTests/   # Integration tests (Docker/Testcontainers)
+├── Encina.PropertyTests/      # Property-based tests
+├── Encina.ContractTests/      # API contract tests
+├── Encina.GuardTests/         # Guard clause tests
+├── Encina.LoadTests/          # Load testing harness
+├── Encina.BenchmarkTests/     # BenchmarkDotNet benchmarks
 ```
 
 **Core patterns**: `ICommand<T>`, `IQuery<T>`, `INotification`, pipeline behaviors for validation/caching/transactions.
 
-## Critical Build Commands
-
-The solution has 66+ projects. **Full builds may crash with CLR error 0x80131506**. Use solution filters:
+## Build Commands
 
 ```bash
-# Safe full build (sequential)
-dotnet build Encina.slnx -maxcpucount:1
+# Build full solution
+dotnet build Encina.slnx --configuration Release
 
-# Recommended: Use solution filters
-dotnet build Encina.Core.slnf          # Core + GuardClauses
-dotnet build Encina.Testing.slnf       # Testing packages
-dotnet test Encina.Core.slnf
+# Run all tests
+dotnet test Encina.slnx --configuration Release
 
 # Run specific test project
-dotnet test tests/Encina.Testing.Pact.Tests/Encina.Testing.Pact.Tests.csproj
+dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj
 ```
 
 ## Code Conventions
@@ -75,9 +76,11 @@ ArgumentException.ThrowIfNullOrWhiteSpace(providerName);
 ## Testing Patterns
 
 ### Test Organization
-- **Unit tests**: `tests/{Package}.Tests/` - mock all dependencies
-- **Integration tests**: `tests/{Package}.IntegrationTests/` - real databases via Testcontainers
-- CI excludes `*IntegrationTests*` projects automatically
+- **Unit tests**: `tests/Encina.UnitTests/` - consolidated, mock all dependencies
+- **Integration tests**: `tests/Encina.IntegrationTests/` - real databases via Testcontainers
+- **Property tests**: `tests/Encina.PropertyTests/` - FsCheck-based
+- **Contract tests**: `tests/Encina.ContractTests/` - API contracts
+- **Guard tests**: `tests/Encina.GuardTests/` - guard clause verification
 
 ### Test Structure
 ```csharp

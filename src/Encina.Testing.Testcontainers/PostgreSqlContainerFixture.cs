@@ -44,8 +44,7 @@ public class PostgreSqlContainerFixture : ContainerFixtureBase<PostgreSqlContain
     /// <returns>A pre-configured PostgreSQL container.</returns>
     protected override PostgreSqlContainer BuildContainer()
     {
-        return new PostgreSqlBuilder()
-            .WithImage("postgres:17-alpine")
+        return new PostgreSqlBuilder("postgres:17-alpine")
             .WithDatabase("encina_test")
             .WithUsername("encina")
             .WithPassword("StrongP@ssw0rd!")

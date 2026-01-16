@@ -4,6 +4,8 @@
 **Status:** Ready for Implementation
 **Related:** ADR-007-v2, QUALITY_SECURITY_ROADMAP.md
 
+> **Historical Note**: File paths referenced in this document reflect the project structure as of December 2025. In January 2026, tests were consolidated from ~210 individual projects into 7 consolidated projects under `tests/`. See `docs/plans/test-consolidation-plan.md` for the current test structure.
+
 ---
 
 ## Executive Summary
@@ -228,7 +230,7 @@ public sealed class RequestContext : IRequestContext
 - `src/Encina/Dispatchers/EncinaAssemblyScanner.cs` (UPDATED)
 - `src/Encina/Core/ServiceCollectionExtensions.cs` (UPDATED)
 - `tests/Encina.Tests/RequestHandlerMetadataProviderTests.cs` (NEW)
-- `benchmarks/Encina.Benchmarks/MetadataProviderBenchmarks.cs` (NEW)
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/MetadataProviderBenchmarks.cs` (NEW)
 
 **Estimated LOC:** ~250 (200 new, 50 updated)
 

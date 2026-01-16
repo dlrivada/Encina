@@ -1,5 +1,13 @@
 # Claude Code - Encina Guidelines
 
+## Active Plans
+
+> **IMPORTANT**: Before starting work, check for active plans in `docs/plans/`. Read the plan file to understand the current state and continue from where the last session left off.
+
+| Plan | File | Status |
+|------|------|--------|
+| Test Consolidation | `docs/plans/test-consolidation-plan.md` | 🟡 In Progress |
+
 ## Project Philosophy
 
 ### Pre-1.0 Development Status
@@ -202,11 +210,11 @@ Choose test types based on risk and value. Not every piece of code needs all tes
 
 6. **Load Tests** 🟡 (Performance-critical, concurrent code)
    - Stress test under high concurrency
-   - Location: `load/Encina.LoadTests/`
+   - Location: `tests/Encina.LoadTests/`
 
 7. **Benchmarks** 🟡 (Hot paths, performance comparisons)
    - Measure actual performance with BenchmarkDotNet
-   - Location: `benchmarks/Encina.Benchmarks/`
+   - Location: `tests/Encina.BenchmarkTests/`
 
 #### Test Quality Standards
 
@@ -281,29 +289,28 @@ dotnet run --file scripts/run-integration-tests.cs
 
 ```
 tests/
-├── Encina.Tests/              # Unit tests for core
-│   ├── EncinaTests.cs
-│   ├── PipelineBuilderTests.cs
-│   └── Integration/                   # Integration tests
-│       └── EndToEndTests.cs
-├── Encina.ContractTests/      # Contract tests
-│   ├── HandlerRegistrationContracts.cs
-│   └── OutboxStoreContract.cs
-├── Encina.PropertyTests/      # Property-based tests
-│   ├── PipelineInvariants.cs
-│   └── CacheInvariants.cs
-├── Encina.GuardClauses.Tests/ # Guard clause tests
-│   ├── EncinaGuardsTests.cs
-│   └── OutboxGuardsTests.cs
-├── Encina.Dapper.SqlServer.Tests/  # Dapper provider tests
-│   ├── Unit/
-│   └── Integration/
-├── appsettings.Testing.json           # Test configuration
-load/
-├── Encina.NBomber/            # NBomber load tests
-└── Encina.LoadTests/          # Custom load tests
-benchmarks/
-└── Encina.Benchmarks/         # BenchmarkDotNet
+├── Encina.UnitTests/          # Consolidated unit tests (~4,600 tests)
+│   ├── ADO/
+│   ├── AspNetCore/
+│   ├── Caching/
+│   ├── Core/
+│   ├── Dapper/
+│   ├── DomainModeling/
+│   ├── EntityFrameworkCore/
+│   ├── Messaging/
+│   └── ...
+├── Encina.IntegrationTests/   # Consolidated integration tests (~710 tests)
+├── Encina.PropertyTests/      # Property-based tests (~485 tests)
+├── Encina.ContractTests/      # Contract tests (~400 tests)
+├── Encina.GuardTests/         # Guard clause tests (~300 tests)
+├── Encina.LoadTests/          # Load testing harness
+├── Encina.NBomber/            # NBomber scenarios
+├── Encina.BenchmarkTests/     # BenchmarkDotNet benchmarks
+│   ├── Encina.Benchmarks/
+│   ├── Encina.AspNetCore.Benchmarks/
+│   └── ...
+├── Encina.TestInfrastructure/ # Shared test infrastructure
+└── Encina.Testing.Examples/   # Reference examples
 ```
 
 #### Testing Workflow
@@ -420,6 +427,30 @@ var message = new OutboxMessageBuilder()
     .Build();
 ```
 
+#### Test Output Conventions
+
+**IMPORTANT**: All test outputs MUST go to the `artifacts/` directory, never to the repository root.
+
+| Output Type | Location |
+|-------------|----------|
+| Test results | `artifacts/test-results/` |
+| Code coverage | `artifacts/coverage/` |
+| Benchmark results | `artifacts/performance/` |
+| Load test metrics | `artifacts/load-metrics/` |
+| Mutation reports | `artifacts/stryker/` |
+
+**Forbidden root-level outputs** (these should NOT exist):
+- `TestResults/` ❌
+- `test-results.log` ❌
+- `coverage-*` ❌
+- `BenchmarkDotNet.Artifacts/` ❌
+
+When configuring test projects or scripts:
+- Use `--results-directory artifacts/test-results` for `dotnet test`
+- Use `--output artifacts/coverage` for coverage collectors
+- Configure `runsettings` files to use `artifacts/` paths
+- Scripts should write to `artifacts/` subdirectories
+
 #### Remember
 
 > **Quality is important but should be balanced with development velocity.**
@@ -512,50 +543,8 @@ The `Microsoft.CodeAnalysis.PublicApiAnalyzers` package tracks public API change
 
 ### Build Environment Known Issues
 
-#### MSBuild Parallel Build CLR Error (0x80131506)
-
-When running `dotnet test` or `dotnet build` on the full solution (`Encina.slnx`), you may encounter:
-
-```
-Fatal error. Internal CLR error. (0x80131506)
-```
-
-**Cause**: This is a known .NET/MSBuild issue when building many projects in parallel, especially with complex dependency graphs.
-
-**Solutions**:
-
-1. **Use Solution Filters (.slnf)**: The project has pre-configured solution filters in the root directory:
-   - `Encina.Core.slnf` - Core library and tests
-   - `Encina.Messaging.slnf` - Messaging patterns
-   - `Encina.Database.slnf` - Database providers
-   - `Encina.Validation.slnf` - Validation packages
-   - `Encina.Web.slnf` - ASP.NET Core integration
-   - `Encina.Caching.slnf` - Caching packages
-   - `Encina.Scheduling.slnf` - Scheduling packages
-   - `Encina.Resilience.slnf` - Resilience patterns
-   - `Encina.EventSourcing.slnf` - Event sourcing
-   - `Encina.Observability.slnf` - Observability packages
-
-   ```bash
-   # Build specific subset
-   dotnet build Encina.Core.slnf --configuration Release
-   dotnet test Encina.Messaging.slnf --configuration Release
-   ```
-
-2. **Limit parallelism** with `/m:1` (sequential build):
-   ```bash
-   dotnet build Encina.slnx --configuration Release /m:1
-   dotnet test Encina.slnx --configuration Release /m:1
-   ```
-
-3. **Build individual projects**:
-   ```bash
-   dotnet test tests/Encina.Tests/Encina.Tests.csproj --configuration Release
-   ```
-
-**References**:
-- [dotnet/runtime Issue #93893](https://github.com/dotnet/runtime/issues/93893)
-- [MSBuild Race Conditions](https://learn.microsoft.com/en-us/visualstudio/msbuild/fix-intermittent-build-failures)
+> **Note**: After test consolidation (January 2026), the MSBuild CLR crash issue has been resolved.
+> The full solution `Encina.slnx` now builds without issues. Solution filters (`.slnf`) are no longer needed.
 
 #### SQLite DateTime Format Incompatibility
 

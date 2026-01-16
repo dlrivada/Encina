@@ -7,8 +7,8 @@
 
 ## Tooling
 
-- Project: `load/Encina.LoadTests` (console harness targeting .NET 10.0).
-- NBomber project: `load/Encina.NBomber` for profile-driven scenarios.
+- Project: `tests/Encina.LoadTests` (console harness targeting .NET 10.0).
+- NBomber project: `tests/Encina.NBomber` for profile-driven scenarios.
 - Script launcher: `dotnet run --file scripts/run-load-harness.cs [-- <options>]`.
 
 ## Usage
@@ -80,7 +80,7 @@ Launch the profile-based scenarios through the same helper script:
 dotnet run --file scripts/run-load-harness.cs -- --nbomber send-burst
 ```
 
-- `--nbomber <alias>` maps to a JSON profile stored under `load/profiles/`. Use `send-burst` for the command-only sweep or `mixed-traffic` to run publish/send scenarios side-by-side. Pass `--profile <path>` to reference a custom JSON manifest directly.
+- `--nbomber <alias>` maps to a JSON profile stored under `tests/Encina.LoadTests/profiles/`. Use `send-burst` for the command-only sweep or `mixed-traffic` to run publish/send scenarios side-by-side. Pass `--profile <path>` to reference a custom JSON manifest directly.
 - Override defaults with the same switches exposed by the harness itself (`--scenario`, `--duration`, `--send-rate`, `--publish-rate`, `--reporting-interval`, `--output`). CLI flags take precedence over profile data.
 - Reports land in `artifacts/load-metrics/nbomber-<timestamp>/` by default. Reuse the path via `--output <directory>` when wiring CI steps that need deterministic artifact locations.
 - Each run emits:
@@ -109,7 +109,7 @@ Profiles capture duration, warm-up, throughput targets, and reporting cadence:
 }
 ```
 
-- Add new profiles under `load/profiles/nbomber.<name>.json` to keep CI-friendly baselines alongside bespoke experiment runs.
+- Add new profiles under `tests/Encina.LoadTests/profiles/nbomber.<name>.json` to keep CI-friendly baselines alongside bespoke experiment runs.
 - The harness normalises edge cases (non-positive durations/rates) and will log the substituted defaults to prevent silent misconfiguration.
 
 ### Aggregation & Thresholds

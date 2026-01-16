@@ -29,12 +29,12 @@ for (var index = 0; index < extraArguments.Length; index++)
 }
 
 var projectPath = runNbomber
-    ? "load/Encina.NBomber/Encina.NBomber.csproj"
-    : "load/Encina.LoadTests/Encina.LoadTests.csproj";
+    ? "tests/Encina.NBomber/Encina.NBomber.csproj"
+    : "tests/Encina.LoadTests/Encina.LoadTests.csproj";
 
 if (runNbomber && !ContainsOption(forwardedArguments, "--profile") && !string.IsNullOrEmpty(nbomberAlias))
 {
-    var profilePath = Path.Combine("load", "profiles", $"nbomber.{nbomberAlias}.json");
+    var profilePath = Path.Combine("tests", "Encina.LoadTests", "profiles", $"nbomber.{nbomberAlias}.json");
     if (File.Exists(profilePath))
     {
         forwardedArguments.Insert(0, profilePath);
