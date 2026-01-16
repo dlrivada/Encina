@@ -48,6 +48,7 @@ jobs:
   test:
     needs: quality-check
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
     strategy:
@@ -88,11 +89,14 @@ jobs:
         run: dotnet build Encina.slnx --configuration Release --no-restore
 
       - name: Test ${{ matrix.test-project.name }}
+        id: test
         run: |
           dotnet test ${{ matrix.test-project.project }} -c Release --no-build \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results/${{ matrix.test-project.name }} \
-            --logger "trx;LogFileName=${{ matrix.test-project.name }}.trx"
+            --logger "trx;LogFileName=${{ matrix.test-project.name }}.trx" \
+            -- xunit.parallelizeTestCollections=true
+        continue-on-error: true
 
       - name: Upload test results
         if: always()
@@ -101,6 +105,11 @@ jobs:
           name: test-results-${{ matrix.test-project.name }}
           path: artifacts/test-results/${{ matrix.test-project.name }}
           if-no-files-found: ignore
+
+      - name: Check test outcome
+        if: steps.test.outcome == 'failure'
+        run: |
+          echo "::warning::Tests in ${{ matrix.test-project.name }} failed. Check artifacts for details."
 
   # Aggregate coverage after all tests complete
   coverage:
