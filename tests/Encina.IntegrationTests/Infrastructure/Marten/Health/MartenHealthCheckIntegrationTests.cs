@@ -1,5 +1,5 @@
-using Encina.Marten.Health;
 using Encina.IntegrationTests.Infrastructure.Marten.Fixtures;
+using Encina.Marten.Health;
 using Encina.Messaging.Health;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,6 +1,6 @@
-using Encina.Testing.Time;
 using Encina.DistributedLock;
 using Encina.DistributedLock.InMemory;
+using Encina.Testing.Time;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.UnitTests.DistributedLock;

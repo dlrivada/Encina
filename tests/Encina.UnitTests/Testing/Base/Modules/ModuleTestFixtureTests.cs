@@ -1,6 +1,6 @@
-using Encina.Testing;
 using System.Reflection;
 using Encina.Modules;
+using Encina.Testing;
 using Encina.Testing.Modules;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;

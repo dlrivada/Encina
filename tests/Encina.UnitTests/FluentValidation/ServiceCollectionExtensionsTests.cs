@@ -1,5 +1,5 @@
 using Encina.FluentValidation;
-﻿using Encina.Validation;
+using Encina.Validation;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;

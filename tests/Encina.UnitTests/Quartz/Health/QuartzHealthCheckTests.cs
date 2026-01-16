@@ -1,5 +1,5 @@
-using Encina.Quartz;
 using Encina.Messaging.Health;
+using Encina.Quartz;
 using Encina.Quartz.Health;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;

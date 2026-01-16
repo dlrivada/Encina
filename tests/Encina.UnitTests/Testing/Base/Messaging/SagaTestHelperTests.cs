@@ -1,5 +1,5 @@
-using Encina.Testing;
 using Encina.Messaging.Sagas;
+using Encina.Testing;
 using Encina.Testing.Messaging;
 
 namespace Encina.UnitTests.Testing.Base.Messaging;

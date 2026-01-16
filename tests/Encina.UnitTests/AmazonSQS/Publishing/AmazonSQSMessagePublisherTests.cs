@@ -5,11 +5,10 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Encina.AmazonSQS;
 using Encina.Testing.Shouldly;
+using static System.Globalization.CultureInfo;
+using SnsSendMessageResponse = Amazon.SimpleNotificationService.Model.PublishResponse;
 using SqsSendMessageRequest = Amazon.SQS.Model.SendMessageRequest;
 using SqsSendMessageResponse = Amazon.SQS.Model.SendMessageResponse;
-using SnsSendMessageResponse = Amazon.SimpleNotificationService.Model.PublishResponse;
-
-using static System.Globalization.CultureInfo;
 
 namespace Encina.UnitTests.AmazonSQS.Publishing;
 

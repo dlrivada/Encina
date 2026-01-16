@@ -1,6 +1,6 @@
-using Encina.Testing;
 using System.Reflection;
 using Encina.Modules;
+using Encina.Testing;
 using Encina.Testing.Modules;
 using Encina.UnitTests.Testing.Modules.TestModules.Orders;
 using Encina.UnitTests.Testing.Modules.TestModules.Payments;

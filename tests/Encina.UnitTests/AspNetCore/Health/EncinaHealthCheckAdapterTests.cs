@@ -1,7 +1,7 @@
-using Encina.Testing;
 using Encina.AspNetCore;
 using Encina.AspNetCore.Health;
 using Encina.Messaging.Health;
+using Encina.Testing;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using NSubstitute;
 using Xunit;

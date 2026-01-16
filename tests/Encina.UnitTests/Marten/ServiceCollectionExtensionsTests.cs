@@ -1,5 +1,5 @@
-using Encina.Marten;
 using Encina.DomainModeling;
+using Encina.Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Shouldly;

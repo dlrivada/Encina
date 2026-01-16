@@ -1,7 +1,7 @@
 using System.Data;
-using Microsoft.Extensions.DependencyInjection;
 using Encina.Dapper.SqlServer;
 using Encina.Messaging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.GuardTests.Dapper.SqlServer;
 

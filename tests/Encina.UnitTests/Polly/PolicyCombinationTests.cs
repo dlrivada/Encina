@@ -1,7 +1,7 @@
-using Encina.Testing;
-using Encina.Polly;
 using System.Reflection;
+using Encina.Polly;
 using Encina.TestInfrastructure.PropertyTests;
+using Encina.Testing;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;

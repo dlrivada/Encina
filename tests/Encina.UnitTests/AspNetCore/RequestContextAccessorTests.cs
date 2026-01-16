@@ -1,5 +1,5 @@
-using Encina.Testing;
 using Encina.AspNetCore;
+using Encina.Testing;
 using Shouldly;
 using Xunit;
 

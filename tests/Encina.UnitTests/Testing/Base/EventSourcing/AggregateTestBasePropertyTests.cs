@@ -1,5 +1,5 @@
-using Encina.Testing;
 using Encina.DomainModeling;
+using Encina.Testing;
 using Encina.Testing.EventSourcing;
 using FsCheck;
 using FsCheck.Xunit;

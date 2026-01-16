@@ -1,6 +1,6 @@
-using Encina.Testing;
-using Encina.EntityFrameworkCore;
 using System.Data;
+using Encina.EntityFrameworkCore;
+using Encina.Testing;
 using Shouldly;
 using Xunit;
 

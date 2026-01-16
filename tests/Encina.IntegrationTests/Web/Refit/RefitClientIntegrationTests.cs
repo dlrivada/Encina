@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
+using Encina.Refit;
+using Encina.Testing.WireMock;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Refit;
-using Encina.Refit;
-using Encina.Testing.WireMock;
 
 namespace Encina.IntegrationTests.Web.Refit;
 

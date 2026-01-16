@@ -1,11 +1,11 @@
-using Encina.Testing;
-using Encina.OpenTelemetry;
 using System.Diagnostics;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Encina.OpenTelemetry;
 using Encina.OpenTelemetry.Behaviors;
+using Encina.Testing;
 using LanguageExt;
 using NSubstitute;
 using Shouldly;

@@ -1,10 +1,10 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Order;
+using Encina.Extensions.Resilience;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Polly;
-using Encina.Extensions.Resilience;
 
 namespace Encina.Extensions.Resilience.Benchmarks;
 

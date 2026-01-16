@@ -1,13 +1,12 @@
-using Encina.Testing;
-using Encina.EntityFrameworkCore;
 using System.Data;
+using Encina.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Health;
+using Encina.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Xunit;
-
 using EncinaRequest = global::Encina.IRequest<string>;
 
 namespace Encina.UnitTests.EntityFrameworkCore;

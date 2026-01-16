@@ -1,8 +1,8 @@
-﻿using Npgsql;
-using Encina.ADO.PostgreSQL.Outbox;
+﻿using Encina.ADO.PostgreSQL.Outbox;
+using Encina.Messaging.Outbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
-using Encina.Messaging.Outbox;
+using Npgsql;
 using Xunit;
 
 namespace Encina.IntegrationTests.ADO.PostgreSQL.Outbox;

@@ -1,8 +1,8 @@
+using System.Net;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Encina.AmazonSQS.Health;
 using Encina.Messaging.Health;
-using System.Net;
 
 namespace Encina.UnitTests.AmazonSQS.Health;
 

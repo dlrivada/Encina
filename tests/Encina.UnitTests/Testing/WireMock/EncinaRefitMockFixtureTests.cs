@@ -1,7 +1,7 @@
-using Encina.Testing.WireMock;
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
+using Encina.Testing.WireMock;
 using Refit;
 
 namespace Encina.UnitTests.Testing.WireMock;

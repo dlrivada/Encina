@@ -1,8 +1,8 @@
 using System.Data;
+using global::Encina.ADO.Sqlite;
 using global::Encina.Messaging;
 using LanguageExt;
 using Microsoft.Data.Sqlite;
-using global::Encina.ADO.Sqlite;
 
 namespace Encina.GuardTests.ADO.Sqlite;
 

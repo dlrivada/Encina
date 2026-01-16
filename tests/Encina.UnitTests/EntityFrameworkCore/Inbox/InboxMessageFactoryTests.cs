@@ -1,5 +1,5 @@
-using Encina.EntityFrameworkCore;
 using System.Text.Json;
+using Encina.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.Messaging.Inbox;
 using Shouldly;

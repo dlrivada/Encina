@@ -1,5 +1,5 @@
-using Encina.Testing;
 using Encina.Polly;
+using Encina.Testing;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;

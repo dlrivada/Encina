@@ -1,6 +1,6 @@
-using Encina.Testing;
+using Encina;
 using Encina.GuardClauses;
-﻿using Encina;
+using Encina.Testing;
 using LanguageExt;
 using Shouldly;
 using static LanguageExt.Prelude;

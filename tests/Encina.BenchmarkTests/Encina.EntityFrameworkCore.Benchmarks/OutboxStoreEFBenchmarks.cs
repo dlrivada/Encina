@@ -1,6 +1,6 @@
 using BenchmarkDotNet.Attributes;
-using Microsoft.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Outbox;
+using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.Benchmarks;
 

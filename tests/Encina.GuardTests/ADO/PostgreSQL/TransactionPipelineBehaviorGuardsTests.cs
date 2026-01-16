@@ -1,6 +1,6 @@
 using System.Data;
-using LanguageExt;
 using global::Encina.ADO.PostgreSQL;
+using LanguageExt;
 
 namespace Encina.GuardTests.ADO.PostgreSQL;
 

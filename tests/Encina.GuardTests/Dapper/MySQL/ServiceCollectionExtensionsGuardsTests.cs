@@ -1,7 +1,7 @@
 using System.Data;
-using Microsoft.Extensions.DependencyInjection;
 using Encina.Dapper.MySQL;
 using Encina.Messaging;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Encina.GuardTests.Dapper.MySQL;

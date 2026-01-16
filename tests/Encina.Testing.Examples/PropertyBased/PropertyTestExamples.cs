@@ -1,3 +1,4 @@
+using System.Globalization;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
@@ -7,7 +8,6 @@ using FsCheck;
 using FsCheck.Fluent;
 using FsCheck.Xunit;
 using Shouldly;
-using System.Globalization;
 
 namespace Encina.Testing.Examples.PropertyBased;
 

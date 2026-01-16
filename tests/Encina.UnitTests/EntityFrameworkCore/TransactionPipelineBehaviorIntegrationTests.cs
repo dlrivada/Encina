@@ -1,5 +1,5 @@
-using Encina.Testing;
 using Encina.EntityFrameworkCore;
+using Encina.Testing;
 using LanguageExt;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +8,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Xunit;
-
 using EncinaRequest = global::Encina.IRequest<string>;
 
 namespace Encina.UnitTests.EntityFrameworkCore;

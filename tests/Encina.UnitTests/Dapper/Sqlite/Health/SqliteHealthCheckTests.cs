@@ -1,5 +1,5 @@
-using Encina.Dapper.Sqlite;
 using System.Data;
+using Encina.Dapper.Sqlite;
 using Encina.Dapper.Sqlite.Health;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;

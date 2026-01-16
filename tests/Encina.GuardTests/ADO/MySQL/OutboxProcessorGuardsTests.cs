@@ -1,9 +1,9 @@
 using System.Data;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Encina.ADO.MySQL;
 using Encina.ADO.MySQL.Outbox;
 using Encina.Messaging.Outbox;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Encina.GuardTests.ADO.MySQL;
 

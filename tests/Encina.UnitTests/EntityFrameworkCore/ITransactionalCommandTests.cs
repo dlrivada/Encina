@@ -1,5 +1,5 @@
-using Encina.Testing;
 using Encina.EntityFrameworkCore;
+using Encina.Testing;
 using Shouldly;
 using Xunit;
 

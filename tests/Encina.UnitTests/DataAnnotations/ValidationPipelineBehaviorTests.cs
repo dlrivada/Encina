@@ -1,5 +1,5 @@
-using Encina.DataAnnotations;
 using System.ComponentModel.DataAnnotations;
+using Encina.DataAnnotations;
 using Encina.Testing.Shouldly;
 using Encina.Validation;
 using LanguageExt;

@@ -1,7 +1,7 @@
-using Encina.Testing;
 using System.Threading;
 using System.Threading.Tasks;
 using Encina;
+using Encina.Testing;
 using LanguageExt;
 using static LanguageExt.Prelude;
 

@@ -1,7 +1,7 @@
 using Encina.Hangfire;
+using Encina.UnitTests.Hangfire.Fakers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
-using Encina.UnitTests.Hangfire.Fakers;
 
 namespace Encina.UnitTests.Hangfire;
 

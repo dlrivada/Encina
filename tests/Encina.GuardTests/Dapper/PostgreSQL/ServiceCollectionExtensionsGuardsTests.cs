@@ -1,6 +1,6 @@
-using Microsoft.Extensions.DependencyInjection;
 using Encina.Dapper.PostgreSQL;
 using Encina.Messaging;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Encina.GuardTests.Dapper.PostgreSQL;

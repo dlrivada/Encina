@@ -1,8 +1,8 @@
-﻿using Microsoft.Data.SqlClient;
-using Encina.ADO.SqlServer.Outbox;
+﻿using Encina.ADO.SqlServer.Outbox;
+using Encina.Messaging.Outbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
-using Encina.Messaging.Outbox;
+using Microsoft.Data.SqlClient;
 using Xunit;
 
 namespace Encina.IntegrationTests.ADO.SqlServer.Outbox;

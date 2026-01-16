@@ -1,6 +1,6 @@
-using Encina.Testing.Time;
 using Encina.DistributedLock;
 using Encina.DistributedLock.InMemory;
+using Encina.Testing.Time;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

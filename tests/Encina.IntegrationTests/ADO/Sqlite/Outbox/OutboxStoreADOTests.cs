@@ -1,8 +1,8 @@
-﻿using Microsoft.Data.Sqlite;
-using Encina.ADO.Sqlite.Outbox;
+﻿using Encina.ADO.Sqlite.Outbox;
+using Encina.Messaging.Outbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
-using Encina.Messaging.Outbox;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace Encina.IntegrationTests.ADO.Sqlite.Outbox;

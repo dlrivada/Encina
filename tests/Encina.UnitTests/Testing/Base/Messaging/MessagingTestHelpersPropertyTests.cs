@@ -1,5 +1,5 @@
-using Encina.Testing;
 using Encina.Messaging.Sagas;
+using Encina.Testing;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Messaging;
 using FsCheck;

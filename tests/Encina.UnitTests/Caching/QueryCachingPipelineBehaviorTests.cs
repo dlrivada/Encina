@@ -1,9 +1,9 @@
-using Encina.Testing;
-using Encina.Testing.Fakes.Providers;
 using Bogus;
+using Encina.Caching;
+using Encina.Testing;
 using Encina.Testing.Bogus;
 using Encina.Testing.Fakes;
-using Encina.Caching;
+using Encina.Testing.Fakes.Providers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

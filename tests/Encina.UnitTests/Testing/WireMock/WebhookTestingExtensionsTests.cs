@@ -1,8 +1,8 @@
-using Encina.Testing.WireMock;
 using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Encina.Testing.WireMock;
 using Encina.UnitTests.Testing.WireMock.Fixtures;
 
 namespace Encina.UnitTests.Testing.WireMock;

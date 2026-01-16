@@ -1,6 +1,6 @@
+using System.Text.Json;
 using Encina.Testing.Pact;
 using Shouldly;
-using System.Text.Json;
 
 namespace Encina.UnitTests.Testing.Pact;
 

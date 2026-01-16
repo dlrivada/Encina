@@ -1,5 +1,5 @@
+using System.ComponentModel.DataAnnotations;
 using Encina.DataAnnotations;
-﻿using System.ComponentModel.DataAnnotations;
 using Encina.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;

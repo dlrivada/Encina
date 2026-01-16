@@ -1,8 +1,8 @@
-﻿using MySqlConnector;
-using Encina.ADO.MySQL.Outbox;
+﻿using Encina.ADO.MySQL.Outbox;
+using Encina.Messaging.Outbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
-using Encina.Messaging.Outbox;
+using MySqlConnector;
 using Xunit;
 
 namespace Encina.IntegrationTests.ADO.MySQL.Outbox;

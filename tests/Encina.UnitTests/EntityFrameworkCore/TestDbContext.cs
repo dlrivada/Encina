@@ -1,9 +1,9 @@
-using Encina.Testing;
 using Encina.EntityFrameworkCore;
-﻿using Encina.EntityFrameworkCore.Inbox;
+using Encina.EntityFrameworkCore.Inbox;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.EntityFrameworkCore.Scheduling;
+using Encina.Testing;
 using Microsoft.EntityFrameworkCore;
 
 namespace Encina.UnitTests.EntityFrameworkCore;

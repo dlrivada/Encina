@@ -1,7 +1,7 @@
+using System.Net.Http.Json;
 using Encina.Testing.Examples.Domain;
 using Encina.Testing.Pact;
 using Shouldly;
-using System.Net.Http.Json;
 using Xunit.Abstractions;
 
 namespace Encina.Testing.Examples.ContractTests;

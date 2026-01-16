@@ -2,10 +2,10 @@ using Encina.Testing.Bogus;
 using Encina.Testing.Examples.Domain;
 using Encina.Testing.Messaging;
 using Shouldly;
-using FakeOutbox = Encina.Testing.Fakes.Stores.FakeOutboxStore;
 using FakeInbox = Encina.Testing.Fakes.Stores.FakeInboxStore;
-using FakeOutboxMsg = Encina.Testing.Fakes.Models.FakeOutboxMessage;
 using FakeInboxMsg = Encina.Testing.Fakes.Models.FakeInboxMessage;
+using FakeOutbox = Encina.Testing.Fakes.Stores.FakeOutboxStore;
+using FakeOutboxMsg = Encina.Testing.Fakes.Models.FakeOutboxMessage;
 
 namespace Encina.Testing.Examples.TestData;
 

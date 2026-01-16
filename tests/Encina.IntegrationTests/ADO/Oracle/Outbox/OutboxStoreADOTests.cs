@@ -1,8 +1,8 @@
-﻿using Oracle.ManagedDataAccess.Client;
-using Encina.ADO.Oracle.Outbox;
+﻿using Encina.ADO.Oracle.Outbox;
+using Encina.Messaging.Outbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
-using Encina.Messaging.Outbox;
+using Oracle.ManagedDataAccess.Client;
 using Xunit;
 
 namespace Encina.IntegrationTests.ADO.Oracle.Outbox;

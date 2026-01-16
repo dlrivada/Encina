@@ -1,7 +1,7 @@
-using Microsoft.Extensions.DependencyInjection;
-using Refit;
 using Encina.Refit;
 using Encina.Testing.WireMock;
+using Microsoft.Extensions.DependencyInjection;
+using Refit;
 
 namespace Encina.IntegrationTests.Web.Refit;
 

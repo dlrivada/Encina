@@ -1,7 +1,7 @@
 using System.Data;
-using Microsoft.Extensions.DependencyInjection;
 using Encina.ADO.SqlServer;
 using Encina.Messaging;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
 

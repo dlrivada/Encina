@@ -1,8 +1,8 @@
 using System.Data;
-using Microsoft.Extensions.Logging;
 using Encina.ADO.Sqlite;
 using Encina.ADO.Sqlite.Outbox;
 using Encina.Messaging.Outbox;
+using Microsoft.Extensions.Logging;
 
 namespace Encina.GuardTests.ADO.Sqlite;
 

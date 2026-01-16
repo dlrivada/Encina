@@ -1,7 +1,7 @@
 using System.Data;
-using Microsoft.Extensions.DependencyInjection;
 using Encina.ADO.Oracle;
 using Encina.Messaging;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
 

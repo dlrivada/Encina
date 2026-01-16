@@ -1,9 +1,9 @@
-using Encina.Testing;
 using Encina.AspNetCore;
 using Encina.AspNetCore.Health;
 using Encina.AspNetCore.Modules;
 using Encina.Messaging.Health;
 using Encina.Modules;
+using Encina.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;

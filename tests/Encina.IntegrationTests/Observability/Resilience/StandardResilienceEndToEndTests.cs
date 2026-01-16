@@ -1,8 +1,8 @@
-using Shouldly;
+using Encina.Extensions.Resilience;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Encina.Extensions.Resilience;
+using Shouldly;
 using Xunit;
 
 namespace Encina.IntegrationTests.Observability.Resilience;

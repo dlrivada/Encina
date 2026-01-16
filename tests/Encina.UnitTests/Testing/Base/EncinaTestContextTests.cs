@@ -1,5 +1,5 @@
-using Encina.Testing;
 using Encina.Messaging.Outbox;
+using Encina.Testing;
 using LanguageExt;
 
 namespace Encina.UnitTests.Testing.Base;

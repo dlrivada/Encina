@@ -1,5 +1,5 @@
-using Encina.Dapper.Sqlite;
 using System.Data;
+using Encina.Dapper.Sqlite;
 using Encina.Dapper.Sqlite.Outbox;
 using NSubstitute;
 

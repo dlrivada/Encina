@@ -1,5 +1,5 @@
-using Encina.Marten;
 using Encina.DomainModeling;
+using Encina.Marten;
 
 namespace Encina.UnitTests.Marten;
 

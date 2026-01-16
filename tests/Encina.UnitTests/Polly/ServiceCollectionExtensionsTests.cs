@@ -1,5 +1,5 @@
-using Encina.Testing;
 using Encina.Polly;
+using Encina.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 

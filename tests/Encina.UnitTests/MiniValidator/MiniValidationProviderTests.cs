@@ -1,5 +1,5 @@
-using Encina.MiniValidator;
 using System.ComponentModel.DataAnnotations;
+using Encina.MiniValidator;
 using Encina.TestInfrastructure.PropertyTests;
 using Encina.Validation;
 using Shouldly;

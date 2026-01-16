@@ -1,7 +1,7 @@
 using System.Data;
-using Microsoft.Extensions.DependencyInjection;
 using Encina.ADO.PostgreSQL;
 using Encina.Messaging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.GuardTests.ADO.PostgreSQL;
 

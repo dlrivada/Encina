@@ -1,9 +1,9 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Order;
+using Encina.Refit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Refit;
-using Encina.Refit;
 
 namespace Encina.Refit.Benchmarks;
 

@@ -1,6 +1,6 @@
-using Encina.IntegrationTests.Infrastructure.Caching.Fixtures;
 using Encina.Caching.Redis;
 using Encina.DistributedLock;
+using Encina.IntegrationTests.Infrastructure.Caching.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis;

@@ -1,6 +1,6 @@
 using System.Data;
-using LanguageExt;
 using global::Encina.Dapper.SqlServer;
+using LanguageExt;
 
 namespace Encina.GuardTests.Dapper.SqlServer;
 

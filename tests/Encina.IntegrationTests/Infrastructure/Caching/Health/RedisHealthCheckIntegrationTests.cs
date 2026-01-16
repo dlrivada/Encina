@@ -1,5 +1,5 @@
-using Encina.IntegrationTests.Infrastructure.Caching.Fixtures;
 using Encina.Caching.Redis.Health;
+using Encina.IntegrationTests.Infrastructure.Caching.Fixtures;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;

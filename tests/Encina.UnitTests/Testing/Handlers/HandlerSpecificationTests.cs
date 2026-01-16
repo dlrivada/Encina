@@ -1,5 +1,5 @@
-using Encina.Testing;
 using Encina;
+using Encina.Testing;
 using Encina.Testing.Handlers;
 using Encina.UnitTests.Testing.TestFixtures;
 using LanguageExt;

@@ -1,8 +1,8 @@
 using System.Data;
-using Microsoft.Extensions.Logging;
 using Encina.Dapper.SqlServer;
 using Encina.Dapper.SqlServer.Outbox;
 using Encina.Messaging.Outbox;
+using Microsoft.Extensions.Logging;
 
 namespace Encina.GuardTests.Dapper.SqlServer;
 
