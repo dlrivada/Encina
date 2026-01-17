@@ -50,41 +50,60 @@ jobs:
             **/obj/**/*.assets.json
           retention-days: 1
 
-  # Unit tests - consolidated project
+  # Unit tests - split into shards for parallel execution
   test-unit:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - name: Testing
+            filter: "FullyQualifiedName~Encina.UnitTests.Testing"
+          - name: Messaging
+            filter: "FullyQualifiedName~Encina.UnitTests.Messaging|FullyQualifiedName~Encina.UnitTests.Caching"
+          - name: Data
+            filter: "FullyQualifiedName~Encina.UnitTests.EntityFrameworkCore|FullyQualifiedName~Encina.UnitTests.Dapper|FullyQualifiedName~Encina.UnitTests.ADO|FullyQualifiedName~Encina.UnitTests.MongoDB|FullyQualifiedName~Encina.UnitTests.Marten"
+          - name: Cloud
+            filter: "FullyQualifiedName~Encina.UnitTests.AzureFunctions|FullyQualifiedName~Encina.UnitTests.AzureServiceBus|FullyQualifiedName~Encina.UnitTests.Polly|FullyQualifiedName~Encina.UnitTests.AwsLambda|FullyQualifiedName~Encina.UnitTests.Aspire|FullyQualifiedName~Encina.UnitTests.OpenTelemetry"
+          - name: Remaining
+            filter: "FullyQualifiedName~Encina.UnitTests.Core|FullyQualifiedName~Encina.UnitTests.DomainModeling|FullyQualifiedName~Encina.UnitTests.AspNetCore|FullyQualifiedName~Encina.UnitTests.gRPC|FullyQualifiedName~Encina.UnitTests.SignalR|FullyQualifiedName~Encina.UnitTests.GuardClauses|FullyQualifiedName~Encina.UnitTests.MQTT|FullyQualifiedName~Encina.UnitTests.NATS|FullyQualifiedName~Encina.UnitTests.RabbitMQ|FullyQualifiedName~Encina.UnitTests.AmazonSQS|FullyQualifiedName~Encina.UnitTests.Kafka|FullyQualifiedName~Encina.UnitTests.Workflows|FullyQualifiedName~Encina.UnitTests.MiniValidator|FullyQualifiedName~Encina.UnitTests.FluentValidation|FullyQualifiedName~Encina.UnitTests.DataAnnotations|FullyQualifiedName~Encina.UnitTests.Quartz|FullyQualifiedName~Encina.UnitTests.Hangfire|FullyQualifiedName~Encina.UnitTests.Extensions|FullyQualifiedName~Encina.UnitTests.Refit|FullyQualifiedName~Encina.UnitTests.Cli"
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v6
         with:
           name: build-output
-      - name: Run Unit tests
+      - name: Run Unit tests (${{ matrix.shard.name }})
         run: |
           dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj --no-build -c Release \
-            --logger "console;verbosity=minimal" || true
+            --filter "${{ matrix.shard.filter }}" \
+            --logger "console;verbosity=minimal" \
+            -- xunit.parallelizeTestCollections=true
+        continue-on-error: true
 
   # Integration tests - consolidated project
   test-integration:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v6
         with:
           name: build-output
       - name: Run Integration tests
         run: |
           dotnet test tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj --no-build -c Release \
-            --logger "console;verbosity=minimal" || true
+            --logger "console;verbosity=minimal" \
+            -- xunit.parallelizeTestCollections=true
+        continue-on-error: true
 
   # Contract tests - consolidated project
   test-contract:
@@ -96,31 +115,33 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v6
         with:
           name: build-output
       - name: Run Contract tests
         run: |
           dotnet test tests/Encina.ContractTests/Encina.ContractTests.csproj --no-build -c Release \
-            --logger "console;verbosity=minimal" || true
+            --logger "console;verbosity=minimal"
+        continue-on-error: true
 
   # Property tests - consolidated project
   test-property:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v6
         with:
           name: build-output
       - name: Run Property tests
         run: |
           dotnet test tests/Encina.PropertyTests/Encina.PropertyTests.csproj --no-build -c Release \
-            --logger "console;verbosity=minimal" || true
+            --logger "console;verbosity=minimal"
+        continue-on-error: true
 
   # Guard tests - consolidated project
   test-guard:
@@ -132,13 +153,14 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v6
         with:
           name: build-output
       - name: Run Guard tests
         run: |
           dotnet test tests/Encina.GuardTests/Encina.GuardTests.csproj --no-build -c Release \
-            --logger "console;verbosity=minimal" || true
+            --logger "console;verbosity=minimal"
+        continue-on-error: true
 
   # Pack and publish - runs after all tests
   pack:
