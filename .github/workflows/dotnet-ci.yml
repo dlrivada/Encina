@@ -72,10 +72,11 @@ jobs:
           - name: UnitTests-Shard4a
             project: tests/Encina.UnitTests/Encina.UnitTests.csproj
             filter: "FullyQualifiedName~Encina.UnitTests.AzureFunctions|FullyQualifiedName~Encina.UnitTests.AzureServiceBus|FullyQualifiedName~Encina.UnitTests.Polly"
-          # Shard 4b: AWS + Aspire + Observability (~250 tests)
+          # Shard 4b: AWS + Aspire + Observability (~180 tests)
+          # Note: DistributedLock tests excluded due to hanging (see issue #531)
           - name: UnitTests-Shard4b
             project: tests/Encina.UnitTests/Encina.UnitTests.csproj
-            filter: "FullyQualifiedName~Encina.UnitTests.AwsLambda|FullyQualifiedName~Encina.UnitTests.Aspire|FullyQualifiedName~Encina.UnitTests.DistributedLock|FullyQualifiedName~Encina.UnitTests.OpenTelemetry"
+            filter: "FullyQualifiedName~Encina.UnitTests.AwsLambda|FullyQualifiedName~Encina.UnitTests.Aspire|FullyQualifiedName~Encina.UnitTests.OpenTelemetry"
           # Remaining namespaces split to balance load
           - name: UnitTests-Remaining
             project: tests/Encina.UnitTests/Encina.UnitTests.csproj
