@@ -68,10 +68,14 @@ jobs:
           - name: UnitTests-Shard3
             project: tests/Encina.UnitTests/Encina.UnitTests.csproj
             filter: "FullyQualifiedName~Encina.UnitTests.EntityFrameworkCore|FullyQualifiedName~Encina.UnitTests.Dapper|FullyQualifiedName~Encina.UnitTests.ADO|FullyQualifiedName~Encina.UnitTests.MongoDB|FullyQualifiedName~Encina.UnitTests.Marten"
-          # Shard 4: Cloud + Functions + Resilience (~700 tests)
-          - name: UnitTests-Shard4
+          # Shard 4a: Azure + Polly (~420 tests) - these tests tend to be slower
+          - name: UnitTests-Shard4a
             project: tests/Encina.UnitTests/Encina.UnitTests.csproj
-            filter: "FullyQualifiedName~Encina.UnitTests.AzureFunctions|FullyQualifiedName~Encina.UnitTests.AwsLambda|FullyQualifiedName~Encina.UnitTests.AzureServiceBus|FullyQualifiedName~Encina.UnitTests.Aspire|FullyQualifiedName~Encina.UnitTests.Polly|FullyQualifiedName~Encina.UnitTests.DistributedLock|FullyQualifiedName~Encina.UnitTests.OpenTelemetry"
+            filter: "FullyQualifiedName~Encina.UnitTests.AzureFunctions|FullyQualifiedName~Encina.UnitTests.AzureServiceBus|FullyQualifiedName~Encina.UnitTests.Polly"
+          # Shard 4b: AWS + Aspire + Observability (~250 tests)
+          - name: UnitTests-Shard4b
+            project: tests/Encina.UnitTests/Encina.UnitTests.csproj
+            filter: "FullyQualifiedName~Encina.UnitTests.AwsLambda|FullyQualifiedName~Encina.UnitTests.Aspire|FullyQualifiedName~Encina.UnitTests.DistributedLock|FullyQualifiedName~Encina.UnitTests.OpenTelemetry"
           # Remaining namespaces split to balance load
           - name: UnitTests-Remaining
             project: tests/Encina.UnitTests/Encina.UnitTests.csproj
