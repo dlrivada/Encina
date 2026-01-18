@@ -88,11 +88,13 @@ jobs:
             --no-build -c Release \
             --filter "${{ matrix.shard.filter }}" \
             --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings \
             --results-directory artifacts/coverage \
-            --logger "console;verbosity=minimal" \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover \
-               xunit.parallelizeTestCollections=true
+            --logger "console;verbosity=minimal"
         continue-on-error: true
+
+      - name: List coverage files
+        run: find artifacts -name "*.xml" -type f 2>/dev/null || echo "No XML files found"
 
       - name: Upload coverage
         uses: actions/upload-artifact@v6
@@ -100,7 +102,7 @@ jobs:
           name: coverage-${{ matrix.shard.name }}
           path: artifacts/coverage/**/coverage.opencover.xml
           retention-days: 1
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
   # SonarCloud analysis - runs after coverage collection
   sonarcloud:
