@@ -71,14 +71,26 @@ public sealed class RespawnOptionsTests
     [Fact]
     public void EncinaMessagingTables_ContainsAllExpectedTables()
     {
-        // Arrange
-        var expectedTables = new[] { "OutboxMessages", "InboxMessages", "SagaStates", "ScheduledMessages" };
+        // Arrange - includes both PascalCase (SQL Server) and lowercase (PostgreSQL) versions
+        var expectedTables = new[]
+        {
+            // SQL Server uses PascalCase
+            "OutboxMessages",
+            "InboxMessages",
+            "SagaStates",
+            "ScheduledMessages",
+            // PostgreSQL converts unquoted identifiers to lowercase
+            "outboxmessages",
+            "inboxmessages",
+            "sagastates",
+            "scheduledmessages"
+        };
 
         // Act
         var tables = EncinaRespawnOptions.EncinaMessagingTables;
 
         // Assert
-        tables.Length.ShouldBe(4);
+        tables.Length.ShouldBe(8);
         tables.ShouldBe(expectedTables, ignoreOrder: true);
     }
 

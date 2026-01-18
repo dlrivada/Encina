@@ -132,11 +132,11 @@ namespace Encina.UnitTests.Testing.Base.Modules
             // Arrange
             var analyzer = ModuleArchitectureAnalyzer.AnalyzeAssemblyContaining<ModuleArchitectureAnalyzerTests>();
 
-            // Act
-            var ordersModule = analyzer.Result.Modules.First(m => m.Name == "Orders");
+            // Act - Find the OrdersModule from this namespace specifically
+            var ordersModule = analyzer.Result.Modules.First(m => m.Type == typeof(OrdersModule));
 
             // Assert
-            ordersModule.Type.ShouldBe(typeof(OrdersModule));
+            ordersModule.Name.ShouldBe("Orders");
             ordersModule.Assembly.ShouldBe(typeof(ModuleArchitectureAnalyzerTests).Assembly);
             ordersModule.Namespace.ShouldNotBeNullOrEmpty();
         }

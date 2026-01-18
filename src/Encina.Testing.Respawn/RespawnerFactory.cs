@@ -119,7 +119,7 @@ public static class RespawnerFactory
     /// <para>
     /// This method attempts to parse the connection string using each provider's
     /// <see cref="System.Data.Common.DbConnectionStringBuilder"/> to determine the adapter type.
-    /// It checks providers in order of specificity: PostgreSQL, MySQL, SQL Server, SQLite.
+    /// It checks providers in order of specificity: PostgreSQL, SQL Server, MySQL.
     /// </para>
     /// <para>
     /// <b>Note:</b> This is a best-effort detection that may produce incorrect results with
@@ -135,22 +135,23 @@ public static class RespawnerFactory
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-        // Try PostgreSQL first - NpgsqlConnectionStringBuilder is strict about valid keywords
+        // Try PostgreSQL first - requires Host keyword which is unique to PostgreSQL
         if (TryParsePostgreSql(connectionString))
         {
             return RespawnAdapter.PostgreSql;
         }
 
-        // Try MySQL - MySqlConnectionStringBuilder validates MySQL-specific keywords
-        if (TryParseMySql(connectionString))
-        {
-            return RespawnAdapter.MySql;
-        }
-
-        // Try SQL Server - SqlConnectionStringBuilder is more permissive
+        // Try SQL Server before MySQL - SQL Server has more specific keywords
+        // like "Initial Catalog", "Integrated Security", "Data Source" that MySQL doesn't use
         if (TryParseSqlServer(connectionString))
         {
             return RespawnAdapter.SqlServer;
+        }
+
+        // Try MySQL last - MySqlConnectionStringBuilder is very permissive
+        if (TryParseMySql(connectionString))
+        {
+            return RespawnAdapter.MySql;
         }
 
         // SQLite is not returned here since it uses a separate respawner (SqliteRespawner)
@@ -163,6 +164,14 @@ public static class RespawnerFactory
     {
         try
         {
+            // PostgreSQL connection strings must explicitly contain "Host=" keyword
+            // NpgsqlConnectionStringBuilder defaults Host to "localhost" if not specified,
+            // which causes false positives with other provider connection strings
+            if (!connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
             var builder = new NpgsqlConnectionStringBuilder(connectionString);
             // Require Host to be set - this is mandatory for PostgreSQL
             return !string.IsNullOrEmpty(builder.Host);
@@ -179,8 +188,22 @@ public static class RespawnerFactory
         try
         {
             var builder = new MySqlConnectionStringBuilder(connectionString);
+
             // Require Server to be set - this is mandatory for MySQL
-            return !string.IsNullOrEmpty(builder.Server);
+            if (string.IsNullOrEmpty(builder.Server))
+            {
+                return false;
+            }
+
+            // Exclude SQLite-style connection strings that look like file paths
+            // MySQL server should be a hostname or IP, not a file path
+            if (builder.Server.EndsWith(".db", StringComparison.OrdinalIgnoreCase) ||
+                builder.Server.Contains(':') && builder.Server.Contains("memory", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return true;
         }
         catch (Exception ex)
         {
@@ -194,8 +217,55 @@ public static class RespawnerFactory
         try
         {
             var builder = new SqlConnectionStringBuilder(connectionString);
+
             // Require DataSource to be set - this is mandatory for SQL Server
-            return !string.IsNullOrEmpty(builder.DataSource);
+            if (string.IsNullOrEmpty(builder.DataSource))
+            {
+                return false;
+            }
+
+            // Exclude SQLite-style connection strings that look like file paths or memory databases
+            // SQL Server DataSource should be a server name, not a file path
+            if (builder.DataSource.EndsWith(".db", StringComparison.OrdinalIgnoreCase) ||
+                builder.DataSource.Contains(":memory:", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            // Check for SQL Server-specific keywords to distinguish from MySQL
+            // SQL Server uses "User Id" (not just "User"), "Integrated Security", "Initial Catalog", "Data Source"
+            var hasUserIdKeyword = connectionString.Contains("User Id=", StringComparison.OrdinalIgnoreCase) ||
+                                   connectionString.Contains("Uid=", StringComparison.OrdinalIgnoreCase);
+            var hasIntegratedSecurity = connectionString.Contains("Integrated Security", StringComparison.OrdinalIgnoreCase) ||
+                                        connectionString.Contains("Trusted_Connection", StringComparison.OrdinalIgnoreCase);
+            var hasInitialCatalog = connectionString.Contains("Initial Catalog", StringComparison.OrdinalIgnoreCase);
+            var hasDataSource = connectionString.Contains("Data Source=", StringComparison.OrdinalIgnoreCase);
+
+            // If any SQL Server-specific keyword is present, it's SQL Server
+            if (hasUserIdKeyword || hasIntegratedSecurity || hasInitialCatalog || hasDataSource)
+            {
+                return true;
+            }
+
+            // MySQL typically uses "User=" without "Id", so if we see just "User=" without "User Id="
+            // and "Server=" (which MySQL prefers), it's likely MySQL
+            var hasUserWithoutId = connectionString.Contains("User=", StringComparison.OrdinalIgnoreCase) &&
+                                   !connectionString.Contains("User Id=", StringComparison.OrdinalIgnoreCase);
+            var hasServerKeyword = connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase);
+            var hasMySqlPort = connectionString.Contains("Port=3306", StringComparison.OrdinalIgnoreCase);
+
+            // If it looks like MySQL, don't claim it as SQL Server
+            if (hasUserWithoutId && hasServerKeyword)
+            {
+                return false;
+            }
+
+            if (hasMySqlPort)
+            {
+                return false;
+            }
+
+            return true;
         }
         catch (Exception ex)
         {
