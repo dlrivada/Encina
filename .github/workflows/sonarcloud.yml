@@ -15,7 +15,7 @@ jobs:
   sonarcloud:
     name: SonarCloud Code Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -44,18 +44,57 @@ jobs:
       - name: Install SonarScanner
         run: dotnet tool install --global dotnet-sonarscanner
 
-      - name: Restore source projects only
-        run: dotnet restore Encina.Source.sln
+      - name: Restore full solution
+        run: dotnet restore Encina.slnx
+
+      - name: Run tests with coverage (before SonarScanner)
+        run: |
+          dotnet build Encina.slnx --configuration Release --no-restore
+          dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj \
+            --no-build -c Release \
+            --collect:"XPlat Code Coverage" \
+            --results-directory artifacts/coverage \
+            --logger "console;verbosity=minimal" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover \
+               xunit.parallelizeTestCollections=true
+        continue-on-error: true
+
+      - name: Find coverage report
+        id: coverage
+        run: |
+          COVERAGE_FILE=$(find artifacts/coverage -name "coverage.opencover.xml" -type f 2>/dev/null | head -1)
+          if [ -n "$COVERAGE_FILE" ]; then
+            echo "path=$COVERAGE_FILE" >> $GITHUB_OUTPUT
+            echo "Found coverage report: $COVERAGE_FILE"
+          else
+            echo "No coverage report found, trying alternative pattern..."
+            COVERAGE_FILE=$(find artifacts/coverage -name "*.xml" -type f 2>/dev/null | head -1)
+            if [ -n "$COVERAGE_FILE" ]; then
+              echo "path=$COVERAGE_FILE" >> $GITHUB_OUTPUT
+              echo "Found coverage report: $COVERAGE_FILE"
+            else
+              echo "path=" >> $GITHUB_OUTPUT
+            fi
+          fi
 
       - name: Begin SonarCloud analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
+          COVERAGE_ARG=""
+          if [ -n "${{ steps.coverage.outputs.path }}" ]; then
+            COVERAGE_ARG="/d:sonar.cs.opencover.reportsPaths=${{ steps.coverage.outputs.path }}"
+            echo "Using coverage report: ${{ steps.coverage.outputs.path }}"
+          else
+            echo "No coverage report available"
+          fi
+
           dotnet sonarscanner begin \
             /k:"dlrivada_Encina" \
             /o:"dlrivada" \
             /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
             /d:sonar.host.url="https://sonarcloud.io" \
+            $COVERAGE_ARG \
             /d:sonar.coverage.exclusions="src/Encina.Testing*/**/*.cs,src/Encina.Aspire.Testing/**/*.cs,src/Encina.AzureFunctions/**/*.cs,src/Encina.AwsLambda/**/*.cs,src/Encina.Hangfire/**/*.cs,src/Encina.Quartz/**/*.cs" \
             /d:sonar.cpd.exclusions="src/Encina.Dapper.*/**/*.cs,src/Encina.Dapper.*/Scripts/*.sql,src/Encina.ADO.*/**/*.cs,src/Encina.ADO.*/Scripts/*.sql,src/Encina.Testing*/**/*.cs" \
             /d:sonar.exclusions="**/Migrations/**,**/*.g.cs,**/obj/**,**/bin/**,tests/**/*" \
@@ -70,8 +109,8 @@ jobs:
             /d:sonar.issue.ignore.multicriteria.e5.resourceKey="src/Encina.Cli/**/CodeGenerator.cs" \
             /d:sonar.verbose=false
 
-      - name: Build source projects for analysis
-        run: dotnet build Encina.Source.sln --configuration Release --no-restore
+      - name: Build for SonarCloud analysis
+        run: dotnet build Encina.Source.sln --configuration Release --no-restore --no-incremental
 
       - name: End SonarCloud analysis
         env:
