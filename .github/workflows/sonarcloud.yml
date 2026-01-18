@@ -11,25 +11,110 @@ permissions:
   contents: read
   pull-requests: read
 
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
 jobs:
-  sonarcloud:
-    name: SonarCloud Code Quality
+  # Build job - shared by coverage and analysis
+  build:
+    name: Build
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-
-    env:
-      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
-      DOTNET_NOLOGO: true
-      DOTNET_CLI_TELEMETRY_OPTOUT: true
-
+    timeout-minutes: 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for better analysis relevance
+          fetch-depth: 0
 
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore and Build
+        run: |
+          dotnet restore Encina.slnx
+          dotnet build Encina.slnx --configuration Release --no-restore
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: build-output
+          path: |
+            **/bin/Release/**
+            **/obj/**/*.assets.json
+          retention-days: 1
+
+  # Coverage collection - parallel shards
+  coverage:
+    name: Coverage (${{ matrix.shard.name }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - name: Core
+            filter: "FullyQualifiedName~Encina.UnitTests.Core|FullyQualifiedName~Encina.UnitTests.DomainModeling|FullyQualifiedName~Encina.UnitTests.AspNetCore"
+          - name: Data
+            filter: "FullyQualifiedName~Encina.UnitTests.EntityFrameworkCore|FullyQualifiedName~Encina.UnitTests.Dapper|FullyQualifiedName~Encina.UnitTests.ADO"
+          - name: Messaging
+            filter: "FullyQualifiedName~Encina.UnitTests.Messaging|FullyQualifiedName~Encina.UnitTests.Caching"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/download-artifact@v6
+        with:
+          name: build-output
+
+      - name: Run tests with coverage
+        run: |
+          dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj \
+            --no-build -c Release \
+            --filter "${{ matrix.shard.filter }}" \
+            --collect:"XPlat Code Coverage" \
+            --results-directory artifacts/coverage \
+            --logger "console;verbosity=minimal" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover \
+               xunit.parallelizeTestCollections=true
+        continue-on-error: true
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-${{ matrix.shard.name }}
+          path: artifacts/coverage/**/coverage.opencover.xml
+          retention-days: 1
+          if-no-files-found: ignore
+
+  # SonarCloud analysis - runs after coverage collection
+  sonarcloud:
+    name: SonarCloud Analysis
+    needs: [build, coverage]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: always() && needs.build.result == 'success'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
 
@@ -44,49 +129,38 @@ jobs:
       - name: Install SonarScanner
         run: dotnet tool install --global dotnet-sonarscanner
 
-      - name: Restore full solution
-        run: dotnet restore Encina.slnx
+      - name: Download all coverage reports
+        uses: actions/download-artifact@v6
+        with:
+          pattern: coverage-*
+          path: artifacts/coverage
+          merge-multiple: true
 
-      - name: Run tests with coverage (before SonarScanner)
-        run: |
-          dotnet build Encina.slnx --configuration Release --no-restore
-          dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj \
-            --no-build -c Release \
-            --collect:"XPlat Code Coverage" \
-            --results-directory artifacts/coverage \
-            --logger "console;verbosity=minimal" \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover \
-               xunit.parallelizeTestCollections=true
-        continue-on-error: true
-
-      - name: Find coverage report
+      - name: Find coverage reports
         id: coverage
         run: |
-          COVERAGE_FILE=$(find artifacts/coverage -name "coverage.opencover.xml" -type f 2>/dev/null | head -1)
-          if [ -n "$COVERAGE_FILE" ]; then
-            echo "path=$COVERAGE_FILE" >> $GITHUB_OUTPUT
-            echo "Found coverage report: $COVERAGE_FILE"
+          COVERAGE_FILES=$(find artifacts/coverage -name "coverage.opencover.xml" -type f 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+          if [ -n "$COVERAGE_FILES" ]; then
+            echo "paths=$COVERAGE_FILES" >> $GITHUB_OUTPUT
+            echo "Found coverage reports: $COVERAGE_FILES"
           else
-            echo "No coverage report found, trying alternative pattern..."
-            COVERAGE_FILE=$(find artifacts/coverage -name "*.xml" -type f 2>/dev/null | head -1)
-            if [ -n "$COVERAGE_FILE" ]; then
-              echo "path=$COVERAGE_FILE" >> $GITHUB_OUTPUT
-              echo "Found coverage report: $COVERAGE_FILE"
-            else
-              echo "path=" >> $GITHUB_OUTPUT
-            fi
+            echo "paths=" >> $GITHUB_OUTPUT
+            echo "No coverage reports found"
           fi
+
+      - name: Restore source projects
+        run: dotnet restore Encina.Source.sln
 
       - name: Begin SonarCloud analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           COVERAGE_ARG=""
-          if [ -n "${{ steps.coverage.outputs.path }}" ]; then
-            COVERAGE_ARG="/d:sonar.cs.opencover.reportsPaths=${{ steps.coverage.outputs.path }}"
-            echo "Using coverage report: ${{ steps.coverage.outputs.path }}"
+          if [ -n "${{ steps.coverage.outputs.paths }}" ]; then
+            COVERAGE_ARG="/d:sonar.cs.opencover.reportsPaths=${{ steps.coverage.outputs.paths }}"
+            echo "Using coverage reports: ${{ steps.coverage.outputs.paths }}"
           else
-            echo "No coverage report available"
+            echo "No coverage reports available"
           fi
 
           dotnet sonarscanner begin \
@@ -110,7 +184,7 @@ jobs:
             /d:sonar.verbose=false
 
       - name: Build for SonarCloud analysis
-        run: dotnet build Encina.Source.sln --configuration Release --no-restore --no-incremental
+        run: dotnet build Encina.Source.sln --configuration Release --no-restore
 
       - name: End SonarCloud analysis
         env:
