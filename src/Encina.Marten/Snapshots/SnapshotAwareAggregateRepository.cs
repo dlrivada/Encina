@@ -269,7 +269,6 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
 
         // Fetch events after the snapshot version
         var fromVersion = snapshot.Version + 1;
-        var toVersion = targetVersion ?? long.MaxValue;
 
         var events = await _session.Events.FetchStreamAsync(
             id,

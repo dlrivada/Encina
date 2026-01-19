@@ -27,6 +27,10 @@ namespace Encina.AwsLambda;
 /// </example>
 public static class ApiGatewayResponseExtensions
 {
+    private const string HeaderContentType = "Content-Type";
+    private const string MediaTypeJson = "application/json";
+    private const string MediaTypeProblemJson = "application/problem+json";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -102,7 +106,7 @@ public static class ApiGatewayResponseExtensions
             Body = JsonSerializer.Serialize(problemDetails, JsonOptions),
             Headers = new Dictionary<string, string>
             {
-                ["Content-Type"] = "application/problem+json"
+                [HeaderContentType] = MediaTypeProblemJson
             }
         };
     }
@@ -133,7 +137,7 @@ public static class ApiGatewayResponseExtensions
                 Body = JsonSerializer.Serialize(value, JsonOptions),
                 Headers = new Dictionary<string, string>
                 {
-                    ["Content-Type"] = "application/json",
+                    [HeaderContentType] = MediaTypeJson,
                     ["Location"] = locationFactory(value)
                 }
             },
@@ -182,7 +186,7 @@ public static class ApiGatewayResponseExtensions
                 Body = JsonSerializer.Serialize(value, JsonOptions),
                 Headers = new Dictionary<string, string>
                 {
-                    ["Content-Type"] = "application/json"
+                    [HeaderContentType] = MediaTypeJson
                 }
             },
             Left: error =>
@@ -207,7 +211,7 @@ public static class ApiGatewayResponseExtensions
                     Body = JsonSerializer.Serialize(problemDetails, JsonOptions),
                     Headers = new Dictionary<string, string>
                     {
-                        ["Content-Type"] = "application/problem+json"
+                        [HeaderContentType] = MediaTypeProblemJson
                     }
                 };
             });
@@ -221,7 +225,7 @@ public static class ApiGatewayResponseExtensions
             Body = JsonSerializer.Serialize(value, JsonOptions),
             Headers = new Dictionary<string, string>
             {
-                ["Content-Type"] = "application/json"
+                [HeaderContentType] = MediaTypeJson
             }
         };
     }

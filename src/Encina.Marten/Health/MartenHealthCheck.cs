@@ -38,7 +38,7 @@ public sealed class MartenHealthCheck : EncinaHealthCheck
         await using var session = store.QuerySession();
 
         // Execute a simple SQL query to verify the connection works
-        var result = await session.QueryAsync<int>("SELECT 1", cancellationToken).ConfigureAwait(false);
+        _ = await session.QueryAsync<int>("SELECT 1", cancellationToken).ConfigureAwait(false);
 
         return HealthCheckResult.Healthy($"{Name} is connected");
     }

@@ -15,9 +15,9 @@ internal sealed class EncinaErrorConverter : JsonConverter<EncinaError>
     /// <inheritdoc />
     public override EncinaError ReadJson(
         JsonReader reader,
-        Type objectType,
+        Type type,
         EncinaError existingValue,
-        bool hasExistingValue,
+        bool hasExisting,
         JsonSerializer serializer)
     {
         // We only need write support for snapshot testing

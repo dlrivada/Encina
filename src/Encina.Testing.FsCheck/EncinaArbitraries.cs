@@ -125,7 +125,7 @@ public static class EncinaArbitraries
     {
         var gen = Gen.Select(
             ArbMap.Default.GeneratorFor<Guid>(),
-            g => (IRequestContext)global::Encina.RequestContext.CreateForTest(
+            g => global::Encina.RequestContext.CreateForTest(
                 correlationId: g.ToString("N", CultureInfo.InvariantCulture)));
         return Arb.From(gen);
     }
@@ -353,6 +353,11 @@ public static class EncinaArbitraries
 
     #region Factory Methods
 
+    // S107: These factory methods intentionally take many parameters as they map
+    // directly to entity properties. Parameter objects would add unnecessary complexity
+    // for internal test data generators.
+#pragma warning disable S107 // Methods should not have too many parameters
+
     private static ArbitraryOutboxMessage CreateOutboxMessage(
         Guid id,
         string notificationType,
@@ -478,6 +483,8 @@ public static class EncinaArbitraries
             NextRetryAtUtc = null
         };
     }
+
+#pragma warning restore S107
 
     #endregion
 }

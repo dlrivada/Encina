@@ -21,6 +21,10 @@ public static class HealthCheckBuilderExtensions
     /// </summary>
     private static readonly string[] DefaultTags = ["encina", "ready"];
 
+    // Common tag constants to avoid duplicate string literals
+    private const string TagDatabase = "database";
+    private const string TagMessaging = "messaging";
+
     /// <summary>
     /// Adds all registered Encina health checks to the health check builder.
     /// </summary>
@@ -89,7 +93,7 @@ public static class HealthCheckBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        var allTags = CombineTags(tags, "outbox", "database", "messaging");
+        var allTags = CombineTags(tags, "outbox", TagDatabase, TagMessaging);
 
         builder.Add(new HealthCheckRegistration(
             name,
@@ -120,7 +124,7 @@ public static class HealthCheckBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        var allTags = CombineTags(tags, "inbox", "database", "messaging");
+        var allTags = CombineTags(tags, "inbox", TagDatabase, TagMessaging);
 
         builder.Add(new HealthCheckRegistration(
             name,
@@ -153,7 +157,7 @@ public static class HealthCheckBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        var allTags = CombineTags(tags, "saga", "database", "messaging");
+        var allTags = CombineTags(tags, "saga", TagDatabase, TagMessaging);
 
         builder.Add(new HealthCheckRegistration(
             name,
@@ -186,7 +190,7 @@ public static class HealthCheckBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        var allTags = CombineTags(tags, "scheduling", "database", "messaging");
+        var allTags = CombineTags(tags, "scheduling", TagDatabase, TagMessaging);
 
         builder.Add(new HealthCheckRegistration(
             name,

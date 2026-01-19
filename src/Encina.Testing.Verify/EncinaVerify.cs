@@ -393,7 +393,7 @@ public static class EncinaVerify
         IEnumerable<IOutboxMessage>? outboxMessages = null,
         IEnumerable<ISagaState>? sagaStates = null)
     {
-        return new TestScenarioSnapshot<TResponse>
+        return new TestScenarioSnapshot
         {
             Result = PrepareEither(result),
             OutboxMessages = outboxMessages != null ? PrepareOutboxMessages(outboxMessages) : null,
@@ -540,7 +540,7 @@ internal sealed class ValidationErrorSnapshot
 /// <summary>
 /// Internal snapshot representation for complete test scenarios.
 /// </summary>
-internal sealed class TestScenarioSnapshot<TResponse>
+internal sealed class TestScenarioSnapshot
 {
     public object? Result { get; set; }
     public IReadOnlyList<object>? OutboxMessages { get; set; }

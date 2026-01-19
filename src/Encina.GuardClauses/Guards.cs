@@ -77,6 +77,12 @@ public static partial class Guards
     /// </summary>
     public const string GuardValidationFailed = "Encina.guard.validation_failed";
 
+    // Metadata keys for guard error details
+    private const string MetadataKeyParameter = "parameter";
+    private const string MetadataKeyStage = "stage";
+    private const string MetadataKeyGuard = "guard";
+    private const string MetadataStageGuardValidation = "guard_validation";
+
     /// <summary>
     /// Compiled regex for email validation.
     /// </summary>
@@ -110,10 +116,10 @@ public static partial class Guards
         var errorMessage = message ?? $"{paramName} cannot be null.";
         var metadata = new Dictionary<string, object?>
         {
-            ["parameter"] = paramName,
+            [MetadataKeyParameter] = paramName,
             ["type"] = typeof(T).FullName,
-            ["stage"] = "guard_validation",
-            ["guard"] = "NotNull"
+            [MetadataKeyStage] = MetadataStageGuardValidation,
+            [MetadataKeyGuard] = "NotNull"
         };
         error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
@@ -144,10 +150,10 @@ public static partial class Guards
         var errorMessage = message ?? $"{paramName} cannot be null or empty.";
         var metadata = new Dictionary<string, object?>
         {
-            ["parameter"] = paramName,
+            [MetadataKeyParameter] = paramName,
             ["type"] = typeof(string).FullName,
-            ["stage"] = "guard_validation",
-            ["guard"] = "NotEmpty"
+            [MetadataKeyStage] = MetadataStageGuardValidation,
+            [MetadataKeyGuard] = "NotEmpty"
         };
         error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
@@ -172,10 +178,10 @@ public static partial class Guards
         var errorMessage = message ?? $"{paramName} cannot be null, empty, or whitespace.";
         var metadata = new Dictionary<string, object?>
         {
-            ["parameter"] = paramName,
+            [MetadataKeyParameter] = paramName,
             ["type"] = typeof(string).FullName,
-            ["stage"] = "guard_validation",
-            ["guard"] = "NotWhiteSpace"
+            [MetadataKeyStage] = MetadataStageGuardValidation,
+            [MetadataKeyGuard] = "NotWhiteSpace"
         };
         error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
@@ -207,10 +213,10 @@ public static partial class Guards
         var errorMessage = message ?? $"{paramName} cannot be null or empty.";
         var metadata = new Dictionary<string, object?>
         {
-            ["parameter"] = paramName,
+            [MetadataKeyParameter] = paramName,
             ["type"] = typeof(IEnumerable<T>).FullName,
-            ["stage"] = "guard_validation",
-            ["guard"] = "NotEmpty"
+            [MetadataKeyStage] = MetadataStageGuardValidation,
+            [MetadataKeyGuard] = "NotEmpty"
         };
         error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
@@ -244,11 +250,11 @@ public static partial class Guards
         var errorMessage = message ?? $"{paramName} must be positive (greater than zero).";
         var metadata = new Dictionary<string, object?>
         {
-            ["parameter"] = paramName,
+            [MetadataKeyParameter] = paramName,
             ["type"] = typeof(T).FullName,
             ["value"] = value,
-            ["stage"] = "guard_validation",
-            ["guard"] = "Positive"
+            [MetadataKeyStage] = MetadataStageGuardValidation,
+            [MetadataKeyGuard] = "Positive"
         };
         error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
@@ -276,11 +282,11 @@ public static partial class Guards
         var errorMessage = message ?? $"{paramName} must be negative (less than zero).";
         var metadata = new Dictionary<string, object?>
         {
-            ["parameter"] = paramName,
+            [MetadataKeyParameter] = paramName,
             ["type"] = typeof(T).FullName,
             ["value"] = value,
-            ["stage"] = "guard_validation",
-            ["guard"] = "Negative"
+            [MetadataKeyStage] = MetadataStageGuardValidation,
+            [MetadataKeyGuard] = "Negative"
         };
         error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
@@ -315,13 +321,13 @@ public static partial class Guards
         var errorMessage = message ?? $"{paramName} must be between {min} and {max} (inclusive).";
         var metadata = new Dictionary<string, object?>
         {
-            ["parameter"] = paramName,
+            [MetadataKeyParameter] = paramName,
             ["type"] = typeof(T).FullName,
             ["value"] = value,
             ["min"] = min,
             ["max"] = max,
-            ["stage"] = "guard_validation",
-            ["guard"] = "InRange"
+            [MetadataKeyStage] = MetadataStageGuardValidation,
+            [MetadataKeyGuard] = "InRange"
         };
         error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
@@ -352,10 +358,10 @@ public static partial class Guards
         var errorMessage = message ?? $"{paramName} must be a valid email address.";
         var metadata = new Dictionary<string, object?>
         {
-            ["parameter"] = paramName,
+            [MetadataKeyParameter] = paramName,
             ["value"] = value,
-            ["stage"] = "guard_validation",
-            ["guard"] = "ValidEmail"
+            [MetadataKeyStage] = MetadataStageGuardValidation,
+            [MetadataKeyGuard] = "ValidEmail"
         };
         error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
@@ -387,10 +393,10 @@ public static partial class Guards
         var errorMessage = message ?? $"{paramName} must be a valid HTTP or HTTPS URL.";
         var metadata = new Dictionary<string, object?>
         {
-            ["parameter"] = paramName,
+            [MetadataKeyParameter] = paramName,
             ["value"] = value,
-            ["stage"] = "guard_validation",
-            ["guard"] = "ValidUrl"
+            [MetadataKeyStage] = MetadataStageGuardValidation,
+            [MetadataKeyGuard] = "ValidUrl"
         };
         error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
@@ -421,10 +427,10 @@ public static partial class Guards
         var errorMessage = message ?? $"{paramName} cannot be an empty GUID.";
         var metadata = new Dictionary<string, object?>
         {
-            ["parameter"] = paramName,
+            [MetadataKeyParameter] = paramName,
             ["type"] = typeof(Guid).FullName,
-            ["stage"] = "guard_validation",
-            ["guard"] = "NotEmptyGuid"
+            [MetadataKeyStage] = MetadataStageGuardValidation,
+            [MetadataKeyGuard] = "NotEmptyGuid"
         };
         error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
@@ -456,9 +462,9 @@ public static partial class Guards
         var errorMessage = message ?? $"Validation failed for {paramName}.";
         var metadata = new Dictionary<string, object?>
         {
-            ["parameter"] = paramName,
-            ["stage"] = "guard_validation",
-            ["guard"] = "Custom"
+            [MetadataKeyParameter] = paramName,
+            [MetadataKeyStage] = MetadataStageGuardValidation,
+            [MetadataKeyGuard] = "Custom"
         };
         error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;
@@ -491,11 +497,11 @@ public static partial class Guards
         var errorMessage = message ?? $"{paramName} does not match the required pattern.";
         var metadata = new Dictionary<string, object?>
         {
-            ["parameter"] = paramName,
+            [MetadataKeyParameter] = paramName,
             ["value"] = value,
             ["pattern"] = pattern,
-            ["stage"] = "guard_validation",
-            ["guard"] = "Pattern"
+            [MetadataKeyStage] = MetadataStageGuardValidation,
+            [MetadataKeyGuard] = "Pattern"
         };
         error = EncinaErrors.Create(GuardValidationFailed, errorMessage, details: metadata);
         return false;

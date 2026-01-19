@@ -14,7 +14,7 @@ namespace Encina.Testing.FsCheck;
 /// This class is used internally by <see cref="EncinaArbitraries.Register"/> to
 /// register all Encina type arbitraries with FsCheck's type-based lookup system.
 /// </remarks>
-public sealed class EncinaArbitraryProvider
+public static class EncinaArbitraryProvider
 {
     /// <summary>
     /// Provides an arbitrary for <see cref="EncinaError"/>.

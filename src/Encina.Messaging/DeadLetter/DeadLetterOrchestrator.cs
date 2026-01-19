@@ -228,10 +228,6 @@ public sealed class DeadLetterOrchestrator
         var pendingCount = await _store.GetCountAsync(
             new DeadLetterFilter { ExcludeReplayed = true },
             cancellationToken);
-        var replayedCount = await _store.GetCountAsync(
-            new DeadLetterFilter { ExcludeReplayed = false },
-            cancellationToken);
-
         // Get count by source pattern
         var sourcePatterns = new[]
         {
@@ -281,7 +277,6 @@ public sealed class DeadLetterOrchestrator
         }
 
         // Count expired (non-replayed messages past expiration)
-        var now = DateTime.UtcNow;
         var expiredMessages = await _store.GetMessagesAsync(
             new DeadLetterFilter { ExcludeReplayed = true },
             skip: 0,

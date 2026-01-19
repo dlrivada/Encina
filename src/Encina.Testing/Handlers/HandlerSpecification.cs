@@ -320,7 +320,6 @@ public abstract class HandlerSpecification<TRequest, TResponse>
             code.StartsWith("encina.validation", StringComparison.OrdinalIgnoreCase),
             $"Expected validation error but got error with code: {code}");
 
-        var metadata = error.GetMetadata();
         var message = error.Message;
 
         foreach (var propertyName in expectedPropertyNames)

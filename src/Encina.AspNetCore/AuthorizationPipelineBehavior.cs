@@ -57,6 +57,10 @@ namespace Encina.AspNetCore;
 public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
+    private const string MetadataKeyRequestType = "requestType";
+    private const string MetadataKeyStage = "stage";
+    private const string MetadataStageAuthorization = "authorization";
+
     private readonly IAuthorizationService _authorizationService;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -111,8 +115,8 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
                 message: "Authorization requires HTTP context but none is available.",
                 details: new Dictionary<string, object?>
                 {
-                    ["requestType"] = typeof(TRequest).FullName,
-                    ["stage"] = "authorization"
+                    [MetadataKeyRequestType] = typeof(TRequest).FullName,
+                    [MetadataKeyStage] = MetadataStageAuthorization
                 }));
         }
 
@@ -126,8 +130,8 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
                 message: $"Request '{typeof(TRequest).Name}' requires authentication.",
                 details: new Dictionary<string, object?>
                 {
-                    ["requestType"] = typeof(TRequest).FullName,
-                    ["stage"] = "authorization",
+                    [MetadataKeyRequestType] = typeof(TRequest).FullName,
+                    [MetadataKeyStage] = MetadataStageAuthorization,
                     ["requirement"] = "authenticated"
                 }));
         }
@@ -151,8 +155,8 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
                         message: $"User does not satisfy policy '{authorizeAttribute.Policy}' required by '{typeof(TRequest).Name}'.",
                         details: new Dictionary<string, object?>
                         {
-                            ["requestType"] = typeof(TRequest).FullName,
-                            ["stage"] = "authorization",
+                            [MetadataKeyRequestType] = typeof(TRequest).FullName,
+                            [MetadataKeyStage] = MetadataStageAuthorization,
                             ["requirement"] = "policy",
                             ["policy"] = authorizeAttribute.Policy,
                             ["userId"] = context.UserId,
@@ -181,8 +185,8 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
                         message: $"User does not have any of the required roles ({string.Join(", ", requiredRoles)}) for '{typeof(TRequest).Name}'.",
                         details: new Dictionary<string, object?>
                         {
-                            ["requestType"] = typeof(TRequest).FullName,
-                            ["stage"] = "authorization",
+                            [MetadataKeyRequestType] = typeof(TRequest).FullName,
+                            [MetadataKeyStage] = MetadataStageAuthorization,
                             ["requirement"] = "roles",
                             ["requiredRoles"] = requiredRoles,
                             ["userId"] = context.UserId
