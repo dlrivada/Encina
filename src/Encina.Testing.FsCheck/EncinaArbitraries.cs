@@ -71,27 +71,6 @@ public static class EncinaArbitraries
         "0 * * * *", "0 0 * * *", "0 0 * * 1", "0 0 1 * *", "*/5 * * * *"
     ];
 
-    /// <summary>
-    /// This method is retained for API compatibility only and performs no operation.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// In FsCheck 3.x, arbitraries are automatically registered via <see cref="EncinaArbitraryProvider"/>.
-    /// There is no need to call this method; it exists solely to prevent breaking changes for
-    /// code that previously called <c>EncinaArbitraries.Register()</c>.
-    /// </para>
-    /// <para>
-    /// To use Encina arbitraries, simply reference the <c>Encina.Testing.FsCheck</c> package
-    /// and use <c>ArbMap.Default</c> or the individual arbitrary factory methods like
-    /// <see cref="EncinaError()"/>, <see cref="OutboxMessage()"/>, etc.
-    /// </para>
-    /// </remarks>
-    [Obsolete("This method is a no-op. Arbitraries are auto-registered via EncinaArbitraryProvider. Use ArbMap.Default or individual arbitrary factory methods instead.")]
-    public static void Register()
-    {
-        // No-op: In FsCheck 3.x, arbitraries are auto-registered via EncinaArbitraryProvider
-    }
-
     #region Core Types
 
     /// <summary>
