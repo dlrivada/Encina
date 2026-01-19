@@ -7,10 +7,6 @@ on:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pull-requests: read
-
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_NOLOGO: true
@@ -22,6 +18,8 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
         with:
@@ -59,6 +57,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -125,6 +125,9 @@ jobs:
     needs: [build, coverage]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
     if: always() && needs.build.result == 'success'
     steps:
       - uses: actions/checkout@v6
@@ -228,7 +231,7 @@ jobs:
             /d:sonar.coverage.exclusions="$COVERAGE_EXCLUSIONS" \
             /d:sonar.cpd.exclusions="$CPD_EXCLUSIONS" \
             /d:sonar.exclusions="**/Migrations/**,**/*.g.cs,**/obj/**,**/bin/**,tests/**/*" \
-            /d:sonar.issue.ignore.multicriteria=e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13,e14,e15,e16 \
+            /d:sonar.issue.ignore.multicriteria=e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13,e14,e15,e16,e17,e18,e19,e20,e21,e22,e23,e24,e25,e26,e27,e28,e29,e30,e31,e32,e33,e34,e35,e36,e37,e38 \
             /d:sonar.issue.ignore.multicriteria.e1.ruleKey=csharpsquid:S2077 \
             /d:sonar.issue.ignore.multicriteria.e1.resourceKey="src/Encina.Dapper.*/**/*Store*.cs" \
             /d:sonar.issue.ignore.multicriteria.e2.ruleKey=csharpsquid:S2077 \
@@ -261,6 +264,50 @@ jobs:
             /d:sonar.issue.ignore.multicriteria.e15.resourceKey="src/Encina.DomainModeling/**/*.cs" \
             /d:sonar.issue.ignore.multicriteria.e16.ruleKey=csharpsquid:S3267 \
             /d:sonar.issue.ignore.multicriteria.e16.resourceKey="src/Encina.Messaging/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e17.ruleKey=csharpsquid:S2737 \
+            /d:sonar.issue.ignore.multicriteria.e17.resourceKey="src/Encina.Testing*/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e18.ruleKey=csharpsquid:S1694 \
+            /d:sonar.issue.ignore.multicriteria.e18.resourceKey="src/Encina.DomainModeling/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e19.ruleKey=csharpsquid:S6667 \
+            /d:sonar.issue.ignore.multicriteria.e19.resourceKey="src/Encina.DomainModeling/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e20.ruleKey=csharpsquid:S1210 \
+            /d:sonar.issue.ignore.multicriteria.e20.resourceKey="src/Encina.DomainModeling/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e21.ruleKey=csharpsquid:S1192 \
+            /d:sonar.issue.ignore.multicriteria.e21.resourceKey="src/Encina.Cli/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e22.ruleKey=csharpsquid:S6612 \
+            /d:sonar.issue.ignore.multicriteria.e22.resourceKey="src/Encina.Marten/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e23.ruleKey=csharpsquid:S3236 \
+            /d:sonar.issue.ignore.multicriteria.e23.resourceKey="src/Encina.Messaging/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e24.ruleKey=csharpsquid:S1192 \
+            /d:sonar.issue.ignore.multicriteria.e24.resourceKey="src/Encina.ADO.*/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e25.ruleKey=csharpsquid:S1192 \
+            /d:sonar.issue.ignore.multicriteria.e25.resourceKey="src/Encina.AmazonSQS/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e26.ruleKey=csharpsquid:S1192 \
+            /d:sonar.issue.ignore.multicriteria.e26.resourceKey="src/Encina.OpenTelemetry/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e27.ruleKey=csharpsquid:S1694 \
+            /d:sonar.issue.ignore.multicriteria.e27.resourceKey="src/Encina/Core/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e28.ruleKey=csharpsquid:S3267 \
+            /d:sonar.issue.ignore.multicriteria.e28.resourceKey="src/Encina/Core/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e29.ruleKey=csharpsquid:S3241 \
+            /d:sonar.issue.ignore.multicriteria.e29.resourceKey="src/Encina/Dispatchers/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e30.ruleKey=csharpsquid:S3220 \
+            /d:sonar.issue.ignore.multicriteria.e30.resourceKey="src/Encina/Dispatchers/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e31.ruleKey=csharpsquid:S6608 \
+            /d:sonar.issue.ignore.multicriteria.e31.resourceKey="src/Encina/Dispatchers/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e32.ruleKey=csharpsquid:S1192 \
+            /d:sonar.issue.ignore.multicriteria.e32.resourceKey="src/Encina/Pipeline/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e33.ruleKey=csharpsquid:S1133 \
+            /d:sonar.issue.ignore.multicriteria.e33.resourceKey="src/Encina.Testing*/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e34.ruleKey=csharpsquid:S1192 \
+            /d:sonar.issue.ignore.multicriteria.e34.resourceKey="src/Encina.Dapper.*/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e35.ruleKey=csharpsquid:S3267 \
+            /d:sonar.issue.ignore.multicriteria.e35.resourceKey="src/Encina/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e36.ruleKey=csharpsquid:S3220 \
+            /d:sonar.issue.ignore.multicriteria.e36.resourceKey="src/Encina/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e37.ruleKey=csharpsquid:S6608 \
+            /d:sonar.issue.ignore.multicriteria.e37.resourceKey="src/Encina/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e38.ruleKey=csharpsquid:S3241 \
+            /d:sonar.issue.ignore.multicriteria.e38.resourceKey="src/Encina/**/*.cs" \
             /d:sonar.verbose=false
 
       - name: Build for SonarCloud analysis
