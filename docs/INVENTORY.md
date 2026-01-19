@@ -41,7 +41,7 @@
 | **Pipeline Behaviors** | ~20+ |
 | **Phase 2 Milestones** | 10 milestones (v0.10.0 → v0.19.0) |
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
-| **v0.11.0 - Testing Infrastructure** | 25 issues 🔄 En Progreso (18/25 completado) | 
+| **v0.11.0 - Testing Infrastructure** | 34 issues ✅ **COMPLETADO** (19-ene-2026) |
 | **v0.12.0 - Database & Repository** | 22 issues |
 | **v0.13.0 - Security & Compliance** | 25 issues |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
@@ -249,8 +249,8 @@ flowchart TB
 |----------------|-----------|--------|
 | (sin etiqueta) | Implementado | ✅ Producción |
 | **(v0.10.0)** | DDD Foundations | ✅ **COMPLETADO** |
-| **(v0.11.0)** | Testing Infrastructure | 🔜 Próximo |
-| **(v0.12.0)** | Database & Repository | 📋 Planificado |
+| **(v0.11.0)** | Testing Infrastructure | ✅ **COMPLETADO** |
+| **(v0.12.0)** | Database & Repository | 🔜 Próximo |
 | **(v0.13.0)** | Security & Compliance | 📋 Planificado |
 | **(v0.14.0)** | Cloud-Native & Aspire | 📋 Planificado |
 | **(v0.15.0)** | Messaging & EIP | 📋 Planificado |
@@ -273,6 +273,7 @@ flowchart TB
 #### Encina (Core) - Contenido Detallado
 
 **Interfaces Principales:**
+
 - `IEncina` - Mediador central
 - `IRequest<TResponse>`, `ICommand<TResponse>`, `IQuery<TResponse>` - Contratos CQRS
 - `INotification` - Eventos/señales
@@ -288,6 +289,7 @@ flowchart TB
 - `IEncinaMetrics` - Métricas
 
 **Clases Principales:**
+
 - `Encina` - Implementación del mediador
 - `RequestContext` - Contexto inmutable
 - `EncinaError` - Record struct para errores
@@ -296,12 +298,14 @@ flowchart TB
 - `ValidationOrchestrator`, `ValidationPipelineBehavior`
 
 **Behaviors Incorporados:**
+
 - `CommandActivityPipelineBehavior` - Trazas para comandos
 - `QueryActivityPipelineBehavior` - Trazas para queries
 - `CommandMetricsPipelineBehavior` - Métricas para comandos
 - `QueryMetricsPipelineBehavior` - Métricas para queries
 
 **Dispatchers:**
+
 - `RequestDispatcher` - Despacho de requests
 - `NotificationDispatcher` - Despacho de notificaciones (Sequential/Parallel/ParallelWhenAll)
 - `StreamDispatcher` - Despacho de streaming
@@ -351,35 +355,41 @@ flowchart TB
 #### Detalle de Cada Patrón
 
 **Outbox Pattern:**
+
 - `IOutboxMessage`, `IOutboxStore`, `IOutboxMessageFactory`
 - `OutboxOrchestrator`, `OutboxPostProcessor`
 - Configuración: `OutboxOptions` (ProcessingInterval, BatchSize, MaxRetries, BaseRetryDelay)
 
 **Inbox Pattern:**
+
 - `IInboxMessage`, `IInboxStore`, `IInboxMessageFactory`
 - `InboxOrchestrator`, `InboxPipelineBehavior`
 - `IIdempotentRequest` - Marker interface
 - Configuración: `InboxOptions` (MaxRetries, MessageRetentionPeriod, PurgeInterval)
 
 **Saga Pattern:**
+
 - `ISagaState`, `ISagaStore`, `ISagaStateFactory`
 - `SagaOrchestrator` (Start, Advance, Complete, Compensate, Fail, Timeout)
 - Estados: Running, Completed, Compensating, Compensated, Failed, TimedOut
 - Configuración: `SagaOptions` (StuckSagaThreshold, DefaultSagaTimeout)
 
 **Scheduling Pattern:**
+
 - `IScheduledMessage`, `IScheduledMessageStore`
 - `SchedulerOrchestrator`
 - Soporte para CRON y mensajes recurrentes
 - Configuración: `SchedulingOptions` (ProcessingInterval, BatchSize, EnableRecurringMessages)
 
 **Dead Letter Queue:**
+
 - `IDeadLetterMessage`, `IDeadLetterStore`, `IDeadLetterManager`
 - `DeadLetterOrchestrator`
 - Replay individual y batch
 - Configuración: `DeadLetterOptions`
 
 **Recoverability:**
+
 - `IErrorClassifier`, `IDelayedRetryScheduler`
 - `RecoverabilityPipelineBehavior`
 - Dos fases: Immediate retries + Delayed retries
@@ -387,29 +397,34 @@ flowchart TB
 - Configuración: `RecoverabilityOptions` (ImmediateRetries, DelayedRetries, UseExponentialBackoff)
 
 **Routing Slip:**
+
 - `IRoutingSlipRunner`, `IRoutingSlipState`, `IRoutingSlipStore`
 - `RoutingSlipBuilder<TData>` - Fluent API
 - Capacidad de añadir/remover pasos dinámicamente
 - Activity log completo
 
 **Content Router:**
+
 - `IContentRouter`
 - `ContentRouterBuilder<TMessage, TResult>` - Fluent API
 - Prioridades, metadata, default routes
 
 **Scatter-Gather:**
+
 - `IScatterGatherRunner`
 - `ScatterGatherBuilder<TRequest, TResponse>` - Fluent API
 - Estrategias: WaitForAll, WaitForFirst, WaitForQuorum, WaitForAllAllowPartial
 - Ejecución paralela o secuencial
 
 **Choreography:**
+
 - `IChoreographyEventBus`, `IChoreographyState`, `IChoreographyStateStore`
 - Event-driven sagas sin orquestador central
 
 #### Nuevos Patrones de Mensajería Planificados (Diciembre 2025)
 
 **#298 - Claim Check Pattern** (Alta Prioridad):
+
 - Enterprise Integration Pattern para payloads grandes (>256KB)
 - `IClaimCheckStore` para almacenar payloads externamente
 - `[ClaimCheck]` attribute con ThresholdBytes y ExpiryDays
@@ -418,6 +433,7 @@ flowchart TB
 - Labels: `pattern-claim-check`, `area-eip`, `area-messaging`, `area-scalability`
 
 **#301 - Priority Queue Support** (Media Prioridad):
+
 - `MessagePriority` enum (Critical, High, Normal, Low, Background)
 - `[MessagePriority]` attribute para requests/notifications
 - Priority-aware batch fetching en Outbox y Scheduling
@@ -425,6 +441,7 @@ flowchart TB
 - Labels: `area-messaging`, `area-scheduling`, `area-scalability`
 
 **#302 - Batching/Bulk Operations** (Media Prioridad):
+
 - `IBatchHandler<TRequest, TResponse>` para handlers de batch
 - `IBatchableRequest<TResponse>` marker interface
 - `IBatchDispatcher` para envío de batches
@@ -461,6 +478,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 ##### Infrastructure Patterns
 
 **#308 - CDC (Change Data Capture) Pattern** (Alta Prioridad):
+
 - `ICdcConnector` para streaming de cambios de base de datos
 - `IChangeEventHandler<TEntity>` para HandleInsert/Update/Delete
 - `ChangeEvent` con Operation, Before, After, Metadata
@@ -470,6 +488,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - Referencias: [Debezium](https://debezium.io/), [CDC CQRS Pattern](https://debezium.io/blog/2025/11/28/cqrs/)
 
 **#309 - Schema Registry Integration** (Alta Prioridad):
+
 - `ISchemaRegistry` con GetSchema, RegisterSchema, CheckCompatibility
 - `SchemaDefinition` con Format (Avro, Protobuf, JsonSchema)
 - `CompatibilityResult` para validación forward/backward
@@ -479,6 +498,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - Referencias: [Confluent Schema Registry](https://docs.confluent.io/platform/current/schema-registry/index.html)
 
 **#310 - Event Mesh / Event Gateway** (Alta Prioridad):
+
 - `IEventMesh` para PublishToMesh, Subscribe, GetTopology
 - `IEventGateway` para Route, TransformAndForward
 - Cross-transport routing (Kafka → RabbitMQ → Azure SB)
@@ -490,6 +510,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 ##### DDD & Domain Patterns
 
 **#311 - Claim Check Pattern** (Media Prioridad):
+
 - `IClaimCheckStore` con Store/Retrieve/Delete
 - `ClaimTicket` con Id, StoreType, ExpiresAtUtc
 - `[ClaimCheck]` attribute con ThresholdBytes
@@ -499,6 +520,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - Referencias: [Azure Claim Check Pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/claim-check)
 
 **#312 - Domain Events vs Integration Events** (Alta Prioridad):
+
 - `IDomainEvent : INotification` para eventos in-process
 - `IIntegrationEvent : INotification` con EventId, Version
 - `IEventTranslator<TDomain, TIntegration>` para Anti-Corruption Layer
@@ -508,6 +530,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - Referencias: [Milan Jovanovic - Domain vs Integration Events](https://www.milanjovanovic.tech/blog)
 
 **#313 - Event Correlation & Causation Tracking** (Alta Prioridad):
+
 - `IEventMetadata` con EventId, CorrelationId, CausationId, Timestamp
 - `IEventMetadataAccessor` para crear/acceder metadata
 - `EventCorrelationPipelineBehavior` para propagación automática
@@ -519,6 +542,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 ##### Temporal & Query Patterns
 
 **#314 - Temporal Queries (Time Travel)** (Media Prioridad):
+
 - `ITemporalRepository<T>` con GetAt(pointInTime), GetAtVersion
 - `GetHistoryAsync` para stream de eventos filtrado
 - `AggregateDiff<T>` para comparar estados
@@ -527,6 +551,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - Referencias: [Axon Framework Temporal Queries](https://docs.axoniq.io/)
 
 **#316 - Event Enrichment Pipeline** (Alta Prioridad):
+
 - `IEventEnricher<TEvent>` para enriquecimiento individual
 - `IBatchEventEnricher` para batch lookup (evitar N+1)
 - `EnrichmentContext` con StreamId, Version, Services
@@ -537,6 +562,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 ##### Workflow & Coordination Patterns
 
 **#315 - Durable Execution / Workflow Engine** (Alta Prioridad - Muy Alta Complejidad):
+
 - `IDurableWorkflow<TInput, TOutput>` interface
 - `IWorkflowContext` con ExecuteActivity, Sleep, WaitForSignal
 - `IWorkflowRunner` para Start, GetHandle
@@ -547,6 +573,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - Referencias: [Temporal.io](https://temporal.io/), [Azure Durable Functions](https://learn.microsoft.com/en-us/azure/azure-functions/durable/)
 
 **#317 - Process Manager Pattern** (Media Prioridad):
+
 - `IProcessManager<TState>` con ProcessId, State, IsComplete
 - `ProcessManagerBase<TState>` con CommandsToDispatch
 - `IProcessManagerStore` para persistence
@@ -557,6 +584,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 ##### Streaming & Idempotency Patterns
 
 **#318 - Event Streaming Abstractions** (Media Prioridad):
+
 - `IEventStreamPublisher` con Append, AppendBatch
 - `IEventStreamSubscription` con Consume, Acknowledge
 - Consumer groups, position tracking, replay
@@ -565,6 +593,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - Referencias: [RabbitMQ Streams](https://www.rabbitmq.com/docs/streams), [Kafka Streams](https://kafka.apache.org/documentation/streams/)
 
 **#319 - Idempotency Key Generator** (Alta Prioridad):
+
 - `IIdempotencyKeyGenerator` con Generate, GenerateFromParts
 - `[IdempotencyKey]` attribute con Properties, Namespace, Format
 - Estrategias: Hash (SHA256), Composite, UUID v5
@@ -643,6 +672,7 @@ Esta nueva categoría agrupa patrones avanzados de Domain-Driven Design, workflo
 ##### DDD Patterns
 
 **#295 - Specification Pattern** (Alta Prioridad):
+
 - `ISpecification<T>` con Criteria, Includes, OrderBy, Paging
 - `Specification<T>` base class con fluent builder
 - Composición: AND/OR/NOT operators
@@ -653,6 +683,7 @@ Esta nueva categoría agrupa patrones avanzados de Domain-Driven Design, workflo
 - Labels: `pattern-specification`, `area-ddd`, `area-repository`, `area-cqrs`, `industry-best-practice`
 
 **#299 - Anti-Corruption Layer (ACL)** (Alta Prioridad):
+
 - `IAntiCorruptionLayer<TExternal, TInternal>` interface
 - `IAsyncAntiCorruptionLayer` para traducciones async
 - `IExternalRequest<TResponse>` marker interface
@@ -664,6 +695,7 @@ Esta nueva categoría agrupa patrones avanzados de Domain-Driven Design, workflo
 ##### Workflow Patterns
 
 **#296 - Process Manager Pattern** (Alta Prioridad):
+
 - `IProcessManager<TData>` interface
 - `ProcessManagerDefinition<TData>` base class
 - `ProcessDecision` types: Continue, Wait, Branch, Complete, Compensate, Fail
@@ -674,6 +706,7 @@ Esta nueva categoría agrupa patrones avanzados de Domain-Driven Design, workflo
 - Labels: `pattern-process-manager`, `area-saga`, `area-workflow`, `area-eip`, `masstransit-inspired`
 
 **#297 - State Machine Pattern (Fluent FSM)** (Alta Prioridad):
+
 - `StateMachineBuilder<TState, TTrigger>` fluent API
 - `StateConfiguration` con Permit, PermitIf, Ignore, PermitReentry
 - Entry/Exit actions (sync y async)
@@ -685,6 +718,7 @@ Esta nueva categoría agrupa patrones avanzados de Domain-Driven Design, workflo
 - Labels: `pattern-state-machine`, `area-saga`, `area-workflow`, `masstransit-inspired`
 
 **#303 - Durable Execution / Checkpointing** (Media Prioridad):
+
 - `IDurableContext` con ExecuteActivityAsync, WaitForEventAsync, CreateTimerAsync
 - `IDurableWorkflow<TInput, TOutput>` interface
 - `IDurableWorkflowState` con history para replay
@@ -698,6 +732,7 @@ Esta nueva categoría agrupa patrones avanzados de Domain-Driven Design, workflo
 ##### Cross-Cutting Patterns
 
 **#300 - Feature Flag Integration** (Media Prioridad):
+
 - `[FeatureGate]` attribute con FeatureName y Behavior
 - `FeatureFlagPipelineBehavior` para short-circuit
 - Integración con Microsoft.FeatureManagement
@@ -707,6 +742,7 @@ Esta nueva categoría agrupa patrones avanzados de Domain-Driven Design, workflo
 - Labels: `pattern-feature-flags`, `area-feature-management`, `area-pipeline`, `cloud-azure`
 
 **#304 - Multi-Tenancy Pipeline Behavior** (Media Prioridad):
+
 - `ITenantScopedQuery<TResponse>` marker interface
 - `ITenantScopedCommand<TResponse>` marker interface
 - `ITenantEntity` para entidades multi-tenant
@@ -717,6 +753,7 @@ Esta nueva categoría agrupa patrones avanzados de Domain-Driven Design, workflo
 - Labels: `area-multi-tenancy`, `area-security`, `area-compliance`, `area-gdpr`, `industry-best-practice`
 
 **#307 - Request Versioning Pattern** (Baja Prioridad):
+
 - `[RequestVersion]` attribute
 - `IUpgradableFrom<TOldVersion>` interface
 - `IRequestUpcasterRegistry` service
@@ -729,6 +766,7 @@ Esta nueva categoría agrupa patrones avanzados de Domain-Driven Design, workflo
 ##### Emerging Patterns (Future)
 
 **#305 - AI/LLM Agent Orchestration** (Baja Prioridad - Futuro):
+
 - `IAgentHandler<TRequest, TResponse>` con capabilities
 - Orchestration patterns: Sequential, Concurrent, Handoff
 - `IAgentSelector` para routing dinámico
@@ -740,6 +778,7 @@ Esta nueva categoría agrupa patrones avanzados de Domain-Driven Design, workflo
 - **Ampliado significativamente en Issue #487** (29 Dic 2025) - Multi-Agent Orchestration Patterns
 
 **#306 - Modular Monolith Integration Events** (Baja Prioridad):
+
 - `IIntegrationEvent` con EventId, OccurredAtUtc, SourceModule
 - `IntegrationEventBase` base record
 - `IModuleEventBus` para publicación in-process
@@ -1262,6 +1301,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 | **#326** | Multi-Tenancy Event Sourcing | Soporte para Conjoined y Dedicated isolation en event stores | Alta | Media | `area-multitenancy`, `area-cloud-native`, `area-scalability` |
 
 **#320 - Decider Pattern Support** (Industry Best Practice 2025):
+
 - `IDecider<TCommand, TEvent, TState>` interface con `Decide`, `Evolve`, `InitialState`
 - Funciones puras = testing trivial sin mocks
 - Alineado con Railway Oriented Programming de Encina
@@ -1269,6 +1309,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 - Referencias: [Functional Event Sourcing Decider](https://delta-base.com/docs/concepts/functional-event-sourcing-decider/)
 
 **#321 - Causation and Correlation ID Tracking**:
+
 - `EventMetadata` record con MessageId, CausationId, CorrelationId
 - `EventMetadataOptions` en `EncinaMartenOptions`
 - Propagación automática desde `IRequestContext`
@@ -1277,6 +1318,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 - 30-40% reducción en tiempo de troubleshooting (estudios empíricos)
 
 **#322 - Crypto-Shredding for GDPR Compliance** (Nuevo paquete: `Encina.Marten.GDPR`):
+
 - `[PersonalData]` attribute para marcar propiedades PII
 - `ICryptoShredder` interface con `EncryptAsync`, `DecryptAsync`, `ForgetAsync`
 - Integración con key vaults: HashiCorp Vault, Azure Key Vault, AWS KMS
@@ -1285,6 +1327,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 - Referencias: [Crypto-Shredding Patterns](https://dev.to/alex_aslam/event-sourcing-for-gdpr-how-to-forget-data-without-breaking-history-4013)
 
 **#323 - Advanced Snapshot Strategies**:
+
 - `SnapshotStrategy` enum: EventCount, TimeInterval, BusinessBoundary, Composite
 - `ISnapshotBoundaryDetector` para detectar límites de negocio
 - Per-aggregate configuration
@@ -1292,6 +1335,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 - Referencias: [Snapshot Strategies](https://www.eventstore.com/blog/snapshotting-strategies)
 
 **#324 - Blue-Green Projection Rebuild**:
+
 - `IProjectionRebuildManager` con `StartRebuildAsync`, `GetStatusAsync`, `SwitchToGreenAsync`
 - `RebuildStatus` con `Phase`, `ProgressPercent`, `LagBehindLive`, `ReadyToSwitch`
 - Zero downtime durante rebuild
@@ -1299,6 +1343,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 - CLI command: `encina projections rebuild <name>`
 
 **#326 - Multi-Tenancy Support**:
+
 - `MultiTenancyMode`: Conjoined, Dedicated, SchemaPerTenant
 - Automatic tenant filtering en repositories
 - Integración con `IRequestContext.TenantId`
@@ -1314,6 +1359,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 | **#329** | Visual Event Stream Explorer | CLI tool para debugging: `encina events list`, `trace`, `replay` | Media | Media | `area-developer-experience`, `area-cli`, `area-observability` |
 
 **#325 - Temporal Queries and Point-in-Time Reconstruction**:
+
 - `LoadAtAsync(id, timestamp)` para cargar estado histórico
 - `LoadAtVersionAsync(id, version)` para versión específica
 - `ITemporalEventStore` con `GetEventsInRangeAsync`, `GetTemporalSnapshotsAsync`
@@ -1321,6 +1367,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 - Referencias: [Temporal Query Patterns](https://docs.eventsourcingdb.io/best-practices/patterns-for-temporal-queries/)
 
 **#327 - Event Archival and Stream Compaction**:
+
 - `ArchivalOptions` con HotRetention, WarmRetention, ColdStorageProvider
 - `IArchivalProvider` implementations: Azure Blob, S3, FileSystem
 - `CompactionOptions` con threshold y strategies
@@ -1328,6 +1375,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 - Background archival service
 
 **#329 - Visual Event Stream Explorer**:
+
 - `encina events list <aggregate-id>` - Ver eventos en stream
 - `encina events show <id> --version N` - Ver payload completo
 - `encina events replay <id> [--at timestamp]` - Reconstruir estado
@@ -1345,6 +1393,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 | **#332** | Tri-Temporal Modeling | Transaction + Valid + Decision time | Baja | Muy Alta | `pattern-temporal-query`, `area-compliance` |
 
 **#328 - Bi-Temporal Modeling**:
+
 - `IBiTemporalEvent` con ValidTime + TransactionTime
 - `IBiTemporalRepository<T>` con `LoadAsOfAsync`, `LoadValidAtAsync`, `LoadBiTemporalAsync`
 - Timeline visualization para auditoría
@@ -1352,6 +1401,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 - Referencias: [Bi-Temporal Event Sourcing](https://blog.arkency.com/fixing-the-past-and-dealing-with-the-future-using-bi-temporal-eventsourcing/)
 
 **#330 - Actor-Based Event Sourcing**:
+
 - `IEventSourcedActor<TState, TCommand, TEvent>` interface
 - Built-in concurrency (one message at a time per actor)
 - Automatic lifecycle management (activation/passivation)
@@ -1359,6 +1409,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 - Alternative to repository pattern, not replacement
 
 **#331 - EventQL Preconditions**:
+
 - `IAppendPrecondition` interface con `EvaluateAsync`
 - Built-in preconditions: `StreamExists`, `NoEventOfType<T>`, `ExpectedVersion`, `ModifiedWithin`
 - Composite preconditions with `Preconditions.All()` / `Preconditions.Any()`
@@ -1366,6 +1417,7 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 - Inspirado en EventSourcingDB EventQL
 
 **#332 - Tri-Temporal Modeling**:
+
 - `ITriTemporalEvent` extends `IBiTemporalEvent` con DecisionTime
 - Use cases: Fraud detection, legal discovery, regulatory audits
 - Timeline visualization con tres dimensiones
@@ -1384,6 +1436,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | **#281** | Unit of Work | `IUnitOfWork` para transacciones cross-aggregate | Alta | Media | `area-unit-of-work`, `area-ddd`, `area-microservices` |
 
 **#279 - Generic Repository Pattern**:
+
 - Interface unificada para CRUD: `GetByIdAsync`, `AddAsync`, `UpdateAsync`, `DeleteAsync`, `ListAsync`
 - `IReadRepository<TEntity, TId>` para escenarios CQRS
 - Implementaciones: `RepositoryEF`, `RepositoryDapper`, `RepositoryMongoDB`
@@ -1391,6 +1444,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - Inspirado en [Ardalis.Specification](https://github.com/ardalis/Specification)
 
 **#280 - Specification Pattern**:
+
 - `ISpecification<T>` con Criteria, Includes, OrderBy, Paging
 - `Specification<T>` base class con fluent API
 - `ISpecificationEvaluator<T>` por provider (EF Core, Dapper, MongoDB)
@@ -1398,6 +1452,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - Inspirado en [DevIQ Specification Pattern](https://deviq.com/design-patterns/specification-pattern/)
 
 **#281 - Unit of Work Pattern**:
+
 - `IUnitOfWork` con `SaveChangesAsync`, `BeginTransactionAsync`, `CommitAsync`, `RollbackAsync`
 - `Repository<TEntity, TId>()` factory method
 - Implementaciones para EF Core, Dapper, MongoDB
@@ -1410,6 +1465,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | **#282** | Multi-Tenancy Database | Aislamiento de datos por tenant para SaaS | Crítica | Alta | `area-multi-tenancy`, `area-compliance`, `area-cloud-native`, `new-package` |
 
 **#282 - Multi-Tenancy Database Support**:
+
 - **Abstracciones**: `ITenantProvider`, `ITenantEntity`, `TenantInfo`
 - **Estrategias de aislamiento**:
   - Shared Schema (TenantId column)
@@ -1436,6 +1492,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | **#294** | Cursor-based Pagination | Keyset pagination O(1) vs offset O(n) | Alta | Media | `area-pagination`, `area-graphql`, `area-scalability` |
 
 **#283 - Read/Write Separation**:
+
 - `IReadWriteDbContextFactory<TContext>` con `CreateWriteContext()` y `CreateReadContext()`
 - Routing automático basado en IQuery/ICommand
 - Replica selection: RoundRobin, Random, LeastConnections
@@ -1443,6 +1500,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - Soporte Azure SQL `ApplicationIntent=ReadOnly`
 
 **#284 - Bulk Operations** (Performance crítico):
+
 - `IBulkOperations<TEntity>`: BulkInsertAsync, BulkUpdateAsync, BulkDeleteAsync, BulkMergeAsync
 - **Benchmarks típicos**:
   - SaveChanges(): ~17,000 segundos para 1M filas
@@ -1451,12 +1509,14 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - Inspirado en [EFCore.BulkExtensions](https://github.com/borisdj/EFCore.BulkExtensions)
 
 **#289 - Database Sharding**:
+
 - `IShardable`, `IShardRouter<TEntity>`, `IShardedRepository<TEntity, TId>`
 - Estrategias: Hash (consistent hashing), Range, Directory, Geo
 - Scatter-Gather para queries cross-shard
 - Consideración: Muy alta complejidad, usar solo cuando realmente necesario
 
 **#290 - Connection Pool & Resilience**:
+
 - `IDatabaseHealthMonitor` con `ConnectionPoolStats`
 - Database-aware circuit breaker
 - `IConnectionWarmup` para pre-crear conexiones al startup
@@ -1464,12 +1524,14 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - Integración con `Encina.Extensions.Resilience` existente
 
 **#291 - Query Cache Interceptor**:
+
 - EF Core `IDbCommandInterceptor` para cachear resultados de queries
 - Invalidación automática en SaveChanges
 - Integración con `ICacheProvider` existente
 - Inspirado en [EFCoreSecondLevelCacheInterceptor](https://github.com/VahidN/EFCoreSecondLevelCacheInterceptor)
 
 **#294 - Cursor-based Pagination (RESEARCH)**:
+
 - `Cursor` value type, `CursorPaginationOptions`, `CursorPagedResult<T>`
 - **GraphQL Relay Connection spec** compatible (Edge, PageInfo)
 - Benchmark: Offset O(n) vs Cursor O(1) en datasets grandes
@@ -1483,6 +1545,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | **#286** | Audit Trail | IAuditableEntity con CreatedAt/By, ModifiedAt/By | Alta | Baja | `area-audit`, `area-compliance`, `area-observability` |
 
 **#285 - Soft Delete & Temporal Tables**:
+
 - `ISoftDeletable`: IsDeleted, DeletedAtUtc, DeletedBy
 - `ISoftDeleteRepository<TEntity, TId>` con RestoreAsync, HardDeleteAsync
 - Global query filter automático
@@ -1490,6 +1553,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - Queries: GetAsOfAsync, GetHistoryAsync, GetChangedBetweenAsync
 
 **#286 - Audit Trail Pattern**:
+
 - Interfaces: `ICreatedAtUtc`, `ICreatedBy`, `IModifiedAtUtc`, `IModifiedBy`, `IAuditableEntity`
 - `AuditInterceptor` para población automática en SaveChanges
 - Integración con `IRequestContext.UserId`
@@ -1505,12 +1569,14 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | **#293** | Pagination Abstractions | `PagedResult<T>`, `PaginationOptions`, `IPagedSpecification<T>` | Crítica | Baja | `area-pagination`, `area-repository`, `area-web-api`, `aot-compatible` |
 
 **#287 - Optimistic Concurrency**:
+
 - `IConcurrencyAware` (RowVersion) e `IVersioned` (integer version)
 - `ConcurrencyConflictException` con detalles de entidad
 - `IConcurrencyConflictResolver<TEntity>`: ClientWins, DatabaseWins, Merge
 - `IConcurrentRepository<TEntity, TId>` con retry support
 
 **#292 - Domain Entity Base Classes**:
+
 - `Entity<TId>` con equality, domain events collection
 - `AggregateRoot<TId>` con audit + concurrency
 - `SoftDeletableAggregateRoot<TId>` variante
@@ -1519,6 +1585,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - Integración con `INotification` y Outbox pattern
 
 **#293 - Pagination Abstractions**:
+
 - `PaginationOptions(PageNumber, PageSize)` con Skip calculation
 - `SortedPaginationOptions` con sorting
 - `PagedResult<T>` con TotalCount, TotalPages, HasNext/Previous
@@ -1532,6 +1599,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | **#288** | CDC Integration | Change Data Capture como alternativa/complemento a Outbox | Media | Alta | `area-cdc`, `area-event-sourcing`, `transport-kafka`, `new-package` |
 
 **#288 - Change Data Capture (CDC)**:
+
 - `ChangeEvent<T>` con Operation (Insert/Update/Delete), Before, After, Metadata
 - `ICDCConsumer<T>`, `ICDCSubscriptionManager`
 - **Nuevos paquetes planificados**:
@@ -1657,6 +1725,7 @@ Basado en investigación exhaustiva de FusionCache, HybridCache .NET 9, y tenden
 **Labels clave**: `area-caching`, `fustioncache-inspired`, `pattern-stampede-protection`, `pattern-stale-while-revalidate`, `pattern-backplane`, `industry-best-practice`
 
 **Fuentes de investigación**:
+
 - [FusionCache](https://github.com/ZiggyCreatures/FusionCache) - Eager refresh, fail-safe, backplane
 - [HybridCache .NET 9](https://devblogs.microsoft.com/dotnet/hybrid-cache-is-now-ga/) - Tag invalidation, L1+L2
 - [Thundering Herd Solutions](https://howtech.substack.com/p/thundering-herd-problem-cache-stampede) - Stampede prevention
@@ -1706,6 +1775,7 @@ Basado en investigación exhaustiva de FusionCache, HybridCache .NET 9, y tenden
 #### Detalle de Nuevos Transportes
 
 **#237 - Encina.GoogleCloudPubSub** (Alta Prioridad):
+
 - Completa el triángulo de cloud providers (AWS, Azure, GCP)
 - Topic/Subscription model con message ordering
 - Dead-letter topics y filtering nativo
@@ -1713,6 +1783,7 @@ Basado en investigación exhaustiva de FusionCache, HybridCache .NET 9, y tenden
 - Labels: `transport-pubsub`, `cloud-gcp`, `area-cloud-native`, `industry-best-practice`
 
 **#238 - Encina.AmazonEventBridge** (Alta Prioridad):
+
 - AWS event bus para arquitecturas event-driven
 - CloudEvents format nativo (AWS SDK ya lo usa)
 - Schema registry y archive/replay
@@ -1720,6 +1791,7 @@ Basado en investigación exhaustiva de FusionCache, HybridCache .NET 9, y tenden
 - Labels: `transport-eventbridge`, `cloud-aws`, `area-serverless`
 
 **#239 - Encina.Pulsar** (Media Prioridad):
+
 - Multi-tenancy built-in (tenant/namespace/topic)
 - Combina lo mejor de Kafka y RabbitMQ
 - Schema registry (Avro, JSON, Protobuf)
@@ -1727,6 +1799,7 @@ Basado en investigación exhaustiva de FusionCache, HybridCache .NET 9, y tenden
 - Labels: `transport-pulsar`, `area-scalability`, `industry-best-practice`
 
 **#240 - Encina.Redis.Streams** (Alta Prioridad):
+
 - Complementa Redis.PubSub con persistencia
 - Consumer groups con `XREADGROUP`
 - Message acknowledgment con `XACK`
@@ -1734,6 +1807,7 @@ Basado en investigación exhaustiva de FusionCache, HybridCache .NET 9, y tenden
 - Labels: `transport-redis`, `area-caching`, `area-scalability`
 
 **#241 - Encina.ActiveMQ** (Media Prioridad):
+
 - Apache Artemis promovido a TLP (Diciembre 2025)
 - AMQP 1.0 como protocolo principal
 - Millones de mensajes/segundo
@@ -1741,6 +1815,7 @@ Basado en investigación exhaustiva de FusionCache, HybridCache .NET 9, y tenden
 - Labels: `transport-activemq`, `industry-best-practice`
 
 **#242 - Encina.Dapr** (Media Prioridad):
+
 - Abstrae múltiples brokers (Redis, RabbitMQ, Kafka, etc.)
 - Integración con .NET Aspire (Marzo 2025)
 - CloudEvents format nativo
@@ -1793,6 +1868,7 @@ Basado en investigación exhaustiva de FusionCache, HybridCache .NET 9, y tenden
 #### Investigación de Message Transports - Fuentes Consultadas (Diciembre 2025)
 
 Los nuevos transportes y patrones fueron identificados tras investigación exhaustiva de:
+
 - **MassTransit** - Transactional outbox, mediator, batching patterns
 - **NServiceBus** - Enterprise messaging, saga patterns, interoperability
 - **Wolverine** - NServiceBus/MassTransit interop, streaming
@@ -1835,6 +1911,7 @@ ValidationOrchestrator (coordina validación)
 #### GuardClauses (Validación de Invariantes)
 
 Métodos Try-pattern:
+
 - `TryValidateNotNull`, `TryValidateNotEmpty`, `TryValidateNotWhiteSpace`
 - `TryValidatePositive`, `TryValidateNegative`, `TryValidateInRange`
 - `TryValidateEmail`, `TryValidateUrl`, `TryValidatePattern`
@@ -1862,6 +1939,7 @@ Métodos Try-pattern:
 #### Detalle de Nuevos Paquetes
 
 **#227 - Encina.Validation.Generators** (Alta Prioridad):
+
 - Source generators para validación en compile-time
 - Zero reflection, compatible con NativeAOT y trimming
 - ~1.6x más rápido, ~4.7x menos memoria (benchmarks Validot)
@@ -1883,6 +1961,7 @@ public partial record CreateOrderCommand : ICommand<OrderId>
 ```
 
 **#228 - Encina.Validation.Domain** (Alta Prioridad):
+
 - Value Objects con validación integrada
 - Always-Valid Domain Model (principio DDD fundamental)
 - Factory methods retornan `Either<EncinaError, T>`
@@ -1902,6 +1981,7 @@ public sealed class Email : ValueObject<Email>
 ```
 
 **#231 - Encina.Validation.OpenApi** (Media Prioridad):
+
 - Validación automática contra esquemas OpenAPI 3.1
 - Contract-first development
 - Request/Response validation
@@ -1918,6 +1998,7 @@ services.AddEncinaOpenApiValidation(options =>
 ```
 
 **#232 - Encina.Validation.Security** (Alta Prioridad):
+
 - Validación OWASP-compliant
 - Previene >90% de ataques de inyección
 - Allowlist pattern (positivo) vs denylist
@@ -1934,6 +2015,7 @@ RuleFor(x => x.Comment)
 ```
 
 **#235 - Encina.Validation.Schema** (Baja Prioridad):
+
 - API fluent inspirada en Zod (TypeScript)
 - Schema builder chainable
 - Type inference con source generators
@@ -1953,6 +2035,7 @@ Either<ValidationError, User> result = userSchema.Parse(input);
 #### Detalle de Mejoras
 
 **#229 - Consolidar ValidationPipelineBehavior** ✅ **COMPLETADO**:
+
 - ~~Problema: Cada provider tiene su propio behavior duplicado~~
 - **Eliminados**:
   - `FluentValidation/ValidationPipelineBehavior.cs`
@@ -1962,21 +2045,25 @@ Either<ValidationError, User> result = userSchema.Parse(input);
 - **Breaking Changes**: Los behaviors eliminados eran públicos pero nunca se usaban en runtime (los ServiceCollectionExtensions ya registraban el centralizado)
 
 **#230 - Async/Cross-Field Validation**:
+
 - Extensions: `MustExistAsync()`, `MustBeUniqueAsync()`, `GreaterThan(x => x.OtherProperty)`
 - Validación con acceso a BD
 - Conditional validation mejorada con `WhenAsync()`
 
 **#233 - Localization/i18n**:
+
 - Integración con `IStringLocalizer`
 - Traducciones built-in para 12+ idiomas
 - Soporte para placeholders: `{PropertyName}`, `{PropertyValue}`
 
 **#234 - Validation Aggregation**:
+
 - `ValidationAggregator` para múltiples fuentes
 - Estrategias: FailFast, CollectAll, ParallelCollectAll
 - Similar al patrón Scatter-Gather
 
 **#236 - Two-Phase Validation**:
+
 - Phase 1 (Pipeline): Validación estructural rápida
 - Phase 2 (Handler): Validación de dominio con contexto
 - Interfaces: `IDomainValidator<TRequest>`, `IDomainValidatedRequest`
@@ -2006,6 +2093,7 @@ Either<ValidationError, User> result = userSchema.Parse(input);
 #### Encina.Extensions.Resilience
 
 `StandardResiliencePipelineBehavior`:
+
 1. Rate Limiter (1,000 permits default)
 2. Total Timeout (30s)
 3. Retry (3 attempts, exponential backoff)
@@ -2044,36 +2132,42 @@ Either<ValidationError, User> result = userSchema.Parse(input);
 #### Detalle de Patrones Planificados
 
 **#136 - Hedging Pattern**:
+
 - Envía múltiples solicitudes en paralelo para reducir latencia tail
 - Primera respuesta exitosa gana, otras se cancelan
 - Atributo `[Hedging]` y `HedgingPipelineBehavior`
 - Integración con Polly v8 `AddHedging`
 
 **#137 - Fallback / Graceful Degradation**:
+
 - Proporciona respuestas alternativas (datos cacheados, valores por defecto)
 - Atributo `[Fallback]` con múltiples estrategias
 - Interface `IFallbackHandler<TRequest, TResponse>`
 - Soporte para context-aware fallbacks
 
 **#138 - Load Shedding with Priority** (Netflix/Uber Pattern):
+
 - Cuatro niveles de prioridad: Critical, Degraded, BestEffort, Bulk
 - Descarte progresivo basado en utilización (CPU, latencia)
 - Interface `IPrioritizedRequest` para requests
 - Nuevo paquete: `Encina.LoadShedding`
 
 **#139 - Adaptive Concurrency Control**:
+
 - Algoritmos: Gradient (Netflix), AIMD (TCP-style)
 - Auto-ajuste basado en latencia P99 y tasa de errores
 - Atributo `[AdaptiveConcurrency]`
 - Integración con `BulkheadManager` existente
 
 **#140 - Cache Stampede Prevention**:
+
 - Estrategias: DistributedLock, StaleWhileRevalidate, ProbabilisticEarlyExpiration
 - Aprovecha `Encina.DistributedLock` existente
 - Jitter configurable para expiración
 - Extensión de `Encina.Caching`
 
 **#142 - Health Checks Standardization**:
+
 - Auto-registro de health checks para todos los providers
 - Interface `IEncinaHealthCheck` estandarizada
 - Tags para Kubernetes (liveness, readiness, startup)
@@ -2147,6 +2241,7 @@ public interface IDistributedLockProvider
 #### Detalle de Nuevos Providers
 
 **#207 - PostgreSQL Provider** (Alta Prioridad):
+
 - `pg_advisory_lock(key)` para locks exclusivos
 - `pg_advisory_lock_shared(key)` para locks compartidos
 - `pg_try_advisory_lock()` para non-blocking
@@ -2155,6 +2250,7 @@ public interface IDistributedLockProvider
 - Inspiración: DistributedLock by madelson
 
 **#209 - Azure Blob Storage Provider** (Media Prioridad):
+
 - Blob leases con 60 segundos máximo (renewable)
 - Auto-renovación en background thread
 - `IDistributedLockProvider` + `IAzureBlobLockProvider` específico
@@ -2162,6 +2258,7 @@ public interface IDistributedLockProvider
 - Inspiración: Azure SDK, Medallion.Threading
 
 **#210 - DynamoDB Provider** (Media Prioridad):
+
 - Conditional writes para atomicidad
 - TTL automático para locks expirados
 - Heartbeat para extensión de lease
@@ -2169,6 +2266,7 @@ public interface IDistributedLockProvider
 - Inspiración: AWS DynamoDB Locking Client
 
 **#211 - Consul Provider** (Media Prioridad):
+
 - Session-based locking con TTL
 - Health check integration
 - Leader election primitives
@@ -2178,6 +2276,7 @@ public interface IDistributedLockProvider
 #### Detalle de Patrones Avanzados
 
 **#215 - Distributed Semaphores** (Alta Prioridad):
+
 ```csharp
 public interface IDistributedSemaphore
 {
@@ -2185,11 +2284,13 @@ public interface IDistributedSemaphore
     Task<int> GetAvailableCountAsync(string resource, CancellationToken ct);
 }
 ```
+
 - Permite N holders simultáneos (configurable)
 - Casos de uso: rate limiting, connection pooling
 - Implementación: Redis (Lua scripts), PostgreSQL, SQL Server
 
 **#216 - Leader Election** (Alta Prioridad):
+
 ```csharp
 public interface ILeaderElectionProvider
 {
@@ -2198,28 +2299,33 @@ public interface ILeaderElectionProvider
     IAsyncEnumerable<LeadershipChange> WatchLeadershipAsync(string electionName, CancellationToken ct);
 }
 ```
+
 - Único líder garantizado
 - Notificación de cambios de liderazgo
 - Renovación automática de lease
 - Casos de uso: singleton services, scheduled jobs
 
 **#218 - Fencing Tokens** (Media Prioridad):
+
 - Token monotónicamente creciente con cada adquisición
 - El storage rechaza operaciones con tokens antiguos
 - Previene split-brain en locks vencidos
 - Inspiración: Martin Kleppmann "Designing Data-Intensive Applications"
 
 **#220 - DistributedLockPipelineBehavior** (Alta Prioridad):
+
 ```csharp
 [DistributedLock("{request.EntityId}", ExpirySeconds = 30)]
 public class UpdateEntityCommand : ICommand<Unit> { ... }
 ```
+
 - Decorative attribute para handlers
 - Key templates con placeholders
 - Configuración de expiry, retry, wait
 - Integración automática con pipeline
 
 **#226 - RedLock Algorithm** (Media Prioridad):
+
 - Algoritmo de consenso para N/2+1 instancias Redis
 - Alta disponibilidad sin single point of failure
 - Clock drift compensation
@@ -2251,6 +2357,7 @@ public class UpdateEntityCommand : ICommand<Unit> { ... }
 #### Investigación de Distributed Lock - Fuentes Consultadas
 
 Los patrones de distributed lock fueron identificados tras investigación exhaustiva de:
+
 - **DistributedLock by madelson** - 14 backends, interface unificada, .NET ecosystem leader
 - **RedLock.net** - RedLock algorithm implementation for high availability
 - **Medallion.Threading** - Alternative locking library
@@ -2315,26 +2422,31 @@ Los patrones de distributed lock fueron identificados tras investigación exhaus
 #### Detalle de Mejoras Planificadas
 
 **#146 - Cancellation & Update API**:
+
 - Métodos: `UpdateScheduledAtAsync()`, `RescheduleAsync()`, `UpdatePayloadAsync()`
 - Validación de si el mensaje ya está siendo procesado
 - Caso de uso: Producto eliminado → cancelar recordatorio
 
 **#147 - Priority Queue Support** (Meta Pattern):
+
 - Enum `ScheduledMessagePriority`: Critical, High, Normal, Low
 - `GetDueMessagesAsync()` ordena por Priority DESC, ScheduledAtUtc ASC
 - ~50% mejora en throughput para operaciones críticas
 
 **#148 - Idempotency Keys**:
+
 - Propiedad `IdempotencyKey?: string` en `IScheduledMessage`
 - Tabla `ProcessedIdempotencyKeys` para tracking
 - Error `SchedulingErrorCodes.DuplicateIdempotencyKey`
 
 **#149 - Dead Letter Queue for Scheduled Messages**:
+
 - Interface `IScheduledMessageDeadLetterStore`
 - Replay individual y batch
 - Integración con Dead Letter Queue existente
 
 **#150 - Timezone-Aware Scheduling**:
+
 - Propiedad `TimeZoneId?: string` (IANA format)
 - Soporte DST (Daylight Saving Time)
 - Cross-platform con TimeZoneConverter
@@ -2397,6 +2509,7 @@ Los patrones de distributed lock fueron identificados tras investigación exhaus
 #### Detalle de Mejoras Planificadas
 
 **#189 - Server-Sent Events (SSE)** (Alta Prioridad):
+
 - Nueva feature de .NET 10: `TypedResults.ServerSentEvents`
 - Streaming unidireccional server→client
 - Heartbeat y keep-alive automático
@@ -2404,6 +2517,7 @@ Los patrones de distributed lock fueron identificados tras investigación exhaus
 - Inspiración: MDN SSE, .NET 10 ASP.NET Core
 
 **#190 - REPR Pattern Support** (Alta Prioridad):
+
 - Request-Endpoint-Response: un endpoint = una clase
 - Base classes: `EncinaEndpoint<TRequest, TResponse>`, `CommandEndpoint`, `QueryEndpoint`
 - Fluent `EndpointBuilder` para configuración
@@ -2411,6 +2525,7 @@ Los patrones de distributed lock fueron identificados tras investigación exhaus
 - Inspiración: FastEndpoints, Vertical Slice Architecture
 
 **#191 - Problem Details RFC 9457** (Alta Prioridad):
+
 - RFC 7807 obsoleto por RFC 9457 (2023)
 - TraceId automático en extensions
 - `IExceptionHandler` implementation para manejo global
@@ -2418,6 +2533,7 @@ Los patrones de distributed lock fueron identificados tras investigación exhaus
 - Inspiración: RFC 9457, ASP.NET Core Problem Details
 
 **#192 - API Versioning Helpers** (Alta Prioridad):
+
 - Integración con `Asp.Versioning.Http`
 - `[ApiVersion]` attribute para handlers
 - Version-aware handler resolution
@@ -2425,6 +2541,7 @@ Los patrones de distributed lock fueron identificados tras investigación exhaus
 - Inspiración: Asp.Versioning, RFC 8594 Sunset
 
 **#194 - Encina.SignalR Package** (Alta Prioridad):
+
 - Paquete documentado en INVENTORY pero no implementado
 - `ISignalRNotificationBroadcaster` para broadcasting
 - `EncinaHub` base class con Send/Publish methods
@@ -2433,6 +2550,7 @@ Los patrones de distributed lock fueron identificados tras investigación exhaus
 - Inspiración: ASP.NET Core SignalR
 
 **#195 - GraphQL/HotChocolate Full Integration** (Alta Prioridad):
+
 - Estado actual: solo bridge genérico
 - Auto-generate Query/Mutation types desde handlers
 - Subscription support con pub/sub integration
@@ -2441,6 +2559,7 @@ Los patrones de distributed lock fueron identificados tras investigación exhaus
 - Inspiración: HotChocolate, GraphQL best practices
 
 **#197 - Rate Limiting Pipeline Behavior** (Alta Prioridad):
+
 - `[RateLimit]` attribute para handler-level configuration
 - Support para Fixed/Sliding/Token/Concurrency limiters
 - Partition keys: User, Tenant, IP, ApiKey, Custom
@@ -2449,6 +2568,7 @@ Los patrones de distributed lock fueron identificados tras investigación exhaus
 - Inspiración: ASP.NET Core Rate Limiting, Milan Jovanović
 
 **#200 - AI/LLM Integration Patterns** (Media Prioridad):
+
 - Nuevo paquete: `Encina.AI`
 - `IAIProvider` abstraction (OpenAI, Azure, Anthropic, Ollama)
 - Chat completion, embedding, structured output
@@ -2489,6 +2609,7 @@ Los patrones de distributed lock fueron identificados tras investigación exhaus
 #### Investigación de Web/API - Fuentes Consultadas
 
 Los patrones de Web/API fueron identificados tras investigación exhaustiva de:
+
 - **ASP.NET Core 10** - Server-Sent Events, OpenAPI 3.1, built-in validation
 - **FastEndpoints** - REPR pattern, Vertical Slice Architecture
 - **Wolverine** - HTTP endpoints, messaging integration
@@ -2540,6 +2661,7 @@ Los patrones de Web/API fueron identificados tras investigación exhaustiva de:
 #### Detalle de Mejoras Planificadas
 
 **#174 - Real Metrics Collection (EncinaMetrics)** (Alta Prioridad):
+
 - Implementación completa de `IEncinaMetrics` con métricas reales
 - Uso de `System.Diagnostics.Metrics` para zero-allocation
 - Histogramas: `encina.request.duration`, `encina.handler.duration`
@@ -2549,6 +2671,7 @@ Los patrones de Web/API fueron identificados tras investigación exhaustiva de:
 - Inspiración: MassTransit metrics, Wolverine OpenTelemetry
 
 **#175 - Correlation & Causation ID Support** (Alta Prioridad):
+
 - Propagación automática de CorrelationId a través del pipeline
 - CausationId para cadenas de causalidad entre mensajes
 - Extension methods: `SetCorrelationId()`, `SetCausationId()`
@@ -2556,6 +2679,7 @@ Los patrones de Web/API fueron identificados tras investigación exhaustiva de:
 - Inspiración: NServiceBus, MassTransit conversation tracking
 
 **#176 - Baggage Propagation Utilities** (Alta Prioridad):
+
 - Helpers para W3C Baggage en `IRequestContext`
 - `AddBaggage()`, `GetBaggage()`, `GetAllBaggage()`
 - Propagación automática a handlers downstream
@@ -2563,6 +2687,7 @@ Los patrones de Web/API fueron identificados tras investigación exhaustiva de:
 - Inspiración: OpenTelemetry Baggage spec, .NET Aspire
 
 **#178 - Encina.OpenTelemetry.AzureMonitor**:
+
 - Nuevo paquete: `Encina.OpenTelemetry.AzureMonitor`
 - Integración con Azure Application Insights
 - Exportadores nativos para Azure Monitor
@@ -2570,6 +2695,7 @@ Los patrones de Web/API fueron identificados tras investigación exhaustiva de:
 - Soporte para Live Metrics Stream
 
 **#179 - Encina.OpenTelemetry.AwsXRay**:
+
 - Nuevo paquete: `Encina.OpenTelemetry.AwsXRay`
 - Integración con AWS X-Ray via ADOT
 - Exportadores nativos para AWS
@@ -2577,6 +2703,7 @@ Los patrones de Web/API fueron identificados tras investigación exhaustiva de:
 - Soporte para AWS Lambda
 
 **#180 - Encina.OpenTelemetry.Prometheus**:
+
 - Nuevo paquete: `Encina.OpenTelemetry.Prometheus`
 - Endpoint `/metrics` para Prometheus scraping
 - Métricas en formato OpenMetrics
@@ -2584,6 +2711,7 @@ Los patrones de Web/API fueron identificados tras investigación exhaustiva de:
 - Integration con Grafana
 
 **#181 - Encina.HealthChecks Package** (Alta Prioridad):
+
 - Nuevo paquete: `Encina.HealthChecks`
 - Health checks dedicados para todos los patrones
 - Kubernetes probes: liveness, readiness, startup
@@ -2591,12 +2719,14 @@ Los patrones de Web/API fueron identificados tras investigación exhaustiva de:
 - Dashboard de estado
 
 **#182 - Encina.Serilog.OpenTelemetry**:
+
 - Nuevo paquete: `Encina.Serilog.OpenTelemetry`
 - Bridge Serilog → OpenTelemetry Logs
 - Enriquecimiento automático con trace context
 - Formatters optimizados para OTel
 
 **#187 - Grafana Dashboards**:
+
 - Dashboards JSON predefinidos
 - Dashboard principal Encina
 - Dashboards por patrón (Outbox, Saga, etc.)
@@ -2604,6 +2734,7 @@ Los patrones de Web/API fueron identificados tras investigación exhaustiva de:
 - Importación one-click
 
 **#188 - Aspire Dashboard Integration**:
+
 - Guía de integración con .NET Aspire Dashboard
 - Configuración de Aspire.Dashboard
 - Visualización de trazas Encina
@@ -2622,6 +2753,7 @@ Los patrones de Web/API fueron identificados tras investigación exhaustiva de:
 #### Investigación de Observability - Fuentes Consultadas
 
 Los patrones de observabilidad fueron identificados tras investigación exhaustiva de:
+
 - **MassTransit v9** - OpenTelemetry integration, metrics, distributed tracing
 - **Wolverine** - Native OpenTelemetry support, Activity-based tracing
 - **OpenTelemetry .NET** - Semantic conventions, instrumentation libraries
@@ -2721,18 +2853,20 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | ~~#169~~ | ~~Messaging Pattern Helpers~~ | ✅ Helpers para Outbox, Inbox, Saga, Scheduling | - | Custom |
 | ~~#170~~ | ~~Improved Assertions~~ | ✅ AndConstraint, Collection, Streaming assertions | - | Shouldly |
 | ~~#171~~ | ~~TUnit Support~~ | ✅ EncinaTUnitFixture, TUnitEitherAssertions, NativeAOT compatible | - | TUnit Framework |
-| **#172** | Mutation Testing (Stryker) | Configuración y scripts para Stryker | Media | Stryker.NET |
-| **#173** | CI/CD Templates | Workflows reutilizables para GitHub Actions | Baja | GitHub Actions |
+| ~~#172~~ | ~~Mutation Testing (Stryker)~~ | ✅ NeedsMutationCoverage, MutationKiller attributes | - | Stryker.NET |
+| ~~#173~~ | ~~CI/CD Templates~~ | ✅ encina-test.yml, encina-matrix.yml, encina-full-ci.yml | - | GitHub Actions |
 
 #### Detalle de Mejoras Planificadas
 
 **~~#162 - Testcontainers Integration~~** ✅ Completado:
+
 - Implementado como `Encina.Testing.Testcontainers` package
 - Fixtures: `SqlServerContainerFixture`, `PostgreSqlContainerFixture`, `MySqlContainerFixture`, `MongoDbContainerFixture`, `RedisContainerFixture`
 - Factory class: `EncinaContainers` con métodos de configuración
 - 51 unit tests
 
 **~~#163 - Database Reset (Respawn) Integration~~** ✅ Completado:
+
 - Integración de `Encina.Testing.Testcontainers` con `Encina.Testing.Respawn`
 - `DatabaseIntegrationTestBase<TFixture>` - Clase base abstracta combinando containers con Respawn
 - `SqlServerIntegrationTestBase` - Base pre-configurada para SQL Server
@@ -2743,30 +2877,35 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 - Exclusión por defecto de tablas de mensajería Encina
 
 **#167 - Handler Registration Tests** (Alta Prioridad):
+
 - `EncinaRegistrationAssertions.AllRequestsShouldHaveHandlers(assembly)`
 - `EncinaRegistrationAssertions.AllNotificationsShouldHaveHandlers(assembly)`
 - Detección temprana de handlers faltantes en DI
 - Fluent API con `RegistrationVerifier`
 
 **#168 - Pipeline Testing Utilities** (Alta Prioridad):
+
 - `PipelineTestContext<TRequest, TResponse>` para testing de pipeline
 - Métodos: `WithBehavior<T>()`, `WithoutBehavior<T>()`, `WithMockedHandler()`
 - Verificación de llamadas: `VerifyBehaviorCalled<T>(Times)`
 - Factory: `PipelineTest.For<TRequest, TResponse>()`
 
 **#169 - Messaging Pattern Helpers** (Alta Prioridad):
+
 - `OutboxTestHelper`: `CaptureMessages()`, `VerifyMessagePublished<T>()`
 - `InboxTestHelper`: `SimulateIdempotentMessage()`, `VerifyProcessedOnce()`
 - `SagaTestBase<TSaga, TData>`: Given/When/Then para sagas
 - `SchedulingTestHelper`: `AdvanceTimeAndGetDue()`, `VerifyCronNextExecution()`
 
 **~~#161 - Test Data Generation~~** ✅ Completado:
+
 - Implementado como extensiones en `Encina.Testing.Bogus` (siguiendo recomendación CodeRabbit)
 - Domain Model Faker Extensions: `EntityId<TId>()`, `StronglyTypedIdValue<TValue>()`, `QuantityValue()`, `PercentageValue()`, `DateRangeValue()`, `TimeRangeValue()`
 - 54 unit tests + 23 property-based tests
 - Seed reproducibility para datos determinísticos
 
 **~~#164 - HTTP Mocking (WireMock)~~** ✅ Completado:
+
 - `EncinaWireMockFixture` con fluent API: `StubGet()`, `StubPost()`, `StubFault()`, `StubDelay()`
 - `EncinaRefitMockFixture<TApiClient>` para clientes Refit con auto-configuración
 - `WebhookTestingExtensions`: `SetupOutboxWebhook()`, `SetupWebhookFailure()`, `SetupWebhookTimeout()`
@@ -2775,6 +2914,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 - Paquete: `Encina.Testing.WireMock`
 
 **~~#166 - Architecture Testing~~** ✅ Completado:
+
 - `EncinaArchitectureRules` con reglas CQRS y Saga
 - `HandlersShouldImplementCorrectInterface()`, `CommandsShouldImplementICommand()`, `QueriesShouldImplementIQuery()`
 - `HandlersShouldNotDependOnControllers()`, `PipelineBehaviorsShouldImplementCorrectInterface()`
@@ -2783,6 +2923,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 - Opt-in test methods in `EncinaArchitectureTestBase`
 
 **~~#170 - Improved Assertions~~** ✅ Completado:
+
 - `AndConstraint<T>` - Fluent chaining pattern (FluentAssertions-style)
 - `EitherAssertions` enhancements: `*And()` variants for all assertion methods
 - `ShouldBeValidationErrorForProperty()` - Property-specific validation
@@ -2792,6 +2933,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 - 85+ unit tests
 
 **~~#171 - TUnit Support~~** ✅ Completado:
+
 - `EncinaTUnitFixture` - Test fixture adaptado al modelo TUnit (IAsyncInitializer, IAsyncDisposable)
 - `TUnitEitherAssertions` - Assertions async-first para `Either<TLeft, TRight>`
 - `TUnitEitherCollectionAssertions` - Assertions para colecciones de Either
@@ -2838,54 +2980,58 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 
 ##### Issues Nuevas (Phase 2)
 
-| Issue | Patrón | Descripción | Prioridad | Complejidad | Labels |
-|-------|--------|-------------|-----------|-------------|--------|
-| **#426** | Fakes/Stubs | Test doubles para `IEncina` y messaging stores | Alta | Baja | `testing-mocking`, `testing-unit`, `foundational`, `new-package` |
-| **#427** | Respawn Integration | Reset inteligente de BD entre tests | Alta | Baja | `testing-integration`, `testing-database-reset`, `area-database`, `foundational`, `new-package` |
-| **#428** | WireMock Integration | Mocking de HTTP APIs externas | Alta | Media | `testing-integration`, `testing-mocking`, `area-resilience`, `area-interop`, `new-package` |
-| **#429** | Shouldly Assertions | Assertions open-source (alternativa a FluentAssertions) | Alta | Baja | `testing-unit`, `testing-assertions`, `foundational`, `new-package` |
-| **#430** | Verify Snapshot Testing | Snapshot/approval testing para responses complejas | Media | Media | `testing-unit`, `testing-snapshot`, `new-package` |
-| **#431** | Bogus Generators | Generación de datos realistas con Bogus | Media | Media | `testing-unit`, `testing-data-generation`, `new-package` |
-| ~~**#432**~~ | ~~Architecture Testing~~ | ✅ Implementado como Encina.Testing.Architecture | - | - | - |
-| **#433** | FakeTimeProvider | Control de tiempo en tests (.NET 8+ TimeProvider) | Media | Baja | `testing-unit`, `testing-time-control`, `foundational`, `dotnet-10` |
-| ~~**#434**~~ | ~~BDD Specifications~~ | ✅ Implementado como HandlerSpecification, SagaSpecification, Scenario | - | - | - |
-| **#435** | FsCheck Extensions | Property-based testing con arbitraries Encina | Baja | Alta | `testing-unit`, `testing-property-based`, `industry-best-practice`, `new-package` |
-| **#436** | Pact Contract Testing | Consumer-Driven Contracts para microservicios | Baja | Alta | `testing-integration`, `testing-contract`, `area-microservices`, `area-interop`, `new-package` |
-| **#437** | Stryker.NET Config | Templates y scripts para mutation testing | Baja | Baja | `area-mutation-testing`, `area-ci-cd`, `industry-best-practice`, `phase-3-testing` |
+| Issue | Patrón | Descripción | Estado |
+|-------|--------|-------------|--------|
+| ~~#426~~ | ~~Fakes/Stubs~~ | ~~Test doubles para `IEncina` y messaging stores~~ | ✅ Completo |
+| ~~#427~~ | ~~Respawn Integration~~ | ~~Reset inteligente de BD entre tests~~ | ✅ Completo |
+| ~~#428~~ | ~~WireMock Integration~~ | ~~Mocking de HTTP APIs externas~~ | ✅ Completo |
+| ~~#429~~ | ~~Shouldly Assertions~~ | ~~Assertions open-source (alternativa a FluentAssertions)~~ | ✅ Completo |
+| ~~#430~~ | ~~Verify Snapshot Testing~~ | ~~Snapshot/approval testing para responses complejas~~ | ✅ Completo |
+| ~~#431~~ | ~~Bogus Generators~~ | ~~Generación de datos realistas con Bogus~~ | ✅ Completo |
+| ~~#432~~ | ~~Architecture Testing~~ | ~~Implementado como Encina.Testing.Architecture~~ | ✅ Completo |
+| ~~#433~~ | ~~FakeTimeProvider~~ | ~~Control de tiempo en tests (.NET 8+ TimeProvider)~~ | ✅ Completo |
+| ~~#434~~ | ~~BDD Specifications~~ | ~~Implementado como HandlerSpecification, SagaSpecification, Scenario~~ | ✅ Completo |
+| ~~#435~~ | ~~FsCheck Extensions~~ | ~~Property-based testing con arbitraries Encina~~ | ✅ Completo |
+| ~~#436~~ | ~~Pact Contract Testing~~ | ~~Consumer-Driven Contracts para microservicios~~ | ✅ Completo |
+| ~~#437~~ | ~~Stryker.NET Config~~ | ~~Templates y scripts para mutation testing~~ | ✅ Completo |
 
-##### Detalle de Issues TDD Patterns
+##### Detalle de Issues TDD Patterns (Todas Completadas en v0.11.0)
 
-**#426 - Encina.Testing.Fakes** (Alta Prioridad):
+**~~#426 - Encina.Testing.Fakes~~** ✅ Completado:
+
 - `FakeEncina : IEncina` con handlers configurables
 - `WithHandler<TRequest, TResponse>()`, `WithError<TRequest>()`
 - Verificaciones: `VerifySent<TRequest>(times)`, `VerifyPublished<TNotification>(times)`
 - `GetSentRequests()`, `GetPublishedNotifications()` para inspección
 - `FakeOutboxStore`, `FakeInboxStore`, `FakeSagaStore`, `FakeScheduledMessageStore`
 - Thread-safe, in-memory implementations
-- **Nuevo paquete**: `Encina.Testing.Fakes`
+- **Paquete**: `Encina.Testing.Fakes`
 - **Inspiración**: MediatR testing patterns, in-memory implementations
 
-**#427 - Encina.Testing.Respawn** (Alta Prioridad):
+**~~#427 - Encina.Testing.Respawn~~** ✅ Completado:
+
 - `RespawnDatabaseFixture<TContainer>` base class
 - Análisis de FK para delete determinístico (3x más rápido que truncate)
 - `ResetDatabaseAsync()` entre tests
 - Configuración: `TablesToIgnore`, `ResetEncinaMessagingTables`
 - Providers: SQL Server, PostgreSQL, MySQL, Oracle, SQLite
 - Integración con Testcontainers existentes
-- **Nuevo paquete**: `Encina.Testing.Respawn`
+- **Paquete**: `Encina.Testing.Respawn`
 - **Inspiración**: [Respawn](https://github.com/jbogard/Respawn) de Jimmy Bogard
 
-**#428 - Encina.Testing.WireMock** (Alta Prioridad):
+**~~#428 - Encina.Testing.WireMock~~** ✅ Completado:
+
 - `EncinaWireMockFixture : IAsyncLifetime`
 - Fluent stubbing: `StubGet()`, `StubPost()`, `StubFault()`, `StubDelay()`
 - `FaultType`: ConnectionReset, EmptyResponse, MalformedResponse, Timeout
 - Verificaciones: `VerifyCallMade()`, `VerifyNoCallsMade()`, `GetReceivedRequests()`
 - Integración con resilience behaviors para testing
 - Container-based fixture opcional
-- **Nuevo paquete**: `Encina.Testing.WireMock`
+- **Paquete**: `Encina.Testing.WireMock`
 - **Inspiración**: [WireMock.NET](https://github.com/wiremock/WireMock.Net)
 
-**#429 - Encina.Testing.Shouldly** (Alta Prioridad):
+**~~#429 - Encina.Testing.Shouldly~~** ✅ Completado:
+
 - Alternativa open-source a FluentAssertions (licencia comercial desde Enero 2025)
 - `ShouldBeSuccess()`, `ShouldBeError()` para `Either<EncinaError, T>`
 - `ShouldBeValidationError()`, `ShouldBeNotFoundError()`, `ShouldBeAuthorizationError()`
@@ -2893,10 +3039,11 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - Collection assertions: `ShouldAllBeSuccess()`, `ShouldAllBeError()`
 - Async support: `ShouldBeSuccessAsync()`, `ShouldBeErrorAsync()`
 - Aggregate assertions: `ShouldHaveRaisedEvent<T>()`, `ShouldHaveNoUncommittedEvents()`
-- **Nuevo paquete**: `Encina.Testing.Shouldly`
+- **Paquete**: `Encina.Testing.Shouldly`
 - **Inspiración**: [Shouldly](https://github.com/shouldly/shouldly)
 
 **~~#430 - Encina.Testing.Verify~~** ✅ Completado:
+
 - `PrepareEither()`, `ExtractSuccess()`, `ExtractError()` métodos estáticos
 - `PrepareUncommittedEvents()` para event sourcing
 - `PrepareSagaState()`, `PrepareOutboxMessages()`, `PrepareInboxMessages()`
@@ -2907,17 +3054,19 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - **Paquete**: `Encina.Testing.Verify`
 - **Inspiración**: [Verify](https://github.com/VerifyTests/Verify) de Simon Cropp
 
-**#431 - Encina.Testing.Bogus** (Media Prioridad):
+**~~#431 - Encina.Testing.Bogus~~** ✅ Completado:
+
 - `EncinaFaker<TRequest>` base class con convenciones
 - Reproducible seeds por defecto
 - `WithCorrelationId()`, `WithUserId()`, `WithTenantId()`, `WithIdempotencyKey()`
 - Pre-built fakers: `OutboxMessageFaker`, `InboxMessageFaker`, `SagaStateFaker`, `ScheduledMessageFaker`
 - Integración con builders existentes via `WithBogusData()`
 - Domain-specific faker patterns
-- **Nuevo paquete**: `Encina.Testing.Bogus`
+- **Paquete**: `Encina.Testing.Bogus`
 - **Inspiración**: [Bogus](https://github.com/bchavez/Bogus)
 
 **~~#432 - Encina.Testing.Architecture~~** ✅ Completado:
+
 - `EncinaArchitectureRules` con reglas predefinidas:
   - `HandlersShouldNotDependOnInfrastructure()` - Handlers usan abstracciones
   - `HandlersShouldBeSealed()` - Handlers deben ser sealed
@@ -2944,6 +3093,7 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - **Paquete**: `Encina.Testing.Architecture`
 
 **#433 - FakeTimeProvider** (Media Prioridad):
+
 - `FakeTimeProvider : TimeProvider` (.NET 8+ compatible)
 - `SetUtcNow()`, `Advance()`, `AdvanceToNextDay()`, `AdvanceToNextHour()`
 - `AdvanceMinutes()`, `AdvanceSeconds()` convenience methods
@@ -2955,6 +3105,7 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - **Inspiración**: [.NET 8 TimeProvider](https://learn.microsoft.com/en-us/dotnet/api/system.timeprovider)
 
 **#434 - BDD Specification Testing** ✅ **IMPLEMENTADO**:
+
 - `HandlerSpecification<TRequest, TResponse>` - Abstract base class for handler BDD testing:
   - `Given(Action<TRequest>)`, `GivenRequest(TRequest)` - Setup phase
   - `When(CancellationToken)`, `When(Action<TRequest>, CancellationToken)` - Execution phase
@@ -2979,7 +3130,8 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - **Ubicación**: `Encina.Testing.Handlers`, `Encina.Testing.Sagas`
 - **Tests**: 92 unit tests (all passing)
 
-**#435 - Encina.Testing.FsCheck** (Baja Prioridad):
+**~~#435 - Encina.Testing.FsCheck~~** ✅ Completado:
+
 - `EncinaArbitraries`: `RequestContext()`, `EncinaError()`, `ValidationError()`
 - Arbitraries para messaging: `OutboxMessage()`, `InboxMessage()`, `SagaState()`
 - `EncinaProperties`:
@@ -2989,11 +3141,12 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
   - `OutboxProcessingIsIdempotent()`
 - Generator combinators: `ValidRequest<T>()`, `InvalidRequest<T>()`, `EitherOf<T>()`
 - xUnit integration con `[Property]` attribute
-- `EncinaArbitraries.Register()` para registro global
-- **Nuevo paquete**: `Encina.Testing.FsCheck`
+- `EncinaArbitraryProvider` para registro con FsCheck type-based lookup
+- **Paquete**: `Encina.Testing.FsCheck`
 - **Inspiración**: [FsCheck](https://fscheck.github.io/FsCheck/)
 
-**#436 - Encina.Testing.Pact** (Baja Prioridad):
+**~~#436 - Encina.Testing.Pact~~** ✅ Completado:
+
 - `EncinaPactConsumerBuilder` para definir expectativas
 - `WithCommandExpectation<TCommand, TResponse>()`, `WithQueryExpectation<TQuery, TResponse>()`
 - `WithNotificationExpectation<TNotification>()` para async messaging
@@ -3001,10 +3154,11 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - `VerifyAsync(pactFilePath)`, `VerifyFromBrokerAsync(brokerUrl)`
 - Provider state handlers
 - `EncinaPactFixture` para consumer tests
-- **Nuevo paquete**: `Encina.Testing.Pact`
+- **Paquete**: `Encina.Testing.Pact`
 - **Inspiración**: [PactNet](https://github.com/pact-foundation/pact-net), [Pact Docs](https://docs.pact.io/)
 
-**#437 - Stryker.NET Configuration** (Baja Prioridad):
+**~~#437 - Stryker.NET Configuration~~** ✅ Completado:
+
 - `stryker-config.json` template básico
 - `stryker-encina.json` template específico para proyectos Encina
 - GitHub Actions workflow (`mutation.yml`)
@@ -3017,17 +3171,17 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 
 ##### Paquetes Nuevos Planificados (TDD Patterns - Dic 2025)
 
-| Paquete | Issue | Descripción | Prioridad |
-|---------|-------|-------------|-----------|
-| `Encina.Testing.Fakes` | #426 | Test doubles para IEncina y stores | Alta |
-| `Encina.Testing.Respawn` | #427 | Database reset con Respawn | Alta |
-| `Encina.Testing.WireMock` | #428 | HTTP API mocking | Alta |
-| `Encina.Testing.Shouldly` | #429 | Assertions open-source | Alta |
+| Paquete | Issue | Descripción | Estado |
+|---------|-------|-------------|--------|
+| ~~`Encina.Testing.Fakes`~~ | ~~#426~~ | ~~Test doubles para IEncina y stores~~ | ✅ Completo |
+| ~~`Encina.Testing.Respawn`~~ | ~~#427~~ | ~~Database reset con Respawn~~ | ✅ Completo |
+| ~~`Encina.Testing.WireMock`~~ | ~~#428~~ | ~~HTTP API mocking~~ | ✅ Completo |
+| ~~`Encina.Testing.Shouldly`~~ | ~~#429~~ | ~~Assertions open-source~~ | ✅ Completo |
 | ~~`Encina.Testing.Verify`~~ | ~~#430~~ | ~~Snapshot testing~~ | ✅ Completo |
 | ~~`Encina.Testing.Bogus`~~ | ~~#431~~ | ~~Data generation~~ | ✅ Completo |
 | ~~`Encina.Testing.Architecture`~~ | ~~#432~~ | ~~Architecture testing~~ | ✅ Completo |
 | ~~`Encina.Testing.FsCheck`~~ | ~~#435~~ | ~~Property-based testing~~ | ✅ Completo |
-| `Encina.Testing.Pact` | #436 | Contract testing | Baja |
+| ~~`Encina.Testing.Pact`~~ | ~~#436~~ | ~~Contract testing~~ | ✅ Completo |
 
 ##### Fuentes e Investigación (Diciembre 29, 2025)
 
@@ -3071,6 +3225,7 @@ Esta categoría agrupa patrones adicionales de Clean Architecture identificados 
 ##### Detalle de Cada Patrón
 
 **#468 - Result Pattern Extensions (Either Fluent API)** (Media Prioridad):
+
 - `EitherCombineExtensions`: `Combine<T1, T2>()`, `Combine<T1, T2, T3>()` para combinar múltiples resultados
 - `EitherAccumulateExtensions`: Acumulación de errores en lugar de fail-fast
 - `EitherAsyncExtensions`: `BindAsync()`, `MapAsync()`, `TapAsync()` para cadenas async
@@ -3100,6 +3255,7 @@ app.MapGet("/orders/{id}", async (Guid id, IEncina encina) =>
 ```
 
 **#469 - Partitioned Sequential Messaging** (Media Prioridad):
+
 - `IPartitionedMessage`: Interfaz base con `PartitionKey`
 - `ISagaPartitionedMessage`, `ITenantPartitionedMessage`, `IAggregatePartitionedMessage`: Especializaciones
 - `IPartitionedQueueManager`: Gestión de particiones con System.Threading.Channels
@@ -3179,6 +3335,7 @@ Esta categoría agrupa patrones de **Arquitectura Hexagonal** (Ports & Adapters)
 ##### Detalle de Cada Patrón
 
 **#470 - Domain Events vs Integration Events** (Critical):
+
 - `DomainEvent` base class con `AggregateId`, `OccurredAtUtc`, `Version`
 - `IntegrationEvent` base class con `EventType`, `PublishedAtUtc`, `CorrelationId`
 - `IDomainEventHandler<TEvent>` para procesamiento in-process
@@ -3200,6 +3357,7 @@ public abstract class IntegrationEvent : INotification
 ```
 
 **#471 - Specification Pattern** (Critical):
+
 - `Specification<T>` y `Specification<T, TResult>` base classes
 - `ISpecificationRepository<T>` con soporte para EF Core y Dapper
 - Composición con `And()`, `Or()`, `Not()` operators
@@ -3218,6 +3376,7 @@ public class ActiveOrdersSpec : Specification<Order, OrderDto>
 ```
 
 **#472 - Value Objects & Aggregates** (Critical):
+
 - `ValueObject` con igualdad estructural automática
 - `StronglyTypedId<T>` para IDs type-safe
 - `Entity<TId>` para entidades no-root
@@ -3244,12 +3403,14 @@ public sealed class OrderId : StronglyTypedId<Guid>
 ```
 
 **#473 - Domain Services** (Alta):
+
 - `IDomainService` marker interface
 - Lógica de dominio que no pertenece a una entidad específica
 - Sin dependencias de infraestructura
 - **Inspiración**: ABP Framework
 
 **#474 - Anti-Corruption Layer** (Alta):
+
 - `IAntiCorruptionLayer<TExternal, TDomain>` bidireccional
 - `IInboundAntiCorruptionLayer` para integraciones read-only
 - `IOutboundAntiCorruptionLayer` para integraciones write-only
@@ -3257,18 +3418,21 @@ public sealed class OrderId : StronglyTypedId<Guid>
 - **Inspiración**: AWS Prescriptive Guidance, Microsoft Learn
 
 **#475 - Ports & Adapters** (Alta):
+
 - `IPort`, `IInboundPort`, `IOutboundPort` marker interfaces
 - `AddPort<TPort, TAdapter>()` registration method
 - `AdapterBase<TPort>` con logging y error handling
 - **Inspiración**: Hexagonal Architecture (Alistair Cockburn)
 
 **#476 - Vertical Slice + Hexagonal** (Media):
+
 - `IFeatureSlice` extending `IModule`
 - Organización por features con boundaries hexagonales
 - `MapEncinaSlices()` para endpoint mapping
 - **Inspiración**: Jimmy Bogard, Wolverine
 
 **#477 - Bounded Context Modules** (Media):
+
 - `IBoundedContextModule` con `PublishedIntegrationEvents` y `ConsumedIntegrationEvents`
 - `IContextMap` para visualización de relaciones
 - `BoundedContextAnalyzer` para validación
@@ -3276,12 +3440,14 @@ public sealed class OrderId : StronglyTypedId<Guid>
 - **Inspiración**: ABP Framework, DDD Blue Book
 
 **#478 - Result/DTO Mapping** (Media):
+
 - `IResultMapper<TDomain, TDto>` con semántica Either
 - `IAsyncResultMapper<TDomain, TDto>` para mappings async
 - `MapAll()` y `MapAllCollectErrors()` para colecciones
 - **Inspiración**: AutoMapper, Mapster con ROP
 
 **#479 - Application Services** (Media):
+
 - `IApplicationService<TInput, TOutput>` para use cases
 - Separación clara de Domain Services (lógica) vs Application Services (orquestación)
 - **Inspiración**: ABP Framework, Clean Architecture
@@ -3532,7 +3698,7 @@ Estas issues complementan y en algunos casos consolidan issues existentes:
 | Milestone | Issues | Descripción |
 |-----------|--------|-------------|
 | [v0.10.0 - DDD Foundations](https://github.com/dlrivada/Encina/milestone/7) | 31 ✅ | Value Objects, Entities, Aggregates, Specifications, ACL - **COMPLETADO** |
-| [v0.11.0 - Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) | 25 🔜 | Fakes, Respawn, WireMock, Shouldly, Bogus |
+| [v0.11.0 - Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) | 34 ✅ | Fakes, Respawn, WireMock, Shouldly, Bogus, FsCheck, TUnit, Pact - **COMPLETADO** |
 | [v0.12.0 - Database & Repository](https://github.com/dlrivada/Encina/milestone/9) | 22 | Repository, UoW, Bulk Ops, Pagination |
 | [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Security, GDPR, NIS2, AI Act |
 | [v0.14.0 - Cloud-Native & Aspire](https://github.com/dlrivada/Encina/milestone/11) | 23 | Aspire, Dapr, Orleans, HealthChecks |
@@ -3592,6 +3758,7 @@ Estas issues complementan y en algunos casos consolidan issues existentes:
 CLI tool para scaffolding de proyectos y componentes Encina.
 
 **Comandos implementados**:
+
 - `encina new <template> <name>` - Crear proyecto (api, worker, console)
   - Opciones: `--database`, `--caching`, `--transport`, `--output`, `--force`
 - `encina generate handler <name>` - Generar command handlers
@@ -3609,6 +3776,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 **Descripción**: Generadores de código en tiempo de compilación para zero-reflection dispatch.
 
 **Features planificadas**:
+
 - Handler discovery en compile-time
 - Switch-based dispatch (en lugar de diccionarios)
 - NativeAOT compatible
@@ -3621,6 +3789,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 **Dependencia**: Requiere #50 (Source Generators)
 
 **Beneficios**:
+
 - Mejor rendimiento en hot path
 - Eliminación de reflection en runtime
 - Compatibilidad con AOT compilation
@@ -3656,7 +3825,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 | Resilience Patterns | 9 (#136-#139, #141-#145) | 4 (#136, #137, #138, #139) | 1 (#138) |
 | **Caching Patterns** | **13 (#266-#278)** | **4 (#266, #267, #268, #270)** | **3 (#277)** |
 | Scheduling Patterns | 15 (#146-#160) | 5 (#146, #147, #148, #149, #150) | 0 |
-| Testing Patterns | 13 (#161-#173) | 4 (#167, #168, #169) | 7 (#161✅, #162✅, #164✅, #166, #171) |
+| Testing Patterns | 13 (#161-#173) | 2 (#167, #168) | 11 ✅ (#161-#166, #169-#173 completados) |
 | Observability Patterns | 15 (#174-#188) | 4 (#174, #175, #176, #181) | 5 (#178, #179, #180, #181, #182) |
 | Web/API Patterns | 18 (#189-#206) | 9 (#189-#195, #197) | 10 (#194, #199, #200, #205, #206) |
 | Distributed Lock Patterns | 20 (#207-#226) | 6 (#207, #215, #216, #220, #221) | 8 (#207-#214) |
@@ -3785,6 +3954,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 ##### Tier 1: Alta Prioridad (Impacto Inmediato)
 
 **#333 - Zero-Interface Handlers** (Wolverine-inspired):
+
 - Handlers descubiertos por convención de nombres, sin `IRequestHandler<,>`
 - Handlers estáticos soportados (`public static class CreateOrderHandler`)
 - Reduce boilerplate y mejora alineamiento con DDD (domain objects sin dependencias de framework)
@@ -3792,6 +3962,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Labels: `wolverine-inspired`, `aot-compatible`, `area-source-generators`
 
 **#334 - Idempotency Pipeline Behavior**:
+
 - `IIdempotencyStore` interface para tracking de claves
 - `IdempotencyPipelineBehavior<,>` para verificación automática
 - Almacenamiento en cache (Redis, In-memory) para deduplicación ligera
@@ -3799,6 +3970,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Labels: `area-idempotency`, `masstransit-inspired`, `industry-best-practice`
 
 **#335 - Request Timeout Pipeline Behavior** (Brighter-inspired):
+
 - `[Timeout(Seconds = 30)]` atributo declarativo
 - `IHasTimeout` interface para configuración programática
 - Estrategias de fallback: ThrowException, ReturnDefault, ReturnCached
@@ -3806,6 +3978,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Labels: `brighter-inspired`, `area-polly`, `area-resilience`
 
 **#336 - Cursor-Based Pagination Helpers** (GraphQL-inspired):
+
 - `ICursorPaginatedQuery<T>` interface
 - `CursorPaginatedResult<T>` con NextCursor, HasNextPage
 - `ToCursorPaginatedAsync()` extension para EF Core
@@ -3816,6 +3989,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 ##### Tier 2: Media Prioridad (Funcionalidad Avanzada)
 
 **#337 - Request Versioning Support** (Axon-inspired):
+
 - `[RequestVersion(1)]` atributo para versionado
 - `IRequestUpcaster<TFrom, TTo>` para migración automática
 - Cadenas de upcasting V1 → V2 → V3
@@ -3823,6 +3997,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Labels: `axon-inspired`, `pattern-versioning`, `area-schema-registry`
 
 **#338 - Multi-Tenant Context Middleware**:
+
 - `ITenantResolver` con implementations (Header, Subdomain, Claims, Route)
 - `TenantValidationBehavior` para validación de tenant
 - `TenantIsolationBehavior` para enforcement de aislamiento
@@ -3830,6 +4005,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Labels: `area-multitenancy`, `area-security`, `industry-best-practice`
 
 **#339 - Batch Command Processing** (MassTransit-inspired):
+
 - `IBatchCommand<TCommand, TResponse>` interface
 - Estrategias: AllOrNothing, PartialSuccess, StopOnFirstError, ContinueOnError
 - Deduplicación en batch
@@ -3837,6 +4013,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Labels: `masstransit-inspired`, `pattern-batch-processing`, `area-bulk-operations`
 
 **#340 - Request Pre/Post Enrichment Pipeline** (Wolverine-inspired):
+
 - `[EnrichFrom(ContextProperty.UserId)]` para auto-población
 - `[EnrichFromClaim("claim_name")]` para JWT claims
 - `IRequestEnricher<T>`, `IResponseEnricher<T>` interfaces
@@ -3844,6 +4021,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Labels: `wolverine-inspired`, `area-pipeline`, `area-developer-experience`
 
 **#341 - Advanced Notification Fanout Strategies**:
+
 - `NotificationStrategy.PriorityOrdered`, `Throttled`, `Quorum`, `FirstSuccessful`
 - `[NotificationPriority]` atributo para ordenación
 - Dead letter handling para notificaciones fallidas
@@ -3853,6 +4031,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 ##### Tier 3: Baja Prioridad (Nice-to-have)
 
 **#342 - Request Composition** (GraphQL-inspired):
+
 - `QueryComposer<TResult>` fluent builder
 - Ejecución paralela de queries independientes
 - Resolución de dependencias para queries dependientes
@@ -3860,6 +4039,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Labels: `graphql-inspired`, `pattern-request-composition`, `area-bff`
 
 **#343 - Handler Discovery Roslyn Analyzers**:
+
 - ENCINA001: Handler not registered
 - ENCINA002: Handler naming convention mismatch
 - ENCINA003: Query modifies state (anti-pattern)
@@ -3870,6 +4050,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Labels: `area-source-generators`, `area-ci-cd`, `new-package`
 
 **#344 - Progressive CQRS Adoption Guide** (Documentation):
+
 - Decision tree: cuándo usar/no usar CQRS
 - Adoption levels (0-4)
 - Anti-patterns a evitar
@@ -3943,6 +4124,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 ##### Tier 1: Alta Prioridad (Crítico para SaaS)
 
 **#345 - Feature Flags / Feature Toggles Integration**:
+
 - `[FeatureFlag("NewCheckoutFlow")]` atributo para handlers
 - `FeatureFlagPipelineBehavior<,>` que verifica feature antes de ejecutar
 - Integración con `Microsoft.FeatureManagement`
@@ -3952,6 +4134,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Fuentes: [Microsoft.FeatureManagement](https://github.com/microsoft/FeatureManagement-Dotnet), [Martin Fowler - Feature Toggles](https://martinfowler.com/articles/feature-toggles.html)
 
 **#346 - Multi-Tenancy Support**:
+
 - `ITenantResolver` con implementaciones (Header, Subdomain, Claim, Route, QueryString)
 - `TenantResolutionPipelineBehavior` y `TenantIsolationPipelineBehavior`
 - `[TenantIsolated]`, `[TenantAgnostic]`, `[CrossTenant]` atributos
@@ -3962,6 +4145,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Fuentes: [Azure SaaS Patterns](https://learn.microsoft.com/en-us/azure/azure-sql/database/saas-tenancy-app-design-patterns), [Finbuckle.MultiTenant](https://www.finbuckle.com/MultiTenant/)
 
 **#350 - Domain Events vs Integration Events Separation**:
+
 - `IDomainEvent` (in-process, síncronos) vs `IIntegrationEvent` (cross-boundary, async)
 - `IDomainEventDispatcher` con dispatch timing configurable (Immediate, BeforeCommit, AfterCommit)
 - `IIntegrationEventPublisher` que usa Outbox
@@ -3972,6 +4156,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Fuentes: [Microsoft Domain Events](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/domain-events-design-implementation), [Cesar de la Torre - Domain vs Integration Events](https://devblogs.microsoft.com/cesardelatorre/domain-events-vs-integration-events-in-domain-driven-design-and-microservices-architectures/)
 
 **#352 - Modular Monolith Support**:
+
 - `EncinaModule` base class con ConfigureServices, Configure, OnStarting/Stopping
 - `[Module("Orders")]` atributo para handlers
 - `IModuleRegistry` para gestión de módulos
@@ -3987,6 +4172,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 ##### Tier 2: Media Prioridad (Enterprise Features)
 
 **#347 - Specification Pattern Integration**:
+
 - `Specification<T>` base class con `ToExpression()`, `And()`, `Or()`, `Not()`
 - `QuerySpecification<T>` con includes, ordering, paging, tracking options
 - `ISpecificationEvaluator<T>` para EF Core y Dapper
@@ -3996,6 +4182,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Fuentes: [Ardalis Specification](http://specification.ardalis.com/), [DevIQ - Specification Pattern](https://deviq.com/design-patterns/specification-pattern/)
 
 **#348 - API Versioning Integration**:
+
 - `[ApiVersion("1.0")]` atributo para handlers versionados
 - `VersionedRequestDispatcher` que enruta al handler correcto
 - Version resolvers: UrlPath, QueryString, Header, MediaType
@@ -4005,6 +4192,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Fuentes: [Microsoft API Versioning](https://learn.microsoft.com/en-us/azure/architecture/best-practices/api-design), [Asp.Versioning.Mvc](https://www.nuget.org/packages/Asp.Versioning.Mvc)
 
 **#349 - Request Batching / Bulk Operations**:
+
 - `BatchCommand<TCommand, TResponse>` y `BatchQuery<TQuery, TResponse>` wrappers
 - Fluent `BatchBuilder<,>` API
 - Strategies: AllOrNothing (transactional), PartialSuccess, StopOnFirstError, ParallelAll
@@ -4015,6 +4203,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Fuentes: [DDD and Bulk Operations](https://enterprisecraftsmanship.com/posts/ddd-bulk-operations/), [Bulk Actions with CQRS](https://blog.sapiensworks.com/post/2013/12/16/Bulk-Actions-With-DDD-And-CQRS.aspx)
 
 **#351 - Audit Trail Pipeline Behavior**:
+
 - `[Auditable]`, `[NotAuditable]` atributos
 - `IAuditStore` con implementaciones EF Core, Dapper, Elasticsearch
 - `AuditingPipelineBehavior<,>` automático
@@ -4026,6 +4215,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Fuentes: [Event Sourcing Pattern (Audit benefit)](https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing)
 
 **#355 - Request Deduplication / Enhanced Idempotency**:
+
 - `IIdempotentRequest` marker interface con `IdempotencyKey`
 - `[Idempotent]` atributo para handlers
 - `IIdempotencyStore` con TTL y locking distribuido
@@ -4037,6 +4227,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Fuentes: [Stripe Idempotency](https://stripe.com/docs/api/idempotent_requests), [Milan Jovanovic - Idempotent APIs](https://www.milanjovanovic.tech/blog/implementing-idempotent-rest-apis-in-aspnetcore)
 
 **#356 - Policy-Based Authorization Enhancement**:
+
 - `[Authorize(Policy = "...")]` mejorado para handlers
 - `[AuthorizeRoles(...)]`, `[AuthorizeClaim(...)]` shortcuts
 - `[ResourceAuthorize(typeof(Order), "Edit")]` para resource-based auth
@@ -4049,6 +4240,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 ##### Tier 3: Baja Prioridad (Advanced/Specialized)
 
 **#353 - Change Data Capture (CDC) Integration**:
+
 - `ChangeDataEvent<T>` con Operation (Insert/Update/Delete), Before, After
 - `IChangeDataHandler<T>` interface
 - `ICDCNotificationMapper<TEntity, TNotification>` para mapeo a notifications
@@ -4059,6 +4251,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Fuentes: [CDC Pattern](https://www.confluent.io/blog/how-change-data-capture-works-patterns-solutions-implementation/), [Debezium](https://debezium.io/)
 
 **#354 - Enhanced Streaming Support (IAsyncEnumerable)**:
+
 - Stream-specific pipeline behaviors
 - `StreamCachingPipelineBehavior<,>` para cachear streams
 - `StreamRateLimitingPipelineBehavior<,>` para rate limiting por item
@@ -4150,6 +4343,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 #### Investigación de Mercado - Fuentes Consultadas
 
 Los patrones de resiliencia fueron identificados tras investigación exhaustiva de:
+
 - **Polly v8 & Microsoft.Extensions.Resilience** - Nuevas estrategias (Hedging, Chaos)
 - **Netflix Engineering** (QCon SF 2025) - Load Shedding, Adaptive Concurrency
 - **Uber Cinnamon Library** - Dynamic Load Shedding
@@ -4166,19 +4360,20 @@ Los patrones de resiliencia fueron identificados tras investigación exhaustiva 
 | ~~#162~~ | ~~Testcontainers Integration~~ | ✅ Completo | - | Implementado como Encina.Testing.Testcontainers |
 | ~~#163~~ | ~~Database Reset (Respawn)~~ | ✅ Completo | - | Integración Testcontainers+Respawn |
 | ~~#164~~ | ~~HTTP Mocking (WireMock.NET)~~ | ✅ Completo | - | EncinaRefitMockFixture<T>, WebhookTestingExtensions |
-| **#165** | Snapshot Testing (Verify) | Baja | Media | `area-testing`, `testing-snapshot` |
-| **#166** | Architecture Testing (ArchUnitNET) | Baja | Baja | `area-testing`, `area-architecture-testing`, `new-package` |
+| ~~#165~~ | ~~Snapshot Testing (Verify)~~ | ✅ Completo | - | `area-testing`, `testing-snapshot` |
+| ~~#166~~ | ~~Architecture Testing (ArchUnitNET)~~ | ✅ Completo | - | `area-testing`, `area-architecture-testing`, `new-package` |
 | **#167** | Handler Registration Tests | Baja | Alta | `area-testing`, `testing-unit`, `area-messaging-patterns` |
 | **#168** | Pipeline Testing Utilities | Media | Alta | `area-testing`, `testing-unit`, `testing-integration` |
-| **#169** | Messaging Pattern Helpers | Media | Alta | `area-testing`, `area-messaging`, `area-saga`, `area-scheduling` |
-| **#170** | Improved Assertions (Shouldly) | Baja | Media | `area-testing`, `testing-unit` |
-| ~~**#171**~~ | ~~TUnit Framework Support~~ | ✅ Completo | - | `area-testing`, `aot-compatible`, `new-package`, `dotnet-10` |
-| **#172** | Mutation Testing (Stryker.NET) | Baja | Media | `area-testing`, `area-mutation-testing`, `area-ci-cd` |
-| **#173** | CI/CD Workflow Templates | Baja | Baja | `area-testing`, `area-ci-cd`, `area-docker` |
+| ~~#169~~ | ~~Messaging Pattern Helpers~~ | ✅ Completo | - | `area-testing`, `area-messaging`, `area-saga`, `area-scheduling` |
+| ~~#170~~ | ~~Improved Assertions (Shouldly)~~ | ✅ Completo | - | `area-testing`, `testing-unit` |
+| ~~#171~~ | ~~TUnit Framework Support~~ | ✅ Completo | - | `area-testing`, `aot-compatible`, `new-package`, `dotnet-10` |
+| ~~#172~~ | ~~Mutation Testing (Stryker.NET)~~ | ✅ Completo | - | `area-testing`, `area-mutation-testing`, `area-ci-cd` |
+| ~~#173~~ | ~~CI/CD Workflow Templates~~ | ✅ Completo | - | `area-testing`, `area-ci-cd`, `area-docker` |
 
 #### Investigación de Testing - Fuentes Consultadas
 
 Los patrones de testing fueron identificados tras investigación exhaustiva de:
+
 - **Testcontainers .NET** - Integration testing con Docker containers
 - **Bogus & AutoBogus** - Generación realista de datos de prueba
 - **Respawn (Jimmy Bogard)** - Database reset inteligente entre tests
@@ -4318,6 +4513,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 ##### Tier 1: Alta Prioridad (Crítico para SaaS y Enterprise)
 
 **#357 - Multi-Tenancy Support** (Nuevo paquete: `Encina.MultiTenancy`):
+
 - `ITenantContext` con CurrentTenantId, CurrentTenantName, IsHost
 - `ITenantResolver` con implementaciones (Header, Subdomain, QueryString, Route, Claim, Cookie)
 - `TenantResolutionStrategy` enum para configuración declarativa
@@ -4329,6 +4525,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 - Fuentes: [ABP Multi-Tenancy](https://abp.io/architecture/multi-tenancy), [Milan Jovanović](https://www.milanjovanovic.tech/blog/multi-tenant-applications-with-ef-core)
 
 **#358 - Inter-Module Communication (Integration Events)**:
+
 - `IDomainEvent : INotification` para eventos internos (in-process, síncronos)
 - `IIntegrationEvent : INotification` con EventId, OccurredAtUtc, SourceModule
 - `IIntegrationEventBus` para comunicación inter-módulo (in-memory)
@@ -4340,6 +4537,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 - Fuentes: [Microsoft Domain Events](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/domain-events-design-implementation), [Milan Jovanović](https://www.milanjovanovic.tech/blog/modular-monolith-communication-patterns)
 
 **#359 - Data Isolation per Module** (Nuevo paquete: `Encina.Modular.Data`):
+
 - `ModuleDataIsolation` enum: None, SeparateSchema, SeparateDatabase
 - `[ModuleSchema("orders")]` attribute para marcar módulos
 - `IModuleDbContext<TModule>` interface para isolation enforcement
@@ -4354,6 +4552,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 ##### Tier 2: Media Prioridad (Module System Enhancement)
 
 **#360 - Module Lifecycle Enhancement**:
+
 - Automatic module discovery: `DiscoverModulesFromAssemblies()`, `DiscoverModulesFromPattern()`
 - `[DependsOn(typeof(OtherModule))]` attribute para declarar dependencias
 - Topological sort automático para startup order
@@ -4368,6 +4567,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 - Fuentes: [Orleans Lifecycle](https://learn.microsoft.com/en-us/dotnet/orleans/implementation/orleans-lifecycle), [NestJS Modules](https://docs.nestjs.com/modules)
 
 **#361 - Feature Flags Integration** (Nuevo paquete: `Encina.FeatureManagement`):
+
 - `[FeatureGate("FeatureName")]` attribute para handlers
 - `FeatureGatePipelineBehavior` que short-circuits si feature está deshabilitado
 - `[FallbackHandler]` attribute para handlers de fallback cuando feature está off
@@ -4379,6 +4579,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 - Fuentes: [Microsoft.FeatureManagement](https://github.com/microsoft/FeatureManagement-Dotnet)
 
 ~~**#362 - Module Testing Utilities**~~ ✅ Completado (Extensión de `Encina.Testing`):
+
 - ✅ `ModuleTestFixture<TModule>` base class para tests aislados por módulo
 - ✅ `WithMockedModule<TApi>()` helper para mockear dependencias (con `MockModuleApi<T>` builder)
 - ✅ `WithFakeModule<TModule, TFake>()` para implementaciones fake
@@ -4395,6 +4596,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 - Fuentes: [ArchUnitNET](https://github.com/TNG/ArchUnitNET), [Shouldly](https://github.com/shouldly/shouldly)
 
 **#363 - Anti-Corruption Layer (ACL) Support**:
+
 - `IAntiCorruptionLayer<TExternal, TInternal>` con `TranslateToInternal`/`TranslateToExternal`
 - `IAsyncAntiCorruptionLayer<,>` para traducciones complejas con async
 - `[ModuleAdapter(From, To)]` attribute para marcar adapters entre módulos
@@ -4408,6 +4610,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 ##### Tier 3: Baja-Media Prioridad (Advanced Features)
 
 **#364 - Module Health & Readiness Checks**:
+
 - `IModuleHealthCheck` con `CheckHealthAsync()` per-module
 - `IModuleReadinessCheck` para readiness probes
 - `ModuleHealthStatus` con Status, Description, Duration, Data
@@ -4419,6 +4622,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 - Labels: `area-health-checks`, `area-cloud-native`, `cloud-aws`, `cloud-azure`
 
 **#365 - Vertical Slice Architecture Support**:
+
 - `[VerticalSlice("Orders/PlaceOrder")]` attribute para organizar slices
 - `[SlicePipeline(...)]` para behaviors slice-scoped
 - Feature folder convention: `Features/{Domain}/{Slice}/`
@@ -4430,6 +4634,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 - Fuentes: [Jimmy Bogard - VSA](https://jimmybogard.com/vertical-slice-architecture/)
 
 **#366 - Module Versioning**:
+
 - `[ModuleVersion("2.0")]` attribute para módulos
 - `[ModuleApiVersion("1.0")]`, `[ModuleApiVersion("2.0")]` para APIs versionadas
 - `[Deprecated("message", RemovalVersion = "3.0")]` con warnings
@@ -4509,6 +4714,7 @@ Basado en investigación exhaustiva de tendencias en el ecosistema de microservi
 ##### Tier 1: Crítica Prioridad (Foundational)
 
 **#382 - Service Discovery & Configuration Management**:
+
 - `IServiceDiscovery` con `ResolveAsync`, `RegisterAsync`, `DeregisterAsync`, `WatchAsync`
 - `IConfigurationProvider` para configuración externalizada
 - Múltiples backends: Consul, Kubernetes DNS, .NET Aspire
@@ -4518,6 +4724,7 @@ Basado en investigación exhaustiva de tendencias en el ecosistema de microservi
 - Referencias: [Microsoft Service Discovery](https://learn.microsoft.com/en-us/dotnet/core/extensions/service-discovery), [Consul patterns](https://developer.hashicorp.com/consul/tutorials/archive/kubernetes-consul-design-patterns)
 
 **#383 - API Gateway / Backends for Frontends (BFF)**:
+
 - `IBffRequestAdapter` para proxying con Encina pipeline
 - `IResponseAggregator<T>` para combinar respuestas de múltiples servicios
 - `[BffRoute]`, `[AggregateFrom]` atributos declarativos
@@ -4528,6 +4735,7 @@ Basado en investigación exhaustiva de tendencias en el ecosistema de microservi
 - Referencias: [BFF Pattern](https://softwarepatternslexicon.com/c-sharp/microservices-design-patterns/backends-for-frontends-bff-pattern/), [YARP + Minimal APIs](https://medium.com/@amhemanth/implementing-the-backends-for-frontends-bff-pattern-with-microsofts-yarp-and-net-minimal-apis-41c391974f43)
 
 **#384 - Domain Events vs Integration Events Separation**:
+
 - `IDomainEvent` para eventos in-process dentro del bounded context
 - `IIntegrationEvent` para eventos cross-service con `EventId`, `SourceService`, `Version`
 - `IIntegrationEventMapper<TDomain, TIntegration>` para traducción automática
@@ -4540,6 +4748,7 @@ Basado en investigación exhaustiva de tendencias en el ecosistema de microservi
 ##### Tier 2: Alta Prioridad (Enterprise Features)
 
 **#385 - Multi-Tenancy Support**:
+
 - `ITenantContext` con `CurrentTenant`, `IsolationLevel`
 - `TenantIsolationLevel` enum: SharedSchema, SeparateSchema, SeparateDatabase
 - `ITenantResolver` con implementations: Header, Claims, Subdomain, Route
@@ -4552,6 +4761,7 @@ Basado en investigación exhaustiva de tendencias en el ecosistema de microservi
 - Referencias: [Multi-Tenant Architecture 2025](https://www.aalpha.net/blog/multi-tenant-architecture-in-microservices/), [Isolation Lessons](https://medium.com/@systemdesignwithsage/isolation-in-multi-tenancy-and-the-lessons-we-learned-the-hard-way-3335801aa754)
 
 **#386 - Anti-Corruption Layer (ACL) Pattern**:
+
 - `IAntiCorruptionLayer<TExternal, TDomain>` con `Translate` y `TranslateBack`
 - `IExternalToDomainTranslator<,>` para traducciones unidireccionales
 - `[AntiCorruptionLayer]` atributo para HTTP clients (Refit integration)
@@ -4562,6 +4772,7 @@ Basado en investigación exhaustiva de tendencias en el ecosistema de microservi
 - Referencias: [Microsoft ACL Pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/anti-corruption-layer)
 
 **#387 - Dapr Integration**:
+
 - State Store como backend para Outbox, Inbox, Saga stores
 - Pub/Sub como transport de mensajería
 - Service Invocation para inter-service communication
@@ -4575,6 +4786,7 @@ Basado en investigación exhaustiva de tendencias en el ecosistema de microservi
 ##### Tier 3: Media Prioridad (Advanced Patterns)
 
 **#388 - Virtual Actors (Orleans Integration)**:
+
 - `IEncinaActor` y `IEncinaActor<TState>` abstracciones
 - `EncinaGrain<TState>` base class para Orleans integration
 - Full Encina pipeline support dentro de actors
@@ -4585,6 +4797,7 @@ Basado en investigación exhaustiva de tendencias en el ecosistema de microservi
 - Referencias: [Orleans Overview](https://learn.microsoft.com/en-us/dotnet/orleans/overview), [Orleans Virtual Actors](https://visualstudiomagazine.com/articles/2025/12/16/busy-net-developers-guide-to-orleans.aspx)
 
 **#389 - API Versioning Pipeline Behavior**:
+
 - `[ApiVersion]` atributo para requests con soporte de deprecation
 - `IApiVersionContext` con `CurrentVersion`, `IsDeprecated`
 - `IApiVersionResolver` con implementations: Header, QueryString, URL, MediaType
@@ -4596,6 +4809,7 @@ Basado en investigación exhaustiva de tendencias en el ecosistema de microservi
 - Referencias: [ASP.NET Core API Versioning](https://learn.microsoft.com/en-us/aspnet/core/web-api/versioning)
 
 **#390 - Enhanced Message Deduplication**:
+
 - `IDeduplicationKeyGenerator<T>` para keys basados en contenido
 - `SlidingWindowDeduplicationOptions` con Window, Strategy, Cleanup
 - `DeduplicationStrategy` enum: RejectSilently, ReturnCachedResult, ReturnError, LogAndIgnore
@@ -4607,6 +4821,7 @@ Basado en investigación exhaustiva de tendencias en el ecosistema de microservi
 - Referencias: [Idempotent Consumer Pattern](https://microservices.io/patterns/communication-style/idempotent-consumer.html), [Idempotency 2025](https://medium.com/@chinmayshringi4/why-idempotency-is-critical-for-reliable-modern-systems-in-2025-ea591a466aa0)
 
 **#391 - Sidecar/Ambassador Pattern Support**:
+
 - `ISidecarProxy` para ejecutar Encina como proxy sidecar
 - `IAmbassadorProxy` para offloading de client connectivity
 - `EncinaSidecarHost` BackgroundService standalone
@@ -4618,6 +4833,7 @@ Basado en investigación exhaustiva de tendencias en el ecosistema de microservi
 - Referencias: [Sidecar Pattern for .NET](https://developersvoice.com/blog/cloud-design-patterns/sidecar-pattern/), [Sidecar in Microservices](https://softwarepatternslexicon.com/patterns-c-sharp/8/9/)
 
 **#392 - Event Collaboration / Process Manager Pattern**:
+
 - `IProcessManager<TState>` con `HandleEventAsync`, `GetStateAsync`, `GetAuditTrailAsync`
 - `ProcessManagerBase<TState>` base class
 - `IProcessManagerRouter` para event correlation con `[CorrelateBy]` attribute
@@ -4632,6 +4848,7 @@ Basado en investigación exhaustiva de tendencias en el ecosistema de microservi
 ##### Tier 4: Baja Prioridad (Nice-to-Have)
 
 **#393 - Eventual Consistency Helpers**:
+
 - `IEventualConsistencyMonitor` con `CheckAsync`, `WaitForConsistencyAsync`, `GetLagAsync`
 - `IConflictResolver<TState>` con strategies: LastWriteWins, Merge, ManualResolution
 - `[EventuallyConsistent]` atributo con `MaxLagMs`, `WaitForConsistency`
@@ -4725,6 +4942,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 ##### Tier 1: Crítica Prioridad (Foundational Security)
 
 **#394 - Encina.Security - Core Security Abstractions**:
+
 - `ISecurityContext` con `CurrentPrincipal`, `Permissions`, `Roles`, `Claims`
 - `IPermissionEvaluator<TResource>` para evaluación dinámica de permisos
 - `SecurityPipelineBehavior<TRequest, TResponse>` con evaluación declarativa
@@ -4736,6 +4954,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - Referencias: [Spring Security](https://spring.io/projects/spring-security), [NestJS Guards](https://docs.nestjs.com/guards), [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
 
 **#395 - Encina.Security.Audit - Audit Trail Logging**:
+
 - `IAuditLogger` con `LogAsync(AuditEvent)`, `QueryAsync(AuditQuery)`
 - `AuditEvent` con Who, What, When, Where, Why, Resource, OldValue, NewValue
 - `AuditPipelineBehavior` para captura automática de todas las operaciones
@@ -4750,6 +4969,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 ##### Tier 2: Alta Prioridad (Data Protection)
 
 **#396 - Encina.Security.Encryption - Field-Level Encryption**:
+
 - `IFieldEncryptor` con `EncryptAsync`, `DecryptAsync`, `RotateKeyAsync`
 - `[Encrypt]` atributo para propiedades sensibles con algoritmo configurable
 - `EncryptionPipelineBehavior` para encrypt/decrypt automático en pipeline
@@ -4762,6 +4982,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - Referencias: [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/), [AWS KMS](https://aws.amazon.com/kms/), [OWASP Cryptographic Storage](https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html)
 
 **#397 - Encina.Security.PII - PII Masking and Protection**:
+
 - `IPIIMasker` con `Mask`, `Unmask`, `DetectPII`
 - `[PII]` atributo con tipos: Email, Phone, SSN, CreditCard, Address, Name, Custom
 - `PIIMaskingPipelineBehavior` para masking automático en respuestas
@@ -4774,6 +4995,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - Referencias: [Microsoft Presidio](https://github.com/microsoft/presidio), [GDPR Article 4](https://gdpr-info.eu/art-4-gdpr/)
 
 **#398 - Encina.Security.AntiTampering - Request Signing**:
+
 - `IRequestSigner` con `Sign`, `Verify`, métodos async
 - `[SignedRequest]` atributo para handlers que requieren verificación
 - `SignatureVerificationPipelineBehavior` para validación automática
@@ -4786,6 +5008,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - Referencias: [AWS Signature Version 4](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_aws-signing.html), [Stripe Webhook Signatures](https://stripe.com/docs/webhooks/signatures)
 
 **#399 - Encina.Security.Sanitization - Input/Output Sanitization**:
+
 - `ISanitizer<T>` con `Sanitize`, `Validate`, `SanitizeAndValidate`
 - `[Sanitize]` atributo con tipos: Html, Sql, Command, Path, Url
 - `SanitizationPipelineBehavior` para limpieza automática de inputs
@@ -4800,6 +5023,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 ##### Tier 3: Media Prioridad (Advanced Security)
 
 **#400 - Encina.Security.Secrets - Secrets Management**:
+
 - `ISecretProvider` con `GetSecretAsync`, `SetSecretAsync`, `RotateAsync`
 - `SecretProviderChain` para fallback entre múltiples providers
 - Integración: Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager
@@ -4812,6 +5036,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - Referencias: [12-Factor App Config](https://12factor.net/config), [HashiCorp Vault](https://www.vaultproject.io/)
 
 **#401 - Encina.Security.ABAC - Attribute-Based Access Control**:
+
 - `IAbacEngine` con `EvaluateAsync(subject, resource, action, environment)`
 - `Policy` DSL para definir políticas de acceso
 - `AbacPipelineBehavior` para evaluación automática
@@ -4902,6 +5127,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 ##### Tier 1: Crítica Prioridad (GDPR Foundation)
 
 **#402 - Encina.Compliance.GDPR - Core GDPR Abstractions**:
+
 - `IDataController`, `IDataProcessor` interfaces para roles GDPR
 - `IGDPRContext` con `ProcessingActivities`, `LegalBases`, `RetentionPolicies`
 - `RoPARegistry` (Record of Processing Activities) automático - Art. 30
@@ -4914,6 +5140,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Referencias: [GDPR Article 30](https://gdpr-info.eu/art-30-gdpr/), [ICO Records of Processing](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/documentation/records-of-processing-activities/)
 
 **#403 - Encina.Compliance.Consent - Consent Management**:
+
 - `IConsentManager` con `RequestAsync`, `GrantAsync`, `WithdrawAsync`, `CheckAsync`
 - `Consent` con Purpose, Version, Timestamp, Source, WithdrawalTimestamp
 - `ConsentPipelineBehavior` para verificación antes de procesamiento
@@ -4927,6 +5154,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Referencias: [GDPR Article 7](https://gdpr-info.eu/art-7-gdpr/), [Cookiebot Consent](https://www.cookiebot.com/en/gdpr-consent/)
 
 **#404 - Encina.Compliance.DataSubjectRights - GDPR Rights (Arts. 15-22)**:
+
 - `IDataSubjectRightsService` con todos los rights handlers
 - **Right of Access (Art. 15)**: `GetDataAsync(subjectId)` - exportar todos los datos
 - **Right to Rectification (Art. 16)**: `RectifyAsync(subjectId, corrections)`
@@ -4941,6 +5169,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Referencias: [GDPR Chapter III Rights](https://gdpr-info.eu/chapter-3/), [OneTrust Subject Requests](https://www.onetrust.com/products/subject-rights-requests/)
 
 **#405 - Encina.Compliance.DataResidency - Data Sovereignty**:
+
 - `IDataResidencyEnforcer` con `EnforceAsync`, `ValidateAsync`, `RouteAsync`
 - `DataResidencyPolicy` con AllowedRegions, RestrictedRegions, DefaultRegion
 - `DataResidencyPipelineBehavior` para routing automático por región
@@ -4956,6 +5185,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 ##### Tier 2: Alta Prioridad (Data Lifecycle)
 
 **#406 - Encina.Compliance.Retention - Data Retention**:
+
 - `IRetentionPolicyEngine` con `ApplyAsync`, `ScheduleDeletionAsync`, `AuditAsync`
 - `RetentionPolicy` con Duration, LegalBasis, DataCategories, ExceptionRules
 - `RetentionPipelineBehavior` para marcar datos con fecha de expiración
@@ -4968,6 +5198,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Referencias: [GDPR Article 5](https://gdpr-info.eu/art-5-gdpr/), [NIST Data Retention](https://csrc.nist.gov/glossary/term/data_retention)
 
 **#407 - Encina.Compliance.Anonymization - Pseudonymization & Anonymization**:
+
 - `IAnonymizer` con `Anonymize`, `Pseudonymize`, `Depseudonymize`
 - `AnonymizationStrategy`: KAnonymity, LDiversity, TCloseness, DifferentialPrivacy
 - `PseudonymizationProvider` con key management
@@ -4980,6 +5211,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Referencias: [WP29 Anonymization Techniques](https://ec.europa.eu/justice/article-29/documentation/opinion-recommendation/files/2014/wp216_en.pdf), [ENISA Pseudonymization](https://www.enisa.europa.eu/publications/pseudonymisation-techniques-and-best-practices)
 
 **#408 - Encina.Compliance.BreachNotification - 72-Hour Notification**:
+
 - `IBreachNotificationService` con `DetectAsync`, `AssessAsync`, `NotifyAsync`
 - `DataBreach` con Severity, AffectedSubjects, DataCategories, Timestamp
 - Automatic DPA notification workflow (72 hours - Art. 33)
@@ -4994,6 +5226,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 ##### Tier 3: Media Prioridad (Advanced Compliance)
 
 **#409 - Encina.Compliance.DPIA - Impact Assessment Automation**:
+
 - `IDPIAService` con `AssessAsync`, `GenerateReportAsync`, `ReviewAsync`
 - `DPIA` con ProcessingDescription, NecessityAssessment, RiskAssessment, Measures
 - Automatic DPIA triggering for high-risk processing (Art. 35)
@@ -5006,6 +5239,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Referencias: [GDPR Article 35](https://gdpr-info.eu/art-35-gdpr/), [ICO DPIA Guidance](https://ico.org.uk/for-organisations/guide-to-data-protection/guide-to-the-general-data-protection-regulation-gdpr/data-protection-impact-assessments-dpias/)
 
 **#410 - Encina.Compliance.ProcessorAgreements - DPA Management**:
+
 - `IProcessorAgreementService` con `CreateAsync`, `ReviewAsync`, `TerminateAsync`
 - `DataProcessingAgreement` con Terms, SubProcessors, SecurityMeasures
 - Art. 28 compliance checklist automation
@@ -5017,6 +5251,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Referencias: [GDPR Article 28](https://gdpr-info.eu/art-28-gdpr/), [Standard Processor Clauses](https://commission.europa.eu/publications/standard-contractual-clauses-controllers-and-processors-eueea_en)
 
 **#411 - Encina.Compliance.PrivacyByDesign - Art. 25 Enforcement**:
+
 - `IPrivacyByDesignValidator` con `ValidateAsync`, `RecommendAsync`
 - Roslyn analyzer para detectar violaciones de privacy
 - `[PrivacyReview]` atributo para marcar código que necesita revisión
@@ -5029,6 +5264,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Referencias: [GDPR Article 25](https://gdpr-info.eu/art-25-gdpr/), [7 Foundational Principles](https://www.ipc.on.ca/wp-content/uploads/resources/7foundationalprinciples.pdf)
 
 **#412 - Encina.Compliance.CrossBorderTransfer - International Transfers**:
+
 - `ICrossBorderTransferValidator` con `ValidateAsync`, `GetMechanismAsync`
 - Transfer mechanisms: Adequacy, SCCs, BCRs, Derogations
 - Country adequacy database (EU Commission decisions)
@@ -5040,6 +5276,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Referencias: [GDPR Chapter V](https://gdpr-info.eu/chapter-5/), [EDPB Transfer Recommendations](https://edpb.europa.eu/our-work-tools/our-documents/recommendations/recommendations-012020-measures-supplement-transfer_en)
 
 **#413 - Encina.Compliance.LawfulBasis - Art. 6 Tracking**:
+
 - `ILawfulBasisService` con `DetermineAsync`, `ValidateAsync`, `TrackAsync`
 - `LawfulBasis` enum: Consent, Contract, LegalObligation, VitalInterests, PublicTask, LegitimateInterests
 - `LawfulBasisPipelineBehavior` para validar base legal antes de procesamiento
@@ -5053,6 +5290,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 ##### Tier 4: Extensiones (Additional EU Regulations)
 
 **#414 - Encina.Compliance.NIS2 - NIS2 Directive Compliance**:
+
 - `INIS2ComplianceService` con `AssessAsync`, `ReportAsync`, `RemediateAsync`
 - Incident reporting workflow (24h/72h requirements)
 - Supply chain security assessment
@@ -5065,6 +5303,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Referencias: [NIS2 Directive](https://eur-lex.europa.eu/eli/dir/2022/2555/oj), [ENISA NIS2 Guidance](https://www.enisa.europa.eu/topics/nis-directive)
 
 **#415 - Encina.Compliance.AIAct - EU AI Act Compliance**:
+
 - `IAIActComplianceService` con `ClassifyRiskAsync`, `AssessAsync`, `DocumentAsync`
 - AI system risk classification (Unacceptable, High, Limited, Minimal)
 - Training data governance validation
@@ -5154,6 +5393,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 .NET Aspire (rebautizado a "Aspire" en 2025) se ha convertido en el estándar para desarrollo cloud-native en .NET. Aspire 13.0+ introdujo soporte polyglot completo (Python, JavaScript, .NET) y el 13.1 añadió soporte para MCP (Model Context Protocol) y AI agents.
 
 La integración con Aspire es **crítica** para Encina porque:
+
 - Aspire centraliza cross-cutting concerns (OpenTelemetry, health checks, resilience)
 - El testing es "the largest gap" según el roadmap oficial - oportunidad para Encina
 - Dapr + Aspire es la combinación más demandada para microservicios
@@ -5177,6 +5417,7 @@ La integración con Aspire es **crítica** para Encina porque:
 #### Detalle de Paquetes Planificados
 
 **#416 - Encina.Aspire.Hosting** (Media Prioridad):
+
 - Extension methods para `IDistributedApplicationBuilder`
 - `WithEncina()` para configurar Outbox, Inbox, Sagas automáticamente
 - Custom resource type `EncinaResource` para Dashboard
@@ -5195,6 +5436,7 @@ var apiService = builder.AddProject<Projects.ApiService>("apiservice")
 ```
 
 **#417 - Encina.Aspire.ServiceDefaults** (Alta Prioridad):
+
 - `AddEncinaDefaults()` extension para `IHostApplicationBuilder`
 - OpenTelemetry integration con Encina activities y meters
 - Health checks para todos los messaging patterns
@@ -5219,6 +5461,7 @@ public static IHostApplicationBuilder AddEncinaDefaults(this IHostApplicationBui
 ```
 
 **#418 - Encina.Aspire.Testing** (Alta Prioridad):
+
 - `WithEncinaTestSupport()` extension para `DistributedApplicationTestingBuilder`
 - Assertion extensions: `AssertOutboxContains<T>()`, `AssertSagaCompleted<T>()`
 - Test data reset helpers (clear outbox, inbox, sagas)
@@ -5239,6 +5482,7 @@ public async Task CreateOrder_ShouldTriggerSaga_AndPublishEvents()
 ```
 
 **#419 - Encina.Aspire.Dashboard** (Media Prioridad):
+
 - Custom commands en Dashboard via `WithCommand()` API
 - Métricas visibles: `encina_outbox_pending_total`, `encina_saga_running_total`, etc.
 - Commands: `process-outbox`, `retry-dead-letters`, `cancel-saga`, `compensate-saga`
@@ -5246,6 +5490,7 @@ public async Task CreateOrder_ShouldTriggerSaga_AndPublishEvents()
 - Labels: `aspire-integration`, `area-aspire`, `area-observability`
 
 **#420 - Encina.Dapr** (Media Prioridad):
+
 - Dapr State Store como backend para Saga, Scheduling
 - Dapr Pub/Sub para Outbox publishing
 - Dapr Service Invocation para inter-service commands
@@ -5262,6 +5507,7 @@ builder.Services.AddEncina(encina => { encina.UseOutbox = true; })
 ```
 
 **#421 - Encina.Aspire.Deployment** (Baja Prioridad):
+
 - Azure Container Apps publisher con Encina infrastructure
 - Kubernetes manifests generation para processors
 - Docker Compose environment support
@@ -5269,6 +5515,7 @@ builder.Services.AddEncina(encina => { encina.UseOutbox = true; })
 - Labels: `aspire-integration`, `area-aspire`, `kubernetes-native`, `area-ci-cd`
 
 **#422 - Encina.Aspire.AI** (Baja Prioridad):
+
 - MCP Server para exponer estado de Encina a AI agents
 - Tools: `analyze_saga_failure`, `retry_dead_letter`, `get_recommendations`
 - Azure AI Foundry integration
@@ -5276,6 +5523,7 @@ builder.Services.AddEncina(encina => { encina.UseOutbox = true; })
 - Labels: `aspire-integration`, `area-aspire`, `area-ai-ml`, `area-mcp`
 
 **#423 - Modular Monolith Support** (Media Prioridad):
+
 - `IEncinaModule` interface con lifecycle hooks
 - `WithEncinaModules()` para AppHost
 - Inter-module communication via Encina messaging
@@ -5284,6 +5532,7 @@ builder.Services.AddEncina(encina => { encina.UseOutbox = true; })
 - Labels: `aspire-integration`, `area-modular-monolith`, `area-vertical-slice`, `area-module-system`
 
 **#424 - Multi-Repo Support** (Media Prioridad):
+
 - `AddEncinaExternalService()` para servicios en otros repos
 - Service discovery: Kubernetes, Consul, DNS
 - Shared message broker configuration
@@ -5291,6 +5540,7 @@ builder.Services.AddEncina(encina => { encina.UseOutbox = true; })
 - Labels: `aspire-integration`, `area-service-discovery`, `area-microservices`
 
 **#425 - Hot Reload Support** (Media Prioridad):
+
 - Hot reload de handlers durante desarrollo
 - Integración con `MetadataUpdateHandler`
 - State preservation (outbox, inbox, sagas)
@@ -5358,6 +5608,7 @@ builder.Services.AddEncina(encina => { encina.UseOutbox = true; })
 #### Contexto
 
 Developer Experience (DX) es un diferenciador clave en la adopción de frameworks. La investigación de diciembre 2025 reveló que la comunidad .NET demanda:
+
 - **Tooling compilación**: Roslyn analyzers para errores en compile-time
 - **Visualización**: Diagramas de sagas y pipelines
 - **Debugging local**: Dashboards para desarrollo
@@ -5383,6 +5634,7 @@ Developer Experience (DX) es un diferenciador clave en la adopción de framework
 #### Detalle de Paquetes Planificados
 
 **#438 - Encina.Analyzers** (Alta Prioridad):
+
 - Roslyn analyzers para detectar errores en compile-time
 - 10+ analyzers: `ENC001` (CancellationToken), `ENC002` (Validator missing), `ENC003` (Saga sin compensación)...
 - Code fixes automáticos: generar handler skeleton, añadir CancellationToken
@@ -5400,6 +5652,7 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, OrderResul
 ```
 
 **#439 - Saga Visualizer** (Media Prioridad):
+
 - Generación de diagramas desde definiciones de saga
 - Formatos: Mermaid, Graphviz (DOT), PlantUML
 - Runtime visualization con estado actual highlighted
@@ -5413,6 +5666,7 @@ Console.WriteLine(diagram.ToMermaid());
 ```
 
 **#440 - Encina.Aspire** (Alta Prioridad):
+
 - Integración completa con .NET Aspire
 - `EncinaResource` como recurso Aspire
 - Dashboard panel para Outbox, Inbox, Sagas
@@ -5432,6 +5686,7 @@ var api = builder.AddProject<Projects.MyApi>("api")
 ```
 
 **#441 - Encina.Diagnostics** (Media Prioridad):
+
 - Pretty-print para `EncinaError` con box-drawing characters
 - Stack traces demystificados (como Ben.Demystifier)
 - Validation errors agrupados por propiedad
@@ -5452,6 +5707,7 @@ var api = builder.AddProject<Projects.MyApi>("api")
 ```
 
 **#442 - Hot Reload Support** (Media Prioridad):
+
 - Soporte para `dotnet watch` con handlers
 - Integración con `MetadataUpdateHandler.ClearCache`
 - Invalidación automática de pipeline cache
@@ -5467,6 +5723,7 @@ services.AddEncina(config => {
 ```
 
 **#443 - AI-Ready Request Tracing** (Media Prioridad):
+
 - Serialización automática de request/response en traces
 - Redacción de PII configurable (por atributo, convención, patrón)
 - Export format compatible con AI debugging tools
@@ -5479,6 +5736,7 @@ public class CreateOrderCommand : ICommand<OrderResult> { }
 ```
 
 **~~#444 - Enhanced Testing Fixtures~~** ✅ COMPLETADO (6/6 Phases):
+
 - **Phase 1 - EncinaTestFixture** ✅ COMPLETADO
   - `WithMockedOutbox()`, `WithMockedInbox()`, `WithMockedSaga()` ✅
   - `WithMockedScheduling()`, `WithMockedDeadLetter()`, `WithAllMockedStores()` ✅
@@ -5527,6 +5785,7 @@ new EncinaArchitectureRulesBuilder(typeof(OrderHandler).Assembly)
 ```
 
 **#445 - Developer Dashboard** (Alta Prioridad):
+
 - Web UI local para debugging (tipo Hangfire Dashboard)
 - Paneles: Handlers, Pipeline, Outbox, Inbox, Sagas, Cache, Errors
 - Real-time updates via SignalR
@@ -5540,6 +5799,7 @@ app.MapEncinaDashboard("/encina");
 ```
 
 **#446 - OpenAPI Integration** (Media Prioridad):
+
 - `Encina.OpenApi` para auto-generación de OpenAPI spec
 - Commands → POST endpoints, Queries → GET endpoints
 - Schema generation desde tipos C#
@@ -5553,6 +5813,7 @@ app.MapEncinaEndpoints(); // Auto-genera /api/orders, etc.
 ```
 
 **#447 - Dev Containers Support** (Baja Prioridad):
+
 - `.devcontainer/` para desarrollo en contenedores
 - GitHub Codespaces configuration
 - Docker Compose con Postgres, Redis, RabbitMQ
@@ -5560,6 +5821,7 @@ app.MapEncinaEndpoints(); // Auto-genera /api/orders, etc.
 - Labels: `area-devcontainers`, `area-docker`, `area-developer-experience`, `area-ci-cd`, `area-cli`, `kubernetes-native`
 
 **#448 - Interactive Documentation** (Baja Prioridad):
+
 - Sitio de documentación (Docusaurus o DocFX)
 - Playground con código ejecutable
 - API reference auto-generado desde XML docs
@@ -5632,6 +5894,7 @@ app.MapEncinaEndpoints(); // Auto-genera /api/orders, etc.
 #### Contexto
 
 Cloud-Native patterns son esenciales para aplicaciones modernas desplegadas en Kubernetes, servicios cloud, y arquitecturas distribuidas. La investigación de diciembre 2025 identificó que la comunidad .NET demanda:
+
 - **Integración con .NET Aspire**: El stack oficial de Microsoft para desarrollo cloud-native
 - **Dapr Building Blocks**: Abstracción cloud-agnostic para state, pub/sub, secrets
 - **Kubernetes-native**: Health probes, graceful shutdown, service discovery
@@ -5657,6 +5920,7 @@ Cloud-Native patterns son esenciales para aplicaciones modernas desplegadas en K
 #### Detalle de Paquetes Planificados
 
 **#449 - Encina.Aspire** (Alta Prioridad):
+
 - `AddEncinaAspireDefaults()` extension method
 - Service Discovery integration para handlers distribuidos
 - OpenTelemetry pre-configurado para pipeline Encina
@@ -5675,6 +5939,7 @@ var result = await encina.SendToService<CreateOrder, Order>(
 ```
 
 **#450 - Encina.Dapr** (Alta Prioridad):
+
 - `DaprSagaStore`, `DaprOutboxStore`, `DaprInboxStore` via Dapr State API
 - `DaprOutboxPublisher` via Dapr Pub/Sub (cualquier broker)
 - `DaprDistributedLockProvider` via Dapr Lock API
@@ -5694,6 +5959,7 @@ services.AddEncinaDapr(config =>
 ```
 
 **#451 - Encina.FeatureFlags** (Media Prioridad):
+
 - `IFeatureFlagProvider` abstraction
 - `[Feature("key")]` attribute para inyección en handlers
 - `FeatureFlagInjectionBehavior` pipeline behavior
@@ -5716,6 +5982,7 @@ public class CreateOrderHandler : ICommandHandler<CreateOrder, Order>
 ```
 
 **#452 - Encina.Secrets** (Media Prioridad):
+
 - `ISecretsProvider` abstraction
 - `[Secret("key")]` attribute para DI injection
 - In-memory caching con TTL
@@ -5733,6 +6000,7 @@ public class PaymentHandler : ICommandHandler<ProcessPayment, Receipt>
 ```
 
 **#453 - Encina.ServiceDiscovery** (Media Prioridad):
+
 - `IServiceDiscoveryProvider` abstraction
 - Load balancing strategies: RoundRobin, Random, LeastConnections
 - `IEncina.SendToService<>()` extension methods
@@ -5742,6 +6010,7 @@ public class PaymentHandler : ICommandHandler<ProcessPayment, Receipt>
 - Labels: `area-service-discovery`, `consul-integration`, `kubernetes-native`, `area-microservices`, `aspire-integration`, `foundational`
 
 **#454 - Encina.HealthChecks** (Media Prioridad):
+
 - `OutboxHealthCheck` - pending messages, age threshold
 - `InboxHealthCheck` - backlog size, failed count
 - `SagaHealthCheck` - stuck sagas, failure ratio
@@ -5751,6 +6020,7 @@ public class PaymentHandler : ICommandHandler<ProcessPayment, Receipt>
 - Labels: `area-health-checks`, `kubernetes-native`, `foundational`, `area-observability`, `area-messaging`, `area-saga`, `area-aspnetcore`
 
 **#455 - Encina.GracefulShutdown** (Media Prioridad):
+
 - `IInFlightRequestTracker` para tracking requests activos
 - `InFlightTrackingBehavior` pipeline behavior
 - Pre-stop delay para LB drain
@@ -5760,6 +6030,7 @@ public class PaymentHandler : ICommandHandler<ProcessPayment, Receipt>
 - Labels: `kubernetes-native`, `area-messaging`, `area-scheduling`, `pattern-sidecar`, `area-pipeline`, `foundational`
 
 **#456 - Encina.MultiTenancy** (Media Prioridad):
+
 - Tenant resolution: Header, Subdomain, Route, Claim, Custom
 - Data isolation: Row, Schema, Database strategies
 - `TenantAwareOutboxStore`, `TenantAwareSagaStore`, `TenantAwareInboxStore`
@@ -5769,6 +6040,7 @@ public class PaymentHandler : ICommandHandler<ProcessPayment, Receipt>
 - Labels: `saas-essential`, `saas-enabler`, `area-gdpr`, `area-data-isolation`, `foundational`, `area-caching`, `area-messaging`, `area-saga`, `area-multi-tenancy`, `area-multitenancy`
 
 **#457 - Encina.CDC** (Baja Prioridad):
+
 - `ICdcProvider` abstraction para streaming de cambios
 - CDC Orchestrator hosted service
 - Position tracking para resume after restart
@@ -5777,6 +6049,7 @@ public class PaymentHandler : ICommandHandler<ProcessPayment, Receipt>
 - Labels: `area-cdc`, `area-event-streaming`, `industry-best-practice`, `area-database`, `area-messaging`, `area-messaging-patterns`, `area-scalability`
 
 **#458 - Encina.ApiVersioning** (Baja Prioridad):
+
 - `[ApiVersion("1.0")]` attribute para handlers
 - Version resolution: Header, Query, Path, MediaType
 - Version-aware handler lookup
@@ -5785,6 +6058,7 @@ public class PaymentHandler : ICommandHandler<ProcessPayment, Receipt>
 - Labels: `area-versioning`, `pattern-versioning`, `area-openapi`, `area-aspnetcore`, `area-microservices`, `area-web-api`
 
 **#459 - Encina.Orleans** (Baja Prioridad):
+
 - `IGrainHandler<,>` interface
 - Orleans-based request dispatcher
 - Grain ID resolution desde request properties
@@ -5864,6 +6138,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 **Investigación realizada**: 29 Diciembre 2025
 
 **Fuentes consultadas**:
+
 - [Microsoft.Extensions.AI](https://learn.microsoft.com/en-us/dotnet/ai/microsoft-extensions-ai) - Abstracciones GA para LLMs
 - [Semantic Kernel Agent Orchestration](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/agent-orchestration/) - Multi-agent patterns
 - [Model Context Protocol (MCP)](https://devblogs.microsoft.com/dotnet/build-a-model-context-protocol-mcp-server-in-csharp/) - SDK oficial C#
@@ -5891,6 +6166,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 #### Detalle de Cada Patrón
 
 **#481 - MCP (Model Context Protocol) Support** (Alta Prioridad):
+
 - Nuevo paquete: `Encina.MCP`
 - `MCPServerBuilder` para crear MCP servers en C#
 - `MCPClientBehavior` para consumir herramientas MCP externas
@@ -5902,6 +6178,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Labels: `new-package`, `area-ai-ml`, `area-mcp`, `area-interop`
 
 **#482 - Semantic Caching Pipeline Behavior** (Alta Prioridad):
+
 - `SemanticCachingPipelineBehavior<TRequest, TResponse>`
 - `ISemanticCacheProvider` abstraction
 - Cache basado en similitud de embeddings (no exact match)
@@ -5913,6 +6190,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Labels: `area-ai-ml`, `area-caching`, `area-pipeline`, `pattern-cache-aside`
 
 **#483 - AI Guardrails & Safety Pipeline** (Alta Prioridad):
+
 - Nuevo paquete: `Encina.AI.Safety`
 - `PromptInjectionDetectionBehavior` - OWASP #1 threat for LLMs
 - `PIIDetectionBehavior` - Detección y redacción de datos sensibles
@@ -5925,6 +6203,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Labels: `new-package`, `area-ai-ml`, `area-security`, `owasp-pattern`
 
 **#484 - RAG Pipeline Patterns** (Alta Prioridad):
+
 - Nuevo paquete: `Encina.AI.RAG`
 - `IRagPipeline<TQuery, TResponse>` abstraction
 - `QueryRewritingBehavior` - Multi-query, HyDE
@@ -5937,6 +6216,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Labels: `new-package`, `area-ai-ml`, `area-pipeline`, `area-eip`
 
 **#485 - Token Budget & Cost Management** (Media Prioridad):
+
 - `TokenBudgetPipelineBehavior<TRequest, TResponse>`
 - `ITokenBudgetStore` con Redis/SQL providers
 - `ITokenCounter` usando Microsoft.ML.Tokenizers
@@ -5949,6 +6229,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Labels: `area-ai-ml`, `area-pipeline`, `area-rate-limiting`, `saas-essential`
 
 **#486 - LLM Observability Integration** (Alta Prioridad):
+
 - Enhancement a `Encina.OpenTelemetry`
 - `LLMActivityEnricher` con semantic conventions GenAI
 - `ILLMMetrics` con System.Diagnostics.Metrics
@@ -5961,6 +6242,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Labels: `area-ai-ml`, `area-observability`, `area-pipeline`
 
 **#487 - Multi-Agent Orchestration Patterns** (Media Prioridad):
+
 - Nuevo paquete: `Encina.Agents`
 - `IAgent` y `IAgentHandler<TRequest, TResponse>` interfaces
 - Orchestration patterns:
@@ -5977,6 +6259,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Labels: `new-package`, `area-ai-ml`, `area-workflow`, `area-mcp`
 
 **#488 - Structured Output Handler** (Media Prioridad):
+
 - `IStructuredOutputHandler<TRequest, TOutput>` interface
 - `IJsonSchemaGenerator` con System.Text.Json support
 - `StructuredOutputPipelineBehavior` - Enforce JSON schema
@@ -5988,6 +6271,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Labels: `area-ai-ml`, `area-pipeline`, `area-validation`
 
 **#489 - Function Calling Orchestration** (Media Prioridad):
+
 - `IFunctionCallingOrchestrator` interface
 - `IFunctionRegistry` para handler registration
 - `[AIFunction]` attribute para decorar handlers
@@ -6000,6 +6284,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Labels: `area-ai-ml`, `area-pipeline`, `area-interop`
 
 **#490 - Vector Store Abstraction** (Alta Prioridad):
+
 - Nuevo paquete: `Encina.VectorData`
 - `IVectorStore` abstraction
 - `IVectorRecord` interface
@@ -6018,6 +6303,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Labels: `new-package`, `area-ai-ml`, `area-database`
 
 **#491 - Prompt Management & Versioning** (Baja Prioridad):
+
 - `IPromptRepository` interface
 - `IPromptTemplateEngine` con variable interpolation
 - Versioned prompt templates
@@ -6029,6 +6315,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Labels: `area-ai-ml`, `area-versioning`, `saas-essential`
 
 **#492 - AI Streaming Pipeline Enhancement** (Media Prioridad):
+
 - `IAIStreamRequest<TChunk>` y `TokenChunk` types
 - `IAIStreamHandler<TRequest>` interface
 - `BackpressureStreamBehavior` - Manejo de consumidores lentos
@@ -6103,8 +6390,8 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 | Milestone | Issues | Estado |
 |-----------|--------|--------|
 | v0.10.0 - DDD Foundations | 31 | ✅ **COMPLETADO** |
-| v0.11.0 - Testing Infrastructure | 25 | 🔜 Próximo |
-| v0.12.0 - Database & Repository | 22 | Pendiente |
+| v0.11.0 - Testing Infrastructure | 34 | ✅ **COMPLETADO** |
+| v0.12.0 - Database & Repository | 22 | 🔜 Próximo |
 | v0.13.0 - Security & Compliance | 25 | Pendiente |
 | v0.14.0 - Cloud-Native & Aspire | 23 | Pendiente |
 | v0.15.0 - Messaging & EIP | 71 | Pendiente |
@@ -6114,6 +6401,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 | v0.19.0 - Observability & Resilience | 87 | Pendiente |
 
 **Áreas cubiertas:**
+
 - **AI/LLM Patterns** (NEW - 29 Dic 2025): 12 nuevas issues (#481-#492) incluyendo MCP (Model Context Protocol), Semantic Caching, AI Guardrails & Safety (prompt injection, PII), RAG Pipeline, Token Budget & Cost Management, LLM Observability, Multi-Agent Orchestration, Structured Output, Function Calling, Vector Store Abstraction, Prompt Management, AI Streaming
 - **Cloud-Native Patterns** (NEW - 29 Dic 2025): 11 nuevas issues (#449-#459) incluyendo Encina.Aspire (.NET Aspire integration), Encina.Dapr (Building Blocks multi-cloud), Feature Flags, Secrets Management, Service Discovery, Kubernetes Health Checks, Graceful Shutdown, Multi-Tenancy (SaaS), CDC for Outbox, API Versioning, Orleans Integration
 - **.NET Aspire Integration Patterns** (NEW - 29 Dic 2025): 10 nuevas issues (#416-#425) incluyendo Encina.Aspire.Hosting, ServiceDefaults (OpenTelemetry, health checks), Testing integration, Dashboard extensions, Dapr building blocks, Deployment publishers (ACA, K8s), AI/MCP Server, Modular Monolith support, Multi-Repo support, Hot Reload

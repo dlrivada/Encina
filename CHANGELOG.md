@@ -1,4 +1,22 @@
-﻿## [Unreleased]
+## [Unreleased]
+
+No unreleased changes.
+
+---
+
+## [0.11.0] - 2026-01-19 - Testing Infrastructure
+
+> **Milestone**: [v0.11.0 - Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) - **COMPLETED**
+>
+> This release delivers a comprehensive testing toolkit for Encina applications, including 10 new testing packages, property-based testing support, mutation testing helpers, and CI/CD workflow templates.
+
+### Highlights
+
+- **34 issues closed** in this milestone
+- **92.3% code coverage** achieved (target: ≥85%)
+- **0 SonarCloud issues** (all addressed or excluded with justification)
+- **6,500+ tests** across all packages
+- **10 new testing packages** delivered
 
 ### Table of Contents
 
@@ -49,16 +67,20 @@
 
 ### Added
 
-#### Dogfooding Initiative (Issues #498-502)
+#### Dogfooding Initiative (Issues #498-508) - COMPLETED
 
 Epic initiative to refactor all Encina tests to use `Encina.Testing.*` infrastructure (dogfooding).
 
-**Phases Completed**:
+> **EPIC #498**: [Dogfooding Testing Infrastructure](https://github.com/dlrivada/Encina/issues/498) - **CLOSED** (2026-01-19)
+
+**All Phases Completed**:
 
 - **Phase 1** (#499): Core package tests - **CLOSED**
 - **Phase 2** (#500): DomainModeling package tests - **CLOSED**
 - **Phase 3** (#501): Messaging package tests - **CLOSED**
-- **Phase 4** (#502): Database provider tests (ADO, Dapper, EF Core) - **IN PROGRESS**
+- **Phase 4** (#502): Database provider tests (ADO, Dapper, EF Core) - **CLOSED**
+- **Phase 5** (#503): Caching provider tests - **CLOSED**
+- **Phase 6** (#504): Transport provider tests - **CLOSED**
 - **Phase 7** (#505): Web Integration tests (AspNetCore, Refit, gRPC, SignalR) - **CLOSED**
 - **Phase 8** (#506): Resilience & Observability tests (Polly, OpenTelemetry) - **CLOSED**
 - **Phase 9** (#507): Validation Provider tests (FluentValidation, DataAnnotations, MiniValidator) - **CLOSED**

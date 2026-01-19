@@ -31,10 +31,11 @@ This document outlines the vision, current status, and future direction of Encin
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| Test Count | 3,800+ | 5,000+ |
-| Line Coverage | 67% | ≥85% |
+| Test Count | 6,500+ | 5,000+ ✅ |
+| Line Coverage | 92.3% | ≥85% ✅ |
 | Mutation Score | 79.75% | ≥80% |
-| Build Warnings | 0 | 0 |
+| Build Warnings | 0 | 0 ✅ |
+| SonarCloud Issues | 0 | 0 ✅ |
 
 ---
 
@@ -53,6 +54,7 @@ This document outlines the vision, current status, and future direction of Encin
 Progress is tracked via [GitHub Milestones](https://github.com/dlrivada/Encina/milestones).
 
 ### Phase 1: Stability ✅
+
 *Ensure green CI and all tests passing*
 
 Focus: Fix failing tests, re-enable excluded test projects, verify all workflows.
@@ -62,6 +64,7 @@ Focus: Fix failing tests, re-enable excluded test projects, verify all workflows
 ---
 
 ### Phase 2: Functionality (v0.10.0 → v0.19.0)
+
 *Expand capabilities with new features*
 
 Phase 2 has been reorganized into 10 incremental milestones for better manageability:
@@ -84,9 +87,11 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 #### Milestone Details
 
 ##### v0.10.0 — DDD Foundations
+
 *Prerequisites for all other features*
 
 **Completed:**
+
 - ✅ Entity base class with identity-based equality [#369](https://github.com/dlrivada/Encina/issues/369)
 - ✅ Value Objects with structural equality [#367](https://github.com/dlrivada/Encina/issues/367)
 - ✅ Strongly Typed IDs (Guid, Int, Long, String) [#374](https://github.com/dlrivada/Encina/issues/374)
@@ -112,10 +117,14 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 
 → [View v0.10.0 Issues](https://github.com/dlrivada/Encina/milestone/7)
 
-##### v0.11.0 — Testing Infrastructure
+##### v0.11.0 — Testing Infrastructure ✅ COMPLETED (2026-01-19)
+
 *Complete testing toolkit*
 
-**Completed:**
+> **Milestone Completed**: 34 issues closed, 92.3% coverage, 0 SonarCloud issues
+
+**All Features Delivered:**
+
 - ✅ `Encina.Testing.Fakes` — Test doubles for IEncina [#426](https://github.com/dlrivada/Encina/issues/426)
 - ✅ `Encina.Testing.Respawn` — Database reset [#163](https://github.com/dlrivada/Encina/issues/163)
 - ✅ `Encina.Testing.WireMock` — HTTP API mocking + Refit + Webhooks [#164](https://github.com/dlrivada/Encina/issues/164)
@@ -123,22 +132,23 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ `Encina.Testing.Verify` — Snapshot testing [#165](https://github.com/dlrivada/Encina/issues/165)
 - ✅ `Encina.Testing.Bogus` — Test data generation [#161](https://github.com/dlrivada/Encina/issues/161)
 - ✅ `Encina.Testing.Architecture` — Architectural rules [#432](https://github.com/dlrivada/Encina/issues/432)
+- ✅ `Encina.Testing.FsCheck` — Property-based testing [#435](https://github.com/dlrivada/Encina/issues/435)
+- ✅ `Encina.Testing.TUnit` — NativeAOT-compatible testing [#171](https://github.com/dlrivada/Encina/issues/171)
+- ✅ `Encina.Testing.Pact` — Consumer-Driven Contract Testing [#436](https://github.com/dlrivada/Encina/issues/436)
 - ✅ `FakeTimeProvider` — Time control for testing [#444](https://github.com/dlrivada/Encina/issues/444)
 - ✅ Enhanced Testing Fixtures — Fluent API for test setup [#444](https://github.com/dlrivada/Encina/issues/444)
 - ✅ Improved Assertions with Shouldly — AndConstraint, Collections, Streaming [#170](https://github.com/dlrivada/Encina/issues/170)
 - ✅ Module Testing Utilities — ModuleTestFixture, IntegrationEventCollector [#362](https://github.com/dlrivada/Encina/issues/362)
 - ✅ Mutation Testing Helpers — NeedsMutationCoverage, MutationKiller attributes [#172](https://github.com/dlrivada/Encina/issues/172)
 - ✅ CI/CD Workflow Templates — Reusable GitHub Actions workflows [#173](https://github.com/dlrivada/Encina/issues/173)
-- ✅ TUnit Framework Support — Source-generated testing with NativeAOT compatibility [#171](https://github.com/dlrivada/Encina/issues/171)
-- ✅ `Encina.Testing.Pact` — Consumer-Driven Contract Testing with PactNet [#436](https://github.com/dlrivada/Encina/issues/436)
+- ✅ Testcontainers Integration [#162](https://github.com/dlrivada/Encina/issues/162)
+- ✅ AggregateTestBase improvements [#495](https://github.com/dlrivada/Encina/issues/495)
+- ✅ Dogfooding Initiative (EPIC #498) — All 10 phases completed
 
-**Remaining:**
-- Testcontainers Integration [#162](https://github.com/dlrivada/Encina/issues/162)
-- AggregateTestBase improvements [#495](https://github.com/dlrivada/Encina/issues/495)
-
-→ [View v0.11.0 Issues](https://github.com/dlrivada/Encina/milestone/8)
+→ [View v0.11.0 Issues](https://github.com/dlrivada/Encina/milestone/8) (Closed)
 
 ##### v0.12.0 — Database & Repository
+
 *Enterprise data access patterns*
 
 - Generic Repository Pattern
@@ -154,6 +164,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 → [View v0.12.0 Issues](https://github.com/dlrivada/Encina/milestone/9)
 
 ##### v0.13.0 — Security & Compliance
+
 *Production-ready for EU/GDPR*
 
 - Core Security abstractions
@@ -168,6 +179,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 → [View v0.13.0 Issues](https://github.com/dlrivada/Encina/milestone/10)
 
 ##### v0.14.0 — Cloud-Native & Aspire
+
 *.NET Aspire first-class integration*
 
 - `Encina.Aspire` hosting package
@@ -181,6 +193,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 → [View v0.14.0 Issues](https://github.com/dlrivada/Encina/milestone/11)
 
 ##### v0.15.0 — Messaging & EIP
+
 *Enterprise Integration Patterns*
 
 - Process Manager pattern
@@ -195,6 +208,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 → [View v0.15.0 Issues](https://github.com/dlrivada/Encina/milestone/12)
 
 ##### v0.16.0 — Multi-Tenancy & Modular
+
 *SaaS-ready architecture*
 
 - Multi-Tenancy support
@@ -207,6 +221,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 → [View v0.16.0 Issues](https://github.com/dlrivada/Encina/milestone/13)
 
 ##### v0.17.0 — AI/LLM Patterns
+
 *AI-native CQRS framework*
 
 - MCP (Model Context Protocol) support
@@ -221,6 +236,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 → [View v0.17.0 Issues](https://github.com/dlrivada/Encina/milestone/14)
 
 ##### v0.18.0 — Developer Experience
+
 *First-class DX*
 
 - Roslyn Analyzers & Code Fixes
@@ -234,6 +250,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 → [View v0.18.0 Issues](https://github.com/dlrivada/Encina/milestone/15)
 
 ##### v0.19.0 — Observability & Resilience
+
 *Production-ready monitoring*
 
 - OpenTelemetry integration
@@ -251,6 +268,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 #### Legacy Phase 2 Details (Completed Items)
 
 Key areas already completed:
+
 - **Saga Enhancements** — ✅ Timeouts, ✅ low-ceremony syntax, ✅ not-found handlers, Saga Visibility [#128](https://github.com/dlrivada/Encina/issues/128)
 - **Developer Tooling** — ✅ `Encina.Testing` package with fluent assertions, ✅ `Encina.Cli` scaffolding tool [#47](https://github.com/dlrivada/Encina/issues/47)
 - **Performance** — ✅ Delegate cache optimization [#49](https://github.com/dlrivada/Encina/issues/49), Source generators for NativeAOT [#50](https://github.com/dlrivada/Encina/issues/50), Switch-based dispatch [#51](https://github.com/dlrivada/Encina/issues/51)
@@ -668,6 +686,7 @@ Key areas already completed:
 → [View Phase 2 Issues](https://github.com/dlrivada/Encina/milestone/2)
 
 ### Phase 3: Testing & Quality
+
 *Achieve reliability through comprehensive testing*
 
 Focus: Increase coverage to ≥85%, complete Testcontainers fixtures, eliminate flaky tests.
@@ -675,6 +694,7 @@ Focus: Increase coverage to ≥85%, complete Testcontainers fixtures, eliminate 
 → [View Phase 3 Issues](https://github.com/dlrivada/Encina/milestone/3)
 
 ### Phase 4: Code Quality
+
 *Static analysis and maintainability*
 
 Focus: SonarCloud integration, eliminate code duplication, address complexity hotspots.
@@ -682,9 +702,11 @@ Focus: SonarCloud integration, eliminate code duplication, address complexity ho
 → [View Phase 4 Issues](https://github.com/dlrivada/Encina/milestone/4)
 
 ### Phase 5: Documentation
+
 *User-facing content and examples*
 
 Key deliverables:
+
 - Documentation site (DocFX + GitHub Pages)
 - Quickstart guide (5 minutes to first request)
 - Provider guides (all 39 packages documented)
@@ -694,9 +716,11 @@ Key deliverables:
 → [View Phase 5 Issues](https://github.com/dlrivada/Encina/milestone/5)
 
 ### Phase 6: Release Preparation
+
 *Security, publishing, and branding for 1.0*
 
 Key deliverables:
+
 - SLSA Level 2 compliance
 - NuGet package publishing workflow
 - Visual identity (logo, icons)
@@ -751,11 +775,13 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ## References
 
 ### Inspiration
+
 - [LanguageExt](https://github.com/louthy/language-ext) — Functional programming for C#
 - [MediatR](https://github.com/jbogard/MediatR) — Simple mediator implementation
 - [Wolverine](https://wolverine.netlify.app/) — Next-gen .NET messaging
 
 ### Concepts
+
 - [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/) — Scott Wlaschin
 - [CQRS Pattern](https://martinfowler.com/bliki/CQRS.html) — Martin Fowler
 
