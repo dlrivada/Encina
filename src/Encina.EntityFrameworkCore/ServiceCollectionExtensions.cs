@@ -1,6 +1,8 @@
+using Encina.DomainModeling;
 using Encina.EntityFrameworkCore.Health;
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.EntityFrameworkCore.Outbox;
+using Encina.EntityFrameworkCore.Repository;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.EntityFrameworkCore.Scheduling;
 using Encina.Messaging;
@@ -151,6 +153,93 @@ public static class ServiceCollectionExtensions
     {
         // Just register DbContext mapping, no patterns enabled
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TDbContext>());
+        return services;
+    }
+
+    /// <summary>
+    /// Adds a functional repository for an entity type with Railway Oriented Programming support.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <typeparam name="TId">The entity identifier type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method registers both <see cref="IFunctionalRepository{TEntity, TId}"/> and
+    /// <see cref="IFunctionalReadRepository{TEntity, TId}"/> with scoped lifetime.
+    /// </para>
+    /// <para>
+    /// The repository uses <see cref="DbContext"/> which must be registered separately.
+    /// Typically, you would call <see cref="AddEncinaEntityFrameworkCore{TDbContext}(IServiceCollection)"/>
+    /// first to register the DbContext mapping.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Register DbContext and repository
+    /// services.AddDbContext&lt;AppDbContext&gt;(options => ...);
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;();
+    /// services.AddEncinaRepository&lt;Order, OrderId&gt;();
+    ///
+    /// // Use in a service
+    /// public class OrderService(IFunctionalRepository&lt;Order, OrderId&gt; repository)
+    /// {
+    ///     public Task&lt;Either&lt;EncinaError, Order&gt;&gt; GetOrderAsync(OrderId id, CancellationToken ct)
+    ///         =&gt; repository.GetByIdAsync(id, ct);
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaRepository<TEntity, TId>(
+        this IServiceCollection services)
+        where TEntity : class
+        where TId : notnull
+    {
+        // Register the concrete implementation
+        services.TryAddScoped<FunctionalRepositoryEF<TEntity, TId>>();
+
+        // Register both interfaces pointing to the same implementation
+        services.TryAddScoped<IFunctionalRepository<TEntity, TId>>(
+            sp => sp.GetRequiredService<FunctionalRepositoryEF<TEntity, TId>>());
+
+        services.TryAddScoped<IFunctionalReadRepository<TEntity, TId>>(
+            sp => sp.GetRequiredService<FunctionalRepositoryEF<TEntity, TId>>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds a read-only functional repository for an entity type with Railway Oriented Programming support.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <typeparam name="TId">The entity identifier type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method registers only <see cref="IFunctionalReadRepository{TEntity, TId}"/> with scoped lifetime.
+    /// Use this when you only need read operations for CQRS query handlers.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Register read-only repository for query handlers
+    /// services.AddEncinaReadRepository&lt;Order, OrderId&gt;();
+    ///
+    /// // Use in a query handler
+    /// public class GetOrderHandler(IFunctionalReadRepository&lt;Order, OrderId&gt; repository)
+    /// {
+    ///     public Task&lt;Either&lt;EncinaError, OrderDto&gt;&gt; HandleAsync(GetOrderQuery query, CancellationToken ct)
+    ///         =&gt; repository.GetByIdAsync(query.Id, ct).Map(o =&gt; new OrderDto(o));
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaReadRepository<TEntity, TId>(
+        this IServiceCollection services)
+        where TEntity : class
+        where TId : notnull
+    {
+        services.TryAddScoped<IFunctionalReadRepository<TEntity, TId>, FunctionalRepositoryEF<TEntity, TId>>();
+
         return services;
     }
 }

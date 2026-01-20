@@ -241,9 +241,19 @@ Encina.DomainModeling.QuerySpecification<T>.AddInclude(string! includeString) ->
 Encina.DomainModeling.QuerySpecification<T>.AddInclude(System.Linq.Expressions.Expression<System.Func<T, object!>!>! includeExpression) -> void
 Encina.DomainModeling.QuerySpecification<T>.ApplyOrderBy(System.Linq.Expressions.Expression<System.Func<T, object!>!>! orderByExpression) -> void
 Encina.DomainModeling.QuerySpecification<T>.ApplyOrderByDescending(System.Linq.Expressions.Expression<System.Func<T, object!>!>! orderByDescendingExpression) -> void
+Encina.DomainModeling.QuerySpecification<T>.AddCriteria(System.Linq.Expressions.Expression<System.Func<T, bool>!>! criteria) -> void
+Encina.DomainModeling.QuerySpecification<T>.ApplyKeysetPagination(System.Linq.Expressions.Expression<System.Func<T, object!>!>! keysetProperty, object? lastKeyValue, int take) -> void
 Encina.DomainModeling.QuerySpecification<T>.ApplyPaging(int skip, int take) -> void
-Encina.DomainModeling.QuerySpecification<T>.Criteria.get -> System.Linq.Expressions.Expression<System.Func<T, bool>!>?
-Encina.DomainModeling.QuerySpecification<T>.Criteria.set -> void
+Encina.DomainModeling.QuerySpecification<T>.ApplyThenBy(System.Linq.Expressions.Expression<System.Func<T, object!>!>! thenByExpression) -> void
+Encina.DomainModeling.QuerySpecification<T>.ApplyThenByDescending(System.Linq.Expressions.Expression<System.Func<T, object!>!>! thenByDescendingExpression) -> void
+Encina.DomainModeling.QuerySpecification<T>.ClearCriteria() -> void
+Encina.DomainModeling.QuerySpecification<T>.ClearOrdering() -> void
+Encina.DomainModeling.QuerySpecification<T>.Criteria.get -> System.Collections.Generic.IReadOnlyList<System.Linq.Expressions.Expression<System.Func<T, bool>!>!>!
+Encina.DomainModeling.QuerySpecification<T>.KeysetPaginationEnabled.get -> bool
+Encina.DomainModeling.QuerySpecification<T>.KeysetProperty.get -> System.Linq.Expressions.Expression<System.Func<T, object!>!>?
+Encina.DomainModeling.QuerySpecification<T>.LastKeyValue.get -> object?
+Encina.DomainModeling.QuerySpecification<T>.ThenByDescendingExpressions.get -> System.Collections.Generic.IReadOnlyList<System.Linq.Expressions.Expression<System.Func<T, object!>!>!>!
+Encina.DomainModeling.QuerySpecification<T>.ThenByExpressions.get -> System.Collections.Generic.IReadOnlyList<System.Linq.Expressions.Expression<System.Func<T, object!>!>!>!
 Encina.DomainModeling.DomainEventEnvelope
 Encina.DomainModeling.DomainEventEnvelope<TEvent>
 Encina.DomainModeling.DomainEventEnvelope<TEvent>.EnvelopeCreatedAtUtc.get -> System.DateTime
@@ -395,3 +405,83 @@ static Encina.DomainModeling.RepositoryExtensions.FindOrEmptyAsync<TEntity, TId>
 static Encina.DomainModeling.RepositoryExtensions.GetByIdOrErrorAsync<TEntity, TId>(this Encina.DomainModeling.IReadOnlyRepository<TEntity, TId>! repository, TId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.DomainModeling.RepositoryError!, TEntity>>!
 static Encina.DomainModeling.RepositoryExtensions.GetByIdOrThrowAsync<TEntity, TId>(this Encina.DomainModeling.IReadOnlyRepository<TEntity, TId>! repository, TId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<TEntity>!
 static Encina.DomainModeling.RepositoryExtensions.UpdateIfExistsAsync<TEntity, TId>(this Encina.DomainModeling.IRepository<TEntity, TId>! repository, TId id, System.Action<TEntity>! updateAction, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.DomainModeling.RepositoryError!, TEntity>>!
+Encina.DomainModeling.FunctionalRepositoryExtensions
+Encina.DomainModeling.HasIdExtensions
+Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>
+Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.AnyAsync(Encina.DomainModeling.Specification<TEntity>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, bool>>!
+Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.AnyAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, bool>>!
+Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.CountAsync(Encina.DomainModeling.Specification<TEntity>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, int>>!
+Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.CountAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, int>>!
+Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.FirstOrDefaultAsync(Encina.DomainModeling.Specification<TEntity>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
+Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.GetByIdAsync(TId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
+Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.ListAsync(Encina.DomainModeling.Specification<TEntity>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, System.Collections.Generic.IReadOnlyList<TEntity>!>>!
+Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.ListAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, System.Collections.Generic.IReadOnlyList<TEntity>!>>!
+Encina.DomainModeling.IFunctionalRepository<TEntity, TId>
+Encina.DomainModeling.IFunctionalRepository<TEntity, TId>.AddAsync(TEntity entity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
+Encina.DomainModeling.IFunctionalRepository<TEntity, TId>.AddRangeAsync(System.Collections.Generic.IEnumerable<TEntity>! entities, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, System.Collections.Generic.IReadOnlyList<TEntity>!>>!
+Encina.DomainModeling.IFunctionalRepository<TEntity, TId>.DeleteAsync(TEntity entity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
+Encina.DomainModeling.IFunctionalRepository<TEntity, TId>.DeleteAsync(TId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
+Encina.DomainModeling.IFunctionalRepository<TEntity, TId>.DeleteRangeAsync(Encina.DomainModeling.Specification<TEntity>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, int>>!
+Encina.DomainModeling.IFunctionalRepository<TEntity, TId>.UpdateAsync(TEntity entity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
+Encina.DomainModeling.IFunctionalRepository<TEntity, TId>.UpdateRangeAsync(System.Collections.Generic.IEnumerable<TEntity>! entities, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
+Encina.DomainModeling.IHasId<TId>
+Encina.DomainModeling.IHasId<TId>.Id.get -> TId
+Encina.DomainModeling.RepositoryErrors
+static Encina.DomainModeling.FunctionalRepositoryExtensions.AddIfNotExistsAsync<TEntity, TId>(this Encina.DomainModeling.IFunctionalRepository<TEntity, TId>! repository, TEntity entity, Encina.DomainModeling.Specification<TEntity>! existsSpecification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
+static Encina.DomainModeling.FunctionalRepositoryExtensions.GetAndUpdateAsync<TEntity, TId>(this Encina.DomainModeling.IFunctionalRepository<TEntity, TId>! repository, TId id, System.Action<TEntity>! updateAction, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
+static Encina.DomainModeling.FunctionalRepositoryExtensions.GetByIdAndMapAsync<TEntity, TId, TResult>(this Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>! repository, TId id, System.Func<TEntity, System.Threading.Tasks.Task<TResult>!>! selector, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TResult>>!
+static Encina.DomainModeling.FunctionalRepositoryExtensions.GetByIdAndMapAsync<TEntity, TId, TResult>(this Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>! repository, TId id, System.Func<TEntity, TResult>! selector, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TResult>>!
+static Encina.DomainModeling.HasIdExtensions.GetId<TId>(this Encina.DomainModeling.IHasId<TId>! entity) -> TId
+static Encina.DomainModeling.HasIdExtensions.GetIds<TEntity, TId>(this System.Collections.Generic.IEnumerable<TEntity>! entities) -> System.Collections.Generic.IReadOnlyList<TId>!
+static Encina.DomainModeling.HasIdExtensions.HasId<TId>(this Encina.DomainModeling.IHasId<TId>! entity, TId id) -> bool
+static Encina.DomainModeling.HasIdExtensions.HasSameId<TId>(this Encina.DomainModeling.IHasId<TId>! entity, Encina.DomainModeling.IHasId<TId>? other) -> bool
+static Encina.DomainModeling.RepositoryErrors.AlreadyExists<TEntity>(string! reason) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.AlreadyExists<TEntity, TId>(TId id) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.AlreadyExistsErrorCode.get -> string!
+static Encina.DomainModeling.RepositoryErrors.ConcurrencyConflict<TEntity>(System.Exception? innerException = null) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.ConcurrencyConflict<TEntity, TId>(TId id, System.Exception? innerException = null) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.ConcurrencyConflictErrorCode.get -> string!
+static Encina.DomainModeling.RepositoryErrors.InvalidOperation<TEntity>(string! operation, string! reason) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.InvalidOperationErrorCode.get -> string!
+static Encina.DomainModeling.RepositoryErrors.NotFound<TEntity>(string! criteria) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.NotFound<TEntity, TId>(TId id) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.NotFoundErrorCode.get -> string!
+static Encina.DomainModeling.RepositoryErrors.PersistenceError<TEntity>(string! operation, System.Exception! exception) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.PersistenceError<TEntity, TId>(TId id, string! operation, System.Exception! exception) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.PersistenceErrorErrorCode.get -> string!
+static Encina.DomainModeling.RepositoryErrors.ValidationFailed<TEntity>(string! validationError) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.ValidationFailed<TEntity>(System.Collections.Generic.IEnumerable<string!>! validationErrors) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.ValidationFailedErrorCode.get -> string!
+Encina.DomainModeling.IAsyncSpecificationEvaluator<T>
+Encina.DomainModeling.IAsyncSpecificationEvaluator<T>.AnyAsync(Encina.DomainModeling.IQuerySpecification<T>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+Encina.DomainModeling.IAsyncSpecificationEvaluator<T>.CountAsync(Encina.DomainModeling.IQuerySpecification<T>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
+Encina.DomainModeling.IAsyncSpecificationEvaluator<T>.FirstOrDefaultAsync(Encina.DomainModeling.IQuerySpecification<T>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<T?>!
+Encina.DomainModeling.IAsyncSpecificationEvaluator<T>.SingleAsync(Encina.DomainModeling.IQuerySpecification<T>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<T>!
+Encina.DomainModeling.IAsyncSpecificationEvaluator<T>.SingleOrDefaultAsync(Encina.DomainModeling.IQuerySpecification<T>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<T?>!
+Encina.DomainModeling.IAsyncSpecificationEvaluator<T>.ToListAsync(Encina.DomainModeling.IQuerySpecification<T>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<T>!>!
+Encina.DomainModeling.IAsyncSpecificationEvaluator<T>.ToListAsync<TResult>(Encina.DomainModeling.IQuerySpecification<T, TResult>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TResult>!>!
+Encina.DomainModeling.IQuerySpecification<T>
+Encina.DomainModeling.IQuerySpecification<T>.AsNoTracking.get -> bool
+Encina.DomainModeling.IQuerySpecification<T>.AsSplitQuery.get -> bool
+Encina.DomainModeling.IQuerySpecification<T>.Criteria.get -> System.Collections.Generic.IReadOnlyList<System.Linq.Expressions.Expression<System.Func<T, bool>!>!>!
+Encina.DomainModeling.IQuerySpecification<T>.Includes.get -> System.Collections.Generic.IReadOnlyList<System.Linq.Expressions.Expression<System.Func<T, object!>!>!>!
+Encina.DomainModeling.IQuerySpecification<T>.IncludeStrings.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.DomainModeling.IQuerySpecification<T>.IsPagingEnabled.get -> bool
+Encina.DomainModeling.IQuerySpecification<T>.KeysetPaginationEnabled.get -> bool
+Encina.DomainModeling.IQuerySpecification<T>.KeysetProperty.get -> System.Linq.Expressions.Expression<System.Func<T, object!>!>?
+Encina.DomainModeling.IQuerySpecification<T>.LastKeyValue.get -> object?
+Encina.DomainModeling.IQuerySpecification<T>.OrderBy.get -> System.Linq.Expressions.Expression<System.Func<T, object!>!>?
+Encina.DomainModeling.IQuerySpecification<T>.OrderByDescending.get -> System.Linq.Expressions.Expression<System.Func<T, object!>!>?
+Encina.DomainModeling.IQuerySpecification<T>.Skip.get -> int?
+Encina.DomainModeling.IQuerySpecification<T>.Take.get -> int?
+Encina.DomainModeling.IQuerySpecification<T>.ThenByDescendingExpressions.get -> System.Collections.Generic.IReadOnlyList<System.Linq.Expressions.Expression<System.Func<T, object!>!>!>!
+Encina.DomainModeling.IQuerySpecification<T>.ThenByExpressions.get -> System.Collections.Generic.IReadOnlyList<System.Linq.Expressions.Expression<System.Func<T, object!>!>!>!
+Encina.DomainModeling.IQuerySpecification<T, TResult>
+Encina.DomainModeling.IQuerySpecification<T, TResult>.Selector.get -> System.Linq.Expressions.Expression<System.Func<T, TResult>!>?
+Encina.DomainModeling.ISpecification<T>
+Encina.DomainModeling.ISpecification<T>.IsSatisfiedBy(T entity) -> bool
+Encina.DomainModeling.ISpecification<T>.ToExpression() -> System.Linq.Expressions.Expression<System.Func<T, bool>!>!
+Encina.DomainModeling.ISpecification<T>.ToFunc() -> System.Func<T, bool>!
+Encina.DomainModeling.ISpecificationEvaluator<T>
+Encina.DomainModeling.ISpecificationEvaluator<T>.GetQuery(System.Linq.IQueryable<T>! inputQuery, Encina.DomainModeling.IQuerySpecification<T>! specification) -> System.Linq.IQueryable<T>!
+Encina.DomainModeling.ISpecificationEvaluator<T>.GetQuery<TResult>(System.Linq.IQueryable<T>! inputQuery, Encina.DomainModeling.IQuerySpecification<T, TResult>! specification) -> System.Linq.IQueryable<TResult>!

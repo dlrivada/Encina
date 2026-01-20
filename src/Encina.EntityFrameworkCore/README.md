@@ -714,6 +714,87 @@ app.MapHealthChecks("/health/database", new HealthCheckOptions
 });
 ```
 
+## Repository Pattern (Optional)
+
+Encina provides a **completely optional** repository abstraction with Railway Oriented Programming support. The repository is designed for specific scenarios where abstraction adds value—it is **not required** for using Encina or EF Core.
+
+### When to Use Repository vs DbContext Directly
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Simple CRUD with EF Core | Use `DbContext` directly |
+| Complex LINQ queries | Use `DbContext` directly |
+| Single database, single DbContext | Use `DbContext` directly |
+| Multiple DbContexts/databases | Consider Repository |
+| Transactions with non-EF components (Outbox) | Consider Repository |
+| Easy unit testing with mocks | Consider Repository |
+| Switching providers (EF → Dapper) | Consider Repository |
+| Domain-Driven Design with aggregates | Consider Repository |
+
+### Why Repository is Optional
+
+The .NET community increasingly recognizes that repositories often add boilerplate without real benefit when using a mature ORM like EF Core. The `DbContext` is already a Unit of Work and `DbSet<T>` is already a repository.
+
+**Encina's philosophy**: Provide the repository pattern for those who need it, but never force it. Most applications work perfectly fine with `DbContext` directly.
+
+### Using DbContext Directly (Recommended for Most Cases)
+
+```csharp
+// Just use EF Core messaging patterns, no repository needed
+services.AddDbContext<AppDbContext>(options => ...);
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseTransactions = true;
+    config.UseOutbox = true;
+});
+
+// In your handler - use DbContext directly
+public class CreateOrderHandler(AppDbContext dbContext)
+{
+    public async Task<Either<EncinaError, Order>> Handle(CreateOrderCommand cmd, CancellationToken ct)
+    {
+        var order = new Order(cmd.CustomerId, cmd.Items);
+        dbContext.Orders.Add(order);
+        await dbContext.SaveChangesAsync(ct);
+        return order;
+    }
+}
+```
+
+### Opting Into Repository
+
+Only register repositories for entities where you explicitly need the abstraction:
+
+```csharp
+// Register repository only for specific entities that need it
+services.AddEncinaRepository<Order, OrderId>();      // Full CRUD
+services.AddEncinaReadRepository<Product, ProductId>(); // Read-only for CQRS
+
+// Other entities can still use DbContext directly
+```
+
+### Repository API
+
+When you do opt in, the repository provides ROP-style error handling:
+
+```csharp
+public class OrderService(IFunctionalRepository<Order, OrderId> repository)
+{
+    public async Task<Either<EncinaError, Order>> GetOrderAsync(OrderId id, CancellationToken ct)
+        => await repository.GetByIdAsync(id, ct);
+
+    public async Task<Either<EncinaError, IReadOnlyList<Order>>> GetPendingOrdersAsync(CancellationToken ct)
+        => await repository.ListAsync(new PendingOrdersSpecification(), ct);
+}
+```
+
+### Summary
+
+- **Default**: Use `DbContext` directly—it's simpler and sufficient for most cases
+- **Opt-in**: Register `IFunctionalRepository<T, TId>` only when you need abstraction
+- **Mixed**: Use repositories for some entities and `DbContext` for others
+- **No penalty**: Encina messaging patterns work identically regardless of your choice
+
 ## Related Packages
 
 - **Encina**: Core Encina implementation with Railway Oriented Programming

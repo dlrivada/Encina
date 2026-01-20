@@ -80,6 +80,38 @@ config.UseSagas = true;
 config.UseScheduling = true;
 ```
 
+#### Repository Pattern (Optional)
+
+The repository pattern is **completely optional**. Most applications work fine using `DbContext` directly.
+
+**When to use Repository:**
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Simple CRUD with EF Core | Use `DbContext` directly |
+| Complex LINQ queries | Use `DbContext` directly |
+| Single database, single DbContext | Use `DbContext` directly |
+| Multiple DbContexts/databases | Consider Repository |
+| Transactions with non-EF components | Consider Repository |
+| Easy unit testing with mocks | Consider Repository |
+| Switching providers (EF → Dapper) | Consider Repository |
+| DDD with aggregate repositories | Consider Repository |
+
+**Philosophy**: The .NET community increasingly recognizes that repositories often add boilerplate without real benefit when using a mature ORM. `DbContext` is already a Unit of Work and `DbSet<T>` is already a repository. Encina provides the pattern for those who need it, but never forces it.
+
+```csharp
+// Most apps: Use DbContext directly with messaging patterns
+services.AddDbContext<AppDbContext>(options => ...);
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseTransactions = true;
+    config.UseOutbox = true;
+});
+
+// Only when needed: Opt-in to repository for specific entities
+services.AddEncinaRepository<Order, OrderId>();
+```
+
 ### Naming Conventions
 
 #### Messaging Entities

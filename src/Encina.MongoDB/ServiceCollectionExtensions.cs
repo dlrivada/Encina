@@ -1,3 +1,4 @@
+using Encina.DomainModeling;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
@@ -6,10 +7,12 @@ using Encina.Messaging.Scheduling;
 using Encina.MongoDB.Health;
 using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Outbox;
+using Encina.MongoDB.Repository;
 using Encina.MongoDB.Sagas;
 using Encina.MongoDB.Scheduling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 namespace Encina.MongoDB;
@@ -166,6 +169,141 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(options.ProviderHealthCheck);
             services.AddSingleton<IEncinaHealthCheck, MongoDbHealthCheck>();
         }
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers a functional repository for an entity type using MongoDB.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <typeparam name="TId">The entity identifier type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Configuration action for repository options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IFunctionalRepository{TEntity, TId}"/> and
+    /// <see cref="IFunctionalReadRepository{TEntity, TId}"/> with scoped lifetime.
+    /// </para>
+    /// <para>
+    /// Requires <see cref="IMongoClient"/> and <see cref="EncinaMongoDbOptions"/> to be registered,
+    /// typically via <see cref="AddEncinaMongoDB(IServiceCollection, Action{EncinaMongoDbOptions})"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaMongoDB(options =>
+    /// {
+    ///     options.ConnectionString = "mongodb://localhost:27017";
+    ///     options.DatabaseName = "MyApp";
+    /// });
+    ///
+    /// services.AddEncinaRepository&lt;Order, Guid&gt;(config =>
+    /// {
+    ///     config.CollectionName = "orders";
+    ///     config.IdProperty = o => o.Id;
+    /// });
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaRepository<TEntity, TId>(
+        this IServiceCollection services,
+        Action<MongoDbRepositoryOptions<TEntity, TId>> configure)
+        where TEntity : class
+        where TId : notnull
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        // Build options
+        var options = new MongoDbRepositoryOptions<TEntity, TId>();
+        configure(options);
+        options.Validate();
+
+        var collectionName = options.GetEffectiveCollectionName();
+        var idProperty = options.IdProperty!;
+
+        // Register the collection as scoped
+        services.AddScoped<IMongoCollection<TEntity>>(sp =>
+        {
+            var mongoClient = sp.GetRequiredService<IMongoClient>();
+            var mongoOptions = sp.GetRequiredService<IOptions<EncinaMongoDbOptions>>().Value;
+            var database = mongoClient.GetDatabase(mongoOptions.DatabaseName);
+            return database.GetCollection<TEntity>(collectionName);
+        });
+
+        // Register the repository with scoped lifetime
+        services.AddScoped<IFunctionalRepository<TEntity, TId>>(sp =>
+        {
+            var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
+            return new FunctionalRepositoryMongoDB<TEntity, TId>(collection, idProperty);
+        });
+
+        services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
+            sp.GetRequiredService<IFunctionalRepository<TEntity, TId>>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers a read-only functional repository for an entity type using MongoDB.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <typeparam name="TId">The entity identifier type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Configuration action for repository options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Only registers <see cref="IFunctionalReadRepository{TEntity, TId}"/> with scoped lifetime.
+    /// Use this for read-only scenarios where write operations are not needed.
+    /// </para>
+    /// <para>
+    /// Requires <see cref="IMongoClient"/> and <see cref="EncinaMongoDbOptions"/> to be registered,
+    /// typically via <see cref="AddEncinaMongoDB(IServiceCollection, Action{EncinaMongoDbOptions})"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaReadRepository&lt;OrderSummary, Guid&gt;(config =>
+    /// {
+    ///     config.CollectionName = "order_summaries";
+    ///     config.IdProperty = o => o.Id;
+    /// });
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaReadRepository<TEntity, TId>(
+        this IServiceCollection services,
+        Action<MongoDbRepositoryOptions<TEntity, TId>> configure)
+        where TEntity : class
+        where TId : notnull
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        // Build options
+        var options = new MongoDbRepositoryOptions<TEntity, TId>();
+        configure(options);
+        options.Validate();
+
+        var collectionName = options.GetEffectiveCollectionName();
+        var idProperty = options.IdProperty!;
+
+        // Register the collection as scoped
+        services.TryAddScoped<IMongoCollection<TEntity>>(sp =>
+        {
+            var mongoClient = sp.GetRequiredService<IMongoClient>();
+            var mongoOptions = sp.GetRequiredService<IOptions<EncinaMongoDbOptions>>().Value;
+            var database = mongoClient.GetDatabase(mongoOptions.DatabaseName);
+            return database.GetCollection<TEntity>(collectionName);
+        });
+
+        // Register only the read repository with scoped lifetime
+        services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
+        {
+            var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
+            return new FunctionalRepositoryMongoDB<TEntity, TId>(collection, idProperty);
+        });
 
         return services;
     }

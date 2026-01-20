@@ -2,6 +2,68 @@
 
 ### Added
 
+#### Specification Pattern Enhancement (#280)
+
+Enhanced the Specification Pattern implementation across all data access providers with comprehensive `QuerySpecification<T>` support for multi-column ordering, offset-based pagination, and keyset (cursor-based) pagination.
+
+**QuerySpecification API**:
+
+```csharp
+public class ActiveOrdersQuerySpec : QuerySpecification<Order>
+{
+    public ActiveOrdersQuerySpec(Guid lastId, int pageSize)
+    {
+        AddCriteria(o => o.IsActive);
+        ApplyOrderBy(o => o.Name);
+        ApplyThenByDescending(o => o.CreatedAtUtc);
+        ApplyKeysetPagination(o => o.Id, lastId, pageSize);
+    }
+}
+```
+
+**Provider Implementations**:
+
+| Provider | Features Implemented |
+|----------|---------------------|
+| `Encina.EntityFrameworkCore` | `SpecificationEvaluator` with ThenBy/ThenByDescending, keyset pagination |
+| `Encina.Dapper.SqlServer` | `SpecificationSqlBuilder` with ORDER BY, OFFSET/FETCH, keyset filter |
+| `Encina.ADO.SqlServer` | `SpecificationSqlBuilder` with ORDER BY, OFFSET/FETCH, keyset filter |
+| `Encina.MongoDB` | `SpecificationFilterBuilder` with SortDefinition, keyset pagination |
+
+**New Methods Added**:
+
+- `QuerySpecification<T>.ApplyOrderBy()` / `ApplyOrderByDescending()` - Primary ordering
+- `QuerySpecification<T>.ApplyThenBy()` / `ApplyThenByDescending()` - Secondary ordering
+- `QuerySpecification<T>.ApplyPaging(skip, take)` - Offset-based pagination
+- `QuerySpecification<T>.ApplyKeysetPagination(keySelector, lastKey, pageSize)` - Cursor-based O(1) pagination
+
+**SQL Generation Examples**:
+
+```sql
+-- Offset pagination (Dapper/ADO)
+SELECT * FROM Orders WHERE [IsActive] = 1
+ORDER BY [Name] ASC, [CreatedAtUtc] DESC
+OFFSET 10 ROWS FETCH NEXT 20 ROWS ONLY
+
+-- Keyset pagination (Dapper/ADO)
+SELECT * FROM Orders WHERE [IsActive] = 1 AND [Id] > @p0
+ORDER BY [Id] ASC
+FETCH NEXT 10 ROWS ONLY
+```
+
+**Test Coverage**: 88 new unit tests across all providers
+
+| Provider | New Tests |
+|----------|-----------|
+| EF Core `SpecificationEvaluatorTests` | 22 tests |
+| Dapper `QuerySpecificationSqlBuilderTests` | 22 tests |
+| ADO.SqlServer `QuerySpecificationSqlBuilderTests` | 22 tests |
+| MongoDB `SpecificationFilterBuilderTests` | 22 tests |
+
+**Related Issue**: [#280 - Specification Pattern](https://github.com/dlrivada/Encina/issues/280)
+
+---
+
 - `Encina.MongoDB`: Added `InternalsVisibleTo` for `Encina.UnitTests` and `Encina.IntegrationTests` to enable testing of internal methods
 - Unit tests for `MongoDbRepositoryOptions.GetEffectiveCollectionName()` and `Validate()` internal methods (8 new tests)
 
