@@ -1,6 +1,9 @@
 ## [Unreleased]
 
-No unreleased changes.
+### Added
+
+- `Encina.MongoDB`: Added `InternalsVisibleTo` for `Encina.UnitTests` and `Encina.IntegrationTests` to enable testing of internal methods
+- Unit tests for `MongoDbRepositoryOptions.GetEffectiveCollectionName()` and `Validate()` internal methods (8 new tests)
 
 ---
 

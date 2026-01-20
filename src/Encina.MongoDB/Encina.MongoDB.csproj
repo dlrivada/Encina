@@ -10,6 +10,7 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>latest-all</AnalysisLevel>
+    <NoWarn>$(NoWarn);RS0016;RS0017;RS0026;RS0036</NoWarn>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <PackageId>Encina.MongoDB</PackageId>
     <Description>MongoDB integration for Encina - provides document-based persistence for Outbox, Inbox, Sagas, and Scheduled Messages patterns. Uses MongoDB.Driver 3.5.2 for high-performance, schema-flexible storage.</Description>
@@ -26,7 +27,17 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Encina\Encina.csproj" />
+    <ProjectReference Include="..\Encina.DomainModeling\Encina.DomainModeling.csproj" />
     <ProjectReference Include="..\Encina.Messaging\Encina.Messaging.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.UnitTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.IntegrationTests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>
