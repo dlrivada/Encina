@@ -5,6 +5,7 @@ using Encina.EntityFrameworkCore.Outbox;
 using Encina.EntityFrameworkCore.Repository;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.EntityFrameworkCore.Scheduling;
+using Encina.EntityFrameworkCore.UnitOfWork;
 using Encina.Messaging;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
@@ -239,6 +240,77 @@ public static class ServiceCollectionExtensions
         where TId : notnull
     {
         services.TryAddScoped<IFunctionalReadRepository<TEntity, TId>, FunctionalRepositoryEF<TEntity, TId>>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds Unit of Work pattern support for Entity Framework Core.
+    /// </summary>
+    /// <typeparam name="TDbContext">The type of DbContext.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>This is completely optional.</b> Most applications work perfectly fine using
+    /// <c>DbContext</c> directly. The <c>DbContext</c> is already a Unit of Work.
+    /// </para>
+    /// <para>
+    /// Consider using this when you need:
+    /// <list type="bullet">
+    /// <item><description>Explicit transaction control with Railway Oriented Programming</description></item>
+    /// <item><description>Coordination between different repository instances</description></item>
+    /// <item><description>Clear separation of read and write operations</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Requirements</b>:
+    /// <list type="bullet">
+    /// <item><description><typeparamref name="TDbContext"/> must be registered in DI</description></item>
+    /// <item><description>Call <see cref="AddEncinaEntityFrameworkCore{TDbContext}(IServiceCollection)"/> first</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Registration
+    /// services.AddDbContext&lt;AppDbContext&gt;(options => ...);
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;();
+    /// services.AddEncinaUnitOfWork&lt;AppDbContext&gt;();
+    ///
+    /// // Usage in a handler
+    /// public class TransferHandler(IUnitOfWork unitOfWork)
+    /// {
+    ///     public async Task&lt;Either&lt;EncinaError, Unit&gt;&gt; HandleAsync(TransferCommand cmd, CancellationToken ct)
+    ///     {
+    ///         var accounts = unitOfWork.Repository&lt;Account, AccountId&gt;();
+    ///
+    ///         var beginResult = await unitOfWork.BeginTransactionAsync(ct);
+    ///         if (beginResult.IsLeft) return beginResult;
+    ///
+    ///         // ... perform operations
+    ///
+    ///         var saveResult = await unitOfWork.SaveChangesAsync(ct);
+    ///         if (saveResult.IsLeft)
+    ///         {
+    ///             await unitOfWork.RollbackAsync(ct);
+    ///             return saveResult.Map(_ =&gt; Unit.Default);
+    ///         }
+    ///
+    ///         return await unitOfWork.CommitAsync(ct);
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaUnitOfWork<TDbContext>(
+        this IServiceCollection services)
+        where TDbContext : DbContext
+    {
+        // Ensure DbContext is registered as DbContext (non-generic)
+        services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TDbContext>());
+
+        // Register UnitOfWork with scoped lifetime
+        services.TryAddScoped<IUnitOfWork, UnitOfWorkEF>();
 
         return services;
     }

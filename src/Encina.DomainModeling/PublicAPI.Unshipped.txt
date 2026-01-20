@@ -485,3 +485,22 @@ Encina.DomainModeling.ISpecification<T>.ToFunc() -> System.Func<T, bool>!
 Encina.DomainModeling.ISpecificationEvaluator<T>
 Encina.DomainModeling.ISpecificationEvaluator<T>.GetQuery(System.Linq.IQueryable<T>! inputQuery, Encina.DomainModeling.IQuerySpecification<T>! specification) -> System.Linq.IQueryable<T>!
 Encina.DomainModeling.ISpecificationEvaluator<T>.GetQuery<TResult>(System.Linq.IQueryable<T>! inputQuery, Encina.DomainModeling.IQuerySpecification<T, TResult>! specification) -> System.Linq.IQueryable<TResult>!
+Encina.DomainModeling.IUnitOfWork
+Encina.DomainModeling.IUnitOfWork.BeginTransactionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
+Encina.DomainModeling.IUnitOfWork.CommitAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
+Encina.DomainModeling.IUnitOfWork.HasActiveTransaction.get -> bool
+Encina.DomainModeling.IUnitOfWork.Repository<TEntity, TId>() -> Encina.DomainModeling.IFunctionalRepository<TEntity, TId>!
+Encina.DomainModeling.IUnitOfWork.RollbackAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.DomainModeling.IUnitOfWork.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, int>>!
+Encina.DomainModeling.UnitOfWorkErrors
+static Encina.DomainModeling.UnitOfWorkErrors.CommitFailed(System.Exception! exception) -> Encina.EncinaError!
+static Encina.DomainModeling.UnitOfWorkErrors.CommitFailedErrorCode.get -> string!
+static Encina.DomainModeling.UnitOfWorkErrors.NoActiveTransaction(string! operation = "Commit") -> Encina.EncinaError!
+static Encina.DomainModeling.UnitOfWorkErrors.NoActiveTransactionErrorCode.get -> string!
+static Encina.DomainModeling.UnitOfWorkErrors.SaveChangesFailed(System.Exception! exception) -> Encina.EncinaError!
+static Encina.DomainModeling.UnitOfWorkErrors.SaveChangesFailed(System.Exception! exception, System.Collections.Generic.IEnumerable<string!>? conflictingEntities) -> Encina.EncinaError!
+static Encina.DomainModeling.UnitOfWorkErrors.SaveChangesFailedErrorCode.get -> string!
+static Encina.DomainModeling.UnitOfWorkErrors.TransactionAlreadyActive() -> Encina.EncinaError!
+static Encina.DomainModeling.UnitOfWorkErrors.TransactionAlreadyActiveErrorCode.get -> string!
+static Encina.DomainModeling.UnitOfWorkErrors.TransactionStartFailed(System.Exception! exception) -> Encina.EncinaError!
+static Encina.DomainModeling.UnitOfWorkErrors.TransactionStartFailedErrorCode.get -> string!

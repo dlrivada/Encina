@@ -5,10 +5,12 @@ using Encina.Dapper.SqlServer.Outbox;
 using Encina.Dapper.SqlServer.Repository;
 using Encina.Dapper.SqlServer.Sagas;
 using Encina.Dapper.SqlServer.Scheduling;
+using Encina.Dapper.SqlServer.UnitOfWork;
 using Encina.DomainModeling;
 using Encina.Messaging;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Encina.Dapper.SqlServer;
 
@@ -190,6 +192,62 @@ public static class ServiceCollectionExtensions
 
         // Register only the read repository with scoped lifetime
         services.AddScoped<IFunctionalReadRepository<TEntity, TId>, FunctionalRepositoryDapper<TEntity, TId>>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds Encina Unit of Work pattern with Dapper for SQL Server.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IUnitOfWork"/> implemented by <see cref="UnitOfWorkDapper"/>
+    /// with scoped lifetime.
+    /// </para>
+    /// <para>
+    /// Requires an <see cref="IDbConnection"/> to be registered in the service collection,
+    /// typically via <see cref="AddEncinaDapper(IServiceCollection, string, Action{MessagingConfiguration})"/>.
+    /// </para>
+    /// <para>
+    /// Entity mappings must be registered separately using
+    /// <see cref="AddEncinaRepository{TEntity, TId}(IServiceCollection, Action{EntityMappingBuilder{TEntity, TId}})"/>
+    /// for each entity type used with the Unit of Work.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaDapper(connectionString, config => { });
+    ///
+    /// // Register entity mappings
+    /// services.AddEncinaRepository&lt;Order, Guid&gt;(mapping =&gt;
+    ///     mapping.ToTable("Orders")
+    ///            .HasId(o =&gt; o.Id)
+    ///            .MapProperty(o =&gt; o.CustomerId));
+    ///
+    /// // Add Unit of Work
+    /// services.AddEncinaUnitOfWork();
+    ///
+    /// // Usage in handler
+    /// public class TransferHandler(IUnitOfWork unitOfWork)
+    /// {
+    ///     public async Task HandleAsync(TransferCommand cmd, CancellationToken ct)
+    ///     {
+    ///         await unitOfWork.BeginTransactionAsync(ct);
+    ///         var accounts = unitOfWork.Repository&lt;Account, Guid&gt;();
+    ///         // ... operations ...
+    ///         await unitOfWork.CommitAsync(ct);
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaUnitOfWork(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        // Only register if not already registered
+        services.TryAddScoped<IUnitOfWork, UnitOfWorkDapper>();
 
         return services;
     }

@@ -10,6 +10,7 @@ using Encina.MongoDB.Outbox;
 using Encina.MongoDB.Repository;
 using Encina.MongoDB.Sagas;
 using Encina.MongoDB.Scheduling;
+using Encina.MongoDB.UnitOfWork;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -223,6 +224,9 @@ public static class ServiceCollectionExtensions
         var collectionName = options.GetEffectiveCollectionName();
         var idProperty = options.IdProperty!;
 
+        // Register the options for UnitOfWork to access
+        services.AddSingleton(options);
+
         // Register the collection as scoped
         services.AddScoped<IMongoCollection<TEntity>>(sp =>
         {
@@ -304,6 +308,72 @@ public static class ServiceCollectionExtensions
             var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
             return new FunctionalRepositoryMongoDB<TEntity, TId>(collection, idProperty);
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds Encina Unit of Work pattern with MongoDB.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IUnitOfWork"/> implemented by <see cref="UnitOfWorkMongoDB"/>
+    /// with scoped lifetime.
+    /// </para>
+    /// <para>
+    /// <strong>Important:</strong> MongoDB transactions require a replica set deployment.
+    /// Standalone MongoDB servers do not support multi-document transactions.
+    /// For development, consider using a single-node replica set.
+    /// </para>
+    /// <para>
+    /// Requires <see cref="IMongoClient"/> and <see cref="EncinaMongoDbOptions"/> to be registered,
+    /// typically via <see cref="AddEncinaMongoDB(IServiceCollection, Action{EncinaMongoDbOptions})"/>.
+    /// </para>
+    /// <para>
+    /// Entity repository options must be registered separately using
+    /// <see cref="AddEncinaRepository{TEntity, TId}(IServiceCollection, Action{MongoDbRepositoryOptions{TEntity, TId}})"/>
+    /// for each entity type used with the Unit of Work.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaMongoDB(options =>
+    /// {
+    ///     options.ConnectionString = "mongodb://localhost:27017/?replicaSet=rs0";
+    ///     options.DatabaseName = "MyApp";
+    /// });
+    ///
+    /// // Register entity mappings
+    /// services.AddEncinaRepository&lt;Order, Guid&gt;(config =>
+    /// {
+    ///     config.CollectionName = "orders";
+    ///     config.IdProperty = o => o.Id;
+    /// });
+    ///
+    /// // Add Unit of Work
+    /// services.AddEncinaUnitOfWork();
+    ///
+    /// // Usage in handler
+    /// public class TransferHandler(IUnitOfWork unitOfWork)
+    /// {
+    ///     public async Task HandleAsync(TransferCommand cmd, CancellationToken ct)
+    ///     {
+    ///         await unitOfWork.BeginTransactionAsync(ct);
+    ///         var accounts = unitOfWork.Repository&lt;Account, Guid&gt;();
+    ///         // ... operations ...
+    ///         await unitOfWork.CommitAsync(ct);
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaUnitOfWork(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        // Only register if not already registered
+        services.TryAddScoped<IUnitOfWork, UnitOfWorkMongoDB>();
 
         return services;
     }

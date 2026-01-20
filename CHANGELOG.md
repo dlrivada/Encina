@@ -2,6 +2,81 @@
 
 ### Added
 
+#### Unit of Work Pattern (#281)
+
+Implemented the Unit of Work pattern (`IUnitOfWork`) across all data access providers for coordinating transactional operations across multiple repositories.
+
+**Core Interface** (`Encina.DomainModeling`):
+
+```csharp
+public interface IUnitOfWork : IAsyncDisposable
+{
+    bool HasActiveTransaction { get; }
+    IFunctionalRepository<TEntity, TId> Repository<TEntity, TId>() where TEntity : class where TId : notnull;
+    Task<Either<EncinaError, int>> SaveChangesAsync(CancellationToken cancellationToken = default);
+    Task<Either<EncinaError, Unit>> BeginTransactionAsync(CancellationToken cancellationToken = default);
+    Task<Either<EncinaError, Unit>> CommitAsync(CancellationToken cancellationToken = default);
+    Task RollbackAsync(CancellationToken cancellationToken = default);
+}
+```
+
+**Provider Implementations**:
+
+| Provider | Implementation | Transaction Support |
+|----------|----------------|---------------------|
+| `Encina.EntityFrameworkCore` | `UnitOfWorkEF` | EF Core `IDbContextTransaction` |
+| `Encina.Dapper.SqlServer` | `UnitOfWorkDapper` | ADO.NET `IDbTransaction` |
+| `Encina.ADO.SqlServer` | `UnitOfWorkADO` | ADO.NET `IDbTransaction` |
+| `Encina.MongoDB` | `UnitOfWorkMongoDB` | MongoDB `IClientSessionHandle` |
+
+**Key Features**:
+
+- Railway Oriented Programming with `Either<EncinaError, T>` return types
+- Repository caching (same entity type returns same instance)
+- Auto-rollback on dispose for uncommitted transactions
+- Error codes: `TransactionAlreadyActive`, `NoActiveTransaction`, `TransactionStartFailed`, `CommitFailed`, `SaveChangesFailed`
+
+**Service Registration**:
+
+```csharp
+// EF Core
+services.AddEncinaUnitOfWork<MyDbContext>();
+
+// Dapper/ADO.NET
+services.AddEncinaUnitOfWork();
+
+// MongoDB (requires replica set for transactions)
+services.AddEncinaUnitOfWork();
+```
+
+**Usage Example**:
+
+```csharp
+public async Task<Either<EncinaError, Unit>> TransferFunds(IUnitOfWork uow, TransferCommand cmd)
+{
+    var accounts = uow.Repository<Account, Guid>();
+
+    var begin = await uow.BeginTransactionAsync();
+    if (begin.IsLeft) return begin;
+
+    var source = await accounts.GetByIdAsync(cmd.SourceId);
+    var target = await accounts.GetByIdAsync(cmd.TargetId);
+
+    // Modify accounts...
+
+    var save = await uow.SaveChangesAsync();
+    if (save.IsLeft) { await uow.RollbackAsync(); return save.Map(_ => Unit.Default); }
+
+    return await uow.CommitAsync();
+}
+```
+
+**Test Coverage**: 128 unit tests + 60 integration tests across all providers
+
+**Related Issue**: [#281 - Unit of Work Pattern](https://github.com/dlrivada/Encina/issues/281)
+
+---
+
 #### Specification Pattern Enhancement (#280)
 
 Enhanced the Specification Pattern implementation across all data access providers with comprehensive `QuerySpecification<T>` support for multi-column ordering, offset-based pagination, and keyset (cursor-based) pagination.

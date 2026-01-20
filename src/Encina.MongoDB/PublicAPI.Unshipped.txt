@@ -223,3 +223,17 @@ Encina.MongoDB.Repository.SpecificationEvaluatorMongoDB<T>.FirstOrDefaultAsync(E
 Encina.MongoDB.Repository.SpecificationEvaluatorMongoDB<T>.SingleOrDefaultAsync(Encina.DomainModeling.IQuerySpecification<T>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<T?>!
 Encina.MongoDB.Repository.SpecificationEvaluatorMongoDB<T>.CountAsync(Encina.DomainModeling.IQuerySpecification<T>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
 Encina.MongoDB.Repository.SpecificationEvaluatorMongoDB<T>.AnyAsync(Encina.DomainModeling.IQuerySpecification<T>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+static Encina.MongoDB.ServiceCollectionExtensions.AddEncinaUnitOfWork(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.MongoDB.ServiceCollectionExtensions.AddEncinaRepository<TEntity, TId>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.MongoDB.Repository.MongoDbRepositoryOptions<TEntity, TId>!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.MongoDB.ServiceCollectionExtensions.AddEncinaReadRepository<TEntity, TId>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.MongoDB.Repository.MongoDbRepositoryOptions<TEntity, TId>!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.MongoDB.UnitOfWork.UnitOfWorkMongoDB
+Encina.MongoDB.UnitOfWork.UnitOfWorkMongoDB.UnitOfWorkMongoDB(MongoDB.Driver.IMongoClient! mongoClient, Microsoft.Extensions.Options.IOptions<Encina.MongoDB.EncinaMongoDbOptions!>! options, System.IServiceProvider! serviceProvider) -> void
+Encina.MongoDB.UnitOfWork.UnitOfWorkMongoDB.BeginTransactionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
+Encina.MongoDB.UnitOfWork.UnitOfWorkMongoDB.CommitAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
+Encina.MongoDB.UnitOfWork.UnitOfWorkMongoDB.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Encina.MongoDB.UnitOfWork.UnitOfWorkMongoDB.HasActiveTransaction.get -> bool
+Encina.MongoDB.UnitOfWork.UnitOfWorkMongoDB.Repository<TEntity, TId>() -> Encina.DomainModeling.IFunctionalRepository<TEntity, TId>!
+Encina.MongoDB.UnitOfWork.UnitOfWorkMongoDB.RollbackAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.MongoDB.UnitOfWork.UnitOfWorkMongoDB.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, int>>!
+Encina.MongoDB.Repository.MongoDbRepositoryOptions<TEntity, TId>.IdProperty.get -> System.Linq.Expressions.Expression<System.Func<TEntity, TId>!>?
+Encina.MongoDB.Repository.MongoDbRepositoryOptions<TEntity, TId>.IdProperty.set -> void
