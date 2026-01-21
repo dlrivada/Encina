@@ -2,6 +2,7 @@ using Encina.Messaging.Health;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.MongoDB.Modules;
+using Encina.MongoDB.ReadWriteSeparation;
 
 namespace Encina.MongoDB;
 
@@ -87,6 +88,34 @@ public sealed class EncinaMongoDbOptions
     /// Gets the provider health check options.
     /// </summary>
     public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to enable read/write separation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, query operations (<c>IQuery&lt;T&gt;</c>) are routed to secondary
+    /// members of the replica set using the configured read preference, while command
+    /// operations (<c>ICommand&lt;T&gt;</c>) always use the primary.
+    /// </para>
+    /// <para>
+    /// <b>Requirements:</b>
+    /// Read/write separation requires a MongoDB replica set deployment. Standalone
+    /// MongoDB servers do not support read preferences other than Primary.
+    /// </para>
+    /// <para>
+    /// Configure read/write separation options via <see cref="ReadWriteSeparationOptions"/>.
+    /// </para>
+    /// </remarks>
+    public bool UseReadWriteSeparation { get; set; }
+
+    /// <summary>
+    /// Gets the read/write separation options.
+    /// </summary>
+    /// <remarks>
+    /// Only used when <see cref="UseReadWriteSeparation"/> is <c>true</c>.
+    /// </remarks>
+    public MongoReadWriteSeparationOptions ReadWriteSeparationOptions { get; } = new();
 }
 
 /// <summary>

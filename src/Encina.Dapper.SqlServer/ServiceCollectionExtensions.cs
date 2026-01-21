@@ -3,6 +3,7 @@ using Encina.Dapper.SqlServer.Health;
 using Encina.Dapper.SqlServer.Inbox;
 using Encina.Dapper.SqlServer.Modules;
 using Encina.Dapper.SqlServer.Outbox;
+using Encina.Dapper.SqlServer.ReadWriteSeparation;
 using Encina.Dapper.SqlServer.Repository;
 using Encina.Dapper.SqlServer.Sagas;
 using Encina.Dapper.SqlServer.Scheduling;
@@ -10,6 +11,7 @@ using Encina.Dapper.SqlServer.UnitOfWork;
 using Encina.DomainModeling;
 using Encina.Messaging;
 using Encina.Messaging.Health;
+using Encina.Messaging.ReadWriteSeparation;
 using Encina.Modules.Isolation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -85,6 +87,43 @@ public static class ServiceCollectionExtensions
             // Register appropriate permission script generator based on configuration
             // (Users can override this with their own generator if needed)
             services.TryAddSingleton<IModulePermissionScriptGenerator, SqlServerPermissionScriptGenerator>();
+        }
+
+        // Register read/write separation services if enabled
+        if (config.UseReadWriteSeparation)
+        {
+            // Register the options
+            services.AddSingleton(config.ReadWriteSeparationOptions);
+
+            // Register replica selector based on strategy if replicas are configured
+            if (config.ReadWriteSeparationOptions.ReadConnectionStrings.Count > 0)
+            {
+                var replicaSelector = ReplicaSelectorFactory.Create(config.ReadWriteSeparationOptions);
+                services.AddSingleton<IReplicaSelector>(replicaSelector);
+
+                // Register connection selector with replica support
+                services.AddSingleton<IReadWriteConnectionSelector>(sp =>
+                    new ReadWriteConnectionSelector(
+                        config.ReadWriteSeparationOptions,
+                        sp.GetRequiredService<IReplicaSelector>()));
+            }
+            else
+            {
+                // Register connection selector without replicas (falls back to primary)
+                services.AddSingleton<IReadWriteConnectionSelector>(
+                    new ReadWriteConnectionSelector(
+                        config.ReadWriteSeparationOptions,
+                        replicaSelector: null));
+            }
+
+            // Register the connection factory
+            services.AddScoped<IReadWriteConnectionFactory, ReadWriteConnectionFactory>();
+
+            // Register the pipeline behavior for automatic routing
+            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ReadWriteRoutingPipelineBehavior<,>));
+
+            // Register the health check
+            services.AddSingleton<IEncinaHealthCheck, ReadWriteSeparationHealthCheck>();
         }
 
         return services;

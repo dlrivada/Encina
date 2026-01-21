@@ -3,6 +3,7 @@ using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.ReadWriteSeparation;
 using Encina.Messaging.Recoverability;
 using Encina.Messaging.RoutingSlip;
 using Encina.Messaging.Sagas;
@@ -259,6 +260,52 @@ public sealed class MessagingConfiguration
     public bool UseModuleIsolation { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable read/write database separation (CQRS physical split).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, queries are automatically routed to read replicas while commands
+    /// are routed to the primary database. This complements Encina's existing logical CQRS
+    /// with physical database separation.
+    /// </para>
+    /// <para>
+    /// Features include:
+    /// <list type="bullet">
+    /// <item><description>Automatic routing based on IQuery vs ICommand</description></item>
+    /// <item><description>Multiple replica selection strategies (RoundRobin, Random, LeastConnections)</description></item>
+    /// <item><description>ForceWriteDatabase attribute for read-after-write consistency</description></item>
+    /// <item><description>Health checks for primary and all replica connections</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Benefits:
+    /// <list type="bullet">
+    /// <item><description>Offload reads to replicas for massive query parallelism</description></item>
+    /// <item><description>Reduce load on primary database</description></item>
+    /// <item><description>Improve read latency with geographically distributed replicas</description></item>
+    /// <item><description>Scale reads independently from writes</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseReadWriteSeparation = true;
+    ///     config.ReadWriteSeparationOptions.WriteConnectionString = "Server=primary;...";
+    ///     config.ReadWriteSeparationOptions.ReadConnectionStrings = new[]
+    ///     {
+    ///         "Server=replica1;...",
+    ///         "Server=replica2;..."
+    ///     };
+    ///     config.ReadWriteSeparationOptions.ReplicaStrategy = ReplicaStrategy.RoundRobin;
+    /// });
+    /// </code>
+    /// </example>
+    public bool UseReadWriteSeparation { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -348,6 +395,38 @@ public sealed class MessagingConfiguration
     public ModuleIsolationOptions ModuleIsolationOptions { get; } = new();
 
     /// <summary>
+    /// Gets the configuration options for read/write database separation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use this to configure:
+    /// <list type="bullet">
+    /// <item><description>Primary (write) database connection string</description></item>
+    /// <item><description>Read replica connection strings</description></item>
+    /// <item><description>Replica selection strategy (RoundRobin, Random, LeastConnections)</description></item>
+    /// <item><description>Startup validation of database connections</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseReadWriteSeparation = true;
+    ///     config.ReadWriteSeparationOptions.WriteConnectionString = "Server=primary;...";
+    ///     config.ReadWriteSeparationOptions.ReadConnectionStrings = new[]
+    ///     {
+    ///         "Server=replica1;...",
+    ///         "Server=replica2;..."
+    ///     };
+    ///     config.ReadWriteSeparationOptions.ReplicaStrategy = ReplicaStrategy.LeastConnections;
+    ///     config.ReadWriteSeparationOptions.ValidateOnStartup = true;
+    /// });
+    /// </code>
+    /// </example>
+    public ReadWriteSeparationOptions ReadWriteSeparationOptions { get; } = new();
+
+    /// <summary>
     /// Gets the configuration options for provider-specific health checks.
     /// </summary>
     /// <remarks>
@@ -366,5 +445,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation;
 }

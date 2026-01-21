@@ -523,3 +523,78 @@ Encina.Messaging.RoutingSlip.RoutingSlipRunner
 Encina.Messaging.RoutingSlip.RoutingSlipRunner.RoutingSlipRunner(Encina.IRequestContext! requestContext, Encina.Messaging.RoutingSlip.RoutingSlipOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.RoutingSlip.RoutingSlipRunner!>! logger) -> void
 Encina.Messaging.RoutingSlip.RoutingSlipRunner.RunAsync<TData>(Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>! definition, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>!>>
 Encina.Messaging.RoutingSlip.RoutingSlipRunner.RunAsync<TData>(Encina.Messaging.RoutingSlip.BuiltRoutingSlipDefinition<TData>! definition, TData initialData, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.RoutingSlip.RoutingSlipResult<TData>!>>
+Encina.Messaging.ReadWriteSeparation.DatabaseIntent
+Encina.Messaging.ReadWriteSeparation.DatabaseIntent.ForceWrite = 2 -> Encina.Messaging.ReadWriteSeparation.DatabaseIntent
+Encina.Messaging.ReadWriteSeparation.DatabaseIntent.Read = 1 -> Encina.Messaging.ReadWriteSeparation.DatabaseIntent
+Encina.Messaging.ReadWriteSeparation.DatabaseIntent.Write = 0 -> Encina.Messaging.ReadWriteSeparation.DatabaseIntent
+Encina.Messaging.ReadWriteSeparation.DatabaseRoutingContext
+static Encina.Messaging.ReadWriteSeparation.DatabaseRoutingContext.Clear() -> void
+static Encina.Messaging.ReadWriteSeparation.DatabaseRoutingContext.CurrentIntent.get -> Encina.Messaging.ReadWriteSeparation.DatabaseIntent?
+static Encina.Messaging.ReadWriteSeparation.DatabaseRoutingContext.CurrentIntent.set -> void
+static Encina.Messaging.ReadWriteSeparation.DatabaseRoutingContext.EffectiveIntent.get -> Encina.Messaging.ReadWriteSeparation.DatabaseIntent
+static Encina.Messaging.ReadWriteSeparation.DatabaseRoutingContext.HasIntent.get -> bool
+static Encina.Messaging.ReadWriteSeparation.DatabaseRoutingContext.IsEnabled.get -> bool
+static Encina.Messaging.ReadWriteSeparation.DatabaseRoutingContext.IsEnabled.set -> void
+static Encina.Messaging.ReadWriteSeparation.DatabaseRoutingContext.IsReadIntent.get -> bool
+static Encina.Messaging.ReadWriteSeparation.DatabaseRoutingContext.IsWriteIntent.get -> bool
+Encina.Messaging.ReadWriteSeparation.DatabaseRoutingScope
+Encina.Messaging.ReadWriteSeparation.DatabaseRoutingScope.DatabaseRoutingScope() -> void
+Encina.Messaging.ReadWriteSeparation.DatabaseRoutingScope.DatabaseRoutingScope(Encina.Messaging.ReadWriteSeparation.DatabaseIntent intent) -> void
+Encina.Messaging.ReadWriteSeparation.DatabaseRoutingScope.DatabaseRoutingScope(Encina.Messaging.ReadWriteSeparation.DatabaseIntent intent, bool enabled) -> void
+Encina.Messaging.ReadWriteSeparation.DatabaseRoutingScope.Dispose() -> void
+Encina.Messaging.ReadWriteSeparation.DatabaseRoutingScope.Intent.get -> Encina.Messaging.ReadWriteSeparation.DatabaseIntent
+static Encina.Messaging.ReadWriteSeparation.DatabaseRoutingScope.ForForceWrite() -> Encina.Messaging.ReadWriteSeparation.DatabaseRoutingScope
+static Encina.Messaging.ReadWriteSeparation.DatabaseRoutingScope.ForRead() -> Encina.Messaging.ReadWriteSeparation.DatabaseRoutingScope
+static Encina.Messaging.ReadWriteSeparation.DatabaseRoutingScope.ForWrite() -> Encina.Messaging.ReadWriteSeparation.DatabaseRoutingScope
+Encina.Messaging.ReadWriteSeparation.ForceWriteDatabaseAttribute
+Encina.Messaging.ReadWriteSeparation.ForceWriteDatabaseAttribute.ForceWriteDatabaseAttribute() -> void
+Encina.Messaging.ReadWriteSeparation.ForceWriteDatabaseAttribute.Reason.get -> string?
+Encina.Messaging.ReadWriteSeparation.ForceWriteDatabaseAttribute.Reason.init -> void
+Encina.Messaging.ReadWriteSeparation.IReadWriteConnectionSelector
+Encina.Messaging.ReadWriteSeparation.IReadWriteConnectionSelector.GetConnectionString() -> string!
+Encina.Messaging.ReadWriteSeparation.IReadWriteConnectionSelector.GetReadConnectionString() -> string!
+Encina.Messaging.ReadWriteSeparation.IReadWriteConnectionSelector.GetWriteConnectionString() -> string!
+Encina.Messaging.ReadWriteSeparation.IReadWriteConnectionSelector.HasReadReplicas.get -> bool
+Encina.Messaging.ReadWriteSeparation.IReplicaSelector
+Encina.Messaging.ReadWriteSeparation.IReplicaSelector.SelectReplica() -> string!
+Encina.Messaging.ReadWriteSeparation.LeastConnectionsReplicaSelector
+Encina.Messaging.ReadWriteSeparation.LeastConnectionsReplicaSelector.AcquireReplica() -> Encina.Messaging.ReadWriteSeparation.LeastConnectionsReplicaSelector.ReplicaLease
+Encina.Messaging.ReadWriteSeparation.LeastConnectionsReplicaSelector.GetAllConnectionCounts() -> System.Collections.Generic.IReadOnlyDictionary<string!, int>!
+Encina.Messaging.ReadWriteSeparation.LeastConnectionsReplicaSelector.GetConnectionCount(string! connectionString) -> int
+Encina.Messaging.ReadWriteSeparation.LeastConnectionsReplicaSelector.LeastConnectionsReplicaSelector(System.Collections.Generic.IReadOnlyList<string!>! replicas) -> void
+Encina.Messaging.ReadWriteSeparation.LeastConnectionsReplicaSelector.ReleaseReplica(string! connectionString) -> void
+Encina.Messaging.ReadWriteSeparation.LeastConnectionsReplicaSelector.SelectReplica() -> string!
+Encina.Messaging.ReadWriteSeparation.LeastConnectionsReplicaSelector.ReplicaLease
+Encina.Messaging.ReadWriteSeparation.LeastConnectionsReplicaSelector.ReplicaLease.ConnectionString.get -> string!
+Encina.Messaging.ReadWriteSeparation.LeastConnectionsReplicaSelector.ReplicaLease.Dispose() -> void
+Encina.Messaging.ReadWriteSeparation.LeastConnectionsReplicaSelector.ReplicaLease.ReplicaLease() -> void
+Encina.Messaging.ReadWriteSeparation.RandomReplicaSelector
+Encina.Messaging.ReadWriteSeparation.RandomReplicaSelector.RandomReplicaSelector(System.Collections.Generic.IReadOnlyList<string!>! replicas) -> void
+Encina.Messaging.ReadWriteSeparation.RandomReplicaSelector.SelectReplica() -> string!
+Encina.Messaging.ReadWriteSeparation.ReadWriteConnectionSelector
+Encina.Messaging.ReadWriteSeparation.ReadWriteConnectionSelector.GetConnectionString() -> string!
+Encina.Messaging.ReadWriteSeparation.ReadWriteConnectionSelector.GetReadConnectionString() -> string!
+Encina.Messaging.ReadWriteSeparation.ReadWriteConnectionSelector.GetWriteConnectionString() -> string!
+Encina.Messaging.ReadWriteSeparation.ReadWriteConnectionSelector.HasReadReplicas.get -> bool
+Encina.Messaging.ReadWriteSeparation.ReadWriteConnectionSelector.ReadWriteConnectionSelector(Microsoft.Extensions.Options.IOptions<Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions!>! options, Encina.Messaging.ReadWriteSeparation.IReplicaSelector? replicaSelector = null) -> void
+Encina.Messaging.ReadWriteSeparation.ReadWriteConnectionSelector.ReadWriteConnectionSelector(Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions! options, Encina.Messaging.ReadWriteSeparation.IReplicaSelector? replicaSelector = null) -> void
+Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions
+Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions.ReadConnectionStrings.get -> System.Collections.Generic.IList<string!>!
+Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions.ReadConnectionStrings.set -> void
+Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions.ReadWriteSeparationOptions() -> void
+Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions.ReplicaStrategy.get -> Encina.Messaging.ReadWriteSeparation.ReplicaStrategy
+Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions.ReplicaStrategy.set -> void
+Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions.ValidateOnStartup.get -> bool
+Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions.ValidateOnStartup.set -> void
+Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions.WriteConnectionString.get -> string?
+Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions.WriteConnectionString.set -> void
+Encina.Messaging.ReadWriteSeparation.ReplicaSelectorFactory
+static Encina.Messaging.ReadWriteSeparation.ReplicaSelectorFactory.Create(Encina.Messaging.ReadWriteSeparation.ReadWriteSeparationOptions! options) -> Encina.Messaging.ReadWriteSeparation.IReplicaSelector!
+static Encina.Messaging.ReadWriteSeparation.ReplicaSelectorFactory.Create(System.Collections.Generic.IReadOnlyList<string!>! replicas, Encina.Messaging.ReadWriteSeparation.ReplicaStrategy strategy) -> Encina.Messaging.ReadWriteSeparation.IReplicaSelector!
+Encina.Messaging.ReadWriteSeparation.ReplicaStrategy
+Encina.Messaging.ReadWriteSeparation.ReplicaStrategy.LeastConnections = 2 -> Encina.Messaging.ReadWriteSeparation.ReplicaStrategy
+Encina.Messaging.ReadWriteSeparation.ReplicaStrategy.Random = 1 -> Encina.Messaging.ReadWriteSeparation.ReplicaStrategy
+Encina.Messaging.ReadWriteSeparation.ReplicaStrategy.RoundRobin = 0 -> Encina.Messaging.ReadWriteSeparation.ReplicaStrategy
+Encina.Messaging.ReadWriteSeparation.RoundRobinReplicaSelector
+Encina.Messaging.ReadWriteSeparation.RoundRobinReplicaSelector.RoundRobinReplicaSelector(System.Collections.Generic.IReadOnlyList<string!>! replicas) -> void
+Encina.Messaging.ReadWriteSeparation.RoundRobinReplicaSelector.SelectReplica() -> string!

@@ -9,6 +9,7 @@ using Encina.MongoDB.Health;
 using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Modules;
 using Encina.MongoDB.Outbox;
+using Encina.MongoDB.ReadWriteSeparation;
 using Encina.MongoDB.Repository;
 using Encina.MongoDB.Sagas;
 using Encina.MongoDB.Scheduling;
@@ -110,6 +111,12 @@ public static class ServiceCollectionExtensions
             RegisterModuleIsolationServices(services, options);
         }
 
+        // Register read/write separation services if enabled
+        if (options.UseReadWriteSeparation)
+        {
+            RegisterReadWriteSeparationServices(services, options);
+        }
+
         return services;
     }
 
@@ -183,6 +190,12 @@ public static class ServiceCollectionExtensions
         if (options.UseModuleIsolation)
         {
             RegisterModuleIsolationServices(services, options);
+        }
+
+        // Register read/write separation services if enabled
+        if (options.UseReadWriteSeparation)
+        {
+            RegisterReadWriteSeparationServices(services, options);
         }
 
         return services;
@@ -421,5 +434,57 @@ public static class ServiceCollectionExtensions
 
         // Register module-aware collection factory
         services.AddScoped<IModuleAwareMongoCollectionFactory, ModuleAwareMongoCollectionFactory>();
+    }
+
+    /// <summary>
+    /// Registers read/write separation services.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="options">The MongoDB options containing read/write separation configuration.</param>
+    /// <remarks>
+    /// <para>
+    /// Registers the following services:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>
+    ///     <description><see cref="MongoReadWriteSeparationOptions"/>: Configuration options</description>
+    ///   </item>
+    ///   <item>
+    ///     <description><see cref="IReadWriteMongoCollectionFactory"/>: Factory for creating routed collections</description>
+    ///   </item>
+    ///   <item>
+    ///     <description><see cref="ReadWriteRoutingPipelineBehavior{TRequest, TResponse}"/>: Pipeline behavior for automatic routing</description>
+    ///   </item>
+    ///   <item>
+    ///     <description><see cref="ReadWriteMongoHealthCheck"/>: Health check for replica set topology</description>
+    ///   </item>
+    /// </list>
+    /// <para>
+    /// <b>Requirements:</b> Read/write separation requires a MongoDB replica set deployment.
+    /// Standalone MongoDB servers do not support read preferences other than Primary.
+    /// </para>
+    /// </remarks>
+    private static void RegisterReadWriteSeparationServices(
+        IServiceCollection services,
+        EncinaMongoDbOptions options)
+    {
+        // Register read/write separation options
+        services.Configure<MongoReadWriteSeparationOptions>(opt =>
+        {
+            opt.ReadPreference = options.ReadWriteSeparationOptions.ReadPreference;
+            opt.ReadConcern = options.ReadWriteSeparationOptions.ReadConcern;
+            opt.ValidateOnStartup = options.ReadWriteSeparationOptions.ValidateOnStartup;
+            opt.FallbackToPrimaryOnNoSecondaries = options.ReadWriteSeparationOptions.FallbackToPrimaryOnNoSecondaries;
+            opt.MaxStaleness = options.ReadWriteSeparationOptions.MaxStaleness;
+        });
+
+        // Register collection factory for read/write routing
+        services.AddScoped<IReadWriteMongoCollectionFactory, ReadWriteMongoCollectionFactory>();
+
+        // Register pipeline behavior for automatic routing based on request type
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ReadWriteRoutingPipelineBehavior<,>));
+
+        // Register health check for replica set topology monitoring
+        services.AddSingleton<IEncinaHealthCheck, ReadWriteMongoHealthCheck>();
     }
 }

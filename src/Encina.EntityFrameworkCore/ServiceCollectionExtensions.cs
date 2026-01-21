@@ -3,6 +3,7 @@ using Encina.EntityFrameworkCore.Health;
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.EntityFrameworkCore.Modules;
 using Encina.EntityFrameworkCore.Outbox;
+using Encina.EntityFrameworkCore.ReadWriteSeparation;
 using Encina.EntityFrameworkCore.Repository;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.EntityFrameworkCore.Scheduling;
@@ -12,6 +13,7 @@ using Encina.Messaging;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.ReadWriteSeparation;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Modules.Isolation;
@@ -49,6 +51,7 @@ public static class ServiceCollectionExtensions
     /// <item><description><b>Sagas</b>: Distributed transactions with compensation</description></item>
     /// <item><description><b>Scheduling</b>: Delayed/recurring command execution</description></item>
     /// <item><description><b>Tenancy</b>: Multi-tenant data isolation and automatic tenant assignment</description></item>
+    /// <item><description><b>ReadWriteSeparation</b>: Route queries to read replicas and commands to primary</description></item>
     /// </list>
     /// </para>
     /// <para>
@@ -92,6 +95,19 @@ public static class ServiceCollectionExtensions
     ///     // Configure pattern-specific options
     ///     config.OutboxOptions.ProcessingInterval = TimeSpan.FromSeconds(30);
     ///     config.InboxOptions.MaxRetries = 5;
+    /// });
+    ///
+    /// // Read/Write separation - route queries to replicas
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseReadWriteSeparation = true;
+    ///     config.ReadWriteSeparationOptions.WriteConnectionString = "Server=primary;...";
+    ///     config.ReadWriteSeparationOptions.ReadConnectionStrings.AddRange(new[]
+    ///     {
+    ///         "Server=replica1;...",
+    ///         "Server=replica2;..."
+    ///     });
+    ///     config.ReadWriteSeparationOptions.ReplicaStrategy = ReplicaStrategy.RoundRobin;
     /// });
     /// </code>
     /// </example>
@@ -187,6 +203,40 @@ public static class ServiceCollectionExtensions
             // Register appropriate permission script generator based on configuration
             // (Users can override this with their own generator if needed)
             services.TryAddSingleton<IModulePermissionScriptGenerator, SqlServerPermissionScriptGenerator>();
+        }
+
+        if (config.UseReadWriteSeparation)
+        {
+            // Register read/write separation options
+            services.AddSingleton(config.ReadWriteSeparationOptions);
+
+            // Create and register the replica selector only if replicas are configured
+            if (config.ReadWriteSeparationOptions.ReadConnectionStrings.Count > 0)
+            {
+                var replicaSelector = ReplicaSelectorFactory.Create(config.ReadWriteSeparationOptions);
+                services.AddSingleton<IReplicaSelector>(replicaSelector);
+
+                // Register connection selector with replica support
+                services.AddSingleton<IReadWriteConnectionSelector>(sp =>
+                    new ReadWriteConnectionSelector(
+                        config.ReadWriteSeparationOptions,
+                        sp.GetRequiredService<IReplicaSelector>()));
+            }
+            else
+            {
+                // Register connection selector without replica support (uses primary for all operations)
+                services.AddSingleton<IReadWriteConnectionSelector>(
+                    new ReadWriteConnectionSelector(config.ReadWriteSeparationOptions, replicaSelector: null));
+            }
+
+            // Register DbContext factory for read/write routing
+            services.AddScoped<IReadWriteDbContextFactory<TDbContext>, ReadWriteDbContextFactory<TDbContext>>();
+
+            // Register the pipeline behavior for automatic routing
+            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ReadWriteRoutingPipelineBehavior<,>));
+
+            // Register health check for read/write separation
+            services.AddSingleton<IEncinaHealthCheck, ReadWriteSeparationHealthCheck>();
         }
 
         // Register provider health check if enabled

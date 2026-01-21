@@ -254,6 +254,136 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 
 ---
 
+#### Read/Write Database Separation (CQRS Physical Split) (#283)
+
+Implemented read/write database separation for CQRS physical split architectures across all data access providers (EF Core, Dapper, ADO.NET, MongoDB).
+
+**Core Abstractions** (`Encina.Messaging`):
+
+```csharp
+// Database intent markers
+public enum DatabaseIntent { Read, Write, ForceWrite }
+
+// Context for routing decisions
+public static class DatabaseRoutingContext
+{
+    public static DatabaseIntent CurrentIntent { get; }
+    public static void SetIntent(DatabaseIntent intent);
+    public static IDisposable BeginReadContext();
+    public static IDisposable BeginWriteContext();
+    public static IDisposable BeginForceWriteContext();
+}
+
+// Attribute for read-after-write consistency
+[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+public sealed class ForceWriteDatabaseAttribute : Attribute;
+```
+
+**Provider Implementations**:
+
+| Provider | Read Routing | Configuration |
+|----------|--------------|---------------|
+| `Encina.EntityFrameworkCore` | `IDbContextFactory` + interceptors | `UseReadWriteSeparation = true` |
+| `Encina.Dapper.SqlServer` | Connection factory with read preference | `ReadConnectionString` |
+| `Encina.ADO.SqlServer` | Connection factory with read preference | `ReadConnectionString` |
+| `Encina.MongoDB` | `IReadWriteMongoCollectionFactory` with read preferences | `UseReadWriteSeparation = true` |
+
+**MongoDB-Specific Features**:
+
+```csharp
+// Read preferences for replica routing
+public enum MongoReadPreference
+{
+    Primary,           // Always read from primary (strong consistency)
+    PrimaryPreferred,  // Prefer primary, fallback to secondary
+    Secondary,         // Only read from secondaries
+    SecondaryPreferred,// Prefer secondary, fallback to primary
+    Nearest            // Lowest latency node
+}
+
+// Read concerns for consistency levels
+public enum MongoReadConcern
+{
+    Default,      // Driver default
+    Local,        // Node's local data
+    Majority,     // Majority-committed data
+    Linearizable, // Linearizable reads (strongest)
+    Available,    // Available data (sharded)
+    Snapshot      // Snapshot isolation
+}
+```
+
+**Service Registration**:
+
+```csharp
+// EF Core
+services.AddEncinaEntityFrameworkCore<ReadDbContext, WriteDbContext>(config =>
+{
+    config.UseReadWriteSeparation = true;
+});
+
+// Dapper
+services.AddEncinaDapperSqlServer(config =>
+{
+    config.WriteConnectionString = "Server=primary;...";
+    config.ReadConnectionString = "Server=secondary;...";
+});
+
+// MongoDB
+services.AddEncinaMongoDB(mongoClient, config =>
+{
+    config.DatabaseName = "mydb";
+    config.UseReadWriteSeparation = true;
+    config.ReadWriteSeparationOptions.ReadPreference = MongoReadPreference.SecondaryPreferred;
+    config.ReadWriteSeparationOptions.ReadConcern = MongoReadConcern.Local;
+    config.ReadWriteSeparationOptions.FallbackToPrimaryOnNoSecondaries = true;
+    config.ReadWriteSeparationOptions.MaxStaleness = TimeSpan.FromMinutes(2);
+});
+```
+
+**Pipeline Behavior (Automatic Routing)**:
+
+The `ReadWriteRoutingPipelineBehavior<TRequest, TResponse>` automatically routes:
+
+- `IQuery<T>` → Read database (unless marked with `[ForceWriteDatabase]`)
+- `ICommand<T>` / `INotification` → Write database
+
+```csharp
+// Automatically routed to read database
+public sealed record GetOrderByIdQuery(Guid Id) : IQuery<Order>;
+
+// Force read-after-write consistency
+[ForceWriteDatabase]
+public sealed record GetOrderAfterCreationQuery(Guid Id) : IQuery<Order>;
+```
+
+**Health Checks**:
+
+| Provider | Health Check | Default Name |
+|----------|--------------|--------------|
+| EF Core | `ReadWriteEfCoreHealthCheck` | `encina-read-write-separation-efcore` |
+| MongoDB | `ReadWriteMongoHealthCheck` | `encina-read-write-separation-mongodb` |
+| Dapper | Connection validation | `encina-read-write-separation-dapper` |
+| ADO.NET | Connection validation | `encina-read-write-separation-ado` |
+
+**Test Coverage**: 69 unit tests for MongoDB read/write separation
+
+| Component | Tests |
+|-----------|-------|
+| `MongoReadWriteSeparationOptions` | 11 tests |
+| `MongoReadPreference` enum | 8 tests |
+| `MongoReadConcern` enum | 7 tests |
+| `ReadWriteMongoCollectionFactory` | 14 tests |
+| `ReadWriteRoutingPipelineBehavior` | 15 tests |
+| `ReadWriteMongoHealthCheck` | 6 tests |
+| `ServiceCollectionExtensions` | 8 tests |
+
+**Documentation**: Comprehensive guide at `docs/features/read-write-separation.md` (500+ lines)
+
+**Related Issue**: [#283 - Read/Write Database Separation (CQRS Physical Split)](https://github.com/dlrivada/Encina/issues/283)
+
+---
+
 #### Specification Pattern Enhancement (#280)
 
 Enhanced the Specification Pattern implementation across all data access providers with comprehensive `QuerySpecification<T>` support for multi-column ordering, offset-based pagination, and keyset (cursor-based) pagination.

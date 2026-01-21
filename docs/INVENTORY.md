@@ -1697,6 +1697,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 ##### Referencias de Investigación
 
 - [Module Isolation Documentation](./features/module-isolation.md) - Documentación completa de Module Isolation
+- [Read/Write Separation Documentation](./features/read-write-separation.md) - Documentación completa de CQRS Physical Split
 - [Ardalis.Specification](https://github.com/ardalis/Specification) - Specification pattern gold standard
 - [EFCore.BulkExtensions](https://github.com/borisdj/EFCore.BulkExtensions) - Bulk operations
 - [Debezium](https://debezium.io/) - Change Data Capture
