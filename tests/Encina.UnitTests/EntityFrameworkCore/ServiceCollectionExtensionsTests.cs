@@ -4,6 +4,7 @@ using Encina.EntityFrameworkCore.Inbox;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.EntityFrameworkCore.Scheduling;
+using Encina.EntityFrameworkCore.Tenancy;
 using Encina.Messaging;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
@@ -13,6 +14,7 @@ using Encina.Messaging.Scheduling;
 using Encina.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Shouldly;
 using Xunit;
 
@@ -251,6 +253,124 @@ public sealed class ServiceCollectionExtensionsTests
 
     #endregion
 
+    #region Tenancy Registration Tests
+
+    [Fact]
+    public void AddEncinaEntityFrameworkCore_WithUseTenancy_RegistersEfCoreTenancyOptions()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddDbContext<TestDbContext>(options =>
+            options.UseInMemoryDatabase("TestDb"));
+
+        // Act
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config =>
+        {
+            config.UseTenancy = true;
+        });
+        using var provider = services.BuildServiceProvider();
+
+        // Assert
+        var options = provider.GetService<IOptions<EfCoreTenancyOptions>>();
+        options.ShouldNotBeNull();
+        options.Value.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void AddEncinaEntityFrameworkCore_WithUseTenancy_RegistersTenantSchemaConfigurator()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddDbContext<TestDbContext>(options =>
+            options.UseInMemoryDatabase("TestDb"));
+
+        // Act
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config =>
+        {
+            config.UseTenancy = true;
+        });
+        using var provider = services.BuildServiceProvider();
+
+        // Assert
+        var schemaConfigurator = provider.GetService<ITenantSchemaConfigurator>();
+        schemaConfigurator.ShouldNotBeNull();
+        schemaConfigurator.ShouldBeOfType<DefaultTenantSchemaConfigurator>();
+    }
+
+    [Fact]
+    public void AddEncinaEntityFrameworkCore_WithUseTenancy_PropagatesOptionsFromConfiguration()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddDbContext<TestDbContext>(options =>
+            options.UseInMemoryDatabase("TestDb"));
+
+        // Act
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config =>
+        {
+            config.UseTenancy = true;
+            config.TenancyOptions.AutoAssignTenantId = false;
+            config.TenancyOptions.ValidateTenantOnSave = false;
+            config.TenancyOptions.UseQueryFilters = false;
+            config.TenancyOptions.ThrowOnMissingTenantContext = false;
+        });
+        using var provider = services.BuildServiceProvider();
+
+        // Assert
+        var options = provider.GetRequiredService<IOptions<EfCoreTenancyOptions>>();
+        options.Value.AutoAssignTenantId.ShouldBeFalse();
+        options.Value.ValidateTenantOnSave.ShouldBeFalse();
+        options.Value.UseQueryFilters.ShouldBeFalse();
+        options.Value.ThrowOnMissingTenantContext.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void AddEncinaEntityFrameworkCore_WithUseTenancyDisabled_DoesNotRegisterTenancyServices()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddDbContext<TestDbContext>(options =>
+            options.UseInMemoryDatabase("TestDb"));
+
+        // Act
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config =>
+        {
+            config.UseTenancy = false;
+        });
+        using var provider = services.BuildServiceProvider();
+
+        // Assert
+        var options = provider.GetService<IOptions<EfCoreTenancyOptions>>();
+        options.ShouldBeNull();
+        var schemaConfigurator = provider.GetService<ITenantSchemaConfigurator>();
+        schemaConfigurator.ShouldBeNull();
+    }
+
+    [Fact]
+    public void AddEncinaEntityFrameworkCore_WithUseTenancy_DefaultOptionsAreCorrect()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddDbContext<TestDbContext>(options =>
+            options.UseInMemoryDatabase("TestDb"));
+
+        // Act
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config =>
+        {
+            config.UseTenancy = true;
+        });
+        using var provider = services.BuildServiceProvider();
+
+        // Assert - Default values should be true
+        var options = provider.GetRequiredService<IOptions<EfCoreTenancyOptions>>();
+        options.Value.AutoAssignTenantId.ShouldBeTrue();
+        options.Value.ValidateTenantOnSave.ShouldBeTrue();
+        options.Value.UseQueryFilters.ShouldBeTrue();
+        options.Value.ThrowOnMissingTenantContext.ShouldBeTrue();
+    }
+
+    #endregion
+
     #region All Patterns Enabled
 
     [Fact]
@@ -269,6 +389,7 @@ public sealed class ServiceCollectionExtensionsTests
             config.UseInbox = true;
             config.UseSagas = true;
             config.UseScheduling = true;
+            config.UseTenancy = true;
             config.ProviderHealthCheck.Enabled = true;
         });
         using var provider = services.BuildServiceProvider();
@@ -279,6 +400,8 @@ public sealed class ServiceCollectionExtensionsTests
         provider.GetService<SagaOptions>().ShouldNotBeNull();
         provider.GetService<SchedulingOptions>().ShouldNotBeNull();
         provider.GetService<IEncinaHealthCheck>().ShouldNotBeNull();
+        provider.GetService<IOptions<EfCoreTenancyOptions>>().ShouldNotBeNull();
+        provider.GetService<ITenantSchemaConfigurator>().ShouldNotBeNull();
     }
 
     #endregion

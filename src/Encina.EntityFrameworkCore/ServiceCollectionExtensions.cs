@@ -5,6 +5,7 @@ using Encina.EntityFrameworkCore.Outbox;
 using Encina.EntityFrameworkCore.Repository;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.EntityFrameworkCore.Scheduling;
+using Encina.EntityFrameworkCore.Tenancy;
 using Encina.EntityFrameworkCore.UnitOfWork;
 using Encina.Messaging;
 using Encina.Messaging.Health;
@@ -12,9 +13,11 @@ using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Encina.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Encina.EntityFrameworkCore;
 
@@ -43,6 +46,7 @@ public static class ServiceCollectionExtensions
     /// <item><description><b>Inbox</b>: Idempotent message processing (exactly-once semantics)</description></item>
     /// <item><description><b>Sagas</b>: Distributed transactions with compensation</description></item>
     /// <item><description><b>Scheduling</b>: Delayed/recurring command execution</description></item>
+    /// <item><description><b>Tenancy</b>: Multi-tenant data isolation and automatic tenant assignment</description></item>
     /// </list>
     /// </para>
     /// <para>
@@ -62,6 +66,17 @@ public static class ServiceCollectionExtensions
     ///     config.UseTransactions = true;
     /// });
     ///
+    /// // Multi-tenant app with tenancy support
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseTransactions = true;
+    ///     config.UseTenancy = true;
+    ///
+    ///     // Configure tenancy-specific options
+    ///     config.TenancyOptions.AutoAssignTenantId = true;
+    ///     config.TenancyOptions.ValidateTenantOnSave = true;
+    /// });
+    ///
     /// // Complex distributed system - all patterns
     /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
     /// {
@@ -70,6 +85,7 @@ public static class ServiceCollectionExtensions
     ///     config.UseInbox = true;
     ///     config.UseSagas = true;
     ///     config.UseScheduling = true;
+    ///     config.UseTenancy = true;
     ///
     ///     // Configure pattern-specific options
     ///     config.OutboxOptions.ProcessingInterval = TimeSpan.FromSeconds(30);
@@ -126,6 +142,29 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreEF>();
             services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
             services.AddScoped<SchedulerOrchestrator>();
+        }
+
+        if (config.UseTenancy)
+        {
+            // Register EF Core tenancy options based on messaging configuration
+            var efCoreTenancyOptions = new EfCoreTenancyOptions
+            {
+                AutoAssignTenantId = config.TenancyOptions.AutoAssignTenantId,
+                ValidateTenantOnSave = config.TenancyOptions.ValidateTenantOnSave,
+                UseQueryFilters = config.TenancyOptions.UseQueryFilters,
+                ThrowOnMissingTenantContext = config.TenancyOptions.ThrowOnMissingTenantContext
+            };
+            services.AddSingleton(Options.Create(efCoreTenancyOptions));
+
+            // Register core tenancy options if not already registered
+            // These are needed by DefaultTenantSchemaConfigurator
+            services.TryAddSingleton(Options.Create(new TenancyOptions()));
+
+            // Register default schema configurator if not already registered
+            services.TryAddScoped<ITenantSchemaConfigurator, DefaultTenantSchemaConfigurator>();
+
+            // Register TenantDbContextFactory for database-per-tenant scenarios
+            services.TryAddScoped<TenantDbContextFactory<TDbContext>>();
         }
 
         // Register provider health check if enabled

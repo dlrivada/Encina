@@ -77,6 +77,100 @@ public async Task<Either<EncinaError, Unit>> TransferFunds(IUnitOfWork uow, Tran
 
 ---
 
+#### Multi-Tenancy Database Support (#282)
+
+Implemented comprehensive multi-tenant database support across all data access providers (EF Core, Dapper, ADO.NET, MongoDB) with three isolation strategies.
+
+**Isolation Strategies**:
+
+| Strategy | Isolation Level | Use Case |
+|----------|-----------------|----------|
+| `SharedSchema` | Row-level (TenantId column) | Cost-effective, many small tenants |
+| `SchemaPerTenant` | Schema-level | Balance of isolation and cost |
+| `DatabasePerTenant` | Database-level | Maximum isolation, compliance |
+
+**Core Abstractions** (`Encina.Tenancy`):
+
+```csharp
+// Tenant metadata
+public record TenantInfo(
+    string TenantId,
+    string Name,
+    TenantIsolationStrategy Strategy,
+    string? ConnectionString = null,
+    string? SchemaName = null);
+
+// Core interfaces
+public interface ITenantProvider {
+    string? GetCurrentTenantId();
+    ValueTask<TenantInfo?> GetCurrentTenantAsync(CancellationToken ct);
+}
+
+public interface ITenantStore {
+    ValueTask<TenantInfo?> GetTenantAsync(string tenantId, CancellationToken ct);
+    ValueTask<IReadOnlyList<TenantInfo>> GetAllTenantsAsync(CancellationToken ct);
+    ValueTask<bool> ExistsAsync(string tenantId, CancellationToken ct);
+}
+```
+
+**ASP.NET Core Integration** (`Encina.Tenancy.AspNetCore`):
+
+Four built-in tenant resolvers with configurable priority:
+
+| Resolver | Priority | Source |
+|----------|----------|--------|
+| `HeaderTenantResolver` | 100 | HTTP Header (`X-Tenant-Id`) |
+| `ClaimTenantResolver` | 110 | JWT Claim (`tenant_id`) |
+| `RouteTenantResolver` | 120 | Route Parameter (`{tenant}`) |
+| `SubdomainTenantResolver` | 130 | Subdomain (`acme.example.com`) |
+
+**Provider Implementations**:
+
+| Provider | Key Features |
+|----------|--------------|
+| `Encina.Dapper.SqlServer` | `TenantAwareSpecificationSqlBuilder`, auto tenant filtering |
+| `Encina.ADO.SqlServer` | `TenantAwareSpecificationSqlBuilder`, auto tenant filtering |
+| `Encina.MongoDB` | `TenantAwareSpecificationFilterBuilder`, database-per-tenant routing |
+
+**Service Registration**:
+
+```csharp
+// Dapper with tenancy
+services.AddEncinaDapperSqlServerWithTenancy(connectionString, tenancy => {
+    tenancy.AutoFilterTenantQueries = true;
+    tenancy.AutoAssignTenantId = true;
+    tenancy.ValidateTenantOnModify = true;
+});
+
+// MongoDB with tenancy
+services.AddEncinaMongoDBWithTenancy(config => { ... }, tenancy => {
+    tenancy.EnableDatabasePerTenant = true;
+    tenancy.DatabaseNamePattern = "{baseName}_{tenantId}";
+});
+
+// ASP.NET Core tenant resolution
+services.AddEncinaTenancyAspNetCore(options => {
+    options.HeaderResolver.Enabled = true;
+    options.SubdomainResolver.BaseDomain = "example.com";
+});
+app.UseEncinaTenantResolution();
+```
+
+**Test Coverage**: 376 unit tests across all tenancy components
+
+| Component | Tests |
+|-----------|-------|
+| Core Tenancy (`TenantInfo`, `InMemoryTenantStore`, etc.) | ~100 tests |
+| ASP.NET Core (resolvers, middleware, chain) | ~80 tests |
+| Dapper/ADO.NET Tenancy | ~80 tests |
+| MongoDB Tenancy | 72 tests |
+
+**Documentation**: Comprehensive guide at `docs/features/multi-tenancy.md` (849 lines)
+
+**Related Issue**: [#282 - Multi-Tenancy Database Support](https://github.com/dlrivada/Encina/issues/282)
+
+---
+
 #### Specification Pattern Enhancement (#280)
 
 Enhanced the Specification Pattern implementation across all data access providers with comprehensive `QuerySpecification<T>` support for multi-column ordering, offset-based pagination, and keyset (cursor-based) pagination.

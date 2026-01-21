@@ -340,7 +340,7 @@ Key areas already completed:
   - Generic Repository Pattern [#279](https://github.com/dlrivada/Encina/issues/279) — `IRepository<TEntity, TId>` with CRUD + Specification
   - ✅ Specification Pattern [#280](https://github.com/dlrivada/Encina/issues/280) — `ISpecification<T>` for reusable query encapsulation - **COMPLETED** (QuerySpecification with ordering, pagination, keyset across all providers)
   - Unit of Work Pattern [#281](https://github.com/dlrivada/Encina/issues/281) — `IUnitOfWork` for cross-aggregate transactions
-  - Multi-Tenancy Database Support [#282](https://github.com/dlrivada/Encina/issues/282) — Tenant isolation (shared schema, schema-per-tenant, DB-per-tenant)
+  - ✅ Multi-Tenancy Database Support [#282](https://github.com/dlrivada/Encina/issues/282) — Tenant isolation (shared schema, schema-per-tenant, DB-per-tenant) - **COMPLETED** (Encina.Tenancy, Encina.Tenancy.AspNetCore, provider implementations for EF Core, Dapper, ADO.NET, MongoDB)
   - Read/Write Database Separation [#283](https://github.com/dlrivada/Encina/issues/283) — CQRS physical split with read replicas
   - Bulk Operations [#284](https://github.com/dlrivada/Encina/issues/284) — BulkInsert/Update/Delete/Merge (680x faster than SaveChanges)
   - Soft Delete & Temporal Tables [#285](https://github.com/dlrivada/Encina/issues/285) — Logical delete + SQL Server temporal tables

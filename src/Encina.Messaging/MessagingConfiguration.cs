@@ -8,6 +8,7 @@ using Encina.Messaging.RoutingSlip;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.ScatterGather;
 using Encina.Messaging.Scheduling;
+using Encina.Messaging.Tenancy;
 
 namespace Encina.Messaging;
 
@@ -204,6 +205,30 @@ public sealed class MessagingConfiguration
     public bool UseScatterGather { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable multi-tenancy integration.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, the messaging infrastructure integrates with Encina.Tenancy
+    /// to provide automatic tenant isolation, assignment, and validation.
+    /// </para>
+    /// <para>
+    /// Features include:
+    /// <list type="bullet">
+    /// <item><description>Automatic tenant ID assignment on entity creation</description></item>
+    /// <item><description>Query filters for tenant data isolation</description></item>
+    /// <item><description>Tenant validation on save operations</description></item>
+    /// <item><description>Database-per-tenant and schema-per-tenant routing</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Requires</b>: Encina.Tenancy package to be configured.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseTenancy { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -249,6 +274,11 @@ public sealed class MessagingConfiguration
     public ScatterGatherOptions ScatterGatherOptions { get; } = new();
 
     /// <summary>
+    /// Gets the configuration options for multi-tenancy integration.
+    /// </summary>
+    public TenancyMessagingOptions TenancyOptions { get; } = new();
+
+    /// <summary>
     /// Gets the configuration options for provider-specific health checks.
     /// </summary>
     /// <remarks>
@@ -267,5 +297,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy;
 }
