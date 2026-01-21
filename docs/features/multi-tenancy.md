@@ -53,11 +53,13 @@ All tenants share the same database and tables. Each row contains a `TenantId` c
 ```
 
 **Pros:**
+
 - Lowest cost (single database)
 - Simplest deployment and backup
 - Easy cross-tenant reporting
 
 **Cons:**
+
 - Risk of data leakage if filters misconfigured
 - Limited performance isolation
 - Complex migrations affect all tenants
@@ -85,11 +87,13 @@ Each tenant has a dedicated schema within the same database.
 ```
 
 **Pros:**
+
 - Better isolation than shared schema
 - Schema-level permissions possible
 - Per-tenant schema customization
 
 **Cons:**
+
 - More complex migrations
 - Cross-tenant queries require explicit joins
 - Database limits on schema count
@@ -111,12 +115,14 @@ Each tenant has a completely separate database.
 ```
 
 **Pros:**
+
 - Maximum isolation
 - Per-tenant backup and restore
 - Independent scaling
 - Compliance-friendly (data residency)
 
 **Cons:**
+
 - Highest cost
 - Complex connection management
 - Cross-tenant reporting requires aggregation

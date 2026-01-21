@@ -9,6 +9,8 @@ Entity Framework Core implementation for Encina messaging patterns including Out
 - **Saga Orchestration**: Distributed transaction coordination with compensation support
 - **Scheduled Messages**: Delayed and recurring command execution
 - **Transaction Management**: Automatic database transaction handling based on Railway Oriented Programming results
+- **Module Isolation**: Database-level bounded context isolation for modular monoliths
+- **Multi-Tenancy**: Tenant isolation with shared schema, schema-per-tenant, or database-per-tenant strategies
 
 ## Installation
 
@@ -794,6 +796,67 @@ public class OrderService(IFunctionalRepository<Order, OrderId> repository)
 - **Opt-in**: Register `IFunctionalRepository<T, TId>` only when you need abstraction
 - **Mixed**: Use repositories for some entities and `DbContext` for others
 - **No penalty**: Encina messaging patterns work identically regardless of your choice
+
+## Module Isolation
+
+Database-level isolation for modular monolith architectures ensures bounded contexts cannot directly access each other's data.
+
+### Enabling Module Isolation
+
+```csharp
+builder.Services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseModuleIsolation = true;
+    config.ModuleIsolation.Strategy = ModuleIsolationStrategy.SchemaWithPermissions;
+    config.ModuleIsolation.AddSharedSchemas("shared", "lookup");
+    config.ModuleIsolation.AddModuleSchema("Orders", "orders", b =>
+        b.WithDatabaseUser("orders_user"));
+    config.ModuleIsolation.AddModuleSchema("Payments", "payments", b =>
+        b.WithDatabaseUser("payments_user"));
+});
+```
+
+### Isolation Strategies
+
+| Strategy | Description | Use Case |
+|----------|-------------|----------|
+| `DevelopmentValidationOnly` | Runtime SQL validation | Development/testing |
+| `SchemaWithPermissions` | Database users with limited permissions | Production |
+| `ConnectionPerModule` | Separate connection strings | Microservice preparation |
+
+### DbContext with Schemas
+
+```csharp
+public class AppDbContext : DbContext
+{
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // Orders module schema
+        modelBuilder.Entity<Order>().ToTable("Orders", "orders");
+        modelBuilder.Entity<OrderItem>().ToTable("OrderItems", "orders");
+
+        // Payments module schema
+        modelBuilder.Entity<Payment>().ToTable("Payments", "payments");
+
+        // Shared lookup tables
+        modelBuilder.Entity<OrderStatus>().ToTable("OrderStatuses", "shared");
+    }
+}
+```
+
+### Permission Script Generation
+
+```csharp
+config.ModuleIsolation.GeneratePermissionScripts = true;
+config.ModuleIsolation.PermissionScriptsOutputPath = "./scripts/permissions";
+```
+
+Generated scripts include:
+- `001_create_schemas.sql` - CREATE SCHEMA statements
+- `002_create_users.sql` - CREATE USER statements
+- `003_grant_permissions.sql` - GRANT statements
+
+For comprehensive documentation, see [Module Isolation Guide](../../docs/features/module-isolation.md).
 
 ## Related Packages
 

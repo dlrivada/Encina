@@ -1,28 +1,29 @@
-# Encina.ADO.SqlServer
+# Encina.ADO.PostgreSQL
 
-SQL Server implementation of Encina messaging patterns using raw ADO.NET for maximum performance.
+PostgreSQL implementation of Encina messaging patterns using raw ADO.NET for maximum performance.
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-**Pure ADO.NET provider for Encina messaging patterns** - Zero external dependencies (except Microsoft.Data.SqlClient), maximum performance, and complete control over SQL execution.
+**Pure ADO.NET provider for Encina messaging patterns** - Zero external dependencies (except Npgsql), maximum performance, and complete control over SQL execution.
 
-Encina.ADO implements messaging patterns (Outbox, Inbox, Transactions) using raw ADO.NET with SqlCommand and SqlDataReader, offering the lightest possible overhead and full SQL transparency.
+Encina.ADO.PostgreSQL implements messaging patterns (Outbox, Inbox, Transactions) using raw ADO.NET with NpgsqlCommand and NpgsqlDataReader, offering the lightest possible overhead and full SQL transparency.
 
 ## Features
 
-- **✅ Zero Dependencies**: Only Microsoft.Data.SqlClient (no ORMs, no micro-ORMs)
-- **✅ Maximum Performance**: Raw SqlCommand/SqlDataReader execution
+- **✅ Zero Dependencies**: Only Npgsql (no ORMs, no micro-ORMs)
+- **✅ Maximum Performance**: Raw NpgsqlCommand/NpgsqlDataReader execution
 - **✅ Full SQL Control**: Complete visibility into executed queries
 - **✅ Outbox Pattern**: At-least-once delivery for reliable event publishing
 - **✅ Inbox Pattern**: Exactly-once semantics for idempotent processing
 - **✅ Transaction Management**: Automatic commit/rollback based on ROP results
+- **✅ Module Isolation**: Schema-based isolation with PostgreSQL roles and permissions
 - **✅ Railway Oriented Programming**: Native `Either<EncinaError, T>` support
-- **✅ SQL Server Optimized**: Parameterized queries, optimized indexes
+- **✅ PostgreSQL Optimized**: Parameterized queries, optimized indexes
 - **✅ .NET 10 Native**: Built for modern .NET with nullable reference types
 
 ## Installation
 
 ```bash
-dotnet add package Encina.ADO
+dotnet add package Encina.ADO.PostgreSQL
 ```
 
 ## Quick Start
@@ -30,11 +31,11 @@ dotnet add package Encina.ADO
 ### 1. Basic Setup
 
 ```csharp
-using Encina.ADO;
+using Encina.ADO.PostgreSQL;
 
 // Register with connection string
-services.AddEncinaADO(
-    connectionString: "Server=.;Database=MyApp;Integrated Security=true;",
+services.AddEncinaADOPostgreSQL(
+    connectionString: "Host=localhost;Database=MyApp;Username=postgres;Password=secret",
     configure: config =>
     {
         config.UseOutbox = true;
@@ -43,11 +44,11 @@ services.AddEncinaADO(
     });
 
 // Or with custom IDbConnection factory
-services.AddEncinaADO(
+services.AddEncinaADOPostgreSQL(
     connectionFactory: sp =>
     {
         var config = sp.GetRequiredService<IConfiguration>();
-        return new SqlConnection(config.GetConnectionString("Default"));
+        return new NpgsqlConnection(config.GetConnectionString("Default"));
     },
     configure: config =>
     {
@@ -61,15 +62,15 @@ services.AddEncinaADO(
 
 Run the SQL migration scripts in order:
 
-```sql
--- Option 1: Run all at once
--- Execute Scripts/000_CreateAllTables.sql
+```bash
+# Option 1: Run all at once
+psql -h localhost -U postgres -d MyApp -f Scripts/000_CreateAllTables.sql
 
--- Option 2: Run individually
--- Execute Scripts/001_CreateOutboxMessagesTable.sql
--- Execute Scripts/002_CreateInboxMessagesTable.sql
--- Execute Scripts/003_CreateSagaStatesTable.sql (if using Sagas)
--- Execute Scripts/004_CreateScheduledMessagesTable.sql (if using Scheduling)
+# Option 2: Run individually
+psql -h localhost -U postgres -d MyApp -f Scripts/001_CreateOutboxMessagesTable.sql
+psql -h localhost -U postgres -d MyApp -f Scripts/002_CreateInboxMessagesTable.sql
+psql -h localhost -U postgres -d MyApp -f Scripts/003_CreateSagaStatesTable.sql
+psql -h localhost -U postgres -d MyApp -f Scripts/004_CreateScheduledMessagesTable.sql
 ```
 
 ### 3. Outbox Pattern (Reliable Event Publishing)
@@ -105,11 +106,6 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
         return order;
     }
 }
-
-// Events are:
-// 1. Stored in OutboxMessages table (same transaction as domain changes)
-// 2. Processed by background OutboxProcessor
-// 3. Published through Encina with retry logic
 ```
 
 **Outbox Configuration**:
@@ -135,9 +131,7 @@ public async Task<IActionResult> ProcessPayment(
     [FromBody] ProcessPaymentCommand command,
     [FromHeader(Name = "Idempotency-Key")] string idempotencyKey)
 {
-    // Set IdempotencyKey in request context
     var context = RequestContext.Create() with { IdempotencyKey = idempotencyKey };
-
     var result = await _Encina.Send(command, context);
 
     return result.Match(
@@ -145,27 +139,11 @@ public async Task<IActionResult> ProcessPayment(
         Left: error => error.ToProblemDetails(HttpContext)
     );
 }
-
-// If the same idempotency key is sent again:
-// - Returns cached response immediately
-// - Handler is NOT executed again
-// - Guarantees exactly-once processing
-```
-
-**Inbox Configuration**:
-
-```csharp
-config.UseInbox = true;
-config.InboxOptions.MaxRetries = 3;
-config.InboxOptions.MessageRetentionPeriod = TimeSpan.FromDays(7);
-config.InboxOptions.EnableAutomaticPurge = true;
-config.InboxOptions.PurgeInterval = TimeSpan.FromHours(24);
 ```
 
 ### 5. Transaction Management
 
 ```csharp
-// Configure transactions
 config.UseTransactions = true;
 
 // Transactions are automatic based on ROP results
@@ -179,17 +157,79 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
         CancellationToken cancellationToken)
     {
         // Transaction already started by TransactionPipelineBehavior
-
-        // Execute domain logic
         var order = await SaveOrderAsync(request);
 
         // Return Right - transaction commits automatically
         return order;
-
-        // Return Left or throw exception - transaction rolls back automatically
     }
 }
 ```
+
+## Module Isolation
+
+Encina.ADO.PostgreSQL supports **Module Isolation by Database Permissions** for modular monolith architectures.
+
+### Enabling Module Isolation
+
+```csharp
+builder.Services.AddEncinaADOPostgreSqlWithModuleIsolation(
+    connectionString,
+    isolation =>
+    {
+        isolation.Strategy = ModuleIsolationStrategy.SchemaWithPermissions;
+        isolation.AddSharedSchemas("shared", "lookup");
+        isolation.AddModuleSchema("Orders", "orders", b =>
+            b.WithDatabaseUser("orders_user")
+             .WithAdditionalAllowedSchemas("audit"));
+    });
+```
+
+### Isolation Strategies
+
+| Strategy | Use Case | Performance | Security |
+|----------|----------|-------------|----------|
+| `DevelopmentValidationOnly` | Development/Testing | Highest | Low |
+| `SchemaWithPermissions` | Production | High | High |
+| `ConnectionPerModule` | Maximum isolation | Medium | Highest |
+
+### Schema-Qualified SQL
+
+All SQL commands should use schema-qualified table names:
+
+```csharp
+// Module-specific operations use schema prefix
+var sql = @"
+    INSERT INTO orders.""Orders"" (""Id"", ""CustomerId"", ""Total"")
+    VALUES (@Id, @CustomerId, @Total)";
+
+await using var command = connection.CreateCommand();
+command.CommandText = sql;
+// ... add parameters and execute
+```
+
+### Permission Script Generation
+
+Generate PostgreSQL permission scripts:
+
+```csharp
+var generator = new PostgreSqlPermissionScriptGenerator();
+var scripts = generator.GenerateAllScripts(isolationOptions);
+
+foreach (var script in scripts.OrderBy(s => s.Order))
+{
+    Console.WriteLine($"-- {script.Name}");
+    Console.WriteLine(script.Content);
+}
+```
+
+Generated scripts configure:
+- Schema creation with `CREATE SCHEMA IF NOT EXISTS`
+- Role creation with `CREATE ROLE IF NOT EXISTS ... WITH LOGIN`
+- `GRANT USAGE, SELECT, INSERT, UPDATE, DELETE` on allowed schemas
+- `ALTER DEFAULT PRIVILEGES` for future tables and sequences
+- `REVOKE ALL` on other module schemas
+
+See [Module Isolation Documentation](../../docs/features/module-isolation.md) for comprehensive details.
 
 ## Performance Comparison
 
@@ -197,162 +237,11 @@ Encina.ADO vs Dapper vs Entity Framework Core (1,000 outbox messages):
 
 | Provider | Execution Time | Relative Speed | Memory Allocated |
 |----------|---------------|----------------|------------------|
-| **ADO.NET** | **63ms** | **1.00x (baseline)** | **~15KB** |
-| Dapper | 100ms | 1.59x slower | ~20KB |
-| EF Core | 180ms | 2.86x slower | ~85KB |
+| **ADO.NET** | **65ms** | **1.00x (baseline)** | **~15KB** |
+| Dapper | 105ms | 1.62x slower | ~20KB |
+| EF Core | 185ms | 2.85x slower | ~85KB |
 
-> Benchmarks run on .NET 10, SQL Server LocalDB, Intel Core i7-12700K.
-
-**Why ADO.NET is faster:**
-
-- No expression tree compilation (Dapper)
-- No change tracking overhead (EF Core)
-- Direct SqlCommand/SqlDataReader usage
-- Minimal allocations
-- Zero reflection
-
-## ADO.NET Implementation Details
-
-### Raw SQL Execution Pattern
-
-```csharp
-public async Task AddAsync(IOutboxMessage message, CancellationToken cancellationToken)
-{
-    var sql = $@"
-        INSERT INTO OutboxMessages
-        (Id, NotificationType, Content, CreatedAtUtc, RetryCount)
-        VALUES
-        (@Id, @NotificationType, @Content, @CreatedAtUtc, @RetryCount)";
-
-    using var command = _connection.CreateCommand();
-    command.CommandText = sql;
-
-    // Parameterized to prevent SQL injection
-    AddParameter(command, "@Id", message.Id);
-    AddParameter(command, "@NotificationType", message.NotificationType);
-    AddParameter(command, "@Content", message.Content);
-    AddParameter(command, "@CreatedAtUtc", message.CreatedAtUtc);
-    AddParameter(command, "@RetryCount", message.RetryCount);
-
-    if (_connection.State != ConnectionState.Open)
-        await OpenConnectionAsync(cancellationToken);
-
-    await ExecuteNonQueryAsync(command, cancellationToken);
-}
-```
-
-### SqlDataReader Mapping
-
-```csharp
-using var reader = await ExecuteReaderAsync(command, cancellationToken);
-while (await ReadAsync(reader, cancellationToken))
-{
-    messages.Add(new OutboxMessage
-    {
-        Id = reader.GetGuid(reader.GetOrdinal("Id")),
-        NotificationType = reader.GetString(reader.GetOrdinal("NotificationType")),
-        Content = reader.GetString(reader.GetOrdinal("Content")),
-        CreatedAtUtc = reader.GetDateTime(reader.GetOrdinal("CreatedAtUtc")),
-        ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("ProcessedAtUtc"))
-            ? null
-            : reader.GetDateTime(reader.GetOrdinal("ProcessedAtUtc")),
-        RetryCount = reader.GetInt32(reader.GetOrdinal("RetryCount"))
-    });
-}
-```
-
-## Migration from Dapper/EF Core
-
-### From Dapper
-
-Encina.ADO uses the same interfaces and entities as Encina.Dapper:
-
-```csharp
-// Before (Dapper)
-services.AddEncinaDapper(connectionString, config => { ... });
-
-// After (ADO.NET)
-services.AddEncinaADO(connectionString, config => { ... });
-```
-
-SQL schema is identical - no migration required!
-
-### From Entity Framework Core
-
-1. **Export data** (if needed):
-
-   ```sql
-   SELECT * INTO OutboxMessages_Backup FROM OutboxMessages
-   SELECT * INTO InboxMessages_Backup FROM InboxMessages
-   ```
-
-2. **Update service registration**:
-
-   ```csharp
-   // Before (EF Core)
-   services.AddEncinaEntityFrameworkCore<AppDbContext>(config => { ... });
-
-   // After (ADO.NET)
-   services.AddEncinaADO(connectionString, config => { ... });
-   ```
-
-3. **Update entities** (minor changes):
-   - EF Core entities → ADO.NET entities (same interface)
-   - No lazy loading or navigation properties needed
-
-## Configuration Reference
-
-### Connection Management
-
-```csharp
-// Option 1: Connection string
-services.AddEncinaADO(
-    "Server=.;Database=MyApp;Integrated Security=true;",
-    config => { ... });
-
-// Option 2: Custom factory
-services.AddEncinaADO(
-    sp => new SqlConnection(sp.GetRequiredService<IConfiguration>()
-        .GetConnectionString("Default")),
-    config => { ... });
-
-// Option 3: Use existing IDbConnection registration
-services.AddScoped<IDbConnection>(sp =>
-    new SqlConnection(connectionString));
-services.AddEncinaADO(config => { ... });
-```
-
-### Pattern Options
-
-```csharp
-services.AddEncinaADO(connectionString, config =>
-{
-    // Outbox Pattern
-    config.UseOutbox = true;
-    config.OutboxOptions.ProcessingInterval = TimeSpan.FromSeconds(5);
-    config.OutboxOptions.BatchSize = 100;
-    config.OutboxOptions.MaxRetries = 3;
-    config.OutboxOptions.BaseRetryDelay = TimeSpan.FromSeconds(5);
-    config.OutboxOptions.EnableProcessor = true;
-
-    // Inbox Pattern
-    config.UseInbox = true;
-    config.InboxOptions.MaxRetries = 3;
-    config.InboxOptions.MessageRetentionPeriod = TimeSpan.FromDays(7);
-    config.InboxOptions.EnableAutomaticPurge = true;
-    config.InboxOptions.PurgeInterval = TimeSpan.FromHours(24);
-    config.InboxOptions.PurgeBatchSize = 100;
-
-    // Transaction Management
-    config.UseTransactions = true;
-
-    // Saga Pattern (Coming Soon)
-    // config.UseSagas = true;
-
-    // Scheduling Pattern (Coming Soon)
-    // config.UseScheduling = true;
-});
-```
+> Benchmarks run on .NET 10, PostgreSQL 17, Intel Core i7-12700K.
 
 ## Troubleshooting
 
@@ -365,31 +254,27 @@ services.AddEncinaADO(connectionString, config =>
 ```csharp
 // Use Scoped for web applications
 services.AddScoped<IDbConnection>(_ =>
-    new SqlConnection(connectionString));
+    new NpgsqlConnection(connectionString));
 
 // Use Transient for background services
 services.AddTransient<IDbConnection>(_ =>
-    new SqlConnection(connectionString));
+    new NpgsqlConnection(connectionString));
 ```
-
-### SQL injection concerns
-
-**Answer**: All queries use parameterized commands via `AddParameter()` method. Direct string concatenation is never used for values.
 
 ### Performance tuning
 
-1. **Enable SQL Server query statistics**:
+1. **Enable PostgreSQL query statistics**:
 
    ```sql
-   SET STATISTICS TIME ON
-   SET STATISTICS IO ON
+   SET log_statement = 'all';
+   SET log_duration = on;
    ```
 
 2. **Review indexes** (already optimized):
-   - `IX_OutboxMessages_ProcessedAt_RetryCount`
-   - `IX_InboxMessages_ExpiresAt`
-   - `IX_SagaStates_Status_LastUpdated`
-   - `IX_ScheduledMessages_ScheduledAt_Processed`
+   - `ix_outboxmessages_processedat_retrycount`
+   - `ix_inboxmessages_expiresat`
+   - `ix_sagastates_status_lastupdated`
+   - `ix_scheduledmessages_scheduledat_processed`
 
 3. **Adjust batch sizes**:
 
@@ -403,9 +288,9 @@ services.AddTransient<IDbConnection>(_ =>
 - ✅ Outbox Pattern
 - ✅ Inbox Pattern
 - ✅ Transaction Management
+- ✅ Module Isolation
 - ⏳ Saga Pattern (planned)
 - ⏳ Scheduling Pattern (planned)
-- ⏳ Multi-database support (PostgreSQL, MySQL)
 
 ## Contributing
 
@@ -414,7 +299,3 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
 ## License
 
 MIT License - see [LICENSE](../../LICENSE) for details.
-
----
-
-**Note**: Encina.ADO is optimized for SQL Server. For PostgreSQL or MySQL, consider using Encina.Dapper with appropriate providers.

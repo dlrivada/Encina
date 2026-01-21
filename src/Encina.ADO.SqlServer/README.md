@@ -15,6 +15,7 @@ Encina.ADO implements messaging patterns (Outbox, Inbox, Transactions) using raw
 - **✅ Outbox Pattern**: At-least-once delivery for reliable event publishing
 - **✅ Inbox Pattern**: Exactly-once semantics for idempotent processing
 - **✅ Transaction Management**: Automatic commit/rollback based on ROP results
+- **✅ Module Isolation**: Schema-based isolation with database permissions
 - **✅ Railway Oriented Programming**: Native `Either<EncinaError, T>` support
 - **✅ SQL Server Optimized**: Parameterized queries, optimized indexes
 - **✅ .NET 10 Native**: Built for modern .NET with nullable reference types
@@ -398,11 +399,77 @@ services.AddTransient<IDbConnection>(_ =>
    config.InboxOptions.PurgeBatchSize = 200; // Increase for bulk cleanup
    ```
 
+## Module Isolation
+
+Encina.ADO supports **Module Isolation by Database Permissions** for modular monolith architectures.
+
+### Enabling Module Isolation
+
+```csharp
+builder.Services.AddEncinaADOSqlServerWithModuleIsolation(
+    connectionString,
+    isolation =>
+    {
+        isolation.Strategy = ModuleIsolationStrategy.SchemaWithPermissions;
+        isolation.AddSharedSchemas("shared", "lookup");
+        isolation.AddModuleSchema("Orders", "orders", b =>
+            b.WithDatabaseUser("orders_user")
+             .WithAdditionalAllowedSchemas("audit"));
+    });
+```
+
+### Isolation Strategies
+
+| Strategy | Use Case | Performance | Security |
+|----------|----------|-------------|----------|
+| `DevelopmentValidationOnly` | Development/Testing | Highest | Low |
+| `SchemaWithPermissions` | Production | High | High |
+| `ConnectionPerModule` | Maximum isolation | Medium | Highest |
+
+### Schema-Qualified SQL
+
+All SQL commands should use schema-qualified table names:
+
+```csharp
+// Module-specific operations use schema prefix
+var sql = @"
+    INSERT INTO orders.Orders (Id, CustomerId, Total)
+    VALUES (@Id, @CustomerId, @Total)";
+
+await using var command = connection.CreateCommand();
+command.CommandText = sql;
+// ... add parameters and execute
+```
+
+### Permission Script Generation
+
+Generate SQL Server permission scripts:
+
+```csharp
+var generator = new SqlServerPermissionScriptGenerator();
+var scripts = generator.GenerateAllScripts(isolationOptions);
+
+foreach (var script in scripts.OrderBy(s => s.Order))
+{
+    Console.WriteLine($"-- {script.Name}");
+    Console.WriteLine(script.Content);
+}
+```
+
+Generated scripts configure:
+- Schema creation with `IF NOT EXISTS`
+- Database user creation
+- `GRANT SELECT, INSERT, UPDATE, DELETE` on allowed schemas
+- `DENY ALL` on other module schemas
+
+See [Module Isolation Documentation](../../docs/features/module-isolation.md) for comprehensive details.
+
 ## Roadmap
 
 - ✅ Outbox Pattern
 - ✅ Inbox Pattern
 - ✅ Transaction Management
+- ✅ Module Isolation
 - ⏳ Saga Pattern (planned)
 - ⏳ Scheduling Pattern (planned)
 - ⏳ Multi-database support (PostgreSQL, MySQL)

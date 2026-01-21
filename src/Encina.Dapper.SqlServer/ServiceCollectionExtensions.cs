@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.Dapper.SqlServer.Health;
 using Encina.Dapper.SqlServer.Inbox;
+using Encina.Dapper.SqlServer.Modules;
 using Encina.Dapper.SqlServer.Outbox;
 using Encina.Dapper.SqlServer.Repository;
 using Encina.Dapper.SqlServer.Sagas;
@@ -9,6 +10,7 @@ using Encina.Dapper.SqlServer.UnitOfWork;
 using Encina.DomainModeling;
 using Encina.Messaging;
 using Encina.Messaging.Health;
+using Encina.Modules.Isolation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -36,6 +38,22 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
+        return services.AddEncinaDapper(config);
+    }
+
+    /// <summary>
+    /// Adds Encina messaging patterns with Dapper persistence for SQL Server using a pre-built configuration.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="config">The pre-built messaging configuration.</param>
+    /// <returns>The service collection for chaining.</returns>
+    private static IServiceCollection AddEncinaDapper(
+        this IServiceCollection services,
+        MessagingConfiguration config)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(config);
+
         services.AddMessagingServices<
             OutboxStoreDapper,
             OutboxMessageFactory,
@@ -54,6 +72,21 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IEncinaHealthCheck, SqlServerHealthCheck>();
         }
 
+        // Register module isolation services if enabled
+        if (config.UseModuleIsolation)
+        {
+            // Register module isolation options
+            services.AddSingleton(config.ModuleIsolationOptions);
+
+            // Register core module isolation services (shared with EF Core)
+            services.TryAddSingleton<IModuleSchemaRegistry, ModuleSchemaRegistry>();
+            services.TryAddScoped<IModuleExecutionContext, ModuleExecutionContext>();
+
+            // Register appropriate permission script generator based on configuration
+            // (Users can override this with their own generator if needed)
+            services.TryAddSingleton<IModulePermissionScriptGenerator, SqlServerPermissionScriptGenerator>();
+        }
+
         return services;
     }
 
@@ -64,15 +97,52 @@ public static class ServiceCollectionExtensions
     /// <param name="connectionFactory">Factory function to create database connections.</param>
     /// <param name="configure">Configuration action for messaging patterns.</param>
     /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// When module isolation is enabled via <see cref="MessagingConfiguration.UseModuleIsolation"/>,
+    /// the connection factory is wrapped with <see cref="ModuleAwareConnectionFactory"/> to validate
+    /// SQL statements against module schema boundaries.
+    /// </para>
+    /// </remarks>
     public static IServiceCollection AddEncinaDapper(
         this IServiceCollection services,
         Func<IServiceProvider, IDbConnection> connectionFactory,
         Action<MessagingConfiguration> configure)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
+        ArgumentNullException.ThrowIfNull(configure);
 
-        services.AddScoped(connectionFactory);
-        return services.AddEncinaDapper(configure);
+        // Build config first to check if module isolation is enabled
+        var config = new MessagingConfiguration();
+        configure(config);
+
+        if (config.UseModuleIsolation)
+        {
+            // Register the ModuleAwareConnectionFactory that wraps connections with validation
+            services.AddScoped(sp =>
+            {
+                // Create a factory function that doesn't depend on IServiceProvider
+                // to avoid circular dependencies
+                Func<IDbConnection> innerFactory = () => connectionFactory(sp);
+
+                return new ModuleAwareConnectionFactory(
+                    innerFactory,
+                    sp.GetRequiredService<IModuleExecutionContext>(),
+                    sp.GetRequiredService<IModuleSchemaRegistry>(),
+                    sp.GetRequiredService<ModuleIsolationOptions>());
+            });
+
+            // Register IDbConnection that uses the ModuleAwareConnectionFactory
+            services.AddScoped<IDbConnection>(sp =>
+                sp.GetRequiredService<ModuleAwareConnectionFactory>().CreateConnection());
+        }
+        else
+        {
+            // Standard registration without module isolation
+            services.AddScoped(connectionFactory);
+        }
+
+        return services.AddEncinaDapper(config);
     }
 
     /// <summary>
@@ -83,6 +153,12 @@ public static class ServiceCollectionExtensions
     /// <param name="connectionString">The database connection string.</param>
     /// <param name="configure">Configuration action for messaging patterns.</param>
     /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// When module isolation is enabled via <see cref="MessagingConfiguration.UseModuleIsolation"/>,
+    /// connections are wrapped with schema validation to enforce module boundaries.
+    /// </para>
+    /// </remarks>
     public static IServiceCollection AddEncinaDapper(
         this IServiceCollection services,
         string connectionString,

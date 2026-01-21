@@ -1,6 +1,7 @@
 using Encina.Messaging.Health;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Encina.MongoDB.Modules;
 
 namespace Encina.MongoDB;
 
@@ -49,6 +50,28 @@ public sealed class EncinaMongoDbOptions
     /// Gets or sets a value indicating whether to create indexes automatically.
     /// </summary>
     public bool CreateIndexes { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to enable module isolation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, MongoDB operations are routed to module-specific databases
+    /// based on the current module execution context.
+    /// </para>
+    /// <para>
+    /// Configure module isolation options via <see cref="ModuleIsolationOptions"/>.
+    /// </para>
+    /// </remarks>
+    public bool UseModuleIsolation { get; set; }
+
+    /// <summary>
+    /// Gets the module isolation options.
+    /// </summary>
+    /// <remarks>
+    /// Only used when <see cref="UseModuleIsolation"/> is <c>true</c>.
+    /// </remarks>
+    public MongoDbModuleIsolationOptions ModuleIsolationOptions { get; } = new();
 
     /// <summary>
     /// Gets or sets the saga options.

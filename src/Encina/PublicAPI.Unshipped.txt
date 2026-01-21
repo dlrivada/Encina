@@ -229,3 +229,140 @@ static Encina.Modules.RequestContextModuleExtensions.IsInModule(this Encina.IReq
 static Encina.Modules.RequestContextModuleExtensions.IsInModule<TModule>(this Encina.IRequestContext! context, TModule! module) -> bool
 static Encina.Modules.RequestContextModuleExtensions.WithModuleName(this Encina.IRequestContext! context, Encina.Modules.IModule! module) -> Encina.IRequestContext!
 static Encina.Modules.RequestContextModuleExtensions.WithModuleName(this Encina.IRequestContext! context, string! moduleName) -> Encina.IRequestContext!
+Encina.Modules.Isolation.IModuleExecutionContext
+Encina.Modules.Isolation.IModuleExecutionContext.ClearModule() -> void
+Encina.Modules.Isolation.IModuleExecutionContext.CreateScope(string! moduleName) -> System.IDisposable!
+Encina.Modules.Isolation.IModuleExecutionContext.CurrentModule.get -> string?
+Encina.Modules.Isolation.IModuleExecutionContext.SetModule(string! moduleName) -> void
+Encina.Modules.Isolation.IModulePermissionScriptGenerator
+Encina.Modules.Isolation.IModulePermissionScriptGenerator.GenerateAllScripts(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> System.Collections.Generic.IEnumerable<Encina.Modules.Isolation.PermissionScript>!
+Encina.Modules.Isolation.IModulePermissionScriptGenerator.GenerateGrantPermissionsScript(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.IModulePermissionScriptGenerator.GenerateModulePermissionsScript(Encina.Modules.Isolation.ModuleSchemaOptions! moduleOptions, System.Collections.Generic.IEnumerable<string!>! sharedSchemas) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.IModulePermissionScriptGenerator.GenerateRevokePermissionsScript(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.IModulePermissionScriptGenerator.GenerateSchemaCreationScript(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.IModulePermissionScriptGenerator.GenerateUserCreationScript(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.IModulePermissionScriptGenerator.ProviderName.get -> string!
+Encina.Modules.Isolation.IModuleSchemaRegistry
+Encina.Modules.Isolation.IModuleSchemaRegistry.CanAccessSchema(string! moduleName, string! schemaName) -> bool
+Encina.Modules.Isolation.IModuleSchemaRegistry.GetAllowedSchemas(string! moduleName) -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Modules.Isolation.IModuleSchemaRegistry.GetModuleOptions(string! moduleName) -> Encina.Modules.Isolation.ModuleSchemaOptions?
+Encina.Modules.Isolation.IModuleSchemaRegistry.GetRegisteredModules() -> System.Collections.Generic.IEnumerable<string!>!
+Encina.Modules.Isolation.IModuleSchemaRegistry.GetSharedSchemas() -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Modules.Isolation.IModuleSchemaRegistry.IsModuleRegistered(string! moduleName) -> bool
+Encina.Modules.Isolation.IModuleSchemaRegistry.ValidateSqlAccess(string! moduleName, string! sql) -> Encina.Modules.Isolation.SchemaAccessValidationResult
+Encina.Modules.Isolation.ModuleExecutionContext
+Encina.Modules.Isolation.ModuleExecutionContext.ClearModule() -> void
+Encina.Modules.Isolation.ModuleExecutionContext.CreateScope(string! moduleName) -> System.IDisposable!
+Encina.Modules.Isolation.ModuleExecutionContext.CurrentModule.get -> string?
+Encina.Modules.Isolation.ModuleExecutionContext.ModuleExecutionContext() -> void
+Encina.Modules.Isolation.ModuleExecutionContext.SetModule(string! moduleName) -> void
+Encina.Modules.Isolation.ModuleIsolationOptions
+Encina.Modules.Isolation.ModuleIsolationOptions.AddModuleSchema(Encina.Modules.Isolation.ModuleSchemaOptions! options) -> Encina.Modules.Isolation.ModuleIsolationOptions!
+Encina.Modules.Isolation.ModuleIsolationOptions.AddModuleSchema(string! moduleName, string! schemaName, System.Action<Encina.Modules.Isolation.ModuleSchemaOptionsBuilder!>? configure = null) -> Encina.Modules.Isolation.ModuleIsolationOptions!
+Encina.Modules.Isolation.ModuleIsolationOptions.AddSharedSchemas(params string![]! schemas) -> Encina.Modules.Isolation.ModuleIsolationOptions!
+Encina.Modules.Isolation.ModuleIsolationOptions.GeneratePermissionScripts.get -> bool
+Encina.Modules.Isolation.ModuleIsolationOptions.GeneratePermissionScripts.set -> void
+Encina.Modules.Isolation.ModuleIsolationOptions.GetModuleSchema(string! moduleName) -> Encina.Modules.Isolation.ModuleSchemaOptions?
+Encina.Modules.Isolation.ModuleIsolationOptions.HasModuleSchema(string! moduleName) -> bool
+Encina.Modules.Isolation.ModuleIsolationOptions.ModuleIsolationOptions() -> void
+Encina.Modules.Isolation.ModuleIsolationOptions.ModuleSchemas.get -> System.Collections.Generic.IReadOnlyList<Encina.Modules.Isolation.ModuleSchemaOptions!>!
+Encina.Modules.Isolation.ModuleIsolationOptions.PermissionScriptsOutputPath.get -> string?
+Encina.Modules.Isolation.ModuleIsolationOptions.PermissionScriptsOutputPath.set -> void
+Encina.Modules.Isolation.ModuleIsolationOptions.SharedSchemas.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Modules.Isolation.ModuleIsolationOptions.Strategy.get -> Encina.Modules.Isolation.ModuleIsolationStrategy
+Encina.Modules.Isolation.ModuleIsolationOptions.Strategy.set -> void
+Encina.Modules.Isolation.ModuleIsolationStrategy
+Encina.Modules.Isolation.ModuleIsolationStrategy.ConnectionPerModule = 2 -> Encina.Modules.Isolation.ModuleIsolationStrategy
+Encina.Modules.Isolation.ModuleIsolationStrategy.DevelopmentValidationOnly = 0 -> Encina.Modules.Isolation.ModuleIsolationStrategy
+Encina.Modules.Isolation.ModuleIsolationStrategy.SchemaWithPermissions = 1 -> Encina.Modules.Isolation.ModuleIsolationStrategy
+Encina.Modules.Isolation.ModuleIsolationViolationException
+Encina.Modules.Isolation.ModuleIsolationViolationException.AllowedSchemas.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Modules.Isolation.ModuleIsolationViolationException.AttemptedSchemas.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Modules.Isolation.ModuleIsolationViolationException.ModuleIsolationViolationException(string! moduleName, Encina.Modules.Isolation.SchemaAccessValidationResult validationResult) -> void
+Encina.Modules.Isolation.ModuleIsolationViolationException.ModuleIsolationViolationException(string! moduleName, Encina.Modules.Isolation.SchemaAccessValidationResult validationResult, string? sqlStatement) -> void
+Encina.Modules.Isolation.ModuleIsolationViolationException.ModuleIsolationViolationException(string! moduleName, System.Collections.Generic.IEnumerable<string!>! attemptedSchemas, System.Collections.Generic.IEnumerable<string!>! allowedSchemas) -> void
+Encina.Modules.Isolation.ModuleIsolationViolationException.ModuleIsolationViolationException(string! moduleName, System.Collections.Generic.IEnumerable<string!>! attemptedSchemas, System.Collections.Generic.IEnumerable<string!>! allowedSchemas, string? sqlStatement) -> void
+Encina.Modules.Isolation.ModuleIsolationViolationException.ModuleName.get -> string!
+Encina.Modules.Isolation.ModuleIsolationViolationException.SqlStatement.get -> string?
+Encina.Modules.Isolation.ModuleIsolationViolationException.ToEncinaError() -> Encina.EncinaError
+Encina.Modules.Isolation.ModuleIsolationViolationException.UnauthorizedSchemas.get -> System.Collections.Generic.IReadOnlySet<string!>!
+const Encina.Modules.Isolation.ModuleIsolationViolationException.ErrorCode = "Encina.ModuleIsolationViolation" -> string!
+Encina.Modules.Isolation.ModuleSchemaOptions
+Encina.Modules.Isolation.ModuleSchemaOptions.ModuleSchemaOptions() -> void
+Encina.Modules.Isolation.ModuleSchemaOptions.AdditionalAllowedSchemas.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Modules.Isolation.ModuleSchemaOptions.AdditionalAllowedSchemas.init -> void
+Encina.Modules.Isolation.ModuleSchemaOptions.DatabaseUser.get -> string?
+Encina.Modules.Isolation.ModuleSchemaOptions.DatabaseUser.init -> void
+Encina.Modules.Isolation.ModuleSchemaOptions.GetAllowedSchemas() -> System.Collections.Generic.IEnumerable<string!>!
+Encina.Modules.Isolation.ModuleSchemaOptions.ModuleName.get -> string!
+Encina.Modules.Isolation.ModuleSchemaOptions.ModuleName.init -> void
+Encina.Modules.Isolation.ModuleSchemaOptions.SchemaName.get -> string!
+Encina.Modules.Isolation.ModuleSchemaOptions.SchemaName.init -> void
+Encina.Modules.Isolation.ModuleSchemaOptions.WithAdditionalAllowedSchemas(params string![]! schemas) -> Encina.Modules.Isolation.ModuleSchemaOptions!
+Encina.Modules.Isolation.ModuleSchemaOptionsBuilder
+Encina.Modules.Isolation.ModuleSchemaOptionsBuilder.Build() -> Encina.Modules.Isolation.ModuleSchemaOptions!
+Encina.Modules.Isolation.ModuleSchemaOptionsBuilder.ModuleSchemaOptionsBuilder(string! moduleName, string! schemaName) -> void
+Encina.Modules.Isolation.ModuleSchemaOptionsBuilder.WithAdditionalAllowedSchemas(params string![]! schemas) -> Encina.Modules.Isolation.ModuleSchemaOptionsBuilder!
+Encina.Modules.Isolation.ModuleSchemaOptionsBuilder.WithDatabaseUser(string! user) -> Encina.Modules.Isolation.ModuleSchemaOptionsBuilder!
+Encina.Modules.Isolation.ModuleSchemaRegistry
+Encina.Modules.Isolation.ModuleSchemaRegistry.CanAccessSchema(string! moduleName, string! schemaName) -> bool
+Encina.Modules.Isolation.ModuleSchemaRegistry.GetAllowedSchemas(string! moduleName) -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Modules.Isolation.ModuleSchemaRegistry.GetModuleOptions(string! moduleName) -> Encina.Modules.Isolation.ModuleSchemaOptions?
+Encina.Modules.Isolation.ModuleSchemaRegistry.GetRegisteredModules() -> System.Collections.Generic.IEnumerable<string!>!
+Encina.Modules.Isolation.ModuleSchemaRegistry.GetSharedSchemas() -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Modules.Isolation.ModuleSchemaRegistry.IsModuleRegistered(string! moduleName) -> bool
+Encina.Modules.Isolation.ModuleSchemaRegistry.ModuleSchemaRegistry() -> void
+Encina.Modules.Isolation.ModuleSchemaRegistry.ModuleSchemaRegistry(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> void
+Encina.Modules.Isolation.ModuleSchemaRegistry.ValidateSqlAccess(string! moduleName, string! sql) -> Encina.Modules.Isolation.SchemaAccessValidationResult
+Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.PermissionScript.Content.get -> string!
+Encina.Modules.Isolation.PermissionScript.Content.init -> void
+Encina.Modules.Isolation.PermissionScript.Description.get -> string!
+Encina.Modules.Isolation.PermissionScript.Description.init -> void
+Encina.Modules.Isolation.PermissionScript.Name.get -> string!
+Encina.Modules.Isolation.PermissionScript.Name.init -> void
+Encina.Modules.Isolation.PermissionScript.Order.get -> int
+Encina.Modules.Isolation.PermissionScript.Order.init -> void
+Encina.Modules.Isolation.PermissionScript.PermissionScript() -> void
+Encina.Modules.Isolation.PermissionScript.PermissionScript(string! Name, string! Description, string! Content, int Order) -> void
+static Encina.Modules.Isolation.PermissionScript.ForGrantPermissions(string! content) -> Encina.Modules.Isolation.PermissionScript
+static Encina.Modules.Isolation.PermissionScript.ForModule(string! moduleName, string! content) -> Encina.Modules.Isolation.PermissionScript
+static Encina.Modules.Isolation.PermissionScript.ForRevokePermissions(string! content) -> Encina.Modules.Isolation.PermissionScript
+static Encina.Modules.Isolation.PermissionScript.ForSchemaCreation(string! content) -> Encina.Modules.Isolation.PermissionScript
+static Encina.Modules.Isolation.PermissionScript.ForUserCreation(string! content) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.SchemaAccessValidationResult
+Encina.Modules.Isolation.SchemaAccessValidationResult.AccessedSchemas.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Modules.Isolation.SchemaAccessValidationResult.AccessedSchemas.init -> void
+Encina.Modules.Isolation.SchemaAccessValidationResult.AllowedSchemas.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Modules.Isolation.SchemaAccessValidationResult.AllowedSchemas.init -> void
+Encina.Modules.Isolation.SchemaAccessValidationResult.IsValid.get -> bool
+Encina.Modules.Isolation.SchemaAccessValidationResult.IsValid.init -> void
+Encina.Modules.Isolation.SchemaAccessValidationResult.SchemaAccessValidationResult() -> void
+Encina.Modules.Isolation.SchemaAccessValidationResult.SchemaAccessValidationResult(bool IsValid, System.Collections.Generic.IReadOnlySet<string!>! AccessedSchemas, System.Collections.Generic.IReadOnlySet<string!>! UnauthorizedSchemas, System.Collections.Generic.IReadOnlySet<string!>! AllowedSchemas) -> void
+Encina.Modules.Isolation.SchemaAccessValidationResult.UnauthorizedSchemas.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Modules.Isolation.SchemaAccessValidationResult.UnauthorizedSchemas.init -> void
+static Encina.Modules.Isolation.SchemaAccessValidationResult.Failure(System.Collections.Generic.IReadOnlySet<string!>! accessedSchemas, System.Collections.Generic.IReadOnlySet<string!>! unauthorizedSchemas, System.Collections.Generic.IReadOnlySet<string!>! allowedSchemas) -> Encina.Modules.Isolation.SchemaAccessValidationResult
+static Encina.Modules.Isolation.SchemaAccessValidationResult.Success(System.Collections.Generic.IReadOnlySet<string!>! accessedSchemas, System.Collections.Generic.IReadOnlySet<string!>! allowedSchemas) -> Encina.Modules.Isolation.SchemaAccessValidationResult
+Encina.Modules.Isolation.SqlSchemaExtractor
+const Encina.Modules.Isolation.SqlSchemaExtractor.DefaultSchema = "dbo" -> string!
+static Encina.Modules.Isolation.SqlSchemaExtractor.ExtractSchemas(string? sql) -> System.Collections.Generic.IReadOnlySet<string!>!
+static Encina.Modules.Isolation.SqlSchemaExtractor.ExtractTableReferences(string? sql) -> System.Collections.Generic.IReadOnlyList<(string! Schema, string! Table)>!
+static Encina.Modules.Isolation.SqlSchemaExtractor.ValidateSchemaAccess(string? sql, System.Collections.Generic.IEnumerable<string!>! allowedSchemas) -> (bool IsValid, System.Collections.Generic.IReadOnlySet<string!>! UnauthorizedSchemas)
+Encina.Modules.Isolation.SqlServerPermissionScriptGenerator
+Encina.Modules.Isolation.SqlServerPermissionScriptGenerator.GenerateAllScripts(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> System.Collections.Generic.IEnumerable<Encina.Modules.Isolation.PermissionScript>!
+Encina.Modules.Isolation.SqlServerPermissionScriptGenerator.GenerateGrantPermissionsScript(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.SqlServerPermissionScriptGenerator.GenerateModulePermissionsScript(Encina.Modules.Isolation.ModuleSchemaOptions! moduleOptions, System.Collections.Generic.IEnumerable<string!>! sharedSchemas) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.SqlServerPermissionScriptGenerator.GenerateRevokePermissionsScript(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.SqlServerPermissionScriptGenerator.GenerateSchemaCreationScript(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.SqlServerPermissionScriptGenerator.GenerateUserCreationScript(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.SqlServerPermissionScriptGenerator.ProviderName.get -> string!
+Encina.Modules.Isolation.SqlServerPermissionScriptGenerator.SqlServerPermissionScriptGenerator() -> void
+Encina.Modules.Isolation.PostgreSqlPermissionScriptGenerator
+Encina.Modules.Isolation.PostgreSqlPermissionScriptGenerator.GenerateAllScripts(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> System.Collections.Generic.IEnumerable<Encina.Modules.Isolation.PermissionScript>!
+Encina.Modules.Isolation.PostgreSqlPermissionScriptGenerator.GenerateGrantPermissionsScript(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.PostgreSqlPermissionScriptGenerator.GenerateModulePermissionsScript(Encina.Modules.Isolation.ModuleSchemaOptions! moduleOptions, System.Collections.Generic.IEnumerable<string!>! sharedSchemas) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.PostgreSqlPermissionScriptGenerator.GenerateRevokePermissionsScript(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.PostgreSqlPermissionScriptGenerator.GenerateSchemaCreationScript(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.PostgreSqlPermissionScriptGenerator.GenerateUserCreationScript(Encina.Modules.Isolation.ModuleIsolationOptions! options) -> Encina.Modules.Isolation.PermissionScript
+Encina.Modules.Isolation.PostgreSqlPermissionScriptGenerator.PostgreSqlPermissionScriptGenerator() -> void
+Encina.Modules.Isolation.PostgreSqlPermissionScriptGenerator.ProviderName.get -> string!

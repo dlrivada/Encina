@@ -85,4 +85,20 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 38, Level = LogLevel.Information, Message = "Processed {TotalCount} outbox messages (Success: {SuccessCount}, Failed: {FailureCount})")]
     public static partial void ProcessedOutboxMessages(ILogger logger, int totalCount, int successCount, int failureCount);
+
+    // Module Isolation (40-49)
+    [LoggerMessage(EventId = 40, Level = LogLevel.Error, Message = "Module isolation violation detected: Module '{ModuleName}' attempted to access unauthorized schemas [{UnauthorizedSchemas}]. Allowed schemas: [{AllowedSchemas}]")]
+    public static partial void ModuleIsolationViolationDetected(ILogger logger, string moduleName, string unauthorizedSchemas, string allowedSchemas);
+
+    [LoggerMessage(EventId = 41, Level = LogLevel.Trace, Message = "Module '{ModuleName}' schema access validated. Accessed schemas: [{AccessedSchemas}]")]
+    public static partial void ModuleSchemaAccessValidated(ILogger logger, string moduleName, string accessedSchemas);
+
+    [LoggerMessage(EventId = 42, Level = LogLevel.Debug, Message = "Setting module execution context to '{ModuleName}' for request {RequestType} (CorrelationId: {CorrelationId})")]
+    public static partial void SettingModuleContext(ILogger logger, string moduleName, string requestType, string correlationId);
+
+    [LoggerMessage(EventId = 43, Level = LogLevel.Debug, Message = "Clearing module execution context after request {RequestType} (CorrelationId: {CorrelationId})")]
+    public static partial void ClearingModuleContext(ILogger logger, string requestType, string correlationId);
+
+    [LoggerMessage(EventId = 44, Level = LogLevel.Debug, Message = "No module found for handler {HandlerType}, skipping module context (CorrelationId: {CorrelationId})")]
+    public static partial void NoModuleFoundForHandler(ILogger logger, string handlerType, string correlationId);
 }

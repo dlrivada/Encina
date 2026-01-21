@@ -1,6 +1,7 @@
 using Encina.DomainModeling;
 using Encina.EntityFrameworkCore.Health;
 using Encina.EntityFrameworkCore.Inbox;
+using Encina.EntityFrameworkCore.Modules;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.EntityFrameworkCore.Repository;
 using Encina.EntityFrameworkCore.Sagas;
@@ -13,6 +14,7 @@ using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Encina.Modules.Isolation;
 using Encina.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -165,6 +167,26 @@ public static class ServiceCollectionExtensions
 
             // Register TenantDbContextFactory for database-per-tenant scenarios
             services.TryAddScoped<TenantDbContextFactory<TDbContext>>();
+        }
+
+        if (config.UseModuleIsolation)
+        {
+            // Register module isolation options
+            services.AddSingleton(config.ModuleIsolationOptions);
+
+            // Register core module isolation services
+            services.TryAddSingleton<IModuleSchemaRegistry, ModuleSchemaRegistry>();
+            services.TryAddScoped<IModuleExecutionContext, ModuleExecutionContext>();
+
+            // Register the pipeline behavior that sets module context
+            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ModuleExecutionContextBehavior<,>));
+
+            // Register the interceptor for SQL validation
+            services.AddScoped<ModuleSchemaValidationInterceptor>();
+
+            // Register appropriate permission script generator based on configuration
+            // (Users can override this with their own generator if needed)
+            services.TryAddSingleton<IModulePermissionScriptGenerator, SqlServerPermissionScriptGenerator>();
         }
 
         // Register provider health check if enabled

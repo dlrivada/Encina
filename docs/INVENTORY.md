@@ -1427,35 +1427,38 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 
 Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specification, EFCore.BulkExtensions, FusionCache), frameworks (MassTransit, Wolverine, NServiceBus), y tendencias de la comunidad 2025:
 
-##### Data Access Patterns (Issues #279-#281)
+##### Data Access Patterns (Issues #279-#281) ✅ COMPLETADOS
 
-| Issue | Patrón | Descripción | Prioridad | Complejidad | Labels |
-|-------|--------|-------------|-----------|-------------|--------|
-| **#279** | Generic Repository | `IRepository<TEntity, TId>` con CRUD + Specification | Crítica | Media | `area-repository`, `area-ddd`, `industry-best-practice`, `aot-compatible` |
-| **#280** | Specification Pattern | `ISpecification<T>` para encapsular queries reutilizables | Crítica | Media | `area-repository`, `area-ddd`, `industry-best-practice` |
-| **#281** | Unit of Work | `IUnitOfWork` para transacciones cross-aggregate | Alta | Media | `area-unit-of-work`, `area-ddd`, `area-microservices` |
+| Issue | Patrón | Descripción | Prioridad | Complejidad | Labels | Estado |
+|-------|--------|-------------|-----------|-------------|--------|--------|
+| **#279** | Generic Repository | `IRepository<TEntity, TId>` con CRUD + Specification | Crítica | Media | `area-repository`, `area-ddd`, `industry-best-practice`, `aot-compatible` | ✅ Completo |
+| **#280** | Specification Pattern | `ISpecification<T>` para encapsular queries reutilizables | Crítica | Media | `area-repository`, `area-ddd`, `industry-best-practice` | ✅ Completo |
+| **#281** | Unit of Work | `IUnitOfWork` para transacciones cross-aggregate | Alta | Media | `area-unit-of-work`, `area-ddd`, `area-microservices` | ✅ Completo |
 
-**#279 - Generic Repository Pattern**:
+**#279 - Generic Repository Pattern** (Implementado enero 2026):
 
 - Interface unificada para CRUD: `GetByIdAsync`, `AddAsync`, `UpdateAsync`, `DeleteAsync`, `ListAsync`
 - `IReadRepository<TEntity, TId>` para escenarios CQRS
-- Implementaciones: `RepositoryEF`, `RepositoryDapper`, `RepositoryMongoDB`
+- Implementaciones: `FunctionalRepositoryEF`, `FunctionalRepositoryDapper`, `FunctionalRepositoryMongoDB`
 - Integración con Specification Pattern para queries complejas
+- Test coverage: ~150 tests across all providers
 - Inspirado en [Ardalis.Specification](https://github.com/ardalis/Specification)
 
-**#280 - Specification Pattern**:
+**#280 - Specification Pattern** (Implementado enero 2026):
 
-- `ISpecification<T>` con Criteria, Includes, OrderBy, Paging
-- `Specification<T>` base class con fluent API
-- `ISpecificationEvaluator<T>` por provider (EF Core, Dapper, MongoDB)
-- Elimina duplicación de lambda expressions
+- `QuerySpecification<T>` con fluent API para Criteria, Includes, OrderBy, Paging
+- `ISpecificationEvaluator<T>` por provider: `SpecificationEvaluatorEF`, `SpecificationEvaluatorDapper`, `SpecificationEvaluatorMongoDB`
+- `AndSpecification`, `OrSpecification`, `NotSpecification` para composición
+- `PagedResult<T>` y `PaginationOptions` para paginación
+- Test coverage: ~120 tests across all providers
 - Inspirado en [DevIQ Specification Pattern](https://deviq.com/design-patterns/specification-pattern/)
 
-**#281 - Unit of Work Pattern**:
+**#281 - Unit of Work Pattern** (Implementado enero 2026):
 
 - `IUnitOfWork` con `SaveChangesAsync`, `BeginTransactionAsync`, `CommitAsync`, `RollbackAsync`
 - `Repository<TEntity, TId>()` factory method
-- Implementaciones para EF Core, Dapper, MongoDB
+- Implementaciones: `UnitOfWorkEF`, `UnitOfWorkDapper`, `UnitOfWorkMongoDB`
+- Test coverage: ~100 tests across all providers
 - Inspirado en [Microsoft UoW Pattern](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/infrastructure-persistence-layer-implementation-entity-framework-core)
 
 ##### Multi-Tenancy (Issue #282) ✅ COMPLETADO
@@ -1487,6 +1490,37 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - **Configuration**: `TenancyOptions`, `TenancyAspNetCoreOptions`
 - **Test coverage**: 376 tests across all providers
 - Inspirado en [Azure Multi-Tenant Patterns](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/approaches/storage-data)
+
+##### Module Isolation (Issue #534) ✅ COMPLETADO
+
+| Issue | Feature | Descripción | Prioridad | Complejidad | Labels | Estado |
+|-------|---------|-------------|-----------|-------------|--------|--------|
+| **#534** | Module Isolation by Database Permissions | Aislamiento de módulos a nivel de base de datos para modular monoliths | Alta | Media | `area-modular-monolith`, `area-security`, `area-database` | ✅ Completo |
+
+**#534 - Module Isolation by Database Permissions** (Implementado enero 2026):
+
+- **Core abstractions** (en `Encina.Modules.Isolation`):
+  - `ModuleIsolationOptions` - Configuración global con shared schemas, module schemas
+  - `ModuleSchemaOptions` - Configuración por módulo (ModuleName, SchemaName, DatabaseUser, AdditionalAllowedSchemas)
+  - `ModuleIsolationStrategy` enum: DevelopmentValidationOnly, SchemaWithPermissions, ConnectionPerModule
+  - `IModuleSchemaRegistry` - Registro y validación de acceso a schemas
+  - `SqlSchemaExtractor` - Extracción de schemas de SQL usando [GeneratedRegex]
+- **Permission Script Generators**:
+  - `IModulePermissionScriptGenerator` - Interface para generación de scripts
+  - `SqlServerPermissionScriptGenerator` - SQL Server: CREATE SCHEMA, CREATE USER, GRANT/DENY
+  - `PostgreSqlPermissionScriptGenerator` - PostgreSQL: CREATE SCHEMA, CREATE ROLE, GRANT/REVOKE, ALTER DEFAULT PRIVILEGES
+  - `PermissionScript` record struct con factory methods y ordenación de ejecución
+- **Provider implementations**:
+  - EF Core: `UseModuleIsolation` configuration
+  - Dapper.SqlServer/PostgreSQL: `AddEncinaDapper*WithModuleIsolation()`
+  - ADO.SqlServer/PostgreSQL: `AddEncinaADO*WithModuleIsolation()`
+  - MongoDB: `MongoDbModuleIsolationOptions`, `ModuleAwareMongoCollectionFactory`
+- **Estrategias de aislamiento**:
+  - `DevelopmentValidationOnly` - Validación runtime de SQL sin permisos de BD
+  - `SchemaWithPermissions` - Usuarios de BD con permisos por schema (producción)
+  - `ConnectionPerModule` - Conexión separada por módulo (máximo aislamiento)
+- **Test coverage**: 172 tests (SqlSchemaExtractor, PermissionScript, script generators)
+- Inspirado en [Modular Monolith Data Isolation](https://www.milanjovanovic.tech/blog/modular-monolith-data-isolation)
 
 ##### Performance Patterns (Issues #283-#284, #289, #290-#291, #294)
 
@@ -1633,31 +1667,36 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | `area-concurrency` | Concurrency control and conflict resolution | #BA55D3 |
 | `area-connection-pool` | Connection pooling and management | #5F9EA0 |
 
-##### Orden de Implementación Recomendado
+##### Orden de Implementación (Actualizado enero 2026)
 
-1. **Inmediato (Cierra gaps críticos)**:
-   - #279 (Generic Repository) + #280 (Specification) - Fundamentos de data access
+1. **✅ COMPLETADOS (enero 2026)**:
+   - ✅ #279 (Generic Repository) - Fundamentos de data access
+   - ✅ #280 (Specification Pattern) - Queries composables
+   - ✅ #281 (Unit of Work) - Transacciones cross-aggregate
+   - ✅ #282 (Multi-Tenancy) - Esencial para SaaS
+   - ✅ #534 (Module Isolation) - Aislamiento para modular monoliths
+
+2. **Próximo (Cierra gaps críticos)**:
    - #293 (Pagination) - Básico pero faltante
    - #284 (Bulk Operations) - Performance crítico para ETL
-   - #282 (Multi-Tenancy) - Esencial para SaaS
-
-2. **Corto plazo (Mejora experiencia de desarrollo)**:
-   - #281 (Unit of Work) - Transacciones complejas
    - #292 (Domain Entity Base) - DDD foundations
+
+3. **Corto plazo (Mejora experiencia de desarrollo)**:
    - #285 + #286 (Soft Delete + Audit) - Compliance
 
-3. **Medio plazo (Optimización)**:
+4. **Medio plazo (Optimización)**:
    - #283 (Read/Write Separation) - Escalado de reads
    - #287 (Optimistic Concurrency) - Conflict handling
    - #290 + #291 (Pool + Query Cache) - Performance
    - #294 (Cursor Pagination) - Research y decisión
 
-4. **Largo plazo (Escenarios avanzados)**:
+5. **Largo plazo (Escenarios avanzados)**:
    - #288 (CDC) - Integración con sistemas legacy
    - #289 (Sharding) - Solo si realmente necesario
 
 ##### Referencias de Investigación
 
+- [Module Isolation Documentation](./features/module-isolation.md) - Documentación completa de Module Isolation
 - [Ardalis.Specification](https://github.com/ardalis/Specification) - Specification pattern gold standard
 - [EFCore.BulkExtensions](https://github.com/borisdj/EFCore.BulkExtensions) - Bulk operations
 - [Debezium](https://debezium.io/) - Change Data Capture

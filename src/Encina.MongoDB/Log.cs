@@ -149,4 +149,17 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 59, Level = LogLevel.Warning, Message = "Scheduled message {MessageId} not found for cancellation")]
     public static partial void ScheduledMessageNotFoundForCancellation(ILogger logger, Guid messageId);
+
+    // Module Isolation: EventIds 60-69
+    [LoggerMessage(EventId = 60, Level = LogLevel.Warning, Message = "No module context available when accessing collection '{CollectionName}', falling back to base database")]
+    public static partial void NoModuleContextFallingBackToBaseDatabase(ILogger logger, string collectionName);
+
+    [LoggerMessage(EventId = 61, Level = LogLevel.Debug, Message = "Using module database '{DatabaseName}' for module '{ModuleName}'")]
+    public static partial void UsingModuleDatabase(ILogger logger, string databaseName, string moduleName);
+
+    [LoggerMessage(EventId = 62, Level = LogLevel.Information, Message = "Module isolation enabled with database-per-module strategy")]
+    public static partial void ModuleIsolationEnabled(ILogger logger);
+
+    [LoggerMessage(EventId = 63, Level = LogLevel.Debug, Message = "Module database mapping: '{ModuleName}' -> '{DatabaseName}'")]
+    public static partial void ModuleDatabaseMapping(ILogger logger, string moduleName, string databaseName);
 }

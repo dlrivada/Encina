@@ -473,6 +473,61 @@ config.SchedulingOptions.EnableProcessor = true;
 6. **Use Async Methods**: `ExecuteAsync`, `QueryAsync`, etc.
 7. **Handle Connection Disposal**: Let DI container handle it
 
+## Module Isolation
+
+Database-level isolation for modular monolith architectures ensures bounded contexts cannot directly access each other's data.
+
+### Enabling Module Isolation
+
+```csharp
+builder.Services.AddEncinaDapperSqlServerWithModuleIsolation(
+    connectionString,
+    config =>
+    {
+        config.UseOutbox = true;
+        config.UseInbox = true;
+    },
+    isolation =>
+    {
+        isolation.Strategy = ModuleIsolationStrategy.SchemaWithPermissions;
+        isolation.AddSharedSchemas("shared", "lookup");
+        isolation.AddModuleSchema("Orders", "orders", b =>
+            b.WithDatabaseUser("orders_user"));
+        isolation.AddModuleSchema("Payments", "payments", b =>
+            b.WithDatabaseUser("payments_user"));
+    });
+```
+
+### Schema-Qualified SQL
+
+```csharp
+public async ValueTask<Either<EncinaError, IEnumerable<Order>>> Handle(
+    GetOrdersQuery query,
+    IRequestContext context,
+    CancellationToken ct)
+{
+    // SQL validated against module's allowed schemas
+    const string sql = """
+        SELECT o.*, s.Name as StatusName
+        FROM orders.Orders o
+        JOIN shared.OrderStatuses s ON o.StatusId = s.Id
+        WHERE o.CustomerId = @CustomerId
+        """;
+
+    var orders = await _connection.QueryAsync<Order>(sql, new { query.CustomerId });
+    return orders.ToList();
+}
+```
+
+### Permission Script Generation
+
+```csharp
+isolation.GeneratePermissionScripts = true;
+isolation.PermissionScriptsOutputPath = "./scripts/permissions";
+```
+
+For comprehensive documentation, see [Module Isolation Guide](../../docs/features/module-isolation.md).
+
 ## Related Packages
 
 - **Encina**: Core Encina implementation with Railway Oriented Programming

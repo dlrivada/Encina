@@ -171,6 +171,89 @@ app.UseEncinaTenantResolution();
 
 ---
 
+#### Module Isolation by Database Permissions (#534)
+
+Implemented database-level module isolation for modular monolith architectures, ensuring bounded contexts cannot directly access each other's data.
+
+**Isolation Strategies**:
+
+| Strategy | Enforcement Level | Use Case |
+|----------|-------------------|----------|
+| `DevelopmentValidationOnly` | Runtime SQL validation | Development/testing |
+| `SchemaWithPermissions` | Database users/permissions | Production |
+| `ConnectionPerModule` | Separate connection strings | Microservice preparation |
+
+**Core Abstractions** (`Encina`):
+
+```csharp
+// Configuration options
+public class ModuleIsolationOptions {
+    ModuleIsolationStrategy Strategy { get; set; }
+    IReadOnlySet<string> SharedSchemas { get; }
+    IReadOnlyList<ModuleSchemaOptions> ModuleSchemas { get; }
+    bool GeneratePermissionScripts { get; set; }
+    string? PermissionScriptsOutputPath { get; set; }
+}
+
+// Module schema configuration
+public class ModuleSchemaOptions {
+    string ModuleName { get; init; }
+    string SchemaName { get; init; }
+    string? DatabaseUser { get; init; }
+    IReadOnlyList<string> AdditionalAllowedSchemas { get; init; }
+}
+
+// Schema registry for validation
+public interface IModuleSchemaRegistry {
+    IReadOnlySet<string> GetAllowedSchemas(string moduleName);
+    bool CanAccessSchema(string moduleName, string schemaName);
+    SchemaAccessValidationResult ValidateSqlAccess(string moduleName, string sql);
+}
+```
+
+**Provider Implementations**:
+
+| Provider | Key Features |
+|----------|--------------|
+| `Encina.EntityFrameworkCore` | EF Core interceptor, schema validation |
+| `Encina.Dapper.SqlServer` | SQL interceptor, permission script generation |
+| `Encina.ADO.SqlServer` | ADO.NET interceptor, SQL Server scripts |
+| `Encina.MongoDB` | Collection prefix isolation, module-aware factory |
+
+**Permission Script Generation**:
+
+- `SqlServerPermissionScriptGenerator` - SQL Server GRANT/REVOKE scripts
+- `PostgreSqlPermissionScriptGenerator` - PostgreSQL roles and ALTER DEFAULT PRIVILEGES
+
+**Service Registration**:
+
+```csharp
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseModuleIsolation = true;
+    config.ModuleIsolation.Strategy = ModuleIsolationStrategy.SchemaWithPermissions;
+    config.ModuleIsolation.AddSharedSchemas("shared", "lookup");
+    config.ModuleIsolation.AddModuleSchema("Orders", "orders", b =>
+        b.WithDatabaseUser("orders_user")
+         .WithAdditionalAllowedSchemas("audit"));
+});
+```
+
+**Test Coverage**: 172 unit tests covering all module isolation components
+
+| Component | Tests |
+|-----------|-------|
+| Core (ModuleSchemaRegistry, SqlSchemaExtractor) | ~50 tests |
+| Permission Script Generators (SQL Server, PostgreSQL) | ~80 tests |
+| ModuleExecutionContext (AsyncLocal) | ~20 tests |
+| PermissionScript record | ~22 tests |
+
+**Documentation**: Comprehensive guide at `docs/features/module-isolation.md` (560+ lines)
+
+**Related Issue**: [#534 - Module Isolation by Database Permissions](https://github.com/dlrivada/Encina/issues/534)
+
+---
+
 #### Specification Pattern Enhancement (#280)
 
 Enhanced the Specification Pattern implementation across all data access providers with comprehensive `QuerySpecification<T>` support for multi-column ordering, offset-based pagination, and keyset (cursor-based) pagination.

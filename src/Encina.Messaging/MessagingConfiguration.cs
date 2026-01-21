@@ -9,6 +9,7 @@ using Encina.Messaging.Sagas;
 using Encina.Messaging.ScatterGather;
 using Encina.Messaging.Scheduling;
 using Encina.Messaging.Tenancy;
+using Encina.Modules.Isolation;
 
 namespace Encina.Messaging;
 
@@ -229,6 +230,35 @@ public sealed class MessagingConfiguration
     public bool UseTenancy { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable module isolation for database access.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, the messaging infrastructure validates that modules only access
+    /// their own database schemas, enforcing modular monolith boundaries at the database level.
+    /// </para>
+    /// <para>
+    /// Features include:
+    /// <list type="bullet">
+    /// <item><description>SQL schema extraction and validation during command execution</description></item>
+    /// <item><description>Per-module schema configuration with shared schema support</description></item>
+    /// <item><description>Development-time validation via EF Core interceptors</description></item>
+    /// <item><description>Optional production enforcement with database permissions</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Isolation strategies:
+    /// <list type="bullet">
+    /// <item><description><see cref="ModuleIsolationStrategy.DevelopmentValidationOnly"/>: Fast development feedback (default)</description></item>
+    /// <item><description><see cref="ModuleIsolationStrategy.SchemaWithPermissions"/>: Real DB permissions</description></item>
+    /// <item><description><see cref="ModuleIsolationStrategy.ConnectionPerModule"/>: Separate connections</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseModuleIsolation { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -279,6 +309,45 @@ public sealed class MessagingConfiguration
     public TenancyMessagingOptions TenancyOptions { get; } = new();
 
     /// <summary>
+    /// Gets the configuration options for module isolation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use this to configure:
+    /// <list type="bullet">
+    /// <item><description>The isolation strategy (development validation, schema permissions, or separate connections)</description></item>
+    /// <item><description>Per-module schema mappings and allowed schemas</description></item>
+    /// <item><description>Shared schemas accessible by all modules</description></item>
+    /// <item><description>Permission script generation options</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseModuleIsolation = true;
+    ///
+    ///     // Configure module schemas
+    ///     config.ModuleIsolationOptions
+    ///         .AddSharedSchema("shared")
+    ///         .AddSharedSchema("lookup")
+    ///         .ConfigureModule("Orders", schema =>
+    ///         {
+    ///             schema.SchemaName = "orders";
+    ///             schema.DatabaseUser = "orders_user";
+    ///         })
+    ///         .ConfigureModule("Payments", schema =>
+    ///         {
+    ///             schema.SchemaName = "payments";
+    ///             schema.DatabaseUser = "payments_user";
+    ///         });
+    /// });
+    /// </code>
+    /// </example>
+    public ModuleIsolationOptions ModuleIsolationOptions { get; } = new();
+
+    /// <summary>
     /// Gets the configuration options for provider-specific health checks.
     /// </summary>
     /// <remarks>
@@ -297,5 +366,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation;
 }

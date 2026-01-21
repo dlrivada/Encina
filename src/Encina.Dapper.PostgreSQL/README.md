@@ -9,6 +9,7 @@ PostgreSQL implementation of Encina messaging patterns using Dapper and Npgsql, 
 - **Saga Orchestration**: Distributed transaction coordination with compensation support
 - **Scheduled Messages**: Delayed and recurring command execution
 - **Transaction Management**: Automatic database transaction handling based on Railway Oriented Programming results
+- **Module Isolation**: Schema-based isolation with PostgreSQL roles and permissions
 - **Lightweight**: Uses Dapper's micro-ORM for maximum performance
 - **SQL Control**: Full control over SQL queries and database schema
 
@@ -523,6 +524,68 @@ app.MapHealthChecks("/health/database", new HealthCheckOptions
     Predicate = check => check.Tags.Contains("database")
 });
 ```
+
+## Module Isolation
+
+Encina.Dapper.PostgreSQL supports **Module Isolation by Database Permissions** for modular monolith architectures.
+
+### Enabling Module Isolation
+
+```csharp
+builder.Services.AddEncinaDapperPostgreSqlWithModuleIsolation(
+    connectionString,
+    isolation =>
+    {
+        isolation.Strategy = ModuleIsolationStrategy.SchemaWithPermissions;
+        isolation.AddSharedSchemas("shared", "lookup");
+        isolation.AddModuleSchema("Orders", "orders", b =>
+            b.WithDatabaseUser("orders_user")
+             .WithAdditionalAllowedSchemas("audit"));
+    });
+```
+
+### Isolation Strategies
+
+| Strategy | Use Case | Performance | Security |
+|----------|----------|-------------|----------|
+| `DevelopmentValidationOnly` | Development/Testing | Highest | Low |
+| `SchemaWithPermissions` | Production | High | High |
+| `ConnectionPerModule` | Maximum isolation | Medium | Highest |
+
+### Schema-Qualified SQL
+
+All Dapper queries should use schema-qualified table names:
+
+```csharp
+// Module-specific operations use schema prefix
+var orders = await _connection.QueryAsync<Order>(
+    "SELECT * FROM orders.\"Orders\" WHERE \"CustomerId\" = @CustomerId",
+    new { CustomerId = customerId });
+```
+
+### Permission Script Generation
+
+Generate PostgreSQL permission scripts:
+
+```csharp
+var generator = new PostgreSqlPermissionScriptGenerator();
+var scripts = generator.GenerateAllScripts(isolationOptions);
+
+foreach (var script in scripts.OrderBy(s => s.Order))
+{
+    Console.WriteLine($"-- {script.Name}");
+    Console.WriteLine(script.Content);
+}
+```
+
+Generated scripts configure:
+- Schema creation with `CREATE SCHEMA IF NOT EXISTS`
+- Role creation with `CREATE ROLE IF NOT EXISTS ... WITH LOGIN`
+- `GRANT USAGE, SELECT, INSERT, UPDATE, DELETE` on allowed schemas
+- `ALTER DEFAULT PRIVILEGES` for future tables and sequences
+- `REVOKE ALL` on other module schemas
+
+See [Module Isolation Documentation](../../docs/features/module-isolation.md) for comprehensive details.
 
 ## Related Packages
 

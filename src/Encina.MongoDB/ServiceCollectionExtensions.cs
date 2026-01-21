@@ -4,8 +4,10 @@ using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Encina.Modules.Isolation;
 using Encina.MongoDB.Health;
 using Encina.MongoDB.Inbox;
+using Encina.MongoDB.Modules;
 using Encina.MongoDB.Outbox;
 using Encina.MongoDB.Repository;
 using Encina.MongoDB.Sagas;
@@ -102,6 +104,12 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IEncinaHealthCheck, MongoDbHealthCheck>();
         }
 
+        // Register module isolation services if enabled
+        if (options.UseModuleIsolation)
+        {
+            RegisterModuleIsolationServices(services, options);
+        }
+
         return services;
     }
 
@@ -169,6 +177,12 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(options.ProviderHealthCheck);
             services.AddSingleton<IEncinaHealthCheck, MongoDbHealthCheck>();
+        }
+
+        // Register module isolation services if enabled
+        if (options.UseModuleIsolation)
+        {
+            RegisterModuleIsolationServices(services, options);
         }
 
         return services;
@@ -376,5 +390,36 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IUnitOfWork, UnitOfWorkMongoDB>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers module isolation services.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="options">The MongoDB options containing module isolation configuration.</param>
+    private static void RegisterModuleIsolationServices(
+        IServiceCollection services,
+        EncinaMongoDbOptions options)
+    {
+        // Register module isolation options
+        services.Configure<MongoDbModuleIsolationOptions>(opt =>
+        {
+            opt.EnableDatabasePerModule = options.ModuleIsolationOptions.EnableDatabasePerModule;
+            opt.DatabaseNamePattern = options.ModuleIsolationOptions.DatabaseNamePattern;
+            opt.ThrowOnMissingModuleContext = options.ModuleIsolationOptions.ThrowOnMissingModuleContext;
+            opt.LogWarningOnFallback = options.ModuleIsolationOptions.LogWarningOnFallback;
+
+            foreach (var mapping in options.ModuleIsolationOptions.ModuleDatabaseMappings)
+            {
+                opt.ModuleDatabaseMappings[mapping.Key] = mapping.Value;
+            }
+        });
+
+        // Register core module isolation services (shared with EF Core, Dapper, ADO.NET)
+        services.TryAddSingleton<IModuleSchemaRegistry, ModuleSchemaRegistry>();
+        services.TryAddScoped<IModuleExecutionContext, ModuleExecutionContext>();
+
+        // Register module-aware collection factory
+        services.AddScoped<IModuleAwareMongoCollectionFactory, ModuleAwareMongoCollectionFactory>();
     }
 }

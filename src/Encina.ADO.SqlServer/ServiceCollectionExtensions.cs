@@ -1,12 +1,14 @@
 using System.Data;
 using Encina.ADO.SqlServer.Health;
 using Encina.ADO.SqlServer.Inbox;
+using Encina.ADO.SqlServer.Modules;
 using Encina.ADO.SqlServer.Outbox;
 using Encina.ADO.SqlServer.Repository;
 using Encina.ADO.SqlServer.UnitOfWork;
 using Encina.DomainModeling;
 using Encina.Messaging;
 using Encina.Messaging.Health;
+using Encina.Modules.Isolation;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -34,6 +36,22 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
+        return services.AddEncinaADO(config);
+    }
+
+    /// <summary>
+    /// Adds Encina with ADO.NET messaging patterns support using a pre-built configuration.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="config">The pre-built messaging configuration.</param>
+    /// <returns>The service collection for chaining.</returns>
+    private static IServiceCollection AddEncinaADO(
+        this IServiceCollection services,
+        MessagingConfiguration config)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(config);
+
         services.AddMessagingServicesCore<
             OutboxStoreADO,
             OutboxMessageFactory,
@@ -48,6 +66,21 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IEncinaHealthCheck, SqlServerHealthCheck>();
         }
 
+        // Register module isolation services if enabled
+        if (config.UseModuleIsolation)
+        {
+            // Register module isolation options
+            services.AddSingleton(config.ModuleIsolationOptions);
+
+            // Register core module isolation services (shared with EF Core and Dapper)
+            services.TryAddSingleton<IModuleSchemaRegistry, ModuleSchemaRegistry>();
+            services.TryAddScoped<IModuleExecutionContext, ModuleExecutionContext>();
+
+            // Register appropriate permission script generator based on configuration
+            // (Users can override this with their own generator if needed)
+            services.TryAddSingleton<IModulePermissionScriptGenerator, SqlServerPermissionScriptGenerator>();
+        }
+
         return services;
     }
 
@@ -58,18 +91,22 @@ public static class ServiceCollectionExtensions
     /// <param name="connectionString">The SQL Server connection string.</param>
     /// <param name="configure">Configuration action for messaging patterns.</param>
     /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// When module isolation is enabled via <see cref="MessagingConfiguration.UseModuleIsolation"/>,
+    /// connections are wrapped with schema validation to enforce module boundaries.
+    /// </para>
+    /// </remarks>
     public static IServiceCollection AddEncinaADO(
         this IServiceCollection services,
         string connectionString,
         Action<MessagingConfiguration> configure)
     {
-        ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(connectionString);
-        ArgumentNullException.ThrowIfNull(configure);
 
-        services.TryAddScoped<IDbConnection>(_ => new SqlConnection(connectionString));
-
-        return services.AddEncinaADO(configure);
+        return services.AddEncinaADO(
+            _ => new SqlConnection(connectionString),
+            configure);
     }
 
     /// <summary>
@@ -79,6 +116,13 @@ public static class ServiceCollectionExtensions
     /// <param name="connectionFactory">Factory function to create IDbConnection instances.</param>
     /// <param name="configure">Configuration action for messaging patterns.</param>
     /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// When module isolation is enabled via <see cref="MessagingConfiguration.UseModuleIsolation"/>,
+    /// the connection factory is wrapped with <see cref="ModuleAwareConnectionFactory"/> to validate
+    /// SQL statements against module schema boundaries.
+    /// </para>
+    /// </remarks>
     public static IServiceCollection AddEncinaADO(
         this IServiceCollection services,
         Func<IServiceProvider, IDbConnection> connectionFactory,
@@ -88,9 +132,37 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(connectionFactory);
         ArgumentNullException.ThrowIfNull(configure);
 
-        services.TryAddScoped(connectionFactory);
+        // Build config first to check if module isolation is enabled
+        var config = new MessagingConfiguration();
+        configure(config);
 
-        return services.AddEncinaADO(configure);
+        if (config.UseModuleIsolation)
+        {
+            // Register the ModuleAwareConnectionFactory that wraps connections with validation
+            services.AddScoped(sp =>
+            {
+                // Create a factory function that doesn't depend on IServiceProvider
+                // to avoid circular dependencies
+                Func<IDbConnection> innerFactory = () => connectionFactory(sp);
+
+                return new ModuleAwareConnectionFactory(
+                    innerFactory,
+                    sp.GetRequiredService<IModuleExecutionContext>(),
+                    sp.GetRequiredService<IModuleSchemaRegistry>(),
+                    sp.GetRequiredService<ModuleIsolationOptions>());
+            });
+
+            // Register IDbConnection that uses the ModuleAwareConnectionFactory
+            services.AddScoped<IDbConnection>(sp =>
+                sp.GetRequiredService<ModuleAwareConnectionFactory>().CreateConnection());
+        }
+        else
+        {
+            // Standard registration without module isolation
+            services.TryAddScoped(connectionFactory);
+        }
+
+        return services.AddEncinaADO(config);
     }
 
     /// <summary>
