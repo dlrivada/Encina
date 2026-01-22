@@ -350,7 +350,7 @@ Key areas already completed:
   - Unit of Work Pattern [#281](https://github.com/dlrivada/Encina/issues/281) — `IUnitOfWork` for cross-aggregate transactions
   - ✅ Multi-Tenancy Database Support [#282](https://github.com/dlrivada/Encina/issues/282) — Tenant isolation (shared schema, schema-per-tenant, DB-per-tenant) - **COMPLETED** (Encina.Tenancy, Encina.Tenancy.AspNetCore, provider implementations for EF Core, Dapper, ADO.NET, MongoDB)
   - ✅ Read/Write Database Separation [#283](https://github.com/dlrivada/Encina/issues/283) — CQRS physical split with read replicas - **COMPLETED** (Automatic routing via pipeline behaviors, read replica support for EF Core, Dapper, ADO.NET, MongoDB with read preferences)
-  - Bulk Operations [#284](https://github.com/dlrivada/Encina/issues/284) — BulkInsert/Update/Delete/Merge (680x faster than SaveChanges)
+  - ✅ Bulk Operations [#284](https://github.com/dlrivada/Encina/issues/284) — BulkInsert/Update/Delete/Merge (up to 315x faster than SaveChanges) - **COMPLETED**
   - Soft Delete & Temporal Tables [#285](https://github.com/dlrivada/Encina/issues/285) — Logical delete + SQL Server temporal tables
   - Audit Trail Pattern [#286](https://github.com/dlrivada/Encina/issues/286) — IAuditableEntity with CreatedAt/By, ModifiedAt/By
   - Optimistic Concurrency [#287](https://github.com/dlrivada/Encina/issues/287) — IConcurrencyAware with conflict resolution

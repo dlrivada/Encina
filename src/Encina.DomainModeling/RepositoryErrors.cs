@@ -37,6 +37,11 @@ public static class RepositoryErrors
     private const string PersistenceErrorCode = "Repository.PersistenceError";
     private const string AlreadyExistsCode = "Repository.AlreadyExists";
     private const string InvalidOperationCode = "Repository.InvalidOperation";
+    private const string BulkInsertFailedCode = "Repository.BulkInsertFailed";
+    private const string BulkUpdateFailedCode = "Repository.BulkUpdateFailed";
+    private const string BulkDeleteFailedCode = "Repository.BulkDeleteFailed";
+    private const string BulkMergeFailedCode = "Repository.BulkMergeFailed";
+    private const string BulkReadFailedCode = "Repository.BulkReadFailed";
 
     /// <summary>
     /// Creates a NotFound error when an entity with the specified ID is not found.
@@ -313,4 +318,283 @@ public static class RepositoryErrors
     /// Gets the error code for an Invalid Operation error.
     /// </summary>
     public static string InvalidOperationErrorCode => InvalidOperationCode;
+
+    /// <summary>
+    /// Gets the error code for a Bulk Insert Failed error.
+    /// </summary>
+    public static string BulkInsertFailedErrorCode => BulkInsertFailedCode;
+
+    /// <summary>
+    /// Gets the error code for a Bulk Update Failed error.
+    /// </summary>
+    public static string BulkUpdateFailedErrorCode => BulkUpdateFailedCode;
+
+    /// <summary>
+    /// Gets the error code for a Bulk Delete Failed error.
+    /// </summary>
+    public static string BulkDeleteFailedErrorCode => BulkDeleteFailedCode;
+
+    /// <summary>
+    /// Gets the error code for a Bulk Merge Failed error.
+    /// </summary>
+    public static string BulkMergeFailedErrorCode => BulkMergeFailedCode;
+
+    /// <summary>
+    /// Gets the error code for a Bulk Read Failed error.
+    /// </summary>
+    public static string BulkReadFailedErrorCode => BulkReadFailedCode;
+
+    /// <summary>
+    /// Creates a BulkInsertFailed error when a bulk insert operation fails.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="entityCount">The total number of entities in the batch.</param>
+    /// <param name="exception">The exception that caused the failure.</param>
+    /// <param name="failedIndex">Optional index of the entity that caused the failure.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the bulk insert failure.</returns>
+    public static EncinaError BulkInsertFailed<TEntity>(
+        int entityCount,
+        Exception exception,
+        int? failedIndex = null)
+        where TEntity : class
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        var entityTypeName = typeof(TEntity).Name;
+        var indexInfo = failedIndex.HasValue ? $" at index {failedIndex.Value}" : string.Empty;
+        var message = $"Bulk insert failed for {entityCount} entities of type '{entityTypeName}'{indexInfo}: {exception.Message}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["EntityCount"] = entityCount,
+            ["FailedIndex"] = failedIndex,
+            ["ExceptionType"] = exception.GetType().FullName
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(BulkInsertFailedCode, message, exception, details);
+    }
+
+    /// <summary>
+    /// Creates a BulkInsertFailed error with a custom message.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="reason">The reason for the failure.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the bulk insert failure.</returns>
+    public static EncinaError BulkInsertFailed<TEntity>(string reason)
+        where TEntity : class
+    {
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Bulk insert failed for entity type '{entityTypeName}': {reason}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["Reason"] = reason
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(BulkInsertFailedCode, message, details: details);
+    }
+
+    /// <summary>
+    /// Creates a BulkUpdateFailed error when a bulk update operation fails.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="entityCount">The total number of entities in the batch.</param>
+    /// <param name="exception">The exception that caused the failure.</param>
+    /// <param name="failedIndex">Optional index of the entity that caused the failure.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the bulk update failure.</returns>
+    public static EncinaError BulkUpdateFailed<TEntity>(
+        int entityCount,
+        Exception exception,
+        int? failedIndex = null)
+        where TEntity : class
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        var entityTypeName = typeof(TEntity).Name;
+        var indexInfo = failedIndex.HasValue ? $" at index {failedIndex.Value}" : string.Empty;
+        var message = $"Bulk update failed for {entityCount} entities of type '{entityTypeName}'{indexInfo}: {exception.Message}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["EntityCount"] = entityCount,
+            ["FailedIndex"] = failedIndex,
+            ["ExceptionType"] = exception.GetType().FullName
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(BulkUpdateFailedCode, message, exception, details);
+    }
+
+    /// <summary>
+    /// Creates a BulkUpdateFailed error with a custom message.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="reason">The reason for the failure.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the bulk update failure.</returns>
+    public static EncinaError BulkUpdateFailed<TEntity>(string reason)
+        where TEntity : class
+    {
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Bulk update failed for entity type '{entityTypeName}': {reason}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["Reason"] = reason
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(BulkUpdateFailedCode, message, details: details);
+    }
+
+    /// <summary>
+    /// Creates a BulkDeleteFailed error when a bulk delete operation fails.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="entityCount">The total number of entities in the batch.</param>
+    /// <param name="exception">The exception that caused the failure.</param>
+    /// <param name="failedIndex">Optional index of the entity that caused the failure.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the bulk delete failure.</returns>
+    public static EncinaError BulkDeleteFailed<TEntity>(
+        int entityCount,
+        Exception exception,
+        int? failedIndex = null)
+        where TEntity : class
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        var entityTypeName = typeof(TEntity).Name;
+        var indexInfo = failedIndex.HasValue ? $" at index {failedIndex.Value}" : string.Empty;
+        var message = $"Bulk delete failed for {entityCount} entities of type '{entityTypeName}'{indexInfo}: {exception.Message}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["EntityCount"] = entityCount,
+            ["FailedIndex"] = failedIndex,
+            ["ExceptionType"] = exception.GetType().FullName
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(BulkDeleteFailedCode, message, exception, details);
+    }
+
+    /// <summary>
+    /// Creates a BulkDeleteFailed error with a custom message.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="reason">The reason for the failure.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the bulk delete failure.</returns>
+    public static EncinaError BulkDeleteFailed<TEntity>(string reason)
+        where TEntity : class
+    {
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Bulk delete failed for entity type '{entityTypeName}': {reason}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["Reason"] = reason
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(BulkDeleteFailedCode, message, details: details);
+    }
+
+    /// <summary>
+    /// Creates a BulkMergeFailed error when a bulk merge (upsert) operation fails.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="entityCount">The total number of entities in the batch.</param>
+    /// <param name="exception">The exception that caused the failure.</param>
+    /// <param name="failedIndex">Optional index of the entity that caused the failure.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the bulk merge failure.</returns>
+    public static EncinaError BulkMergeFailed<TEntity>(
+        int entityCount,
+        Exception exception,
+        int? failedIndex = null)
+        where TEntity : class
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        var entityTypeName = typeof(TEntity).Name;
+        var indexInfo = failedIndex.HasValue ? $" at index {failedIndex.Value}" : string.Empty;
+        var message = $"Bulk merge failed for {entityCount} entities of type '{entityTypeName}'{indexInfo}: {exception.Message}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["EntityCount"] = entityCount,
+            ["FailedIndex"] = failedIndex,
+            ["ExceptionType"] = exception.GetType().FullName
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(BulkMergeFailedCode, message, exception, details);
+    }
+
+    /// <summary>
+    /// Creates a BulkMergeFailed error with a custom message.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="reason">The reason for the failure.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the bulk merge failure.</returns>
+    public static EncinaError BulkMergeFailed<TEntity>(string reason)
+        where TEntity : class
+    {
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Bulk merge failed for entity type '{entityTypeName}': {reason}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["Reason"] = reason
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(BulkMergeFailedCode, message, details: details);
+    }
+
+    /// <summary>
+    /// Creates a BulkReadFailed error when a bulk read operation fails.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="idCount">The number of IDs requested.</param>
+    /// <param name="exception">The exception that caused the failure.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the bulk read failure.</returns>
+    public static EncinaError BulkReadFailed<TEntity>(int idCount, Exception exception)
+        where TEntity : class
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Bulk read failed for {idCount} IDs of type '{entityTypeName}': {exception.Message}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["IdCount"] = idCount,
+            ["ExceptionType"] = exception.GetType().FullName
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(BulkReadFailedCode, message, exception, details);
+    }
+
+    /// <summary>
+    /// Creates a BulkReadFailed error with a custom message.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="reason">The reason for the failure.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the bulk read failure.</returns>
+    public static EncinaError BulkReadFailed<TEntity>(string reason)
+        where TEntity : class
+    {
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Bulk read failed for entity type '{entityTypeName}': {reason}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["Reason"] = reason
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(BulkReadFailedCode, message, details: details);
+    }
 }

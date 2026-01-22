@@ -1,4 +1,5 @@
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.BulkOperations;
 using Encina.EntityFrameworkCore.Health;
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.EntityFrameworkCore.Modules;
@@ -422,6 +423,60 @@ public static class ServiceCollectionExtensions
 
         // Register UnitOfWork with scoped lifetime
         services.TryAddScoped<IUnitOfWork, UnitOfWorkEF>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers bulk operations for an entity type using Entity Framework Core.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IBulkOperations{TEntity}"/> implemented by
+    /// <see cref="BulkOperationsEF{TEntity}"/> with scoped lifetime.
+    /// </para>
+    /// <para>
+    /// <b>Requirements</b>:
+    /// <list type="bullet">
+    /// <item><description><see cref="DbContext"/> must be registered in DI</description></item>
+    /// <item><description><typeparamref name="TEntity"/> must be configured in the DbContext model</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Unlike ADO.NET and Dapper providers, EF Core implementation uses
+    /// <see cref="DbContext.Model"/> metadata for automatic column mapping resolution.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Register DbContext and bulk operations
+    /// services.AddDbContext&lt;AppDbContext&gt;(options => ...);
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;();
+    /// services.AddEncinaBulkOperations&lt;Order&gt;();
+    ///
+    /// // Usage in service
+    /// public class OrderBatchService(IBulkOperations&lt;Order&gt; bulkOps)
+    /// {
+    ///     public async Task&lt;Either&lt;EncinaError, int&gt;&gt; ImportOrdersAsync(
+    ///         IEnumerable&lt;Order&gt; orders,
+    ///         CancellationToken ct)
+    ///     {
+    ///         var config = BulkConfig.Default with { BatchSize = 5000 };
+    ///         return await bulkOps.BulkInsertAsync(orders, config, ct);
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaBulkOperations<TEntity>(
+        this IServiceCollection services)
+        where TEntity : class, new()
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddScoped<IBulkOperations<TEntity>, BulkOperationsEF<TEntity>>();
 
         return services;
     }

@@ -5,6 +5,7 @@ using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Modules.Isolation;
+using Encina.MongoDB.BulkOperations;
 using Encina.MongoDB.Health;
 using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Modules;
@@ -401,6 +402,79 @@ public static class ServiceCollectionExtensions
 
         // Only register if not already registered
         services.TryAddScoped<IUnitOfWork, UnitOfWorkMongoDB>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers bulk operations for an entity type using MongoDB.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <typeparam name="TId">The entity identifier type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IBulkOperations{TEntity}"/> implemented by
+    /// <see cref="BulkOperationsMongoDB{TEntity, TId}"/> with scoped lifetime.
+    /// </para>
+    /// <para>
+    /// <b>Requirements</b>:
+    /// <list type="bullet">
+    /// <item><description><see cref="IMongoCollection{TDocument}"/> for <typeparamref name="TEntity"/> must be registered in DI</description></item>
+    /// <item><description><see cref="MongoDbRepositoryOptions{TEntity, TId}"/> must be registered for the entity</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Typically, you register both by using
+    /// <see cref="AddEncinaRepository{TEntity, TId}(IServiceCollection, Action{MongoDbRepositoryOptions{TEntity, TId}})"/>
+    /// which automatically registers the collection and repository options.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Register MongoDB and repository
+    /// services.AddEncinaMongoDB(options =>
+    /// {
+    ///     options.ConnectionString = "mongodb://localhost:27017";
+    ///     options.DatabaseName = "MyApp";
+    /// });
+    ///
+    /// services.AddEncinaRepository&lt;Order, Guid&gt;(config =>
+    /// {
+    ///     config.CollectionName = "orders";
+    ///     config.IdProperty = o => o.Id;
+    /// });
+    ///
+    /// // Register bulk operations
+    /// services.AddEncinaBulkOperations&lt;Order, Guid&gt;();
+    ///
+    /// // Usage in service
+    /// public class OrderBatchService(IBulkOperations&lt;Order&gt; bulkOps)
+    /// {
+    ///     public async Task&lt;Either&lt;EncinaError, int&gt;&gt; ImportOrdersAsync(
+    ///         IEnumerable&lt;Order&gt; orders,
+    ///         CancellationToken ct)
+    ///     {
+    ///         var config = BulkConfig.Default with { BatchSize = 5000 };
+    ///         return await bulkOps.BulkInsertAsync(orders, config, ct);
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaBulkOperations<TEntity, TId>(
+        this IServiceCollection services)
+        where TEntity : class
+        where TId : notnull
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddScoped<IBulkOperations<TEntity>>(sp =>
+        {
+            var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
+            var options = sp.GetRequiredService<MongoDbRepositoryOptions<TEntity, TId>>();
+            return new BulkOperationsMongoDB<TEntity, TId>(collection, options.IdProperty!);
+        });
 
         return services;
     }

@@ -1,6 +1,7 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Running;
+using Encina.Benchmarks.BulkOperations;
 using Encina.Benchmarks.Inbox;
 using Encina.Benchmarks.Outbox;
 using LanguageExt;
@@ -41,6 +42,11 @@ public static class Program
         // Inbox benchmarks (Dapper vs EF Core)
         BenchmarkRunner.Run<InboxDapperBenchmarks>(config);
         BenchmarkRunner.Run<InboxEfCoreBenchmarks>(config);
+
+        // BulkOperations benchmarks (ADO.NET vs Dapper vs EF Core)
+        BenchmarkRunner.Run<SqliteBulkInsertComparisonBenchmarks>(config);
+        BenchmarkRunner.Run<SqliteBulkUpdateComparisonBenchmarks>(config);
+        BenchmarkRunner.Run<SqliteBulkDeleteComparisonBenchmarks>(config);
     }
 
     private static string FindRepositoryRoot()

@@ -27,8 +27,17 @@ Prometheus  Jaeger     Loki
 
 ```bash
 cd D:\Proyectos\Encina
-docker-compose -f docker-compose.observability.yml up -d
+
+# Full OpenTelemetry stack (Prometheus, Jaeger, Loki, Grafana)
+docker compose -f docker-compose.observability.yml up -d
+
+# Or use Seq for simpler structured logging (from main docker-compose)
+docker compose --profile observability up -d
 ```
+
+> **Note**: The main `docker-compose.yml` includes Seq for lightweight structured logging.
+> Use `docker-compose.observability.yml` for the full OpenTelemetry stack.
+> See [Docker Infrastructure Guide](docs/infrastructure/docker-infrastructure.md) for all available services.
 
 ### 2. Configure Your .NET Application
 
@@ -225,6 +234,107 @@ curl http://localhost:3100/ready
 # Verify log ingestion
 curl -G -s "http://localhost:3100/loki/api/v1/query" --data-urlencode 'query={service_name="Encina"}'
 ```
+
+## 🛡️ Sentry Integration (Error Monitoring)
+
+Encina supports [Sentry](https://sentry.io) for error monitoring with the **free Developer plan** (5K errors/month, 0€).
+
+### Quick Setup
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Add Sentry (reads DSN from configuration)
+builder.WebHost.UseSentry();
+
+// Add Encina with OpenTelemetry + Sentry
+builder.Services.AddEncina(config => { });
+builder.Services.AddOpenTelemetry()
+    .WithEncina()
+    .WithTracing(tracing => tracing
+        .AddEncinaInstrumentation()
+        .AddSentry());  // Sentry trace integration
+```
+
+### Configuration (appsettings.json)
+
+```json
+{
+  "Sentry": {
+    "Dsn": "https://YOUR_KEY@YOUR_ORG.ingest.de.sentry.io/YOUR_PROJECT_ID",
+    "Environment": "development",
+    "Release": "encina@1.0.0",
+    "TracesSampleRate": 1.0,
+    "ProfilesSampleRate": 0.1,
+    "Debug": false,
+    "MaxBreadcrumbs": 100,
+    "AttachStacktrace": true,
+    "SendDefaultPii": false
+  }
+}
+```
+
+### Environment Variables (Recommended for Production)
+
+```bash
+# Set DSN via environment variable (more secure)
+SENTRY_DSN=https://YOUR_KEY@YOUR_ORG.ingest.de.sentry.io/YOUR_PROJECT_ID
+SENTRY_ENVIRONMENT=production
+SENTRY_RELEASE=encina@1.0.0
+```
+
+### Free Plan Limits (Developer)
+
+| Feature | Limit |
+|---------|-------|
+| Errors | 5,000/month |
+| Performance spans | 10,000/month |
+| Users | 1 |
+| Retention | 30 days |
+| Cost | **0€** |
+
+### Sampling Strategy for Free Plan
+
+To stay within free limits, use aggressive sampling:
+
+```json
+{
+  "Sentry": {
+    "TracesSampleRate": 0.1,
+    "ProfilesSampleRate": 0.0,
+    "SampleRate": 0.5
+  }
+}
+```
+
+### Capturing Encina Errors
+
+Encina uses Railway Oriented Programming (`Either<EncinaError, T>`), so most errors are functional, not exceptions. To capture these:
+
+```csharp
+// Option 1: Capture Left results as Sentry events
+var result = await mediator.Send(command);
+result.Match(
+    Right: success => { /* handle success */ },
+    Left: error => SentrySdk.CaptureMessage(error.Message, SentryLevel.Error)
+);
+
+// Option 2: Use a custom pipeline behavior (advanced)
+public class SentryErrorBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+{
+    public async ValueTask<TResponse> Handle(...)
+    {
+        var result = await next();
+        // Capture Left results to Sentry
+        return result;
+    }
+}
+```
+
+### Dashboard Access
+
+- **Sentry Dashboard**: <https://sentry.io>
+- View errors, performance traces, and session replays
 
 ## 🔒 Production Considerations
 

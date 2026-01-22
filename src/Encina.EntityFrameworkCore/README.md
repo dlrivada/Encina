@@ -797,6 +797,139 @@ public class OrderService(IFunctionalRepository<Order, OrderId> repository)
 - **Mixed**: Use repositories for some entities and `DbContext` for others
 - **No penalty**: Encina messaging patterns work identically regardless of your choice
 
+## Bulk Operations
+
+High-performance bulk database operations for Entity Framework Core, achieving **up to 200x faster** performance compared to standard SaveChanges() operations.
+
+### Performance Comparison (SQL Server 2022, measured with Testcontainers, 1,000 entities)
+
+| Operation | SaveChanges() | Bulk Operations | Improvement |
+|-----------|---------------|-----------------|-------------|
+| **Insert** | ~5,285ms | ~47ms | **112x faster** |
+| **Update** | ~5,525ms | ~31ms | **178x faster** |
+| **Delete** | ~4,992ms | ~25ms | **200x faster** |
+
+> **Note**: Performance varies based on hardware, network latency, and entity complexity. Update and Delete operations use Table-Valued Parameters (TVP) which require schema setup.
+
+### Usage
+
+```csharp
+// Get bulk operations from Unit of Work
+var bulkOps = unitOfWork.BulkOperations<Order>();
+
+// Bulk insert 10,000 orders in seconds
+var orders = GenerateOrders(10_000);
+var result = await bulkOps.BulkInsertAsync(orders);
+
+result.Match(
+    Right: count => _logger.LogInformation("Inserted {Count} orders", count),
+    Left: error => _logger.LogError("Bulk insert failed: {Error}", error.Message)
+);
+```
+
+### Available Operations
+
+```csharp
+// Bulk Insert - uses SqlBulkCopy
+await bulkOps.BulkInsertAsync(entities);
+
+// Bulk Update - uses MERGE with Table-Valued Parameters
+await bulkOps.BulkUpdateAsync(entities);
+
+// Bulk Delete - uses DELETE with Table-Valued Parameters
+await bulkOps.BulkDeleteAsync(entities);
+
+// Bulk Merge (Upsert) - uses MERGE statement
+await bulkOps.BulkMergeAsync(entities);
+
+// Bulk Read - uses SELECT with Table-Valued Parameters
+var entities = await bulkOps.BulkReadAsync(ids);
+```
+
+### Configuration
+
+```csharp
+// Default configuration (BatchSize = 2000)
+await bulkOps.BulkInsertAsync(entities);
+
+// Custom configuration using with-expressions
+var config = BulkConfig.Default with
+{
+    BatchSize = 5000,                // Larger batches for better throughput
+    BulkCopyTimeout = 300,           // 5-minute timeout
+    SetOutputIdentity = true,        // Get generated IDs back
+    PreserveInsertOrder = true,      // Maintain entity order
+    UseTempDB = true,                // Use tempdb for staging
+    PropertiesToInclude = ["Status", "UpdatedAt"],  // Partial update
+    PropertiesToExclude = ["CreatedAt"]             // Exclude audit columns
+};
+
+await bulkOps.BulkUpdateAsync(entities, config);
+```
+
+### Transaction Support
+
+```csharp
+public async Task<Either<EncinaError, Unit>> ProcessBatchAsync(
+    IUnitOfWork unitOfWork,
+    List<Order> orders,
+    CancellationToken ct)
+{
+    var bulkOps = unitOfWork.BulkOperations<Order>();
+
+    // Begin transaction
+    var begin = await unitOfWork.BeginTransactionAsync(ct);
+    if (begin.IsLeft) return begin;
+
+    // Bulk insert within transaction
+    var result = await bulkOps.BulkInsertAsync(orders, ct: ct);
+    if (result.IsLeft)
+    {
+        await unitOfWork.RollbackAsync(ct);
+        return result.Map(_ => Unit.Default);
+    }
+
+    // Commit on success
+    return await unitOfWork.CommitAsync(ct);
+}
+```
+
+### Error Handling
+
+All operations return `Either<EncinaError, T>` with specific error codes:
+
+| Error Code | Description |
+|------------|-------------|
+| `Repository.BulkInsertFailed` | SqlBulkCopy operation failed |
+| `Repository.BulkUpdateFailed` | MERGE/TVP update failed |
+| `Repository.BulkDeleteFailed` | DELETE/TVP operation failed |
+| `Repository.BulkMergeFailed` | MERGE upsert operation failed |
+| `Repository.BulkReadFailed` | SELECT/TVP read failed |
+
+```csharp
+result.IfLeft(error =>
+{
+    var code = error.GetCode();
+    var details = error.GetDetails();
+
+    _logger.LogError(
+        "Bulk operation failed. Code: {Code}, EntityCount: {Count}, Reason: {Reason}",
+        code.IfNone("Unknown"),
+        details.GetValueOrDefault("EntityCount"),
+        error.Message
+    );
+});
+```
+
+### Requirements
+
+> **Note**: EF Core bulk operations require **SQL Server** with `SqlConnection`. Operations on other providers (SQLite, PostgreSQL via EF Core) will return `Left` with an appropriate error message.
+
+For other databases, use the provider-specific packages:
+- **PostgreSQL**: Use `Encina.Dapper.PostgreSQL` or direct COPY command
+- **MySQL**: Use `Encina.Dapper.MySQL` with multi-row INSERT
+- **MongoDB**: Use `Encina.MongoDB` with native BulkWrite
+
 ## Module Isolation
 
 Database-level isolation for modular monolith architectures ensures bounded contexts cannot directly access each other's data.

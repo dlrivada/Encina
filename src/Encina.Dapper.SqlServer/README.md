@@ -280,10 +280,65 @@ public class CustomTransactionBehavior<TRequest, TResponse>
 
 ### Bulk Operations
 
-Dapper excels at bulk operations:
+High-performance bulk database operations achieving **up to 370x faster** performance than standard loop-based operations.
+
+#### Performance Comparison (SQL Server 2022, measured with Testcontainers, 1,000 entities)
+
+| Operation | Loop Time | Bulk Time | Improvement |
+|-----------|-----------|-----------|-------------|
+| **Insert** | ~5,044ms | ~168ms | **30x faster** |
+| **Update** | ~5,255ms | ~42ms | **125x faster** |
+| **Delete** | ~5,173ms | ~14ms | **370x faster** |
+
+> **Note**: Performance varies based on hardware, network latency, and entity complexity.
+
+#### Using IBulkOperations
 
 ```csharp
-// Bulk insert outbox messages
+// Get bulk operations from Unit of Work
+var bulkOps = unitOfWork.BulkOperations<Order>();
+
+// Bulk insert 10,000 orders using SqlBulkCopy
+var orders = GenerateOrders(10_000);
+var result = await bulkOps.BulkInsertAsync(orders);
+
+result.Match(
+    Right: count => _logger.LogInformation("Inserted {Count} orders", count),
+    Left: error => _logger.LogError("Bulk insert failed: {Error}", error.Message)
+);
+```
+
+#### Available Operations
+
+| Operation | Implementation | Description |
+|-----------|----------------|-------------|
+| `BulkInsertAsync` | SqlBulkCopy | Insert thousands of rows in seconds |
+| `BulkUpdateAsync` | MERGE + TVP | Update multiple rows with Table-Valued Parameters |
+| `BulkDeleteAsync` | DELETE + TVP | Delete by primary key using TVP |
+| `BulkMergeAsync` | MERGE | Upsert (insert or update) |
+| `BulkReadAsync` | SELECT + TVP | Read multiple entities by IDs |
+
+#### Configuration
+
+```csharp
+var config = BulkConfig.Default with
+{
+    BatchSize = 5000,                // Entities per batch
+    BulkCopyTimeout = 300,           // Timeout in seconds
+    SetOutputIdentity = true,        // Get generated IDs back
+    PreserveInsertOrder = true,      // Maintain order
+    PropertiesToInclude = ["Status", "UpdatedAt"]  // Partial updates
+};
+
+await bulkOps.BulkUpdateAsync(entities, config);
+```
+
+#### Direct Dapper Bulk Insert (Legacy)
+
+For simple cases, you can still use Dapper's built-in multi-row insert:
+
+```csharp
+// Bulk insert using Dapper's ExecuteAsync with collection
 var messages = notifications.Select(n => new OutboxMessage
 {
     Id = Guid.NewGuid(),
@@ -300,6 +355,8 @@ await _connection.ExecuteAsync(@"
     (@Id, @NotificationType, @Content, @CreatedAtUtc, @RetryCount)",
     messages);
 ```
+
+> **Note**: For best performance with large datasets (1000+ rows), prefer `IBulkOperations.BulkInsertAsync()` which uses SqlBulkCopy internally.
 
 ## Performance Tips
 

@@ -1527,7 +1527,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | Issue | Feature | Descripción | Prioridad | Complejidad | Labels |
 |-------|---------|-------------|-----------|-------------|--------|
 | **#283** | Read/Write Separation | CQRS físico con read replicas | Alta | Media | `area-cqrs`, `area-scalability`, `cloud-azure` |
-| **#284** | Bulk Operations | BulkInsert, BulkUpdate, BulkDelete, BulkMerge | Crítica | Media | `area-bulk-operations`, `area-scalability`, `aot-compatible` |
+| **#284** | Bulk Operations | BulkInsert, BulkUpdate, BulkDelete, BulkMerge | Crítica | Media | `area-bulk-operations`, `area-scalability`, `aot-compatible` | ✅ Completo |
 | **#289** | Database Sharding | Particionamiento horizontal con shard routing | Baja | Muy Alta | `area-sharding`, `area-scalability`, `area-cloud-native` |
 | **#290** | Connection Pool Resilience | Monitoreo de pool, circuit breaker, warm-up | Media | Media | `area-connection-pool`, `area-health-checks`, `area-polly` |
 | **#291** | Query Cache Interceptor | Second-level cache para EF Core queries | Media | Media | `area-caching`, `area-pipeline` |
@@ -1541,13 +1541,21 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - `[ForceWriteDatabase]` para read-after-write
 - Soporte Azure SQL `ApplicationIntent=ReadOnly`
 
-**#284 - Bulk Operations** (Performance crítico):
+**#284 - Bulk Operations** (✅ Implementado enero 2026):
 
-- `IBulkOperations<TEntity>`: BulkInsertAsync, BulkUpdateAsync, BulkDeleteAsync, BulkMergeAsync
-- **Benchmarks típicos**:
-  - SaveChanges(): ~17,000 segundos para 1M filas
-  - SqlBulkCopy: ~25 segundos para 1M filas (**680x más rápido**)
-- `BulkConfig`: BatchSize, SetOutputIdentity, PreserveInsertOrder, Timeout
+- `IBulkOperations<TEntity>`: BulkInsertAsync, BulkUpdateAsync, BulkDeleteAsync, BulkMergeAsync, BulkReadAsync
+- **Performance medido** (SQL Server 2022, Testcontainers):
+  - Insert 1,000: Loop ~6.3s vs Bulk ~66ms (**~95x más rápido**)
+  - Update 1,000: Loop ~6s vs Bulk ~19ms (**~315x más rápido**)
+  - Delete 1,000: Loop ~5s vs Bulk ~19ms (**~268x más rápido**)
+- `BulkConfig` immutable record: BatchSize, BulkCopyTimeout, SetOutputIdentity, PreserveInsertOrder, UseTempDB, TrackingEntities, PropertiesToInclude, PropertiesToExclude
+- Implementaciones:
+  - `BulkOperationsEF` (EF Core): SqlBulkCopy + MERGE + TVP
+  - `BulkOperationsDapper` (Dapper): SqlBulkCopy + MERGE + TVP
+  - `BulkOperationsADO` (ADO.NET): SqlBulkCopy + MERGE + TVP
+  - `BulkOperationsMongoDB` (MongoDB): InsertMany + BulkWrite
+- Error codes: `Repository.BulkInsertFailed`, `Repository.BulkUpdateFailed`, `Repository.BulkDeleteFailed`, `Repository.BulkMergeFailed`, `Repository.BulkReadFailed`
+- Test coverage: 65 unit tests + 11 integration tests + benchmarks
 - Inspirado en [EFCore.BulkExtensions](https://github.com/borisdj/EFCore.BulkExtensions)
 
 **#289 - Database Sharding**:
@@ -1678,7 +1686,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 
 2. **Próximo (Cierra gaps críticos)**:
    - #293 (Pagination) - Básico pero faltante
-   - #284 (Bulk Operations) - Performance crítico para ETL
+   - ~~#284 (Bulk Operations) - Performance crítico para ETL~~ ✅ Completado
    - #292 (Domain Entity Base) - DDD foundations
 
 3. **Corto plazo (Mejora experiencia de desarrollo)**:

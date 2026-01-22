@@ -41,18 +41,30 @@ dotnet run --file scripts/run-integration-tests.cs -- --database mysql
 For faster iteration during development:
 
 ```bash
+# Start core services (PostgreSQL, Redis, RabbitMQ)
+docker compose --profile core up -d
+
 # Start all databases
-docker-compose up -d
+docker compose --profile databases up -d
+
+# Start databases + messaging
+docker compose --profile databases --profile messaging up -d
+
+# Start everything
+docker compose --profile full up -d
 
 # Run tests against running containers
 dotnet run --file scripts/run-integration-tests.cs -- --skip-docker
 
 # Stop databases
-docker-compose down
+docker compose --profile databases down
 
 # Clean slate (remove volumes)
-docker-compose down -v
+docker compose --profile full down -v
 ```
+
+> **Available Profiles**: `core`, `databases`, `messaging`, `caching`, `cloud`, `observability`, `full`
+> See [Docker Infrastructure Guide](../infrastructure/docker-infrastructure.md) for complete details.
 
 ## Database Configuration
 
@@ -70,12 +82,41 @@ Connection strings are defined in `tests/appsettings.Testing.json`:
 
 ### Docker Images
 
+#### Databases
+
 | Database   | Image                                                 | Startup Time |
 |------------|-------------------------------------------------------|--------------|
 | SQL Server | `mcr.microsoft.com/mssql/server:2022-latest`          | ~15 seconds  |
 | PostgreSQL | `postgres:16-alpine`                                  | ~5 seconds   |
 | MySQL      | `mysql:8.0`                                           | ~10 seconds  |
 | Oracle XE  | `container-registry.oracle.com/database/express:21.3.0-xe` | ~60 seconds  |
+| MongoDB    | `mongo:7`                                             | ~5 seconds   |
+
+#### Messaging
+
+| Broker     | Image                                    | Startup Time |
+|------------|------------------------------------------|--------------|
+| RabbitMQ   | `rabbitmq:3-management-alpine`           | ~10 seconds  |
+| Kafka      | `apache/kafka:3.7.0`                     | ~30 seconds  |
+| NATS       | `nats:2-alpine`                          | ~2 seconds   |
+| Mosquitto  | `eclipse-mosquitto:2`                    | ~2 seconds   |
+
+#### Caching
+
+| Cache      | Image                                              | Startup Time |
+|------------|----------------------------------------------------|--------------|
+| Redis      | `redis:7-alpine`                                   | ~2 seconds   |
+| Garnet     | `ghcr.io/microsoft/garnet:latest`                  | ~3 seconds   |
+| Valkey     | `valkey/valkey:8-alpine`                           | ~2 seconds   |
+| Dragonfly  | `docker.dragonflydb.io/dragonflydb/dragonfly:latest` | ~3 seconds |
+| KeyDB      | `eqalpha/keydb:latest`                             | ~3 seconds   |
+
+#### Cloud Emulators
+
+| Service    | Image                                              | Startup Time |
+|------------|----------------------------------------------------|--------------|
+| LocalStack | `localstack/localstack:latest`                     | ~30 seconds  |
+| Azurite    | `mcr.microsoft.com/azure-storage/azurite:latest`   | ~5 seconds   |
 
 > **Note**: Oracle XE requires accepting the Oracle license agreement and has significantly longer startup time.
 

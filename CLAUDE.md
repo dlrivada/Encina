@@ -269,7 +269,26 @@ Choose test types based on risk and value. Not every piece of code needs all tes
 
 #### Docker Integration Testing
 
-For database-dependent code, integration tests using Docker/Testcontainers are recommended:
+For database-dependent code, integration tests using Docker/Testcontainers are recommended.
+
+**Quick Start:**
+
+```bash
+# Start essential services
+docker compose --profile core up -d
+
+# Start all databases
+docker compose --profile databases up -d
+
+# Start everything
+docker compose --profile full up -d
+```
+
+> **Available Profiles**: `core`, `databases`, `messaging`, `caching`, `cloud`, `observability`, `full`
+>
+> See [Docker Infrastructure Guide](docs/infrastructure/docker-infrastructure.md) for complete details.
+
+**Example test:**
 
 ```csharp
 [Trait("Category", "Integration")]

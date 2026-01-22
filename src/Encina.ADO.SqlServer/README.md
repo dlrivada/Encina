@@ -457,6 +457,7 @@ foreach (var script in scripts.OrderBy(s => s.Order))
 ```
 
 Generated scripts configure:
+
 - Schema creation with `IF NOT EXISTS`
 - Database user creation
 - `GRANT SELECT, INSERT, UPDATE, DELETE` on allowed schemas
@@ -464,12 +465,68 @@ Generated scripts configure:
 
 See [Module Isolation Documentation](../../docs/features/module-isolation.md) for comprehensive details.
 
+## Bulk Operations
+
+High-performance bulk database operations using raw ADO.NET, achieving **up to 459x faster** performance than standard operations.
+
+### Performance Comparison (SQL Server 2022, measured with Testcontainers, 1,000 entities)
+
+| Operation | Loop Time | Bulk Time | Improvement |
+|-----------|-----------|-----------|-------------|
+| **Insert** | ~5,410ms | ~52ms | **104x faster** |
+| **Update** | ~5,416ms | ~29ms | **187x faster** |
+| **Delete** | ~5,965ms | ~13ms | **459x faster** |
+
+> **Note**: Performance varies based on hardware, network latency, and entity complexity.
+
+### Usage
+
+```csharp
+// Get bulk operations from Unit of Work
+var bulkOps = unitOfWork.BulkOperations<Order>();
+
+// Bulk insert 10,000 orders using SqlBulkCopy
+var orders = GenerateOrders(10_000);
+var result = await bulkOps.BulkInsertAsync(orders);
+
+result.Match(
+    Right: count => Console.WriteLine($"Inserted {count} orders"),
+    Left: error => Console.WriteLine($"Error: {error.Message}")
+);
+```
+
+### Available Operations
+
+| Operation | Implementation | Description |
+|-----------|----------------|-------------|
+| `BulkInsertAsync` | SqlBulkCopy | Insert thousands of rows in seconds |
+| `BulkUpdateAsync` | MERGE + TVP | Update multiple rows with Table-Valued Parameters |
+| `BulkDeleteAsync` | DELETE + TVP | Delete by primary key using TVP |
+| `BulkMergeAsync` | MERGE | Upsert (insert or update) |
+| `BulkReadAsync` | SELECT + TVP | Read multiple entities by IDs |
+
+### Configuration
+
+```csharp
+var config = BulkConfig.Default with
+{
+    BatchSize = 5000,              // Entities per batch
+    BulkCopyTimeout = 300,         // Timeout in seconds
+    SetOutputIdentity = true,      // Get generated IDs back
+    PreserveInsertOrder = true,    // Maintain order
+    PropertiesToInclude = ["Status", "UpdatedAt"]  // Partial updates
+};
+
+await bulkOps.BulkUpdateAsync(entities, config);
+```
+
 ## Roadmap
 
 - ✅ Outbox Pattern
 - ✅ Inbox Pattern
 - ✅ Transaction Management
 - ✅ Module Isolation
+- ✅ Bulk Operations
 - ⏳ Saga Pattern (planned)
 - ⏳ Scheduling Pattern (planned)
 - ⏳ Multi-database support (PostgreSQL, MySQL)

@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.Dapper.SqlServer.BulkOperations;
 using Encina.Dapper.SqlServer.Health;
 using Encina.Dapper.SqlServer.Inbox;
 using Encina.Dapper.SqlServer.Modules;
@@ -363,6 +364,69 @@ public static class ServiceCollectionExtensions
 
         // Only register if not already registered
         services.TryAddScoped<IUnitOfWork, UnitOfWorkDapper>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers bulk operations for an entity type using Dapper.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <typeparam name="TId">The entity identifier type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IBulkOperations{TEntity}"/> implemented by
+    /// <see cref="BulkOperationsDapper{TEntity, TId}"/> with scoped lifetime.
+    /// </para>
+    /// <para>
+    /// <b>Requirements</b>:
+    /// <list type="bullet">
+    /// <item><description><see cref="IDbConnection"/> must be registered in DI</description></item>
+    /// <item><description><see cref="IEntityMapping{TEntity, TId}"/> must be registered for the entity</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Typically, you register the entity mapping using
+    /// <see cref="AddEncinaRepository{TEntity, TId}(IServiceCollection, Action{EntityMappingBuilder{TEntity, TId}})"/>
+    /// which automatically registers both the repository and the entity mapping.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Register connection and repository
+    /// services.AddEncinaDapper(connectionString, config => { });
+    /// services.AddEncinaRepository&lt;Order, Guid&gt;(mapping =&gt;
+    ///     mapping.ToTable("Orders")
+    ///            .HasId(o =&gt; o.Id)
+    ///            .MapProperty(o =&gt; o.CustomerId)
+    ///            .MapProperty(o =&gt; o.Total));
+    ///
+    /// // Register bulk operations
+    /// services.AddEncinaBulkOperations&lt;Order, Guid&gt;();
+    ///
+    /// // Usage in service
+    /// public class OrderBatchService(IBulkOperations&lt;Order&gt; bulkOps)
+    /// {
+    ///     public async Task&lt;Either&lt;EncinaError, int&gt;&gt; ImportOrdersAsync(
+    ///         IEnumerable&lt;Order&gt; orders,
+    ///         CancellationToken ct)
+    ///     {
+    ///         var config = BulkConfig.Default with { BatchSize = 5000 };
+    ///         return await bulkOps.BulkInsertAsync(orders, config, ct);
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaBulkOperations<TEntity, TId>(
+        this IServiceCollection services)
+        where TEntity : class, new()
+        where TId : notnull
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddScoped<IBulkOperations<TEntity>, BulkOperationsDapper<TEntity, TId>>();
 
         return services;
     }
