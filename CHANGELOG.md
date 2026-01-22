@@ -2,6 +2,64 @@
 
 ### Added
 
+#### Generic Repository Pattern for Remaining Providers (#279)
+
+Implemented the Generic Repository Pattern (`IFunctionalRepository<TEntity, TId>`) across all 8 remaining database providers, completing the repository infrastructure.
+
+**Providers Implemented**:
+
+| Provider | Package | Identifier Quoting | Pagination |
+|----------|---------|-------------------|------------|
+| ADO.SQLite | `Encina.ADO.Sqlite` | `"column"` | LIMIT/OFFSET |
+| ADO.PostgreSQL | `Encina.ADO.PostgreSQL` | `"column"` | LIMIT/OFFSET |
+| ADO.MySQL | `Encina.ADO.MySQL` | `` `column` `` | LIMIT/OFFSET |
+| ADO.Oracle | `Encina.ADO.Oracle` | `"column"` | OFFSET/FETCH |
+| Dapper.SQLite | `Encina.Dapper.Sqlite` | `"column"` | LIMIT/OFFSET |
+| Dapper.PostgreSQL | `Encina.Dapper.PostgreSQL` | `"column"` | LIMIT/OFFSET |
+| Dapper.MySQL | `Encina.Dapper.MySQL` | `` `column` `` | LIMIT/OFFSET |
+| Dapper.Oracle | `Encina.Dapper.Oracle` | `"column"` | OFFSET/FETCH |
+
+**Key Components per Provider**:
+
+- `FunctionalRepositoryADO<TEntity, TId>` / `FunctionalRepositoryDapper<TEntity, TId>` - Repository implementation
+- `EntityMappingBuilder<TEntity, TId>` - Fluent API for entity-to-table mapping
+- `IEntityMapping<TEntity, TId>` - Mapping configuration interface
+- `SpecificationSqlBuilder<TEntity>` - Expression-to-SQL translation with database-specific syntax
+
+**Database-Specific Features**:
+
+- **SQLite**: GUID as TEXT, boolean as INTEGER (0/1)
+- **PostgreSQL**: Native UUID and boolean types
+- **MySQL**: GUID as CHAR(36), boolean as TINYINT(1), backtick quoting
+- **Oracle**: Colon parameters (`:p0`), OFFSET/FETCH pagination
+
+**Usage Example**:
+
+```csharp
+var mapping = new EntityMappingBuilder<Order, Guid>()
+    .ToTable("Orders")
+    .HasId(o => o.Id)
+    .MapProperty(o => o.CustomerId, "CustomerId")
+    .MapProperty(o => o.Total, "Total")
+    .ExcludeFromInsert(o => o.Id)
+    .Build();
+
+var repository = new FunctionalRepositoryADO<Order, Guid>(connection, mapping);
+
+// Railway Oriented Programming
+var result = await repository.GetByIdAsync(orderId);
+result.Match(
+    order => Console.WriteLine($"Found: {order.Total}"),
+    error => Console.WriteLine($"Error: {error.Message}")
+);
+```
+
+**Test Coverage**: 1,153 unit tests for Repository pattern across all providers
+
+**Related Issue**: [#279 - Generic Repository Pattern](https://github.com/dlrivada/Encina/issues/279)
+
+---
+
 #### Unit of Work Pattern (#281)
 
 Implemented the Unit of Work pattern (`IUnitOfWork`) across all data access providers for coordinating transactional operations across multiple repositories.
