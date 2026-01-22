@@ -168,3 +168,16 @@ Encina.ADO.Sqlite.Repository.SpecificationSqlBuilder<TEntity>.BuildSelectStateme
 Encina.ADO.Sqlite.Repository.SpecificationSqlBuilder<TEntity>.BuildWhereClause(Encina.DomainModeling.QuerySpecification<TEntity>! specification) -> (string! WhereClause, System.Action<System.Data.IDbCommand!>! AddParameters)
 Encina.ADO.Sqlite.Repository.SpecificationSqlBuilder<TEntity>.BuildWhereClause(Encina.DomainModeling.Specification<TEntity>! specification) -> (string! WhereClause, System.Action<System.Data.IDbCommand!>! AddParameters)
 Encina.ADO.Sqlite.Repository.SpecificationSqlBuilder<TEntity>.SpecificationSqlBuilder(System.Collections.Generic.IReadOnlyDictionary<string!, string!>! columnMappings) -> void
+Encina.ADO.Sqlite.UnitOfWork.UnitOfWorkADO
+Encina.ADO.Sqlite.UnitOfWork.UnitOfWorkADO.UnitOfWorkADO(System.Data.IDbConnection! connection, System.IServiceProvider! serviceProvider) -> void
+Encina.ADO.Sqlite.UnitOfWork.UnitOfWorkADO.BeginTransactionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
+Encina.ADO.Sqlite.UnitOfWork.UnitOfWorkADO.CommitAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
+Encina.ADO.Sqlite.UnitOfWork.UnitOfWorkADO.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Encina.ADO.Sqlite.UnitOfWork.UnitOfWorkADO.HasActiveTransaction.get -> bool
+Encina.ADO.Sqlite.UnitOfWork.UnitOfWorkADO.Repository<TEntity, TId>() -> Encina.DomainModeling.IFunctionalRepository<TEntity, TId>!
+Encina.ADO.Sqlite.UnitOfWork.UnitOfWorkADO.RollbackAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.Sqlite.UnitOfWork.UnitOfWorkADO.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, int>>!
+static Encina.ADO.Sqlite.ServiceCollectionExtensions.AddEncinaUnitOfWork(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.ADO.Sqlite.ServiceCollectionExtensions.AddEncinaRepository<TEntity, TId>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.ADO.Sqlite.Repository.EntityMappingBuilder<TEntity, TId>!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.ADO.Sqlite.ServiceCollectionExtensions.AddEncinaReadRepository<TEntity, TId>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.ADO.Sqlite.Repository.EntityMappingBuilder<TEntity, TId>!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.ADO.Sqlite.ServiceCollectionExtensions.AddEncinaBulkOperations<TEntity, TId>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -182,3 +182,15 @@ Encina.ADO.PostgreSQL.Repository.SpecificationSqlBuilder<TEntity>.BuildSelectSta
 Encina.ADO.PostgreSQL.Repository.SpecificationSqlBuilder<TEntity>.BuildWhereClause(Encina.DomainModeling.QuerySpecification<TEntity>! specification) -> (string! WhereClause, System.Action<System.Data.IDbCommand!>! AddParameters)
 Encina.ADO.PostgreSQL.Repository.SpecificationSqlBuilder<TEntity>.BuildWhereClause(Encina.DomainModeling.Specification<TEntity>! specification) -> (string! WhereClause, System.Action<System.Data.IDbCommand!>! AddParameters)
 Encina.ADO.PostgreSQL.Repository.SpecificationSqlBuilder<TEntity>.SpecificationSqlBuilder(System.Collections.Generic.IReadOnlyDictionary<string!, string!>! columnMappings) -> void
+Encina.ADO.PostgreSQL.UnitOfWork.UnitOfWorkADO
+Encina.ADO.PostgreSQL.UnitOfWork.UnitOfWorkADO.UnitOfWorkADO(System.Data.IDbConnection! connection, System.IServiceProvider! serviceProvider) -> void
+Encina.ADO.PostgreSQL.UnitOfWork.UnitOfWorkADO.BeginTransactionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
+Encina.ADO.PostgreSQL.UnitOfWork.UnitOfWorkADO.CommitAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>!
+Encina.ADO.PostgreSQL.UnitOfWork.UnitOfWorkADO.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Encina.ADO.PostgreSQL.UnitOfWork.UnitOfWorkADO.HasActiveTransaction.get -> bool
+Encina.ADO.PostgreSQL.UnitOfWork.UnitOfWorkADO.Repository<TEntity, TId>() -> Encina.DomainModeling.IFunctionalRepository<TEntity, TId>!
+Encina.ADO.PostgreSQL.UnitOfWork.UnitOfWorkADO.RollbackAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.ADO.PostgreSQL.UnitOfWork.UnitOfWorkADO.SaveChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, int>>!
+static Encina.ADO.PostgreSQL.ServiceCollectionExtensions.AddEncinaUnitOfWork(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.ADO.PostgreSQL.ServiceCollectionExtensions.AddEncinaRepository<TEntity, TId>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.ADO.PostgreSQL.Repository.EntityMappingBuilder<TEntity, TId>!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.ADO.PostgreSQL.ServiceCollectionExtensions.AddEncinaReadRepository<TEntity, TId>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.ADO.PostgreSQL.Repository.EntityMappingBuilder<TEntity, TId>!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -60,6 +60,31 @@ result.Match(
 
 ---
 
+#### Unit of Work Pattern - Remaining Providers (#281)
+
+Extended the Unit of Work pattern (`IUnitOfWork`) to all 8 remaining database providers, completing the transactional infrastructure.
+
+**Providers Implemented**:
+
+| Provider | Package | Implementation |
+|----------|---------|----------------|
+| ADO.SQLite | `Encina.ADO.Sqlite` | `UnitOfWorkADO` |
+| ADO.PostgreSQL | `Encina.ADO.PostgreSQL` | `UnitOfWorkADO` |
+| ADO.MySQL | `Encina.ADO.MySQL` | `UnitOfWorkADO` |
+| ADO.Oracle | `Encina.ADO.Oracle` | `UnitOfWorkADO` |
+| Dapper.SQLite | `Encina.Dapper.Sqlite` | `UnitOfWorkDapper` |
+| Dapper.PostgreSQL | `Encina.Dapper.PostgreSQL` | `UnitOfWorkDapper` |
+| Dapper.MySQL | `Encina.Dapper.MySQL` | `UnitOfWorkDapper` |
+| Dapper.Oracle | `Encina.Dapper.Oracle` | `UnitOfWorkDapper` |
+
+**Key Components per Provider**:
+
+- `UnitOfWorkADO` / `UnitOfWorkDapper` - Unit of Work implementation
+- `UnitOfWorkRepositoryADO` / `UnitOfWorkRepositoryDapper` - Transaction-aware repository
+- `AddEncinaUnitOfWork()` - DI registration extension method
+
+---
+
 #### Unit of Work Pattern (#281)
 
 Implemented the Unit of Work pattern (`IUnitOfWork`) across all data access providers for coordinating transactional operations across multiple repositories.
