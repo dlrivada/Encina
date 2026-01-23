@@ -1,6 +1,6 @@
 # Plan: Multi-Provider Implementation for Issues #279, #280, #281, #282, #283, #534, #380
 
-> **Status**: In Progress - Issues #279, #282 Completed
+> **Status**: In Progress - Issues #279, #280, #282 Completed
 > **Created**: 2026-01-22
 > **Updated**: 2026-01-24
 > **Milestone**: v1.0.0 - Core Infrastructure
@@ -198,18 +198,18 @@ For EACH issue, follow this workflow:
 
 | Provider | #279 Repo | #280 Spec | #281 UoW | #282 Tenancy | #283 R/W | #534 Module |
 |----------|-----------|-----------|----------|--------------|----------|-------------|
-| ADO.SqlServer | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
-| ADO.Sqlite | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| ADO.PostgreSQL | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| ADO.MySQL | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| ADO.Oracle | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| Dapper.SqlServer | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
-| Dapper.Sqlite | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| Dapper.PostgreSQL | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| Dapper.MySQL | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| Dapper.Oracle | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| EntityFrameworkCore | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
-| MongoDB | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| ADO.SqlServer | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| ADO.Sqlite | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| ADO.PostgreSQL | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| ADO.MySQL | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| ADO.Oracle | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Dapper.SqlServer | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Dapper.Sqlite | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Dapper.PostgreSQL | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Dapper.MySQL | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Dapper.Oracle | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| EntityFrameworkCore | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| MongoDB | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 
 **Legend**: ❌ = Not implemented, ✅ = Implemented
 
@@ -218,7 +218,7 @@ For EACH issue, follow this workflow:
 | Issue | Feature | Status | Providers Implemented |
 |-------|---------|--------|----------------------|
 | #279 | Repository | ✅ Complete | 12/12 |
-| #280 | Specification | ❌ Not Started | 0/12 |
+| #280 | Specification | ✅ Complete | 12/12 |
 | #281 | Unit of Work | ✅ Complete | 12/12 |
 | #282 | Multi-Tenancy | ✅ Complete | 12/12 |
 | #283 | Read/Write Separation | 🟡 Partial | 4/12 (SqlServer ADO/Dapper, EFCore, MongoDB) |
@@ -283,6 +283,31 @@ For EACH issue, follow this workflow:
 | IntegrationTests | `tests/Encina.IntegrationTests/{Provider}/Repository.md` | 12 files ✅ |
 | LoadTests | `tests/Encina.LoadTests/Repository.md` | 1 file ✅ |
 | BenchmarkTests | `tests/Encina.BenchmarkTests/Repository.md` | 1 file ✅ |
+
+### Issue #280: Specification - Test Types by Provider
+
+| Provider | UnitTests | GuardTests | PropertyTests | ContractTests | IntegrationTests | LoadTests | BenchmarkTests |
+|----------|-----------|------------|---------------|---------------|------------------|-----------|----------------|
+| ADO.SqlServer | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| ADO.Sqlite | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| ADO.PostgreSQL | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| ADO.MySQL | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| ADO.Oracle | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.SqlServer | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.Sqlite | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.PostgreSQL | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.MySQL | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.Oracle | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| EntityFrameworkCore | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| MongoDB | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+
+### Test Justification Files Created for #280
+
+| Test Type | Location | Status |
+|-----------|----------|--------|
+| IntegrationTests | `tests/Encina.IntegrationTests/Database/Specification.md` | 1 file ✅ |
+| LoadTests | `tests/Encina.LoadTests/Specification.md` | 1 file ✅ |
+| BenchmarkTests | `tests/Encina.BenchmarkTests/Specification.md` | 1 file ✅ |
 
 ### Test Justification Files Created for #282
 
@@ -424,7 +449,7 @@ Process one issue at a time, completing ALL 8 providers before moving to the nex
 | Order | Issue | Feature | Est. Files | Est. Tests | Status |
 |-------|-------|---------|------------|------------|--------|
 | 1 | #279 | Repository Pattern | ~32 | ~160 | ✅ Complete |
-| 2 | #280 | Specification Pattern | ~24 | ~200 | ❌ Not Started |
+| 2 | #280 | Specification Pattern | ~24 | ~200 | ✅ Complete |
 | 3 | #281 | Unit of Work | ~24 | ~120 | ⬜ Tests Pending |
 | 4 | #282 | Multi-Tenancy | ~64 | ~890 | ✅ Complete |
 | 5 | #283 | Read/Write Separation | ~40 | ~160 | 🟡 Partial (4/12) |
@@ -605,6 +630,68 @@ Files created:
 - **Independent tests** - no shared state, can run in parallel
 - **Clear naming** - test names describe what is being verified
 - **Justification documents** - all skipped test types have `.md` files explaining why
+
+---
+
+## Issue #280 Test Coverage Summary ✅ COMPLETED
+
+### Test Breakdown (All 12 Providers)
+
+| Test Type | Files | Coverage | Description |
+|-----------|-------|----------|-------------|
+| **UnitTests** | 12 | Core logic | Tests SpecificationSqlBuilder for ADO/Dapper providers, SpecificationEvaluator for EF Core, SpecificationFilterBuilder for MongoDB |
+| **GuardTests** | 13 | Parameter validation | Null checks for constructors and public methods across all providers |
+| **PropertyTests** | 1 | Invariants | Tests specification composition (And, Or, Not), commutativity, associativity, consistency between IsSatisfiedBy and ToExpression, QuerySpecification paging/ordering |
+| **ContractTests** | 1 | Interface contracts | API consistency for SpecificationSqlBuilder across all ADO/Dapper providers (already in RepositoryContractTests.cs) |
+| **Total** | **27** | **≥85%** | Comprehensive coverage achieved |
+
+### Providers Covered (12 total)
+
+- **ADO.NET (5)**: Sqlite, SqlServer, PostgreSQL, MySQL, Oracle
+- **Dapper (5)**: Sqlite, SqlServer, PostgreSQL, MySQL, Oracle
+- **ORM (1)**: EntityFrameworkCore
+- **NoSQL (1)**: MongoDB
+
+### Files Created
+
+**GuardTests (10 new files):**
+
+- `tests/Encina.GuardTests/ADO/Sqlite/Repository/SpecificationSqlBuilderGuardTests.cs`
+- `tests/Encina.GuardTests/ADO/SqlServer/Repository/SpecificationSqlBuilderGuardTests.cs`
+- `tests/Encina.GuardTests/ADO/PostgreSQL/Repository/SpecificationSqlBuilderGuardTests.cs`
+- `tests/Encina.GuardTests/ADO/MySQL/Repository/SpecificationSqlBuilderGuardTests.cs`
+- `tests/Encina.GuardTests/ADO/Oracle/Repository/SpecificationSqlBuilderGuardTests.cs`
+- `tests/Encina.GuardTests/Dapper/Sqlite/Repository/SpecificationSqlBuilderGuardTests.cs`
+- `tests/Encina.GuardTests/Dapper/SqlServer/Repository/SpecificationSqlBuilderGuardTests.cs`
+- `tests/Encina.GuardTests/Dapper/PostgreSQL/Repository/SpecificationSqlBuilderGuardTests.cs`
+- `tests/Encina.GuardTests/Dapper/MySQL/Repository/SpecificationSqlBuilderGuardTests.cs`
+- `tests/Encina.GuardTests/Dapper/Oracle/Repository/SpecificationSqlBuilderGuardTests.cs`
+
+**PropertyTests (1 new file):**
+
+- `tests/Encina.PropertyTests/Database/Specification/SpecificationPropertyTests.cs`
+
+**Justification Documents (3 new files):**
+
+- `tests/Encina.IntegrationTests/Database/Specification.md`
+- `tests/Encina.LoadTests/Specification.md`
+- `tests/Encina.BenchmarkTests/Specification.md`
+
+### Test Results
+
+- **70 GuardTests** passed (7 tests × 10 providers)
+- **29 PropertyTests** passed (specification composition invariants)
+- **Existing UnitTests** for SpecificationSqlBuilder continue to pass
+- **Existing ContractTests** already cover SpecificationSqlBuilder API consistency
+
+### Key Findings
+
+1. **Implementation Already Complete**: Specification pattern code exists for all 12 providers
+   - `SpecificationSqlBuilder<T>` in ADO/Dapper providers (10)
+   - `SpecificationEvaluator` in EntityFrameworkCore
+   - `SpecificationFilterBuilder<T>` in MongoDB
+2. **Test Gap Addressed**: Only DomainModeling, EF Core, and MongoDB had GuardTests - now all 12 providers covered
+3. **Contract Tests Already Exist**: RepositoryContractTests.cs lines 378-429 verify SpecificationSqlBuilder API consistency
 
 ---
 
