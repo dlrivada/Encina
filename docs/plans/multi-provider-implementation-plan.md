@@ -317,6 +317,40 @@ For EACH issue, follow this workflow:
 | LoadTests | `tests/Encina.LoadTests/Tenancy.md` | 1 file ✅ |
 | BenchmarkTests | `tests/Encina.BenchmarkTests/Tenancy.md` | 1 file ✅ |
 
+### Issue #281: Unit of Work - Test Types by Provider
+
+| Provider | UnitTests | GuardTests | PropertyTests | ContractTests | IntegrationTests | LoadTests | BenchmarkTests |
+|----------|-----------|------------|---------------|---------------|------------------|-----------|----------------|
+| ADO.SqlServer | ✅ | ✅ (in UnitTests) | ✅ | ✅ | 📄 | 📄 | 📄 |
+| ADO.Sqlite | ✅ | ✅ (in UnitTests) | ✅ | ✅ | 📄 | 📄 | 📄 |
+| ADO.PostgreSQL | ✅ | ✅ (in UnitTests) | ✅ | ✅ | 📄 | 📄 | 📄 |
+| ADO.MySQL | ✅ | ✅ (in UnitTests) | ✅ | ✅ | 📄 | 📄 | 📄 |
+| ADO.Oracle | ✅ | ✅ (in UnitTests) | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.SqlServer | ✅ | ✅ (in UnitTests) | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.Sqlite | ✅ | ✅ (in UnitTests) | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.PostgreSQL | ✅ | ✅ (in UnitTests) | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.MySQL | ✅ | ✅ (in UnitTests) | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.Oracle | ✅ | ✅ (in UnitTests) | ✅ | ✅ | 📄 | 📄 | 📄 |
+| EntityFrameworkCore | ✅ | ✅ (in UnitTests) | ✅ | ✅ | 📄 | 📄 | 📄 |
+| MongoDB | ✅ | ✅ (in UnitTests) | ✅ | ✅ | 📄 | 📄 | 📄 |
+
+**Note**: GuardTests for Unit of Work are included in the existing UnitTests files (constructor null checks are tested there).
+
+### Test Justification Files Created for #281
+
+| Test Type | Location | Status |
+|-----------|----------|--------|
+| IntegrationTests | `tests/Encina.IntegrationTests/Database/UnitOfWork.md` | 1 file ✅ |
+| LoadTests | `tests/Encina.LoadTests/UnitOfWork.md` | 1 file ✅ |
+| BenchmarkTests | `tests/Encina.BenchmarkTests/UnitOfWork.md` | 1 file ✅ |
+
+### Tests Created for #281
+
+| Test Type | Location | Tests Count |
+|-----------|----------|-------------|
+| PropertyTests | `tests/Encina.PropertyTests/Database/UnitOfWork/UnitOfWorkPropertyTests.cs` | 17 tests |
+| ContractTests | `tests/Encina.ContractTests/Database/UnitOfWork/UnitOfWorkContractTests.cs` | 15 tests |
+
 ### Template: Test Coverage Matrix (for future issues)
 
 Copy this template for each new issue:
