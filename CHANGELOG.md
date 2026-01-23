@@ -2,6 +2,65 @@
 
 ### Added
 
+#### Multi-Tenancy Support for Remaining Providers (#282)
+
+Extended Multi-Tenancy support to all 8 remaining database providers, enabling SaaS applications with tenant isolation capabilities.
+
+**Providers Implemented**:
+
+| Provider | Package | Tenant-Aware Repository | Connection Factory |
+|----------|---------|------------------------|-------------------|
+| ADO.SQLite | `Encina.ADO.Sqlite` | `TenantAwareFunctionalRepositoryADO` | `TenantConnectionFactory` |
+| ADO.PostgreSQL | `Encina.ADO.PostgreSQL` | `TenantAwareFunctionalRepositoryADO` | `TenantConnectionFactory` |
+| ADO.MySQL | `Encina.ADO.MySQL` | `TenantAwareFunctionalRepositoryADO` | `TenantConnectionFactory` |
+| ADO.Oracle | `Encina.ADO.Oracle` | `TenantAwareFunctionalRepositoryADO` | `TenantConnectionFactory` |
+| Dapper.SQLite | `Encina.Dapper.Sqlite` | `TenantAwareFunctionalRepositoryDapper` | `TenantConnectionFactory` |
+| Dapper.PostgreSQL | `Encina.Dapper.PostgreSQL` | `TenantAwareFunctionalRepositoryDapper` | `TenantConnectionFactory` |
+| Dapper.MySQL | `Encina.Dapper.MySQL` | `TenantAwareFunctionalRepositoryDapper` | `TenantConnectionFactory` |
+| Dapper.Oracle | `Encina.Dapper.Oracle` | `TenantAwareFunctionalRepositoryDapper` | `TenantConnectionFactory` |
+
+**Key Components per Provider**:
+
+- `TenantAwareFunctionalRepositoryADO<TEntity, TId>` / `TenantAwareFunctionalRepositoryDapper<TEntity, TId>` - Auto-filtering repository
+- `TenantEntityMappingBuilder<TEntity, TId>` - Fluent API for tenant entity mapping with `HasTenantId()`
+- `ITenantEntityMapping<TEntity, TId>` - Extended mapping interface with tenant properties
+- `TenantAwareSpecificationSqlBuilder<TEntity>` - SQL builder with automatic tenant filters
+- `TenantConnectionFactory` - Tenant-aware connection routing
+- `ADOTenancyOptions` / `DapperTenancyOptions` - Configuration options
+
+**Multi-Tenancy Features**:
+
+- **Auto-filtering**: All queries automatically include `WHERE TenantId = @TenantId`
+- **Auto-assignment**: New entities automatically get tenant ID assigned on insert
+- **Cross-tenant validation**: Updates/deletes verify tenant ownership
+- **Database-per-tenant**: Route connections based on tenant isolation strategy
+
+**Usage Example**:
+
+```csharp
+services.AddEncinaADOSqliteWithTenancy(
+    config => { config.UseOutbox = true; },
+    tenancy =>
+    {
+        tenancy.AutoFilterTenantQueries = true;
+        tenancy.AutoAssignTenantId = true;
+        tenancy.ValidateTenantOnModify = true;
+    });
+
+services.AddTenantAwareRepository<Order, Guid>(mapping =>
+    mapping.ToTable("Orders")
+           .HasId(o => o.Id)
+           .HasTenantId(o => o.TenantId)
+           .MapProperty(o => o.CustomerId)
+           .MapProperty(o => o.Total));
+```
+
+**Test Coverage**: 485 unit tests for Multi-Tenancy across all providers
+
+**Related Issue**: [#282 - Multi-Tenancy Support](https://github.com/dlrivada/Encina/issues/282)
+
+---
+
 #### Generic Repository Pattern for Remaining Providers (#279)
 
 Implemented the Generic Repository Pattern (`IFunctionalRepository<TEntity, TId>`) across all 8 remaining database providers, completing the repository infrastructure.

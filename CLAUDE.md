@@ -184,6 +184,7 @@ Encina.FluentValidation / DataAnnotations / MiniValidator
 ```
 
 Example:
+
 ```csharp
 // All validation packages use the same pattern:
 services.AddEncinaFluentValidation(typeof(MyValidator).Assembly);
@@ -364,6 +365,87 @@ tests/
 └── Encina.Testing.Examples/   # Reference examples
 ```
 
+#### Database Provider Coverage (MANDATORY)
+
+**All database-related features MUST be implemented and tested for ALL 12 providers:**
+
+| Category | Providers |
+|----------|-----------|
+| **ADO.NET** | Sqlite, SqlServer, PostgreSQL, MySQL, Oracle |
+| **Dapper** | Sqlite, SqlServer, PostgreSQL, MySQL, Oracle |
+| **ORM** | EntityFrameworkCore |
+| **NoSQL** | MongoDB |
+
+> **IMPORTANT**: When implementing any database-related feature (Repository, Tenancy, Bulk Operations, CQRS, etc.), you MUST implement it for ALL 12 providers. No exceptions.
+
+**Excluded from this rule** (specialized providers):
+
+- Message brokers: RabbitMQ, Kafka, NATS, MQTT
+- Caching: Redis, Memory
+- Event sourcing: Marten
+
+#### Test Justification Documents (.md)
+
+When a test type is intentionally NOT implemented for a feature, create a justification document:
+
+**Format**: `{TestProject}/{Provider/Feature}/Tenancy.md` (or feature name)
+
+**Required content**:
+
+```markdown
+# {Test Type} - {Provider} {Feature}
+
+## Status: Not Implemented
+
+## Justification
+[Technical reasons why this test type is not needed]
+
+### 1. [Reason category]
+[Detailed explanation]
+
+### 2. Adequate Coverage from Other Test Types
+- **Unit Tests**: [what's covered]
+- **Guard Tests**: [what's covered]
+- **Property Tests**: [what's covered]
+- **Contract Tests**: [what's covered]
+
+### N. Recommended Alternative
+[How to test this if needed in the future]
+
+## Related Files
+- `src/...` - Source files
+- `tests/...` - Existing test files
+
+## Date: YYYY-MM-DD
+## Issue: #NNN
+```
+
+**Example locations**:
+
+```text
+tests/Encina.IntegrationTests/ADO/Sqlite/Tenancy.md
+tests/Encina.IntegrationTests/Dapper/SqlServer/Tenancy.md
+tests/Encina.IntegrationTests/Infrastructure/MongoDB/Tenancy.md
+tests/Encina.LoadTests/Tenancy.md
+tests/Encina.BenchmarkTests/Tenancy.md
+```
+
+**Rule**: If a folder has neither `.cs` test files nor `.md` justification, the test coverage for that feature/provider has NOT been evaluated yet.
+
+#### Supported Test Types (Encina.{Type}Tests)
+
+| Project | Purpose | When Required |
+|---------|---------|---------------|
+| `Encina.UnitTests` | Isolated unit tests | ✅ Always required |
+| `Encina.GuardTests` | Null/parameter validation | ✅ All public methods |
+| `Encina.PropertyTests` | Invariant verification | 🟡 Complex logic |
+| `Encina.ContractTests` | API contract verification | 🟡 Public interfaces |
+| `Encina.IntegrationTests` | Real database/external | 🟡 Database operations |
+| `Encina.LoadTests` | Performance under load | 🟡 Critical paths |
+| `Encina.BenchmarkTests` | Micro-benchmarks | 🟡 Hot paths |
+
+**Coverage target**: ≥85% line coverage across all test types combined.
+
 #### Testing Workflow
 
 **Recommended approach for new features**:
@@ -491,12 +573,14 @@ var message = new OutboxMessageBuilder()
 | Mutation reports | `artifacts/stryker/` |
 
 **Forbidden root-level outputs** (these should NOT exist):
+
 - `TestResults/` ❌
 - `test-results.log` ❌
 - `coverage-*` ❌
 - `BenchmarkDotNet.Artifacts/` ❌
 
 When configuring test projects or scripts:
+
 - Use `--results-directory artifacts/test-results` for `dotnet test`
 - Use `--output artifacts/coverage` for coverage collectors
 - Configure `runsettings` files to use `artifacts/` paths
@@ -554,15 +638,18 @@ When configuring test projects or scripts:
 #### PublicAPI Analyzers (RS0016/RS0017)
 
 The `Microsoft.CodeAnalysis.PublicApiAnalyzers` package tracks public API changes via:
+
 - `PublicAPI.Shipped.txt` - APIs in released versions
 - `PublicAPI.Unshipped.txt` - APIs in current development
 
 **Key rules**:
+
 - RS0016: Symbol not in declared API (add to Unshipped.txt)
 - RS0017: Symbol in declared API but not public/found (remove from txt)
 - RS0036/RS0037: Nullable annotation mismatches
 
 **Fixing RS0016/RS0017**:
+
 1. Use Visual Studio code fix to add/remove entries
 2. Manually edit `PublicAPI.Unshipped.txt`
 3. Format: `Namespace.Type.Member(params) -> ReturnType`
@@ -651,6 +738,9 @@ await connection.QueryAsync<Message>(sql, new { NowUtc = nowUtc });
 5. ❌ Don't make patterns mandatory - everything is opt-in
 6. ❌ Don't mix provider-specific code with abstractions
 7. ❌ Don't compromise design for non-existent legacy users
+8. ❌ Don't implement DB features for only some providers - ALL 12 required
+9. ❌ Don't skip test types without creating a justification `.md` file
+10. ❌ Don't leave test coverage below 85%
 
 ### Remember
 >
@@ -727,6 +817,7 @@ This project uses [CodeRabbit](https://coderabbit.ai) for AI-powered code review
 #### 1. Pull Request Reviews
 
 CodeRabbit automatically reviews all PRs with:
+
 - Code quality analysis
 - Security vulnerability detection
 - Best practices suggestions
@@ -774,10 +865,12 @@ When a PR references an issue (e.g., `Fixes #123`), CodeRabbit:
 CodeRabbit can generate detailed implementation plans from issues:
 
 **How to trigger:**
+
 - Check the "Create Plan" checkbox in the enrichment comment
 - Or comment `@coderabbitai plan` on the issue
 
 **What it generates:**
+
 - Step-by-step implementation plan
 - File-specific guidance on what to change
 - Code examples from the codebase
@@ -840,6 +933,7 @@ CodeRabbit only enriches issues automatically when they are **created or edited*
 3. **Request a plan**: Use `@coderabbitai plan` to generate implementation steps
 
 **Standard workflow when reviewing an issue without CodeRabbit comments:**
+
 ```
 @coderabbitai please analyze this issue and suggest related issues/PRs
 ```
