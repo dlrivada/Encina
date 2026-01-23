@@ -1,8 +1,8 @@
 # Plan: Multi-Provider Implementation for Issues #279, #280, #281, #282, #283, #534, #380
 
-> **Status**: In Progress - Issue #282 Completed
+> **Status**: In Progress - Issues #279, #282 Completed
 > **Created**: 2026-01-22
-> **Updated**: 2026-01-23
+> **Updated**: 2026-01-24
 > **Milestone**: v1.0.0 - Core Infrastructure
 
 ## Executive Summary
@@ -259,6 +259,31 @@ For EACH issue, follow this workflow:
 - ❌ = Not implemented, no justification
 - ⬜ = Not yet analyzed
 
+### Issue #279: Repository - Test Types by Provider
+
+| Provider | UnitTests | GuardTests | PropertyTests | ContractTests | IntegrationTests | LoadTests | BenchmarkTests |
+|----------|-----------|------------|---------------|---------------|------------------|-----------|----------------|
+| ADO.SqlServer | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| ADO.Sqlite | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| ADO.PostgreSQL | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| ADO.MySQL | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| ADO.Oracle | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.SqlServer | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.Sqlite | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.PostgreSQL | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.MySQL | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| Dapper.Oracle | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| EntityFrameworkCore | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+| MongoDB | ✅ | ✅ | ✅ | ✅ | 📄 | 📄 | 📄 |
+
+### Test Justification Files Created for #279
+
+| Test Type | Location | Status |
+|-----------|----------|--------|
+| IntegrationTests | `tests/Encina.IntegrationTests/{Provider}/Repository.md` | 12 files ✅ |
+| LoadTests | `tests/Encina.LoadTests/Repository.md` | 1 file ✅ |
+| BenchmarkTests | `tests/Encina.BenchmarkTests/Repository.md` | 1 file ✅ |
+
 ### Test Justification Files Created for #282
 
 | Test Type | Location | Status |
@@ -396,15 +421,15 @@ For EACH issue, update:
 
 Process one issue at a time, completing ALL 8 providers before moving to the next issue:
 
-| Order | Issue | Feature | Est. Files | Est. Tests |
-|-------|-------|---------|------------|------------|
-| 1 | #279 | Repository Pattern | ~32 | ~160 |
-| 2 | #280 | Specification Pattern | ~24 | ~200 |
-| 3 | #281 | Unit of Work | ~24 | ~120 |
-| 4 | #282 | Multi-Tenancy | ~64 | ~890 ✅ |
-| 5 | #283 | Read/Write Separation | ~40 | ~160 |
-| 6 | #534 | Module Isolation | ~32 | ~120 |
-| 7 | #380 | Repository Abstraction | Verify only | Verify only |
+| Order | Issue | Feature | Est. Files | Est. Tests | Status |
+|-------|-------|---------|------------|------------|--------|
+| 1 | #279 | Repository Pattern | ~32 | ~160 | ✅ Complete |
+| 2 | #280 | Specification Pattern | ~24 | ~200 | ❌ Not Started |
+| 3 | #281 | Unit of Work | ~24 | ~120 | ⬜ Tests Pending |
+| 4 | #282 | Multi-Tenancy | ~64 | ~890 | ✅ Complete |
+| 5 | #283 | Read/Write Separation | ~40 | ~160 | 🟡 Partial (4/12) |
+| 6 | #534 | Module Isolation | ~32 | ~120 | ❌ Not Started |
+| 7 | #380 | Repository Abstraction | Verify only | Verify only | ⬜ Pending |
 
 ### Per-Issue Checklist
 
@@ -471,6 +496,57 @@ Test coverage: ≥85%
 | New integration tests | ~400 |
 | Documentation updates | 7 issues × 5 docs = 35 updates |
 | PublicAPI updates | 8 providers × 6 features = 48 updates |
+
+---
+
+## Issue #279 Test Coverage Summary ✅ COMPLETED
+
+### Test Breakdown (All 12 Providers)
+
+| Test Type | Files | Coverage | Description |
+|-----------|-------|----------|-------------|
+| **UnitTests** | 39 | Core logic | Tests FunctionalRepository, EntityMappingBuilder, SpecificationSqlBuilder for all providers |
+| **GuardTests** | 27 | Parameter validation | Null checks for constructors and public methods |
+| **PropertyTests** | 2 | Invariants | Cross-provider consistency, column mapping preservation, ID exclusion from updates |
+| **ContractTests** | 1 | Interface contracts | API consistency across all 12 providers |
+| **Total** | **69** | **≥85%** | Comprehensive coverage achieved |
+
+### Providers Covered (12 total)
+
+- **ADO.NET (5)**: Sqlite, SqlServer, PostgreSQL, MySQL, Oracle
+- **Dapper (5)**: Sqlite, SqlServer, PostgreSQL, MySQL, Oracle
+- **ORM (1)**: EntityFrameworkCore
+- **NoSQL (1)**: MongoDB
+
+### Test Types Not Included (Documented with Justification Files)
+
+#### IntegrationTests - Justification Documents Created
+
+**Location**: `tests/Encina.IntegrationTests/{Provider}/Repository.md`
+
+Files created:
+
+- `ADO/Sqlite/Repository.md`, `ADO/SqlServer/Repository.md`, `ADO/PostgreSQL/Repository.md`, `ADO/MySQL/Repository.md`, `ADO/Oracle/Repository.md`
+- `Dapper/Sqlite/Repository.md`, `Dapper/SqlServer/Repository.md`, `Dapper/PostgreSQL/Repository.md`, `Dapper/MySQL/Repository.md`, `Dapper/Oracle/Repository.md`
+- `Infrastructure/EntityFrameworkCore/Repository.md`, `Infrastructure/MongoDB/Repository.md`
+
+**Summary**: Repository is a thin abstraction layer. SQL generation tested in unit tests. Provider performance dominates.
+
+#### LoadTests - Justification Document Created
+
+**Location**: `tests/Encina.LoadTests/Repository.md`
+
+**Summary**: Repository adds negligible overhead. Load testing should target database/API level.
+
+#### BenchmarkTests - Justification Document Created
+
+**Location**: `tests/Encina.BenchmarkTests/Repository.md`
+
+**Summary**: EntityMappingBuilder.Build() is one-time startup cost. GetId() is single delegate call (~1ns).
+
+### Commits
+
+- `437ed3b` - test(repository): Add comprehensive test coverage for Repository pattern (#279)
 
 ---
 
