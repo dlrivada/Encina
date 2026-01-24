@@ -384,11 +384,71 @@ tests/
 - Caching: Redis, Memory
 - Event sourcing: Marten
 
+#### Test Type Guidelines by Feature Category
+
+**IMPORTANT**: Not all test types can be justified with `.md` files. The decision depends on the feature category:
+
+| Test Type | Database Features | Non-DB Features | Notes |
+|-----------|-------------------|-----------------|-------|
+| **UnitTests** | ✅ Required | ✅ Required | Always required |
+| **GuardTests** | ✅ Required | ✅ Required | All public methods |
+| **PropertyTests** | ✅ Required | 🟡 If complex | Cross-provider invariants |
+| **ContractTests** | ✅ Required | 🟡 If public API | API consistency |
+| **IntegrationTests** | ✅ **Required** | 📄 Justify if skip | DB features MUST have real tests |
+| **LoadTests** | ⚠️ See below | 📄 Justify if skip | Only for concurrent features |
+| **BenchmarkTests** | 📄 Justify if skip | 📄 Justify if skip | Only for hot paths |
+
+#### IntegrationTests for Database Features
+
+**For database-related milestones (like v0.12.0 Database & Repository):**
+
+- ❌ **DO NOT** create `.md` justification files for IntegrationTests
+- ✅ **DO** create real IntegrationTests using Docker/Testcontainers
+- The whole point of database features is to interact with real databases
+
+**Why real IntegrationTests are mandatory for DB features:**
+1. SQL syntax varies by provider (Oracle uses `:param`, MySQL uses backticks)
+2. Connection/transaction behavior differs between providers
+3. Type mappings vary (GUID storage, DateTime precision, boolean representation)
+4. We have Docker infrastructure (`docs/infrastructure/docker-infrastructure.md`)
+
+#### LoadTests Guidelines
+
+LoadTests are only meaningful for features with **concurrent behavior**:
+
+| Feature | LoadTest? | Reason |
+|---------|-----------|--------|
+| Repository | 📄 Justify | Thin wrapper, load is on DB |
+| Specification | 📄 Justify | SQL generation is CPU-bound, fast |
+| **Unit of Work** | ✅ Implement | Connection/transaction management under load |
+| **Multi-Tenancy** | ✅ Implement | Tenant isolation under concurrent access |
+| **Read/Write Separation** | ✅ Implement | Replica distribution is exactly what LoadTests validate |
+| Module Isolation | 📄 Justify | Only active in development mode |
+
+#### BenchmarkTests Guidelines
+
+BenchmarkTests are only meaningful for **hot paths** where microseconds matter:
+
+| Feature | Benchmark? | Reason |
+|---------|------------|--------|
+| Repository | 📄 Justify | Overhead is negligible vs DB |
+| Specification | ⚠️ Maybe | Complex query generation might benefit |
+| Unit of Work | 📄 Justify | Transaction management, not a hot path |
+| Multi-Tenancy | 📄 Justify | Single WHERE clause, O(1) |
+| **Read/Write Separation** | ✅ Implement | Replica selection algorithms are benchmarkable |
+| Module Isolation | 📄 Justify | Development-only, disabled in production |
+
 #### Test Justification Documents (.md)
 
-When a test type is intentionally NOT implemented for a feature, create a justification document:
+When a test type is **legitimately** NOT implemented for a feature, create a justification document:
 
-**Format**: `{TestProject}/{Provider/Feature}/Tenancy.md` (or feature name)
+**Format**: `{TestProject}/{Provider/Feature}/{Feature}.md`
+
+**When to use justification documents:**
+- ✅ BenchmarkTests for thin wrappers (Repository, Tenancy)
+- ✅ LoadTests for non-concurrent features (Repository, Specification)
+- ❌ **NEVER** for IntegrationTests on database features
+- ❌ **NEVER** for UnitTests, GuardTests, ContractTests
 
 **Required content**:
 
@@ -418,16 +478,6 @@ When a test type is intentionally NOT implemented for a feature, create a justif
 
 ## Date: YYYY-MM-DD
 ## Issue: #NNN
-```
-
-**Example locations**:
-
-```text
-tests/Encina.IntegrationTests/ADO/Sqlite/Tenancy.md
-tests/Encina.IntegrationTests/Dapper/SqlServer/Tenancy.md
-tests/Encina.IntegrationTests/Infrastructure/MongoDB/Tenancy.md
-tests/Encina.LoadTests/Tenancy.md
-tests/Encina.BenchmarkTests/Tenancy.md
 ```
 
 **Rule**: If a folder has neither `.cs` test files nor `.md` justification, the test coverage for that feature/provider has NOT been evaluated yet.
