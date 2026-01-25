@@ -441,9 +441,16 @@ public sealed class SpecificationSqlBuilder<TEntity>
         throw new NotSupportedException($"Method {methodCall.Method.DeclaringType?.Name}.{methodName} is not supported for SQL translation.");
     }
 
-    private static string TranslateBooleanMember(MemberExpression member)
+    private string TranslateBooleanMember(MemberExpression member)
     {
         var propertyName = member.Member.Name;
+
+        // Use the mapped column name if available
+        if (_columnMappings.TryGetValue(propertyName, out var columnName))
+        {
+            return $"\"{columnName}\" = 1";
+        }
+
         return $"\"{propertyName}\" = 1";
     }
 

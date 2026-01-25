@@ -441,11 +441,15 @@ public sealed class SpecificationSqlBuilder<TEntity>
         throw new NotSupportedException($"Method {methodCall.Method.DeclaringType?.Name}.{methodName} is not supported for SQL translation.");
     }
 
-    private static string TranslateBooleanMember(MemberExpression member)
+    private string TranslateBooleanMember(MemberExpression member)
     {
         var propertyName = member.Member.Name;
+
+        // Use the mapped column name if available
+        var columnName = _columnMappings.TryGetValue(propertyName, out var mapped) ? mapped : propertyName;
+
         // PostgreSQL uses native boolean - compare with TRUE
-        return $"\"{propertyName}\" = TRUE";
+        return $"\"{columnName}\" = TRUE";
     }
 
     private string TranslateInvocationExpression(InvocationExpression invocation, Dictionary<string, object?> parameters)
