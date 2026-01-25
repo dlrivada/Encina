@@ -2,18 +2,17 @@ using System.Data;
 using System.Data.Common;
 using System.Reflection;
 using Encina.Modules.Isolation;
-
+using ADOMySQLModules = Encina.ADO.MySQL.Modules;
+using ADOOracleModules = Encina.ADO.Oracle.Modules;
+using ADOPostgreSQLModules = Encina.ADO.PostgreSQL.Modules;
 // Type aliases for all provider namespaces
 using ADOSqliteModules = Encina.ADO.Sqlite.Modules;
 using ADOSqlServerModules = Encina.ADO.SqlServer.Modules;
-using ADOPostgreSQLModules = Encina.ADO.PostgreSQL.Modules;
-using ADOMySQLModules = Encina.ADO.MySQL.Modules;
-using ADOOracleModules = Encina.ADO.Oracle.Modules;
-using DapperSqliteModules = Encina.Dapper.Sqlite.Modules;
-using DapperSqlServerModules = Encina.Dapper.SqlServer.Modules;
-using DapperPostgreSQLModules = Encina.Dapper.PostgreSQL.Modules;
 using DapperMySQLModules = Encina.Dapper.MySQL.Modules;
 using DapperOracleModules = Encina.Dapper.Oracle.Modules;
+using DapperPostgreSQLModules = Encina.Dapper.PostgreSQL.Modules;
+using DapperSqliteModules = Encina.Dapper.Sqlite.Modules;
+using DapperSqlServerModules = Encina.Dapper.SqlServer.Modules;
 
 namespace Encina.ContractTests.Database.ModuleIsolation;
 

@@ -1,16 +1,16 @@
-using ADOSqliteTenancy = Encina.ADO.Sqlite.Tenancy;
-using ADOSqlServerTenancy = Encina.ADO.SqlServer.Tenancy;
-using ADOPostgreSQLTenancy = Encina.ADO.PostgreSQL.Tenancy;
-using ADOMySQLTenancy = Encina.ADO.MySQL.Tenancy;
-using ADOOracleTenancy = Encina.ADO.Oracle.Tenancy;
-using DapperSqliteTenancy = Encina.Dapper.Sqlite.Tenancy;
-using DapperSqlServerTenancy = Encina.Dapper.SqlServer.Tenancy;
-using DapperPostgreSQLTenancy = Encina.Dapper.PostgreSQL.Tenancy;
-using DapperMySQLTenancy = Encina.Dapper.MySQL.Tenancy;
-using DapperOracleTenancy = Encina.Dapper.Oracle.Tenancy;
-using MongoDbTenancy = Encina.MongoDB.Tenancy;
 using Encina.Tenancy;
 using Shouldly;
+using ADOMySQLTenancy = Encina.ADO.MySQL.Tenancy;
+using ADOOracleTenancy = Encina.ADO.Oracle.Tenancy;
+using ADOPostgreSQLTenancy = Encina.ADO.PostgreSQL.Tenancy;
+using ADOSqliteTenancy = Encina.ADO.Sqlite.Tenancy;
+using ADOSqlServerTenancy = Encina.ADO.SqlServer.Tenancy;
+using DapperMySQLTenancy = Encina.Dapper.MySQL.Tenancy;
+using DapperOracleTenancy = Encina.Dapper.Oracle.Tenancy;
+using DapperPostgreSQLTenancy = Encina.Dapper.PostgreSQL.Tenancy;
+using DapperSqliteTenancy = Encina.Dapper.Sqlite.Tenancy;
+using DapperSqlServerTenancy = Encina.Dapper.SqlServer.Tenancy;
+using MongoDbTenancy = Encina.MongoDB.Tenancy;
 
 namespace Encina.PropertyTests.Database.Tenancy;
 

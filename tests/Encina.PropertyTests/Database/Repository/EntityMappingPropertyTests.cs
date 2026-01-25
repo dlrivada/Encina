@@ -1,16 +1,16 @@
 using FsCheck;
 using FsCheck.Xunit;
-using ADOSqliteRepository = Encina.ADO.Sqlite.Repository;
-using ADOSqlServerRepository = Encina.ADO.SqlServer.Repository;
-using ADOPostgreSQLRepository = Encina.ADO.PostgreSQL.Repository;
+using Shouldly;
 using ADOMySQLRepository = Encina.ADO.MySQL.Repository;
 using ADOOracleRepository = Encina.ADO.Oracle.Repository;
-using DapperSqliteRepository = Encina.Dapper.Sqlite.Repository;
-using DapperSqlServerRepository = Encina.Dapper.SqlServer.Repository;
-using DapperPostgreSQLRepository = Encina.Dapper.PostgreSQL.Repository;
+using ADOPostgreSQLRepository = Encina.ADO.PostgreSQL.Repository;
+using ADOSqliteRepository = Encina.ADO.Sqlite.Repository;
+using ADOSqlServerRepository = Encina.ADO.SqlServer.Repository;
 using DapperMySQLRepository = Encina.Dapper.MySQL.Repository;
 using DapperOracleRepository = Encina.Dapper.Oracle.Repository;
-using Shouldly;
+using DapperPostgreSQLRepository = Encina.Dapper.PostgreSQL.Repository;
+using DapperSqliteRepository = Encina.Dapper.Sqlite.Repository;
+using DapperSqlServerRepository = Encina.Dapper.SqlServer.Repository;
 
 namespace Encina.PropertyTests.Database.Repository;
 

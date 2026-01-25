@@ -757,7 +757,8 @@ public sealed class TenantAwareFunctionalRepositoryADO<TEntity, TId> : IFunction
         return ($"WHERE {filter}", command =>
         {
             AddParameter(command, "@TenantId", tenantId!);
-        });
+        }
+        );
     }
 
     private (string Sql, Action<IDbCommand> AddParameters) BuildSelectByIdWithTenantFilter(TId id)
@@ -773,7 +774,8 @@ public sealed class TenantAwareFunctionalRepositoryADO<TEntity, TId> : IFunction
             {
                 AddParameter(command, "@Id", id);
                 AddParameter(command, "@TenantId", tenantId!);
-            });
+            }
+            );
         }
         else
         {

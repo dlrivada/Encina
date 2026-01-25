@@ -1,18 +1,17 @@
 using System.Data;
 using Shouldly;
 using Xunit;
-
+using ADOMySQLRW = Encina.ADO.MySQL.ReadWriteSeparation;
+using ADOOracleRW = Encina.ADO.Oracle.ReadWriteSeparation;
+using ADOPostgreSQLRW = Encina.ADO.PostgreSQL.ReadWriteSeparation;
 // Provider-specific aliases for factories
 using ADOSqliteRW = Encina.ADO.Sqlite.ReadWriteSeparation;
 using ADOSqlServerRW = Encina.ADO.SqlServer.ReadWriteSeparation;
-using ADOPostgreSQLRW = Encina.ADO.PostgreSQL.ReadWriteSeparation;
-using ADOMySQLRW = Encina.ADO.MySQL.ReadWriteSeparation;
-using ADOOracleRW = Encina.ADO.Oracle.ReadWriteSeparation;
-using DapperSqliteRW = Encina.Dapper.Sqlite.ReadWriteSeparation;
-using DapperSqlServerRW = Encina.Dapper.SqlServer.ReadWriteSeparation;
-using DapperPostgreSQLRW = Encina.Dapper.PostgreSQL.ReadWriteSeparation;
 using DapperMySQLRW = Encina.Dapper.MySQL.ReadWriteSeparation;
 using DapperOracleRW = Encina.Dapper.Oracle.ReadWriteSeparation;
+using DapperPostgreSQLRW = Encina.Dapper.PostgreSQL.ReadWriteSeparation;
+using DapperSqliteRW = Encina.Dapper.Sqlite.ReadWriteSeparation;
+using DapperSqlServerRW = Encina.Dapper.SqlServer.ReadWriteSeparation;
 using EntityFrameworkCoreRW = Encina.EntityFrameworkCore.ReadWriteSeparation;
 
 namespace Encina.ContractTests.Database.ReadWriteSeparation;

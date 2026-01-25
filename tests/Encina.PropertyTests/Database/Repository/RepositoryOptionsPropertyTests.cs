@@ -1,6 +1,6 @@
+using Encina.MongoDB.Repository;
 using FsCheck;
 using FsCheck.Xunit;
-using Encina.MongoDB.Repository;
 using Shouldly;
 
 namespace Encina.PropertyTests.Database.Repository;

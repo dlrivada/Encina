@@ -1,18 +1,18 @@
 using System.Reflection;
-using ADOSqliteUoW = Encina.ADO.Sqlite.UnitOfWork;
-using ADOSqlServerUoW = Encina.ADO.SqlServer.UnitOfWork;
-using ADOPostgreSQLUoW = Encina.ADO.PostgreSQL.UnitOfWork;
-using ADOMySQLUoW = Encina.ADO.MySQL.UnitOfWork;
-using ADOOracleUoW = Encina.ADO.Oracle.UnitOfWork;
-using DapperSqliteUoW = Encina.Dapper.Sqlite.UnitOfWork;
-using DapperSqlServerUoW = Encina.Dapper.SqlServer.UnitOfWork;
-using DapperPostgreSQLUoW = Encina.Dapper.PostgreSQL.UnitOfWork;
-using DapperMySQLUoW = Encina.Dapper.MySQL.UnitOfWork;
-using DapperOracleUoW = Encina.Dapper.Oracle.UnitOfWork;
-using EfCoreUoW = Encina.EntityFrameworkCore.UnitOfWork;
-using MongoDBUoW = Encina.MongoDB.UnitOfWork;
 using Encina.DomainModeling;
 using Shouldly;
+using ADOMySQLUoW = Encina.ADO.MySQL.UnitOfWork;
+using ADOOracleUoW = Encina.ADO.Oracle.UnitOfWork;
+using ADOPostgreSQLUoW = Encina.ADO.PostgreSQL.UnitOfWork;
+using ADOSqliteUoW = Encina.ADO.Sqlite.UnitOfWork;
+using ADOSqlServerUoW = Encina.ADO.SqlServer.UnitOfWork;
+using DapperMySQLUoW = Encina.Dapper.MySQL.UnitOfWork;
+using DapperOracleUoW = Encina.Dapper.Oracle.UnitOfWork;
+using DapperPostgreSQLUoW = Encina.Dapper.PostgreSQL.UnitOfWork;
+using DapperSqliteUoW = Encina.Dapper.Sqlite.UnitOfWork;
+using DapperSqlServerUoW = Encina.Dapper.SqlServer.UnitOfWork;
+using EfCoreUoW = Encina.EntityFrameworkCore.UnitOfWork;
+using MongoDBUoW = Encina.MongoDB.UnitOfWork;
 
 namespace Encina.ContractTests.Database.UnitOfWork;
 
