@@ -85,12 +85,38 @@ jobs:
             -- xunit.parallelizeTestCollections=true
         continue-on-error: true
 
-  # Integration tests - consolidated project
+  # Integration tests - split into shards for parallel execution and reduced disk usage
   test-integration:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - name: ADO
+            filter: "FullyQualifiedName~IntegrationTests.ADO"
+          - name: Dapper
+            filter: "FullyQualifiedName~IntegrationTests.Dapper"
+          - name: EFCore
+            filter: "FullyQualifiedName~IntegrationTests.Infrastructure"
     steps:
+      - name: Free disk space
+        run: |
+          echo "=== Disk space before cleanup ==="
+          df -h /
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/6.0.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/7.0.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/8.0.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/6.0.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/7.0.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/8.0.* || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          echo "=== Disk space after cleanup ==="
+          df -h /
+
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
         with:
@@ -98,9 +124,11 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           name: build-output
-      - name: Run Integration tests
+
+      - name: Run Integration tests (${{ matrix.shard.name }})
         run: |
           dotnet test tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj --no-build -c Release \
+            --filter "${{ matrix.shard.filter }}" \
             --logger "console;verbosity=minimal" \
             -- xunit.parallelizeTestCollections=true
         continue-on-error: true
