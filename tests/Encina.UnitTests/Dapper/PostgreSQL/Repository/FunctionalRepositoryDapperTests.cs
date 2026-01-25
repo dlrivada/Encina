@@ -319,8 +319,8 @@ public class FunctionalRepositoryDapperTests
 
         // Assert
         whereClause.ShouldContain("WHERE");
-        // Note: Boolean member access uses property name directly (implementation detail)
-        whereClause.ShouldContain("\"IsActive\"");
+        // Boolean member access uses the mapped column name
+        whereClause.ShouldContain("\"is_active\"");
     }
 
     [Fact]
