@@ -44,7 +44,7 @@ jobs:
       - name: Build with analyzers
         run: dotnet build Encina.slnx --configuration Release --no-restore -warnaserror
 
-  # Run tests in parallel using matrix strategy
+  # Run tests in parallel using matrix strategy (excluding integration tests)
   test:
     needs: quality-check
     runs-on: ubuntu-latest
@@ -81,10 +81,7 @@ jobs:
           - name: UnitTests-Remaining
             project: tests/Encina.UnitTests/Encina.UnitTests.csproj
             filter: "FullyQualifiedName~Encina.UnitTests.Core|FullyQualifiedName~Encina.UnitTests.DomainModeling|FullyQualifiedName~Encina.UnitTests.AspNetCore|FullyQualifiedName~Encina.UnitTests.gRPC|FullyQualifiedName~Encina.UnitTests.SignalR|FullyQualifiedName~Encina.UnitTests.GuardClauses|FullyQualifiedName~Encina.UnitTests.MQTT|FullyQualifiedName~Encina.UnitTests.NATS|FullyQualifiedName~Encina.UnitTests.RabbitMQ|FullyQualifiedName~Encina.UnitTests.AmazonSQS|FullyQualifiedName~Encina.UnitTests.Kafka|FullyQualifiedName~Encina.UnitTests.Workflows|FullyQualifiedName~Encina.UnitTests.MiniValidator|FullyQualifiedName~Encina.UnitTests.FluentValidation|FullyQualifiedName~Encina.UnitTests.DataAnnotations|FullyQualifiedName~Encina.UnitTests.Quartz|FullyQualifiedName~Encina.UnitTests.Hangfire|FullyQualifiedName~Encina.UnitTests.Extensions|FullyQualifiedName~Encina.UnitTests.Refit|FullyQualifiedName~Encina.UnitTests.Cli"
-          # Other test projects
-          - name: IntegrationTests
-            project: tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj
-            filter: ""
+          # Other test projects (excluding IntegrationTests which has its own sharded job)
           - name: ContractTests
             project: tests/Encina.ContractTests/Encina.ContractTests.csproj
             filter: ""
@@ -150,9 +147,89 @@ jobs:
         run: |
           echo "::warning::Tests in ${{ matrix.test-project.name }} failed. Check artifacts for details."
 
+  # Integration tests - split into shards for parallel execution and reduced disk usage
+  test-integration:
+    needs: quality-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - name: ADO
+            filter: "FullyQualifiedName~IntegrationTests.ADO"
+          - name: Dapper
+            filter: "FullyQualifiedName~IntegrationTests.Dapper"
+          - name: EFCore
+            filter: "FullyQualifiedName~IntegrationTests.Infrastructure"
+    steps:
+      - name: Free disk space
+        run: |
+          echo "=== Disk space before cleanup ==="
+          df -h /
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/6.0.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/7.0.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/8.0.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/6.0.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/7.0.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/8.0.* || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          echo "=== Disk space after cleanup ==="
+          df -h /
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.*.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore Encina.slnx
+
+      - name: Build
+        run: dotnet build Encina.slnx --configuration Release --no-restore
+
+      - name: Run Integration tests (${{ matrix.shard.name }})
+        id: test
+        run: |
+          dotnet test tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj -c Release --no-build \
+            --filter "${{ matrix.shard.filter }}" \
+            --collect "XPlat Code Coverage" \
+            --results-directory artifacts/test-results/IntegrationTests-${{ matrix.shard.name }} \
+            --logger "trx;LogFileName=IntegrationTests-${{ matrix.shard.name }}.trx" \
+            -- xunit.parallelizeTestCollections=true
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results-IntegrationTests-${{ matrix.shard.name }}
+          path: artifacts/test-results/IntegrationTests-${{ matrix.shard.name }}
+          if-no-files-found: ignore
+
+      - name: Check test outcome
+        if: steps.test.outcome == 'failure'
+        run: |
+          echo "::warning::Integration tests (${{ matrix.shard.name }}) failed. Check artifacts for details."
+
   # Aggregate coverage after all tests complete
   coverage:
-    needs: test
+    needs: [test, test-integration]
     runs-on: ubuntu-latest
     if: always()
     permissions:
