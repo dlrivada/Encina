@@ -133,6 +133,28 @@ public static class SqliteSchema
     }
 
     /// <summary>
+    /// Creates the TestRepositoryEntities table schema for repository integration tests.
+    /// </summary>
+    public static async Task CreateTestRepositorySchemaAsync(SqliteConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS TestRepositoryEntities (
+                Id TEXT PRIMARY KEY,
+                Name TEXT NOT NULL,
+                Amount REAL NOT NULL,
+                IsActive INTEGER NOT NULL,
+                CreatedAtUtc TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS IX_TestRepositoryEntities_IsActive
+            ON TestRepositoryEntities(IsActive);
+            """;
+
+        using var command = new SqliteCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Clears all data from Encina tables without dropping schemas.
     /// Useful for cleaning between tests that share a database fixture.
     /// Uses conditional deletion to handle cases where tables may not exist.
@@ -140,7 +162,7 @@ public static class SqliteSchema
     public static async Task ClearAllDataAsync(SqliteConnection connection)
     {
         // Delete from each table individually, ignoring errors for missing tables
-        var tables = new[] { "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages" };
+        var tables = new[] { "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
         foreach (var table in tables)
         {
             try

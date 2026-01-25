@@ -5,11 +5,31 @@ using System.Threading.Tasks;
 
 /// <summary>
 /// Runs integration tests with Docker containers for database testing.
-/// Usage: dotnet run --file scripts/run-integration-tests.cs -- [--skip-docker] [--database sqlserver|postgres|mysql|oracle|all]
+/// Usage: dotnet run --file scripts/run-integration-tests.cs -- [options]
+///
+/// Options:
+///   --skip-docker             Skip Docker container management
+///   --database NAME           Run tests for a specific database (sqlserver|postgres|mysql|oracle|sqlite|all)
+///   --provider PROVIDER       Run tests for a specific provider (ado|dapper|efcore|all)
+///   --verbose                 Show detailed test output
+///
+/// Examples:
+///   # Run all integration tests
+///   dotnet run --file scripts/run-integration-tests.cs
+///
+///   # Run only EF Core PostgreSQL tests
+///   dotnet run --file scripts/run-integration-tests.cs -- --provider efcore --database postgres
+///
+///   # Run all EF Core multi-provider tests
+///   dotnet run --file scripts/run-integration-tests.cs -- --provider efcore --database all
+///
+///   # Run SQLite tests without Docker (in-process database)
+///   dotnet run --file scripts/run-integration-tests.cs -- --database sqlite --skip-docker
 /// </summary>
 
 var skipDocker = Array.Exists(args, arg => arg == "--skip-docker");
 var database = GetArgument(args, "--database") ?? "all";
+var provider = GetArgument(args, "--provider") ?? "all";
 var verbose = Array.Exists(args, arg => arg == "--verbose");
 
 try
@@ -58,6 +78,50 @@ try
 
     Console.WriteLine("🧪 Running integration tests...\n");
 
+    // Build the test filter based on provider and database options
+    var filterParts = new System.Collections.Generic.List<string>();
+
+    // Provider filter
+    if (provider != "all")
+    {
+        var providerFilter = provider.ToLowerInvariant() switch
+        {
+            "efcore" => "FullyQualifiedName~EntityFrameworkCore",
+            "dapper" => "FullyQualifiedName~.Dapper.",
+            "ado" => "FullyQualifiedName~.ADO.",
+            _ => throw new ArgumentException($"Unknown provider: {provider}")
+        };
+        filterParts.Add(providerFilter);
+    }
+    else
+    {
+        // Default: all integration tests
+        filterParts.Add("Category=Integration|FullyQualifiedName~.Dapper.|FullyQualifiedName~.ADO.|FullyQualifiedName~EntityFrameworkCore");
+    }
+
+    // Database trait filter (for EF Core multi-provider tests)
+    if (database != "all" && database.ToLowerInvariant() != "sqlite")
+    {
+        var databaseTrait = database.ToLowerInvariant() switch
+        {
+            "sqlserver" => "SqlServer",
+            "postgres" => "PostgreSQL",
+            "postgresql" => "PostgreSQL",
+            "mysql" => "MySQL",
+            "oracle" => "Oracle",
+            _ => throw new ArgumentException($"Unknown database: {database}")
+        };
+        filterParts.Add($"Database={databaseTrait}");
+    }
+    else if (database.ToLowerInvariant() == "sqlite")
+    {
+        filterParts.Add("Database=Sqlite");
+    }
+
+    var filter = string.Join("&", filterParts);
+
+    Console.WriteLine($"📋 Test filter: {filter}\n");
+
     var testArguments = new System.Collections.Generic.List<string>
     {
         "test",
@@ -65,7 +129,7 @@ try
         "--configuration",
         "Release",
         "--filter",
-        "Category=Integration|FullyQualifiedName~.Dapper.|FullyQualifiedName~.ADO.",
+        filter,
         "--logger",
         "console;verbosity=normal"
     };

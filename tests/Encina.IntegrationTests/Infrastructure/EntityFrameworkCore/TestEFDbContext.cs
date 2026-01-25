@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore;
 
 /// <summary>
-/// Test DbContext for EF Core integration tests with real SQL Server.
+/// Test DbContext for EF Core integration tests with real databases.
+/// Supports all messaging entities and test entities for repository tests.
 /// </summary>
 public sealed class TestEFDbContext : DbContext
 {
@@ -20,6 +21,7 @@ public sealed class TestEFDbContext : DbContext
     public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
     public DbSet<SagaState> SagaStates => Set<SagaState>();
     public DbSet<ScheduledMessage> ScheduledMessages => Set<ScheduledMessage>();
+    public DbSet<TestRepositoryEntity> TestRepositoryEntities => Set<TestRepositoryEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -75,5 +77,31 @@ public sealed class TestEFDbContext : DbContext
             entity.Property(e => e.IsRecurring).IsRequired();
             entity.HasIndex(e => new { e.ScheduledAtUtc, e.ProcessedAtUtc });
         });
+
+        // TestRepositoryEntity for repository integration tests
+        modelBuilder.Entity<TestRepositoryEntity>(entity =>
+        {
+            entity.ToTable("TestRepositoryEntities");
+            entity.HasKey(e => e.Id);
+            // Prevent EF Core from auto-generating the Id - bulk operations provide their own IDs
+            entity.Property(e => e.Id).ValueGeneratedNever();
+            entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Amount).HasPrecision(18, 2).IsRequired();
+            entity.Property(e => e.IsActive).IsRequired();
+            entity.Property(e => e.CreatedAtUtc).IsRequired();
+            entity.HasIndex(e => e.IsActive);
+        });
     }
+}
+
+/// <summary>
+/// Test entity for repository integration tests across all database providers.
+/// </summary>
+public class TestRepositoryEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
 }

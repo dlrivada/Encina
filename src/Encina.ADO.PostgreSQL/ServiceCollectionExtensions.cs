@@ -3,6 +3,8 @@ using Encina.ADO.PostgreSQL.Health;
 using Encina.ADO.PostgreSQL.Inbox;
 using Encina.ADO.PostgreSQL.Outbox;
 using Encina.ADO.PostgreSQL.Repository;
+using Encina.ADO.PostgreSQL.Sagas;
+using Encina.ADO.PostgreSQL.Scheduling;
 using Encina.ADO.PostgreSQL.UnitOfWork;
 using Encina.DomainModeling;
 using Encina.Messaging;
@@ -34,11 +36,15 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
-        services.AddMessagingServicesCore<
+        services.AddMessagingServices<
             OutboxStoreADO,
             OutboxMessageFactory,
             InboxStoreADO,
             InboxMessageFactory,
+            SagaStoreADO,
+            SagaStateFactory,
+            ScheduledMessageStoreADO,
+            ScheduledMessageFactory,
             OutboxProcessor>(config);
 
         // Register provider health check if enabled

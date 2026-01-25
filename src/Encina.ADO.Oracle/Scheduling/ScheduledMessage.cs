@@ -3,7 +3,7 @@ using Encina.Messaging.Scheduling;
 namespace Encina.ADO.Oracle.Scheduling;
 
 /// <summary>
-/// Dapper implementation of scheduled message for delayed command execution.
+/// ADO.NET Oracle implementation of scheduled message for delayed command execution.
 /// Supports both one-time and recurring message scheduling.
 /// </summary>
 public sealed class ScheduledMessage : IScheduledMessage

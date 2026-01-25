@@ -6,6 +6,8 @@ using Encina.ADO.SqlServer.Modules;
 using Encina.ADO.SqlServer.Outbox;
 using Encina.ADO.SqlServer.ReadWriteSeparation;
 using Encina.ADO.SqlServer.Repository;
+using Encina.ADO.SqlServer.Sagas;
+using Encina.ADO.SqlServer.Scheduling;
 using Encina.ADO.SqlServer.UnitOfWork;
 using Encina.DomainModeling;
 using Encina.Messaging;
@@ -55,11 +57,15 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(config);
 
-        services.AddMessagingServicesCore<
+        services.AddMessagingServices<
             OutboxStoreADO,
             OutboxMessageFactory,
             InboxStoreADO,
             InboxMessageFactory,
+            SagaStoreADO,
+            SagaStateFactory,
+            ScheduledMessageStoreADO,
+            ScheduledMessageFactory,
             OutboxProcessor>(config);
 
         // Register provider health check if enabled

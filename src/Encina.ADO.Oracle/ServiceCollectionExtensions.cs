@@ -2,6 +2,8 @@ using System.Data;
 using Encina.ADO.Oracle.Health;
 using Encina.ADO.Oracle.Inbox;
 using Encina.ADO.Oracle.Outbox;
+using Encina.ADO.Oracle.Sagas;
+using Encina.ADO.Oracle.Scheduling;
 using Encina.Messaging;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,11 +33,15 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
-        services.AddMessagingServicesCore<
+        services.AddMessagingServices<
             OutboxStoreADO,
             OutboxMessageFactory,
             InboxStoreADO,
             InboxMessageFactory,
+            SagaStoreADO,
+            SagaStateFactory,
+            ScheduledMessageStoreADO,
+            ScheduledMessageFactory,
             OutboxProcessor>(config);
 
         // Register provider health check if enabled

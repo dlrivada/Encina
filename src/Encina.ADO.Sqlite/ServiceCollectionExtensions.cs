@@ -4,6 +4,8 @@ using Encina.ADO.Sqlite.Health;
 using Encina.ADO.Sqlite.Inbox;
 using Encina.ADO.Sqlite.Outbox;
 using Encina.ADO.Sqlite.Repository;
+using Encina.ADO.Sqlite.Sagas;
+using Encina.ADO.Sqlite.Scheduling;
 using Encina.ADO.Sqlite.UnitOfWork;
 using Encina.DomainModeling;
 using Encina.Messaging;
@@ -35,11 +37,15 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
-        services.AddMessagingServicesCore<
+        services.AddMessagingServices<
             OutboxStoreADO,
             OutboxMessageFactory,
             InboxStoreADO,
             InboxMessageFactory,
+            SagaStoreADO,
+            SagaStateFactory,
+            ScheduledMessageStoreADO,
+            ScheduledMessageFactory,
             OutboxProcessor>(config);
 
         // Register provider health check if enabled

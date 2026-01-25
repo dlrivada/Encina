@@ -1,0 +1,684 @@
+using System.Data;
+using System.Globalization;
+using System.Reflection;
+using System.Text;
+using Encina.DomainModeling;
+using LanguageExt;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Oracle.ManagedDataAccess.Client;
+using static LanguageExt.Prelude;
+
+namespace Encina.EntityFrameworkCore.BulkOperations;
+
+/// <summary>
+/// Oracle implementation of <see cref="IBulkOperations{TEntity}"/> using batched operations
+/// for high-performance bulk operations.
+/// </summary>
+/// <typeparam name="TEntity">The entity type.</typeparam>
+/// <remarks>
+/// <para>
+/// This implementation uses Oracle-specific features for optimized bulk operations:
+/// </para>
+/// <list type="bullet">
+/// <item><description>BulkInsert: Uses batched INSERT ALL statements</description></item>
+/// <item><description>BulkUpdate: Uses UPDATE statements with bind variables</description></item>
+/// <item><description>BulkDelete: Uses DELETE with WHERE IN clause</description></item>
+/// <item><description>BulkMerge: Uses MERGE statement for upsert semantics</description></item>
+/// </list>
+/// </remarks>
+public sealed class BulkOperationsEFOracle<TEntity> : IBulkOperations<TEntity>
+    where TEntity : class, new()
+{
+    private readonly DbContext _dbContext;
+    private readonly Dictionary<string, PropertyInfo> _propertyCache;
+    private readonly string _tableName;
+    private readonly string _idColumnName;
+    private readonly string _idPropertyName;
+    private readonly IReadOnlyDictionary<string, string> _columnMappings;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BulkOperationsEFOracle{TEntity}"/> class.
+    /// </summary>
+    /// <param name="dbContext">The database context.</param>
+    public BulkOperationsEFOracle(DbContext dbContext)
+    {
+        ArgumentNullException.ThrowIfNull(dbContext);
+
+        _dbContext = dbContext;
+
+        var entityType = dbContext.Model.FindEntityType(typeof(TEntity))
+            ?? throw new InvalidOperationException($"Entity type '{typeof(TEntity).Name}' is not registered in the DbContext model.");
+
+        var schema = entityType.GetSchema();
+        var table = entityType.GetTableName() ?? typeof(TEntity).Name;
+        _tableName = string.IsNullOrEmpty(schema) ? $"\"{table}\"" : $"\"{schema}\".\"{table}\"";
+
+        var primaryKey = entityType.FindPrimaryKey()
+            ?? throw new InvalidOperationException($"Entity type '{typeof(TEntity).Name}' does not have a primary key defined.");
+
+        var pkProperty = primaryKey.Properties[0];
+        _idColumnName = pkProperty.GetColumnName() ?? pkProperty.Name;
+        _idPropertyName = pkProperty.Name;
+
+        _columnMappings = entityType.GetProperties()
+            .ToDictionary(
+                p => p.Name,
+                p => p.GetColumnName() ?? p.Name);
+
+        _propertyCache = typeof(TEntity).GetProperties()
+            .Where(p => _columnMappings.ContainsKey(p.Name))
+            .ToDictionary(p => p.Name);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, int>> BulkInsertAsync(
+        IEnumerable<TEntity> entities,
+        BulkConfig? config = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(entities);
+
+        var entityList = entities.ToList();
+        if (entityList.Count == 0)
+            return Right<EncinaError, int>(0);
+
+        config ??= BulkConfig.Default;
+
+        try
+        {
+            var connection = _dbContext.Database.GetDbConnection();
+
+            if (connection is not OracleConnection oracleConnection)
+            {
+                return Left<EncinaError, int>(
+                    RepositoryErrors.BulkInsertFailed<TEntity>("This implementation requires an Oracle connection"));
+            }
+
+            await EnsureConnectionOpenAsync(oracleConnection, cancellationToken).ConfigureAwait(false);
+
+            var entityType = _dbContext.Model.FindEntityType(typeof(TEntity))!;
+            var propertiesToInclude = GetFilteredProperties(config, forInsert: true, entityType);
+
+            var inserted = 0;
+            var batches = entityList.Chunk(config.BatchSize);
+
+            foreach (var batch in batches)
+            {
+                inserted += await InsertBatchAsync(oracleConnection, batch.ToList(), propertiesToInclude, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (config.TrackingEntities)
+            {
+                foreach (var entity in entityList)
+                {
+                    _dbContext.Entry(entity).State = EntityState.Unchanged;
+                }
+            }
+
+            return Right<EncinaError, int>(inserted);
+        }
+        catch (Exception ex) when (IsDuplicateKeyException(ex))
+        {
+            return Left<EncinaError, int>(
+                RepositoryErrors.AlreadyExists<TEntity>("One or more entities already exist"));
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, int>(
+                RepositoryErrors.BulkInsertFailed<TEntity>(entityList.Count, ex));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, int>> BulkUpdateAsync(
+        IEnumerable<TEntity> entities,
+        BulkConfig? config = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(entities);
+
+        var entityList = entities.ToList();
+        if (entityList.Count == 0)
+            return Right<EncinaError, int>(0);
+
+        config ??= BulkConfig.Default;
+
+        try
+        {
+            var connection = _dbContext.Database.GetDbConnection();
+
+            if (connection is not OracleConnection oracleConnection)
+            {
+                return Left<EncinaError, int>(
+                    RepositoryErrors.BulkUpdateFailed<TEntity>("This implementation requires an Oracle connection"));
+            }
+
+            await EnsureConnectionOpenAsync(oracleConnection, cancellationToken).ConfigureAwait(false);
+
+            var entityType = _dbContext.Model.FindEntityType(typeof(TEntity))!;
+            var propertiesToInclude = GetFilteredProperties(config, forInsert: false, entityType)
+                .Where(kvp => kvp.Value != _idColumnName)
+                .ToList();
+
+            var updated = 0;
+            var batches = entityList.Chunk(config.BatchSize);
+
+            foreach (var batch in batches)
+            {
+                updated += await UpdateBatchAsync(oracleConnection, batch.ToList(), propertiesToInclude, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (config.TrackingEntities)
+            {
+                foreach (var entity in entityList)
+                {
+                    _dbContext.Entry(entity).State = EntityState.Unchanged;
+                }
+            }
+
+            return Right<EncinaError, int>(updated);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, int>(
+                RepositoryErrors.BulkUpdateFailed<TEntity>(entityList.Count, ex));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, int>> BulkDeleteAsync(
+        IEnumerable<TEntity> entities,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(entities);
+
+        var entityList = entities.ToList();
+        if (entityList.Count == 0)
+            return Right<EncinaError, int>(0);
+
+        try
+        {
+            var connection = _dbContext.Database.GetDbConnection();
+
+            if (connection is not OracleConnection oracleConnection)
+            {
+                return Left<EncinaError, int>(
+                    RepositoryErrors.BulkDeleteFailed<TEntity>("This implementation requires an Oracle connection"));
+            }
+
+            await EnsureConnectionOpenAsync(oracleConnection, cancellationToken).ConfigureAwait(false);
+
+            var ids = entityList.Select(GetEntityId).ToList();
+
+            var deleted = await DeleteByIdsAsync(oracleConnection, ids, cancellationToken).ConfigureAwait(false);
+
+            foreach (var entity in entityList)
+            {
+                _dbContext.Entry(entity).State = EntityState.Detached;
+            }
+
+            return Right<EncinaError, int>(deleted);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, int>(
+                RepositoryErrors.BulkDeleteFailed<TEntity>(entityList.Count, ex));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, int>> BulkMergeAsync(
+        IEnumerable<TEntity> entities,
+        BulkConfig? config = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(entities);
+
+        var entityList = entities.ToList();
+        if (entityList.Count == 0)
+            return Right<EncinaError, int>(0);
+
+        config ??= BulkConfig.Default;
+
+        try
+        {
+            var connection = _dbContext.Database.GetDbConnection();
+
+            if (connection is not OracleConnection oracleConnection)
+            {
+                return Left<EncinaError, int>(
+                    RepositoryErrors.BulkMergeFailed<TEntity>("This implementation requires an Oracle connection"));
+            }
+
+            await EnsureConnectionOpenAsync(oracleConnection, cancellationToken).ConfigureAwait(false);
+
+            var entityType = _dbContext.Model.FindEntityType(typeof(TEntity))!;
+            var propertiesToInclude = GetFilteredProperties(config, forInsert: false, entityType);
+
+            var affected = 0;
+            var batches = entityList.Chunk(config.BatchSize);
+
+            foreach (var batch in batches)
+            {
+                affected += await MergeBatchAsync(oracleConnection, batch.ToList(), propertiesToInclude, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (config.TrackingEntities)
+            {
+                foreach (var entity in entityList)
+                {
+                    _dbContext.Entry(entity).State = EntityState.Unchanged;
+                }
+            }
+
+            return Right<EncinaError, int>(affected);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, int>(
+                RepositoryErrors.BulkMergeFailed<TEntity>(entityList.Count, ex));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, IReadOnlyList<TEntity>>> BulkReadAsync(
+        IEnumerable<object> ids,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+
+        var idList = ids.ToList();
+        if (idList.Count == 0)
+            return Right<EncinaError, IReadOnlyList<TEntity>>(System.Array.Empty<TEntity>());
+
+        try
+        {
+            var connection = _dbContext.Database.GetDbConnection();
+
+            if (connection is not OracleConnection oracleConnection)
+            {
+                return Left<EncinaError, IReadOnlyList<TEntity>>(
+                    RepositoryErrors.BulkReadFailed<TEntity>("This implementation requires an Oracle connection"));
+            }
+
+            await EnsureConnectionOpenAsync(oracleConnection, cancellationToken).ConfigureAwait(false);
+
+            var entities = await ReadByIdsAsync(oracleConnection, idList, cancellationToken).ConfigureAwait(false);
+
+            return Right<EncinaError, IReadOnlyList<TEntity>>(entities);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, IReadOnlyList<TEntity>>(
+                RepositoryErrors.BulkReadFailed<TEntity>(idList.Count, ex));
+        }
+    }
+
+    #region Batch Operations
+
+    private async Task<int> InsertBatchAsync(
+        OracleConnection connection,
+        List<TEntity> entities,
+        List<KeyValuePair<string, string>> properties,
+        CancellationToken cancellationToken)
+    {
+        // Oracle uses INSERT ALL for multi-row inserts
+        var sql = new StringBuilder();
+        sql.AppendLine("INSERT ALL");
+
+        var parameters = new List<OracleParameter>();
+        var columnNames = string.Join(", ", properties.Select(p => $"\"{p.Value}\""));
+
+        for (var i = 0; i < entities.Count; i++)
+        {
+            var entity = entities[i];
+            var paramNames = new List<string>();
+
+            foreach (var (propertyName, _) in properties)
+            {
+                var paramName = $":p{i}_{propertyName}";
+                paramNames.Add(paramName);
+
+                if (_propertyCache.TryGetValue(propertyName, out var propertyInfo))
+                {
+                    var value = propertyInfo.GetValue(entity);
+                    parameters.Add(new OracleParameter(paramName, value ?? DBNull.Value));
+                }
+            }
+
+            sql.AppendLine(CultureInfo.InvariantCulture, $"INTO {_tableName} ({columnNames}) VALUES ({string.Join(", ", paramNames)})");
+        }
+
+        sql.AppendLine("SELECT 1 FROM DUAL");
+
+        using var command = connection.CreateCommand();
+        command.CommandText = sql.ToString();
+        command.Parameters.AddRange(parameters.ToArray());
+        command.BindByName = true;
+
+        var currentTransaction = _dbContext.Database.CurrentTransaction;
+        if (currentTransaction is not null)
+        {
+            command.Transaction = currentTransaction.GetDbTransaction() as OracleTransaction;
+        }
+
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return entities.Count;
+    }
+
+    private async Task<int> UpdateBatchAsync(
+        OracleConnection connection,
+        List<TEntity> entities,
+        List<KeyValuePair<string, string>> properties,
+        CancellationToken cancellationToken)
+    {
+        var updated = 0;
+
+        foreach (var entity in entities)
+        {
+            var setClauses = new List<string>();
+            var parameters = new List<OracleParameter>();
+
+            foreach (var (propertyName, columnName) in properties)
+            {
+                var paramName = $":{propertyName}";
+                setClauses.Add($"\"{columnName}\" = {paramName}");
+
+                if (_propertyCache.TryGetValue(propertyName, out var propertyInfo))
+                {
+                    var value = propertyInfo.GetValue(entity);
+                    parameters.Add(new OracleParameter(paramName, value ?? DBNull.Value));
+                }
+            }
+
+            var idValue = GetEntityId(entity);
+            parameters.Add(new OracleParameter(":Id", idValue));
+
+            var sql = $"UPDATE {_tableName} SET {string.Join(", ", setClauses)} WHERE \"{_idColumnName}\" = :Id";
+
+            using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddRange(parameters.ToArray());
+            command.BindByName = true;
+
+            var currentTransaction = _dbContext.Database.CurrentTransaction;
+            if (currentTransaction is not null)
+            {
+                command.Transaction = currentTransaction.GetDbTransaction() as OracleTransaction;
+            }
+
+            updated += await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return updated;
+    }
+
+    private async Task<int> DeleteByIdsAsync(
+        OracleConnection connection,
+        List<object> ids,
+        CancellationToken cancellationToken)
+    {
+        var paramNames = new List<string>();
+        var parameters = new List<OracleParameter>();
+
+        for (var i = 0; i < ids.Count; i++)
+        {
+            var paramName = $":id{i}";
+            paramNames.Add(paramName);
+            parameters.Add(new OracleParameter(paramName, ids[i]));
+        }
+
+        var sql = $"DELETE FROM {_tableName} WHERE \"{_idColumnName}\" IN ({string.Join(", ", paramNames)})";
+
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.Parameters.AddRange(parameters.ToArray());
+        command.BindByName = true;
+
+        var currentTransaction = _dbContext.Database.CurrentTransaction;
+        if (currentTransaction is not null)
+        {
+            command.Transaction = currentTransaction.GetDbTransaction() as OracleTransaction;
+        }
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<int> MergeBatchAsync(
+        OracleConnection connection,
+        List<TEntity> entities,
+        List<KeyValuePair<string, string>> properties,
+        CancellationToken cancellationToken)
+    {
+        var affected = 0;
+
+        foreach (var entity in entities)
+        {
+            // Oracle MERGE statement
+            var insertColumns = properties.Select(p => $"\"{p.Value}\"").ToList();
+            var updateColumns = properties.Where(p => p.Value != _idColumnName).ToList();
+
+            var insertParams = new List<string>();
+            var updateClauses = new List<string>();
+            var parameters = new List<OracleParameter>();
+
+            foreach (var (propertyName, columnName) in properties)
+            {
+                var paramName = $":{propertyName}";
+                insertParams.Add(paramName);
+
+                if (_propertyCache.TryGetValue(propertyName, out var propertyInfo))
+                {
+                    var value = propertyInfo.GetValue(entity);
+                    parameters.Add(new OracleParameter(paramName, value ?? DBNull.Value));
+                }
+
+                if (columnName != _idColumnName)
+                {
+                    updateClauses.Add($"t.\"{columnName}\" = s.\"{columnName}\"");
+                }
+            }
+
+            var sql = $@"
+                MERGE INTO {_tableName} t
+                USING (SELECT {string.Join(", ", properties.Select((p, i) => $":{p.Key} AS \"{p.Value}\""))} FROM DUAL) s
+                ON (t.""{_idColumnName}"" = s.""{_idColumnName}"")
+                WHEN MATCHED THEN
+                    UPDATE SET {string.Join(", ", updateClauses)}
+                WHEN NOT MATCHED THEN
+                    INSERT ({string.Join(", ", insertColumns)})
+                    VALUES ({string.Join(", ", properties.Select(p => $"s.\"{p.Value}\""))})";
+
+            using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddRange(parameters.ToArray());
+            command.BindByName = true;
+
+            var currentTransaction = _dbContext.Database.CurrentTransaction;
+            if (currentTransaction is not null)
+            {
+                command.Transaction = currentTransaction.GetDbTransaction() as OracleTransaction;
+            }
+
+            affected += await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return affected;
+    }
+
+    private async Task<List<TEntity>> ReadByIdsAsync(
+        OracleConnection connection,
+        List<object> ids,
+        CancellationToken cancellationToken)
+    {
+        var paramNames = new List<string>();
+        var parameters = new List<OracleParameter>();
+
+        for (var i = 0; i < ids.Count; i++)
+        {
+            var paramName = $":id{i}";
+            paramNames.Add(paramName);
+            parameters.Add(new OracleParameter(paramName, ids[i]));
+        }
+
+        var columns = string.Join(", ", _columnMappings.Values.Select(c => $"\"{c}\""));
+        var sql = $"SELECT {columns} FROM {_tableName} WHERE \"{_idColumnName}\" IN ({string.Join(", ", paramNames)})";
+
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.Parameters.AddRange(parameters.ToArray());
+        command.BindByName = true;
+
+        var currentTransaction = _dbContext.Database.CurrentTransaction;
+        if (currentTransaction is not null)
+        {
+            command.Transaction = currentTransaction.GetDbTransaction() as OracleTransaction;
+        }
+
+        var entities = new List<TEntity>();
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            entities.Add(MapReaderToEntity(reader));
+        }
+
+        return entities;
+    }
+
+    #endregion
+
+    #region Entity ID Extraction
+
+    private object GetEntityId(TEntity entity)
+    {
+        if (_propertyCache.TryGetValue(_idPropertyName, out var property))
+        {
+            return property.GetValue(entity)!;
+        }
+
+        var entityType = _dbContext.Model.FindEntityType(typeof(TEntity))!;
+        var primaryKey = entityType.FindPrimaryKey()!;
+        var keyProperty = primaryKey.Properties[0];
+
+        return _dbContext.Entry(entity).Property(keyProperty.Name).CurrentValue!;
+    }
+
+    #endregion
+
+    #region Property Filtering
+
+    private List<KeyValuePair<string, string>> GetFilteredProperties(
+        BulkConfig config,
+        bool forInsert,
+        Microsoft.EntityFrameworkCore.Metadata.IEntityType entityType)
+    {
+        var properties = _columnMappings.ToList();
+
+        if (forInsert)
+        {
+            var valueGenerated = entityType.GetProperties()
+                .Where(p => p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never)
+                .Select(p => p.Name)
+                .ToHashSet();
+
+            properties = properties
+                .Where(kvp => !valueGenerated.Contains(kvp.Key))
+                .ToList();
+        }
+
+        if (config.PropertiesToInclude is { Count: > 0 })
+        {
+            properties = properties
+                .Where(kvp => config.PropertiesToInclude.Contains(kvp.Key))
+                .ToList();
+        }
+        else if (config.PropertiesToExclude is { Count: > 0 })
+        {
+            properties = properties
+                .Where(kvp => !config.PropertiesToExclude.Contains(kvp.Key))
+                .ToList();
+        }
+
+        return properties;
+    }
+
+    #endregion
+
+    #region Entity Materialization
+
+    private TEntity MapReaderToEntity(OracleDataReader reader)
+    {
+        var entity = new TEntity();
+
+        foreach (var (propertyName, columnName) in _columnMappings)
+        {
+            if (!_propertyCache.TryGetValue(propertyName, out var property))
+                continue;
+
+            var ordinal = reader.GetOrdinal(columnName);
+            if (reader.IsDBNull(ordinal))
+                continue;
+
+            var value = reader.GetValue(ordinal);
+            var convertedValue = ConvertValue(value, property.PropertyType);
+            property.SetValue(entity, convertedValue);
+        }
+
+        return entity;
+    }
+
+    private static object? ConvertValue(object value, Type targetType)
+    {
+        if (value is DBNull)
+            return null;
+
+        var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+        if (underlyingType == value.GetType())
+            return value;
+
+        if (underlyingType.IsEnum)
+            return Enum.ToObject(underlyingType, value);
+
+        // Oracle stores booleans as NUMBER(1)
+        if (underlyingType == typeof(bool))
+        {
+            if (value is decimal d)
+                return d != 0;
+            if (value is int i)
+                return i != 0;
+            if (value is long l)
+                return l != 0;
+        }
+
+        // Oracle NUMBER to decimal
+        if (underlyingType == typeof(decimal) && value is Oracle.ManagedDataAccess.Types.OracleDecimal od)
+            return od.Value;
+
+        return Convert.ChangeType(value, underlyingType, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    #endregion
+
+    #region Async Helpers
+
+    private static async Task EnsureConnectionOpenAsync(OracleConnection connection, CancellationToken cancellationToken)
+    {
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static bool IsDuplicateKeyException(Exception ex)
+    {
+        var message = ex.Message;
+        return message.Contains("ORA-00001", StringComparison.OrdinalIgnoreCase) // unique constraint violated
+            || message.Contains("unique constraint", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase);
+    }
+
+    #endregion
+}

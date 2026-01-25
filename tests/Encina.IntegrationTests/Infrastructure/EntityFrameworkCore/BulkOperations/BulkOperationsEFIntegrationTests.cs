@@ -12,19 +12,20 @@ namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.BulkOperati
 /// </summary>
 /// <remarks>
 /// <para>
-/// The EF Core bulk operations implementation requires SQL Server for SqlBulkCopy and TVP operations.
-/// When used with SQLite, the operations correctly return <c>Left</c> with appropriate error messages.
+/// The EF Core bulk operations implementation auto-detects the database provider and selects
+/// the appropriate implementation (SQLite, SQL Server, PostgreSQL, MySQL, Oracle).
 /// </para>
 /// <para>
 /// These tests verify:
 /// <list type="bullet">
 /// <item><description>Empty collections return <c>Right(0)</c> for all operations</description></item>
-/// <item><description>Non-SQL Server connections return <c>Left</c> with descriptive errors</description></item>
+/// <item><description>Basic operations work with SQLite implementation</description></item>
 /// <item><description>Error messages include meaningful context (operation type, reason)</description></item>
 /// </list>
 /// </para>
 /// <para>
-/// For full SQL Server integration tests, see the tests using <c>SqlServerFixture</c>.
+/// For provider-specific integration tests, see the tests in the provider subfolders
+/// (Sqlite, SqlServer, PostgreSQL, MySQL, Oracle).
 /// </para>
 /// </remarks>
 [Trait("Category", "Integration")]
@@ -75,10 +76,34 @@ public sealed class BulkOperationsEFIntegrationTests : IAsyncLifetime
 
     #endregion
 
-    #region BulkInsertAsync Tests - SQLite Not Supported
+    #region BulkInsertAsync Tests - SQLite Support
 
     [Fact]
-    public async Task BulkInsertAsync_NonSqlServerConnection_ReturnsLeftWithError()
+    public async Task BulkInsertAsync_SingleEntity_InsertsSuccessfully()
+    {
+        // Arrange
+        var entity = new BulkTestEntity
+        {
+            Id = Guid.NewGuid(),
+            Name = "Test Entity",
+            Amount = 99.99m,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        // Act
+        var result = await _bulkOps.BulkInsertAsync([entity]);
+
+        // Assert
+        var count = result.Match(
+            Right: c => c,
+            Left: error => throw new Xunit.Sdk.XunitException($"BulkInsert failed: {error.Message}")
+        );
+        count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task BulkInsertAsync_MultipleEntities_InsertsSuccessfully()
     {
         // Arrange
         var entities = CreateEntities(10);
@@ -86,19 +111,13 @@ public sealed class BulkOperationsEFIntegrationTests : IAsyncLifetime
         // Act
         var result = await _bulkOps.BulkInsertAsync(entities);
 
-        // Assert - SQLite doesn't support SqlBulkCopy, should return Left
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("SQL Server");
-            var code = error.GetCode();
-            code.IsSome.ShouldBeTrue();
-            code.IfSome(c => c.ShouldBe(RepositoryErrors.BulkInsertFailedErrorCode));
-        });
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(count => count.ShouldBe(10));
     }
 
     [Fact]
-    public async Task BulkInsertAsync_WithConfig_NonSqlServer_ReturnsLeftWithError()
+    public async Task BulkInsertAsync_WithConfig_InsertsSuccessfully()
     {
         // Arrange
         var entities = CreateEntities(100);
@@ -108,8 +127,8 @@ public sealed class BulkOperationsEFIntegrationTests : IAsyncLifetime
         var result = await _bulkOps.BulkInsertAsync(entities, config);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error => error.Message.ShouldContain("SQL Server"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(count => count.ShouldBe(100));
     }
 
     #endregion
@@ -132,26 +151,26 @@ public sealed class BulkOperationsEFIntegrationTests : IAsyncLifetime
 
     #endregion
 
-    #region BulkUpdateAsync Tests - SQLite Not Supported
+    #region BulkUpdateAsync Tests - SQLite Support
 
     [Fact]
-    public async Task BulkUpdateAsync_NonSqlServerConnection_ReturnsLeftWithError()
+    public async Task BulkUpdateAsync_ExistingEntities_UpdatesSuccessfully()
     {
         // Arrange
         var entities = CreateEntities(5);
+        await _bulkOps.BulkInsertAsync(entities);
+
+        foreach (var entity in entities)
+        {
+            entity.Name = $"Updated_{entity.Name}";
+        }
 
         // Act
         var result = await _bulkOps.BulkUpdateAsync(entities);
 
-        // Assert - SQLite doesn't support TVP operations
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("SQL Server");
-            var code = error.GetCode();
-            code.IsSome.ShouldBeTrue();
-            code.IfSome(c => c.ShouldBe(RepositoryErrors.BulkUpdateFailedErrorCode));
-        });
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(count => count.ShouldBe(5));
     }
 
     #endregion
@@ -174,26 +193,23 @@ public sealed class BulkOperationsEFIntegrationTests : IAsyncLifetime
 
     #endregion
 
-    #region BulkDeleteAsync Tests - SQLite Not Supported
+    #region BulkDeleteAsync Tests - SQLite Support
 
     [Fact]
-    public async Task BulkDeleteAsync_NonSqlServerConnection_ReturnsLeftWithError()
+    public async Task BulkDeleteAsync_ExistingEntities_DeletesSuccessfully()
     {
         // Arrange
-        var entities = CreateEntities(5);
+        var entities = CreateEntities(10);
+        await _bulkOps.BulkInsertAsync(entities);
+
+        var entitiesToDelete = entities.Take(5).ToList();
 
         // Act
-        var result = await _bulkOps.BulkDeleteAsync(entities);
+        var result = await _bulkOps.BulkDeleteAsync(entitiesToDelete);
 
-        // Assert - SQLite doesn't support TVP operations
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("SQL Server");
-            var code = error.GetCode();
-            code.IsSome.ShouldBeTrue();
-            code.IfSome(c => c.ShouldBe(RepositoryErrors.BulkDeleteFailedErrorCode));
-        });
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(count => count.ShouldBe(5));
     }
 
     #endregion
@@ -216,10 +232,10 @@ public sealed class BulkOperationsEFIntegrationTests : IAsyncLifetime
 
     #endregion
 
-    #region BulkMergeAsync Tests - SQLite Not Supported
+    #region BulkMergeAsync Tests - SQLite Support
 
     [Fact]
-    public async Task BulkMergeAsync_NonSqlServerConnection_ReturnsLeftWithError()
+    public async Task BulkMergeAsync_NewEntities_InsertsSuccessfully()
     {
         // Arrange
         var entities = CreateEntities(10);
@@ -227,15 +243,9 @@ public sealed class BulkOperationsEFIntegrationTests : IAsyncLifetime
         // Act
         var result = await _bulkOps.BulkMergeAsync(entities);
 
-        // Assert - SQLite doesn't support TVP operations
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("SQL Server");
-            var code = error.GetCode();
-            code.IsSome.ShouldBeTrue();
-            code.IfSome(c => c.ShouldBe(RepositoryErrors.BulkMergeFailedErrorCode));
-        });
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(count => count.ShouldBe(10));
     }
 
     #endregion
@@ -258,26 +268,23 @@ public sealed class BulkOperationsEFIntegrationTests : IAsyncLifetime
 
     #endregion
 
-    #region BulkReadAsync Tests - SQLite Not Supported
+    #region BulkReadAsync Tests - SQLite Support
 
     [Fact]
-    public async Task BulkReadAsync_NonSqlServerConnection_ReturnsLeftWithError()
+    public async Task BulkReadAsync_ExistingIds_ReturnsEntities()
     {
         // Arrange
-        var ids = new List<object> { Guid.NewGuid(), Guid.NewGuid() };
+        var entities = CreateEntities(10);
+        await _bulkOps.BulkInsertAsync(entities);
+
+        var ids = entities.Take(5).Select(e => (object)e.Id).ToList();
 
         // Act
         var result = await _bulkOps.BulkReadAsync(ids);
 
-        // Assert - SQLite doesn't support TVP operations
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("SQL Server");
-            var code = error.GetCode();
-            code.IsSome.ShouldBeTrue();
-            code.IfSome(c => c.ShouldBe(RepositoryErrors.BulkReadFailedErrorCode));
-        });
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(readEntities => readEntities.Count.ShouldBe(5));
     }
 
     #endregion
@@ -328,6 +335,8 @@ public class BulkTestDbContext(DbContextOptions<BulkTestDbContext> options) : Db
         {
             entity.ToTable("BulkTestEntities");
             entity.HasKey(e => e.Id);
+            // Prevent EF Core from auto-generating the Id - we provide it ourselves
+            entity.Property(e => e.Id).ValueGeneratedNever();
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Amount).HasPrecision(18, 2);
             entity.Property(e => e.CreatedAtUtc).IsRequired();

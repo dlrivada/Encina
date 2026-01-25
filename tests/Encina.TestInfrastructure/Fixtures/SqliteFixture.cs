@@ -42,6 +42,7 @@ public sealed class SqliteFixture : DatabaseFixture<SqliteConnection>
         await SqliteSchema.CreateInboxSchemaAsync(sqliteConnection);
         await SqliteSchema.CreateSagaSchemaAsync(sqliteConnection);
         await SqliteSchema.CreateSchedulingSchemaAsync(sqliteConnection);
+        await SqliteSchema.CreateTestRepositorySchemaAsync(sqliteConnection);
     }
 
     /// <inheritdoc />

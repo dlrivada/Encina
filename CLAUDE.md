@@ -60,9 +60,45 @@
 
 - **Encina.Messaging**: Shared abstractions (IOutboxStore, IInboxStore, etc.)
 - **Encina.EntityFrameworkCore**: EF Core implementation
-- **Encina.Dapper**: Future - Dapper implementation
-- **Encina.Data**: Future - ADO.NET implementation
+- **Encina.Dapper**: Dapper implementation
+- **Encina.ADO**: ADO.NET implementation
 - Same interfaces, different implementations - easy to switch providers
+
+#### Multi-Provider Implementation Rule (MANDATORY)
+
+> **CRITICAL**: All provider-dependent features MUST be implemented for ALL 16 providers. This is a fundamental project rule, not just a testing requirement.
+
+**The 16 Providers:**
+
+| Category | Providers | Count |
+|----------|-----------|-------|
+| **ADO.NET** | Sqlite, SqlServer, PostgreSQL, MySQL, Oracle | 5 |
+| **Dapper** | Sqlite, SqlServer, PostgreSQL, MySQL, Oracle | 5 |
+| **EF Core** | Sqlite, SqlServer, PostgreSQL, MySQL, Oracle | 5 |
+| **MongoDB** | MongoDB | 1 |
+
+**When this rule applies:**
+
+- Implementing any store (OutboxStore, InboxStore, SagaStore, ScheduledMessageStore, etc.)
+- Implementing repositories, Unit of Work, bulk operations
+- Any feature that interacts with database-specific SQL or connection types
+- Registering services in `ServiceCollectionExtensions`
+
+**Provider-specific SQL differences to consider:**
+
+| Provider | Parameters | LIMIT | Boolean | Notes |
+|----------|------------|-------|---------|-------|
+| SQLite | `@param` | `LIMIT @n` | `0/1` | String-based DateTime storage |
+| SQL Server | `@param` | `TOP (@n)` | `bit` | Native DateTime, GUID |
+| PostgreSQL | `@param` | `LIMIT @n` | `true/false` | Case-sensitive identifiers |
+| MySQL | `@param` | `LIMIT @n` | `0/1` | Backtick identifiers |
+| Oracle | `:param` | `FETCH FIRST :n ROWS ONLY` | `0/1` | Colon prefix for parameters |
+
+**Excluded from this rule** (specialized providers with different purposes):
+
+- Message brokers: RabbitMQ, Kafka, NATS, MQTT
+- Caching: Redis, Memory
+- Event sourcing: Marten
 
 #### Opt-In Configuration
 
@@ -365,24 +401,11 @@ tests/
 └── Encina.Testing.Examples/   # Reference examples
 ```
 
-#### Database Provider Coverage (MANDATORY)
+#### Test Coverage for All 16 Providers
 
-**All database-related features MUST be implemented and tested for ALL 12 providers:**
+Tests MUST cover ALL 16 providers as defined in the [Multi-Provider Implementation Rule](#multi-provider-implementation-rule-mandatory) section above.
 
-| Category | Providers |
-|----------|-----------|
-| **ADO.NET** | Sqlite, SqlServer, PostgreSQL, MySQL, Oracle |
-| **Dapper** | Sqlite, SqlServer, PostgreSQL, MySQL, Oracle |
-| **ORM** | EntityFrameworkCore |
-| **NoSQL** | MongoDB |
-
-> **IMPORTANT**: When implementing any database-related feature (Repository, Tenancy, Bulk Operations, CQRS, etc.), you MUST implement it for ALL 12 providers. No exceptions.
-
-**Excluded from this rule** (specialized providers):
-
-- Message brokers: RabbitMQ, Kafka, NATS, MQTT
-- Caching: Redis, Memory
-- Event sourcing: Marten
+> **Reminder**: The 16 providers are: ADO.NET (5), Dapper (5), EF Core (5), and MongoDB (1).
 
 #### Test Type Guidelines by Feature Category
 
@@ -407,6 +430,7 @@ tests/
 - The whole point of database features is to interact with real databases
 
 **Why real IntegrationTests are mandatory for DB features:**
+
 1. SQL syntax varies by provider (Oracle uses `:param`, MySQL uses backticks)
 2. Connection/transaction behavior differs between providers
 3. Type mappings vary (GUID storage, DateTime precision, boolean representation)
@@ -445,6 +469,7 @@ When a test type is **legitimately** NOT implemented for a feature, create a jus
 **Format**: `{TestProject}/{Provider/Feature}/{Feature}.md`
 
 **When to use justification documents:**
+
 - ✅ BenchmarkTests for thin wrappers (Repository, Tenancy)
 - ✅ LoadTests for non-concurrent features (Repository, Specification)
 - ❌ **NEVER** for IntegrationTests on database features
@@ -788,7 +813,7 @@ await connection.QueryAsync<Message>(sql, new { NowUtc = nowUtc });
 5. ❌ Don't make patterns mandatory - everything is opt-in
 6. ❌ Don't mix provider-specific code with abstractions
 7. ❌ Don't compromise design for non-existent legacy users
-8. ❌ Don't implement DB features for only some providers - ALL 12 required
+8. ❌ Don't implement provider features for only some providers - ALL 16 required (see Multi-Provider Implementation Rule)
 9. ❌ Don't skip test types without creating a justification `.md` file
 10. ❌ Don't leave test coverage below 85%
 

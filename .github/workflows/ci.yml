@@ -162,6 +162,121 @@ jobs:
             --logger "console;verbosity=minimal"
         continue-on-error: true
 
+  # EF Core multi-provider integration tests
+  # Tests EF Core against all 5 database providers (Sqlite, SqlServer, PostgreSQL, MySQL, Oracle)
+  # to ensure LINQ translation and provider-specific behavior works correctly across providers.
+  # MySQL tests are skipped until Pomelo.EntityFrameworkCore.MySql v10 is released.
+  test-ef-providers:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        database:
+          - name: Sqlite
+            # SQLite uses in-process database, no service container needed
+            trait: "Sqlite"
+          - name: SqlServer
+            trait: "SqlServer"
+          - name: PostgreSQL
+            trait: "PostgreSQL"
+          - name: MySQL
+            trait: "MySQL"
+          - name: Oracle
+            trait: "Oracle"
+
+    # Service containers for database providers (conditionally started based on matrix)
+    services:
+      sqlserver:
+        image: ${{ matrix.database.name == 'SqlServer' && 'mcr.microsoft.com/mssql/server:2022-latest' || '' }}
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: Encina_Test_123!
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Encina_Test_123! -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 1433:1433
+
+      postgres:
+        image: ${{ matrix.database.name == 'PostgreSQL' && 'postgres:16' || '' }}
+        env:
+          POSTGRES_USER: encina
+          POSTGRES_PASSWORD: encina_test
+          POSTGRES_DB: encina_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      mysql:
+        image: ${{ matrix.database.name == 'MySQL' && 'mysql:8' || '' }}
+        env:
+          MYSQL_ROOT_PASSWORD: encina_test
+          MYSQL_DATABASE: encina_test
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 3306:3306
+
+      oracle:
+        image: ${{ matrix.database.name == 'Oracle' && 'gvenzl/oracle-free:23-slim' || '' }}
+        env:
+          ORACLE_PASSWORD: encina_test
+        options: >-
+          --health-cmd "healthcheck.sh"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 10
+        ports:
+          - 1521:1521
+
+    env:
+      # Connection strings for each database provider
+      ConnectionStrings__SqlServer: "Server=localhost,1433;Database=encina_test;User Id=sa;Password=Encina_Test_123!;TrustServerCertificate=true"
+      ConnectionStrings__PostgreSQL: "Host=localhost;Port=5432;Database=encina_test;Username=encina;Password=encina_test"
+      ConnectionStrings__MySQL: "Server=localhost;Port=3306;Database=encina_test;User=root;Password=encina_test"
+      ConnectionStrings__Oracle: "Data Source=localhost:1521/FREEPDB1;User Id=system;Password=encina_test"
+      ConnectionStrings__Sqlite: "Data Source=encina_test.db"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: build-output
+
+      - name: Run EF Core ${{ matrix.database.name }} tests
+        run: |
+          # Filter for EF Core tests with specific database trait
+          # Tests must have [Trait("Database", "{Provider}")] to be included
+          dotnet test tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj --no-build -c Release \
+            --filter "FullyQualifiedName~EntityFrameworkCore&Database=${{ matrix.database.trait }}" \
+            --logger "console;verbosity=minimal" \
+            -- xunit.parallelizeTestCollections=true
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ef-test-results-${{ matrix.database.name }}
+          path: artifacts/test-results
+          if-no-files-found: ignore
+
   # Pack and publish - runs after all tests
   pack:
     needs:
@@ -170,6 +285,7 @@ jobs:
       - test-contract
       - test-property
       - test-guard
+      - test-ef-providers
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: always() && needs.build.result == 'success'
