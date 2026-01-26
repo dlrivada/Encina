@@ -2,13 +2,11 @@ using System.Data;
 using Shouldly;
 using Xunit;
 using ADOMySQLRW = Encina.ADO.MySQL.ReadWriteSeparation;
-using ADOOracleRW = Encina.ADO.Oracle.ReadWriteSeparation;
 using ADOPostgreSQLRW = Encina.ADO.PostgreSQL.ReadWriteSeparation;
 // Provider-specific aliases for factories
 using ADOSqliteRW = Encina.ADO.Sqlite.ReadWriteSeparation;
 using ADOSqlServerRW = Encina.ADO.SqlServer.ReadWriteSeparation;
 using DapperMySQLRW = Encina.Dapper.MySQL.ReadWriteSeparation;
-using DapperOracleRW = Encina.Dapper.Oracle.ReadWriteSeparation;
 using DapperPostgreSQLRW = Encina.Dapper.PostgreSQL.ReadWriteSeparation;
 using DapperSqliteRW = Encina.Dapper.Sqlite.ReadWriteSeparation;
 using DapperSqlServerRW = Encina.Dapper.SqlServer.ReadWriteSeparation;
@@ -17,7 +15,7 @@ using EntityFrameworkCoreRW = Encina.EntityFrameworkCore.ReadWriteSeparation;
 namespace Encina.ContractTests.Database.ReadWriteSeparation;
 
 /// <summary>
-/// Contract tests verifying that all 12 providers implement the Read/Write Separation pattern
+/// Contract tests verifying that all 10 providers implement the Read/Write Separation pattern
 /// with consistent APIs.
 /// </summary>
 /// <remarks>
@@ -73,15 +71,6 @@ public sealed class ReadWriteSeparationContractTests
             "ADO.MySQL.ReadWriteConnectionFactory must implement IReadWriteConnectionFactory");
     }
 
-    [Fact]
-    public void ADOOracle_ReadWriteConnectionFactory_ImplementsIReadWriteConnectionFactory()
-    {
-        // Assert
-        typeof(ADOOracleRW.IReadWriteConnectionFactory).IsAssignableFrom(
-            typeof(ADOOracleRW.ReadWriteConnectionFactory)).ShouldBeTrue(
-            "ADO.Oracle.ReadWriteConnectionFactory must implement IReadWriteConnectionFactory");
-    }
-
     #endregion
 
     #region Interface Implementation Tests - Dapper Providers
@@ -122,15 +111,6 @@ public sealed class ReadWriteSeparationContractTests
             "Dapper.MySQL.ReadWriteConnectionFactory must implement IReadWriteConnectionFactory");
     }
 
-    [Fact]
-    public void DapperOracle_ReadWriteConnectionFactory_ImplementsIReadWriteConnectionFactory()
-    {
-        // Assert
-        typeof(DapperOracleRW.IReadWriteConnectionFactory).IsAssignableFrom(
-            typeof(DapperOracleRW.ReadWriteConnectionFactory)).ShouldBeTrue(
-            "Dapper.Oracle.ReadWriteConnectionFactory must implement IReadWriteConnectionFactory");
-    }
-
     #endregion
 
     #region Interface Implementation Tests - EF Core
@@ -155,12 +135,10 @@ public sealed class ReadWriteSeparationContractTests
     [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(ADOOracleRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqliteRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperOracleRW.IReadWriteConnectionFactory))]
     public void AllProviders_IReadWriteConnectionFactory_HasCreateWriteConnectionMethod(Type factoryType)
     {
         // Act
@@ -177,12 +155,10 @@ public sealed class ReadWriteSeparationContractTests
     [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(ADOOracleRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqliteRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperOracleRW.IReadWriteConnectionFactory))]
     public void AllProviders_IReadWriteConnectionFactory_HasCreateReadConnectionMethod(Type factoryType)
     {
         // Act
@@ -199,12 +175,10 @@ public sealed class ReadWriteSeparationContractTests
     [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(ADOOracleRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqliteRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperOracleRW.IReadWriteConnectionFactory))]
     public void AllProviders_IReadWriteConnectionFactory_HasCreateConnectionMethod(Type factoryType)
     {
         // Act
@@ -221,12 +195,10 @@ public sealed class ReadWriteSeparationContractTests
     [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(ADOOracleRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqliteRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperOracleRW.IReadWriteConnectionFactory))]
     public void AllProviders_IReadWriteConnectionFactory_HasGetWriteConnectionStringMethod(Type factoryType)
     {
         // Act
@@ -243,12 +215,10 @@ public sealed class ReadWriteSeparationContractTests
     [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(ADOOracleRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqliteRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperOracleRW.IReadWriteConnectionFactory))]
     public void AllProviders_IReadWriteConnectionFactory_HasGetReadConnectionStringMethod(Type factoryType)
     {
         // Act
@@ -297,14 +267,6 @@ public sealed class ReadWriteSeparationContractTests
     }
 
     [Fact]
-    public void ADOOracle_HasHealthCheckWithCorrectName()
-    {
-        // Assert
-        ADOOracleRW.ReadWriteSeparationHealthCheck.DefaultName.ShouldBe(
-            "encina-read-write-separation-ado-oracle");
-    }
-
-    [Fact]
     public void DapperSqlite_HasHealthCheckWithCorrectName()
     {
         // Assert
@@ -336,14 +298,6 @@ public sealed class ReadWriteSeparationContractTests
             "encina-read-write-separation-dapper-mysql");
     }
 
-    [Fact]
-    public void DapperOracle_HasHealthCheckWithCorrectName()
-    {
-        // Assert
-        DapperOracleRW.ReadWriteSeparationHealthCheck.DefaultName.ShouldBe(
-            "encina-read-write-separation-dapper-oracle");
-    }
-
     #endregion
 
     #region Pipeline Behavior Implementations
@@ -353,12 +307,10 @@ public sealed class ReadWriteSeparationContractTests
     [InlineData(typeof(ADOSqlServerRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(ADOPostgreSQLRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(ADOMySQLRW.ReadWriteRoutingPipelineBehavior<,>))]
-    [InlineData(typeof(ADOOracleRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(DapperSqliteRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(DapperSqlServerRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(DapperPostgreSQLRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(DapperMySQLRW.ReadWriteRoutingPipelineBehavior<,>))]
-    [InlineData(typeof(DapperOracleRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(EntityFrameworkCoreRW.ReadWriteRoutingPipelineBehavior<,>))]
     public void AllProviders_PipelineBehavior_IsGenericAndSealed(Type behaviorType)
     {
@@ -378,12 +330,10 @@ public sealed class ReadWriteSeparationContractTests
     [InlineData(typeof(ADOSqlServerRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.ReadWriteConnectionFactory))]
-    [InlineData(typeof(ADOOracleRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqliteRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.ReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperOracleRW.ReadWriteConnectionFactory))]
     public void AllProviders_ReadWriteConnectionFactory_IsSealed(Type factoryType)
     {
         // Assert
@@ -395,12 +345,10 @@ public sealed class ReadWriteSeparationContractTests
     [InlineData(typeof(ADOSqlServerRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.ReadWriteConnectionFactory))]
-    [InlineData(typeof(ADOOracleRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqliteRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.ReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperOracleRW.ReadWriteConnectionFactory))]
     public void AllProviders_ReadWriteConnectionFactory_HasSingleConstructorWithSelector(Type factoryType)
     {
         // Act

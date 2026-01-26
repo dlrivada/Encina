@@ -66,16 +66,18 @@
 
 #### Multi-Provider Implementation Rule (MANDATORY)
 
-> **CRITICAL**: All provider-dependent features MUST be implemented for ALL 16 providers. This is a fundamental project rule, not just a testing requirement.
+> **CRITICAL**: All provider-dependent features MUST be implemented for ALL 13 providers. This is a fundamental project rule, not just a testing requirement.
 
-**The 16 Providers:**
+**The 13 Providers:**
 
 | Category | Providers | Count |
 |----------|-----------|-------|
-| **ADO.NET** | Sqlite, SqlServer, PostgreSQL, MySQL, Oracle | 5 |
-| **Dapper** | Sqlite, SqlServer, PostgreSQL, MySQL, Oracle | 5 |
-| **EF Core** | Sqlite, SqlServer, PostgreSQL, MySQL, Oracle | 5 |
+| **ADO.NET** | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
+| **Dapper** | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
+| **EF Core** | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
 | **MongoDB** | MongoDB | 1 |
+
+> **Note**: Oracle was removed from pre-1.0 scope due to disproportionate maintenance cost. See [ADR-009](docs/architecture/adr/009-remove-oracle-provider-pre-1.0.md) for details. Oracle code is preserved in `.backup/oracle/` for potential future restoration.
 
 **When this rule applies:**
 
@@ -92,7 +94,6 @@
 | SQL Server | `@param` | `TOP (@n)` | `bit` | Native DateTime, GUID |
 | PostgreSQL | `@param` | `LIMIT @n` | `true/false` | Case-sensitive identifiers |
 | MySQL | `@param` | `LIMIT @n` | `0/1` | Backtick identifiers |
-| Oracle | `:param` | `FETCH FIRST :n ROWS ONLY` | `0/1` | Colon prefix for parameters |
 
 **Excluded from this rule** (specialized providers with different purposes):
 
@@ -401,11 +402,11 @@ tests/
 └── Encina.Testing.Examples/   # Reference examples
 ```
 
-#### Test Coverage for All 16 Providers
+#### Test Coverage for All 13 Providers
 
-Tests MUST cover ALL 16 providers as defined in the [Multi-Provider Implementation Rule](#multi-provider-implementation-rule-mandatory) section above.
+Tests MUST cover ALL 13 providers as defined in the [Multi-Provider Implementation Rule](#multi-provider-implementation-rule-mandatory) section above.
 
-> **Reminder**: The 16 providers are: ADO.NET (5), Dapper (5), EF Core (5), and MongoDB (1).
+> **Reminder**: The 13 providers are: ADO.NET (4), Dapper (4), EF Core (4), and MongoDB (1).
 
 #### Test Type Guidelines by Feature Category
 
@@ -813,7 +814,7 @@ await connection.QueryAsync<Message>(sql, new { NowUtc = nowUtc });
 5. ❌ Don't make patterns mandatory - everything is opt-in
 6. ❌ Don't mix provider-specific code with abstractions
 7. ❌ Don't compromise design for non-existent legacy users
-8. ❌ Don't implement provider features for only some providers - ALL 16 required (see Multi-Provider Implementation Rule)
+8. ❌ Don't implement provider features for only some providers - ALL 13 required (see Multi-Provider Implementation Rule)
 9. ❌ Don't skip test types without creating a justification `.md` file
 10. ❌ Don't leave test coverage below 85%
 

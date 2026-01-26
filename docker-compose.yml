@@ -6,7 +6,7 @@
 # DO NOT use these defaults in production.
 #
 # PROFILES:
-#   - databases    : All relational databases (sqlserver, postgres, mysql, oracle)
+#   - databases    : All relational databases (sqlserver, postgres, mysql)
 #   - messaging    : All message brokers (rabbitmq, kafka, nats, mosquitto)
 #   - caching      : Redis and alternatives (redis, garnet, valkey, dragonfly, keydb)
 #   - cloud        : Cloud emulators (localstack, azurite)
@@ -88,26 +88,6 @@ services:
       timeout: 3s
       retries: 10
       start_period: 10s
-
-  # Oracle (Oracle XE is free for development)
-  oracle:
-    image: container-registry.oracle.com/database/express:21.3.0-xe
-    container_name: encina-oracle
-    profiles: ["databases", "full"]
-    environment:
-      ORACLE_PWD: ${ORACLE_PASSWORD:-YourStrong@Passw0rd}
-      ORACLE_CHARACTERSET: AL32UTF8
-    ports:
-      - "1521:1521"
-    volumes:
-      - oracle-data:/opt/oracle/oradata
-    healthcheck:
-      test: ["CMD", "bash", "-c", "echo 'SELECT 1 FROM DUAL;' | sqlplus -s system/${ORACLE_PASSWORD:-YourStrong@Passw0rd}@//localhost:1521/XE | grep -q '1'"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
-    shm_size: 1gb
 
   # MongoDB
   mongodb:
@@ -382,7 +362,6 @@ volumes:
   sqlserver-data:
   postgres-data:
   mysql-data:
-  oracle-data:
   mongodb-data:
   # Messaging
   rabbitmq-data:

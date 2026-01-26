@@ -191,9 +191,10 @@ jobs:
         continue-on-error: true
 
   # EF Core multi-provider integration tests
-  # Tests EF Core against all 5 database providers (Sqlite, SqlServer, PostgreSQL, MySQL, Oracle)
+  # Tests EF Core against all 4 database providers (Sqlite, SqlServer, PostgreSQL, MySQL)
   # to ensure LINQ translation and provider-specific behavior works correctly across providers.
   # MySQL tests are skipped until Pomelo.EntityFrameworkCore.MySql v10 is released.
+  # Note: Oracle was removed from pre-1.0 scope (see ADR-009)
   test-ef-providers:
     needs: build
     runs-on: ubuntu-latest
@@ -211,8 +212,6 @@ jobs:
             trait: "PostgreSQL"
           - name: MySQL
             trait: "MySQL"
-          - name: Oracle
-            trait: "Oracle"
 
     # Service containers for database providers (conditionally started based on matrix)
     services:
@@ -256,24 +255,11 @@ jobs:
         ports:
           - 3306:3306
 
-      oracle:
-        image: ${{ matrix.database.name == 'Oracle' && 'gvenzl/oracle-free:23-slim' || '' }}
-        env:
-          ORACLE_PASSWORD: encina_test
-        options: >-
-          --health-cmd "healthcheck.sh"
-          --health-interval 30s
-          --health-timeout 10s
-          --health-retries 10
-        ports:
-          - 1521:1521
-
     env:
       # Connection strings for each database provider
       ConnectionStrings__SqlServer: "Server=localhost,1433;Database=encina_test;User Id=sa;Password=Encina_Test_123!;TrustServerCertificate=true"
       ConnectionStrings__PostgreSQL: "Host=localhost;Port=5432;Database=encina_test;Username=encina;Password=encina_test"
       ConnectionStrings__MySQL: "Server=localhost;Port=3306;Database=encina_test;User=root;Password=encina_test"
-      ConnectionStrings__Oracle: "Data Source=localhost:1521/FREEPDB1;User Id=system;Password=encina_test"
       ConnectionStrings__Sqlite: "Data Source=encina_test.db"
 
     steps:

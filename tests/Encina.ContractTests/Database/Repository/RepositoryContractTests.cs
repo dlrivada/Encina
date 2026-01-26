@@ -2,12 +2,10 @@ using System.Reflection;
 using Encina.DomainModeling;
 using Shouldly;
 using ADOMySQLRepository = Encina.ADO.MySQL.Repository;
-using ADOOracleRepository = Encina.ADO.Oracle.Repository;
 using ADOPostgreSQLRepository = Encina.ADO.PostgreSQL.Repository;
 using ADOSqliteRepository = Encina.ADO.Sqlite.Repository;
 using ADOSqlServerRepository = Encina.ADO.SqlServer.Repository;
 using DapperMySQLRepository = Encina.Dapper.MySQL.Repository;
-using DapperOracleRepository = Encina.Dapper.Oracle.Repository;
 using DapperPostgreSQLRepository = Encina.Dapper.PostgreSQL.Repository;
 using DapperSqliteRepository = Encina.Dapper.Sqlite.Repository;
 using DapperSqlServerRepository = Encina.Dapper.SqlServer.Repository;
@@ -18,7 +16,7 @@ namespace Encina.ContractTests.Database.Repository;
 
 /// <summary>
 /// Contract tests verifying that all Repository implementations follow the same interface contracts.
-/// These tests ensure behavioral and API consistency across all 12 database providers.
+/// These tests ensure behavioral and API consistency across all 10 database providers.
 /// </summary>
 [Trait("Category", "Contract")]
 public sealed class RepositoryContractTests
@@ -33,7 +31,6 @@ public sealed class RepositoryContractTests
         var adoSqlServerType = typeof(ADOSqlServerRepository.IEntityMapping<,>);
         var adoPostgresType = typeof(ADOPostgreSQLRepository.IEntityMapping<,>);
         var adoMySQLType = typeof(ADOMySQLRepository.IEntityMapping<,>);
-        var adoOracleType = typeof(ADOOracleRepository.IEntityMapping<,>);
 
         var referenceMembers = GetInterfaceMembers(adoSqliteType);
 
@@ -41,7 +38,6 @@ public sealed class RepositoryContractTests
         VerifyInterfaceMembersMatch(adoSqliteType, adoSqlServerType, "ADO.SqlServer");
         VerifyInterfaceMembersMatch(adoSqliteType, adoPostgresType, "ADO.PostgreSQL");
         VerifyInterfaceMembersMatch(adoSqliteType, adoMySQLType, "ADO.MySQL");
-        VerifyInterfaceMembersMatch(adoSqliteType, adoOracleType, "ADO.Oracle");
 
         // Verify required properties exist
         referenceMembers.ShouldContain("TableName", "ADO.Sqlite.IEntityMapping must have TableName property");
@@ -60,13 +56,11 @@ public sealed class RepositoryContractTests
         var dapperSqlServerType = typeof(DapperSqlServerRepository.IEntityMapping<,>);
         var dapperPostgresType = typeof(DapperPostgreSQLRepository.IEntityMapping<,>);
         var dapperMySQLType = typeof(DapperMySQLRepository.IEntityMapping<,>);
-        var dapperOracleType = typeof(DapperOracleRepository.IEntityMapping<,>);
 
         // Verify all Dapper providers have the same members
         VerifyInterfaceMembersMatch(dapperSqliteType, dapperSqlServerType, "Dapper.SqlServer");
         VerifyInterfaceMembersMatch(dapperSqliteType, dapperPostgresType, "Dapper.PostgreSQL");
         VerifyInterfaceMembersMatch(dapperSqliteType, dapperMySQLType, "Dapper.MySQL");
-        VerifyInterfaceMembersMatch(dapperSqliteType, dapperOracleType, "Dapper.Oracle");
     }
 
     [Fact]
@@ -91,13 +85,11 @@ public sealed class RepositoryContractTests
         var adoSqlServerType = typeof(ADOSqlServerRepository.EntityMappingBuilder<,>);
         var adoPostgresType = typeof(ADOPostgreSQLRepository.EntityMappingBuilder<,>);
         var adoMySQLType = typeof(ADOMySQLRepository.EntityMappingBuilder<,>);
-        var adoOracleType = typeof(ADOOracleRepository.EntityMappingBuilder<,>);
 
         // Verify all ADO providers have the same public methods
         VerifyPublicMethodsMatch(adoSqliteType, adoSqlServerType, "ADO.SqlServer");
         VerifyPublicMethodsMatch(adoSqliteType, adoPostgresType, "ADO.PostgreSQL");
         VerifyPublicMethodsMatch(adoSqliteType, adoMySQLType, "ADO.MySQL");
-        VerifyPublicMethodsMatch(adoSqliteType, adoOracleType, "ADO.Oracle");
 
         // Verify required methods exist
         var methods = GetPublicMethods(adoSqliteType);
@@ -117,13 +109,11 @@ public sealed class RepositoryContractTests
         var dapperSqlServerType = typeof(DapperSqlServerRepository.EntityMappingBuilder<,>);
         var dapperPostgresType = typeof(DapperPostgreSQLRepository.EntityMappingBuilder<,>);
         var dapperMySQLType = typeof(DapperMySQLRepository.EntityMappingBuilder<,>);
-        var dapperOracleType = typeof(DapperOracleRepository.EntityMappingBuilder<,>);
 
         // Verify all Dapper providers have the same public methods
         VerifyPublicMethodsMatch(dapperSqliteType, dapperSqlServerType, "Dapper.SqlServer");
         VerifyPublicMethodsMatch(dapperSqliteType, dapperPostgresType, "Dapper.PostgreSQL");
         VerifyPublicMethodsMatch(dapperSqliteType, dapperMySQLType, "Dapper.MySQL");
-        VerifyPublicMethodsMatch(dapperSqliteType, dapperOracleType, "Dapper.Oracle");
     }
 
     [Fact]
@@ -144,26 +134,22 @@ public sealed class RepositoryContractTests
         var adoSqlServer = new ADOSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
         var adoPostgres = new ADOPostgreSQLRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
         var adoMySQL = new ADOMySQLRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
-        var adoOracle = new ADOOracleRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
 
         var dapperSqlite = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
         var dapperSqlServer = new DapperSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
         var dapperPostgres = new DapperPostgreSQLRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
         var dapperMySQL = new DapperMySQLRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
-        var dapperOracle = new DapperOracleRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
 
         // All ToTable calls must return the same instance
         adoSqlite.ToTable("Entities").ShouldBe(adoSqlite, "ADO.Sqlite ToTable must return self");
         adoSqlServer.ToTable("Entities").ShouldBe(adoSqlServer, "ADO.SqlServer ToTable must return self");
         adoPostgres.ToTable("Entities").ShouldBe(adoPostgres, "ADO.PostgreSQL ToTable must return self");
         adoMySQL.ToTable("Entities").ShouldBe(adoMySQL, "ADO.MySQL ToTable must return self");
-        adoOracle.ToTable("Entities").ShouldBe(adoOracle, "ADO.Oracle ToTable must return self");
 
         dapperSqlite.ToTable("Entities").ShouldBe(dapperSqlite, "Dapper.Sqlite ToTable must return self");
         dapperSqlServer.ToTable("Entities").ShouldBe(dapperSqlServer, "Dapper.SqlServer ToTable must return self");
         dapperPostgres.ToTable("Entities").ShouldBe(dapperPostgres, "Dapper.PostgreSQL ToTable must return self");
         dapperMySQL.ToTable("Entities").ShouldBe(dapperMySQL, "Dapper.MySQL ToTable must return self");
-        dapperOracle.ToTable("Entities").ShouldBe(dapperOracle, "Dapper.Oracle ToTable must return self");
     }
 
     [Fact]
@@ -316,10 +302,6 @@ public sealed class RepositoryContractTests
             .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFunctionalRepository<,>),
             "ADO.MySQL FunctionalRepositoryADO must implement IFunctionalRepository<,>");
 
-        typeof(ADOOracleRepository.FunctionalRepositoryADO<,>).GetInterfaces()
-            .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFunctionalRepository<,>),
-            "ADO.Oracle FunctionalRepositoryADO must implement IFunctionalRepository<,>");
-
         typeof(DapperSqliteRepository.FunctionalRepositoryDapper<,>).GetInterfaces()
             .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFunctionalRepository<,>),
             "Dapper.Sqlite FunctionalRepositoryDapper must implement IFunctionalRepository<,>");
@@ -335,10 +317,6 @@ public sealed class RepositoryContractTests
         typeof(DapperMySQLRepository.FunctionalRepositoryDapper<,>).GetInterfaces()
             .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFunctionalRepository<,>),
             "Dapper.MySQL FunctionalRepositoryDapper must implement IFunctionalRepository<,>");
-
-        typeof(DapperOracleRepository.FunctionalRepositoryDapper<,>).GetInterfaces()
-            .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFunctionalRepository<,>),
-            "Dapper.Oracle FunctionalRepositoryDapper must implement IFunctionalRepository<,>");
 
         typeof(EfCoreRepository.FunctionalRepositoryEF<,>).GetInterfaces()
             .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFunctionalRepository<,>),
@@ -385,13 +363,11 @@ public sealed class RepositoryContractTests
         var adoSqlServerType = typeof(ADOSqlServerRepository.SpecificationSqlBuilder<>);
         var adoPostgresType = typeof(ADOPostgreSQLRepository.SpecificationSqlBuilder<>);
         var adoMySQLType = typeof(ADOMySQLRepository.SpecificationSqlBuilder<>);
-        var adoOracleType = typeof(ADOOracleRepository.SpecificationSqlBuilder<>);
 
         // Verify all ADO providers have the same public methods
         VerifyPublicMethodsMatch(adoSqliteType, adoSqlServerType, "ADO.SqlServer SpecificationSqlBuilder");
         VerifyPublicMethodsMatch(adoSqliteType, adoPostgresType, "ADO.PostgreSQL SpecificationSqlBuilder");
         VerifyPublicMethodsMatch(adoSqliteType, adoMySQLType, "ADO.MySQL SpecificationSqlBuilder");
-        VerifyPublicMethodsMatch(adoSqliteType, adoOracleType, "ADO.Oracle SpecificationSqlBuilder");
 
         // Verify required methods exist
         var methods = GetPublicMethods(adoSqliteType);
@@ -409,13 +385,11 @@ public sealed class RepositoryContractTests
         var dapperSqlServerType = typeof(DapperSqlServerRepository.SpecificationSqlBuilder<>);
         var dapperPostgresType = typeof(DapperPostgreSQLRepository.SpecificationSqlBuilder<>);
         var dapperMySQLType = typeof(DapperMySQLRepository.SpecificationSqlBuilder<>);
-        var dapperOracleType = typeof(DapperOracleRepository.SpecificationSqlBuilder<>);
 
         // Verify all Dapper providers have the same public methods
         VerifyPublicMethodsMatch(dapperSqliteType, dapperSqlServerType, "Dapper.SqlServer SpecificationSqlBuilder");
         VerifyPublicMethodsMatch(dapperSqliteType, dapperPostgresType, "Dapper.PostgreSQL SpecificationSqlBuilder");
         VerifyPublicMethodsMatch(dapperSqliteType, dapperMySQLType, "Dapper.MySQL SpecificationSqlBuilder");
-        VerifyPublicMethodsMatch(dapperSqliteType, dapperOracleType, "Dapper.Oracle SpecificationSqlBuilder");
     }
 
     [Fact]
@@ -486,7 +460,6 @@ public sealed class RepositoryContractTests
             (typeof(ADOSqlServerRepository.FunctionalRepositoryADO<,>).Assembly, "ADO.SqlServer"),
             (typeof(ADOPostgreSQLRepository.FunctionalRepositoryADO<,>).Assembly, "ADO.PostgreSQL"),
             (typeof(ADOMySQLRepository.FunctionalRepositoryADO<,>).Assembly, "ADO.MySQL"),
-            (typeof(ADOOracleRepository.FunctionalRepositoryADO<,>).Assembly, "ADO.Oracle"),
         };
 
         foreach (var (assembly, providerName) in providers)
@@ -516,7 +489,6 @@ public sealed class RepositoryContractTests
             (typeof(DapperSqlServerRepository.FunctionalRepositoryDapper<,>).Assembly, "Dapper.SqlServer"),
             (typeof(DapperPostgreSQLRepository.FunctionalRepositoryDapper<,>).Assembly, "Dapper.PostgreSQL"),
             (typeof(DapperMySQLRepository.FunctionalRepositoryDapper<,>).Assembly, "Dapper.MySQL"),
-            (typeof(DapperOracleRepository.FunctionalRepositoryDapper<,>).Assembly, "Dapper.Oracle"),
         };
 
         foreach (var (assembly, providerName) in providers)

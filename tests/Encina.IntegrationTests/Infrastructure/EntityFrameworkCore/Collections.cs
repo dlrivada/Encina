@@ -41,15 +41,6 @@ public class EFCoreMySqlCollection : ICollectionFixture<EFCoreMySqlFixture>
 }
 
 /// <summary>
-/// Collection for Oracle EF Core integration tests.
-/// </summary>
-[CollectionDefinition("EFCore-Oracle")]
-[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "xUnit requires collection types to end with 'Collection'")]
-public class EFCoreOracleCollection : ICollectionFixture<EFCoreOracleFixture>
-{
-}
-
-/// <summary>
 /// Collection for SQLite EF Core integration tests.
 /// </summary>
 [CollectionDefinition("EFCore-Sqlite")]

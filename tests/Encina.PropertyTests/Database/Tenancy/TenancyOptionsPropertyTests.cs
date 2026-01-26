@@ -1,11 +1,9 @@
 using Shouldly;
 using ADOMySQLTenancy = Encina.ADO.MySQL.Tenancy;
-using ADOOracleTenancy = Encina.ADO.Oracle.Tenancy;
 using ADOPostgreSQLTenancy = Encina.ADO.PostgreSQL.Tenancy;
 using ADOSqliteTenancy = Encina.ADO.Sqlite.Tenancy;
 using ADOSqlServerTenancy = Encina.ADO.SqlServer.Tenancy;
 using DapperMySQLTenancy = Encina.Dapper.MySQL.Tenancy;
-using DapperOracleTenancy = Encina.Dapper.Oracle.Tenancy;
 using DapperPostgreSQLTenancy = Encina.Dapper.PostgreSQL.Tenancy;
 using DapperSqliteTenancy = Encina.Dapper.Sqlite.Tenancy;
 using DapperSqlServerTenancy = Encina.Dapper.SqlServer.Tenancy;
@@ -73,18 +71,6 @@ public sealed class TenancyOptionsPropertyTests
         options.TenantColumnName.ShouldBe("TenantId");
     }
 
-    [Fact]
-    public void Property_ADOOracleOptions_DefaultsAreConsistent()
-    {
-        var options = new ADOOracleTenancy.ADOTenancyOptions();
-
-        options.AutoFilterTenantQueries.ShouldBeTrue();
-        options.AutoAssignTenantId.ShouldBeTrue();
-        options.ValidateTenantOnModify.ShouldBeTrue();
-        options.ThrowOnMissingTenantContext.ShouldBeTrue();
-        options.TenantColumnName.ShouldBe("TenantId");
-    }
-
     #endregion
 
     #region Dapper Provider Options Tests
@@ -129,18 +115,6 @@ public sealed class TenancyOptionsPropertyTests
     public void Property_DapperMySQLOptions_DefaultsAreConsistent()
     {
         var options = new DapperMySQLTenancy.DapperTenancyOptions();
-
-        options.AutoFilterTenantQueries.ShouldBeTrue();
-        options.AutoAssignTenantId.ShouldBeTrue();
-        options.ValidateTenantOnModify.ShouldBeTrue();
-        options.ThrowOnMissingTenantContext.ShouldBeTrue();
-        options.TenantColumnName.ShouldBe("TenantId");
-    }
-
-    [Fact]
-    public void Property_DapperOracleOptions_DefaultsAreConsistent()
-    {
-        var options = new DapperOracleTenancy.DapperTenancyOptions();
 
         options.AutoFilterTenantQueries.ShouldBeTrue();
         options.AutoAssignTenantId.ShouldBeTrue();
@@ -195,34 +169,28 @@ public sealed class TenancyOptionsPropertyTests
         var adoSqlServer = new ADOSqlServerTenancy.ADOTenancyOptions();
         var adoPostgres = new ADOPostgreSQLTenancy.ADOTenancyOptions();
         var adoMySQL = new ADOMySQLTenancy.ADOTenancyOptions();
-        var adoOracle = new ADOOracleTenancy.ADOTenancyOptions();
         var dapperSqlite = new DapperSqliteTenancy.DapperTenancyOptions();
         var dapperSqlServer = new DapperSqlServerTenancy.DapperTenancyOptions();
         var dapperPostgres = new DapperPostgreSQLTenancy.DapperTenancyOptions();
         var dapperMySQL = new DapperMySQLTenancy.DapperTenancyOptions();
-        var dapperOracle = new DapperOracleTenancy.DapperTenancyOptions();
 
         // All must have same AutoFilterTenantQueries default
         adoSqlite.AutoFilterTenantQueries.ShouldBe(adoSqlServer.AutoFilterTenantQueries);
         adoSqlServer.AutoFilterTenantQueries.ShouldBe(adoPostgres.AutoFilterTenantQueries);
         adoPostgres.AutoFilterTenantQueries.ShouldBe(adoMySQL.AutoFilterTenantQueries);
-        adoMySQL.AutoFilterTenantQueries.ShouldBe(adoOracle.AutoFilterTenantQueries);
-        adoOracle.AutoFilterTenantQueries.ShouldBe(dapperSqlite.AutoFilterTenantQueries);
+        adoMySQL.AutoFilterTenantQueries.ShouldBe(dapperSqlite.AutoFilterTenantQueries);
         dapperSqlite.AutoFilterTenantQueries.ShouldBe(dapperSqlServer.AutoFilterTenantQueries);
         dapperSqlServer.AutoFilterTenantQueries.ShouldBe(dapperPostgres.AutoFilterTenantQueries);
         dapperPostgres.AutoFilterTenantQueries.ShouldBe(dapperMySQL.AutoFilterTenantQueries);
-        dapperMySQL.AutoFilterTenantQueries.ShouldBe(dapperOracle.AutoFilterTenantQueries);
 
         // All must have same TenantColumnName default
         adoSqlite.TenantColumnName.ShouldBe(adoSqlServer.TenantColumnName);
         adoSqlServer.TenantColumnName.ShouldBe(adoPostgres.TenantColumnName);
         adoPostgres.TenantColumnName.ShouldBe(adoMySQL.TenantColumnName);
-        adoMySQL.TenantColumnName.ShouldBe(adoOracle.TenantColumnName);
-        adoOracle.TenantColumnName.ShouldBe(dapperSqlite.TenantColumnName);
+        adoMySQL.TenantColumnName.ShouldBe(dapperSqlite.TenantColumnName);
         dapperSqlite.TenantColumnName.ShouldBe(dapperSqlServer.TenantColumnName);
         dapperSqlServer.TenantColumnName.ShouldBe(dapperPostgres.TenantColumnName);
         dapperPostgres.TenantColumnName.ShouldBe(dapperMySQL.TenantColumnName);
-        dapperMySQL.TenantColumnName.ShouldBe(dapperOracle.TenantColumnName);
     }
 
     [Theory]

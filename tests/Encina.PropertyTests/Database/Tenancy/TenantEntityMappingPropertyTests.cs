@@ -1,12 +1,10 @@
 using Encina.Tenancy;
 using Shouldly;
 using ADOMySQLTenancy = Encina.ADO.MySQL.Tenancy;
-using ADOOracleTenancy = Encina.ADO.Oracle.Tenancy;
 using ADOPostgreSQLTenancy = Encina.ADO.PostgreSQL.Tenancy;
 using ADOSqliteTenancy = Encina.ADO.Sqlite.Tenancy;
 using ADOSqlServerTenancy = Encina.ADO.SqlServer.Tenancy;
 using DapperMySQLTenancy = Encina.Dapper.MySQL.Tenancy;
-using DapperOracleTenancy = Encina.Dapper.Oracle.Tenancy;
 using DapperPostgreSQLTenancy = Encina.Dapper.PostgreSQL.Tenancy;
 using DapperSqliteTenancy = Encina.Dapper.Sqlite.Tenancy;
 using DapperSqlServerTenancy = Encina.Dapper.SqlServer.Tenancy;
@@ -80,20 +78,6 @@ public sealed class TenantEntityMappingPropertyTests
         mapping.UpdateExcludedProperties.ShouldContain("TenantId");
     }
 
-    [Fact]
-    public void Property_ADOOracleMapping_HasTenantIdAlwaysExcludesFromUpdates()
-    {
-        var mapping = new ADOOracleTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
-            .ToTable("Orders")
-            .HasId(o => o.Id)
-            .HasTenantId(o => o.TenantId)
-            .MapProperty(o => o.CustomerId)
-            .Build();
-
-        mapping.IsTenantEntity.ShouldBeTrue();
-        mapping.UpdateExcludedProperties.ShouldContain("TenantId");
-    }
-
     #endregion
 
     #region Dapper Provider Mapping Tests
@@ -144,20 +128,6 @@ public sealed class TenantEntityMappingPropertyTests
     public void Property_DapperMySQLMapping_HasTenantIdAlwaysExcludesFromUpdates()
     {
         var mapping = new DapperMySQLTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
-            .ToTable("Orders")
-            .HasId(o => o.Id)
-            .HasTenantId(o => o.TenantId)
-            .MapProperty(o => o.CustomerId)
-            .Build();
-
-        mapping.IsTenantEntity.ShouldBeTrue();
-        mapping.UpdateExcludedProperties.ShouldContain("TenantId");
-    }
-
-    [Fact]
-    public void Property_DapperOracleMapping_HasTenantIdAlwaysExcludesFromUpdates()
-    {
-        var mapping = new DapperOracleTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
             .ToTable("Orders")
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)

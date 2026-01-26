@@ -2,12 +2,10 @@ using FsCheck;
 using FsCheck.Xunit;
 using Shouldly;
 using ADOMySQLRepository = Encina.ADO.MySQL.Repository;
-using ADOOracleRepository = Encina.ADO.Oracle.Repository;
 using ADOPostgreSQLRepository = Encina.ADO.PostgreSQL.Repository;
 using ADOSqliteRepository = Encina.ADO.Sqlite.Repository;
 using ADOSqlServerRepository = Encina.ADO.SqlServer.Repository;
 using DapperMySQLRepository = Encina.Dapper.MySQL.Repository;
-using DapperOracleRepository = Encina.Dapper.Oracle.Repository;
 using DapperPostgreSQLRepository = Encina.Dapper.PostgreSQL.Repository;
 using DapperSqliteRepository = Encina.Dapper.Sqlite.Repository;
 using DapperSqlServerRepository = Encina.Dapper.SqlServer.Repository;
@@ -76,19 +74,6 @@ public sealed class EntityMappingPropertyTests
         mapping.TableName.ShouldBe(tableName);
     }
 
-    [Fact]
-    public void Property_ADOOracleMapping_TableNameIsPreservedAfterBuild()
-    {
-        const string tableName = "TEST_ORDERS";
-        var mapping = new ADOOracleRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable(tableName)
-            .HasId(e => e.Id)
-            .MapProperty(e => e.Name)
-            .Build();
-
-        mapping.TableName.ShouldBe(tableName);
-    }
-
     #endregion
 
     #region Dapper Provider Entity Mapping Tests
@@ -137,19 +122,6 @@ public sealed class EntityMappingPropertyTests
     {
         const string tableName = "test_orders";
         var mapping = new DapperMySQLRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable(tableName)
-            .HasId(e => e.Id)
-            .MapProperty(e => e.Name)
-            .Build();
-
-        mapping.TableName.ShouldBe(tableName);
-    }
-
-    [Fact]
-    public void Property_DapperOracleMapping_TableNameIsPreservedAfterBuild()
-    {
-        const string tableName = "TEST_ORDERS";
-        var mapping = new DapperOracleRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
             .ToTable(tableName)
             .HasId(e => e.Id)
             .MapProperty(e => e.Name)
@@ -339,14 +311,11 @@ public sealed class EntityMappingPropertyTests
             .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
         var adoMySQL = new ADOMySQLRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
             .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
-        var adoOracle = new ADOOracleRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
 
         adoSqlite.IdColumnName.ShouldBe(idColumnName);
         adoSqlServer.IdColumnName.ShouldBe(idColumnName);
         adoPostgres.IdColumnName.ShouldBe(idColumnName);
         adoMySQL.IdColumnName.ShouldBe(idColumnName);
-        adoOracle.IdColumnName.ShouldBe(idColumnName);
     }
 
     [Theory]
@@ -363,14 +332,11 @@ public sealed class EntityMappingPropertyTests
             .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
         var dapperMySQL = new DapperMySQLRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
             .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
-        var dapperOracle = new DapperOracleRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
 
         dapperSqlite.IdColumnName.ShouldBe(idColumnName);
         dapperSqlServer.IdColumnName.ShouldBe(idColumnName);
         dapperPostgres.IdColumnName.ShouldBe(idColumnName);
         dapperMySQL.IdColumnName.ShouldBe(idColumnName);
-        dapperOracle.IdColumnName.ShouldBe(idColumnName);
     }
 
     #endregion

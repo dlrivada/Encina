@@ -3,13 +3,11 @@ using System.Data.Common;
 using System.Reflection;
 using Encina.Modules.Isolation;
 using ADOMySQLModules = Encina.ADO.MySQL.Modules;
-using ADOOracleModules = Encina.ADO.Oracle.Modules;
 using ADOPostgreSQLModules = Encina.ADO.PostgreSQL.Modules;
 // Type aliases for all provider namespaces
 using ADOSqliteModules = Encina.ADO.Sqlite.Modules;
 using ADOSqlServerModules = Encina.ADO.SqlServer.Modules;
 using DapperMySQLModules = Encina.Dapper.MySQL.Modules;
-using DapperOracleModules = Encina.Dapper.Oracle.Modules;
 using DapperPostgreSQLModules = Encina.Dapper.PostgreSQL.Modules;
 using DapperSqliteModules = Encina.Dapper.Sqlite.Modules;
 using DapperSqlServerModules = Encina.Dapper.SqlServer.Modules;
@@ -71,18 +69,6 @@ public class ModuleIsolationContractTests
         Assert.True(type.IsPublic);
     }
 
-    [Fact]
-    [Trait("Category", "Contract")]
-    [Trait("Feature", "ModuleIsolation")]
-    public void ADOOracle_ModuleAwareConnectionFactory_ShouldExist()
-    {
-        var type = typeof(ADOOracleModules.ModuleAwareConnectionFactory);
-        Assert.NotNull(type);
-        Assert.True(type.IsClass);
-        Assert.True(type.IsSealed);
-        Assert.True(type.IsPublic);
-    }
-
     #endregion
 
     #region Dapper Provider Types
@@ -135,18 +121,6 @@ public class ModuleIsolationContractTests
         Assert.True(type.IsPublic);
     }
 
-    [Fact]
-    [Trait("Category", "Contract")]
-    [Trait("Feature", "ModuleIsolation")]
-    public void DapperOracle_ModuleAwareConnectionFactory_ShouldExist()
-    {
-        var type = typeof(DapperOracleModules.ModuleAwareConnectionFactory);
-        Assert.NotNull(type);
-        Assert.True(type.IsClass);
-        Assert.True(type.IsSealed);
-        Assert.True(type.IsPublic);
-    }
-
     #endregion
 
     #region ADO.NET CreateConnection Method Signature
@@ -158,7 +132,6 @@ public class ModuleIsolationContractTests
     [InlineData(typeof(ADOSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(ADOMySQLModules.ModuleAwareConnectionFactory))]
-    [InlineData(typeof(ADOOracleModules.ModuleAwareConnectionFactory))]
     public void ADO_ModuleAwareConnectionFactory_ShouldHaveCreateConnectionMethod(Type factoryType)
     {
         var method = factoryType.GetMethod("CreateConnection", BindingFlags.Public | BindingFlags.Instance);
@@ -179,7 +152,6 @@ public class ModuleIsolationContractTests
     [InlineData(typeof(DapperSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperMySQLModules.ModuleAwareConnectionFactory))]
-    [InlineData(typeof(DapperOracleModules.ModuleAwareConnectionFactory))]
     public void Dapper_ModuleAwareConnectionFactory_ShouldHaveCreateConnectionMethod(Type factoryType)
     {
         var method = factoryType.GetMethod("CreateConnection", BindingFlags.Public | BindingFlags.Instance);
@@ -196,7 +168,6 @@ public class ModuleIsolationContractTests
     [InlineData(typeof(DapperSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperMySQLModules.ModuleAwareConnectionFactory))]
-    [InlineData(typeof(DapperOracleModules.ModuleAwareConnectionFactory))]
     public void Dapper_ModuleAwareConnectionFactory_ShouldHaveCreateDbConnectionMethod(Type factoryType)
     {
         var method = factoryType.GetMethod("CreateDbConnection", BindingFlags.Public | BindingFlags.Instance);
@@ -217,12 +188,10 @@ public class ModuleIsolationContractTests
     [InlineData(typeof(ADOSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(ADOMySQLModules.ModuleAwareConnectionFactory))]
-    [InlineData(typeof(ADOOracleModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperSqliteModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperMySQLModules.ModuleAwareConnectionFactory))]
-    [InlineData(typeof(DapperOracleModules.ModuleAwareConnectionFactory))]
     public void AllProviders_ModuleAwareConnectionFactory_ShouldHaveConsistentConstructor(Type factoryType)
     {
         var constructors = factoryType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
@@ -265,12 +234,10 @@ public class ModuleIsolationContractTests
     [InlineData("Encina.ADO.SqlServer", "Encina.ADO.SqlServer.Modules.SchemaValidatingConnection")]
     [InlineData("Encina.ADO.PostgreSQL", "Encina.ADO.PostgreSQL.Modules.SchemaValidatingConnection")]
     [InlineData("Encina.ADO.MySQL", "Encina.ADO.MySQL.Modules.SchemaValidatingConnection")]
-    [InlineData("Encina.ADO.Oracle", "Encina.ADO.Oracle.Modules.SchemaValidatingConnection")]
     [InlineData("Encina.Dapper.Sqlite", "Encina.Dapper.Sqlite.Modules.SchemaValidatingConnection")]
     [InlineData("Encina.Dapper.SqlServer", "Encina.Dapper.SqlServer.Modules.SchemaValidatingConnection")]
     [InlineData("Encina.Dapper.PostgreSQL", "Encina.Dapper.PostgreSQL.Modules.SchemaValidatingConnection")]
     [InlineData("Encina.Dapper.MySQL", "Encina.Dapper.MySQL.Modules.SchemaValidatingConnection")]
-    [InlineData("Encina.Dapper.Oracle", "Encina.Dapper.Oracle.Modules.SchemaValidatingConnection")]
     public void AllProviders_ShouldHaveInternalSchemaValidatingConnection(string assemblyName, string typeName)
     {
         var assembly = Assembly.Load(assemblyName);
@@ -288,12 +255,10 @@ public class ModuleIsolationContractTests
     [InlineData("Encina.ADO.SqlServer", "Encina.ADO.SqlServer.Modules.SchemaValidatingCommand")]
     [InlineData("Encina.ADO.PostgreSQL", "Encina.ADO.PostgreSQL.Modules.SchemaValidatingCommand")]
     [InlineData("Encina.ADO.MySQL", "Encina.ADO.MySQL.Modules.SchemaValidatingCommand")]
-    [InlineData("Encina.ADO.Oracle", "Encina.ADO.Oracle.Modules.SchemaValidatingCommand")]
     [InlineData("Encina.Dapper.Sqlite", "Encina.Dapper.Sqlite.Modules.SchemaValidatingCommand")]
     [InlineData("Encina.Dapper.SqlServer", "Encina.Dapper.SqlServer.Modules.SchemaValidatingCommand")]
     [InlineData("Encina.Dapper.PostgreSQL", "Encina.Dapper.PostgreSQL.Modules.SchemaValidatingCommand")]
     [InlineData("Encina.Dapper.MySQL", "Encina.Dapper.MySQL.Modules.SchemaValidatingCommand")]
-    [InlineData("Encina.Dapper.Oracle", "Encina.Dapper.Oracle.Modules.SchemaValidatingCommand")]
     public void AllProviders_ShouldHaveInternalSchemaValidatingCommand(string assemblyName, string typeName)
     {
         var assembly = Assembly.Load(assemblyName);
@@ -315,12 +280,10 @@ public class ModuleIsolationContractTests
     [InlineData(typeof(ADOSqlServerModules.ModuleAwareConnectionFactory), "Encina.ADO.SqlServer.Modules")]
     [InlineData(typeof(ADOPostgreSQLModules.ModuleAwareConnectionFactory), "Encina.ADO.PostgreSQL.Modules")]
     [InlineData(typeof(ADOMySQLModules.ModuleAwareConnectionFactory), "Encina.ADO.MySQL.Modules")]
-    [InlineData(typeof(ADOOracleModules.ModuleAwareConnectionFactory), "Encina.ADO.Oracle.Modules")]
     [InlineData(typeof(DapperSqliteModules.ModuleAwareConnectionFactory), "Encina.Dapper.Sqlite.Modules")]
     [InlineData(typeof(DapperSqlServerModules.ModuleAwareConnectionFactory), "Encina.Dapper.SqlServer.Modules")]
     [InlineData(typeof(DapperPostgreSQLModules.ModuleAwareConnectionFactory), "Encina.Dapper.PostgreSQL.Modules")]
     [InlineData(typeof(DapperMySQLModules.ModuleAwareConnectionFactory), "Encina.Dapper.MySQL.Modules")]
-    [InlineData(typeof(DapperOracleModules.ModuleAwareConnectionFactory), "Encina.Dapper.Oracle.Modules")]
     public void AllProviders_ShouldFollowModulesNamespaceConvention(Type factoryType, string expectedNamespace)
     {
         Assert.Equal(expectedNamespace, factoryType.Namespace);
@@ -335,17 +298,16 @@ public class ModuleIsolationContractTests
     [Trait("Feature", "ModuleIsolation")]
     public void AllADOProviders_ShouldHaveModuleIsolationSupport()
     {
-        // ADO.NET providers: Sqlite, SqlServer, PostgreSQL, MySQL, Oracle
+        // ADO.NET providers: Sqlite, SqlServer, PostgreSQL, MySQL
         var adoProviderTypes = new[]
         {
             typeof(ADOSqliteModules.ModuleAwareConnectionFactory),
             typeof(ADOSqlServerModules.ModuleAwareConnectionFactory),
             typeof(ADOPostgreSQLModules.ModuleAwareConnectionFactory),
             typeof(ADOMySQLModules.ModuleAwareConnectionFactory),
-            typeof(ADOOracleModules.ModuleAwareConnectionFactory),
         };
 
-        Assert.Equal(5, adoProviderTypes.Length);
+        Assert.Equal(4, adoProviderTypes.Length);
         Assert.All(adoProviderTypes, type => Assert.NotNull(type));
     }
 
@@ -354,17 +316,16 @@ public class ModuleIsolationContractTests
     [Trait("Feature", "ModuleIsolation")]
     public void AllDapperProviders_ShouldHaveModuleIsolationSupport()
     {
-        // Dapper providers: Sqlite, SqlServer, PostgreSQL, MySQL, Oracle
+        // Dapper providers: Sqlite, SqlServer, PostgreSQL, MySQL
         var dapperProviderTypes = new[]
         {
             typeof(DapperSqliteModules.ModuleAwareConnectionFactory),
             typeof(DapperSqlServerModules.ModuleAwareConnectionFactory),
             typeof(DapperPostgreSQLModules.ModuleAwareConnectionFactory),
             typeof(DapperMySQLModules.ModuleAwareConnectionFactory),
-            typeof(DapperOracleModules.ModuleAwareConnectionFactory),
         };
 
-        Assert.Equal(5, dapperProviderTypes.Length);
+        Assert.Equal(4, dapperProviderTypes.Length);
         Assert.All(dapperProviderTypes, type => Assert.NotNull(type));
     }
 
