@@ -18,7 +18,7 @@ public sealed class ScheduledMessageStoreDapperTests : IClassFixture<OracleFixtu
     public ScheduledMessageStoreDapperTests(OracleFixture database)
     {
         _database = database;
-        DapperTypeHandlers.RegisterSqliteHandlers();
+        DapperTypeHandlers.RegisterOracleHandlers();
 
         // Clear all data before each test to ensure clean state
         _database.ClearAllDataAsync().GetAwaiter().GetResult();

@@ -687,10 +687,10 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
     private static object ConvertIdForOracle(TId id)
     {
-        // Oracle stores GUIDs as VARCHAR2(36)
+        // Oracle stores GUIDs as RAW(16)
         if (id is Guid guidId)
         {
-            return guidId.ToString("D");
+            return guidId.ToByteArray();
         }
 
         return id;

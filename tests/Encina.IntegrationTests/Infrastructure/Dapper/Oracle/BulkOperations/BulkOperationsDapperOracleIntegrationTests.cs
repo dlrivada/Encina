@@ -52,7 +52,9 @@ public sealed class BulkOperationsDapperOracleIntegrationTests : IClassFixture<O
     {
         await DropBulkTestTableAsync();
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        // Note: Do NOT call _fixture.DisposeAsync() here.
+        // When using IClassFixture, xUnit manages the fixture lifecycle.
+        await Task.CompletedTask;
     }
 
     private async Task CreateBulkTestTableAsync()
@@ -497,18 +499,24 @@ public class BulkTestOrder
 /// <summary>
 /// Entity mapping for BulkTestOrder.
 /// </summary>
+/// <remarks>
+/// Oracle converts unquoted identifiers to uppercase. Since the table is created without
+/// quoted identifiers, column names are stored as uppercase (e.g., ID, CUSTOMERNAME).
+/// The mapping must use uppercase column names to match what Oracle stores.
+/// See: https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/Database-Object-Names-and-Qualifiers.html
+/// </remarks>
 public class BulkTestOrderMapping : IEntityMapping<BulkTestOrder, Guid>
 {
-    public string TableName => "BulkTestOrders";
-    public string IdColumnName => "Id";
+    public string TableName => "BULKTESTORDERS";
+    public string IdColumnName => "ID";
 
     public IReadOnlyDictionary<string, string> ColumnMappings { get; } = new Dictionary<string, string>
     {
-        ["Id"] = "Id",
-        ["CustomerName"] = "CustomerName",
-        ["Amount"] = "Amount",
-        ["IsActive"] = "IsActive",
-        ["CreatedAtUtc"] = "CreatedAtUtc"
+        ["Id"] = "ID",
+        ["CustomerName"] = "CUSTOMERNAME",
+        ["Amount"] = "AMOUNT",
+        ["IsActive"] = "ISACTIVE",
+        ["CreatedAtUtc"] = "CREATEDATUTC"
     };
 
     public Guid GetId(BulkTestOrder entity) => entity.Id;

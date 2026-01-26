@@ -38,7 +38,22 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
             (:Id, :RequestType, :Content, :ScheduledAtUtc, :CreatedAtUtc, :ProcessedAtUtc, :LastExecutedAtUtc,
              :ErrorMessage, :RetryCount, :NextRetryAtUtc, :IsRecurring, :CronExpression)";
 
-        await _connection.ExecuteAsync(sql, message);
+        // Use DynamicParameters to convert GUID to RAW(16) byte array for Oracle
+        var parameters = new DynamicParameters();
+        parameters.Add("Id", message.Id.ToByteArray(), DbType.Binary, size: 16);
+        parameters.Add("RequestType", message.RequestType);
+        parameters.Add("Content", message.Content);
+        parameters.Add("ScheduledAtUtc", message.ScheduledAtUtc);
+        parameters.Add("CreatedAtUtc", message.CreatedAtUtc);
+        parameters.Add("ProcessedAtUtc", message.ProcessedAtUtc);
+        parameters.Add("LastExecutedAtUtc", message.LastExecutedAtUtc);
+        parameters.Add("ErrorMessage", message.ErrorMessage);
+        parameters.Add("RetryCount", message.RetryCount);
+        parameters.Add("NextRetryAtUtc", message.NextRetryAtUtc);
+        parameters.Add("IsRecurring", message.IsRecurring ? 1 : 0);
+        parameters.Add("CronExpression", message.CronExpression);
+
+        await _connection.ExecuteAsync(sql, parameters);
     }
 
     /// <inheritdoc />
@@ -82,7 +97,7 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
                 ErrorMessage = NULL
             WHERE Id = :MessageId";
 
-        await _connection.ExecuteAsync(sql, new { MessageId = messageId });
+        await _connection.ExecuteAsync(sql, new { MessageId = messageId.ToByteArray() });
     }
 
     /// <inheritdoc />
@@ -107,7 +122,7 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
             sql,
             new
             {
-                MessageId = messageId,
+                MessageId = messageId.ToByteArray(),
                 ErrorMessage = errorMessage,
                 NextRetryAtUtc = nextRetryAtUtc
             });
@@ -136,7 +151,7 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
             sql,
             new
             {
-                MessageId = messageId,
+                MessageId = messageId.ToByteArray(),
                 NextScheduledAtUtc = nextScheduledAtUtc
             });
     }
@@ -150,7 +165,7 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
             DELETE FROM {_tableName}
             WHERE Id = :MessageId";
 
-        await _connection.ExecuteAsync(sql, new { MessageId = messageId });
+        await _connection.ExecuteAsync(sql, new { MessageId = messageId.ToByteArray() });
     }
 
     /// <inheritdoc />

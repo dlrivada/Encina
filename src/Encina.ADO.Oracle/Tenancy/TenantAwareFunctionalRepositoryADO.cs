@@ -853,10 +853,10 @@ public sealed class TenantAwareFunctionalRepositoryADO<TEntity, TId> : IFunction
 
         var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
 
-        // Handle GUID conversion from Oracle VARCHAR2(36)
-        if (underlyingType == typeof(Guid) && value is string stringValue)
+        // Handle GUID conversion from Oracle RAW(16)
+        if (underlyingType == typeof(Guid) && value is byte[] byteArray)
         {
-            return Guid.Parse(stringValue);
+            return new Guid(byteArray);
         }
 
         if (underlyingType == value.GetType())
@@ -925,10 +925,10 @@ public sealed class TenantAwareFunctionalRepositoryADO<TEntity, TId> : IFunction
             if (_propertyCache.TryGetValue(propertyName, out var property))
             {
                 var value = property.GetValue(entity);
-                // Convert GUID to string for Oracle VARCHAR2(36) storage
+                // Convert GUID to byte array for Oracle RAW(16) storage
                 if (value is Guid guidValue)
                 {
-                    value = guidValue.ToString();
+                    value = guidValue.ToByteArray();
                 }
                 // Convert boolean to int for Oracle NUMBER(1) storage
                 else if (value is bool boolValue)
@@ -942,13 +942,13 @@ public sealed class TenantAwareFunctionalRepositoryADO<TEntity, TId> : IFunction
     }
 
     /// <summary>
-    /// Converts an ID value for Oracle storage (GUIDs to strings).
+    /// Converts an ID value for Oracle storage (GUIDs to RAW(16) byte arrays).
     /// </summary>
     private static object ConvertIdForStorage(TId id)
     {
         if (id is Guid guidId)
         {
-            return guidId.ToString();
+            return guidId.ToByteArray();
         }
         return id;
     }

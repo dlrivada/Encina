@@ -87,6 +87,7 @@ public sealed class BulkOperationsOracle<TEntity, TId> : IBulkOperations<TEntity
 
             await using var cmd = oracleConnection.CreateCommand();
             cmd.CommandText = sql;
+            cmd.BindByName = true;
             cmd.ArrayBindCount = entityList.Count;
 
             // Create arrays for each column
@@ -95,7 +96,7 @@ public sealed class BulkOperationsOracle<TEntity, TId> : IBulkOperations<TEntity
             {
                 if (_propertyCache.TryGetValue(propertyName, out var property))
                 {
-                    var values = entityList.Select(e => property.GetValue(e) ?? DBNull.Value).ToArray();
+                    var values = entityList.Select(e => ConvertValueForStorage(property.GetValue(e), property.PropertyType)).ToArray();
                     var param = new OracleParameter($":p{paramIndex}", GetOracleDbType(property.PropertyType))
                     {
                         Value = values
@@ -160,12 +161,13 @@ public sealed class BulkOperationsOracle<TEntity, TId> : IBulkOperations<TEntity
 
             await using var cmd = oracleConnection.CreateCommand();
             cmd.CommandText = sql;
+            cmd.BindByName = true;
             cmd.ArrayBindCount = entityList.Count;
 
             // ID parameter
             var idProperty = _propertyCache.Values.First(p =>
                 _mapping.ColumnMappings.TryGetValue(p.Name, out var col) && col == _mapping.IdColumnName);
-            var idValues = entityList.Select(e => idProperty.GetValue(e) ?? DBNull.Value).ToArray();
+            var idValues = entityList.Select(e => ConvertValueForStorage(idProperty.GetValue(e), idProperty.PropertyType)).ToArray();
             cmd.Parameters.Add(new OracleParameter(":p0", GetOracleDbType(idProperty.PropertyType)) { Value = idValues });
 
             // Update column parameters
@@ -174,7 +176,7 @@ public sealed class BulkOperationsOracle<TEntity, TId> : IBulkOperations<TEntity
             {
                 if (_propertyCache.TryGetValue(propertyName, out var property))
                 {
-                    var values = entityList.Select(e => property.GetValue(e) ?? DBNull.Value).ToArray();
+                    var values = entityList.Select(e => ConvertValueForStorage(property.GetValue(e), property.PropertyType)).ToArray();
                     cmd.Parameters.Add(new OracleParameter($":p{paramIndex}", GetOracleDbType(property.PropertyType)) { Value = values });
                 }
                 paramIndex++;
@@ -223,13 +225,16 @@ public sealed class BulkOperationsOracle<TEntity, TId> : IBulkOperations<TEntity
                 var parameters = new StringBuilder();
 
                 await using var cmd = oracleConnection.CreateCommand();
+                cmd.BindByName = true;
 
                 for (var j = 0; j < batch.Count; j++)
                 {
                     var paramName = $":id{j}";
                     if (j > 0) parameters.Append(", ");
                     parameters.Append(paramName);
-                    cmd.Parameters.Add(new OracleParameter(paramName, batch[j]));
+                    // Convert GUID to byte array for Oracle RAW(16)
+                    object value = batch[j] is Guid guidValue ? guidValue.ToByteArray() : batch[j]!;
+                    cmd.Parameters.Add(new OracleParameter(paramName, value));
                 }
 
                 cmd.CommandText = $"DELETE FROM {_mapping.TableName} WHERE \"{_mapping.IdColumnName}\" IN ({parameters})";
@@ -303,13 +308,14 @@ public sealed class BulkOperationsOracle<TEntity, TId> : IBulkOperations<TEntity
             {
                 await using var cmd = oracleConnection.CreateCommand();
                 cmd.CommandText = sql;
+                cmd.BindByName = true;
 
                 var paramIndex = 0;
                 foreach (var (propertyName, _) in columnsForInsert)
                 {
                     if (_propertyCache.TryGetValue(propertyName, out var property))
                     {
-                        var value = property.GetValue(entity) ?? DBNull.Value;
+                        var value = ConvertValueForStorage(property.GetValue(entity), property.PropertyType);
                         cmd.Parameters.Add(new OracleParameter($":p{paramIndex}", value));
                     }
                     paramIndex++;
@@ -360,13 +366,16 @@ public sealed class BulkOperationsOracle<TEntity, TId> : IBulkOperations<TEntity
                 var parameters = new StringBuilder();
 
                 await using var cmd = oracleConnection.CreateCommand();
+                cmd.BindByName = true;
 
                 for (var j = 0; j < batch.Count; j++)
                 {
                     var paramName = $":id{j}";
                     if (j > 0) parameters.Append(", ");
                     parameters.Append(paramName);
-                    cmd.Parameters.Add(new OracleParameter(paramName, batch[j]));
+                    // Convert GUID to byte array for Oracle RAW(16)
+                    var value = batch[j] is Guid guidValue ? guidValue.ToByteArray() : batch[j];
+                    cmd.Parameters.Add(new OracleParameter(paramName, value));
                 }
 
                 cmd.CommandText = $"SELECT {columnNames} FROM {_mapping.TableName} WHERE \"{_mapping.IdColumnName}\" IN ({parameters})";
@@ -461,6 +470,28 @@ public sealed class BulkOperationsOracle<TEntity, TId> : IBulkOperations<TEntity
                     var value = reader.GetValue(ordinal);
                     var targetType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
 
+                    // Handle GUID conversion from Oracle RAW(16)
+                    if (targetType == typeof(Guid) && value is byte[] bytes)
+                    {
+                        property.SetValue(entity, new Guid(bytes));
+                        continue;
+                    }
+
+                    // Handle boolean conversion from Oracle NUMBER(1)
+                    if (targetType == typeof(bool))
+                    {
+                        if (value is decimal decimalValue)
+                        {
+                            property.SetValue(entity, decimalValue != 0);
+                            continue;
+                        }
+                        if (value is int intValue)
+                        {
+                            property.SetValue(entity, intValue != 0);
+                            continue;
+                        }
+                    }
+
                     if (value.GetType() != targetType)
                     {
                         value = Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
@@ -505,6 +536,31 @@ public sealed class BulkOperationsOracle<TEntity, TId> : IBulkOperations<TEntity
         return message.Contains("ORA-00001", StringComparison.OrdinalIgnoreCase) // unique constraint violated
             || message.Contains("unique constraint", StringComparison.OrdinalIgnoreCase)
             || message.Contains("primary key", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Converts a value for Oracle storage (GUIDs to byte arrays for RAW(16), booleans to int).
+    /// </summary>
+    private static object ConvertValueForStorage(object? value, Type propertyType)
+    {
+        if (value is null)
+            return DBNull.Value;
+
+        var underlyingType = Nullable.GetUnderlyingType(propertyType) ?? propertyType;
+
+        // Convert GUID to byte array for Oracle RAW(16) storage
+        if (underlyingType == typeof(Guid) && value is Guid guidValue)
+        {
+            return guidValue.ToByteArray();
+        }
+
+        // Convert boolean to int for Oracle NUMBER(1) storage
+        if (underlyingType == typeof(bool) && value is bool boolValue)
+        {
+            return boolValue ? 1 : 0;
+        }
+
+        return value;
     }
 
     #endregion

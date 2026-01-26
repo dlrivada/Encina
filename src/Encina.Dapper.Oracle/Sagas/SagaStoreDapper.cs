@@ -36,7 +36,7 @@ public sealed class SagaStoreDapper : ISagaStore
             FROM {_tableName}
             WHERE SagaId = :SagaId";
 
-        return await _connection.QuerySingleOrDefaultAsync<SagaState>(sql, new { SagaId = sagaId });
+        return await _connection.QuerySingleOrDefaultAsync<SagaState>(sql, new { SagaId = sagaId.ToByteArray() });
     }
 
     /// <inheritdoc />
@@ -49,7 +49,20 @@ public sealed class SagaStoreDapper : ISagaStore
             VALUES
             (:SagaId, :SagaType, :Data, :Status, :StartedAtUtc, :LastUpdatedAtUtc, :CompletedAtUtc, :ErrorMessage, :CurrentStep, :TimeoutAtUtc)";
 
-        await _connection.ExecuteAsync(sql, sagaState);
+        // Use DynamicParameters to convert GUID to RAW(16) byte array for Oracle
+        var parameters = new DynamicParameters();
+        parameters.Add("SagaId", sagaState.SagaId.ToByteArray(), DbType.Binary, size: 16);
+        parameters.Add("SagaType", sagaState.SagaType);
+        parameters.Add("Data", sagaState.Data);
+        parameters.Add("Status", sagaState.Status);
+        parameters.Add("StartedAtUtc", sagaState.StartedAtUtc);
+        parameters.Add("LastUpdatedAtUtc", sagaState.LastUpdatedAtUtc);
+        parameters.Add("CompletedAtUtc", sagaState.CompletedAtUtc);
+        parameters.Add("ErrorMessage", sagaState.ErrorMessage);
+        parameters.Add("CurrentStep", sagaState.CurrentStep);
+        parameters.Add("TimeoutAtUtc", sagaState.TimeoutAtUtc);
+
+        await _connection.ExecuteAsync(sql, parameters);
     }
 
     /// <inheritdoc />
@@ -68,7 +81,18 @@ public sealed class SagaStoreDapper : ISagaStore
                 TimeoutAtUtc = :TimeoutAtUtc
             WHERE SagaId = :SagaId";
 
-        await _connection.ExecuteAsync(sql, sagaState);
+        // Use DynamicParameters to convert GUID to RAW(16) byte array for Oracle
+        var parameters = new DynamicParameters();
+        parameters.Add("SagaId", sagaState.SagaId.ToByteArray(), DbType.Binary, size: 16);
+        parameters.Add("SagaType", sagaState.SagaType);
+        parameters.Add("Data", sagaState.Data);
+        parameters.Add("Status", sagaState.Status);
+        parameters.Add("CompletedAtUtc", sagaState.CompletedAtUtc);
+        parameters.Add("ErrorMessage", sagaState.ErrorMessage);
+        parameters.Add("CurrentStep", sagaState.CurrentStep);
+        parameters.Add("TimeoutAtUtc", sagaState.TimeoutAtUtc);
+
+        await _connection.ExecuteAsync(sql, parameters);
     }
 
     /// <inheritdoc />

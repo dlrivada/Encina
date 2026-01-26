@@ -19,7 +19,7 @@ public sealed class SagaStoreDapperTests : IClassFixture<OracleFixture>
     public SagaStoreDapperTests(OracleFixture database)
     {
         _database = database;
-        DapperTypeHandlers.RegisterSqliteHandlers();
+        DapperTypeHandlers.RegisterOracleHandlers();
 
         // Clear all data before each test to ensure clean state
         _database.ClearAllDataAsync().GetAwaiter().GetResult();
@@ -339,7 +339,11 @@ public sealed class SagaStoreDapperTests : IClassFixture<OracleFixture>
     {
         // Arrange
         var sagaId = Guid.NewGuid();
-        var startedTime = DateTime.UtcNow.AddHours(-5);
+        // Oracle TIMESTAMP has microsecond precision (6 fractional digits),
+        // while .NET DateTime has 100-nanosecond precision (7 digits).
+        // Truncate to microseconds for accurate comparison.
+        // See: https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/Data-Types.html
+        var startedTime = TruncateToMicroseconds(DateTime.UtcNow.AddHours(-5));
         var saga = new SagaState
         {
             SagaId = sagaId,
@@ -361,6 +365,19 @@ public sealed class SagaStoreDapperTests : IClassFixture<OracleFixture>
         var retrieved = await _store.GetAsync(sagaId);
         Assert.NotNull(retrieved);
         Assert.Equal(startedTime, retrieved.StartedAtUtc); // Should not change
+    }
+
+    /// <summary>
+    /// Truncates a DateTime to microsecond precision to match Oracle TIMESTAMP storage.
+    /// Oracle TIMESTAMP stores up to 6 fractional second digits (microseconds),
+    /// while .NET DateTime has 7 digits (100-nanosecond ticks).
+    /// </summary>
+    private static DateTime TruncateToMicroseconds(DateTime dateTime)
+    {
+        // Truncate to microseconds (remove the last digit of ticks)
+        var ticks = dateTime.Ticks;
+        var truncatedTicks = ticks - (ticks % 10); // Remove sub-microsecond precision
+        return new DateTime(truncatedTicks, dateTime.Kind);
     }
 
     [Fact]

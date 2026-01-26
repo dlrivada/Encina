@@ -24,7 +24,7 @@ namespace Encina.Dapper.Oracle.Repository;
 /// <item><description>Uses double-quotes for identifiers (case-sensitive)</description></item>
 /// <item><description>Uses OFFSET/FETCH for pagination (Oracle 12c+)</description></item>
 /// <item><description>Uses colon prefix for parameters (:paramName)</description></item>
-/// <item><description>GUIDs are stored as VARCHAR2(36) and converted to/from strings</description></item>
+/// <item><description>GUIDs are stored as RAW(16) and converted to/from byte arrays</description></item>
 /// <item><description>Booleans are stored as NUMBER(1) (0/1)</description></item>
 /// </list>
 /// </para>
@@ -569,10 +569,10 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
 
     private static void AddIdParameter(DynamicParameters parameters, string name, TId id)
     {
-        // Oracle stores GUIDs as VARCHAR2(36)
+        // Oracle stores GUIDs as RAW(16) - convert to byte array
         if (id is Guid guidId)
         {
-            parameters.Add(name, guidId.ToString("D"), DbType.String, size: 36);
+            parameters.Add(name, guidId.ToByteArray(), DbType.Binary, size: 16);
         }
         else
         {
@@ -582,14 +582,14 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
 
     private static void AddParameterWithTypeHandling(DynamicParameters parameters, string name, object? value, Type propertyType)
     {
-        // Handle GUID -> VARCHAR2(36) conversion for Oracle
+        // Handle GUID -> RAW(16) conversion for Oracle (byte array)
         if (propertyType == typeof(Guid))
         {
-            parameters.Add(name, value is Guid g ? g.ToString("D") : null, DbType.String, size: 36);
+            parameters.Add(name, value is Guid g ? g.ToByteArray() : null, DbType.Binary, size: 16);
         }
         else if (propertyType == typeof(Guid?))
         {
-            parameters.Add(name, value is Guid g ? g.ToString("D") : null, DbType.String, size: 36);
+            parameters.Add(name, value is Guid g ? g.ToByteArray() : null, DbType.Binary, size: 16);
         }
         // Handle boolean -> NUMBER(1) conversion for Oracle
         else if (propertyType == typeof(bool))

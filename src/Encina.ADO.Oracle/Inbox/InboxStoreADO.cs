@@ -293,7 +293,17 @@ public sealed class InboxStoreADO : IInboxStore
     {
         var parameter = command.CreateParameter();
         parameter.ParameterName = name;
-        parameter.Value = value ?? DBNull.Value;
+
+        // Convert GUID to byte array for Oracle RAW(16) storage
+        if (value is Guid guidValue)
+        {
+            parameter.Value = guidValue.ToByteArray();
+        }
+        else
+        {
+            parameter.Value = value ?? DBNull.Value;
+        }
+
         command.Parameters.Add(parameter);
     }
 
@@ -305,16 +315,22 @@ public sealed class InboxStoreADO : IInboxStore
 
     private static async Task<IDataReader> ExecuteReaderAsync(IDbCommand command, CancellationToken cancellationToken)
     {
-        if (command is OracleCommand sqlCommand)
-            return await sqlCommand.ExecuteReaderAsync(cancellationToken);
+        if (command is OracleCommand oracleCommand)
+        {
+            oracleCommand.BindByName = true;
+            return await oracleCommand.ExecuteReaderAsync(cancellationToken);
+        }
 
         return await Task.Run(command.ExecuteReader, cancellationToken);
     }
 
     private static async Task<int> ExecuteNonQueryAsync(IDbCommand command, CancellationToken cancellationToken)
     {
-        if (command is OracleCommand sqlCommand)
-            return await sqlCommand.ExecuteNonQueryAsync(cancellationToken);
+        if (command is OracleCommand oracleCommand)
+        {
+            oracleCommand.BindByName = true;
+            return await oracleCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
 
         return await Task.Run(command.ExecuteNonQuery, cancellationToken);
     }

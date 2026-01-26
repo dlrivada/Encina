@@ -25,7 +25,7 @@ namespace Encina.ADO.Oracle.Repository;
 /// <list type="bullet">
 /// <item><description>Uses OFFSET/FETCH for pagination (Oracle 12c+ syntax)</description></item>
 /// <item><description>Uses double-quotes for identifier quoting (Oracle is case-sensitive with quotes)</description></item>
-/// <item><description>GUIDs are stored as VARCHAR2(36) and converted appropriately</description></item>
+/// <item><description>GUIDs are stored as RAW(16) and converted to/from byte arrays</description></item>
 /// <item><description>Booleans are stored as NUMBER(1) and converted from decimal</description></item>
 /// <item><description>Parameters use colon prefix (:paramName)</description></item>
 /// </list>
@@ -639,10 +639,10 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
 
         var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
 
-        // Handle GUID conversion from Oracle VARCHAR2(36)
-        if (underlyingType == typeof(Guid) && value is string stringValue)
+        // Handle GUID conversion from Oracle RAW(16)
+        if (underlyingType == typeof(Guid) && value is byte[] byteArray)
         {
-            return Guid.Parse(stringValue);
+            return new Guid(byteArray);
         }
 
         if (underlyingType == value.GetType())
@@ -711,10 +711,10 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
             if (_propertyCache.TryGetValue(propertyName, out var property))
             {
                 var value = property.GetValue(entity);
-                // Convert GUID to string for Oracle VARCHAR2(36) storage
+                // Convert GUID to byte array for Oracle RAW(16) storage
                 if (value is Guid guidValue)
                 {
-                    value = guidValue.ToString();
+                    value = guidValue.ToByteArray();
                 }
                 // Convert boolean to int for Oracle NUMBER(1) storage
                 else if (value is bool boolValue)
@@ -727,13 +727,13 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
     }
 
     /// <summary>
-    /// Converts an ID value for Oracle storage (GUIDs to strings).
+    /// Converts an ID value for Oracle storage (GUIDs to byte arrays for RAW(16)).
     /// </summary>
     private static object ConvertIdForStorage(TId id)
     {
         if (id is Guid guidId)
         {
-            return guidId.ToString();
+            return guidId.ToByteArray();
         }
         return id;
     }
@@ -760,7 +760,10 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
     private static async Task<IDataReader> ExecuteReaderAsync(IDbCommand command, CancellationToken cancellationToken)
     {
         if (command is OracleCommand oracleCommand)
+        {
+            oracleCommand.BindByName = true;
             return await oracleCommand.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        }
 
         return await Task.Run(command.ExecuteReader, cancellationToken).ConfigureAwait(false);
     }
@@ -768,7 +771,10 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
     private static async Task<int> ExecuteNonQueryAsync(IDbCommand command, CancellationToken cancellationToken)
     {
         if (command is OracleCommand oracleCommand)
+        {
+            oracleCommand.BindByName = true;
             return await oracleCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
 
         return await Task.Run(command.ExecuteNonQuery, cancellationToken).ConfigureAwait(false);
     }
@@ -776,7 +782,10 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
     private static async Task<object?> ExecuteScalarAsync(IDbCommand command, CancellationToken cancellationToken)
     {
         if (command is OracleCommand oracleCommand)
+        {
+            oracleCommand.BindByName = true;
             return await oracleCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        }
 
         return await Task.Run(command.ExecuteScalar, cancellationToken).ConfigureAwait(false);
     }

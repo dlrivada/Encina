@@ -218,9 +218,14 @@ public sealed class SagaStoreADO : ISagaStore
 
     private static SagaState MapToSagaState(IDataReader reader)
     {
+        // Read GUID from Oracle RAW(16) - stored as byte array
+        var sagaIdOrdinal = reader.GetOrdinal("SagaId");
+        var sagaIdBytes = (byte[])reader.GetValue(sagaIdOrdinal);
+        var sagaId = new Guid(sagaIdBytes);
+
         return new SagaState
         {
-            SagaId = reader.GetGuid(reader.GetOrdinal("SagaId")),
+            SagaId = sagaId,
             SagaType = reader.GetString(reader.GetOrdinal("SagaType")),
             Data = reader.GetString(reader.GetOrdinal("Data")),
             Status = reader.GetString(reader.GetOrdinal("Status")),
@@ -243,7 +248,17 @@ public sealed class SagaStoreADO : ISagaStore
     {
         var parameter = command.CreateParameter();
         parameter.ParameterName = name;
-        parameter.Value = value ?? DBNull.Value;
+
+        // Convert GUID to byte array for Oracle RAW(16) storage
+        if (value is Guid guidValue)
+        {
+            parameter.Value = guidValue.ToByteArray();
+        }
+        else
+        {
+            parameter.Value = value ?? DBNull.Value;
+        }
+
         command.Parameters.Add(parameter);
     }
 
@@ -255,16 +270,22 @@ public sealed class SagaStoreADO : ISagaStore
 
     private static async Task<IDataReader> ExecuteReaderAsync(IDbCommand command, CancellationToken cancellationToken)
     {
-        if (command is OracleCommand sqlCommand)
-            return await sqlCommand.ExecuteReaderAsync(cancellationToken);
+        if (command is OracleCommand oracleCommand)
+        {
+            oracleCommand.BindByName = true;
+            return await oracleCommand.ExecuteReaderAsync(cancellationToken);
+        }
 
         return await Task.Run(command.ExecuteReader, cancellationToken);
     }
 
     private static async Task<int> ExecuteNonQueryAsync(IDbCommand command, CancellationToken cancellationToken)
     {
-        if (command is OracleCommand sqlCommand)
-            return await sqlCommand.ExecuteNonQueryAsync(cancellationToken);
+        if (command is OracleCommand oracleCommand)
+        {
+            oracleCommand.BindByName = true;
+            return await oracleCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
 
         return await Task.Run(command.ExecuteNonQuery, cancellationToken);
     }

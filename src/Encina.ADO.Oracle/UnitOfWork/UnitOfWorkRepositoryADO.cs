@@ -31,7 +31,7 @@ namespace Encina.ADO.Oracle.UnitOfWork;
 /// <list type="bullet">
 /// <item><description>Uses FETCH FIRST for limiting rows (Oracle 12c+ syntax)</description></item>
 /// <item><description>Uses double-quotes for identifier quoting (Oracle is case-sensitive with quotes)</description></item>
-/// <item><description>GUIDs are stored as VARCHAR2(36) and converted appropriately</description></item>
+/// <item><description>GUIDs are stored as RAW(16) and converted to byte arrays</description></item>
 /// <item><description>Booleans are stored as NUMBER(1) and converted from decimal</description></item>
 /// <item><description>Parameters use colon prefix (:paramName)</description></item>
 /// </list>
@@ -618,10 +618,10 @@ internal sealed class UnitOfWorkRepositoryADO<TEntity, TId> : IFunctionalReposit
 
         var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
 
-        // Handle GUID conversion from Oracle VARCHAR2(36)
-        if (underlyingType == typeof(Guid) && value is string stringValue)
+        // Handle GUID conversion from Oracle RAW(16)
+        if (underlyingType == typeof(Guid) && value is byte[] byteArray)
         {
-            return Guid.Parse(stringValue);
+            return new Guid(byteArray);
         }
 
         if (underlyingType == value.GetType())
@@ -698,10 +698,10 @@ internal sealed class UnitOfWorkRepositoryADO<TEntity, TId> : IFunctionalReposit
             if (_propertyCache.TryGetValue(propertyName, out var property))
             {
                 var value = property.GetValue(entity);
-                // Convert GUID to string for Oracle VARCHAR2(36) storage
+                // Convert GUID to byte array for Oracle RAW(16) storage
                 if (value is Guid guidValue)
                 {
-                    value = guidValue.ToString();
+                    value = guidValue.ToByteArray();
                 }
                 // Convert boolean to int for Oracle NUMBER(1) storage
                 else if (value is bool boolValue)
@@ -714,13 +714,13 @@ internal sealed class UnitOfWorkRepositoryADO<TEntity, TId> : IFunctionalReposit
     }
 
     /// <summary>
-    /// Converts an ID value for Oracle storage (GUIDs to strings).
+    /// Converts an ID value for Oracle storage (GUIDs to RAW(16) byte arrays).
     /// </summary>
     private static object ConvertIdForStorage(TId id)
     {
         if (id is Guid guidId)
         {
-            return guidId.ToString();
+            return guidId.ToByteArray();
         }
         return id;
     }

@@ -1,4 +1,5 @@
 using System.Data;
+using Dapper;
 using Encina.Dapper.Oracle.Health;
 using Encina.Dapper.Oracle.Inbox;
 using Encina.Dapper.Oracle.Outbox;
@@ -16,6 +17,31 @@ namespace Encina.Dapper.Oracle;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    private static bool _typeHandlersRegistered;
+    private static readonly object _lock = new();
+
+    /// <summary>
+    /// Ensures Oracle-specific Dapper type handlers are registered.
+    /// This is called automatically by AddEncinaDapper methods.
+    /// </summary>
+    private static void EnsureTypeHandlersRegistered()
+    {
+        if (_typeHandlersRegistered)
+            return;
+
+        lock (_lock)
+        {
+            if (_typeHandlersRegistered)
+                return;
+
+            // Register Oracle GUID type handlers for RAW(16) storage
+            SqlMapper.AddTypeHandler(new OracleGuidTypeHandler());
+            SqlMapper.AddTypeHandler(new OracleNullableGuidTypeHandler());
+
+            _typeHandlersRegistered = true;
+        }
+    }
+
     /// <summary>
     /// Adds Encina messaging patterns with Dapper persistence.
     /// All patterns are opt-in via configuration.
@@ -29,6 +55,9 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
+
+        // Register Oracle-specific type handlers for Dapper
+        EnsureTypeHandlersRegistered();
 
         var config = new MessagingConfiguration();
         configure(config);

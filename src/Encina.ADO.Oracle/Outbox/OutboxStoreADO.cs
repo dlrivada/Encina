@@ -58,9 +58,13 @@ public sealed class OutboxStoreADO : IOutboxStore
         using var reader = await ExecuteReaderAsync(command, cancellationToken);
         while (await ReadAsync(reader, cancellationToken))
         {
+            // Read GUID from Oracle RAW(16) - stored as byte array
+            var idOrdinal = reader.GetOrdinal("Id");
+            var idBytes = (byte[])reader.GetValue(idOrdinal);
+
             messages.Add(new OutboxMessage
             {
-                Id = reader.GetGuid(reader.GetOrdinal("Id")),
+                Id = new Guid(idBytes),
                 NotificationType = reader.GetString(reader.GetOrdinal("NotificationType")),
                 Content = reader.GetString(reader.GetOrdinal("Content")),
                 CreatedAtUtc = reader.GetDateTime(reader.GetOrdinal("CreatedAtUtc")),
@@ -149,9 +153,10 @@ public sealed class OutboxStoreADO : IOutboxStore
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
-        AddParameter(command, ":Id", messageId);
+        // Parameters must be added in the order they appear in SQL for Oracle
         AddParameter(command, ":ErrorMessage", errorMessage);
         AddParameter(command, ":NextRetryAtUtc", nextRetryAtUtc);
+        AddParameter(command, ":Id", messageId);
 
         if (_connection.State != ConnectionState.Open)
             await OpenConnectionAsync(cancellationToken);
@@ -170,7 +175,17 @@ public sealed class OutboxStoreADO : IOutboxStore
     {
         var parameter = command.CreateParameter();
         parameter.ParameterName = name;
-        parameter.Value = value ?? DBNull.Value;
+
+        // Convert GUID to byte array for Oracle RAW(16) storage
+        if (value is Guid guidValue)
+        {
+            parameter.Value = guidValue.ToByteArray();
+        }
+        else
+        {
+            parameter.Value = value ?? DBNull.Value;
+        }
+
         command.Parameters.Add(parameter);
     }
 
@@ -183,16 +198,22 @@ public sealed class OutboxStoreADO : IOutboxStore
 
     private static async Task<IDataReader> ExecuteReaderAsync(IDbCommand command, CancellationToken cancellationToken)
     {
-        if (command is OracleCommand sqlCommand)
-            return await sqlCommand.ExecuteReaderAsync(cancellationToken);
+        if (command is OracleCommand oracleCommand)
+        {
+            oracleCommand.BindByName = true;
+            return await oracleCommand.ExecuteReaderAsync(cancellationToken);
+        }
 
         return await Task.Run(command.ExecuteReader, cancellationToken);
     }
 
     private static async Task<int> ExecuteNonQueryAsync(IDbCommand command, CancellationToken cancellationToken)
     {
-        if (command is OracleCommand sqlCommand)
-            return await sqlCommand.ExecuteNonQueryAsync(cancellationToken);
+        if (command is OracleCommand oracleCommand)
+        {
+            oracleCommand.BindByName = true;
+            return await oracleCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
 
         return await Task.Run(command.ExecuteNonQuery, cancellationToken);
     }

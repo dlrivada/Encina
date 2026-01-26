@@ -22,7 +22,7 @@ public sealed class OutboxStoreDapperTests : IClassFixture<OracleFixture>
     public OutboxStoreDapperTests(OracleFixture fixture)
     {
         _fixture = fixture;
-        DapperTypeHandlers.RegisterSqliteHandlers();
+        DapperTypeHandlers.RegisterOracleHandlers();
 
         // Clear all data before each test to ensure clean state
         _fixture.ClearAllDataAsync().GetAwaiter().GetResult();

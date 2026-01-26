@@ -2,6 +2,7 @@ using System.Data;
 using System.Linq.Expressions;
 using Encina.Dapper.Oracle.Repository;
 using Encina.DomainModeling;
+using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
 using Oracle.ManagedDataAccess.Client;
 using Shouldly;
@@ -22,6 +23,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        // Register Oracle-specific Dapper type handlers for RAW(16) GUID handling
+        DapperTypeHandlers.RegisterOracleHandlers();
+
         await _fixture.InitializeAsync();
 
         // Create the test schema

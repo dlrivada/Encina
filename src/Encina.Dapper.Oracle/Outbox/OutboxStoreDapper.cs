@@ -36,7 +36,18 @@ public sealed class OutboxStoreDapper : IOutboxStore
             VALUES
             (:Id, :NotificationType, :Content, :CreatedAtUtc, :ProcessedAtUtc, :ErrorMessage, :RetryCount, :NextRetryAtUtc)";
 
-        await _connection.ExecuteAsync(sql, message);
+        // Use DynamicParameters to convert GUID to RAW(16) byte array for Oracle
+        var parameters = new DynamicParameters();
+        parameters.Add("Id", message.Id.ToByteArray(), DbType.Binary, size: 16);
+        parameters.Add("NotificationType", message.NotificationType);
+        parameters.Add("Content", message.Content);
+        parameters.Add("CreatedAtUtc", message.CreatedAtUtc);
+        parameters.Add("ProcessedAtUtc", message.ProcessedAtUtc);
+        parameters.Add("ErrorMessage", message.ErrorMessage);
+        parameters.Add("RetryCount", message.RetryCount);
+        parameters.Add("NextRetryAtUtc", message.NextRetryAtUtc);
+
+        await _connection.ExecuteAsync(sql, parameters);
     }
 
     /// <inheritdoc />
@@ -76,7 +87,7 @@ public sealed class OutboxStoreDapper : IOutboxStore
                 ErrorMessage = NULL
             WHERE Id = :MessageId";
 
-        await _connection.ExecuteAsync(sql, new { MessageId = messageId });
+        await _connection.ExecuteAsync(sql, new { MessageId = messageId.ToByteArray() });
     }
 
     /// <inheritdoc />
@@ -100,7 +111,7 @@ public sealed class OutboxStoreDapper : IOutboxStore
             sql,
             new
             {
-                MessageId = messageId,
+                MessageId = messageId.ToByteArray(),
                 ErrorMessage = errorMessage,
                 NextRetryAtUtc = nextRetryAtUtc
             });

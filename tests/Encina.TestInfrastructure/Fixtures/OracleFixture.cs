@@ -15,6 +15,7 @@ public sealed class OracleFixture : DatabaseFixture<IContainer>
 {
     private IContainer? _container;
     private string _connectionString = string.Empty;
+    private bool _disposed;
 
     /// <inheritdoc />
     public override string ConnectionString => _connectionString;
@@ -109,6 +110,13 @@ public sealed class OracleFixture : DatabaseFixture<IContainer>
     /// <inheritdoc />
     public override async Task DisposeAsync()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
         // Drop schema
         try
         {
@@ -123,8 +131,23 @@ public sealed class OracleFixture : DatabaseFixture<IContainer>
         // Stop and dispose container
         if (_container is not null)
         {
-            await _container.StopAsync();
-            await _container.DisposeAsync();
+            try
+            {
+                await _container.StopAsync();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Container already disposed (possibly by WithCleanUp)
+            }
+
+            try
+            {
+                await _container.DisposeAsync();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Container already disposed
+            }
         }
     }
 }
