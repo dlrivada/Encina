@@ -1,6 +1,7 @@
 using Encina.DomainModeling;
 using LanguageExt;
 using static LanguageExt.Prelude;
+using EitherExt = Encina.DomainModeling.EitherExtensions;
 
 namespace Encina.GuardTests.DomainModeling;
 
@@ -178,8 +179,8 @@ public class EitherExtensionsGuardTests
         var task = Task.FromResult(Right<TestError, int>(5));
         Func<int, Task<Either<TestError, int>>>? nullBinder = null;
 
-        // Act
-        var act = async () => await task.BindAsync(nullBinder!);
+        // Act - Call our extension explicitly to avoid LanguageExt's version
+        var act = async () => await EitherExt.BindAsync(task, nullBinder!);
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
@@ -193,8 +194,8 @@ public class EitherExtensionsGuardTests
         Task<Either<TestError, int>> task = null!;
         Func<int, Task<Either<TestError, int>>> binder = x => Task.FromResult(Right<TestError, int>(x * 2));
 
-        // Act
-        var act = async () => await task.BindAsync(binder);
+        // Act - Call our extension explicitly to avoid LanguageExt's version
+        var act = async () => await EitherExt.BindAsync(task, binder);
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
@@ -208,8 +209,8 @@ public class EitherExtensionsGuardTests
         var task = Task.FromResult(Right<TestError, int>(5));
         Func<int, Task<string>>? nullMapper = null;
 
-        // Act
-        var act = async () => await task.MapAsync(nullMapper!);
+        // Act - Call our extension explicitly to avoid LanguageExt's version
+        var act = async () => await EitherExt.MapAsync(task, nullMapper!);
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
@@ -223,8 +224,8 @@ public class EitherExtensionsGuardTests
         var task = Task.FromResult(Right<TestError, int>(5));
         Func<int, Task>? nullAction = null;
 
-        // Act
-        var act = async () => await task.TapAsync(nullAction!);
+        // Act - Call our extension explicitly to avoid LanguageExt's version
+        var act = async () => await EitherExt.TapAsync(task, nullAction!);
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
@@ -238,8 +239,8 @@ public class EitherExtensionsGuardTests
         var either = Right<TestError, int>(5);
         Func<int, Task<Either<TestError, int>>>? nullBinder = null;
 
-        // Act
-        var act = async () => await either.BindAsync(nullBinder!);
+        // Act - Call our extension explicitly to avoid LanguageExt's version
+        var act = async () => await EitherExt.BindAsync(either, nullBinder!);
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());
@@ -253,8 +254,8 @@ public class EitherExtensionsGuardTests
         var either = Right<TestError, int>(5);
         Func<int, Task<string>>? nullMapper = null;
 
-        // Act
-        var act = async () => await either.MapAsync(nullMapper!);
+        // Act - Call our extension explicitly to avoid LanguageExt's version
+        var act = async () => await EitherExt.MapAsync(either, nullMapper!);
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(async () => await act());

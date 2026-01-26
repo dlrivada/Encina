@@ -40,7 +40,7 @@ public class ProjectScaffolderGuardTests
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentException>(act);
-        ex.ParamName.ShouldBe(nameof(options.Name));
+        ex.ParamName.ShouldBe("options.Name");
     }
 
     [Theory]
@@ -62,7 +62,7 @@ public class ProjectScaffolderGuardTests
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentException>(act);
-        ex.ParamName.ShouldBe(nameof(options.Template));
+        ex.ParamName.ShouldBe("options.Template");
     }
 
     [Theory]
@@ -84,7 +84,7 @@ public class ProjectScaffolderGuardTests
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentException>(act);
-        ex.ParamName.ShouldBe(nameof(options.OutputDirectory));
+        ex.ParamName.ShouldBe("options.OutputDirectory");
     }
 
     [Fact]

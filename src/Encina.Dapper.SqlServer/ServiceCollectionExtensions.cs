@@ -204,7 +204,7 @@ public static class ServiceCollectionExtensions
         string connectionString,
         Action<MessagingConfiguration> configure)
     {
-        ArgumentNullException.ThrowIfNull(connectionString);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
         return services.AddEncinaDapper(
             _ => new Microsoft.Data.SqlClient.SqlConnection(connectionString),

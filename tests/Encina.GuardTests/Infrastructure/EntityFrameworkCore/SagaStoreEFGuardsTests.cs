@@ -41,7 +41,7 @@ public class SagaStoreEFGuardsTests
         // Act & Assert
         Func<Task> act = () => store.AddAsync(saga);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("saga");
+        ex.ParamName.ShouldBe("sagaState");
     }
 
     /// <summary>
@@ -61,7 +61,7 @@ public class SagaStoreEFGuardsTests
         // Act & Assert
         Func<Task> act = () => store.UpdateAsync(saga);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("saga");
+        ex.ParamName.ShouldBe("sagaState");
     }
 
     /// <summary>

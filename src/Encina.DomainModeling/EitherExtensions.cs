@@ -316,7 +316,7 @@ public static class EitherExtensions
         ArgumentNullException.ThrowIfNull(binder);
 
         return await result.Match(
-            Right: binder,
+            Right: value => binder(value),
             Left: error => Task.FromResult(Left<TError, TResult>(error))) // NOSONAR S6966: LanguageExt Left is a pure function
             .ConfigureAwait(false);
     }

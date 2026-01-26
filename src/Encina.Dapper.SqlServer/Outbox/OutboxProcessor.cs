@@ -32,6 +32,10 @@ public sealed class OutboxProcessor : BackgroundService
         ILogger<OutboxProcessor> logger,
         OutboxOptions options)
     {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(options);
+
         _serviceProvider = serviceProvider;
         _logger = logger;
         _options = options;
