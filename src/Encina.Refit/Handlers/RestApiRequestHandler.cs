@@ -64,15 +64,16 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
         catch (ApiException apiEx)
         {
             // Refit-specific exception with HTTP status code and content
+            var statusCodeInt = (int)apiEx.StatusCode;
             LogApiException(
                 requestType,
                 apiClientType,
-                (int)apiEx.StatusCode,
+                statusCodeInt,
                 apiEx.Message,
                 string.Empty);
 
             return EncinaError.New(
-                $"API call failed with status {apiEx.StatusCode}: {apiEx.Content ?? apiEx.Message}",
+                $"API call failed with status {statusCodeInt} ({apiEx.StatusCode}): {apiEx.Content ?? apiEx.Message}",
                 apiEx);
         }
         catch (HttpRequestException httpEx)
