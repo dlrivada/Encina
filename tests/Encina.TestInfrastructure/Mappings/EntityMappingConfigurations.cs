@@ -1,6 +1,6 @@
+using Encina.TestInfrastructure.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Encina.TestInfrastructure.Entities;
 
 namespace Encina.TestInfrastructure.Mappings;
 
