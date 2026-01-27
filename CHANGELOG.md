@@ -2,6 +2,38 @@
 
 ### Added
 
+#### Database Load Testing Infrastructure with NBomber (#538)
+
+Implemented comprehensive load testing for database features using NBomber, enabling performance validation for concurrent database operations.
+
+**Load Test Scenarios**:
+
+| Feature | Scenarios | Description |
+|---------|-----------|-------------|
+| Unit of Work | 3 | Transaction management, rollback, connection pool pressure |
+| Multi-Tenancy | 2 | Tenant isolation, context switching (100 tenants) |
+| Read/Write Separation | 3 | Replica distribution, round-robin, least-connections |
+
+**Provider Support**:
+- All 13 database providers supported (ADO.NET x4, Dapper x4, EF Core x4, MongoDB)
+- Provider-specific thresholds for realistic performance expectations
+- Feature-specific scenarios with appropriate load simulations
+
+**CI/CD Integration**:
+- New `run-database-load-tests` job in GitHub Actions
+- Matrix strategy for testing multiple providers
+- Service containers for SQL Server, PostgreSQL, MySQL, MongoDB
+- Runs on schedule (Saturday 2 AM UTC) or manual dispatch
+
+**Configuration Files**:
+- `tests/Encina.LoadTests/profiles/nbomber.database-*.json` - Profile configurations
+- `ci/nbomber-database-thresholds.json` - Performance thresholds
+- `docs/testing/load-test-baselines.md` - Expected performance documentation
+
+**Related Issue**: [#538 - Implement LoadTests for concurrent database features](https://github.com/dlrivada/Encina/issues/538)
+
+---
+
 #### Comprehensive Integration Tests with Docker/Testcontainers (#537)
 
 Replaced 23 justification `.md` files with comprehensive integration tests using Docker/Testcontainers for all database providers.
