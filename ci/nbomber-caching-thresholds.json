@@ -1,0 +1,103 @@
+{
+  "description": "Performance thresholds for caching load tests",
+  "global": {
+    "minThroughputOpsPerSecond": 1000,
+    "maxMeanLatencyMs": 20,
+    "maxP95LatencyMs": 100,
+    "maxP99LatencyMs": 300,
+    "maxErrorRate": 0.01,
+    "maxMemoryMB": 1024
+  },
+  "featureThresholds": {
+    "MemoryCache": {
+      "minThroughputOpsPerSecond": 5000,
+      "maxMeanLatencyMs": 5,
+      "maxP95LatencyMs": 20,
+      "maxP99LatencyMs": 50,
+      "maxErrorRate": 0.001,
+      "description": "In-memory cache should be extremely fast (10,000+ target)"
+    },
+    "Redis": {
+      "minThroughputOpsPerSecond": 2000,
+      "maxMeanLatencyMs": 15,
+      "maxP95LatencyMs": 50,
+      "maxP99LatencyMs": 150,
+      "maxErrorRate": 0.005,
+      "description": "Redis has network overhead but still very fast (5,000+ target)"
+    },
+    "HybridCache": {
+      "minThroughputOpsPerSecond": 3000,
+      "maxMeanLatencyMs": 10,
+      "maxP95LatencyMs": 40,
+      "maxP99LatencyMs": 120,
+      "maxErrorRate": 0.005,
+      "description": "Hybrid cache leverages L1 memory with L2 Redis fallback"
+    }
+  },
+  "providerThresholds": {
+    "memory": {
+      "minThroughputOpsPerSecond": 10000,
+      "maxMeanLatencyMs": 2,
+      "maxP95LatencyMs": 10,
+      "description": "Pure in-memory operations, no serialization"
+    },
+    "redis": {
+      "minThroughputOpsPerSecond": 5000,
+      "maxMeanLatencyMs": 10,
+      "maxP95LatencyMs": 40,
+      "description": "Redis container performance with serialization"
+    },
+    "hybrid": {
+      "minThroughputOpsPerSecond": 8000,
+      "maxMeanLatencyMs": 5,
+      "maxP95LatencyMs": 25,
+      "description": "L1 hits avoid Redis, L2 fallback adds latency"
+    }
+  },
+  "scenarioThresholds": {
+    "memory-get-set-throughput": {
+      "minThroughputOpsPerSecond": 5000,
+      "minSuccessRate": 0.999,
+      "description": "High-rate read/write with varying value sizes"
+    },
+    "memory-concurrent-access": {
+      "minSuccessRate": 0.999,
+      "description": "Thread-safe concurrent operations on same keys"
+    },
+    "memory-eviction-pressure": {
+      "minSuccessRate": 0.99,
+      "description": "Eviction is expected under memory pressure"
+    },
+    "redis-get-set-throughput-redis": {
+      "minThroughputOpsPerSecond": 2000,
+      "minSuccessRate": 0.99,
+      "description": "Redis read/write with connection multiplexer pooling"
+    },
+    "redis-concurrent-access-redis": {
+      "minSuccessRate": 0.99,
+      "description": "GetOrSet atomic operations with stampede protection"
+    },
+    "redis-expiration-accuracy-redis": {
+      "maxDriftMs": 100,
+      "minSuccessRate": 0.99,
+      "description": "TTL precision should be <100ms drift"
+    },
+    "redis-pipeline-batching-redis": {
+      "minSuccessRate": 0.99,
+      "description": "Pipeline batching vs individual operations comparison"
+    },
+    "hybrid-l1-throughput": {
+      "minThroughputOpsPerSecond": 8000,
+      "minSuccessRate": 0.999,
+      "description": "L1 memory cache hits should be very fast"
+    },
+    "hybrid-l2-fallback": {
+      "minSuccessRate": 0.99,
+      "description": "L2 Redis fallback on L1 miss"
+    },
+    "hybrid-invalidation": {
+      "minSuccessRate": 0.99,
+      "description": "Cross-tier invalidation must be consistent"
+    }
+  }
+}

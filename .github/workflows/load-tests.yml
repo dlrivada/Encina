@@ -8,6 +8,26 @@ on:
         required: false
         default: 'false'
         type: boolean
+      run_messaging_tests:
+        description: 'Run messaging load tests'
+        required: false
+        default: 'false'
+        type: boolean
+      run_caching_tests:
+        description: 'Run caching load tests'
+        required: false
+        default: 'false'
+        type: boolean
+      run_locking_tests:
+        description: 'Run distributed locking load tests'
+        required: false
+        default: 'false'
+        type: boolean
+      run_broker_tests:
+        description: 'Run message broker load tests'
+        required: false
+        default: 'false'
+        type: boolean
       database_provider:
         description: 'Database provider to test (or "all")'
         required: false
@@ -18,6 +38,37 @@ on:
           - efcore-sqlserver
           - efcore-postgresql
           - efcore-mysql
+          - all
+      caching_provider:
+        description: 'Caching provider to test (or "all")'
+        required: false
+        default: 'memory'
+        type: choice
+        options:
+          - memory
+          - redis
+          - hybrid
+          - all
+      locking_provider:
+        description: 'Locking provider to test (or "all")'
+        required: false
+        default: 'inmemory'
+        type: choice
+        options:
+          - inmemory
+          - redis
+          - sqlserver
+          - all
+      broker_provider:
+        description: 'Broker provider to test (or "all")'
+        required: false
+        default: 'rabbitmq'
+        type: choice
+        options:
+          - rabbitmq
+          - kafka
+          - nats
+          - mqtt
           - all
   schedule:
     # Run weekly on Saturdays at 2:00 AM UTC
@@ -243,6 +294,396 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: database-load-metrics-${{ matrix.provider }}
+          path: |
+            artifacts/nbomber
+            artifacts/load-metrics
+          if-no-files-found: ignore
+
+  run-messaging-load-tests:
+    runs-on: ubuntu-latest
+    needs: run-load-tests
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_messaging_tests == 'true')
+    defaults:
+      run:
+        shell: bash
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+      DOTNET_SDK_VERSION: '10.0.x'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget
+
+      - name: Restore
+        run: dotnet restore Encina.slnx
+
+      - name: Build
+        run: dotnet build Encina.slnx --configuration Release --no-restore
+
+      - name: Run messaging load tests - InMemoryBus
+        run: |
+          dotnet run --project tests/Encina.NBomber/Encina.NBomber.csproj --configuration Release -- \
+            --scenario messaging \
+            --messaging-feature InMemoryBus \
+            --duration 00:01:00
+        continue-on-error: true
+
+      - name: Run messaging load tests - Dispatcher
+        run: |
+          dotnet run --project tests/Encina.NBomber/Encina.NBomber.csproj --configuration Release -- \
+            --scenario messaging \
+            --messaging-feature Dispatcher \
+            --duration 00:01:00
+        continue-on-error: true
+
+      - name: Validate messaging thresholds
+        run: |
+          dotnet run --file scripts/check-load-metrics.cs -- --config ci/nbomber-messaging-thresholds.json
+        continue-on-error: true
+
+      - name: Summarize messaging load test results
+        run: |
+          echo "### Messaging Load Test Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -d artifacts/nbomber ]; then
+            for report in artifacts/nbomber/*.json; do
+              if [ -f "$report" ]; then
+                echo "#### $(basename "$report" .json)" >> "$GITHUB_STEP_SUMMARY"
+                echo "\`\`\`json" >> "$GITHUB_STEP_SUMMARY"
+                head -100 "$report" >> "$GITHUB_STEP_SUMMARY"
+                echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            done
+          else
+            echo "No NBomber reports found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload messaging load test artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: messaging-load-metrics
+          path: |
+            artifacts/nbomber
+            artifacts/load-metrics
+          if-no-files-found: ignore
+
+  run-caching-load-tests:
+    runs-on: ubuntu-latest
+    needs: run-load-tests
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_caching_tests == 'true')
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: ${{ github.event.inputs.caching_provider == 'all' && fromJSON('["memory", "redis", "hybrid"]') || fromJSON(format('["{0}"]', github.event.inputs.caching_provider || 'memory')) }}
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        shell: bash
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+      DOTNET_SDK_VERSION: '10.0.x'
+      REDIS_CONNECTION_STRING: "localhost:6379"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget
+
+      - name: Restore
+        run: dotnet restore Encina.slnx
+
+      - name: Build
+        run: dotnet build Encina.slnx --configuration Release --no-restore
+
+      - name: Run caching load tests (${{ matrix.provider }})
+        run: |
+          dotnet run --project tests/Encina.NBomber/Encina.NBomber.csproj --configuration Release -- \
+            --scenario caching \
+            --caching-provider ${{ matrix.provider }} \
+            --duration 00:01:00
+        continue-on-error: true
+
+      - name: Validate caching thresholds
+        run: |
+          dotnet run --file scripts/check-load-metrics.cs -- --config ci/nbomber-caching-thresholds.json
+        continue-on-error: true
+
+      - name: Summarize caching load test results
+        run: |
+          echo "### Caching Load Test Results - ${{ matrix.provider }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -d artifacts/nbomber ]; then
+            for report in artifacts/nbomber/*.json; do
+              if [ -f "$report" ]; then
+                echo "#### $(basename "$report" .json)" >> "$GITHUB_STEP_SUMMARY"
+                echo "\`\`\`json" >> "$GITHUB_STEP_SUMMARY"
+                head -100 "$report" >> "$GITHUB_STEP_SUMMARY"
+                echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            done
+          else
+            echo "No NBomber reports found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload caching load test artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: caching-load-metrics-${{ matrix.provider }}
+          path: |
+            artifacts/nbomber
+            artifacts/load-metrics
+          if-no-files-found: ignore
+
+  run-locking-load-tests:
+    runs-on: ubuntu-latest
+    needs: run-load-tests
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_locking_tests == 'true')
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: ${{ github.event.inputs.locking_provider == 'all' && fromJSON('["inmemory", "redis", "sqlserver"]') || fromJSON(format('["{0}"]', github.event.inputs.locking_provider || 'inmemory')) }}
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: YourStrong@Passw0rd
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Passw0rd' -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s
+          --health-timeout 3s
+          --health-retries 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+      DOTNET_SDK_VERSION: '10.0.x'
+      REDIS_CONNECTION_STRING: "localhost:6379"
+      SQLSERVER_CONNECTION_STRING: "Server=localhost,1433;Database=encina_test;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget
+
+      - name: Restore
+        run: dotnet restore Encina.slnx
+
+      - name: Build
+        run: dotnet build Encina.slnx --configuration Release --no-restore
+
+      - name: Run locking load tests (${{ matrix.provider }})
+        run: |
+          dotnet run --project tests/Encina.NBomber/Encina.NBomber.csproj --configuration Release -- \
+            --scenario locking \
+            --locking-provider ${{ matrix.provider }} \
+            --duration 00:01:00
+        continue-on-error: true
+
+      - name: Validate locking thresholds
+        run: |
+          dotnet run --file scripts/check-load-metrics.cs -- --config ci/nbomber-locking-thresholds.json
+        continue-on-error: true
+
+      - name: Summarize locking load test results
+        run: |
+          echo "### Locking Load Test Results - ${{ matrix.provider }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -d artifacts/nbomber ]; then
+            for report in artifacts/nbomber/*.json; do
+              if [ -f "$report" ]; then
+                echo "#### $(basename "$report" .json)" >> "$GITHUB_STEP_SUMMARY"
+                echo "\`\`\`json" >> "$GITHUB_STEP_SUMMARY"
+                head -100 "$report" >> "$GITHUB_STEP_SUMMARY"
+                echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            done
+          else
+            echo "No NBomber reports found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload locking load test artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: locking-load-metrics-${{ matrix.provider }}
+          path: |
+            artifacts/nbomber
+            artifacts/load-metrics
+          if-no-files-found: ignore
+
+  run-broker-load-tests:
+    runs-on: ubuntu-latest
+    needs: run-load-tests
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_broker_tests == 'true')
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: ${{ github.event.inputs.broker_provider == 'all' && fromJSON('["rabbitmq", "kafka", "nats", "mqtt"]') || fromJSON(format('["{0}"]', github.event.inputs.broker_provider || 'rabbitmq')) }}
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      nats:
+        image: nats:2-alpine
+        ports:
+          - 4222:4222
+        options: >-
+          --health-cmd "nats-server --help || exit 0"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      mosquitto:
+        image: eclipse-mosquitto:2
+        ports:
+          - 1883:1883
+        options: >-
+          --health-cmd "mosquitto_pub -t test -m test -h localhost || exit 0"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        shell: bash
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+      DOTNET_SDK_VERSION: '10.0.x'
+      RABBITMQ_CONNECTION_STRING: "amqp://guest:guest@localhost:5672"
+      NATS_CONNECTION_STRING: "nats://localhost:4222"
+      MQTT_HOST: "localhost"
+      MQTT_PORT: "1883"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget
+
+      - name: Start Kafka (Testcontainers)
+        if: matrix.provider == 'kafka' || matrix.provider == 'all'
+        run: |
+          # Kafka requires Testcontainers due to complexity
+          echo "Kafka tests will use Testcontainers"
+
+      - name: Restore
+        run: dotnet restore Encina.slnx
+
+      - name: Build
+        run: dotnet build Encina.slnx --configuration Release --no-restore
+
+      - name: Run broker load tests (${{ matrix.provider }})
+        run: |
+          dotnet run --project tests/Encina.NBomber/Encina.NBomber.csproj --configuration Release -- \
+            --scenario brokers \
+            --broker-provider ${{ matrix.provider }} \
+            --duration 00:01:00
+        continue-on-error: true
+
+      - name: Validate broker thresholds
+        run: |
+          dotnet run --file scripts/check-load-metrics.cs -- --config ci/nbomber-brokers-thresholds.json
+        continue-on-error: true
+
+      - name: Summarize broker load test results
+        run: |
+          echo "### Broker Load Test Results - ${{ matrix.provider }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -d artifacts/nbomber ]; then
+            for report in artifacts/nbomber/*.json; do
+              if [ -f "$report" ]; then
+                echo "#### $(basename "$report" .json)" >> "$GITHUB_STEP_SUMMARY"
+                echo "\`\`\`json" >> "$GITHUB_STEP_SUMMARY"
+                head -100 "$report" >> "$GITHUB_STEP_SUMMARY"
+                echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            done
+          else
+            echo "No NBomber reports found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload broker load test artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: broker-load-metrics-${{ matrix.provider }}
           path: |
             artifacts/nbomber
             artifacts/load-metrics

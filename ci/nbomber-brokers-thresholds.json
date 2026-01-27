@@ -1,0 +1,140 @@
+{
+  "description": "Performance thresholds for message broker load tests",
+  "global": {
+    "minThroughputOpsPerSecond": 100,
+    "maxMeanLatencyMs": 100,
+    "maxP95LatencyMs": 500,
+    "maxP99LatencyMs": 1000,
+    "maxErrorRate": 0.02,
+    "maxMemoryMB": 1024
+  },
+  "featureThresholds": {
+    "RabbitMQ": {
+      "minThroughputOpsPerSecond": 500,
+      "maxMeanLatencyMs": 50,
+      "maxP95LatencyMs": 200,
+      "maxP99LatencyMs": 500,
+      "maxErrorRate": 0.01,
+      "description": "RabbitMQ is optimized for reliable message delivery"
+    },
+    "Kafka": {
+      "minThroughputOpsPerSecond": 1000,
+      "maxMeanLatencyMs": 30,
+      "maxP95LatencyMs": 150,
+      "maxP99LatencyMs": 400,
+      "maxErrorRate": 0.01,
+      "description": "Kafka excels at high-throughput streaming"
+    },
+    "NATS": {
+      "minThroughputOpsPerSecond": 2000,
+      "maxMeanLatencyMs": 20,
+      "maxP95LatencyMs": 100,
+      "maxP99LatencyMs": 300,
+      "maxErrorRate": 0.005,
+      "description": "NATS is designed for low-latency messaging"
+    },
+    "MQTT": {
+      "minThroughputOpsPerSecond": 500,
+      "maxMeanLatencyMs": 40,
+      "maxP95LatencyMs": 150,
+      "maxP99LatencyMs": 400,
+      "maxErrorRate": 0.01,
+      "description": "MQTT is optimized for IoT and constrained environments"
+    }
+  },
+  "providerThresholds": {
+    "rabbitmq": {
+      "minThroughputOpsPerSecond": 500,
+      "maxMeanLatencyMs": 50,
+      "maxP95LatencyMs": 200,
+      "description": "RabbitMQ container performance"
+    },
+    "kafka": {
+      "minThroughputOpsPerSecond": 1000,
+      "maxMeanLatencyMs": 30,
+      "maxP95LatencyMs": 150,
+      "description": "Kafka container performance"
+    },
+    "nats": {
+      "minThroughputOpsPerSecond": 2000,
+      "maxMeanLatencyMs": 15,
+      "maxP95LatencyMs": 80,
+      "description": "NATS container performance"
+    },
+    "mqtt": {
+      "minThroughputOpsPerSecond": 500,
+      "maxMeanLatencyMs": 40,
+      "maxP95LatencyMs": 150,
+      "description": "Mosquitto MQTT container performance"
+    }
+  },
+  "scenarioThresholds": {
+    "rabbitmq-publish-throughput": {
+      "minThroughputOpsPerSecond": 500,
+      "minSuccessRate": 0.99,
+      "description": "Single message publish rate"
+    },
+    "rabbitmq-consume-throughput": {
+      "minSuccessRate": 0.98,
+      "description": "Consumer acknowledgment rate"
+    },
+    "rabbitmq-batch-publish": {
+      "minThroughputOpsPerSecond": 300,
+      "minSuccessRate": 0.99,
+      "description": "Batch publish with confirms"
+    },
+    "rabbitmq-publisher-confirms": {
+      "minSuccessRate": 0.99,
+      "description": "Publisher confirms guarantee delivery"
+    },
+    "kafka-produce-throughput": {
+      "minThroughputOpsPerSecond": 1000,
+      "minSuccessRate": 0.99,
+      "description": "Single message production rate"
+    },
+    "kafka-batch-produce-throughput": {
+      "minThroughputOpsPerSecond": 500,
+      "minSuccessRate": 0.99,
+      "description": "Batch production vs individual comparison"
+    },
+    "kafka-consume-throughput": {
+      "minSuccessRate": 0.95,
+      "description": "Consumer group processing rate"
+    },
+    "kafka-partition-distribution": {
+      "minSuccessRate": 0.99,
+      "maxDeviationPercent": 20,
+      "description": "Messages should distribute evenly across partitions"
+    },
+    "nats-publish-throughput": {
+      "minThroughputOpsPerSecond": 2000,
+      "minSuccessRate": 0.99,
+      "description": "Core NATS fire-and-forget publishing"
+    },
+    "nats-request-reply": {
+      "minThroughputOpsPerSecond": 500,
+      "minSuccessRate": 0.98,
+      "description": "Request-reply pattern latency"
+    },
+    "nats-jetstream-publish": {
+      "minThroughputOpsPerSecond": 1000,
+      "minSuccessRate": 0.99,
+      "description": "JetStream persistent publishing"
+    },
+    "mqtt-publish-qos0": {
+      "minThroughputOpsPerSecond": 1000,
+      "minSuccessRate": 0.95,
+      "description": "QoS 0 fire-and-forget (some loss expected)"
+    },
+    "mqtt-publish-qos1": {
+      "minThroughputOpsPerSecond": 500,
+      "minSuccessRate": 0.99,
+      "description": "QoS 1 at-least-once delivery with acknowledgments"
+    },
+    "mqtt-subscribe-throughput": {
+      "minSuccessRate": 0.95,
+      "maxMessageLossPercent": 5,
+      "description": "Subscriber reception rate (some loss acceptable for QoS 0)"
+    }
+  }
+}

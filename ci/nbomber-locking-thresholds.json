@@ -1,0 +1,102 @@
+{
+  "description": "Performance thresholds for distributed locking load tests",
+  "global": {
+    "minThroughputOpsPerSecond": 100,
+    "maxMeanLatencyMs": 100,
+    "maxP95LatencyMs": 500,
+    "maxP99LatencyMs": 1000,
+    "maxErrorRate": 0.05,
+    "maxMemoryMB": 512
+  },
+  "featureThresholds": {
+    "InMemoryLock": {
+      "minThroughputOpsPerSecond": 1000,
+      "maxMeanLatencyMs": 20,
+      "maxP95LatencyMs": 100,
+      "maxP99LatencyMs": 250,
+      "maxErrorRate": 0.01,
+      "description": "In-memory locks provide baseline performance without network"
+    },
+    "RedisLock": {
+      "minThroughputOpsPerSecond": 200,
+      "maxMeanLatencyMs": 50,
+      "maxP95LatencyMs": 200,
+      "maxP99LatencyMs": 500,
+      "maxErrorRate": 0.02,
+      "description": "Redis distributed locks include network and Lua script overhead"
+    },
+    "SqlServerLock": {
+      "minThroughputOpsPerSecond": 100,
+      "maxMeanLatencyMs": 80,
+      "maxP95LatencyMs": 300,
+      "maxP99LatencyMs": 750,
+      "maxErrorRate": 0.03,
+      "description": "SQL Server app locks have higher latency but strong consistency"
+    }
+  },
+  "providerThresholds": {
+    "inmemory": {
+      "minThroughputOpsPerSecond": 2000,
+      "maxMeanLatencyMs": 10,
+      "maxP95LatencyMs": 50,
+      "description": "In-memory is the fastest but single-process only"
+    },
+    "redis": {
+      "minThroughputOpsPerSecond": 500,
+      "maxMeanLatencyMs": 30,
+      "maxP95LatencyMs": 150,
+      "description": "Redis Redlock implementation"
+    },
+    "sqlserver": {
+      "minThroughputOpsPerSecond": 200,
+      "maxMeanLatencyMs": 60,
+      "maxP95LatencyMs": 250,
+      "description": "SQL Server sp_getapplock implementation"
+    }
+  },
+  "scenarioThresholds": {
+    "inmemory-lock-contention": {
+      "minSuccessRate": 0.90,
+      "maxMutualExclusionViolations": 0,
+      "description": "Contention timeouts expected, but zero mutual exclusion violations"
+    },
+    "inmemory-lock-throughput": {
+      "minThroughputOpsPerSecond": 1000,
+      "minSuccessRate": 0.99,
+      "description": "Maximum throughput without contention"
+    },
+    "redis-lock-contention-redis": {
+      "minSuccessRate": 0.80,
+      "maxMutualExclusionViolations": 0,
+      "description": "High contention causes timeouts, mutual exclusion must hold"
+    },
+    "redis-lock-release-timing-redis": {
+      "maxMeanReleaseTimeMs": 10,
+      "minSuccessRate": 0.95,
+      "description": "Lock release should be <10ms average"
+    },
+    "redis-lock-renewal-redis": {
+      "minSuccessRate": 0.90,
+      "description": "Lock renewal under contention may fail"
+    },
+    "redis-lock-timeout-accuracy-redis": {
+      "maxDriftMs": 100,
+      "minSuccessRate": 0.95,
+      "description": "TTL accuracy should be <100ms drift"
+    },
+    "sqlserver-lock-contention-sqlserver": {
+      "minSuccessRate": 0.75,
+      "maxMutualExclusionViolations": 0,
+      "description": "SQL Server locks have higher latency, more timeouts expected"
+    },
+    "sqlserver-lock-deadlock-recovery-sqlserver": {
+      "minSuccessRate": 0.90,
+      "description": "Deadlock detection and recovery should succeed"
+    },
+    "sqlserver-lock-throughput-sqlserver": {
+      "minThroughputOpsPerSecond": 100,
+      "minSuccessRate": 0.95,
+      "description": "SQL Server lock throughput without contention"
+    }
+  }
+}

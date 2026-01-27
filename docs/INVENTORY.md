@@ -3584,6 +3584,102 @@ Estas issues complementan y en algunos casos consolidan issues existentes:
 
 ---
 
+### 13. NBomber Load Testing Infrastructure
+
+#### Overview
+
+The `Encina.NBomber` project provides comprehensive load testing infrastructure for all Encina features using the NBomber framework. Load tests are organized into five categories:
+
+| Category | Scenarios | Providers | Description |
+|----------|-----------|-----------|-------------|
+| **Database** | UoW, Tenancy, ReadWrite | 13 DB providers | Transaction management, tenant isolation, replica distribution |
+| **Messaging** | InMemoryBus, Dispatcher | inmemory | In-memory pub/sub, dispatcher patterns |
+| **Caching** | Memory, Redis, Hybrid | memory, redis, hybrid | Cache throughput, eviction, L1/L2 strategies |
+| **Locking** | Contention, Renewal, Timeout | inmemory, redis, sqlserver | Distributed lock coordination |
+| **Brokers** | Publish, Consume, Partition | rabbitmq, kafka, nats, mqtt | Message broker pub/sub patterns |
+
+#### Scenario Factory Classes
+
+| Category | Factory Class | Scenarios |
+|----------|---------------|-----------|
+| **Database** | `DatabaseScenarioFactory` | UoW transactions, Tenancy isolation, Read/Write separation |
+| **Messaging** | `InMemoryBusScenarioFactory` | Concurrent publish, Handler registration, Handler execution |
+| **Messaging** | `DispatcherScenarioFactory` | Parallel throughput, Sequential throughput, Pipeline overhead |
+| **Caching** | `MemoryCacheScenarioFactory` | Get/Set throughput, Concurrent access, Eviction pressure |
+| **Caching** | `RedisCacheScenarioFactory` | Get/Set, Concurrent, Expiration accuracy, Pipeline batching |
+| **Caching** | `HybridCacheScenarioFactory` | L1 throughput, L2 fallback, Invalidation |
+| **Locking** | `InMemoryLockScenarioFactory` | Contention, Throughput |
+| **Locking** | `RedisLockScenarioFactory` | Contention, Release timing, Renewal, Timeout accuracy |
+| **Locking** | `SqlServerLockScenarioFactory` | Contention, Deadlock recovery, Throughput |
+| **Brokers** | `RabbitMQScenarioFactory` | Publish throughput, Consume throughput, Batch publish, Publisher confirms |
+| **Brokers** | `KafkaScenarioFactory` | Produce throughput, Batch produce, Consume throughput, Partition distribution |
+| **Brokers** | `NATSScenarioFactory` | Publish throughput, Request-reply, JetStream publish |
+| **Brokers** | `MQTTScenarioFactory` | QoS 0 publish, QoS 1 publish, Subscribe throughput |
+
+#### Provider Factory Classes
+
+| Category | Provider Factory | Purpose |
+|----------|------------------|---------|
+| **Messaging** | `MessagingProviderFactory` | Creates InMemoryMessageBus and Dispatcher instances |
+| **Caching** | `MemoryCacheProviderFactory` | Creates IMemoryCache providers |
+| **Caching** | `RedisCacheProviderFactory` | Creates Redis cache providers (Testcontainers) |
+| **Caching** | `HybridCacheProviderFactory` | Creates hybrid L1/L2 cache providers |
+| **Locking** | `InMemoryLockProviderFactory` | Creates in-memory lock providers |
+| **Locking** | `RedisLockProviderFactory` | Creates Redis Redlock providers (Testcontainers) |
+| **Locking** | `SqlServerLockProviderFactory` | Creates SQL Server sp_getapplock providers |
+| **Brokers** | `RabbitMQProviderFactory` | Creates RabbitMQ connections (Testcontainers) |
+| **Brokers** | `KafkaProviderFactory` | Creates Kafka producer/consumer (Testcontainers) |
+| **Brokers** | `NATSProviderFactory` | Creates NATS connections (Testcontainers) |
+| **Brokers** | `MQTTProviderFactory` | Creates MQTT clients (Testcontainers) |
+
+#### Threshold Configuration Files
+
+| File | Category | Description |
+|------|----------|-------------|
+| `ci/nbomber-database-thresholds.json` | Database | 13 provider thresholds, 3 feature thresholds |
+| `ci/nbomber-messaging-thresholds.json` | Messaging | InMemoryBus and Dispatcher thresholds |
+| `ci/nbomber-caching-thresholds.json` | Caching | Memory, Redis, Hybrid provider thresholds |
+| `ci/nbomber-locking-thresholds.json` | Locking | InMemory, Redis, SqlServer provider thresholds |
+| `ci/nbomber-brokers-thresholds.json` | Brokers | RabbitMQ, Kafka, NATS, MQTT provider thresholds |
+
+#### CLI Usage
+
+```bash
+# Database load tests
+dotnet run --project tests/Encina.NBomber -- --scenario db-uow --provider efcore-sqlite
+
+# Messaging load tests
+dotnet run --project tests/Encina.NBomber -- --scenario messaging --messaging-feature InMemoryBus
+
+# Caching load tests
+dotnet run --project tests/Encina.NBomber -- --scenario caching --caching-provider redis
+
+# Locking load tests
+dotnet run --project tests/Encina.NBomber -- --scenario locking --locking-provider redis
+
+# Broker load tests
+dotnet run --project tests/Encina.NBomber -- --scenario brokers --broker-provider rabbitmq
+```
+
+#### CI/CD Integration
+
+Load tests run via `.github/workflows/load-tests.yml`:
+
+| Job | Schedule | Matrix |
+|-----|----------|--------|
+| `run-database-load-tests` | Weekly (Sat 2:00 AM UTC) | efcore-sqlite, efcore-sqlserver, efcore-postgresql, efcore-mysql |
+| `run-messaging-load-tests` | Weekly | InMemoryBus, Dispatcher |
+| `run-caching-load-tests` | Weekly | memory, redis, hybrid |
+| `run-locking-load-tests` | Weekly | inmemory, redis, sqlserver |
+| `run-broker-load-tests` | Weekly | rabbitmq, kafka, nats, mqtt |
+
+#### Documentation
+
+- `docs/testing/load-test-baselines.md` - Performance baselines for all categories
+- `tests/Encina.NBomber/README.md` - NBomber project documentation
+
+---
+
 ## Patrones Implementados
 
 ### Patrones Arquitectónicos

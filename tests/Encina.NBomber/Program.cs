@@ -2,6 +2,10 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Encina;
+using Encina.NBomber.Scenarios.Brokers;
+using Encina.NBomber.Scenarios.Caching;
+using Encina.NBomber.Scenarios.Locking;
+using Encina.NBomber.Scenarios.Messaging;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using NBomber.Contracts;
@@ -32,9 +36,48 @@ using var provider = services.BuildServiceProvider(new ServiceProviderOptions
 await WarmUpEncinaAsync(provider, options).ConfigureAwait(false);
 
 var reportDirectory = PrepareReportDirectory(options);
-var scenarios = ScenarioFactory.CreateScenarios(options, provider);
+
+// Create scenarios based on scenario type
+ScenarioProps[] scenarios;
+MessagingScenarioRunner? messagingRunner = null;
+CachingScenarioRunner? cachingRunner = null;
+LockingScenarioRunner? lockingRunner = null;
+BrokerScenarioRunner? brokerRunner = null;
+
+if (options.IsMessagingScenario)
+{
+    Console.WriteLine($"Messaging Feature: {options.MessagingFeature}");
+    messagingRunner = new MessagingScenarioRunner(options.MessagingFeature);
+    scenarios = await messagingRunner.CreateScenariosAsync().ConfigureAwait(false);
+}
+else if (options.IsCachingScenario)
+{
+    Console.WriteLine($"Caching Feature: {options.CachingFeature}");
+    Console.WriteLine($"Caching Provider: {options.CachingProvider ?? "default"}");
+    cachingRunner = new CachingScenarioRunner(options.CachingFeature, options.CachingProvider);
+    scenarios = await cachingRunner.CreateScenariosAsync().ConfigureAwait(false);
+}
+else if (options.IsLockingScenario)
+{
+    Console.WriteLine($"Locking Feature: {options.LockingFeature}");
+    Console.WriteLine($"Locking Provider: {options.LockingProvider ?? "default"}");
+    lockingRunner = new LockingScenarioRunner(options.LockingFeature, options.LockingProvider);
+    scenarios = await lockingRunner.CreateScenariosAsync().ConfigureAwait(false);
+}
+else if (options.IsBrokerScenario)
+{
+    Console.WriteLine($"Broker Feature: {options.BrokerFeature}");
+    Console.WriteLine($"Broker Provider: {options.BrokerProvider ?? "default"}");
+    brokerRunner = new BrokerScenarioRunner(options.BrokerFeature, options.BrokerProvider);
+    scenarios = await brokerRunner.CreateScenariosAsync().ConfigureAwait(false);
+}
+else
+{
+    scenarios = ScenarioFactory.CreateScenarios(options, provider);
+}
 
 Console.WriteLine($"Report directory: {reportDirectory}");
+Console.WriteLine($"Scenarios to run: {scenarios.Length}");
 Console.WriteLine();
 
 NBomberRunner
@@ -45,6 +88,27 @@ NBomberRunner
     .WithReportFileName("nbomber-report")
     .WithReportingInterval(options.ReportingInterval)
     .Run();
+
+// Cleanup messaging/caching/locking/broker resources
+if (messagingRunner is not null)
+{
+    await messagingRunner.DisposeAsync().ConfigureAwait(false);
+}
+
+if (cachingRunner is not null)
+{
+    await cachingRunner.DisposeAsync().ConfigureAwait(false);
+}
+
+if (lockingRunner is not null)
+{
+    await lockingRunner.DisposeAsync().ConfigureAwait(false);
+}
+
+if (brokerRunner is not null)
+{
+    await brokerRunner.DisposeAsync().ConfigureAwait(false);
+}
 
 Console.WriteLine();
 Console.WriteLine("NBomber run completed.");
@@ -174,6 +238,30 @@ internal static class NbomberScenarios
     internal const string DatabaseTenancy = "db-tenancy";
     internal const string DatabaseReadWrite = "db-readwrite";
     internal const string DatabaseAll = "db-all";
+
+    // Messaging scenarios
+    internal const string MessagingInMemoryBus = "msg-inmemory";
+    internal const string MessagingDispatcher = "msg-dispatcher";
+    internal const string MessagingAll = "msg-all";
+
+    // Caching scenarios
+    internal const string CachingMemory = "cache-memory";
+    internal const string CachingRedis = "cache-redis";
+    internal const string CachingHybrid = "cache-hybrid";
+    internal const string CachingAll = "cache-all";
+
+    // Locking scenarios
+    internal const string LockingInMemory = "lock-inmemory";
+    internal const string LockingRedis = "lock-redis";
+    internal const string LockingSqlServer = "lock-sqlserver";
+    internal const string LockingAll = "lock-all";
+
+    // Broker scenarios
+    internal const string BrokerRabbitMQ = "broker-rabbitmq";
+    internal const string BrokerKafka = "broker-kafka";
+    internal const string BrokerNATS = "broker-nats";
+    internal const string BrokerMQTT = "broker-mqtt";
+    internal const string BrokerAll = "broker-all";
 }
 
 /// <summary>
@@ -193,6 +281,7 @@ internal enum DatabaseFeature
     /// <summary>All database features.</summary>
     All
 }
+
 
 internal sealed class NbomberOptions
 {
@@ -228,6 +317,41 @@ internal sealed class NbomberOptions
     public DatabaseFeature Feature { get; set; } = DatabaseFeature.All;
 
     /// <summary>
+    /// Messaging feature to test (inmemorybus, dispatcher, all).
+    /// </summary>
+    public MessagingFeature MessagingFeature { get; set; } = MessagingFeature.All;
+
+    /// <summary>
+    /// Caching feature to test (memory, redis, hybrid, all).
+    /// </summary>
+    public CachingFeature CachingFeature { get; set; } = CachingFeature.All;
+
+    /// <summary>
+    /// Caching provider name (memory, redis, redis-valkey, redis-garnet, hybrid).
+    /// </summary>
+    public string? CachingProvider { get; set; }
+
+    /// <summary>
+    /// Locking feature to test (inmemory, redis, sqlserver, all).
+    /// </summary>
+    public LockingFeature LockingFeature { get; set; } = LockingFeature.All;
+
+    /// <summary>
+    /// Locking provider name (inmemory, redis, sqlserver, valkey, garnet, dragonfly, keydb).
+    /// </summary>
+    public string? LockingProvider { get; set; }
+
+    /// <summary>
+    /// Broker feature to test (rabbitmq, kafka, nats, mqtt, all).
+    /// </summary>
+    public BrokerFeature BrokerFeature { get; set; } = BrokerFeature.All;
+
+    /// <summary>
+    /// Broker provider name (rabbitmq, kafka, nats, mqtt).
+    /// </summary>
+    public string? BrokerProvider { get; set; }
+
+    /// <summary>
     /// Gets the parsed list of provider names.
     /// </summary>
     public IReadOnlyList<string> ProviderList => Encina.NBomber.Scenarios.Database.DatabaseProviderRegistry.ParseProviderList(Providers);
@@ -236,6 +360,26 @@ internal sealed class NbomberOptions
     /// Gets a value indicating whether this is a database scenario.
     /// </summary>
     public bool IsDatabaseScenario => Scenario?.StartsWith("db-", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>
+    /// Gets a value indicating whether this is a messaging scenario.
+    /// </summary>
+    public bool IsMessagingScenario => Scenario?.StartsWith("msg-", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>
+    /// Gets a value indicating whether this is a caching scenario.
+    /// </summary>
+    public bool IsCachingScenario => Scenario?.StartsWith("cache-", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>
+    /// Gets a value indicating whether this is a locking scenario.
+    /// </summary>
+    public bool IsLockingScenario => Scenario?.StartsWith("lock-", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>
+    /// Gets a value indicating whether this is a broker scenario.
+    /// </summary>
+    public bool IsBrokerScenario => Scenario?.StartsWith("broker-", StringComparison.OrdinalIgnoreCase) == true;
 
     public bool RequiresPublishWarmUp => Scenario == NbomberScenarios.MixedTraffic && PublishRate > 0;
 
@@ -319,6 +463,27 @@ internal sealed class NbomberOptions
                 case "--feature" when TryReadValue(args, ref index, out var feature):
                     overrides[current] = feature;
                     break;
+                case "--messaging-feature" when TryReadValue(args, ref index, out var msgFeature):
+                    overrides[current] = msgFeature;
+                    break;
+                case "--caching-feature" when TryReadValue(args, ref index, out var cacheFeature):
+                    overrides[current] = cacheFeature;
+                    break;
+                case "--caching-provider" when TryReadValue(args, ref index, out var cacheProvider):
+                    overrides[current] = cacheProvider;
+                    break;
+                case "--locking-feature" when TryReadValue(args, ref index, out var lockFeature):
+                    overrides[current] = lockFeature;
+                    break;
+                case "--locking-provider" when TryReadValue(args, ref index, out var lockProvider):
+                    overrides[current] = lockProvider;
+                    break;
+                case "--broker-feature" when TryReadValue(args, ref index, out var brokerFeature):
+                    overrides[current] = brokerFeature;
+                    break;
+                case "--broker-provider" when TryReadValue(args, ref index, out var brokerProvider):
+                    overrides[current] = brokerProvider;
+                    break;
             }
         }
 
@@ -374,10 +539,45 @@ internal sealed class NbomberOptions
                 case "--feature":
                     options.Feature = ParseFeature(value);
                     break;
+                case "--messaging-feature":
+                    options.MessagingFeature = ParseMessagingFeature(value);
+                    break;
+                case "--caching-feature":
+                    options.CachingFeature = ParseCachingFeature(value);
+                    break;
+                case "--caching-provider":
+                    options.CachingProvider = value;
+                    ValidateCachingProvider(value);
+                    break;
+                case "--locking-feature":
+                    options.LockingFeature = ParseLockingFeature(value);
+                    break;
+                case "--locking-provider":
+                    options.LockingProvider = value;
+                    ValidateLockingProvider(value);
+                    break;
+                case "--broker-feature":
+                    options.BrokerFeature = ParseBrokerFeature(value);
+                    break;
+                case "--broker-provider":
+                    options.BrokerProvider = value;
+                    ValidateBrokerProvider(value);
+                    break;
             }
         }
 
         return options;
+    }
+
+    private static void ValidateCachingProvider(string providerName)
+    {
+        if (!CacheProviderRegistry.IsKnownProvider(providerName))
+        {
+            var validList = string.Join(", ", CacheProviderRegistry.GetAllProviderNames());
+            Console.Error.WriteLine($"Invalid caching provider: {providerName}");
+            Console.Error.WriteLine($"Valid providers: {validList}");
+            Environment.Exit(1);
+        }
     }
 
     private static void ValidateProviders(string providerList)
@@ -403,6 +603,76 @@ internal sealed class NbomberOptions
             "all" => DatabaseFeature.All,
             _ => throw new ArgumentException($"Invalid feature '{value}'. Valid values: uow, tenancy, readwrite, all")
         };
+    }
+
+    private static MessagingFeature ParseMessagingFeature(string value)
+    {
+        return value.ToLowerInvariant() switch
+        {
+            "inmemory" or "inmemorybus" or "bus" => MessagingFeature.InMemoryBus,
+            "dispatcher" or "dispatch" => MessagingFeature.Dispatcher,
+            "all" => MessagingFeature.All,
+            _ => throw new ArgumentException($"Invalid messaging feature '{value}'. Valid values: inmemory, dispatcher, all")
+        };
+    }
+
+    private static CachingFeature ParseCachingFeature(string value)
+    {
+        return value.ToLowerInvariant() switch
+        {
+            "memory" or "mem" => CachingFeature.Memory,
+            "redis" => CachingFeature.Redis,
+            "hybrid" => CachingFeature.Hybrid,
+            "all" => CachingFeature.All,
+            _ => throw new ArgumentException($"Invalid caching feature '{value}'. Valid values: memory, redis, hybrid, all")
+        };
+    }
+
+    private static LockingFeature ParseLockingFeature(string value)
+    {
+        return value.ToLowerInvariant() switch
+        {
+            "inmemory" or "memory" => LockingFeature.InMemory,
+            "redis" => LockingFeature.Redis,
+            "sqlserver" or "sql" => LockingFeature.SqlServer,
+            "all" => LockingFeature.All,
+            _ => throw new ArgumentException($"Invalid locking feature '{value}'. Valid values: inmemory, redis, sqlserver, all")
+        };
+    }
+
+    private static void ValidateLockingProvider(string providerName)
+    {
+        if (!LockProviderRegistry.SupportedProviders.Contains(providerName.ToLowerInvariant()))
+        {
+            var validList = string.Join(", ", LockProviderRegistry.SupportedProviders);
+            Console.Error.WriteLine($"Invalid locking provider: {providerName}");
+            Console.Error.WriteLine($"Valid providers: {validList}");
+            Environment.Exit(1);
+        }
+    }
+
+    private static BrokerFeature ParseBrokerFeature(string value)
+    {
+        return value.ToLowerInvariant() switch
+        {
+            "rabbitmq" or "rabbit" or "rmq" => BrokerFeature.RabbitMQ,
+            "kafka" => BrokerFeature.Kafka,
+            "nats" => BrokerFeature.NATS,
+            "mqtt" => BrokerFeature.MQTT,
+            "all" => BrokerFeature.All,
+            _ => throw new ArgumentException($"Invalid broker feature '{value}'. Valid values: rabbitmq, kafka, nats, mqtt, all")
+        };
+    }
+
+    private static void ValidateBrokerProvider(string providerName)
+    {
+        if (!BrokerProviderRegistry.IsKnownProvider(providerName))
+        {
+            var validList = string.Join(", ", BrokerProviderRegistry.SupportedProviders);
+            Console.Error.WriteLine($"Invalid broker provider: {providerName}");
+            Console.Error.WriteLine($"Valid providers: {validList}");
+            Environment.Exit(1);
+        }
     }
 
     private void LoadProfile(string profilePath)
@@ -484,6 +754,44 @@ internal sealed class NbomberOptions
         {
             Feature = ParseFeature(profile.Feature);
         }
+
+        if (!string.IsNullOrEmpty(profile.MessagingFeature))
+        {
+            MessagingFeature = ParseMessagingFeature(profile.MessagingFeature);
+        }
+
+        if (!string.IsNullOrEmpty(profile.CachingFeature))
+        {
+            CachingFeature = ParseCachingFeature(profile.CachingFeature);
+        }
+
+        if (!string.IsNullOrEmpty(profile.CachingProvider))
+        {
+            CachingProvider = profile.CachingProvider;
+            ValidateCachingProvider(profile.CachingProvider);
+        }
+
+        if (!string.IsNullOrEmpty(profile.LockingFeature))
+        {
+            LockingFeature = ParseLockingFeature(profile.LockingFeature);
+        }
+
+        if (!string.IsNullOrEmpty(profile.LockingProvider))
+        {
+            LockingProvider = profile.LockingProvider;
+            ValidateLockingProvider(profile.LockingProvider);
+        }
+
+        if (!string.IsNullOrEmpty(profile.BrokerFeature))
+        {
+            BrokerFeature = ParseBrokerFeature(profile.BrokerFeature);
+        }
+
+        if (!string.IsNullOrEmpty(profile.BrokerProvider))
+        {
+            BrokerProvider = profile.BrokerProvider;
+            ValidateBrokerProvider(profile.BrokerProvider);
+        }
     }
 
     private static bool TryReadValue(string[] args, ref int index, out string value)
@@ -524,6 +832,41 @@ internal sealed class NbomberProfile
     /// Database feature to test (uow, tenancy, readwrite, all).
     /// </summary>
     public string? Feature { get; set; }
+
+    /// <summary>
+    /// Messaging feature to test (inmemory, dispatcher, all).
+    /// </summary>
+    public string? MessagingFeature { get; set; }
+
+    /// <summary>
+    /// Caching feature to test (memory, redis, hybrid, all).
+    /// </summary>
+    public string? CachingFeature { get; set; }
+
+    /// <summary>
+    /// Caching provider name (memory, redis, redis-valkey, redis-garnet, hybrid).
+    /// </summary>
+    public string? CachingProvider { get; set; }
+
+    /// <summary>
+    /// Locking feature to test (inmemory, redis, sqlserver, all).
+    /// </summary>
+    public string? LockingFeature { get; set; }
+
+    /// <summary>
+    /// Locking provider name (inmemory, redis, sqlserver, valkey, garnet, dragonfly, keydb).
+    /// </summary>
+    public string? LockingProvider { get; set; }
+
+    /// <summary>
+    /// Broker feature to test (rabbitmq, kafka, nats, mqtt, all).
+    /// </summary>
+    public string? BrokerFeature { get; set; }
+
+    /// <summary>
+    /// Broker provider name (rabbitmq, kafka, nats, mqtt).
+    /// </summary>
+    public string? BrokerProvider { get; set; }
 }
 
 internal sealed record PingCommand(long Id) : IRequest<int>;

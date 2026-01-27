@@ -1,0 +1,68 @@
+{
+  "description": "Performance thresholds for messaging load tests",
+  "global": {
+    "minThroughputOpsPerSecond": 500,
+    "maxMeanLatencyMs": 20,
+    "maxP95LatencyMs": 100,
+    "maxP99LatencyMs": 250,
+    "maxErrorRate": 0.01,
+    "maxMemoryMB": 512
+  },
+  "featureThresholds": {
+    "InMemoryBus": {
+      "minThroughputOpsPerSecond": 1000,
+      "maxMeanLatencyMs": 10,
+      "maxP95LatencyMs": 50,
+      "maxP99LatencyMs": 150,
+      "maxErrorRate": 0.005,
+      "description": "In-memory pub/sub should be extremely fast with minimal latency"
+    },
+    "Dispatcher": {
+      "minThroughputOpsPerSecond": 500,
+      "maxMeanLatencyMs": 25,
+      "maxP95LatencyMs": 100,
+      "maxP99LatencyMs": 300,
+      "maxErrorRate": 0.01,
+      "description": "Dispatcher has overhead from DI resolution and pipeline behaviors"
+    }
+  },
+  "providerThresholds": {
+    "inmemory": {
+      "minThroughputOpsPerSecond": 1500,
+      "maxMeanLatencyMs": 5,
+      "maxP95LatencyMs": 30,
+      "description": "In-memory is the baseline with zero network overhead"
+    }
+  },
+  "scenarioThresholds": {
+    "inmemory-concurrent-publish": {
+      "minThroughputOpsPerSecond": 1000,
+      "minSuccessRate": 0.99,
+      "description": "High-rate message publishing throughput"
+    },
+    "inmemory-handler-registration": {
+      "minSuccessRate": 0.99,
+      "description": "Concurrent subscribe/unsubscribe must be thread-safe"
+    },
+    "inmemory-handler-execution": {
+      "minSuccessRate": 0.99,
+      "description": "Multiple handlers per message type execution"
+    },
+    "dispatcher-parallel-throughput": {
+      "minThroughputOpsPerSecond": 500,
+      "minSuccessRate": 0.99,
+      "description": "Parallel notification dispatch with multiple handlers"
+    },
+    "dispatcher-sequential-throughput": {
+      "minThroughputOpsPerSecond": 400,
+      "minSuccessRate": 0.99,
+      "description": "Sequential dispatch is slower but more predictable"
+    },
+    "dispatcher-pipeline-overhead": {
+      "minThroughputOpsPerSecond": 600,
+      "maxMeanLatencyMs": 15,
+      "minSuccessRate": 0.99,
+      "description": "Pipeline behaviors add minimal overhead per step"
+    }
+  }
+}
