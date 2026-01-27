@@ -2,6 +2,32 @@
 
 ### Added
 
+#### Comprehensive Integration Tests with Docker/Testcontainers (#537)
+
+Replaced 23 justification `.md` files with comprehensive integration tests using Docker/Testcontainers for all database providers.
+
+**Test Coverage by Provider**:
+
+| Provider | Repository | Tenancy | Module Isolation | Read/Write Separation |
+|----------|------------|---------|------------------|----------------------|
+| ADO.NET (4 providers) | ✅ | ✅ | ✅ | ✅ |
+| Dapper (4 providers) | ✅ | ✅ | ✅ | ✅ |
+| EF Core (4 providers) | ✅ | ✅ | ✅ | ✅ |
+| MongoDB | ✅ | ✅ | N/A | N/A |
+
+**Total Tests Added**: ~479 integration tests across all providers
+
+**Key Features Tested**:
+
+- **Repository**: CRUD operations with real database transactions
+- **Multi-Tenancy**: Tenant isolation, auto-assignment, cross-tenant access prevention
+- **Module Isolation**: Schema/prefix isolation, development mode enforcement
+- **Read/Write Separation**: Connection routing, replica selection, routing scopes
+
+**Related Issue**: [#537 - Integration Tests Implementation](https://github.com/dlrivada/Encina/issues/537)
+
+---
+
 #### Multi-Tenancy Support for Remaining Providers (#282)
 
 Extended Multi-Tenancy support to all 8 remaining database providers, enabling SaaS applications with tenant isolation capabilities.
