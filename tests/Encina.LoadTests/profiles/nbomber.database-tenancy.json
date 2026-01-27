@@ -1,0 +1,24 @@
+{
+  "scenario": "db-tenancy",
+  "description": "Multi-tenancy load test profile for tenant isolation under concurrent access",
+  "duration": "00:02:00",
+  "warmUp": "00:00:45",
+  "reportingInterval": "00:00:10",
+  "features": ["Tenancy"],
+  "providers": ["efcore-sqlite", "efcore-sqlserver", "efcore-postgresql", "efcore-mysql"],
+  "tenancy": {
+    "tenantCount": 100,
+    "maxConcurrentTenants": 50
+  },
+  "scenarios": {
+    "tenancy-isolation": {
+      "copies": 50,
+      "duration": "00:02:00"
+    },
+    "tenancy-context-switching": {
+      "rate": 100,
+      "interval": "00:00:01",
+      "switchesPerIteration": 5
+    }
+  }
+}

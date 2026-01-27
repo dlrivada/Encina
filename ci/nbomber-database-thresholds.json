@@ -1,0 +1,147 @@
+{
+  "description": "Performance thresholds for database load tests",
+  "global": {
+    "minThroughputOpsPerSecond": 500,
+    "maxMeanLatencyMs": 50,
+    "maxP95LatencyMs": 200,
+    "maxP99LatencyMs": 500,
+    "maxErrorRate": 0.01,
+    "maxMemoryMB": 1024
+  },
+  "featureThresholds": {
+    "UnitOfWork": {
+      "minThroughputOpsPerSecond": 500,
+      "maxMeanLatencyMs": 75,
+      "maxP95LatencyMs": 250,
+      "maxP99LatencyMs": 600,
+      "maxErrorRate": 0.02,
+      "description": "UoW has higher latency due to transaction overhead"
+    },
+    "Tenancy": {
+      "minThroughputOpsPerSecond": 1000,
+      "maxMeanLatencyMs": 40,
+      "maxP95LatencyMs": 150,
+      "maxP99LatencyMs": 400,
+      "maxErrorRate": 0.01,
+      "description": "Tenancy adds minimal overhead (single WHERE clause)"
+    },
+    "ReadWrite": {
+      "minThroughputOpsPerSecond": 1500,
+      "maxMeanLatencyMs": 30,
+      "maxP95LatencyMs": 100,
+      "maxP99LatencyMs": 300,
+      "maxErrorRate": 0.005,
+      "description": "Read-only operations should be fast"
+    }
+  },
+  "providerThresholds": {
+    "efcore-sqlite": {
+      "minThroughputOpsPerSecond": 2000,
+      "maxMeanLatencyMs": 20,
+      "maxP95LatencyMs": 80,
+      "description": "SQLite in-memory is fastest"
+    },
+    "efcore-sqlserver": {
+      "minThroughputOpsPerSecond": 800,
+      "maxMeanLatencyMs": 50,
+      "maxP95LatencyMs": 200,
+      "description": "SQL Server container performance"
+    },
+    "efcore-postgresql": {
+      "minThroughputOpsPerSecond": 1000,
+      "maxMeanLatencyMs": 45,
+      "maxP95LatencyMs": 180,
+      "description": "PostgreSQL is typically fast"
+    },
+    "efcore-mysql": {
+      "minThroughputOpsPerSecond": 900,
+      "maxMeanLatencyMs": 48,
+      "maxP95LatencyMs": 190,
+      "description": "MySQL container performance"
+    },
+    "mongodb": {
+      "minThroughputOpsPerSecond": 1200,
+      "maxMeanLatencyMs": 35,
+      "maxP95LatencyMs": 120,
+      "description": "MongoDB is optimized for document operations"
+    },
+    "ado-sqlite": {
+      "minThroughputOpsPerSecond": 3000,
+      "maxMeanLatencyMs": 15,
+      "maxP95LatencyMs": 60,
+      "description": "ADO.NET has minimal overhead"
+    },
+    "ado-sqlserver": {
+      "minThroughputOpsPerSecond": 1000,
+      "maxMeanLatencyMs": 45,
+      "maxP95LatencyMs": 180
+    },
+    "ado-postgresql": {
+      "minThroughputOpsPerSecond": 1200,
+      "maxMeanLatencyMs": 40,
+      "maxP95LatencyMs": 160
+    },
+    "ado-mysql": {
+      "minThroughputOpsPerSecond": 1100,
+      "maxMeanLatencyMs": 42,
+      "maxP95LatencyMs": 170
+    },
+    "dapper-sqlite": {
+      "minThroughputOpsPerSecond": 2500,
+      "maxMeanLatencyMs": 18,
+      "maxP95LatencyMs": 70
+    },
+    "dapper-sqlserver": {
+      "minThroughputOpsPerSecond": 900,
+      "maxMeanLatencyMs": 48,
+      "maxP95LatencyMs": 190
+    },
+    "dapper-postgresql": {
+      "minThroughputOpsPerSecond": 1100,
+      "maxMeanLatencyMs": 42,
+      "maxP95LatencyMs": 170
+    },
+    "dapper-mysql": {
+      "minThroughputOpsPerSecond": 1000,
+      "maxMeanLatencyMs": 45,
+      "maxP95LatencyMs": 180
+    }
+  },
+  "scenarioThresholds": {
+    "uow-concurrent-transactions": {
+      "minSuccessRate": 0.98,
+      "description": "Some transaction conflicts are expected"
+    },
+    "uow-rollback-under-load": {
+      "minSuccessRate": 0.95,
+      "description": "Rollbacks intentionally fail some operations"
+    },
+    "uow-connection-pool-pressure": {
+      "minSuccessRate": 0.99,
+      "maxMeanLatencyMs": 100,
+      "description": "Pool exhaustion may cause delays"
+    },
+    "tenancy-isolation": {
+      "minSuccessRate": 1.0,
+      "description": "Zero tolerance for isolation violations"
+    },
+    "tenancy-context-switching": {
+      "minSuccessRate": 1.0,
+      "description": "Context switches must always succeed"
+    },
+    "readwrite-replica-distribution": {
+      "minSuccessRate": 0.99,
+      "maxDeviationPercent": 15,
+      "description": "Distribution should be roughly equal"
+    },
+    "readwrite-roundrobin-validation": {
+      "minSuccessRate": 0.99,
+      "maxDeviationPercent": 5,
+      "description": "Round-robin should be nearly perfect"
+    },
+    "readwrite-leastconnections-validation": {
+      "minSuccessRate": 0.99,
+      "description": "Distribution may vary based on load"
+    }
+  }
+}

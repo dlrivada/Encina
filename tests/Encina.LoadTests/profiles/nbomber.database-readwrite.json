@@ -1,0 +1,28 @@
+{
+  "scenario": "db-readwrite",
+  "description": "Read/Write separation load test profile for replica distribution validation",
+  "duration": "00:02:00",
+  "warmUp": "00:00:45",
+  "reportingInterval": "00:00:10",
+  "features": ["ReadWrite"],
+  "providers": ["efcore-sqlite", "efcore-sqlserver", "efcore-postgresql", "efcore-mysql"],
+  "readWrite": {
+    "replicaCount": 3,
+    "readWriteRatio": 0.8,
+    "maxDeviationPercent": 15
+  },
+  "scenarios": {
+    "readwrite-replica-distribution": {
+      "rate": 150,
+      "interval": "00:00:01"
+    },
+    "readwrite-roundrobin-validation": {
+      "rate": 100,
+      "interval": "00:00:01"
+    },
+    "readwrite-leastconnections-validation": {
+      "rate": 75,
+      "interval": "00:00:01"
+    }
+  }
+}

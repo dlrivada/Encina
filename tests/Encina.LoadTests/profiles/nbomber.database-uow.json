@@ -1,0 +1,23 @@
+{
+  "scenario": "db-uow",
+  "description": "Unit of Work load test profile for database operations",
+  "duration": "00:02:00",
+  "warmUp": "00:00:45",
+  "reportingInterval": "00:00:10",
+  "features": ["UnitOfWork"],
+  "providers": ["efcore-sqlite", "efcore-sqlserver", "efcore-postgresql", "efcore-mysql"],
+  "scenarios": {
+    "uow-concurrent-transactions": {
+      "rate": 100,
+      "interval": "00:00:01"
+    },
+    "uow-rollback-under-load": {
+      "rate": 50,
+      "interval": "00:00:01"
+    },
+    "uow-connection-pool-pressure": {
+      "rate": 200,
+      "interval": "00:00:01"
+    }
+  }
+}
