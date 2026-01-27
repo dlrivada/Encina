@@ -23,11 +23,12 @@ namespace Encina.IntegrationTests.Infrastructure.Dapper.MySQL.BulkOperations;
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.MySQL")]
 [Trait("Feature", "BulkOperations")]
-public sealed class BulkOperationsDapperMySQLIntegrationTests : IClassFixture<MySqlFixture>, IAsyncLifetime
+public sealed class BulkOperationsDapperMySQLIntegrationTests : IClassFixture<MySqlFixture>, IAsyncLifetime, IDisposable
 {
     private readonly MySqlFixture _fixture;
-    private IDbConnection _connection = null!;
+    private MySqlConnection? _connection;
     private BulkOperationsDapper<BulkTestOrder, Guid> _bulkOps = null!;
+    private bool _disposed;
 
     public BulkOperationsDapperMySQLIntegrationTests(MySqlFixture fixture)
     {
@@ -37,7 +38,14 @@ public sealed class BulkOperationsDapperMySQLIntegrationTests : IClassFixture<My
     public async Task InitializeAsync()
     {
         await _fixture.InitializeAsync();
-        _connection = _fixture.CreateConnection();
+
+        // Create connection with AllowLoadLocalInfile for MySqlBulkLoader
+        var connectionStringBuilder = new MySqlConnectionStringBuilder(_fixture.ConnectionString)
+        {
+            AllowLoadLocalInfile = true
+        };
+        _connection = new MySqlConnection(connectionStringBuilder.ConnectionString);
+        await _connection.OpenAsync();
 
         // Create test table
         await CreateBulkTestTableAsync();
@@ -50,8 +58,21 @@ public sealed class BulkOperationsDapperMySQLIntegrationTests : IClassFixture<My
     public async Task DisposeAsync()
     {
         await DropBulkTestTableAsync();
-        _connection?.Dispose();
+        if (_connection is not null)
+        {
+            await _connection.DisposeAsync();
+        }
         await _fixture.DisposeAsync();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _connection?.Dispose();
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     private async Task CreateBulkTestTableAsync()
@@ -68,9 +89,9 @@ public sealed class BulkOperationsDapperMySQLIntegrationTests : IClassFixture<My
             );
             """;
 
-        if (_connection is MySqlConnection mysqlConnection)
+        if (_connection is not null)
         {
-            await using var command = mysqlConnection.CreateCommand();
+            await using var command = _connection.CreateCommand();
             command.CommandText = sql;
             await command.ExecuteNonQueryAsync();
         }
@@ -80,9 +101,9 @@ public sealed class BulkOperationsDapperMySQLIntegrationTests : IClassFixture<My
     {
         const string sql = "DROP TABLE IF EXISTS BulkTestOrders;";
 
-        if (_connection.State == ConnectionState.Open && _connection is MySqlConnection mysqlConnection)
+        if (_connection is not null && _connection.State == ConnectionState.Open)
         {
-            await using var command = mysqlConnection.CreateCommand();
+            await using var command = _connection.CreateCommand();
             command.CommandText = sql;
             await command.ExecuteNonQueryAsync();
         }
@@ -90,9 +111,9 @@ public sealed class BulkOperationsDapperMySQLIntegrationTests : IClassFixture<My
 
     private async Task<int> GetRowCountAsync()
     {
-        if (_connection is MySqlConnection mysqlConnection)
+        if (_connection is not null)
         {
-            await using var command = mysqlConnection.CreateCommand();
+            await using var command = _connection.CreateCommand();
             command.CommandText = "SELECT COUNT(*) FROM BulkTestOrders";
             var result = await command.ExecuteScalarAsync();
             return Convert.ToInt32(result, CultureInfo.InvariantCulture);

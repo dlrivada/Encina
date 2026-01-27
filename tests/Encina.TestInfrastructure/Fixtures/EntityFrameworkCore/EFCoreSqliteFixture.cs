@@ -16,6 +16,9 @@ public sealed class EFCoreSqliteFixture : IEFCoreFixture
     private readonly SqliteFixture _sqliteFixture = new();
 
     /// <inheritdoc />
+    public bool IsAvailable => _sqliteFixture.IsAvailable;
+
+    /// <inheritdoc />
     public string ConnectionString => _sqliteFixture.ConnectionString;
 
     /// <inheritdoc />

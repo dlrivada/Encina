@@ -11,6 +11,9 @@ public sealed class EFCoreSqlServerFixture : IEFCoreFixture
     private readonly SqlServerFixture _sqlServerFixture = new();
 
     /// <inheritdoc />
+    public bool IsAvailable => _sqlServerFixture.IsAvailable;
+
+    /// <inheritdoc />
     public string ConnectionString => _sqlServerFixture.ConnectionString;
 
     /// <inheritdoc />

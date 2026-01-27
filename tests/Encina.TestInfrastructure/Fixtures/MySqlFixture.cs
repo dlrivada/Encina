@@ -27,6 +27,8 @@ public sealed class MySqlFixture : DatabaseFixture<MySqlContainer>
             .WithDatabase("Encina_test")
             .WithUsername("root")
             .WithPassword("mysql")
+            // Enable local_infile for MySqlBulkLoader support in tests
+            .WithCommand("--local-infile=1")
             .WithCleanUp(true)
             .Build();
 

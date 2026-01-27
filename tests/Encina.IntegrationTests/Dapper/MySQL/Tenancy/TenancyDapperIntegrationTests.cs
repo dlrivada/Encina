@@ -1,0 +1,518 @@
+using System.Data;
+using Encina.Dapper.MySQL.Tenancy;
+using Encina.DomainModeling;
+using Encina.Tenancy;
+using Encina.TestInfrastructure.Entities;
+using Encina.TestInfrastructure.Fixtures;
+using Encina.TestInfrastructure.Schemas;
+using MySqlConnector;
+using Shouldly;
+
+namespace Encina.IntegrationTests.Dapper.MySQL.Tenancy;
+
+/// <summary>
+/// Integration tests for multi-tenancy support in Dapper MySQL provider.
+/// Tests automatic tenant filtering, tenant ID assignment, and cross-tenant isolation.
+/// </summary>
+[Trait("Category", "Integration")]
+[Trait("Database", "MySQL")]
+public class TenancyDapperIntegrationTests : IAsyncLifetime
+{
+    private readonly MySqlFixture _fixture = new();
+    private IDbConnection _connection = null!;
+    private TenantAwareFunctionalRepositoryDapper<TenantTestEntity, Guid> _repository = null!;
+    private ITenantEntityMapping<TenantTestEntity, Guid> _mapping = null!;
+    private TestTenantProvider _tenantProvider = null!;
+    private DapperTenancyOptions _tenancyOptions = null!;
+
+    private const string Tenant1 = "tenant-001";
+    private const string Tenant2 = "tenant-002";
+
+    public async Task InitializeAsync()
+    {
+        await _fixture.InitializeAsync();
+
+        using var schemaConnection = _fixture.CreateConnection() as MySqlConnection;
+        if (schemaConnection != null)
+        {
+            await TenancySchema.CreateTenantTestEntitiesSchemaAsync(schemaConnection);
+        }
+
+        _connection = _fixture.CreateConnection();
+        _tenantProvider = new TestTenantProvider(Tenant1);
+        _tenancyOptions = new DapperTenancyOptions
+        {
+            AutoFilterTenantQueries = true,
+            AutoAssignTenantId = true,
+            ValidateTenantOnModify = true,
+            ThrowOnMissingTenantContext = true
+        };
+
+        _mapping = new TenantEntityMappingBuilder<TenantTestEntity, Guid>()
+            .ToTable("TenantTestEntities")
+            .HasId(e => e.Id)
+            .HasTenantId(e => e.TenantId)
+            .MapProperty(e => e.Name, "Name")
+            .MapProperty(e => e.Description, "Description")
+            .MapProperty(e => e.Amount, "Amount")
+            .MapProperty(e => e.IsActive, "IsActive")
+            .MapProperty(e => e.CreatedAtUtc, "CreatedAtUtc")
+            .MapProperty(e => e.UpdatedAtUtc, "UpdatedAtUtc")
+            .Build();
+
+        _repository = new TenantAwareFunctionalRepositoryDapper<TenantTestEntity, Guid>(
+            _connection, _mapping, _tenantProvider, _tenancyOptions);
+    }
+
+    public async Task DisposeAsync()
+    {
+        _connection?.Dispose();
+        await _fixture.DisposeAsync();
+    }
+
+    private async Task ClearDataAsync()
+    {
+        if (_connection is MySqlConnection mySqlConnection)
+        {
+            await TenancySchema.ClearTenancyDataAsync(mySqlConnection);
+        }
+    }
+
+    private void SwitchTenant(string tenantId)
+    {
+        _tenantProvider.SetCurrentTenant(tenantId);
+        _repository = new TenantAwareFunctionalRepositoryDapper<TenantTestEntity, Guid>(
+            _connection, _mapping, _tenantProvider, _tenancyOptions);
+    }
+
+    #region Automatic Tenant Filter Tests
+
+    [SkippableFact]
+    public async Task ListAsync_OnlyReturnsCurrentTenantData()
+    {
+        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
+
+        // Arrange
+        await ClearDataAsync();
+
+        _tenantProvider.SetCurrentTenant(Tenant1);
+        _repository = new TenantAwareFunctionalRepositoryDapper<TenantTestEntity, Guid>(
+            _connection, _mapping, _tenantProvider, _tenancyOptions);
+        await _repository.AddAsync(CreateEntity("Tenant1-Entity1"));
+        await _repository.AddAsync(CreateEntity("Tenant1-Entity2"));
+
+        SwitchTenant(Tenant2);
+        await _repository.AddAsync(CreateEntity("Tenant2-Entity1"));
+
+        // Act
+        SwitchTenant(Tenant1);
+        var result = await _repository.ListAsync();
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list =>
+        {
+            list.Count.ShouldBe(2);
+            list.ShouldAllBe(e => e.TenantId == Tenant1);
+        });
+    }
+
+    [SkippableFact]
+    public async Task GetByIdAsync_OnlyReturnsCurrentTenantEntity()
+    {
+        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
+
+        // Arrange
+        await ClearDataAsync();
+
+        SwitchTenant(Tenant1);
+        var tenant1Entity = CreateEntity("Tenant1-Entity");
+        await _repository.AddAsync(tenant1Entity);
+
+        // Act
+        SwitchTenant(Tenant2);
+        var result = await _repository.GetByIdAsync(tenant1Entity.Id);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.Message.ShouldContain("not found"));
+    }
+
+    [SkippableFact]
+    public async Task ListAsync_WithSpecification_AppliesTenantFilterWithSpec()
+    {
+        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
+
+        // Arrange
+        await ClearDataAsync();
+
+        SwitchTenant(Tenant1);
+        await _repository.AddAsync(CreateEntity("Active1", isActive: true));
+        await _repository.AddAsync(CreateEntity("Inactive1", isActive: false));
+
+        SwitchTenant(Tenant2);
+        await _repository.AddAsync(CreateEntity("Active2", isActive: true));
+
+        // Act
+        SwitchTenant(Tenant1);
+        var spec = new IsActiveTenantSpec();
+        var result = await _repository.ListAsync(spec);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list =>
+        {
+            list.Count.ShouldBe(1);
+            list[0].Name.ShouldBe("Active1");
+            list[0].TenantId.ShouldBe(Tenant1);
+        });
+    }
+
+    #endregion
+
+    #region Automatic Tenant ID Assignment Tests
+
+    [SkippableFact]
+    public async Task AddAsync_AutomaticallyAssignsTenantId()
+    {
+        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
+
+        // Arrange
+        await ClearDataAsync();
+        SwitchTenant(Tenant1);
+        var entity = CreateEntity("New Entity");
+        entity.TenantId = string.Empty;
+
+        // Act
+        var result = await _repository.AddAsync(entity);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(e => e.TenantId.ShouldBe(Tenant1));
+
+        var retrieved = await _repository.GetByIdAsync(entity.Id);
+        retrieved.IsRight.ShouldBeTrue();
+        retrieved.IfRight(e => e.TenantId.ShouldBe(Tenant1));
+    }
+
+    [SkippableFact]
+    public async Task AddRangeAsync_AssignsTenantIdToAllEntities()
+    {
+        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
+
+        // Arrange
+        await ClearDataAsync();
+        SwitchTenant(Tenant1);
+
+        var entities = new[]
+        {
+            CreateEntity("Entity1"),
+            CreateEntity("Entity2"),
+            CreateEntity("Entity3")
+        };
+
+        foreach (var e in entities)
+        {
+            e.TenantId = string.Empty;
+        }
+
+        // Act
+        var result = await _repository.AddRangeAsync(entities);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+
+        var listResult = await _repository.ListAsync();
+        listResult.IsRight.ShouldBeTrue();
+        listResult.IfRight(list =>
+        {
+            list.Count.ShouldBe(3);
+            list.ShouldAllBe(e => e.TenantId == Tenant1);
+        });
+    }
+
+    #endregion
+
+    #region Cross-Tenant Isolation Tests
+
+    [SkippableFact]
+    public async Task UpdateAsync_CanOnlyUpdateOwnTenantEntities()
+    {
+        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
+
+        // Arrange
+        await ClearDataAsync();
+
+        SwitchTenant(Tenant1);
+        var entity = CreateEntity("Original");
+        await _repository.AddAsync(entity);
+
+        SwitchTenant(Tenant2);
+        entity.Name = "Modified";
+
+        // Act
+        var result = await _repository.UpdateAsync(entity);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+
+        SwitchTenant(Tenant1);
+        var retrieved = await _repository.GetByIdAsync(entity.Id);
+        retrieved.IsRight.ShouldBeTrue();
+        retrieved.IfRight(e => e.Name.ShouldBe("Original"));
+    }
+
+    [SkippableFact]
+    public async Task DeleteAsync_CanOnlyDeleteOwnTenantEntities()
+    {
+        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
+
+        // Arrange
+        await ClearDataAsync();
+
+        SwitchTenant(Tenant1);
+        var entity = CreateEntity("ToDelete");
+        await _repository.AddAsync(entity);
+
+        SwitchTenant(Tenant2);
+
+        // Act
+        var result = await _repository.DeleteAsync(entity.Id);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+
+        SwitchTenant(Tenant1);
+        var retrieved = await _repository.GetByIdAsync(entity.Id);
+        retrieved.IsRight.ShouldBeTrue();
+    }
+
+    [SkippableFact]
+    public async Task CountAsync_OnlyCountsCurrentTenantEntities()
+    {
+        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
+
+        // Arrange
+        await ClearDataAsync();
+
+        SwitchTenant(Tenant1);
+        await _repository.AddAsync(CreateEntity("T1-E1"));
+        await _repository.AddAsync(CreateEntity("T1-E2"));
+
+        SwitchTenant(Tenant2);
+        await _repository.AddAsync(CreateEntity("T2-E1"));
+        await _repository.AddAsync(CreateEntity("T2-E2"));
+        await _repository.AddAsync(CreateEntity("T2-E3"));
+
+        // Act
+        SwitchTenant(Tenant1);
+        var result1 = await _repository.CountAsync();
+
+        SwitchTenant(Tenant2);
+        var result2 = await _repository.CountAsync();
+
+        // Assert
+        result1.IsRight.ShouldBeTrue();
+        result1.IfRight(count => count.ShouldBe(2));
+
+        result2.IsRight.ShouldBeTrue();
+        result2.IfRight(count => count.ShouldBe(3));
+    }
+
+    [SkippableFact]
+    public async Task AnyAsync_OnlyChecksCurrentTenantEntities()
+    {
+        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
+
+        // Arrange
+        await ClearDataAsync();
+
+        SwitchTenant(Tenant1);
+        await _repository.AddAsync(CreateEntity("T1-E1"));
+
+        // Act
+        SwitchTenant(Tenant1);
+        var resultTenant1 = await _repository.AnyAsync();
+
+        SwitchTenant(Tenant2);
+        var resultTenant2 = await _repository.AnyAsync();
+
+        // Assert
+        resultTenant1.IsRight.ShouldBeTrue();
+        resultTenant1.IfRight(any => any.ShouldBeTrue());
+
+        resultTenant2.IsRight.ShouldBeTrue();
+        resultTenant2.IfRight(any => any.ShouldBeFalse());
+    }
+
+    #endregion
+
+    #region Tenant Context Switching Tests
+
+    [SkippableFact]
+    public async Task TenantSwitch_ChangesVisibleData()
+    {
+        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
+
+        // Arrange
+        await ClearDataAsync();
+
+        SwitchTenant(Tenant1);
+        await _repository.AddAsync(CreateEntity("Tenant1-Data"));
+
+        SwitchTenant(Tenant2);
+        await _repository.AddAsync(CreateEntity("Tenant2-Data"));
+
+        // Act & Assert
+        SwitchTenant(Tenant1);
+        var result1 = await _repository.ListAsync();
+        result1.IsRight.ShouldBeTrue();
+        result1.IfRight(list =>
+        {
+            list.Count.ShouldBe(1);
+            list[0].Name.ShouldBe("Tenant1-Data");
+        });
+
+        SwitchTenant(Tenant2);
+        var result2 = await _repository.ListAsync();
+        result2.IsRight.ShouldBeTrue();
+        result2.IfRight(list =>
+        {
+            list.Count.ShouldBe(1);
+            list[0].Name.ShouldBe("Tenant2-Data");
+        });
+    }
+
+    #endregion
+
+    #region FirstOrDefaultAsync Tests
+
+    [SkippableFact]
+    public async Task FirstOrDefaultAsync_OnlyReturnsCurrentTenantEntity()
+    {
+        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
+
+        // Arrange
+        await ClearDataAsync();
+
+        SwitchTenant(Tenant1);
+        await _repository.AddAsync(CreateEntity("Active1", isActive: true));
+
+        SwitchTenant(Tenant2);
+        await _repository.AddAsync(CreateEntity("Active2", isActive: true));
+
+        // Act
+        SwitchTenant(Tenant1);
+        var spec = new IsActiveTenantSpec();
+        var result = await _repository.FirstOrDefaultAsync(spec);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(e =>
+        {
+            e.TenantId.ShouldBe(Tenant1);
+            e.Name.ShouldBe("Active1");
+        });
+    }
+
+    #endregion
+
+    #region DeleteRangeAsync Tests
+
+    [SkippableFact]
+    public async Task DeleteRangeAsync_OnlyDeletesCurrentTenantEntities()
+    {
+        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
+
+        // Arrange
+        await ClearDataAsync();
+
+        SwitchTenant(Tenant1);
+        await _repository.AddAsync(CreateEntity("Active1", isActive: true));
+        await _repository.AddAsync(CreateEntity("Active2", isActive: true));
+
+        SwitchTenant(Tenant2);
+        await _repository.AddAsync(CreateEntity("Active3", isActive: true));
+
+        // Act
+        SwitchTenant(Tenant1);
+        var spec = new IsActiveTenantSpec();
+        var result = await _repository.DeleteRangeAsync(spec);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(count => count.ShouldBe(2));
+
+        // Verify Tenant2 data is intact
+        SwitchTenant(Tenant2);
+        var tenant2Result = await _repository.ListAsync();
+        tenant2Result.IsRight.ShouldBeTrue();
+        tenant2Result.IfRight(list => list.Count.ShouldBe(1));
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    private static TenantTestEntity CreateEntity(
+        string name = "Test Entity",
+        bool isActive = true,
+        decimal amount = 100m)
+    {
+        return new TenantTestEntity
+        {
+            Id = Guid.NewGuid(),
+            TenantId = string.Empty,
+            Name = name,
+            Description = null,
+            Amount = amount,
+            IsActive = isActive,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = null
+        };
+    }
+
+    #endregion
+}
+
+#region Test Tenant Provider
+
+internal sealed class TestTenantProvider : ITenantProvider
+{
+    private string? _currentTenantId;
+
+    public TestTenantProvider(string? initialTenantId = null)
+    {
+        _currentTenantId = initialTenantId;
+    }
+
+    public void SetCurrentTenant(string? tenantId)
+    {
+        _currentTenantId = tenantId;
+    }
+
+    public string? GetCurrentTenantId() => _currentTenantId;
+
+    public ValueTask<TenantInfo?> GetCurrentTenantAsync(CancellationToken cancellationToken = default)
+    {
+        if (_currentTenantId is null)
+            return ValueTask.FromResult<TenantInfo?>(null);
+
+        return ValueTask.FromResult<TenantInfo?>(new TenantInfo(
+            TenantId: _currentTenantId,
+            Name: $"Test Tenant {_currentTenantId}",
+            Strategy: TenantIsolationStrategy.SharedSchema));
+    }
+}
+
+#endregion
+
+#region Test Specifications
+
+internal sealed class IsActiveTenantSpec : Specification<TenantTestEntity>
+{
+    public override System.Linq.Expressions.Expression<Func<TenantTestEntity, bool>> ToExpression()
+        => e => e.IsActive;
+}
+
+#endregion

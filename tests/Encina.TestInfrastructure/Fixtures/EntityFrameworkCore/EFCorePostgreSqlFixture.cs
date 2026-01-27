@@ -11,6 +11,9 @@ public sealed class EFCorePostgreSqlFixture : IEFCoreFixture
     private readonly PostgreSqlFixture _postgreSqlFixture = new();
 
     /// <inheritdoc />
+    public bool IsAvailable => _postgreSqlFixture.IsAvailable;
+
+    /// <inheritdoc />
     public string ConnectionString => _postgreSqlFixture.ConnectionString;
 
     /// <inheritdoc />

@@ -10,6 +10,11 @@ namespace Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 public interface IEFCoreFixture : IAsyncLifetime
 {
     /// <summary>
+    /// Gets a value indicating whether the database container is available.
+    /// </summary>
+    bool IsAvailable { get; }
+
+    /// <summary>
     /// Gets the connection string for the underlying database.
     /// </summary>
     string ConnectionString { get; }

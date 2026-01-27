@@ -20,6 +20,12 @@ public sealed class EFCoreMySqlFixture : IEFCoreFixture
     private readonly MySqlFixture _mySqlFixture = new();
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Always returns <c>false</c> until Pomelo.EntityFrameworkCore.MySql v10.0.0 is released.
+    /// </remarks>
+    public bool IsAvailable => false; // _mySqlFixture.IsAvailable - Disabled until Pomelo 10.0.0
+
+    /// <inheritdoc />
     public string ConnectionString => _mySqlFixture.ConnectionString;
 
     /// <inheritdoc />
