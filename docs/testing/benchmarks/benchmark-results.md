@@ -282,22 +282,104 @@ Measures how rate limiting scales with multiple keys (e.g., per-tenant, per-user
 
 ---
 
-## 7. Known Issues and Failed Benchmarks
+## 7. Validation Provider Comparison
 
-Some benchmarks failed to complete. These are tracked for future investigation.
+Comparing different validation libraries integrated with Encina's mediator pipeline.
 
-### Benchmarks with Errors
+### Results
 
-| Benchmark | Issue | Status |
-|-----------|-------|--------|
-| ValidationBenchmarks | FluentValidation, DataAnnotations, MiniValidator, GuardClauses | Missing dependencies |
-| CacheOptimizationBenchmarks | All methods show NA | Configuration issue |
-| InboxEfCoreBenchmarks (some) | Entity tracking conflicts | Need IterationSetup fix |
+| Method | Mean | Error | StdDev | Ratio | Rank | Gen0 | Allocated |
+|--------|------|-------|--------|-------|------|------|-----------|
+| FluentValidation (Valid) | 1.300 μs | 0.0258 μs | 0.0317 μs | 1.00 | 1 | 0.1316 | 2.43 KB |
+| DataAnnotations (Valid) | 1.307 μs | 0.0175 μs | 0.0155 μs | 1.01 | 1 | 0.1316 | 2.43 KB |
+| MiniValidator (Valid) | 1.307 μs | 0.0253 μs | 0.0224 μs | 1.01 | 1 | 0.1316 | 2.43 KB |
+| GuardClauses (Valid) | 1.384 μs | 0.0274 μs | 0.0458 μs | 1.06 | 1 | 0.1316 | 2.43 KB |
 
-### Resolved Issues
+### Analysis
+
+- **All validation libraries perform equivalently** (~1.3 μs) for valid inputs
+- **Memory allocation is identical** (2.43 KB) across all providers
+- **GuardClauses slightly slower** (~6% overhead) due to different validation approach
+- **Choose based on features**, not performance - all are suitable for production
+
+---
+
+## 8. Cache Optimization Analysis
+
+Measures the impact of caching strategies in the mediator pipeline.
+
+### Results
+
+| Method | Mean | Error | StdDev | Ratio | Gen0 | Allocated |
+|--------|------|-------|--------|-------|------|-----------|
+| Cache_GetOrAdd_Direct | 3.41 ns | 0.068 ns | 0.063 ns | 1.00 | - | 0 B |
+| Cache_TryGetValue_ThenGetOrAdd | 3.65 ns | 0.103 ns | 0.086 ns | 1.07 | - | 0 B |
+| Send_Command_CacheHit | 1,036 ns | 6.31 ns | 5.60 ns | 304x | 0.1068 | 2,016 B |
+| Send_Query_CacheHit | 1,173 ns | 7.09 ns | 6.63 ns | 344x | 0.1049 | 1,992 B |
+| Publish_Notification_CacheHit | 461 ns | 4.06 ns | 3.60 ns | 135x | 0.0734 | 1,384 B |
+| TypeCheck_Cached | 2.10 ns | 0.028 ns | 0.026 ns | 0.62 | - | 0 B |
+| TypeCheck_Direct | 0.38 ns | 0.019 ns | 0.015 ns | 0.11 | - | 0 B |
+
+### Analysis
+
+- **Cache operations are sub-5ns** - ConcurrentDictionary has excellent performance
+- **Full mediator dispatch with cache hit**: ~1 μs for commands, ~460 ns for notifications
+- **TypeCheck caching adds ~1.7 ns overhead** but avoids repeated type inspection
+- **Direct method calls** are ~3 ns without caching overhead
+
+---
+
+## 9. Inbox Pattern (EF Core)
+
+The Inbox pattern with Entity Framework Core implementation.
+
+### Results (MessageCount = 1)
+
+| Method | Mean | Error | StdDev | Rank | Allocated |
+|--------|------|-------|--------|------|-----------|
+| AddAsync single message | 158.4 μs | 7.11 μs | 20.06 μs | 1 | 16.75 KB |
+| GetMessageAsync (hit) | 403.8 μs | 28.74 μs | 81.54 μs | 2 | 24.87 KB |
+| GetMessageAsync (miss) | 142.0 μs | 7.40 μs | 21.36 μs | 1 | 7.84 KB |
+| MarkAsProcessedAsync | 427.9 μs | 22.07 μs | 61.52 μs | 2 | 34.71 KB |
+| MarkAsFailedAsync (5 retries) | 937.2 μs | 37.42 μs | 105.53 μs | 4 | 109.85 KB |
+| Full workflow: Add → Process | 456.0 μs | 23.30 μs | 66.10 μs | 2 | 42.85 KB |
+| Idempotent request (duplicate detection) | 405.5 μs | 30.06 μs | 85.76 μs | 2 | 32.60 KB |
+
+### Scaling Behavior (MessageCount = 100)
+
+| Method | Mean | Allocated |
+|--------|------|-----------|
+| AddAsync batch | 3,954.9 μs | 1,428.98 KB |
+| GetExpiredMessagesAsync (batch) | 4,333.6 μs | 1,485.88 KB |
+| RemoveExpiredMessagesAsync (batch) | 6,364.4 μs | 2,229.14 KB |
+
+### EF Core vs Dapper Comparison
+
+| Operation | EF Core | Dapper | Ratio |
+|-----------|---------|--------|-------|
+| AddAsync single | 158 μs | 45 μs | 3.5x slower |
+| GetMessageAsync (hit) | 404 μs | 75 μs | 5.4x slower |
+| Full workflow | 456 μs | 93 μs | 4.9x slower |
+
+### Analysis
+
+- **EF Core is 3-5x slower than Dapper** for Inbox operations due to change tracking overhead
+- **Cache miss is faster than hit** due to early return optimization
+- **Batch operations scale linearly** with message count
+- **Use EF Core** when you need change tracking or prefer code-first approach
+- **Use Dapper** for maximum performance in high-throughput scenarios
+
+---
+
+## 10. Previously Resolved Issues
+
+All benchmark issues have been resolved:
 
 | Issue | Resolution |
 |-------|------------|
+| ValidationBenchmarks missing dependencies | Fixed handler registration: Changed `ICommandHandler` to `IRequestHandler` with correct scoped lifetime |
+| CacheOptimizationBenchmarks configuration | Fixed assembly scanning: Changed `AddEncina(assembly)` to `AddEncina()` to avoid picking up unrelated processors |
+| InboxEfCoreBenchmarks entity tracking | Fixed IterationSetup: Added `_context.ChangeTracker.Clear()` after SQL delete |
 | Polly Benchmarks duplicate project files | Removed `.backup/benchmarks-old` directory completely |
 
 ---
