@@ -68,14 +68,13 @@ public static class SqliteSchema
             CREATE TABLE IF NOT EXISTS SagaStates (
                 SagaId TEXT PRIMARY KEY,
                 SagaType TEXT NOT NULL,
-                CurrentStep TEXT NOT NULL,
+                CurrentStep INTEGER NOT NULL,
                 Status TEXT NOT NULL,
                 Data TEXT NOT NULL,
                 StartedAtUtc TEXT NOT NULL,
                 LastUpdatedAtUtc TEXT NOT NULL,
                 CompletedAtUtc TEXT NULL,
                 ErrorMessage TEXT NULL,
-                CompensationData TEXT NULL,
                 TimeoutAtUtc TEXT NULL
             );
 

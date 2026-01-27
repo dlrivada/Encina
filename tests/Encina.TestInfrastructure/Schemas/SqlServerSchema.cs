@@ -79,9 +79,7 @@ public static class SqlServerSchema
                     LastUpdatedAtUtc DATETIME2 NOT NULL,
                     CompletedAtUtc DATETIME2 NULL,
                     ErrorMessage NVARCHAR(MAX) NULL,
-                    CorrelationId NVARCHAR(256) NULL,
-                    TimeoutAtUtc DATETIME2 NULL,
-                    Metadata NVARCHAR(MAX) NULL
+                    TimeoutAtUtc DATETIME2 NULL
                 );
 
             CREATE INDEX IX_SagaStates_Status_LastUpdatedAtUtc

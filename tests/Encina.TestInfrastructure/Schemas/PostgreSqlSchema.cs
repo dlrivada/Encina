@@ -67,14 +67,14 @@ public static class PostgreSqlSchema
             CREATE TABLE IF NOT EXISTS SagaStates (
                 SagaId UUID PRIMARY KEY,
                 SagaType VARCHAR(500) NOT NULL,
-                CurrentStep VARCHAR(200) NOT NULL,
+                CurrentStep INTEGER NOT NULL,
                 Status VARCHAR(50) NOT NULL,
                 Data TEXT NOT NULL,
                 StartedAtUtc TIMESTAMP NOT NULL,
                 LastUpdatedAtUtc TIMESTAMP NOT NULL,
                 CompletedAtUtc TIMESTAMP NULL,
                 ErrorMessage TEXT NULL,
-                CompensationData TEXT NULL
+                TimeoutAtUtc TIMESTAMP NULL
             );
 
             CREATE INDEX IF NOT EXISTS IX_SagaStates_Status_LastUpdatedAtUtc

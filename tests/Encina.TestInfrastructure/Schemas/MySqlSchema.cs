@@ -63,14 +63,14 @@ public static class MySqlSchema
             CREATE TABLE IF NOT EXISTS SagaStates (
                 SagaId CHAR(36) PRIMARY KEY,
                 SagaType VARCHAR(500) NOT NULL,
-                CurrentStep VARCHAR(200) NOT NULL,
+                CurrentStep INT NOT NULL,
                 Status VARCHAR(50) NOT NULL,
                 Data TEXT NOT NULL,
                 StartedAtUtc DATETIME(6) NOT NULL,
                 LastUpdatedAtUtc DATETIME(6) NOT NULL,
                 CompletedAtUtc DATETIME(6) NULL,
                 ErrorMessage TEXT NULL,
-                CompensationData TEXT NULL,
+                TimeoutAtUtc DATETIME(6) NULL,
                 INDEX IX_SagaStates_Status_LastUpdatedAtUtc (Status, LastUpdatedAtUtc)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """;
