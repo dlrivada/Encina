@@ -38,27 +38,27 @@ public class ValidationBenchmarks
         fluentServices.AddEncina();
         fluentServices.AddTransient<IValidator<FluentCommand>, FluentCommandValidator>();
         fluentServices.AddEncinaFluentValidation(typeof(ValidationBenchmarks).Assembly);
-        fluentServices.AddTransient<ICommandHandler<FluentCommand, Guid>, FluentCommandHandler>();
+        fluentServices.AddScoped<IRequestHandler<FluentCommand, Guid>, FluentCommandHandler>();
         _fluentProvider = fluentServices.BuildServiceProvider();
 
         // DataAnnotations setup - uses centralized ValidationPipelineBehavior
         var dataAnnotationsServices = new ServiceCollection();
         dataAnnotationsServices.AddEncina();
         dataAnnotationsServices.AddDataAnnotationsValidation();
-        dataAnnotationsServices.AddTransient<ICommandHandler<DataAnnotationsCommand, Guid>, DataAnnotationsCommandHandler>();
+        dataAnnotationsServices.AddScoped<IRequestHandler<DataAnnotationsCommand, Guid>, DataAnnotationsCommandHandler>();
         _dataAnnotationsProvider = dataAnnotationsServices.BuildServiceProvider();
 
         // MiniValidator setup - uses centralized ValidationPipelineBehavior
         var miniValidatorServices = new ServiceCollection();
         miniValidatorServices.AddEncina();
         miniValidatorServices.AddMiniValidation();
-        miniValidatorServices.AddTransient<ICommandHandler<MiniValidatorCommand, Guid>, MiniValidatorCommandHandler>();
+        miniValidatorServices.AddScoped<IRequestHandler<MiniValidatorCommand, Guid>, MiniValidatorCommandHandler>();
         _miniValidatorProvider = miniValidatorServices.BuildServiceProvider();
 
         // Guards setup (no validation behavior, guards used in handler)
         var guardsServices = new ServiceCollection();
         guardsServices.AddEncina();
-        guardsServices.AddTransient<ICommandHandler<GuardsCommand, Guid>, GuardsCommandHandler>();
+        guardsServices.AddScoped<IRequestHandler<GuardsCommand, Guid>, GuardsCommandHandler>();
         _guardsProvider = guardsServices.BuildServiceProvider();
     }
 

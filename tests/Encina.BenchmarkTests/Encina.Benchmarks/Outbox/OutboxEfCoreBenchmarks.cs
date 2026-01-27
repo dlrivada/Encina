@@ -47,6 +47,9 @@ public class OutboxEfCoreBenchmarks
         // Clean table before each iteration
         // Note: IterationSetup must be synchronous in BenchmarkDotNet
         _context.Database.ExecuteSqlRaw("DELETE FROM OutboxMessages");
+
+        // Clear the change tracker to avoid entity tracking conflicts
+        _context.ChangeTracker.Clear();
     }
 
     [Benchmark(Baseline = true, Description = "AddAsync single message")]

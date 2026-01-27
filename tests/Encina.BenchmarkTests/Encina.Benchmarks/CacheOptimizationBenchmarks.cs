@@ -28,7 +28,9 @@ public class CacheOptimizationBenchmarks
     public void Setup()
     {
         var services = new ServiceCollection();
-        services.AddEncina(typeof(CacheOptimizationBenchmarks).Assembly);
+        // Don't scan the assembly as it would pick up processors from other benchmarks
+        // that have dependencies we haven't registered (e.g., EncinaBenchmarks.CallRecorder)
+        services.AddEncina();
         services.AddScoped<IRequestHandler<SampleCommand, int>, SampleCommandHandler>();
         services.AddScoped<IRequestHandler<SampleQuery, string>, SampleQueryHandler>();
         services.AddScoped<INotificationHandler<SampleNotification>, SampleNotificationHandler>();

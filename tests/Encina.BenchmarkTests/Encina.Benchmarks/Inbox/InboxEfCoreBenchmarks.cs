@@ -52,6 +52,10 @@ public class InboxEfCoreBenchmarks
         // Clean table before each iteration
         // Note: IterationSetup must be synchronous in BenchmarkDotNet
         _context.Database.ExecuteSqlRaw("DELETE FROM InboxMessages");
+
+        // Clear the change tracker to avoid entity tracking conflicts
+        // when we try to add entities with the same MessageId in subsequent iterations
+        _context.ChangeTracker.Clear();
     }
 
     [Benchmark(Baseline = true, Description = "AddAsync single message")]
