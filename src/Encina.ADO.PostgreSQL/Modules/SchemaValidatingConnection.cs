@@ -22,7 +22,7 @@ namespace Encina.ADO.PostgreSQL.Modules;
 /// module isolation is enabled.
 /// </para>
 /// </remarks>
-internal sealed class SchemaValidatingConnection : DbConnection
+public sealed class SchemaValidatingConnection : DbConnection
 {
     private readonly DbConnection _innerConnection;
     private readonly IModuleExecutionContext _moduleContext;
