@@ -168,6 +168,30 @@ internal static class NbomberScenarios
 {
     internal const string SendBurst = "send-burst";
     internal const string MixedTraffic = "mixed-traffic";
+
+    // Database scenarios
+    internal const string DatabaseUnitOfWork = "db-uow";
+    internal const string DatabaseTenancy = "db-tenancy";
+    internal const string DatabaseReadWrite = "db-readwrite";
+    internal const string DatabaseAll = "db-all";
+}
+
+/// <summary>
+/// Feature categories for database load testing.
+/// </summary>
+internal enum DatabaseFeature
+{
+    /// <summary>Unit of Work - concurrent transactions.</summary>
+    UnitOfWork,
+
+    /// <summary>Multi-Tenancy - tenant isolation under load.</summary>
+    Tenancy,
+
+    /// <summary>Read/Write Separation - replica distribution.</summary>
+    ReadWrite,
+
+    /// <summary>All database features.</summary>
+    All
 }
 
 internal sealed class NbomberOptions
@@ -192,6 +216,26 @@ internal sealed class NbomberOptions
     public string? OutputDirectory { get; set; }
 
     public string? ProfilePath { get; private set; }
+
+    /// <summary>
+    /// Database providers to test (comma-separated, e.g., "efcore-postgresql,dapper-mysql").
+    /// </summary>
+    public string? Providers { get; set; }
+
+    /// <summary>
+    /// Database feature to test (uow, tenancy, readwrite, all).
+    /// </summary>
+    public DatabaseFeature Feature { get; set; } = DatabaseFeature.All;
+
+    /// <summary>
+    /// Gets the parsed list of provider names.
+    /// </summary>
+    public IReadOnlyList<string> ProviderList => Encina.NBomber.Scenarios.Database.DatabaseProviderRegistry.ParseProviderList(Providers);
+
+    /// <summary>
+    /// Gets a value indicating whether this is a database scenario.
+    /// </summary>
+    public bool IsDatabaseScenario => Scenario?.StartsWith("db-", StringComparison.OrdinalIgnoreCase) == true;
 
     public bool RequiresPublishWarmUp => Scenario == NbomberScenarios.MixedTraffic && PublishRate > 0;
 
@@ -269,6 +313,12 @@ internal sealed class NbomberOptions
                 case "--output" when TryReadValue(args, ref index, out var output):
                     overrides[current] = output;
                     break;
+                case "--provider" when TryReadValue(args, ref index, out var provider):
+                    overrides[current] = provider;
+                    break;
+                case "--feature" when TryReadValue(args, ref index, out var feature):
+                    overrides[current] = feature;
+                    break;
             }
         }
 
@@ -317,10 +367,42 @@ internal sealed class NbomberOptions
                 case "--output":
                     options.OutputDirectory = value;
                     break;
+                case "--provider":
+                    options.Providers = value;
+                    ValidateProviders(value);
+                    break;
+                case "--feature":
+                    options.Feature = ParseFeature(value);
+                    break;
             }
         }
 
         return options;
+    }
+
+    private static void ValidateProviders(string providerList)
+    {
+        var providers = Encina.NBomber.Scenarios.Database.DatabaseProviderRegistry.ParseProviderList(providerList);
+        if (!Encina.NBomber.Scenarios.Database.DatabaseProviderRegistry.ValidateProviders(providers))
+        {
+            var invalid = providers.Where(p => !Encina.NBomber.Scenarios.Database.DatabaseProviderRegistry.AllProviders.Contains(p, StringComparer.OrdinalIgnoreCase)).ToList();
+            var validList = string.Join(", ", Encina.NBomber.Scenarios.Database.DatabaseProviderRegistry.AllProviders);
+            Console.Error.WriteLine($"Invalid provider(s): {string.Join(", ", invalid)}");
+            Console.Error.WriteLine($"Valid providers: {validList}");
+            Environment.Exit(1);
+        }
+    }
+
+    private static DatabaseFeature ParseFeature(string value)
+    {
+        return value.ToLowerInvariant() switch
+        {
+            "uow" or "unitofwork" => DatabaseFeature.UnitOfWork,
+            "tenancy" or "tenant" => DatabaseFeature.Tenancy,
+            "readwrite" or "rw" => DatabaseFeature.ReadWrite,
+            "all" => DatabaseFeature.All,
+            _ => throw new ArgumentException($"Invalid feature '{value}'. Valid values: uow, tenancy, readwrite, all")
+        };
     }
 
     private void LoadProfile(string profilePath)
@@ -391,6 +473,17 @@ internal sealed class NbomberOptions
         {
             OutputDirectory = profile.OutputDirectory;
         }
+
+        if (!string.IsNullOrEmpty(profile.Providers))
+        {
+            Providers = profile.Providers;
+            ValidateProviders(profile.Providers);
+        }
+
+        if (!string.IsNullOrEmpty(profile.Feature))
+        {
+            Feature = ParseFeature(profile.Feature);
+        }
     }
 
     private static bool TryReadValue(string[] args, ref int index, out string value)
@@ -421,6 +514,16 @@ internal sealed class NbomberProfile
     public TimeSpan? ReportingInterval { get; set; }
 
     public string? OutputDirectory { get; set; }
+
+    /// <summary>
+    /// Database providers to test (comma-separated).
+    /// </summary>
+    public string? Providers { get; set; }
+
+    /// <summary>
+    /// Database feature to test (uow, tenancy, readwrite, all).
+    /// </summary>
+    public string? Feature { get; set; }
 }
 
 internal sealed record PingCommand(long Id) : IRequest<int>;
