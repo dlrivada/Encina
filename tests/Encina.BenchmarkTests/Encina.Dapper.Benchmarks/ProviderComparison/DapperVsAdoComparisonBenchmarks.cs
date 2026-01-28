@@ -3,14 +3,14 @@ using System.Globalization;
 using BenchmarkDotNet.Attributes;
 using Dapper;
 using Encina.Dapper.Benchmarks.Infrastructure;
-using Microsoft.Data.Sqlite;
-using DapperOutboxStore = Encina.Dapper.Sqlite.Outbox.OutboxStoreDapper;
-using AdoOutboxStore = Encina.ADO.Sqlite.Outbox.OutboxStoreADO;
-using DapperInboxStore = Encina.Dapper.Sqlite.Inbox.InboxStoreDapper;
-using AdoInboxStore = Encina.ADO.Sqlite.Inbox.InboxStoreADO;
-using DapperScheduledStore = Encina.Dapper.Sqlite.Scheduling.ScheduledMessageStoreDapper;
-using AdoScheduledStore = Encina.ADO.Sqlite.Scheduling.ScheduledMessageStoreADO;
 using Encina.Dapper.Sqlite.TypeHandlers;
+using Microsoft.Data.Sqlite;
+using AdoInboxStore = Encina.ADO.Sqlite.Inbox.InboxStoreADO;
+using AdoOutboxStore = Encina.ADO.Sqlite.Outbox.OutboxStoreADO;
+using AdoScheduledStore = Encina.ADO.Sqlite.Scheduling.ScheduledMessageStoreADO;
+using DapperInboxStore = Encina.Dapper.Sqlite.Inbox.InboxStoreDapper;
+using DapperOutboxStore = Encina.Dapper.Sqlite.Outbox.OutboxStoreDapper;
+using DapperScheduledStore = Encina.Dapper.Sqlite.Scheduling.ScheduledMessageStoreDapper;
 
 namespace Encina.Dapper.Benchmarks.ProviderComparison;
 

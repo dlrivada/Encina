@@ -1,8 +1,8 @@
 using System.Linq.Expressions;
 using BenchmarkDotNet.Attributes;
 using Encina.Dapper.Benchmarks.Infrastructure;
-using Encina.DomainModeling;
 using Encina.Dapper.Sqlite.Repository;
+using Encina.DomainModeling;
 
 namespace Encina.Dapper.Benchmarks.Repository;
 

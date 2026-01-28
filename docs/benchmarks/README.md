@@ -99,4 +99,4 @@ BenchmarkDotNet.Artifacts/results/
 
 - [BenchmarkDotNet Documentation](https://benchmarkdotnet.org/)
 - [Main Benchmark README](../../tests/Encina.BenchmarkTests/README.md)
-- [Performance Testing Guide](../testing/performance-testing.md) (if exists)
+- [Benchmark Results](../testing/benchmarks/benchmark-results.md)

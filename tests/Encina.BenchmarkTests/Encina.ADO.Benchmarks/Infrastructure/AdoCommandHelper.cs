@@ -1,8 +1,8 @@
 using System.Data;
-using Microsoft.Data.Sqlite;
 using Microsoft.Data.SqlClient;
-using Npgsql;
+using Microsoft.Data.Sqlite;
 using MySqlConnector;
+using Npgsql;
 
 namespace Encina.ADO.Benchmarks.Infrastructure;
 

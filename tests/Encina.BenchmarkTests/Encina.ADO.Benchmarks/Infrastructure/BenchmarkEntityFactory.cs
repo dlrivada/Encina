@@ -1,6 +1,6 @@
 using Encina.ADO.Sqlite.Repository;
-using Encina.Messaging.Outbox;
 using Encina.Messaging.Inbox;
+using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 
