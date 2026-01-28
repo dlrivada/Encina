@@ -883,7 +883,6 @@ Log output shows routing decisions:
 - [Multi-Tenancy Guide](multi-tenancy.md)
 - [Module Isolation Guide](module-isolation.md)
 - [Health Checks Overview](../guides/health-checks.md)
-- [Connection Management](../guides/connection-management.md)
 
 ---
 

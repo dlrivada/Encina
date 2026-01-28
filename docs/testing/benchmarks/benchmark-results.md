@@ -865,9 +865,9 @@ dotnet run -c Release --project tests/Encina.BenchmarkTests/Encina.Benchmarks --
 
 ## Related Documentation
 
-- [Read/Write Separation Benchmarks](../../tests/Encina.BenchmarkTests/Encina.Benchmarks/ReadWriteSeparation/README.md)
-- [Testing Strategy](../testing/testing-strategy.md)
-- [Performance Optimization Guide](../guides/performance.md)
+- [Read/Write Separation Benchmarks](../../../tests/Encina.BenchmarkTests/Encina.Benchmarks/ReadWriteSeparation/README.md)
+- [EntityFrameworkCore Benchmarks](../../../tests/Encina.BenchmarkTests/Encina.Benchmarks/EntityFrameworkCore/README.md)
+- [CLAUDE.md - Testing Standards](../../../CLAUDE.md#testing-standards)
 
 ---
 
