@@ -2,6 +2,47 @@
 
 ### Added
 
+#### EntityFrameworkCore BenchmarkDotNet Micro-Benchmarks (#564)
+
+Implemented comprehensive BenchmarkDotNet micro-benchmarks for Encina.EntityFrameworkCore data access components, measuring hot path performance and abstraction overhead.
+
+**Benchmark Classes**:
+
+| Class | Benchmarks | Focus |
+|-------|------------|-------|
+| `TransactionBehaviorBenchmarks` | 10 | Transaction detection and lifecycle |
+| `SpecificationEvaluatorBenchmarks` | 14 | Query expression building |
+| `FunctionalRepositoryBenchmarks` | 11 | CRUD operations |
+| `UnitOfWorkBenchmarks` | 12 | Repository caching, transactions |
+| `UnitOfWorkRepositoryBenchmarks` | 12 | Deferred vs immediate persistence |
+| `BulkOperationsBenchmarks` | 14 | Factory overhead, provider detection |
+
+**Performance Targets**:
+
+| Category | Operation | Target |
+|----------|-----------|--------|
+| Transaction | Non-transactional passthrough | <1μs |
+| Transaction | Interface detection | <100ns |
+| Specification | Simple predicate | <100ns |
+| Specification | Keyset pagination | 1-5μs |
+| Repository | GetByIdAsync (cache hit) | <1μs |
+| UnitOfWork | Repository cache hit | <100ns |
+
+**Infrastructure**:
+- `BenchmarkEntity` implementing `IEntity<Guid>`
+- `EntityFrameworkBenchmarkDbContext` with InMemory/SQLite support
+- `TestData` factory methods for test data generation
+
+**Running Benchmarks**:
+```bash
+cd tests/Encina.BenchmarkTests/Encina.Benchmarks
+dotnet run -c Release -- --filter "*EntityFrameworkCore*"
+```
+
+**Related Issue**: [#564 - Implement BenchmarkTests for Encina.EntityFrameworkCore data access](https://github.com/dlrivada/Encina/issues/564)
+
+---
+
 #### Database Load Testing Infrastructure with NBomber (#538)
 
 Implemented comprehensive load testing for database features using NBomber, enabling performance validation for concurrent database operations.

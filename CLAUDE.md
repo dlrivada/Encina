@@ -463,6 +463,100 @@ BenchmarkTests are only meaningful for **hot paths** where microseconds matter:
 | **Read/Write Separation** | ✅ Implement | Replica selection algorithms are benchmarkable |
 | Module Isolation | 📄 Justify | Development-only, disabled in production |
 
+#### BenchmarkDotNet Guidelines
+
+> **CRITICAL**: Follow these rules when creating or modifying benchmarks to avoid common pitfalls discovered during Issue #564.
+
+**1. Use BenchmarkSwitcher, NOT BenchmarkRunner**
+
+```csharp
+// ❌ WRONG - BenchmarkRunner.Run<T>() IGNORES command-line arguments like --filter
+BenchmarkRunner.Run<MyBenchmarks>(config);
+
+// ✅ CORRECT - BenchmarkSwitcher supports --filter, --list, --job, etc.
+BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args, config);
+```
+
+**Why this matters**: Without `BenchmarkSwitcher`, you cannot filter benchmarks at runtime. Running 200+ benchmarks when you only need 10 wastes hours of time.
+
+**2. Materialize IQueryable Results**
+
+BenchmarkDotNet validates return values. Deferred execution (like `IQueryable<T>`) causes validation errors:
+
+```csharp
+// ❌ WRONG - Returns deferred execution, BenchmarkDotNet rejects it
+public IQueryable<Entity> GetEntities()
+{
+    return _context.Entities.Where(e => e.IsActive);
+}
+
+// ✅ CORRECT - Materialize with .ToList()
+public List<Entity> GetEntities()
+{
+    return _context.Entities.Where(e => e.IsActive).ToList();
+}
+```
+
+**Error you'll see**: "Benchmark returns a deferred execution result (IQueryable<T>). You need to either change the method declaration to return a materialized result or consume it on your own."
+
+**3. Verify Filtering Before Full Execution**
+
+Always verify your filter works before running the full benchmark suite:
+
+```bash
+# Step 1: List benchmarks that will run (fast)
+dotnet run -c Release -- --list flat --filter "*EntityFrameworkCore*"
+
+# Step 2: Only if list looks correct, run the actual benchmarks
+dotnet run -c Release -- --filter "*EntityFrameworkCore*" --job short
+```
+
+**4. Test Entities Must Match Benchmark Operations**
+
+Don't use `AddInclude()` on entities without navigation properties:
+
+```csharp
+// ❌ WRONG - BenchmarkEntity has no "Category" navigation property
+public class StringIncludeSpec : QuerySpecification<BenchmarkEntity>
+{
+    public StringIncludeSpec()
+    {
+        AddInclude("Category"); // This will fail or produce NA results
+    }
+}
+
+// ✅ CORRECT - Only include existing navigation properties
+public class StringIncludeSpec : QuerySpecification<Order>
+{
+    public StringIncludeSpec()
+    {
+        AddInclude("Customer"); // Customer exists as navigation property
+    }
+}
+```
+
+**5. Common BenchmarkDotNet Arguments**
+
+| Argument | Purpose | Example |
+|----------|---------|---------|
+| `--list flat` | List matching benchmarks without running | `--list flat --filter "*Repo*"` |
+| `--filter` | Run only matching benchmarks | `--filter "*EntityFrameworkCore*"` |
+| `--job short` | Quick validation run (3 iterations) | `--job short` |
+| `--job dry` | Validate setup without execution | `--job dry` |
+| `--exporters` | Control output formats | `--exporters json markdown` |
+
+**6. Benchmark Output Location**
+
+All benchmark results go to `artifacts/performance/`:
+
+```csharp
+var config = DefaultConfig.Instance
+    .WithArtifactsPath(Path.Combine(
+        Directory.GetCurrentDirectory(),
+        "..", "..", "..", "..", "..",
+        "artifacts", "performance", "results"));
+```
+
 #### Test Justification Documents (.md)
 
 When a test type is **legitimately** NOT implemented for a feature, create a justification document:
@@ -817,6 +911,8 @@ await connection.QueryAsync<Message>(sql, new { NowUtc = nowUtc });
 8. ❌ Don't implement provider features for only some providers - ALL 13 required (see Multi-Provider Implementation Rule)
 9. ❌ Don't skip test types without creating a justification `.md` file
 10. ❌ Don't leave test coverage below 85%
+11. ❌ Don't use `BenchmarkRunner.Run<T>()` - use `BenchmarkSwitcher.FromAssembly().Run(args, config)` (see BenchmarkDotNet Guidelines)
+12. ❌ Don't return `IQueryable<T>` from benchmark methods - always materialize with `.ToList()`
 
 ### Remember
 >

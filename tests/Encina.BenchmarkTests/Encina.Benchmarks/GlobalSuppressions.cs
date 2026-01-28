@@ -15,3 +15,12 @@ using System.Diagnostics.CodeAnalysis;
 [assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Benchmarks.Infrastructure")]
 [assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Benchmarks.Outbox")]
 [assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Benchmarks.ProviderComparison")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Benchmarks.EntityFrameworkCore")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Benchmarks.EntityFrameworkCore.Infrastructure")]
+
+// BenchmarkDotNet CA1001 Suppression Pattern:
+// Benchmark classes with IDisposable fields (DbContext, SqliteConnection, etc.) are managed
+// by BenchmarkDotNet's lifecycle methods ([GlobalSetup], [GlobalCleanup]). Implementing IDisposable
+// would interfere with BenchmarkDotNet's own resource management. Instead, cleanup is handled
+// explicitly in [GlobalCleanup] methods. This is the standard pattern used throughout all
+// BenchmarkDotNet benchmark suites.

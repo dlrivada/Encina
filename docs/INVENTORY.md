@@ -3680,6 +3680,86 @@ Load tests run via `.github/workflows/load-tests.yml`:
 
 ---
 
+### 14. BenchmarkDotNet Micro-Benchmarks
+
+#### Overview
+
+The `Encina.BenchmarkTests` project provides comprehensive micro-benchmarks using BenchmarkDotNet for measuring hot path performance and overhead of Encina abstractions.
+
+| Category | Benchmarks | Focus |
+|----------|------------|-------|
+| **EntityFrameworkCore** | 73 benchmarks | Repository, UoW, Specifications, Bulk Operations |
+| **Transaction Behavior** | 10 benchmarks | Pipeline behavior, interface/attribute detection |
+| **Specification Evaluator** | 14 benchmarks | Query expression building, pagination |
+| **Functional Repository** | 11 benchmarks | CRUD operations, batch operations |
+| **Unit of Work** | 12 benchmarks | Repository caching, transaction lifecycle |
+| **UoW Repository** | 12 benchmarks | Deferred vs immediate persistence |
+| **Bulk Operations** | 14 benchmarks | Factory overhead, provider detection |
+
+#### EntityFrameworkCore Benchmark Classes
+
+| Class | Description | Key Metrics |
+|-------|-------------|-------------|
+| `TransactionBehaviorBenchmarks` | Transaction detection and lifecycle | <1μs passthrough, <100ns interface check |
+| `SpecificationEvaluatorBenchmarks` | Query expression building | <100ns simple, <10μs full specification |
+| `FunctionalRepositoryBenchmarks` | CRUD operations | <1μs GetById (cache hit) |
+| `UnitOfWorkBenchmarks` | Repository caching, transactions | <100ns cache hit |
+| `UnitOfWorkRepositoryBenchmarks` | Tracking patterns | Deferred vs immediate comparison |
+| `BulkOperationsBenchmarks` | Factory method, provider detection | Cached vs uncached comparison |
+
+#### Files
+
+**Infrastructure:**
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/EntityFrameworkCore/Infrastructure/BenchmarkEntity.cs` - Test entity implementing `IEntity<Guid>`
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/EntityFrameworkCore/Infrastructure/EntityFrameworkBenchmarkDbContext.cs` - DbContext with InMemory/SQLite support
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/EntityFrameworkCore/Infrastructure/TestData.cs` - Factory methods for test data
+
+**Benchmark Classes:**
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/EntityFrameworkCore/TransactionBehaviorBenchmarks.cs` - Transaction pipeline benchmarks
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/EntityFrameworkCore/SpecificationEvaluatorBenchmarks.cs` - Specification evaluation benchmarks
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/EntityFrameworkCore/FunctionalRepositoryBenchmarks.cs` - Repository CRUD benchmarks
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/EntityFrameworkCore/UnitOfWorkBenchmarks.cs` - UoW coordination benchmarks
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/EntityFrameworkCore/UnitOfWorkRepositoryBenchmarks.cs` - Tracking pattern benchmarks
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/EntityFrameworkCore/BulkOperationsBenchmarks.cs` - Bulk operation benchmarks
+
+**Documentation:**
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/EntityFrameworkCore/README.md` - Comprehensive benchmark documentation
+
+#### CLI Usage
+
+```bash
+# Run all EntityFrameworkCore benchmarks
+cd tests/Encina.BenchmarkTests/Encina.Benchmarks
+dotnet run -c Release -- --filter "*EntityFrameworkCore*"
+
+# Run specific benchmark class
+dotnet run -c Release -- --filter "*TransactionBehaviorBenchmarks*"
+dotnet run -c Release -- --filter "*SpecificationEvaluatorBenchmarks*"
+dotnet run -c Release -- --filter "*FunctionalRepositoryBenchmarks*"
+dotnet run -c Release -- --filter "*UnitOfWorkBenchmarks*"
+dotnet run -c Release -- --filter "*BulkOperationsBenchmarks*"
+
+# Quick validation run
+dotnet run -c Release -- --filter "*EntityFrameworkCore*" --job short
+
+# Export results
+dotnet run -c Release -- --filter "*EntityFrameworkCore*" --exporters json
+```
+
+#### Performance Targets
+
+| Category | Operation | Target |
+|----------|-----------|--------|
+| **Transaction** | Non-transactional passthrough | <1μs |
+| **Transaction** | Interface detection | <100ns |
+| **Specification** | Simple predicate | <100ns |
+| **Specification** | Keyset pagination | 1-5μs |
+| **Specification** | Full specification | <10μs |
+| **Repository** | GetByIdAsync (cache hit) | <1μs |
+| **UnitOfWork** | Repository cache hit | <100ns |
+
+---
+
 ## Patrones Implementados
 
 ### Patrones Arquitectónicos

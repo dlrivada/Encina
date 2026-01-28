@@ -1,19 +1,41 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Running;
-using Encina.Benchmarks.BulkOperations;
-using Encina.Benchmarks.Inbox;
-using Encina.Benchmarks.Outbox;
-using Encina.Benchmarks.ReadWriteSeparation;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
 
 namespace Encina.Benchmarks;
 
+/// <summary>
+/// Entry point for all Encina benchmarks.
+/// Uses BenchmarkSwitcher to enable filtering from command line.
+/// </summary>
+/// <remarks>
+/// Usage examples:
+/// <code>
+/// # Run all benchmarks
+/// dotnet run -c Release
+///
+/// # Run specific benchmark class
+/// dotnet run -c Release -- --filter "*EncinaBenchmarks*"
+///
+/// # Run EntityFrameworkCore benchmarks only
+/// dotnet run -c Release -- --filter "Encina.Benchmarks.EntityFrameworkCore*"
+///
+/// # Run with specific exporters
+/// dotnet run -c Release -- --filter "*" --exporters json md html
+///
+/// # Quick validation run (fewer iterations)
+/// dotnet run -c Release -- --filter "*EncinaBenchmarks*" --job short
+///
+/// # List all available benchmarks without running
+/// dotnet run -c Release -- --list flat
+/// </code>
+/// </remarks>
 public static class Program
 {
-    public static void Main(string[] _)
+    public static void Main(string[] args)
     {
         var config = DefaultConfig.Instance
             .WithArtifactsPath(Path.Combine(
@@ -21,38 +43,11 @@ public static class Program
                 "artifacts",
                 "performance"));
 
-        // Run all benchmark suites
-        BenchmarkRunner.Run<EncinaBenchmarks>(config);
-        BenchmarkRunner.Run<DelegateInvocationBenchmarks>(config);
-        BenchmarkRunner.Run<CacheOptimizationBenchmarks>(config);
-        BenchmarkRunner.Run<StreamRequestBenchmarks>(config);
-
-        // Validation benchmarks (FluentValidation vs DataAnnotations vs MiniValidator vs GuardClauses)
-        BenchmarkRunner.Run<ValidationBenchmarks>(config);
-
-        // Job Scheduling benchmarks (Hangfire vs Quartz)
-        BenchmarkRunner.Run<JobSchedulingBenchmarks>(config);
-
-        // OpenTelemetry benchmarks
-        BenchmarkRunner.Run<OpenTelemetryBenchmarks>(config);
-
-        // Outbox benchmarks (Dapper vs EF Core)
-        BenchmarkRunner.Run<OutboxDapperBenchmarks>(config);
-        BenchmarkRunner.Run<OutboxEfCoreBenchmarks>(config);
-
-        // Inbox benchmarks (Dapper vs EF Core)
-        BenchmarkRunner.Run<InboxDapperBenchmarks>(config);
-        BenchmarkRunner.Run<InboxEfCoreBenchmarks>(config);
-
-        // BulkOperations benchmarks (ADO.NET vs Dapper vs EF Core)
-        BenchmarkRunner.Run<SqliteBulkInsertComparisonBenchmarks>(config);
-        BenchmarkRunner.Run<SqliteBulkUpdateComparisonBenchmarks>(config);
-        BenchmarkRunner.Run<SqliteBulkDeleteComparisonBenchmarks>(config);
-
-        // Read/Write Separation benchmarks (Replica selection strategies)
-        BenchmarkRunner.Run<ReplicaSelectionBenchmarks>(config);
-        BenchmarkRunner.Run<ConcurrentReplicaSelectionBenchmarks>(config);
-        BenchmarkRunner.Run<DatabaseRoutingBenchmarks>(config);
+        // Use BenchmarkSwitcher to discover all benchmark classes in the assembly
+        // and respect --filter arguments from the command line
+        BenchmarkSwitcher
+            .FromAssembly(typeof(Program).Assembly)
+            .Run(args, config);
     }
 
     private static string FindRepositoryRoot()
