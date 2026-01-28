@@ -17,7 +17,7 @@ namespace Encina.IntegrationTests.ADO.Sqlite.Tenancy;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-public class TenancyADOIntegrationTests : IClassFixture<SqliteFixture>
+public class TenancyADOIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;
@@ -32,12 +32,13 @@ public class TenancyADOIntegrationTests : IClassFixture<SqliteFixture>
     public TenancyADOIntegrationTests(SqliteFixture fixture)
     {
         _fixture = fixture;
-        InitializeAsync().GetAwaiter().GetResult();
     }
 
-    private async Task InitializeAsync()
+    /// <inheritdoc />
+    public async Task InitializeAsync()
     {
-        using var schemaConnection = _fixture.CreateConnection() as SqliteConnection;
+        // Get the shared connection (do NOT dispose - it's managed by the fixture)
+        var schemaConnection = _fixture.CreateConnection() as SqliteConnection;
         if (schemaConnection != null)
         {
             await TenancySchema.CreateTenantTestEntitiesSchemaAsync(schemaConnection);
@@ -68,6 +69,9 @@ public class TenancyADOIntegrationTests : IClassFixture<SqliteFixture>
         _repository = new TenantAwareFunctionalRepositoryADO<TenantTestEntity, Guid>(
             _connection, _mapping, _tenantProvider, _tenancyOptions);
     }
+
+    /// <inheritdoc />
+    public Task DisposeAsync() => Task.CompletedTask;
 
     private async Task ClearDataAsync()
     {

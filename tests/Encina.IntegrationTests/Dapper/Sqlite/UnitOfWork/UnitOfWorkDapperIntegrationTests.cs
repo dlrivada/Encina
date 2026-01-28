@@ -16,7 +16,7 @@ namespace Encina.IntegrationTests.Dapper.Sqlite.UnitOfWork;
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable", Justification = "Disposal handled by test cleanup")]
-public class UnitOfWorkDapperIntegrationTests : IClassFixture<SqliteFixture>
+public class UnitOfWorkDapperIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;
@@ -27,13 +27,13 @@ public class UnitOfWorkDapperIntegrationTests : IClassFixture<SqliteFixture>
     public UnitOfWorkDapperIntegrationTests(SqliteFixture fixture)
     {
         _fixture = fixture;
-        InitializeAsync().GetAwaiter().GetResult();
     }
 
-    private async Task InitializeAsync()
+    /// <inheritdoc />
+    public async Task InitializeAsync()
     {
-        // Create the test schema
-        using var schemaConnection = _fixture.CreateConnection() as SqliteConnection;
+        // Create the test schema (do NOT dispose - connection is managed by the fixture)
+        var schemaConnection = _fixture.CreateConnection() as SqliteConnection;
         if (schemaConnection != null)
         {
             await CreateTestProductsSchemaAsync(schemaConnection);
@@ -48,6 +48,9 @@ public class UnitOfWorkDapperIntegrationTests : IClassFixture<SqliteFixture>
 
         _unitOfWork = new UnitOfWorkDapper(_connection, _serviceProvider);
     }
+
+    /// <inheritdoc />
+    public Task DisposeAsync() => Task.CompletedTask;
 
     private static async Task CreateTestProductsSchemaAsync(SqliteConnection connection)
     {

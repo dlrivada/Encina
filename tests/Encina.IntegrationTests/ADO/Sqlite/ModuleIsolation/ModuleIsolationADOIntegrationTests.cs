@@ -25,7 +25,7 @@ namespace Encina.IntegrationTests.ADO.Sqlite.ModuleIsolation;
 /// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-public class ModuleIsolationADOIntegrationTests : IClassFixture<SqliteFixture>
+public class ModuleIsolationADOIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private SqliteConnection _connection = null!;
@@ -36,10 +36,10 @@ public class ModuleIsolationADOIntegrationTests : IClassFixture<SqliteFixture>
     public ModuleIsolationADOIntegrationTests(SqliteFixture fixture)
     {
         _fixture = fixture;
-        InitializeAsync().GetAwaiter().GetResult();
     }
 
-    private async Task InitializeAsync()
+    /// <inheritdoc />
+    public async Task InitializeAsync()
     {
         _connection = (_fixture.CreateConnection() as SqliteConnection)!;
 
@@ -58,6 +58,9 @@ public class ModuleIsolationADOIntegrationTests : IClassFixture<SqliteFixture>
         _schemaRegistry = new ModuleSchemaRegistry(_isolationOptions);
         _moduleContext = new TestModuleExecutionContext();
     }
+
+    /// <inheritdoc />
+    public Task DisposeAsync() => Task.CompletedTask;
 
     private static async Task CreatePrefixedTablesAsync(SqliteConnection connection)
     {

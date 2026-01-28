@@ -13,7 +13,7 @@ namespace Encina.IntegrationTests.ADO.Sqlite.Repository;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-public class FunctionalRepositoryADOIntegrationTests : IClassFixture<SqliteFixture>
+public class FunctionalRepositoryADOIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;
@@ -23,13 +23,13 @@ public class FunctionalRepositoryADOIntegrationTests : IClassFixture<SqliteFixtu
     public FunctionalRepositoryADOIntegrationTests(SqliteFixture fixture)
     {
         _fixture = fixture;
-        InitializeAsync().GetAwaiter().GetResult();
     }
 
-    private async Task InitializeAsync()
+    /// <inheritdoc />
+    public async Task InitializeAsync()
     {
-        // Create the test schema
-        using var schemaConnection = _fixture.CreateConnection() as SqliteConnection;
+        // Create the test schema (do NOT dispose - connection is managed by the fixture)
+        var schemaConnection = _fixture.CreateConnection() as SqliteConnection;
         if (schemaConnection != null)
         {
             await CreateTestItemsSchemaAsync(schemaConnection);
@@ -47,6 +47,9 @@ public class FunctionalRepositoryADOIntegrationTests : IClassFixture<SqliteFixtu
 
         _repository = new FunctionalRepositoryADO<TestItem, Guid>(_connection, _mapping);
     }
+
+    /// <inheritdoc />
+    public Task DisposeAsync() => Task.CompletedTask;
 
     private static async Task CreateTestItemsSchemaAsync(SqliteConnection connection)
     {
