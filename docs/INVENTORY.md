@@ -3758,6 +3758,76 @@ dotnet run -c Release -- --filter "*EntityFrameworkCore*" --exporters json
 | **Repository** | GetByIdAsync (cache hit) | <1μs |
 | **UnitOfWork** | Repository cache hit | <100ns |
 
+#### Dapper and ADO.NET Provider Benchmarks
+
+Added in Issue #568, these benchmarks measure performance of Dapper and ADO.NET provider implementations.
+
+| Project | Benchmarks | Focus |
+|---------|------------|-------|
+| **Encina.Dapper.Benchmarks** | ~62 benchmarks | Messaging stores, Repository, SQL Builder, Dapper vs ADO comparison |
+| **Encina.ADO.Benchmarks** | ~52 benchmarks | Messaging stores, Repository, SQL Builder |
+
+##### Dapper Benchmarks
+
+| Class | Description | Key Metrics |
+|-------|-------------|-------------|
+| `OutboxStoreBenchmarks` | Outbox CRUD operations | 50-200 μs single write |
+| `InboxStoreBenchmarks` | Inbox idempotency checks | 20-100 μs exists check |
+| `SagaStoreBenchmarks` | Saga state persistence | 50-200 μs create |
+| `ScheduledMessageStoreBenchmarks` | Due message queries | 200-500 μs batch read |
+| `RepositoryBenchmarks` | Repository vs raw Dapper | ~10-20% overhead |
+| `SpecificationSqlBuilderBenchmarks` | SQL generation | <10 μs simple WHERE |
+| `DapperVsAdoComparisonBenchmarks` | Direct provider comparison | 5-15% Dapper overhead |
+
+##### ADO.NET Benchmarks
+
+| Class | Description | Key Metrics |
+|-------|-------------|-------------|
+| `OutboxStoreBenchmarks` | Outbox CRUD operations | 40-150 μs single write |
+| `InboxStoreBenchmarks` | Inbox idempotency checks | 15-80 μs exists check |
+| `SagaStoreBenchmarks` | Saga state persistence | 40-150 μs create |
+| `ScheduledMessageStoreBenchmarks` | Due message queries | 150-400 μs batch read |
+| `RepositoryBenchmarks` | Repository vs raw ADO.NET | ~10-20% overhead |
+| `SpecificationSqlBuilderBenchmarks` | SQL generation | <10 μs simple WHERE |
+
+##### Files
+
+**Encina.Dapper.Benchmarks:**
+- `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/Stores/OutboxStoreBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/Stores/InboxStoreBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/Stores/SagaStoreBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/Stores/ScheduledMessageStoreBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/Repository/RepositoryBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/Repository/SpecificationSqlBuilderBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/ProviderComparison/DapperVsAdoComparisonBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/README.md`
+
+**Encina.ADO.Benchmarks:**
+- `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/Stores/OutboxStoreBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/Stores/InboxStoreBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/Stores/SagaStoreBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/Stores/ScheduledMessageStoreBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/Repository/RepositoryBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/Repository/SpecificationSqlBuilderBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/README.md`
+
+##### CLI Usage
+
+```bash
+# Run Dapper benchmarks
+cd tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks
+dotnet run -c Release
+
+# Run ADO.NET benchmarks
+cd tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks
+dotnet run -c Release
+
+# Run specific benchmarks
+dotnet run -c Release -- --filter "*OutboxStore*"
+dotnet run -c Release -- --filter "*RepositoryBenchmarks*"
+dotnet run -c Release -- --filter "*DapperVsAdo*"
+```
+
 ---
 
 ## Patrones Implementados

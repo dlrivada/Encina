@@ -1,75 +1,59 @@
 # Benchmark Tests - Repository Pattern
 
-## Status: Not Implemented
+## Status: Implemented
 
-## Justification
+## Overview
 
-Benchmark tests for the Repository pattern are not implemented for the following reasons:
+Repository benchmarks have been implemented for both Dapper and ADO.NET providers in Issue #568.
 
-### 1. Repository Overhead is Negligible
+## Implemented Benchmarks
 
-The Repository pattern adds minimal overhead:
-- **EntityMappingBuilder.Build()**: One-time cost at startup, cached for application lifetime
-- **GetId()**: Single property accessor call
-- **SQL Generation**: Pre-built at construction time, O(1) lookup
+| Project | File | Benchmarks |
+|---------|------|------------|
+| Encina.Dapper.Benchmarks | `Repository/RepositoryBenchmarks.cs` | 20 |
+| Encina.ADO.Benchmarks | `Repository/RepositoryBenchmarks.cs` | 20 |
 
-### 2. Performance is Determined by Underlying Technology
+### Operations Benchmarked
 
-The actual performance characteristics are determined by:
-- Database query execution time
-- Network latency
-- Connection pooling efficiency
-- Serialization/deserialization (for MongoDB)
+| Operation | Description |
+|-----------|-------------|
+| `Repository_GetByIdAsync` | Single entity retrieval by ID |
+| `Repository_ListAsync` | Full table retrieval |
+| `Repository_ListWithSpecification` | Filtered query via specification |
+| `Repository_AddAsync` | Single entity insert |
+| `Repository_UpdateAsync` | Single entity update |
+| `Repository_DeleteAsync` | Single entity delete |
+| `Repository_AddRangeAsync` | Batch insert (10, 100, 1000) |
+| `Repository_UpdateRangeAsync` | Batch update (10, 100, 1000) |
+| `Repository_DeleteRangeAsync` | Batch delete via specification |
+| `Repository_CountAsync` | Aggregate count |
+| `Repository_AnyAsync` | Existence check |
+| `Repository_FirstOrDefaultAsync` | Single entity with specification |
+| `RawDapper_*` / `RawAdo_*` | Direct comparison without repository |
 
-### 3. Adequate Coverage from Other Test Types
+### Running Benchmarks
 
-- **Unit Tests**: Verify correct behavior without database overhead
-- **Property Tests**: Verify behavior across varied inputs
-- **Integration Tests**: Validate real database interactions
+```bash
+# Dapper repository benchmarks
+cd tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks
+dotnet run -c Release -- --filter "*RepositoryBenchmarks*"
 
-### 4. Recommended Benchmarks (if needed)
-
-If benchmarks are required, focus on:
-
-```csharp
-[MemoryDiagnoser]
-public class EntityMappingBenchmarks
-{
-    [Benchmark]
-    public IEntityMapping<Order, Guid> BuildMapping()
-    {
-        return new EntityMappingBuilder<Order, Guid>()
-            .ToTable("Orders")
-            .HasId(o => o.Id)
-            .MapProperty(o => o.CustomerId)
-            .Build();
-    }
-}
-
-[MemoryDiagnoser]
-public class SpecificationSqlBuilderBenchmarks
-{
-    [Benchmark]
-    public string BuildWhereClause()
-    {
-        var spec = new OrderByCustomerSpecification(Guid.NewGuid());
-        return _sqlBuilder.BuildWhereClause(spec);
-    }
-}
+# ADO.NET repository benchmarks
+cd tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks
+dotnet run -c Release -- --filter "*RepositoryBenchmarks*"
 ```
-
-### 5. Why Not Include These Benchmarks
-
-- **EntityMappingBuilder.Build()**: Called once at startup, not a hot path
-- **GetId()**: Single delegate invocation, ~1ns overhead
-- **SQL generation**: Pre-computed at repository construction, cached
 
 ## Related Files
 
-- `src/Encina.*/Repository/EntityMappingBuilder.cs` - Mapping configuration
-- `src/Encina.*/Repository/SpecificationSqlBuilder.cs` - SQL generation
-- `tests/Encina.UnitTests/*/Repository/` - Unit tests for all providers
+- `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/Repository/RepositoryBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/Repository/RepositoryBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/README.md`
+- `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/README.md`
 
-## Date: 2026-01-24
+## Date: 2026-01-28
 
-## Issue: #279
+## Issue: #568
+
+## Previous Status
+
+Previously marked as "Not Implemented" (Issue #279) because repository overhead was considered negligible. However, benchmarks were implemented in Issue #568 to provide comprehensive coverage and enable direct comparison between repository abstraction vs raw data access.

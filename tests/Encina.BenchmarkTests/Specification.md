@@ -1,114 +1,82 @@
 # Benchmark Tests - Specification Pattern
 
-## Status: Not Implemented
+## Status: Implemented
 
-## Justification
+## Overview
 
-Benchmark tests for the Specification pattern are not implemented for the following reasons:
+Specification SQL builder benchmarks have been implemented for both Dapper and ADO.NET providers in Issue #568.
 
-### 1. Specification Overhead is Negligible
+## Implemented Benchmarks
 
-The Specification pattern adds minimal overhead:
-- **ToExpression()**: Returns a cached expression tree, O(1)
-- **IsSatisfiedBy()**: Single compiled delegate invocation, ~1ns
-- **And/Or/Not()**: Expression tree composition, one-time cost per specification
+| Project | File | Benchmarks |
+|---------|------|------------|
+| Encina.Dapper.Benchmarks | `Repository/SpecificationSqlBuilderBenchmarks.cs` | 12 |
+| Encina.ADO.Benchmarks | `Repository/SpecificationSqlBuilderBenchmarks.cs` | 12 |
 
-### 2. SQL Translation is Not a Hot Path
+### Operations Benchmarked
 
-`SpecificationSqlBuilder.BuildWhereClause()` is called:
-- Once per repository query (not per row)
-- Before the database roundtrip (which dominates timing)
-- With simple expression tree traversal (sub-millisecond)
+| Operation | Description |
+|-----------|-------------|
+| `BuildWhereClause_SingleEquality` | Simple `WHERE Id = @p0` (baseline) |
+| `BuildWhereClause_MultipleAnd` | `WHERE A AND B AND C` |
+| `BuildWhereClause_OrCombination` | `WHERE A OR B` |
+| `BuildWhereClause_StringContains` | `WHERE Name LIKE '%value%'` |
+| `BuildWhereClause_StringStartsWith` | `WHERE Name LIKE 'value%'` |
+| `BuildWhereClause_StringEndsWith` | `WHERE Name LIKE '%value'` |
+| `BuildOrderByClause_SingleColumn` | Single column ordering |
+| `BuildOrderByClause_MultipleColumns` | Multi-column ordering |
+| `BuildPaginationClause` | LIMIT/OFFSET generation |
+| `BuildSelectStatement_Complete` | Full SELECT with all clauses |
+| `SpecificationReuse_PreBuilt` | Pre-instantiated specification |
+| `SpecificationReuse_DynamicCreation` | New specification each time |
 
-### 3. Performance is Determined by Database Execution
+### Specification Classes Used
 
-The actual performance characteristics are determined by:
-- Database query execution time
-- Network latency
-- Connection pooling efficiency
-- Index utilization
+| Specification | Expression |
+|---------------|------------|
+| `SimpleEqualitySpec` | `e => e.Id == id` |
+| `MultipleAndConditionsSpec` | `e => e.Category == category && e.IsActive == isActive && e.Quantity > minQuantity` |
+| `OrCombinationSpec` | `e => e.Id == id1 \|\| e.Id == id2` |
+| `StringContainsSpec` | `e => e.Name.Contains(value)` |
+| `StringStartsWithSpec` | `e => e.Name.StartsWith(value)` |
+| `StringEndsWithSpec` | `e => e.Name.EndsWith(value)` |
+| `SingleColumnOrderSpec` | Single ORDER BY |
+| `MultiColumnOrderSpec` | Multiple ORDER BY with mixed directions |
+| `PaginatedQuerySpec` | WHERE + ORDER BY + LIMIT/OFFSET |
 
-### 4. Adequate Coverage from Other Test Types
+### Running Benchmarks
 
-- **Unit Tests**: Verify correct behavior without database overhead
-- **Property Tests**: Verify behavior across varied inputs
-- **Load Tests**: Stress test under high concurrency (if implemented)
+```bash
+# Dapper SQL builder benchmarks
+cd tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks
+dotnet run -c Release -- --filter "*SpecificationSqlBuilderBenchmarks*"
 
-### 5. Recommended Benchmarks (if needed)
-
-If benchmarks are required, focus on:
-
-```csharp
-[MemoryDiagnoser]
-public class SpecificationSqlBuilderBenchmarks
-{
-    private readonly SpecificationSqlBuilder<Order> _builder;
-    private readonly ActiveOrdersSpec _simpleSpec;
-    private readonly ComplexQuerySpec _complexSpec;
-
-    [Benchmark(Baseline = true)]
-    public string BuildWhereClause_SimpleSpec()
-    {
-        var (whereClause, _) = _builder.BuildWhereClause(_simpleSpec);
-        return whereClause;
-    }
-
-    [Benchmark]
-    public string BuildWhereClause_ComplexSpec()
-    {
-        var (whereClause, _) = _builder.BuildWhereClause(_complexSpec);
-        return whereClause;
-    }
-
-    [Benchmark]
-    public string BuildSelectStatement()
-    {
-        var (sql, _) = _builder.BuildSelectStatement("Orders", _complexSpec);
-        return sql;
-    }
-}
-
-[MemoryDiagnoser]
-public class SpecificationCompositionBenchmarks
-{
-    private readonly Specification<Order> _spec1;
-    private readonly Specification<Order> _spec2;
-    private readonly Order _testEntity;
-
-    [Benchmark(Baseline = true)]
-    public bool IsSatisfiedBy()
-    {
-        return _spec1.IsSatisfiedBy(_testEntity);
-    }
-
-    [Benchmark]
-    public bool AndComposition_IsSatisfiedBy()
-    {
-        var combined = _spec1.And(_spec2);
-        return combined.IsSatisfiedBy(_testEntity);
-    }
-
-    [Benchmark]
-    public Specification<Order> AndComposition_Create()
-    {
-        return _spec1.And(_spec2);
-    }
-}
+# ADO.NET SQL builder benchmarks
+cd tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks
+dotnet run -c Release -- --filter "*SpecificationSqlBuilderBenchmarks*"
 ```
 
-### 6. Why Not Include These Benchmarks Now
+## Performance Targets
 
-- **SQL generation**: Called once per query, not a hot path
-- **IsSatisfiedBy()**: Single delegate invocation, ~1ns overhead
-- **Composition**: One-time cost at specification creation
-- **Expression trees**: Pre-built, reused across calls
+| Operation | Target |
+|-----------|--------|
+| Simple WHERE | <10 μs |
+| Complex WHERE | <20 μs |
+| String operations | <15 μs |
+| Full SELECT | <50 μs |
 
 ## Related Files
 
-- `src/Encina.DomainModeling/Specification.cs` - Specification composition
-- `src/Encina.*/Repository/SpecificationSqlBuilder.cs` - SQL generation
-- `tests/Encina.UnitTests/*/Repository/` - Unit tests for all providers
+- `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/Repository/SpecificationSqlBuilderBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/Repository/SpecificationSqlBuilderBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/README.md`
+- `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/README.md`
+- `docs/benchmarks/provider-sql-dialect-comparison.md` - Result templates
 
-## Date: 2026-01-24
+## Date: 2026-01-28
 
-## Issue: #280
+## Issue: #568
+
+## Previous Status
+
+Previously marked as "Not Implemented" (Issue #280) because specification overhead was considered negligible. However, benchmarks were implemented in Issue #568 to provide comprehensive SQL generation performance metrics and enable pattern optimization analysis.
