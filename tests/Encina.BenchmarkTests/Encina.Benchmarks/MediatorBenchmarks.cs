@@ -4,6 +4,7 @@ using BenchmarkDotNet.Running;
 using Encina.Benchmarks.BulkOperations;
 using Encina.Benchmarks.Inbox;
 using Encina.Benchmarks.Outbox;
+using Encina.Benchmarks.ReadWriteSeparation;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
@@ -47,6 +48,11 @@ public static class Program
         BenchmarkRunner.Run<SqliteBulkInsertComparisonBenchmarks>(config);
         BenchmarkRunner.Run<SqliteBulkUpdateComparisonBenchmarks>(config);
         BenchmarkRunner.Run<SqliteBulkDeleteComparisonBenchmarks>(config);
+
+        // Read/Write Separation benchmarks (Replica selection strategies)
+        BenchmarkRunner.Run<ReplicaSelectionBenchmarks>(config);
+        BenchmarkRunner.Run<ConcurrentReplicaSelectionBenchmarks>(config);
+        BenchmarkRunner.Run<DatabaseRoutingBenchmarks>(config);
     }
 
     private static string FindRepositoryRoot()
