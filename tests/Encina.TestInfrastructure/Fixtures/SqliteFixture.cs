@@ -9,10 +9,16 @@ namespace Encina.TestInfrastructure.Fixtures;
 /// SQLite database fixture (in-memory, no container needed).
 /// Provides a throwaway SQLite instance for integration tests.
 /// </summary>
+/// <remarks>
+/// This fixture uses lazy initialization to ensure the connection is created
+/// before it's used, even if xUnit's IAsyncLifetime is not called in time.
+/// </remarks>
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "Connection is disposed in DisposeAsync")]
 public sealed class SqliteFixture : DatabaseFixture<SqliteConnection>
 {
     private SqliteConnection? _connection;
+    private readonly object _initLock = new();
+    private bool _initialized;
 
     /// <inheritdoc />
     public override string ConnectionString => "Data Source=:memory:";
@@ -53,25 +59,57 @@ public sealed class SqliteFixture : DatabaseFixture<SqliteConnection>
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Ensures the fixture is initialized (thread-safe, lazy initialization).
+    /// </summary>
+    private void EnsureInitialized()
+    {
+        if (_initialized)
+            return;
+
+        lock (_initLock)
+        {
+            if (_initialized)
+                return;
+
+            // Perform synchronous initialization
+            _connection = new SqliteConnection(ConnectionString);
+            _connection.Open();
+            Container = _connection;
+
+            // Create schema synchronously
+            SqliteSchema.CreateOutboxSchemaAsync(_connection).GetAwaiter().GetResult();
+            SqliteSchema.CreateInboxSchemaAsync(_connection).GetAwaiter().GetResult();
+            SqliteSchema.CreateSagaSchemaAsync(_connection).GetAwaiter().GetResult();
+            SqliteSchema.CreateSchedulingSchemaAsync(_connection).GetAwaiter().GetResult();
+            SqliteSchema.CreateTestRepositorySchemaAsync(_connection).GetAwaiter().GetResult();
+
+            _initialized = true;
+        }
+    }
+
     /// <inheritdoc />
     public override IDbConnection CreateConnection()
     {
-        // Return the same connection (in-memory SQLite requires keeping connection open)
-        if (_connection is null || _connection.State != ConnectionState.Open)
-        {
-            throw new InvalidOperationException("SQLite connection not initialized");
-        }
+        // Ensure initialization happens (lazy, thread-safe)
+        EnsureInitialized();
 
-        return _connection;
+        // Return the same connection (in-memory SQLite requires keeping connection open)
+        return _connection!;
     }
 
     /// <inheritdoc />
     public override async Task InitializeAsync()
     {
+        // If already initialized by lazy init, skip
+        if (_initialized)
+            return;
+
         Container = await CreateContainerAsync();
 
         // Create schema using the same connection
         await CreateSchemaAsync(_connection!);
+        _initialized = true;
     }
 
     /// <inheritdoc />
@@ -79,6 +117,7 @@ public sealed class SqliteFixture : DatabaseFixture<SqliteConnection>
     {
         // Dispose the connection (this destroys the in-memory database)
         _connection?.Dispose();
+        _initialized = false;
         return Task.CompletedTask;
     }
 
@@ -88,11 +127,7 @@ public sealed class SqliteFixture : DatabaseFixture<SqliteConnection>
     /// </summary>
     public async Task ClearAllDataAsync()
     {
-        if (_connection is null || _connection.State != ConnectionState.Open)
-        {
-            throw new InvalidOperationException("SQLite connection not initialized");
-        }
-
-        await SqliteSchema.ClearAllDataAsync(_connection);
+        EnsureInitialized();
+        await SqliteSchema.ClearAllDataAsync(_connection!);
     }
 }

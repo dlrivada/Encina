@@ -438,7 +438,86 @@ public sealed class SpecificationSqlBuilder<TEntity>
             };
         }
 
+        // Enumerable.Contains() - generates IN clause
+        if (methodName == "Contains" && IsEnumerableContainsMethod(methodCall))
+        {
+            return TranslateEnumerableContains(methodCall, parameters);
+        }
+
         throw new NotSupportedException($"Method {methodCall.Method.DeclaringType?.Name}.{methodName} is not supported for SQL translation.");
+    }
+
+    private static bool IsEnumerableContainsMethod(MethodCallExpression methodCall)
+    {
+        // Static Enumerable.Contains(source, item)
+        if (methodCall.Method.DeclaringType == typeof(Enumerable))
+        {
+            return true;
+        }
+
+        // Instance method on collection types: list.Contains(item)
+        var declaringType = methodCall.Method.DeclaringType;
+        if (declaringType is not null && declaringType.IsGenericType)
+        {
+            var genericTypeDef = declaringType.GetGenericTypeDefinition();
+            if (genericTypeDef == typeof(List<>) ||
+                genericTypeDef == typeof(IList<>) ||
+                genericTypeDef == typeof(ICollection<>) ||
+                genericTypeDef == typeof(IEnumerable<>) ||
+                genericTypeDef == typeof(HashSet<>))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private string TranslateEnumerableContains(MethodCallExpression methodCall, Dictionary<string, object?> parameters)
+    {
+        Expression collectionExpr;
+        Expression itemExpr;
+
+        // Static: Enumerable.Contains(collection, item)
+        if (methodCall.Method.DeclaringType == typeof(Enumerable))
+        {
+            collectionExpr = methodCall.Arguments[0];
+            itemExpr = methodCall.Arguments[1];
+        }
+        else
+        {
+            // Instance: collection.Contains(item)
+            collectionExpr = methodCall.Object!;
+            itemExpr = methodCall.Arguments[0];
+        }
+
+        // Get the column name from the item expression (e.g., e => e.Id)
+        var columnName = GetColumnName(itemExpr);
+
+        // Get the collection values
+        var collectionValue = GetValue(collectionExpr);
+        if (collectionValue is not System.Collections.IEnumerable enumerable)
+        {
+            throw new NotSupportedException("Contains method requires an IEnumerable collection.");
+        }
+
+        var values = enumerable.Cast<object?>().ToList();
+        if (values.Count == 0)
+        {
+            // Empty collection - return FALSE (no matches possible)
+            return "1 = 0";
+        }
+
+        // Build IN clause with parameters
+        var paramNames = new List<string>();
+        foreach (var value in values)
+        {
+            var paramName = $"p{_parameterIndex++}";
+            parameters[paramName] = value;
+            paramNames.Add($"@{paramName}");
+        }
+
+        return $"\"{columnName}\" IN ({string.Join(", ", paramNames)})";
     }
 
     private string TranslateBooleanMember(MemberExpression member)
