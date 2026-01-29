@@ -104,11 +104,32 @@ public static class MySqlSchema
     }
 
     /// <summary>
+    /// Creates the TestRepositoryEntities table schema for repository integration tests.
+    /// </summary>
+    public static async Task CreateTestRepositorySchemaAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS `TestRepositoryEntities` (
+                `Id` CHAR(36) PRIMARY KEY,
+                `Name` VARCHAR(200) NOT NULL,
+                `Amount` DECIMAL(18,2) NOT NULL,
+                `IsActive` TINYINT(1) NOT NULL,
+                `CreatedAtUtc` DATETIME(6) NOT NULL,
+                INDEX `IX_TestRepositoryEntities_IsActive` (`IsActive`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(MySqlConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS `TestRepositoryEntities`;
             DROP TABLE IF EXISTS ScheduledMessages;
             DROP TABLE IF EXISTS SagaStates;
             DROP TABLE IF EXISTS InboxMessages;
@@ -126,6 +147,7 @@ public static class MySqlSchema
     public static async Task ClearAllDataAsync(MySqlConnection connection)
     {
         const string sql = """
+            DELETE FROM `TestRepositoryEntities`;
             DELETE FROM ScheduledMessages;
             DELETE FROM SagaStates;
             DELETE FROM InboxMessages;

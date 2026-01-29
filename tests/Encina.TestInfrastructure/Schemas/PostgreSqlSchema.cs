@@ -112,11 +112,34 @@ public static class PostgreSqlSchema
     }
 
     /// <summary>
+    /// Creates the TestRepositoryEntities table schema for repository integration tests.
+    /// </summary>
+    public static async Task CreateTestRepositorySchemaAsync(NpgsqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS "TestRepositoryEntities" (
+                "Id" UUID PRIMARY KEY,
+                "Name" VARCHAR(200) NOT NULL,
+                "Amount" DECIMAL(18,2) NOT NULL,
+                "IsActive" BOOLEAN NOT NULL,
+                "CreatedAtUtc" TIMESTAMP NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS "IX_TestRepositoryEntities_IsActive"
+            ON "TestRepositoryEntities"("IsActive");
+            """;
+
+        using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(NpgsqlConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS "TestRepositoryEntities" CASCADE;
             DROP TABLE IF EXISTS ScheduledMessages CASCADE;
             DROP TABLE IF EXISTS SagaStates CASCADE;
             DROP TABLE IF EXISTS InboxMessages CASCADE;
@@ -134,6 +157,7 @@ public static class PostgreSqlSchema
     public static async Task ClearAllDataAsync(NpgsqlConnection connection)
     {
         const string sql = """
+            DELETE FROM "TestRepositoryEntities";
             DELETE FROM ScheduledMessages;
             DELETE FROM SagaStates;
             DELETE FROM InboxMessages;

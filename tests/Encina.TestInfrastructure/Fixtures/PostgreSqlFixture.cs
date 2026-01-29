@@ -45,6 +45,7 @@ public sealed class PostgreSqlFixture : DatabaseFixture<PostgreSqlContainer>
         await PostgreSqlSchema.CreateInboxSchemaAsync(npgsqlConnection);
         await PostgreSqlSchema.CreateSagaSchemaAsync(npgsqlConnection);
         await PostgreSqlSchema.CreateSchedulingSchemaAsync(npgsqlConnection);
+        await PostgreSqlSchema.CreateTestRepositorySchemaAsync(npgsqlConnection);
     }
 
     /// <inheritdoc />

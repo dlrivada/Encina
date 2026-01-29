@@ -1,5 +1,26 @@
 ## [Unreleased]
 
+### Fixed
+
+#### PostgreSQL EF Core Integration Tests Case-Sensitivity (#570)
+
+Fixed PostgreSQL integration tests failing with "relation does not exist" errors due to PostgreSQL's case-sensitivity with table names.
+
+**Root Cause**: PostgreSQL and MySQL schema files were missing `CreateTestRepositorySchemaAsync` methods, and SQL Server used an inconsistent table name (`TestEntities` instead of `TestRepositoryEntities`).
+
+**Changes**:
+
+- Added `CreateTestRepositorySchemaAsync` to `PostgreSqlSchema.cs` with quoted identifiers (`"TestRepositoryEntities"`)
+- Added `CreateTestRepositorySchemaAsync` to `MySqlSchema.cs` with backtick quoting (`` `TestRepositoryEntities` ``)
+- Renamed SQL Server table from `TestEntities` to `TestRepositoryEntities` for consistency
+- Updated cleanup methods (`DropAllSchemasAsync`, `ClearAllDataAsync`) in all schema files
+- Updated fixtures (`PostgreSqlFixture`, `MySqlFixture`) to call the new schema creation methods
+- Re-enabled 5 PostgreSQL UnitOfWork integration tests that were previously skipped
+
+**Related Issue**: [#570 - EF Core PostgreSQL integration tests fail due to table name case-sensitivity](https://github.com/dlrivada/Encina/issues/570)
+
+---
+
 ### Added
 
 #### Domain Entity Base Classes with Domain Events Support (#292)

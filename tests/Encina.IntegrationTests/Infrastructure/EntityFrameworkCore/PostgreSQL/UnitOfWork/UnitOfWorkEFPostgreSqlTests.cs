@@ -10,10 +10,6 @@ namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.PostgreSQL.
 /// PostgreSQL-specific integration tests for <see cref="UnitOfWorkEF"/>.
 /// Uses real PostgreSQL database via Testcontainers.
 /// </summary>
-/// <remarks>
-/// These tests are currently skipped due to PostgreSQL case-sensitivity issues with table names.
-/// See issue #570 for tracking.
-/// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
 [Collection("EFCore-PostgreSQL")]
@@ -36,7 +32,7 @@ public sealed class UnitOfWorkEFPostgreSqlTests : IAsyncLifetime
         }
     }
 
-    [Fact(Skip = "PostgreSQL EF Core tests have case-sensitivity issues with table names. See #570")]
+    [Fact]
     public async Task Transaction_CommitMultipleEntities_AllPersisted()
     {
         // Arrange
@@ -67,7 +63,7 @@ public sealed class UnitOfWorkEFPostgreSqlTests : IAsyncLifetime
         count.ShouldBe(2);
     }
 
-    [Fact(Skip = "PostgreSQL EF Core tests have case-sensitivity issues with table names. See #570")]
+    [Fact]
     public async Task Transaction_Rollback_NoChangesPersisted()
     {
         // Arrange
@@ -94,7 +90,7 @@ public sealed class UnitOfWorkEFPostgreSqlTests : IAsyncLifetime
         count.ShouldBe(0);
     }
 
-    [Fact(Skip = "PostgreSQL EF Core tests have case-sensitivity issues with table names. See #570")]
+    [Fact]
     public async Task SaveChangesAsync_ReturnsAffectedRowCount()
     {
         // Arrange
@@ -114,7 +110,7 @@ public sealed class UnitOfWorkEFPostgreSqlTests : IAsyncLifetime
         result.IfRight(count => count.ShouldBe(2));
     }
 
-    [Fact(Skip = "PostgreSQL EF Core tests have case-sensitivity issues with table names. See #570")]
+    [Fact]
     public async Task BeginTransaction_SetsHasActiveTransactionTrue()
     {
         // Arrange
@@ -133,7 +129,7 @@ public sealed class UnitOfWorkEFPostgreSqlTests : IAsyncLifetime
         unitOfWork.HasActiveTransaction.ShouldBeTrue();
     }
 
-    [Fact(Skip = "PostgreSQL EF Core tests have case-sensitivity issues with table names. See #570")]
+    [Fact]
     public async Task Commit_ClearsHasActiveTransaction()
     {
         // Arrange

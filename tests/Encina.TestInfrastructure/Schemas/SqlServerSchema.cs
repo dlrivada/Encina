@@ -121,13 +121,13 @@ public static class SqlServerSchema
     }
 
     /// <summary>
-    /// Creates the TestEntities table schema for repository integration tests.
+    /// Creates the TestRepositoryEntities table schema for repository integration tests.
     /// </summary>
     public static async Task CreateRepositoryTestSchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
-            DROP TABLE IF EXISTS TestEntities;
-            CREATE TABLE TestEntities (
+            DROP TABLE IF EXISTS TestRepositoryEntities;
+            CREATE TABLE TestRepositoryEntities (
                     Id UNIQUEIDENTIFIER PRIMARY KEY,
                     Name NVARCHAR(200) NOT NULL,
                     Amount DECIMAL(18,2) NOT NULL,
@@ -135,8 +135,8 @@ public static class SqlServerSchema
                     CreatedAtUtc DATETIME2 NOT NULL
                 );
 
-            CREATE INDEX IX_TestEntities_IsActive
-                ON TestEntities(IsActive);
+            CREATE INDEX IX_TestRepositoryEntities_IsActive
+                ON TestRepositoryEntities(IsActive);
             """;
 
         await ExecuteInTransactionAsync(connection, sql, cancellationToken).ConfigureAwait(false);
@@ -148,7 +148,7 @@ public static class SqlServerSchema
     public static async Task DropAllSchemasAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
-            DROP TABLE IF EXISTS TestEntities;
+            DROP TABLE IF EXISTS TestRepositoryEntities;
             DROP TABLE IF EXISTS ScheduledMessages;
             DROP TABLE IF EXISTS SagaStates;
             DROP TABLE IF EXISTS InboxMessages;
@@ -165,7 +165,7 @@ public static class SqlServerSchema
     public static async Task ClearAllDataAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
-            IF OBJECT_ID('TestEntities', 'U') IS NOT NULL DELETE FROM TestEntities;
+            IF OBJECT_ID('TestRepositoryEntities', 'U') IS NOT NULL DELETE FROM TestRepositoryEntities;
             DELETE FROM ScheduledMessages;
             DELETE FROM SagaStates;
             DELETE FROM InboxMessages;
