@@ -455,16 +455,32 @@ public sealed class SpecificationSqlBuilder<TEntity>
             return true;
         }
 
+        // Check if it's MemoryExtensions.Contains<T>(ReadOnlySpan<T>, T) or similar
+        // This handles T[].Contains(item) which .NET routes through MemoryExtensions
+        if (methodCall.Method.DeclaringType == typeof(MemoryExtensions))
+        {
+            return true;
+        }
+
         // Instance method on collection types: list.Contains(item)
         var declaringType = methodCall.Method.DeclaringType;
-        if (declaringType is not null && declaringType.IsGenericType)
+        if (declaringType is not null)
         {
-            var genericTypeDef = declaringType.GetGenericTypeDefinition();
-            if (genericTypeDef == typeof(List<>) ||
-                genericTypeDef == typeof(IList<>) ||
-                genericTypeDef == typeof(ICollection<>) ||
-                genericTypeDef == typeof(IEnumerable<>) ||
-                genericTypeDef == typeof(HashSet<>))
+            if (declaringType.IsGenericType)
+            {
+                var genericTypeDef = declaringType.GetGenericTypeDefinition();
+                if (genericTypeDef == typeof(List<>) ||
+                    genericTypeDef == typeof(IList<>) ||
+                    genericTypeDef == typeof(ICollection<>) ||
+                    genericTypeDef == typeof(IEnumerable<>) ||
+                    genericTypeDef == typeof(HashSet<>))
+                {
+                    return true;
+                }
+            }
+
+            // Check if it's an array type (T[])
+            if (declaringType.IsArray)
             {
                 return true;
             }
@@ -478,10 +494,11 @@ public sealed class SpecificationSqlBuilder<TEntity>
         Expression collectionExpr;
         Expression itemExpr;
 
-        // Static: Enumerable.Contains(collection, item)
-        if (methodCall.Method.DeclaringType == typeof(Enumerable))
+        // Static: Enumerable.Contains(collection, item) or MemoryExtensions.Contains(span, item)
+        if (methodCall.Object is null)
         {
             collectionExpr = methodCall.Arguments[0];
+            collectionExpr = UnwrapImplicitConversion(collectionExpr);
             itemExpr = methodCall.Arguments[1];
         }
         else
@@ -518,6 +535,28 @@ public sealed class SpecificationSqlBuilder<TEntity>
         }
 
         return $"\"{columnName}\" IN ({string.Join(", ", paramNames)})";
+    }
+
+    /// <summary>
+    /// Unwraps implicit conversion expressions (e.g., op_Implicit) to get the underlying expression.
+    /// This is needed for MemoryExtensions.Contains which wraps arrays in ReadOnlySpan via op_Implicit.
+    /// </summary>
+    private static Expression UnwrapImplicitConversion(Expression expression)
+    {
+        if (expression is MethodCallExpression mce &&
+            mce.Method.Name == "op_Implicit" &&
+            mce.Arguments.Count == 1)
+        {
+            return UnwrapImplicitConversion(mce.Arguments[0]);
+        }
+
+        if (expression is UnaryExpression unary &&
+            (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
+        {
+            return UnwrapImplicitConversion(unary.Operand);
+        }
+
+        return expression;
     }
 
     private string TranslateBooleanMember(MemberExpression member)

@@ -71,6 +71,21 @@ public static partial class SqlSchemaExtractor
         matchTimeoutMilliseconds: 1000)]
     private static partial Regex GenericSchemaTablePatternRegex();
 
+    // Pattern for SQLite prefix-style table names: prefix_TableName (e.g., orders_Orders, shared_Lookups)
+    // This pattern matches after SQL keywords and extracts the prefix before the underscore
+    [GeneratedRegex(
+        @"(?:FROM|JOIN|INTO|UPDATE)\s+([a-z][a-z0-9]*)_([A-Z][A-Za-z0-9]*)\b",
+        RegexOptions.Compiled,
+        matchTimeoutMilliseconds: 1000)]
+    private static partial Regex PrefixTablePatternRegex();
+
+    // Pattern for DELETE FROM with prefix-style table names
+    [GeneratedRegex(
+        @"DELETE\s+FROM\s+([a-z][a-z0-9]*)_([A-Z][A-Za-z0-9]*)\b",
+        RegexOptions.Compiled,
+        matchTimeoutMilliseconds: 1000)]
+    private static partial Regex DeleteFromPrefixPatternRegex();
+
     /// <summary>
     /// Extracts all schema names referenced in a SQL statement.
     /// </summary>
@@ -120,6 +135,10 @@ public static partial class SqlSchemaExtractor
 
             // Extract from generic schema.table patterns (catches edge cases)
             ExtractFromMatches(GenericSchemaTablePatternRegex().Matches(sql), schemas);
+
+            // Extract from SQLite prefix-style table names (prefix_TableName)
+            ExtractFromPrefixMatches(PrefixTablePatternRegex().Matches(sql), schemas);
+            ExtractFromPrefixMatches(DeleteFromPrefixPatternRegex().Matches(sql), schemas);
         }
         catch (RegexMatchTimeoutException)
         {
@@ -142,6 +161,25 @@ public static partial class SqlSchemaExtractor
             if (!string.IsNullOrWhiteSpace(schema) && !IsReservedKeyword(schema))
             {
                 schemas.Add(schema.ToLowerInvariant());
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extracts schemas from prefix-style table name matches (SQLite pattern: prefix_TableName).
+    /// </summary>
+    private static void ExtractFromPrefixMatches(MatchCollection matches, HashSet<string> schemas)
+    {
+        foreach (Match match in matches)
+        {
+            // Group 1 is the prefix (schema equivalent)
+            if (match.Groups.Count > 1 && match.Groups[1].Success)
+            {
+                var prefix = match.Groups[1].Value;
+                if (!string.IsNullOrWhiteSpace(prefix) && !IsReservedKeyword(prefix))
+                {
+                    schemas.Add(prefix.ToLowerInvariant());
+                }
             }
         }
     }

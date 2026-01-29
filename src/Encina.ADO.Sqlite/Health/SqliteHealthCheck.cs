@@ -14,6 +14,8 @@ public sealed class SqliteHealthCheck : DatabaseHealthCheck
     /// </summary>
     public const string DefaultName = "encina-ado-sqlite";
 
+    private static readonly string[] SqliteTags = ["encina", "database", "sqlite", "ready"];
+
     /// <summary>
     /// Initializes a new instance of the <see cref="SqliteHealthCheck"/> class.
     /// </summary>
@@ -22,7 +24,7 @@ public sealed class SqliteHealthCheck : DatabaseHealthCheck
     public SqliteHealthCheck(
         IServiceProvider serviceProvider,
         ProviderHealthCheckOptions? options)
-        : base(DefaultName, CreateConnectionFactory(serviceProvider), options)
+        : base(DefaultName, CreateConnectionFactory(serviceProvider), CreateOptionsWithSqliteTags(options))
     {
     }
 
@@ -33,5 +35,21 @@ public sealed class SqliteHealthCheck : DatabaseHealthCheck
             var scope = serviceProvider.CreateScope();
             return scope.ServiceProvider.GetRequiredService<IDbConnection>();
         };
+    }
+
+    private static ProviderHealthCheckOptions CreateOptionsWithSqliteTags(ProviderHealthCheckOptions? options)
+    {
+        if (options is null)
+        {
+            return new ProviderHealthCheckOptions { Tags = SqliteTags };
+        }
+
+        // If custom tags are provided, use them; otherwise, use SQLite tags
+        if (options.Tags is null || options.Tags.Count == 0)
+        {
+            options.Tags = SqliteTags;
+        }
+
+        return options;
     }
 }

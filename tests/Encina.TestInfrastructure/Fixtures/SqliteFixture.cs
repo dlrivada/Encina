@@ -19,9 +19,14 @@ public sealed class SqliteFixture : DatabaseFixture<SqliteConnection>
     private SqliteConnection? _connection;
     private readonly object _initLock = new();
     private bool _initialized;
+    private readonly string _databaseName = $"EncinaTest_{Guid.NewGuid():N}";
 
     /// <inheritdoc />
-    public override string ConnectionString => "Data Source=:memory:";
+    /// <remarks>
+    /// Uses shared cache mode so multiple connections can access the same in-memory database.
+    /// A unique database name per fixture instance ensures isolation from parallel tests.
+    /// </remarks>
+    public override string ConnectionString => $"Data Source={_databaseName};Mode=Memory;Cache=Shared";
 
     /// <inheritdoc />
     public override string ProviderName => "SQLite";

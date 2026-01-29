@@ -456,6 +456,13 @@ public sealed class SpecificationSqlBuilder<TEntity>
             return true;
         }
 
+        // Check if it's MemoryExtensions.Contains<T>(ReadOnlySpan<T>, T) or similar
+        // This handles T[].Contains(item) which .NET routes through MemoryExtensions
+        if (methodCall.Method.DeclaringType == typeof(MemoryExtensions))
+        {
+            return true;
+        }
+
         // Check if it's List<T>.Contains(T) or ICollection<T>.Contains(T)
         var declaringType = methodCall.Method.DeclaringType;
         if (declaringType is not null)
@@ -480,6 +487,12 @@ public sealed class SpecificationSqlBuilder<TEntity>
             {
                 return true;
             }
+
+            // Check if it's an array type (T[])
+            if (declaringType.IsArray)
+            {
+                return true;
+            }
         }
 
         return false;
@@ -496,8 +509,9 @@ public sealed class SpecificationSqlBuilder<TEntity>
 
         if (methodCall.Object is null)
         {
-            // Static method: Enumerable.Contains(collection, item)
+            // Static method: Enumerable.Contains(collection, item) or MemoryExtensions.Contains(span, item)
             collectionExpression = methodCall.Arguments[0];
+            collectionExpression = UnwrapImplicitConversion(collectionExpression);
             itemExpression = methodCall.Arguments[1];
         }
         else
@@ -536,6 +550,28 @@ public sealed class SpecificationSqlBuilder<TEntity>
         }
 
         return $"\"{columnName}\" IN ({string.Join(", ", paramNames)})";
+    }
+
+    /// <summary>
+    /// Unwraps implicit conversion expressions (e.g., op_Implicit) to get the underlying expression.
+    /// This is needed for MemoryExtensions.Contains which wraps arrays in ReadOnlySpan via op_Implicit.
+    /// </summary>
+    private static Expression UnwrapImplicitConversion(Expression expression)
+    {
+        if (expression is MethodCallExpression mce &&
+            mce.Method.Name == "op_Implicit" &&
+            mce.Arguments.Count == 1)
+        {
+            return UnwrapImplicitConversion(mce.Arguments[0]);
+        }
+
+        if (expression is UnaryExpression unary &&
+            (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
+        {
+            return UnwrapImplicitConversion(unary.Operand);
+        }
+
+        return expression;
     }
 
     private string TranslateBooleanMember(MemberExpression member)

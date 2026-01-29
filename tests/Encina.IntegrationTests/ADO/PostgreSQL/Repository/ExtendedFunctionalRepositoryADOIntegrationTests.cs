@@ -35,7 +35,7 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         _connection = _fixture.CreateConnection();
         _mapping = new EntityMappingBuilder<ExtendedTestItem, Guid>()
             .ToTable("extended_test_items")
-            .HasId(p => p.Id)
+            .HasId(p => p.Id, "id")
             .MapProperty(p => p.Name, "name")
             .MapProperty(p => p.Description, "description")
             .MapProperty(p => p.Amount, "amount")

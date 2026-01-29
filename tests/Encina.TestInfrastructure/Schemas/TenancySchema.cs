@@ -49,6 +49,9 @@ public static class TenancySchema
     /// </summary>
     public static async Task CreateReadWriteTestEntitiesSchemaAsync(SqliteConnection connection)
     {
+        if (connection.State != System.Data.ConnectionState.Open)
+            await connection.OpenAsync();
+
         const string sql = """
             CREATE TABLE IF NOT EXISTS ReadWriteTestEntities (
                 Id TEXT PRIMARY KEY,
@@ -85,6 +88,9 @@ public static class TenancySchema
     /// </summary>
     public static async Task ClearTenancyDataAsync(SqliteConnection connection)
     {
+        if (connection.State != System.Data.ConnectionState.Open)
+            await connection.OpenAsync();
+
         var tables = new[] { "TenantTestEntities", "ReadWriteTestEntities" };
         foreach (var table in tables)
         {

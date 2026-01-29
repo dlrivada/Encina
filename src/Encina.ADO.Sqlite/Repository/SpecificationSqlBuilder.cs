@@ -311,7 +311,9 @@ public sealed class SpecificationSqlBuilder<TEntity>
     {
         var columnName = GetColumnNameFromExpression(keysetProperty);
         var paramName = $"@p{_parameterIndex++}";
-        parameters.Add((paramName, lastKeyValue));
+        // SQLite stores GUIDs as TEXT, so convert Guid values to strings
+        var convertedValue = lastKeyValue is Guid g ? g.ToString() : lastKeyValue;
+        parameters.Add((paramName, convertedValue));
 
         return $"\"{columnName}\" > {paramName}";
     }
@@ -395,7 +397,9 @@ public sealed class SpecificationSqlBuilder<TEntity>
         }
 
         var paramName = $"@p{_parameterIndex++}";
-        parameters.Add((paramName, value));
+        // SQLite stores GUIDs as TEXT, so convert Guid values to strings
+        var convertedValue = value is Guid g ? g.ToString() : value;
+        parameters.Add((paramName, convertedValue));
         return $"\"{columnName}\"{sqlOperator}{paramName}";
     }
 
@@ -454,6 +458,13 @@ public sealed class SpecificationSqlBuilder<TEntity>
             return true;
         }
 
+        // Check if it's MemoryExtensions.Contains<T>(ReadOnlySpan<T>, T) or similar
+        // This handles T[].Contains(item) which .NET routes through MemoryExtensions
+        if (methodCall.Method.DeclaringType == typeof(MemoryExtensions))
+        {
+            return true;
+        }
+
         // Check if it's List<T>.Contains(T) or ICollection<T>.Contains(T)
         var declaringType = methodCall.Method.DeclaringType;
         if (declaringType is not null)
@@ -478,6 +489,12 @@ public sealed class SpecificationSqlBuilder<TEntity>
             {
                 return true;
             }
+
+            // Check if it's an array type (T[])
+            if (declaringType.IsArray)
+            {
+                return true;
+            }
         }
 
         return false;
@@ -485,18 +502,23 @@ public sealed class SpecificationSqlBuilder<TEntity>
 
     private string TranslateEnumerableContains(MethodCallExpression methodCall, List<(string Name, object? Value)> parameters)
     {
-        // Two patterns:
+        // Three patterns:
         // 1. Enumerable.Contains(collection, item) - static method, 2 args
-        // 2. collection.Contains(item) - instance method, 1 arg
+        // 2. MemoryExtensions.Contains(span, item) - static method, 2 args (arg0 is op_Implicit call)
+        // 3. collection.Contains(item) - instance method, 1 arg
 
         Expression collectionExpression;
         Expression itemExpression;
 
         if (methodCall.Object is null)
         {
-            // Static method: Enumerable.Contains(collection, item)
+            // Static method: Enumerable.Contains(collection, item) or MemoryExtensions.Contains(span, item)
             collectionExpression = methodCall.Arguments[0];
             itemExpression = methodCall.Arguments[1];
+
+            // For MemoryExtensions.Contains, the first argument is often an op_Implicit call
+            // that wraps the actual array/collection
+            collectionExpression = UnwrapImplicitConversion(collectionExpression);
         }
         else
         {
@@ -529,11 +551,35 @@ public sealed class SpecificationSqlBuilder<TEntity>
         foreach (var value in values)
         {
             var paramName = $"@p{_parameterIndex++}";
-            parameters.Add((paramName, value));
+            // SQLite stores GUIDs as TEXT, so convert Guid values to strings
+            var convertedValue = value is Guid g ? g.ToString() : value;
+            parameters.Add((paramName, convertedValue));
             paramNames.Add(paramName);
         }
 
         return $"\"{columnName}\" IN ({string.Join(", ", paramNames)})";
+    }
+
+    /// <summary>
+    /// Unwraps implicit conversion expressions (e.g., op_Implicit) to get the underlying expression.
+    /// This is needed for MemoryExtensions.Contains which wraps arrays in ReadOnlySpan via op_Implicit.
+    /// </summary>
+    private static Expression UnwrapImplicitConversion(Expression expression)
+    {
+        if (expression is MethodCallExpression mce &&
+            mce.Method.Name == "op_Implicit" &&
+            mce.Arguments.Count == 1)
+        {
+            return UnwrapImplicitConversion(mce.Arguments[0]);
+        }
+
+        if (expression is UnaryExpression unary &&
+            (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
+        {
+            return UnwrapImplicitConversion(unary.Operand);
+        }
+
+        return expression;
     }
 
     private string TranslateBooleanMember(MemberExpression member)
@@ -565,7 +611,9 @@ public sealed class SpecificationSqlBuilder<TEntity>
             return $"\"{columnName}\" IS NULL";
         }
 
-        parameters.Add((paramName, value));
+        // SQLite stores GUIDs as TEXT, so convert Guid values to strings
+        var convertedValue = value is Guid g ? g.ToString() : value;
+        parameters.Add((paramName, convertedValue));
         return $"\"{columnName}\" = {paramName}";
     }
 
