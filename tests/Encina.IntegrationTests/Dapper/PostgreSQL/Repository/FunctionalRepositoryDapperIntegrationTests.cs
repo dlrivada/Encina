@@ -34,7 +34,7 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
         _connection = _fixture.CreateConnection();
         _mapping = new EntityMappingBuilder<TestProduct, Guid>()
             .ToTable("test_products")
-            .HasId(p => p.Id)
+            .HasId(p => p.Id, "id")  // PostgreSQL is case-sensitive with quoted identifiers
             .MapProperty(p => p.Name, "name")
             .MapProperty(p => p.Price, "price")
             .MapProperty(p => p.IsActive, "is_active")

@@ -51,7 +51,7 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
 
         _mapping = new TenantEntityMappingBuilder<TenantTestEntity, Guid>()
             .ToTable("tenanttestentities")
-            .HasId(e => e.Id)
+            .HasId(e => e.Id, "id")  // PostgreSQL is case-sensitive with quoted identifiers
             .HasTenantId(e => e.TenantId, "tenantid")
             .MapProperty(e => e.Name, "name")
             .MapProperty(e => e.Description, "description")

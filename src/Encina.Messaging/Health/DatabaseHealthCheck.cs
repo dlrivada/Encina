@@ -48,13 +48,40 @@ public class DatabaseHealthCheck : EncinaHealthCheck
         string name,
         Func<IDbConnection> connectionFactory,
         ProviderHealthCheckOptions? options = null)
+        : this(name, connectionFactory, options, [])
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DatabaseHealthCheck"/> class with provider-specific tags.
+    /// </summary>
+    /// <param name="name">The name of the health check.</param>
+    /// <param name="connectionFactory">Factory function to create database connections.</param>
+    /// <param name="options">Optional configuration for the health check.</param>
+    /// <param name="providerTags">Provider-specific tags to include (e.g., "postgresql", "sqlserver").</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="connectionFactory"/> is null.</exception>
+    protected DatabaseHealthCheck(
+        string name,
+        Func<IDbConnection> connectionFactory,
+        ProviderHealthCheckOptions? options,
+        IReadOnlyCollection<string> providerTags)
         : base(
             options?.Name ?? name,
-            MergeTags(options?.Tags, DefaultTags))
+            MergeTags(options?.Tags, CombineWithProviderTags(DefaultTags, providerTags)))
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
         _options = options ?? new ProviderHealthCheckOptions();
+    }
+
+    private static string[] CombineWithProviderTags(string[] defaultTags, IReadOnlyCollection<string> providerTags)
+    {
+        if (providerTags.Count == 0)
+        {
+            return defaultTags;
+        }
+
+        return [.. defaultTags, .. providerTags];
     }
 
     /// <summary>

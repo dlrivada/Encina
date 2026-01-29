@@ -34,7 +34,7 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         _connection = _fixture.CreateConnection();
         _mapping = new EntityMappingBuilder<TestItem, Guid>()
             .ToTable("test_items")
-            .HasId(p => p.Id)
+            .HasId(p => p.Id, "id")  // PostgreSQL is case-sensitive with quoted identifiers
             .MapProperty(p => p.Name, "name")
             .MapProperty(p => p.Value, "value")
             .MapProperty(p => p.IsEnabled, "is_enabled")

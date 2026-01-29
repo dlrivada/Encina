@@ -162,7 +162,7 @@ public class ModuleIsolationADOIntegrationTests : IAsyncLifetime
     {
         // Arrange
         await using var connection = CreateSchemaValidatingConnection("Orders");
-        await connection.OpenAsync();
+        // Connection is already open from CreateConnection() in fixture
 
         var order = new OrdersModuleEntity
         {
@@ -201,7 +201,7 @@ public class ModuleIsolationADOIntegrationTests : IAsyncLifetime
     {
         // Arrange
         await using var connection = CreateSchemaValidatingConnection("Orders");
-        await connection.OpenAsync();
+        // Connection is already open from CreateConnection() in fixture
 
         // Act & Assert
         await using var cmd = connection.CreateCommand();
@@ -218,7 +218,7 @@ public class ModuleIsolationADOIntegrationTests : IAsyncLifetime
     {
         // Arrange
         await using var connection = CreateSchemaValidatingConnection("Orders");
-        await connection.OpenAsync();
+        // Connection is already open from CreateConnection() in fixture
 
         // Insert a shared lookup first
         await using var insertCmd = connection.CreateCommand();
@@ -269,12 +269,11 @@ public class ModuleIsolationADOIntegrationTests : IAsyncLifetime
     public async Task ModuleContext_IsolatesDifferentConnections()
     {
         // Arrange
+        // Connections are already open from CreateConnection() in fixture
         await using var ordersConnection = CreateSchemaValidatingConnection("Orders");
-        await ordersConnection.OpenAsync();
 
         _moduleContext.SetCurrentModule("Inventory");
         await using var inventoryConnection = CreateSchemaValidatingConnection("Inventory");
-        await inventoryConnection.OpenAsync();
 
         // Act - Insert as Orders
         _moduleContext.SetCurrentModule("Orders");

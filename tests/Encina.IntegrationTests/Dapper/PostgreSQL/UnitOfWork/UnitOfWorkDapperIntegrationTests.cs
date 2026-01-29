@@ -83,7 +83,7 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
     {
         return new EntityMappingBuilder<TestUoWProduct, Guid>()
             .ToTable("test_uow_products")
-            .HasId(p => p.Id)
+            .HasId(p => p.Id, "id")  // PostgreSQL is case-sensitive with quoted identifiers
             .MapProperty(p => p.Name, "name")
             .MapProperty(p => p.Price, "price")
             .MapProperty(p => p.IsActive, "is_active")
