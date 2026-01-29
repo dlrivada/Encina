@@ -96,11 +96,16 @@ public static class PostgreSqlSchema
                 RequestType VARCHAR(500) NOT NULL,
                 Content TEXT NOT NULL,
                 ScheduledAtUtc TIMESTAMP NOT NULL,
+                CreatedAtUtc TIMESTAMP NOT NULL,
                 ProcessedAtUtc TIMESTAMP NULL,
+                LastExecutedAtUtc TIMESTAMP NULL,
                 ErrorMessage TEXT NULL,
                 RetryCount INTEGER NOT NULL DEFAULT 0,
                 NextRetryAtUtc TIMESTAMP NULL,
-                RecurrencePattern VARCHAR(200) NULL
+                CorrelationId VARCHAR(256) NULL,
+                Metadata TEXT NULL,
+                IsRecurring BOOLEAN NOT NULL DEFAULT FALSE,
+                CronExpression VARCHAR(200) NULL
             );
 
             CREATE INDEX IF NOT EXISTS IX_ScheduledMessages_ScheduledAtUtc_ProcessedAtUtc

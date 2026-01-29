@@ -90,11 +90,16 @@ public static class MySqlSchema
                 RequestType VARCHAR(500) NOT NULL,
                 Content TEXT NOT NULL,
                 ScheduledAtUtc DATETIME(6) NOT NULL,
+                CreatedAtUtc DATETIME(6) NOT NULL,
                 ProcessedAtUtc DATETIME(6) NULL,
+                LastExecutedAtUtc DATETIME(6) NULL,
                 ErrorMessage TEXT NULL,
                 RetryCount INT NOT NULL DEFAULT 0,
                 NextRetryAtUtc DATETIME(6) NULL,
-                RecurrencePattern VARCHAR(200) NULL,
+                CorrelationId VARCHAR(256) NULL,
+                Metadata TEXT NULL,
+                IsRecurring TINYINT(1) NOT NULL DEFAULT 0,
+                CronExpression VARCHAR(200) NULL,
                 INDEX IX_ScheduledMessages_ScheduledAtUtc_ProcessedAtUtc (ScheduledAtUtc, ProcessedAtUtc)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """;
