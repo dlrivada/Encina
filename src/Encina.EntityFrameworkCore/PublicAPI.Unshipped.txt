@@ -80,3 +80,33 @@ Encina.EntityFrameworkCore.BulkOperations.BulkOperationsEF<TEntity>.BulkOperatio
 Encina.EntityFrameworkCore.BulkOperations.BulkOperationsEF<TEntity>.BulkReadAsync(System.Collections.Generic.IEnumerable<object!>! ids, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, System.Collections.Generic.IReadOnlyList<TEntity>!>>!
 Encina.EntityFrameworkCore.BulkOperations.BulkOperationsEF<TEntity>.BulkUpdateAsync(System.Collections.Generic.IEnumerable<TEntity>! entities, Encina.DomainModeling.BulkConfig? config = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, int>>!
 static Encina.EntityFrameworkCore.ServiceCollectionExtensions.AddEncinaBulkOperations<TEntity>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions.DomainEventDispatcherOptions() -> void
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions.Enabled.get -> bool
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions.Enabled.set -> void
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions.StopOnFirstError.get -> bool
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions.StopOnFirstError.set -> void
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions.RequireINotification.get -> bool
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions.RequireINotification.set -> void
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions.ClearEventsAfterDispatch.get -> bool
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions.ClearEventsAfterDispatch.set -> void
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherInterceptor
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherInterceptor.DomainEventDispatcherInterceptor(System.IServiceProvider! serviceProvider, Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherInterceptor>! logger) -> void
+override Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherInterceptor.SavedChanges(Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesCompletedEventData! eventData, int result) -> int
+override Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherInterceptor.SavedChangesAsync(Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesCompletedEventData! eventData, int result, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<int>
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatchException
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatchException.DomainEvent.get -> Encina.DomainModeling.IDomainEvent!
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatchException.EncinaError.get -> Encina.EncinaError?
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatchException.DomainEventDispatchException(string! message, Encina.DomainModeling.IDomainEvent! domainEvent, Encina.EncinaError! encinaError) -> void
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatchException.DomainEventDispatchException(string! message, Encina.DomainModeling.IDomainEvent! domainEvent, System.Exception! innerException) -> void
+Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherExtensions
+static Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherExtensions.AddDomainEventDispatcher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherExtensions.AddDomainEventDispatcher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherExtensions.UseDomainEventDispatcher(this Microsoft.EntityFrameworkCore.DbContextOptionsBuilder! optionsBuilder, System.IServiceProvider! serviceProvider) -> Microsoft.EntityFrameworkCore.DbContextOptionsBuilder!
+static Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherExtensions.UseDomainEventDispatcher(this Microsoft.EntityFrameworkCore.DbContextOptionsBuilder! optionsBuilder, System.IServiceProvider! serviceProvider, System.Action<Encina.EntityFrameworkCore.DomainEvents.DomainEventDispatcherOptions!>? configure) -> Microsoft.EntityFrameworkCore.DbContextOptionsBuilder!
+Encina.EntityFrameworkCore.Configuration.EntityConfigurationExtensions
+static Encina.EntityFrameworkCore.Configuration.EntityConfigurationExtensions.ConfigureConcurrencyToken<T>(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T>! builder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T>!
+static Encina.EntityFrameworkCore.Configuration.EntityConfigurationExtensions.ConfigureAuditProperties<T>(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T>! builder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T>!
+static Encina.EntityFrameworkCore.Configuration.EntityConfigurationExtensions.ConfigureSoftDelete<T>(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T>! builder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T>!
+static Encina.EntityFrameworkCore.Configuration.EntityConfigurationExtensions.ConfigureAggregateRoot<T, TId>(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T>! builder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T>!
+static Encina.EntityFrameworkCore.Configuration.EntityConfigurationExtensions.ConfigureAggregateRoot<T>(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T>! builder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T>!

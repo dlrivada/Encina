@@ -1,5 +1,6 @@
 using Encina.Messaging.ContentRouter;
 using Encina.Messaging.DeadLetter;
+using Encina.Messaging.DomainEvents;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
@@ -260,6 +261,41 @@ public sealed class MessagingConfiguration
     public bool UseModuleIsolation { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable automatic domain event dispatching after SaveChanges.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, domain events raised by entities (via <see cref="Encina.DomainModeling.Entity{TId}.AddDomainEvent"/>
+    /// or <see cref="Encina.DomainModeling.AggregateRoot{TId}.RaiseDomainEvent"/>) are automatically
+    /// dispatched through <see cref="IEncina.Publish{TNotification}"/> after SaveChanges completes.
+    /// </para>
+    /// <para>
+    /// <b>Event Flow</b>:
+    /// <list type="number">
+    /// <item><description>Domain events are raised during aggregate operations</description></item>
+    /// <item><description>SaveChanges persists the aggregate state to the database</description></item>
+    /// <item><description>After successful persistence, events are dispatched to handlers</description></item>
+    /// <item><description>Events are cleared from entities to prevent duplicate dispatch</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Requirements</b>: Domain events must implement <see cref="INotification"/> to be dispatched
+    /// (configurable via <see cref="DomainEventsOptions"/>).
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseDomainEvents = true;
+    ///     config.DomainEventsOptions.StopOnFirstError = true;
+    /// });
+    /// </code>
+    /// </example>
+    public bool UseDomainEvents { get; set; }
+
+    /// <summary>
     /// Gets or sets whether to enable read/write database separation (CQRS physical split).
     /// </summary>
     /// <remarks>
@@ -427,6 +463,31 @@ public sealed class MessagingConfiguration
     public ReadWriteSeparationOptions ReadWriteSeparationOptions { get; } = new();
 
     /// <summary>
+    /// Gets the configuration options for domain event dispatching.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use this to configure:
+    /// <list type="bullet">
+    /// <item><description>Whether to stop on first dispatch error</description></item>
+    /// <item><description>Whether events must implement INotification</description></item>
+    /// <item><description>Whether to clear events after dispatch</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseDomainEvents = true;
+    ///     config.DomainEventsOptions.StopOnFirstError = true;
+    ///     config.DomainEventsOptions.RequireINotification = false;
+    /// });
+    /// </code>
+    /// </example>
+    public DomainEventsOptions DomainEventsOptions { get; } = new();
+
+    /// <summary>
     /// Gets the configuration options for provider-specific health checks.
     /// </summary>
     /// <remarks>
@@ -445,5 +506,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents;
 }

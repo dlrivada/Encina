@@ -1615,7 +1615,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | Issue | Feature | Descripción | Prioridad | Complejidad | Labels |
 |-------|---------|-------------|-----------|-------------|--------|
 | **#287** | Optimistic Concurrency | `IConcurrencyAware` con RowVersion + conflict resolution | Alta | Baja | `area-concurrency`, `area-event-sourcing` |
-| **#292** | Domain Entity Base | `Entity<TId>`, `AggregateRoot<TId>` con domain events | Alta | Baja | `area-ddd`, `area-event-sourcing`, `area-messaging`, `aot-compatible` |
+| **#292** ✅ | Domain Entity Base | `Entity<TId>`, `AggregateRoot<TId>` con domain events | Alta | Baja | `area-ddd`, `area-event-sourcing`, `area-messaging`, `aot-compatible` |
 | **#293** | Pagination Abstractions | `PagedResult<T>`, `PaginationOptions`, `IPagedSpecification<T>` | Crítica | Baja | `area-pagination`, `area-repository`, `area-web-api`, `aot-compatible` |
 
 **#287 - Optimistic Concurrency**:
@@ -1625,14 +1625,18 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - `IConcurrencyConflictResolver<TEntity>`: ClientWins, DatabaseWins, Merge
 - `IConcurrentRepository<TEntity, TId>` con retry support
 
-**#292 - Domain Entity Base Classes**:
+**#292 - Domain Entity Base Classes** ✅ **COMPLETADO (enero 2026)**:
 
-- `Entity<TId>` con equality, domain events collection
-- `AggregateRoot<TId>` con audit + concurrency
-- `SoftDeletableAggregateRoot<TId>` variante
-- `IDomainEvent`, `DomainEvent` base record
-- `DomainEventDispatcher` SaveChanges interceptor
-- Integración con `INotification` y Outbox pattern
+- `Entity<TId>` con equality, domain events collection (`DomainEvents`, `AddDomainEvent`, `ClearDomainEvents`)
+- `AggregateRoot<TId>` con `RaiseDomainEvent` + `IConcurrencyAware` (RowVersion)
+- `AuditableAggregateRoot<TId>` con `IAuditable` (CreatedAt/By, ModifiedAt/By)
+- `SoftDeletableAggregateRoot<TId>` con `ISoftDeletable` (IsDeleted, DeletedAt/By)
+- `IDomainEvent` interface con `EventId`, `OccurredAtUtc`
+- `IDomainEventCollector` + `DomainEventDispatchHelper` para non-EF Core providers (Dapper, ADO.NET, MongoDB)
+- `DomainEventDispatcherInterceptor` SaveChanges interceptor para EF Core
+- `DomainEventDispatcherOptions`: `Enabled`, `StopOnFirstError`, `RequireINotification`
+- Entity configuration helpers: `ConfigureConcurrencyToken()`, `ConfigureAuditProperties()`, `ConfigureSoftDelete()`, `ConfigureAggregateRoot()`
+- Integración con `INotification` y Outbox pattern para reliable event publishing
 
 **#293 - Pagination Abstractions**:
 
@@ -1687,7 +1691,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 2. **Próximo (Cierra gaps críticos)**:
    - #293 (Pagination) - Básico pero faltante
    - ~~#284 (Bulk Operations) - Performance crítico para ETL~~ ✅ Completado
-   - #292 (Domain Entity Base) - DDD foundations
+   - ~~#292 (Domain Entity Base) - DDD foundations~~ ✅ Completado
 
 3. **Corto plazo (Mejora experiencia de desarrollo)**:
    - #285 + #286 (Soft Delete + Audit) - Compliance

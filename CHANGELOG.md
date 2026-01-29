@@ -2,6 +2,63 @@
 
 ### Added
 
+#### Domain Entity Base Classes with Domain Events Support (#292)
+
+Enhanced domain modeling capabilities with comprehensive domain event support and optimistic concurrency control for aggregate roots.
+
+**Entity Hierarchy**:
+
+| Class | Inherits From | Features |
+|-------|---------------|----------|
+| `Entity<TId>` | - | Identity, equality, domain events |
+| `AggregateRoot<TId>` | `Entity<TId>` | Domain events + `IConcurrencyAware` (RowVersion) |
+| `AuditableAggregateRoot<TId>` | `AggregateRoot<TId>` | + `IAuditable` (CreatedAt/By, ModifiedAt/By) |
+| `SoftDeletableAggregateRoot<TId>` | `AuditableAggregateRoot<TId>` | + `ISoftDeletable` (IsDeleted, DeletedAt/By) |
+
+**Domain Event Features**:
+
+- `AddDomainEvent()` / `RaiseDomainEvent()` - Raise events from entities
+- `DomainEvents` - Read-only collection of pending events
+- `ClearDomainEvents()` - Clear events after dispatch
+- `IDomainEvent` interface with `EventId` and `OccurredAtUtc`
+
+**Optimistic Concurrency**:
+
+- `IConcurrencyAware` interface with `RowVersion` property
+- All `AggregateRoot<TId>` variants implement `IConcurrencyAware`
+- EF Core configuration helper: `ConfigureConcurrencyToken()`
+
+**Non-EF Core Provider Support**:
+
+- `IDomainEventCollector` - Manual aggregate tracking for Dapper/ADO.NET/MongoDB
+- `DomainEventCollector` - Default implementation (scoped lifetime)
+- `DomainEventDispatchHelper` - Dispatch events via `IPublisher`
+- `DomainEventDispatchErrors` - Structured error factory for dispatch failures
+
+**EF Core Integration**:
+
+- `DomainEventDispatcherInterceptor` - Auto-dispatch after SaveChanges
+- `DomainEventDispatcherOptions` - Configure `Enabled`, `StopOnFirstError`, `RequireINotification`
+- `AddDomainEventDispatcher()` - Service registration
+- `UseDomainEventDispatcher()` - DbContext interceptor configuration
+- Entity configuration helpers: `ConfigureAuditProperties()`, `ConfigureSoftDelete()`, `ConfigureAggregateRoot()`
+
+**Tests Added**:
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 97 | Entity events, concurrency, collector, dispatcher |
+| Contract Tests | 20 | Aggregate root variants API contracts |
+
+**Documentation**:
+
+- Updated `Encina.DomainModeling/README.md` with domain events and concurrency sections
+- Updated `Encina.EntityFrameworkCore/README.md` with dispatcher and configuration helpers
+
+**Related Issue**: [#292 - Domain Entity Base Classes (Entity<TId>, AggregateRoot<TId>)](https://github.com/dlrivada/Encina/issues/292)
+
+---
+
 #### EntityFrameworkCore BenchmarkDotNet Micro-Benchmarks (#564)
 
 Implemented comprehensive BenchmarkDotNet micro-benchmarks for Encina.EntityFrameworkCore data access components, measuring hot path performance and abstraction overhead.

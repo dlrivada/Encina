@@ -4,6 +4,9 @@ Core domain modeling abstractions and patterns for Encina, providing the foundat
 
 ## Features
 
+- **Domain Entity Base Classes**: `Entity<TId>` and `AggregateRoot<TId>` with domain events support
+- **Domain Events**: Built-in support for raising and collecting domain events
+- **Optimistic Concurrency**: `IConcurrencyAware` with `RowVersion` support on aggregates
 - **Repository Pattern**: Provider-agnostic `IFunctionalRepository<TEntity, TId>` with ROP support
 - **Unit of Work Pattern**: `IUnitOfWork` for coordinated transactional operations
 - **Bulk Operations**: High-performance `IBulkOperations<TEntity>` for large datasets (up to 459x faster)
@@ -18,6 +21,190 @@ dotnet add package Encina.DomainModeling
 ```
 
 ## Quick Start
+
+### Domain Entity Base Classes
+
+Encina provides a hierarchy of base classes for domain entities with built-in support for domain events and optimistic concurrency.
+
+#### Aggregate Root Hierarchy
+
+| Class | Inherits From | Features |
+|-------|---------------|----------|
+| `Entity<TId>` | - | Identity, equality, domain events |
+| `AggregateRoot<TId>` | `Entity<TId>` | Domain events + `IConcurrencyAware` (RowVersion) |
+| `AuditableAggregateRoot<TId>` | `AggregateRoot<TId>` | + `IAuditable` (CreatedAt/By, ModifiedAt/By) |
+| `SoftDeletableAggregateRoot<TId>` | `AuditableAggregateRoot<TId>` | + `ISoftDeletable` (IsDeleted, DeletedAt/By) |
+
+#### Basic Usage
+
+```csharp
+// Define an aggregate root with domain events
+public class Order : AggregateRoot<OrderId>
+{
+    public CustomerId CustomerId { get; private set; }
+    public OrderStatus Status { get; private set; }
+    public IReadOnlyList<OrderLine> Lines => _lines.AsReadOnly();
+
+    private readonly List<OrderLine> _lines = [];
+
+    public Order(OrderId id, CustomerId customerId) : base(id)
+    {
+        CustomerId = customerId;
+        Status = OrderStatus.Draft;
+    }
+
+    public void Place()
+    {
+        if (Status != OrderStatus.Draft)
+            throw new InvalidOperationException("Can only place draft orders");
+
+        Status = OrderStatus.Placed;
+
+        // Raise domain event - will be dispatched after SaveChanges
+        RaiseDomainEvent(new OrderPlacedEvent(Id, CustomerId, Lines.Sum(l => l.Total)));
+    }
+
+    public void AddLine(ProductId productId, int quantity, decimal unitPrice)
+    {
+        var line = new OrderLine(productId, quantity, unitPrice);
+        _lines.Add(line);
+
+        RaiseDomainEvent(new OrderLineAddedEvent(Id, productId, quantity));
+    }
+}
+
+// Define domain events implementing INotification for automatic dispatching
+public sealed record OrderPlacedEvent(
+    OrderId OrderId,
+    CustomerId CustomerId,
+    decimal Total) : IDomainEvent, INotification
+{
+    public Guid EventId { get; init; } = Guid.NewGuid();
+    public DateTime OccurredAtUtc { get; init; } = DateTime.UtcNow;
+}
+```
+
+### Domain Events on Entity<TId>
+
+Domain events allow entities to signal important state changes without coupling to external handlers. Events are collected and dispatched after persistence succeeds.
+
+#### Adding Domain Events
+
+```csharp
+public class Order : AggregateRoot<Guid>
+{
+    public void Cancel(string reason)
+    {
+        Status = OrderStatus.Cancelled;
+        CancelledAt = DateTime.UtcNow;
+
+        // Use RaiseDomainEvent (protected) in aggregate roots
+        RaiseDomainEvent(new OrderCancelledEvent(Id, reason));
+    }
+}
+
+// In child entities, you can use AddDomainEvent (protected in Entity<TId>)
+public class OrderLine : Entity<Guid>
+{
+    public void UpdateQuantity(int newQuantity)
+    {
+        var oldQuantity = Quantity;
+        Quantity = newQuantity;
+
+        // Child entity raises event
+        AddDomainEvent(new OrderLineQuantityChangedEvent(Id, oldQuantity, newQuantity));
+    }
+}
+```
+
+#### Accessing Domain Events
+
+```csharp
+// Get all pending domain events
+IReadOnlyCollection<IDomainEvent> events = order.DomainEvents;
+
+// Remove a specific event (rarely needed)
+bool removed = order.RemoveDomainEvent(someEvent);
+
+// Clear all events (done automatically by dispatcher after SaveChanges)
+order.ClearDomainEvents();
+```
+
+#### When to Use Domain Events vs Direct Calls
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Notify external systems after state change | ✅ Domain Event |
+| Maintain audit trail | ✅ Domain Event |
+| Trigger side effects that might fail | ✅ Domain Event (with Outbox) |
+| Simple validation within same aggregate | ❌ Direct method call |
+| Query data from another service | ❌ Use application service |
+
+### Optimistic Concurrency with IConcurrencyAware
+
+All `AggregateRoot<TId>` variants implement `IConcurrencyAware`, providing a `RowVersion` property for optimistic concurrency control.
+
+```csharp
+public interface IConcurrencyAware
+{
+    byte[]? RowVersion { get; set; }
+}
+
+// Usage in EF Core configuration
+modelBuilder.Entity<Order>(entity =>
+{
+    entity.Property(e => e.RowVersion)
+        .IsRowVersion()
+        .IsConcurrencyToken();
+});
+
+// Handling concurrency conflicts
+try
+{
+    await dbContext.SaveChangesAsync();
+}
+catch (DbUpdateConcurrencyException ex)
+{
+    // Another user modified this entity - handle conflict
+}
+```
+
+### Domain Event Collection for Non-EF Core Providers
+
+For ADO.NET, Dapper, or MongoDB, use `IDomainEventCollector` to manually track aggregates and collect events:
+
+```csharp
+public class OrderService(
+    IFunctionalRepository<Order, Guid> repository,
+    IDomainEventCollector collector,
+    DomainEventDispatchHelper dispatcher)
+{
+    public async Task<Either<EncinaError, Unit>> PlaceOrderAsync(Guid orderId, CancellationToken ct)
+    {
+        var orderResult = await repository.GetByIdAsync(orderId, ct);
+
+        return await orderResult.MatchAsync(
+            Right: async order =>
+            {
+                order.Place();
+
+                // Track aggregate for event collection
+                collector.TrackAggregate(order);
+
+                // Save changes
+                var saveResult = await repository.UpdateAsync(order, ct);
+                if (saveResult.IsLeft) return saveResult;
+
+                // Dispatch collected events
+                return await dispatcher.DispatchCollectedEventsAsync(ct);
+            },
+            Left: Task.FromResult<Either<EncinaError, Unit>>);
+    }
+}
+
+// Register services
+services.AddDomainEventServices(); // Registers IDomainEventCollector + DomainEventDispatchHelper
+```
 
 ### Repository Pattern
 

@@ -1,9 +1,9 @@
 #nullable enable
 Encina.DomainModeling.AggregateRoot<TId>
 Encina.DomainModeling.AggregateRoot<TId>.AggregateRoot(TId id) -> void
-Encina.DomainModeling.AggregateRoot<TId>.ClearDomainEvents() -> void
-Encina.DomainModeling.AggregateRoot<TId>.DomainEvents.get -> System.Collections.Generic.IReadOnlyList<Encina.DomainModeling.IDomainEvent!>!
 Encina.DomainModeling.AggregateRoot<TId>.RaiseDomainEvent(Encina.DomainModeling.IDomainEvent! domainEvent) -> void
+Encina.DomainModeling.AggregateRoot<TId>.RowVersion.get -> byte[]?
+Encina.DomainModeling.AggregateRoot<TId>.RowVersion.set -> void
 Encina.DomainModeling.AuditableAggregateRoot<TId>
 Encina.DomainModeling.AuditableAggregateRoot<TId>.AuditableAggregateRoot(TId id) -> void
 Encina.DomainModeling.AuditableAggregateRoot<TId>.CreatedAtUtc.get -> System.DateTime
@@ -18,15 +18,19 @@ Encina.DomainModeling.DomainEvent.EventId.init -> void
 Encina.DomainModeling.DomainEvent.OccurredAtUtc.get -> System.DateTime
 Encina.DomainModeling.DomainEvent.OccurredAtUtc.init -> void
 Encina.DomainModeling.Entity<TId>
+Encina.DomainModeling.Entity<TId>.AddDomainEvent(Encina.DomainModeling.IDomainEvent! domainEvent) -> void
+Encina.DomainModeling.Entity<TId>.ClearDomainEvents() -> void
+Encina.DomainModeling.Entity<TId>.DomainEvents.get -> System.Collections.Generic.IReadOnlyCollection<Encina.DomainModeling.IDomainEvent!>!
 Encina.DomainModeling.Entity<TId>.Entity(TId id) -> void
 Encina.DomainModeling.Entity<TId>.Equals(Encina.DomainModeling.Entity<TId>? other) -> bool
 Encina.DomainModeling.Entity<TId>.Id.get -> TId
 Encina.DomainModeling.Entity<TId>.Id.init -> void
+Encina.DomainModeling.Entity<TId>.RemoveDomainEvent(Encina.DomainModeling.IDomainEvent! domainEvent) -> bool
 Encina.DomainModeling.GuidStronglyTypedId<TSelf>
 Encina.DomainModeling.GuidStronglyTypedId<TSelf>.GuidStronglyTypedId(System.Guid value) -> void
 Encina.DomainModeling.IAggregateRoot
 Encina.DomainModeling.IAggregateRoot.ClearDomainEvents() -> void
-Encina.DomainModeling.IAggregateRoot.DomainEvents.get -> System.Collections.Generic.IReadOnlyList<Encina.DomainModeling.IDomainEvent!>!
+Encina.DomainModeling.IAggregateRoot.DomainEvents.get -> System.Collections.Generic.IReadOnlyCollection<Encina.DomainModeling.IDomainEvent!>!
 Encina.DomainModeling.IAggregateRoot<TId>
 Encina.DomainModeling.IAuditable
 Encina.DomainModeling.IAuditable.CreatedAtUtc.get -> System.DateTime
@@ -544,3 +548,43 @@ static Encina.DomainModeling.RepositoryErrors.BulkReadFailedErrorCode.get -> str
 static Encina.DomainModeling.RepositoryErrors.BulkUpdateFailed<TEntity>(int entityCount, System.Exception! exception, int? failedIndex = null) -> Encina.EncinaError!
 static Encina.DomainModeling.RepositoryErrors.BulkUpdateFailed<TEntity>(string! reason) -> Encina.EncinaError!
 static Encina.DomainModeling.RepositoryErrors.BulkUpdateFailedErrorCode.get -> string!
+Encina.DomainModeling.DomainEventCollector
+Encina.DomainModeling.DomainEventCollector.ClearCollectedEvents() -> void
+Encina.DomainModeling.DomainEventCollector.CollectEvents() -> System.Collections.Generic.IReadOnlyList<Encina.DomainModeling.IDomainEvent!>!
+Encina.DomainModeling.DomainEventCollector.DomainEventCollector() -> void
+Encina.DomainModeling.DomainEventCollector.TotalEventCount.get -> int
+Encina.DomainModeling.DomainEventCollector.TrackedAggregateCount.get -> int
+Encina.DomainModeling.DomainEventCollector.TrackAggregate(Encina.DomainModeling.IAggregateRoot! aggregate) -> void
+Encina.DomainModeling.DomainEventDispatchError
+Encina.DomainModeling.DomainEventDispatchError.DomainEvent.get -> Encina.DomainModeling.IDomainEvent!
+Encina.DomainModeling.DomainEventDispatchError.DomainEvent.init -> void
+Encina.DomainModeling.DomainEventDispatchError.DomainEventDispatchError(Encina.DomainModeling.IDomainEvent! DomainEvent, Encina.EncinaError! Error) -> void
+Encina.DomainModeling.DomainEventDispatchError.Error.get -> Encina.EncinaError!
+Encina.DomainModeling.DomainEventDispatchError.Error.init -> void
+Encina.DomainModeling.DomainEventDispatchErrors
+Encina.DomainModeling.DomainEventDispatchErrors.AggregateDispatchFailedCode -> string!
+Encina.DomainModeling.DomainEventDispatchHelper
+Encina.DomainModeling.DomainEventDispatchHelper.DispatchCollectedEventsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>
+Encina.DomainModeling.DomainEventDispatchHelper.DispatchCollectedEventsWithContinuationAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.DomainModeling.DomainEventDispatchResult!>
+Encina.DomainModeling.DomainEventDispatchHelper.DomainEventDispatchHelper(Encina.IEncina! encina, Encina.DomainModeling.IDomainEventCollector! collector) -> void
+Encina.DomainModeling.DomainEventDispatchResult
+Encina.DomainModeling.DomainEventDispatchResult.DomainEventDispatchResult(int SuccessCount, int SkippedCount, System.Collections.Generic.IReadOnlyList<Encina.DomainModeling.DomainEventDispatchError!>! Errors) -> void
+Encina.DomainModeling.DomainEventDispatchResult.Errors.get -> System.Collections.Generic.IReadOnlyList<Encina.DomainModeling.DomainEventDispatchError!>!
+Encina.DomainModeling.DomainEventDispatchResult.Errors.init -> void
+Encina.DomainModeling.DomainEventDispatchResult.IsSuccess.get -> bool
+Encina.DomainModeling.DomainEventDispatchResult.SkippedCount.get -> int
+Encina.DomainModeling.DomainEventDispatchResult.SkippedCount.init -> void
+Encina.DomainModeling.DomainEventDispatchResult.SuccessCount.get -> int
+Encina.DomainModeling.DomainEventDispatchResult.SuccessCount.init -> void
+Encina.DomainModeling.DomainEventDispatchResult.TotalAttempted.get -> int
+Encina.DomainModeling.DomainEventDispatchResult.TotalProcessed.get -> int
+Encina.DomainModeling.DomainEventServiceCollectionExtensions
+Encina.DomainModeling.IDomainEventCollector
+Encina.DomainModeling.IDomainEventCollector.ClearCollectedEvents() -> void
+Encina.DomainModeling.IDomainEventCollector.CollectEvents() -> System.Collections.Generic.IReadOnlyList<Encina.DomainModeling.IDomainEvent!>!
+Encina.DomainModeling.IDomainEventCollector.TotalEventCount.get -> int
+Encina.DomainModeling.IDomainEventCollector.TrackedAggregateCount.get -> int
+Encina.DomainModeling.IDomainEventCollector.TrackAggregate(Encina.DomainModeling.IAggregateRoot! aggregate) -> void
+static Encina.DomainModeling.DomainEventDispatchErrors.CreateAggregateError(System.Collections.Generic.IReadOnlyList<Encina.EncinaError!>! errors) -> Encina.EncinaError!
+static Encina.DomainModeling.DomainEventServiceCollectionExtensions.AddDomainEventCollector(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.DomainModeling.DomainEventServiceCollectionExtensions.AddDomainEventServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

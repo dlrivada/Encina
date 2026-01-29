@@ -16,6 +16,10 @@ namespace Encina.DomainModeling;
 /// Entities are compared by their identity (Id), not by their attributes.
 /// Two entities are equal if and only if they have the same Id.
 /// </para>
+/// <para>
+/// Entities can raise domain events to communicate important state changes.
+/// These events are collected and dispatched after successful persistence.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -31,6 +35,7 @@ namespace Encina.DomainModeling;
 ///     {
 ///         CustomerName = customerName;
 ///         Total = 0;
+///         AddDomainEvent(new OrderCreated(id, customerName));
 ///     }
 /// }
 /// </code>
@@ -40,10 +45,24 @@ namespace Encina.DomainModeling;
 public abstract class Entity<TId> : IEntity<TId>, IEquatable<Entity<TId>>
     where TId : notnull
 {
+    private readonly List<IDomainEvent> _domainEvents = [];
+
     /// <summary>
     /// Gets the unique identifier for this entity.
     /// </summary>
     public TId Id { get; protected init; }
+
+    /// <summary>
+    /// Gets the domain events that have been raised but not yet dispatched.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Domain events should be dispatched after successful persistence to ensure
+    /// consistency. The persistence layer (e.g., EF Core SaveChanges interceptor)
+    /// should collect and dispatch these events after the transaction commits.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Entity{TId}"/> class.
@@ -52,6 +71,48 @@ public abstract class Entity<TId> : IEntity<TId>, IEquatable<Entity<TId>>
     protected Entity(TId id)
     {
         Id = id;
+    }
+
+    /// <summary>
+    /// Adds a domain event to be raised after the entity is persisted.
+    /// </summary>
+    /// <param name="domainEvent">The domain event to add.</param>
+    /// <remarks>
+    /// <para>
+    /// Domain events should be dispatched after successful persistence to ensure
+    /// consistency. The persistence layer (e.g., EF Core SaveChanges interceptor)
+    /// should collect and dispatch these events after the transaction commits.
+    /// </para>
+    /// </remarks>
+    protected void AddDomainEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        _domainEvents.Add(domainEvent);
+    }
+
+    /// <summary>
+    /// Removes a specific domain event from the pending events.
+    /// </summary>
+    /// <param name="domainEvent">The domain event to remove.</param>
+    /// <returns><c>true</c> if the event was found and removed; otherwise, <c>false</c>.</returns>
+    public bool RemoveDomainEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        return _domainEvents.Remove(domainEvent);
+    }
+
+    /// <summary>
+    /// Clears all pending domain events.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method should be called by the persistence layer after successfully
+    /// dispatching all domain events.
+    /// </para>
+    /// </remarks>
+    public void ClearDomainEvents()
+    {
+        _domainEvents.Clear();
     }
 
     /// <summary>

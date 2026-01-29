@@ -423,6 +423,275 @@ public class TransferMoneyCommandHandler : IRequestHandler<TransferMoneyCommand,
 config.UseTransactions = true;
 ```
 
+### Domain Event Dispatcher
+
+Automatically dispatches domain events from aggregate roots after `SaveChanges()` succeeds. Events are collected from all tracked entities implementing `Entity<TId>` and dispatched via MediatR's `IPublisher`.
+
+**Use cases:**
+
+- Publishing domain events after entity state changes
+- Triggering side effects (notifications, projections, auditing)
+- Decoupling domain logic from infrastructure concerns
+
+**Setup:**
+
+```csharp
+using Encina.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Register the domain event dispatcher interceptor
+builder.Services.AddDomainEventDispatcher(options =>
+{
+    options.Enabled = true;              // Enable/disable dispatching (default: true)
+    options.StopOnFirstError = false;    // Continue dispatching on errors (default: false)
+    options.RequireINotification = true; // Only dispatch events implementing INotification (default: true)
+});
+
+// Configure DbContext to use the interceptor
+builder.Services.AddDbContext<AppDbContext>((sp, options) =>
+{
+    options.UseSqlServer(connectionString)
+           .UseDomainEventDispatcher(sp); // Add interceptor to DbContext
+});
+```
+
+**Usage with Aggregate Roots:**
+
+```csharp
+using Encina.DomainModeling;
+
+public class Order : AggregateRoot<Guid>
+{
+    public OrderStatus Status { get; private set; }
+
+    public Order(Guid id) : base(id)
+    {
+        Status = OrderStatus.Draft;
+    }
+
+    public void Place()
+    {
+        if (Status != OrderStatus.Draft)
+            throw new InvalidOperationException("Can only place draft orders");
+
+        Status = OrderStatus.Placed;
+
+        // Event will be dispatched automatically after SaveChanges()
+        RaiseDomainEvent(new OrderPlacedEvent(Id));
+    }
+}
+
+// Domain event implementing INotification for MediatR dispatch
+public sealed record OrderPlacedEvent(Guid OrderId) : IDomainEvent, INotification
+{
+    public Guid EventId { get; init; } = Guid.NewGuid();
+    public DateTime OccurredAtUtc { get; init; } = DateTime.UtcNow;
+}
+
+// Handler receives events after SaveChanges succeeds
+public class OrderPlacedEventHandler : INotificationHandler<OrderPlacedEvent>
+{
+    public async Task Handle(OrderPlacedEvent notification, CancellationToken ct)
+    {
+        // Send email, update read model, log audit entry, etc.
+    }
+}
+```
+
+**How it works:**
+
+1. `DomainEventDispatcherInterceptor` intercepts `SaveChangesAsync`
+2. Collects all pending domain events from tracked `Entity<TId>` instances
+3. Calls `SaveChanges` on the DbContext
+4. If successful, dispatches each event via `IPublisher.Publish()`
+5. Clears domain events from entities after dispatch
+
+**Configuration Options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `Enabled` | `true` | Master switch to enable/disable event dispatching |
+| `StopOnFirstError` | `false` | If `true`, stops dispatching on first handler failure |
+| `RequireINotification` | `true` | If `true`, only dispatches events implementing `INotification` |
+
+**Error Handling:**
+
+If event handlers throw exceptions:
+
+- With `StopOnFirstError = false`: All events are attempted, errors collected in `DomainEventDispatchException`
+- With `StopOnFirstError = true`: Dispatching stops on first error, remaining events are skipped
+
+```csharp
+try
+{
+    await dbContext.SaveChangesAsync();
+}
+catch (DomainEventDispatchException ex)
+{
+    // SaveChanges succeeded, but some event handlers failed
+    _logger.LogError(
+        "Event dispatch failed. Succeeded: {Success}, Failed: {Failed}",
+        ex.DispatchResult.SuccessCount,
+        ex.DispatchResult.Errors.Count
+    );
+}
+```
+
+**Integration with Outbox Pattern:**
+
+For reliable event publishing with at-least-once delivery, combine domain events with the Outbox pattern:
+
+```csharp
+// Option 1: Use Outbox for external events, domain dispatcher for internal
+builder.Services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseOutbox = true; // External events via outbox
+});
+
+// Internal events dispatched synchronously
+builder.Services.AddDomainEventDispatcher();
+
+// Option 2: Configure domain events to go through Outbox
+public class OrderPlacedEventHandler : INotificationHandler<OrderPlacedEvent>
+{
+    private readonly IOutboxStore _outbox;
+
+    public async Task Handle(OrderPlacedEvent notification, CancellationToken ct)
+    {
+        // Store in outbox for reliable async delivery
+        await _outbox.AddAsync(new OutboxMessage
+        {
+            NotificationType = typeof(OrderPlacedExternalEvent).AssemblyQualifiedName!,
+            Content = JsonSerializer.Serialize(new OrderPlacedExternalEvent(notification.OrderId)),
+            CreatedAtUtc = DateTime.UtcNow
+        });
+    }
+}
+```
+
+### Entity Configuration Helpers
+
+Extension methods for configuring domain entities with EF Core, providing consistent setup for concurrency tokens, audit properties, and soft delete.
+
+**Available Methods:**
+
+| Method | Purpose |
+|--------|---------|
+| `ConfigureConcurrencyToken()` | Sets up `RowVersion` as EF Core concurrency token |
+| `ConfigureAuditProperties()` | Configures `IAuditable` properties (CreatedAt/By, ModifiedAt/By) |
+| `ConfigureSoftDelete()` | Configures `ISoftDeletable` properties with global query filter |
+| `ConfigureAggregateRoot()` | Combines concurrency token + audit + soft delete for aggregates |
+
+**Usage:**
+
+```csharp
+using Encina.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+
+public class AppDbContext : DbContext
+{
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // Option 1: Configure individual aspects
+        modelBuilder.Entity<Order>(entity =>
+        {
+            entity.ConfigureConcurrencyToken(); // RowVersion as concurrency token
+        });
+
+        modelBuilder.Entity<AuditableEntity>(entity =>
+        {
+            entity.ConfigureAuditProperties(); // CreatedAtUtc, CreatedBy, ModifiedAtUtc, ModifiedBy
+        });
+
+        modelBuilder.Entity<SoftDeletableEntity>(entity =>
+        {
+            entity.ConfigureSoftDelete(); // IsDeleted, DeletedAtUtc, DeletedBy + global filter
+        });
+
+        // Option 2: Configure everything for aggregate roots
+        modelBuilder.Entity<Product>(entity =>
+        {
+            entity.ConfigureAggregateRoot(); // All of the above combined
+        });
+    }
+}
+```
+
+**ConfigureConcurrencyToken Details:**
+
+```csharp
+entity.ConfigureConcurrencyToken();
+
+// Equivalent to:
+entity.Property(e => e.RowVersion)
+    .IsRowVersion()
+    .IsConcurrencyToken();
+```
+
+**ConfigureAuditProperties Details:**
+
+```csharp
+entity.ConfigureAuditProperties();
+
+// Equivalent to:
+entity.Property(e => e.CreatedAtUtc).IsRequired();
+entity.Property(e => e.CreatedBy).HasMaxLength(256);
+entity.Property(e => e.ModifiedAtUtc);
+entity.Property(e => e.ModifiedBy).HasMaxLength(256);
+```
+
+**ConfigureSoftDelete Details:**
+
+```csharp
+entity.ConfigureSoftDelete();
+
+// Equivalent to:
+entity.Property(e => e.IsDeleted).HasDefaultValue(false);
+entity.Property(e => e.DeletedAtUtc);
+entity.Property(e => e.DeletedBy).HasMaxLength(256);
+entity.HasQueryFilter(e => !e.IsDeleted); // Global query filter
+```
+
+**Automatic Audit Timestamps:**
+
+Use `SaveChangesInterceptor` to automatically set audit timestamps:
+
+```csharp
+public class AuditableInterceptor : SaveChangesInterceptor
+{
+    private readonly ICurrentUserService _currentUser;
+    private readonly TimeProvider _timeProvider;
+
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken ct)
+    {
+        var context = eventData.Context!;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        var user = _currentUser.UserId;
+
+        foreach (var entry in context.ChangeTracker.Entries<IAuditable>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.CreatedAtUtc = now;
+                entry.Entity.CreatedBy = user;
+            }
+
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                entry.Entity.ModifiedAtUtc = now;
+                entry.Entity.ModifiedBy = user;
+            }
+        }
+
+        return base.SavingChangesAsync(eventData, result, ct);
+    }
+}
+```
+
 ## Database Schema
 
 ### OutboxMessages Table

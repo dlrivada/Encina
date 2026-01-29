@@ -16,6 +16,7 @@ namespace Encina.DomainModeling;
 ///   <item><description>Enforce invariants across the entire aggregate.</description></item>
 ///   <item><description>Are the unit of persistence (saved/loaded as a whole).</description></item>
 ///   <item><description>Raise domain events to communicate with other aggregates.</description></item>
+///   <item><description>Support optimistic concurrency via RowVersion.</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -49,13 +50,27 @@ namespace Encina.DomainModeling;
 /// }
 /// </code>
 /// </example>
-public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot<TId>
+public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot<TId>, IConcurrencyAware
     where TId : notnull
 {
-    private readonly List<IDomainEvent> _domainEvents = [];
-
-    /// <inheritdoc />
-    public IReadOnlyList<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    /// <summary>
+    /// Gets or sets the concurrency token (row version) for optimistic concurrency control.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This property is automatically managed by the persistence layer (e.g., EF Core)
+    /// and should not be modified directly in domain code.
+    /// </para>
+    /// <para>
+    /// When using EF Core, configure this property as a concurrency token:
+    /// <code>
+    /// modelBuilder.Entity&lt;Order&gt;()
+    ///     .Property(e => e.RowVersion)
+    ///     .IsRowVersion();
+    /// </code>
+    /// </para>
+    /// </remarks>
+    public byte[]? RowVersion { get; set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AggregateRoot{TId}"/> class.
@@ -71,6 +86,10 @@ public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot<TId>
     /// <param name="domainEvent">The domain event to raise.</param>
     /// <remarks>
     /// <para>
+    /// This is an alias for <see cref="Entity{TId}.AddDomainEvent"/> that provides
+    /// a more expressive name for aggregate root usage patterns.
+    /// </para>
+    /// <para>
     /// Domain events should be dispatched after successful persistence to ensure
     /// consistency. The persistence layer (e.g., EF Core SaveChanges interceptor)
     /// should collect and dispatch these events after the transaction commits.
@@ -78,14 +97,7 @@ public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot<TId>
     /// </remarks>
     protected void RaiseDomainEvent(IDomainEvent domainEvent)
     {
-        ArgumentNullException.ThrowIfNull(domainEvent);
-        _domainEvents.Add(domainEvent);
-    }
-
-    /// <inheritdoc />
-    public void ClearDomainEvents()
-    {
-        _domainEvents.Clear();
+        AddDomainEvent(domainEvent);
     }
 }
 

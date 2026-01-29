@@ -1,5 +1,6 @@
 using Encina.DomainModeling;
 using Encina.EntityFrameworkCore.BulkOperations;
+using Encina.EntityFrameworkCore.DomainEvents;
 using Encina.EntityFrameworkCore.Health;
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.EntityFrameworkCore.Modules;
@@ -238,6 +239,22 @@ public static class ServiceCollectionExtensions
 
             // Register health check for read/write separation
             services.AddSingleton<IEncinaHealthCheck, ReadWriteSeparationHealthCheck>();
+        }
+
+        if (config.UseDomainEvents)
+        {
+            // Register domain event dispatcher options
+            var dispatcherOptions = new DomainEventDispatcherOptions
+            {
+                Enabled = config.DomainEventsOptions.Enabled,
+                StopOnFirstError = config.DomainEventsOptions.StopOnFirstError,
+                RequireINotification = config.DomainEventsOptions.RequireINotification,
+                ClearEventsAfterDispatch = config.DomainEventsOptions.ClearEventsAfterDispatch
+            };
+            services.TryAddSingleton(dispatcherOptions);
+
+            // Register the interceptor as singleton
+            services.TryAddSingleton<DomainEventDispatcherInterceptor>();
         }
 
         // Register provider health check if enabled

@@ -14,7 +14,7 @@ public interface IAggregateRoot : IEntity
     /// <summary>
     /// Gets the domain events that have been raised but not yet dispatched.
     /// </summary>
-    IReadOnlyList<IDomainEvent> DomainEvents { get; }
+    IReadOnlyCollection<IDomainEvent> DomainEvents { get; }
 
     /// <summary>
     /// Clears the list of domain events after they have been dispatched.

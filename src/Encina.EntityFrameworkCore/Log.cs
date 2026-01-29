@@ -101,4 +101,26 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 44, Level = LogLevel.Debug, Message = "No module found for handler {HandlerType}, skipping module context (CorrelationId: {CorrelationId})")]
     public static partial void NoModuleFoundForHandler(ILogger logger, string handlerType, string correlationId);
+
+    // Domain Event Dispatcher (50-59)
+    [LoggerMessage(EventId = 50, Level = LogLevel.Debug, Message = "Dispatching {EventCount} domain events after SaveChanges")]
+    public static partial void DispatchingDomainEvents(ILogger logger, int eventCount);
+
+    [LoggerMessage(EventId = 51, Level = LogLevel.Debug, Message = "Domain event {EventType} (EventId: {EventId}) published successfully")]
+    public static partial void DomainEventPublished(ILogger logger, string eventType, Guid eventId);
+
+    [LoggerMessage(EventId = 52, Level = LogLevel.Warning, Message = "Domain event {EventType} does not implement INotification, skipping")]
+    public static partial void DomainEventNotNotification(ILogger logger, string eventType);
+
+    [LoggerMessage(EventId = 53, Level = LogLevel.Debug, Message = "Skipping non-INotification domain event {EventType}")]
+    public static partial void SkippingNonNotificationEvent(ILogger logger, string eventType);
+
+    [LoggerMessage(EventId = 54, Level = LogLevel.Warning, Message = "Failed to publish domain event {EventType} (EventId: {EventId}): {ErrorMessage}")]
+    public static partial void DomainEventPublishFailed(ILogger logger, string eventType, Guid eventId, string errorMessage);
+
+    [LoggerMessage(EventId = 55, Level = LogLevel.Error, Message = "Exception while publishing domain event {EventType} (EventId: {EventId})")]
+    public static partial void DomainEventPublishException(ILogger logger, Exception exception, string eventType, Guid eventId);
+
+    [LoggerMessage(EventId = 56, Level = LogLevel.Information, Message = "Domain event dispatch completed, {RemainingCount} events remaining (if any, they were skipped)")]
+    public static partial void DomainEventsDispatchCompleted(ILogger logger, int remainingCount);
 }
