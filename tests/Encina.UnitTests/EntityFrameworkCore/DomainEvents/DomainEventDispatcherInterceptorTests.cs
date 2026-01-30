@@ -439,6 +439,208 @@ public class DomainEventDispatcherInterceptorTests
     }
 
     #endregion
+
+    #region Pre-Save Event Collection Tests (CollectEventsBeforeSave Option)
+
+    [Fact]
+    public async Task SavedChangesAsync_CollectEventsBeforeSave_ShouldCollectEventsInSavingChanges()
+    {
+        // Arrange
+        var encina = Substitute.For<IEncina>();
+        encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Unit.Default));
+
+        var services = new ServiceCollection();
+        services.AddSingleton(encina);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var options = new DomainEventDispatcherOptions
+        {
+            Enabled = true,
+            CollectEventsBeforeSave = true // Default behavior
+        };
+        var logger = Substitute.For<ILogger<DomainEventDispatcherInterceptor>>();
+        var interceptor = new DomainEventDispatcherInterceptor(serviceProvider, options, logger);
+
+        var dbOptions = new DbContextOptionsBuilder<TestDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+
+        await using var context = new TestDbContext(dbOptions);
+
+        var aggregate = new TestAggregate();
+        aggregate.RaiseEvent(new TestNotificationEvent(aggregate.Id));
+
+        context.TestAggregates.Add(aggregate);
+
+        // Act
+        await context.SaveChangesAsync();
+
+        // Assert - Events should be published even with pre-save collection
+        await encina.Received(1).Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SavedChangesAsync_CollectEventsBeforeSaveFalse_ShouldStillPublishEvents()
+    {
+        // Arrange
+        var encina = Substitute.For<IEncina>();
+        encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Unit.Default));
+
+        var services = new ServiceCollection();
+        services.AddSingleton(encina);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var options = new DomainEventDispatcherOptions
+        {
+            Enabled = true,
+            CollectEventsBeforeSave = false // Legacy behavior: collect in SavedChangesAsync
+        };
+        var logger = Substitute.For<ILogger<DomainEventDispatcherInterceptor>>();
+        var interceptor = new DomainEventDispatcherInterceptor(serviceProvider, options, logger);
+
+        var dbOptions = new DbContextOptionsBuilder<TestDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+
+        await using var context = new TestDbContext(dbOptions);
+
+        var aggregate = new TestAggregate();
+        aggregate.RaiseEvent(new TestNotificationEvent(aggregate.Id));
+        aggregate.RaiseEvent(new TestNotificationEvent(aggregate.Id));
+
+        context.TestAggregates.Add(aggregate);
+
+        // Act
+        await context.SaveChangesAsync();
+
+        // Assert - Events should still be published with legacy behavior
+        await encina.Received(2).Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SavedChangesAsync_CollectEventsBeforeSave_MultipleAggregates_ShouldPublishAllEvents()
+    {
+        // Arrange
+        var encina = Substitute.For<IEncina>();
+        encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Unit.Default));
+
+        var services = new ServiceCollection();
+        services.AddSingleton(encina);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var options = new DomainEventDispatcherOptions
+        {
+            Enabled = true,
+            CollectEventsBeforeSave = true
+        };
+        var logger = Substitute.For<ILogger<DomainEventDispatcherInterceptor>>();
+        var interceptor = new DomainEventDispatcherInterceptor(serviceProvider, options, logger);
+
+        var dbOptions = new DbContextOptionsBuilder<TestDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+
+        await using var context = new TestDbContext(dbOptions);
+
+        var aggregate1 = new TestAggregate();
+        var aggregate2 = new TestAggregate();
+
+        aggregate1.RaiseEvent(new TestNotificationEvent(aggregate1.Id));
+        aggregate2.RaiseEvent(new TestNotificationEvent(aggregate2.Id));
+        aggregate2.RaiseEvent(new TestNotificationEvent(aggregate2.Id));
+
+        context.TestAggregates.AddRange(aggregate1, aggregate2);
+
+        // Act
+        await context.SaveChangesAsync();
+
+        // Assert - All events from all aggregates should be published
+        await encina.Received(3).Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SavedChangesAsync_CollectEventsBeforeSave_ClearsEventsAfterDispatch()
+    {
+        // Arrange
+        var encina = Substitute.For<IEncina>();
+        encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Unit.Default));
+
+        var services = new ServiceCollection();
+        services.AddSingleton(encina);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var options = new DomainEventDispatcherOptions
+        {
+            Enabled = true,
+            CollectEventsBeforeSave = true,
+            ClearEventsAfterDispatch = true
+        };
+        var logger = Substitute.For<ILogger<DomainEventDispatcherInterceptor>>();
+        var interceptor = new DomainEventDispatcherInterceptor(serviceProvider, options, logger);
+
+        var dbOptions = new DbContextOptionsBuilder<TestDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+
+        await using var context = new TestDbContext(dbOptions);
+
+        var aggregate = new TestAggregate();
+        aggregate.RaiseEvent(new TestNotificationEvent(aggregate.Id));
+
+        context.TestAggregates.Add(aggregate);
+
+        // Act
+        await context.SaveChangesAsync();
+
+        // Assert - Events should be cleared from the aggregate
+        aggregate.DomainEvents.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void SavingChanges_Sync_CollectEventsBeforeSave_ShouldNotThrow()
+    {
+        // Arrange
+        var encina = Substitute.For<IEncina>();
+        encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Unit.Default));
+
+        var services = new ServiceCollection();
+        services.AddSingleton(encina);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var options = new DomainEventDispatcherOptions
+        {
+            Enabled = true,
+            CollectEventsBeforeSave = true
+        };
+        var logger = Substitute.For<ILogger<DomainEventDispatcherInterceptor>>();
+        var interceptor = new DomainEventDispatcherInterceptor(serviceProvider, options, logger);
+
+        var dbOptions = new DbContextOptionsBuilder<TestDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+
+        using var context = new TestDbContext(dbOptions);
+
+        var aggregate = new TestAggregate();
+        aggregate.RaiseEvent(new TestNotificationEvent(aggregate.Id));
+
+        context.TestAggregates.Add(aggregate);
+
+        // Act & Assert - Synchronous save should work without throwing
+        Should.NotThrow(() => context.SaveChanges());
+    }
+
+    #endregion
 }
 
 /// <summary>
@@ -457,6 +659,7 @@ public class DomainEventDispatcherOptionsTests
         options.StopOnFirstError.ShouldBeFalse(); // Default is false (continue on error)
         options.RequireINotification.ShouldBeTrue(); // Default is true
         options.ClearEventsAfterDispatch.ShouldBeTrue();
+        options.CollectEventsBeforeSave.ShouldBeTrue(); // Default is true (new option for immutable records)
     }
 
     [Fact]
@@ -468,7 +671,8 @@ public class DomainEventDispatcherOptionsTests
             Enabled = false,          // default is true
             StopOnFirstError = true,  // default is false
             RequireINotification = false, // default is true
-            ClearEventsAfterDispatch = false // default is true
+            ClearEventsAfterDispatch = false, // default is true
+            CollectEventsBeforeSave = false // default is true
         };
 
         // Assert
@@ -476,6 +680,7 @@ public class DomainEventDispatcherOptionsTests
         options.StopOnFirstError.ShouldBeTrue();
         options.RequireINotification.ShouldBeFalse();
         options.ClearEventsAfterDispatch.ShouldBeFalse();
+        options.CollectEventsBeforeSave.ShouldBeFalse();
     }
 }
 

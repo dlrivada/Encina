@@ -117,6 +117,23 @@ public static class PostgreSqlSchema
     }
 
     /// <summary>
+    /// Creates the Orders table schema for immutable update integration tests.
+    /// </summary>
+    public static async Task CreateOrdersSchemaAsync(NpgsqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS "Orders" (
+                "Id" UUID PRIMARY KEY,
+                "CustomerName" VARCHAR(200) NOT NULL,
+                "Status" VARCHAR(50) NOT NULL
+            );
+            """;
+
+        using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Creates the TestRepositoryEntities table schema for repository integration tests.
     /// </summary>
     public static async Task CreateTestRepositorySchemaAsync(NpgsqlConnection connection)
@@ -144,6 +161,7 @@ public static class PostgreSqlSchema
     public static async Task DropAllSchemasAsync(NpgsqlConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS "Orders" CASCADE;
             DROP TABLE IF EXISTS "TestRepositoryEntities" CASCADE;
             DROP TABLE IF EXISTS ScheduledMessages CASCADE;
             DROP TABLE IF EXISTS SagaStates CASCADE;
@@ -162,6 +180,7 @@ public static class PostgreSqlSchema
     public static async Task ClearAllDataAsync(NpgsqlConnection connection)
     {
         const string sql = """
+            DELETE FROM "Orders";
             DELETE FROM "TestRepositoryEntities";
             DELETE FROM ScheduledMessages;
             DELETE FROM SagaStates;

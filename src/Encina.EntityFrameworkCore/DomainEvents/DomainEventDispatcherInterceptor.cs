@@ -69,6 +69,12 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
     private readonly ILogger<DomainEventDispatcherInterceptor> _logger;
 
     /// <summary>
+    /// Thread-safe storage for domain events collected before save operations.
+    /// Uses AsyncLocal to ensure events are isolated per async context/thread.
+    /// </summary>
+    private static readonly AsyncLocal<List<IDomainEvent>?> _pendingEvents = new();
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="DomainEventDispatcherInterceptor"/> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider for resolving IEncina.</param>
@@ -90,15 +96,50 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
     }
 
     /// <inheritdoc/>
+    public override InterceptionResult<int> SavingChanges(
+        DbContextEventData eventData,
+        InterceptionResult<int> result)
+    {
+        if (_options.Enabled && _options.CollectEventsBeforeSave && eventData.Context is not null)
+        {
+            CollectEventsFromChangeTracker(eventData.Context);
+        }
+
+        return base.SavingChanges(eventData, result);
+    }
+
+    /// <inheritdoc/>
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (_options.Enabled && _options.CollectEventsBeforeSave && eventData.Context is not null)
+        {
+            CollectEventsFromChangeTracker(eventData.Context);
+        }
+
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public override int SavedChanges(SaveChangesCompletedEventData eventData, int result)
     {
         if (_options.Enabled && eventData.Context is not null)
         {
-            // Block on async to maintain sync signature
-            DispatchDomainEventsAsync(eventData.Context, CancellationToken.None)
-                .ConfigureAwait(false)
-                .GetAwaiter()
-                .GetResult();
+            try
+            {
+                // Block on async to maintain sync signature
+                DispatchDomainEventsAsync(eventData.Context, CancellationToken.None)
+                    .ConfigureAwait(false)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+            finally
+            {
+                // Always clear pending events to prevent leakage
+                ClearPendingEvents();
+            }
         }
 
         return base.SavedChanges(eventData, result);
@@ -112,12 +153,85 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
     {
         if (_options.Enabled && eventData.Context is not null)
         {
-            await DispatchDomainEventsAsync(eventData.Context, cancellationToken)
-                .ConfigureAwait(false);
+            try
+            {
+                await DispatchDomainEventsAsync(eventData.Context, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                // Always clear pending events to prevent leakage
+                ClearPendingEvents();
+            }
         }
 
         return await base.SavedChangesAsync(eventData, result, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Collects domain events from all tracked aggregate roots and stores them for later dispatch.
+    /// </summary>
+    /// <param name="context">The DbContext to collect events from.</param>
+    private void CollectEventsFromChangeTracker(Microsoft.EntityFrameworkCore.DbContext context)
+    {
+        var events = context.ChangeTracker
+            .Entries<IAggregateRoot>()
+            .Where(e => e.Entity.DomainEvents.Count > 0)
+            .SelectMany(e => e.Entity.DomainEvents)
+            .ToList();
+
+        if (events.Count > 0)
+        {
+            _pendingEvents.Value = events;
+            Log.PreSaveEventCollected(_logger, events.Count);
+        }
+    }
+
+    /// <summary>
+    /// Gets the pending events, either from pre-collection or from the change tracker.
+    /// </summary>
+    /// <param name="context">The DbContext to get events from.</param>
+    /// <returns>A tuple containing the events to dispatch and the entities to clear (if any).</returns>
+    private (List<IDomainEvent> Events, List<IAggregateRoot>? EntitiesToClear) GetEventsToDispatch(
+        Microsoft.EntityFrameworkCore.DbContext context)
+    {
+        // Check if we have pre-collected events
+        var pendingEvents = _pendingEvents.Value;
+        if (pendingEvents is { Count: > 0 })
+        {
+            // Use pre-collected events, but we still need entities for clearing
+            var entitiesToClear = _options.ClearEventsAfterDispatch
+                ? context.ChangeTracker
+                    .Entries<IAggregateRoot>()
+                    .Where(e => e.Entity.DomainEvents.Count > 0)
+                    .Select(e => e.Entity)
+                    .ToList()
+                : null;
+
+            return (pendingEvents, entitiesToClear);
+        }
+
+        // Fall back to collecting from change tracker (legacy behavior)
+        var entitiesWithEvents = context.ChangeTracker
+            .Entries<IAggregateRoot>()
+            .Where(e => e.Entity.DomainEvents.Count > 0)
+            .Select(e => e.Entity)
+            .ToList();
+
+        var events = entitiesWithEvents
+            .SelectMany(e => e.DomainEvents)
+            .ToList();
+
+        return (events, _options.ClearEventsAfterDispatch ? entitiesWithEvents : null);
+    }
+
+    /// <summary>
+    /// Clears the pending events from AsyncLocal storage.
+    /// </summary>
+    private static void ClearPendingEvents()
+    {
+        _pendingEvents.Value = null;
     }
 
     /// <summary>
@@ -127,14 +241,9 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
         Microsoft.EntityFrameworkCore.DbContext context,
         CancellationToken cancellationToken)
     {
-        // Get all entities that have domain events
-        var entitiesWithEvents = context.ChangeTracker
-            .Entries<IAggregateRoot>()
-            .Where(e => e.Entity.DomainEvents.Count > 0)
-            .Select(e => e.Entity)
-            .ToList();
+        var (events, entitiesToClear) = GetEventsToDispatch(context);
 
-        if (entitiesWithEvents.Count == 0)
+        if (events.Count == 0)
         {
             return;
         }
@@ -142,93 +251,88 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
         // Resolve IEncina from the service provider
         var encina = _serviceProvider.GetRequiredService<IEncina>();
 
-        Log.DispatchingDomainEvents(_logger, entitiesWithEvents.Sum(e => e.DomainEvents.Count));
+        Log.DispatchingDomainEvents(_logger, events.Count);
 
-        foreach (var entity in entitiesWithEvents)
+        foreach (var domainEvent in events)
         {
-            // Take a snapshot of events to iterate (in case collection is modified)
-            var events = entity.DomainEvents.ToList();
-
-            foreach (var domainEvent in events)
+            // Check if event implements INotification
+            if (domainEvent is not INotification notification)
             {
-                // Check if event implements INotification
-                if (domainEvent is not INotification notification)
+                if (_options.RequireINotification)
                 {
-                    if (_options.RequireINotification)
-                    {
-                        Log.DomainEventNotNotification(
-                            _logger,
-                            domainEvent.GetType().FullName ?? domainEvent.GetType().Name);
-                        continue;
-                    }
-
-                    // Skip non-INotification events if not required
-                    Log.SkippingNonNotificationEvent(
+                    Log.DomainEventNotNotification(
                         _logger,
                         domainEvent.GetType().FullName ?? domainEvent.GetType().Name);
                     continue;
                 }
 
-                try
-                {
-                    var publishResult = await encina.Publish(notification, cancellationToken)
-                        .ConfigureAwait(false);
-
-                    publishResult.Match(
-                        Right: _ => Log.DomainEventPublished(
-                            _logger,
-                            domainEvent.GetType().Name,
-                            domainEvent.EventId),
-                        Left: error =>
-                        {
-                            Log.DomainEventPublishFailed(
-                                _logger,
-                                domainEvent.GetType().Name,
-                                domainEvent.EventId,
-                                error.Message);
-
-                            if (_options.StopOnFirstError)
-                            {
-                                throw new DomainEventDispatchException(
-                                    $"Failed to dispatch domain event {domainEvent.GetType().Name}: {error.Message}",
-                                    domainEvent,
-                                    error);
-                            }
-                        });
-                }
-                catch (DomainEventDispatchException)
-                {
-                    // Re-throw our own exception
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    Log.DomainEventPublishException(
-                        _logger,
-                        ex,
-                        domainEvent.GetType().Name,
-                        domainEvent.EventId);
-
-                    if (_options.StopOnFirstError)
-                    {
-                        throw new DomainEventDispatchException(
-                            $"Exception while dispatching domain event {domainEvent.GetType().Name}",
-                            domainEvent,
-                            ex);
-                    }
-                }
+                // Skip non-INotification events if not required
+                Log.SkippingNonNotificationEvent(
+                    _logger,
+                    domainEvent.GetType().FullName ?? domainEvent.GetType().Name);
+                continue;
             }
 
-            // Clear events from entity after dispatching
-            if (_options.ClearEventsAfterDispatch)
+            try
+            {
+                var publishResult = await encina.Publish(notification, cancellationToken)
+                    .ConfigureAwait(false);
+
+                publishResult.Match(
+                    Right: _ => Log.DomainEventPublished(
+                        _logger,
+                        domainEvent.GetType().Name,
+                        domainEvent.EventId),
+                    Left: error =>
+                    {
+                        Log.DomainEventPublishFailed(
+                            _logger,
+                            domainEvent.GetType().Name,
+                            domainEvent.EventId,
+                            error.Message);
+
+                        if (_options.StopOnFirstError)
+                        {
+                            throw new DomainEventDispatchException(
+                                $"Failed to dispatch domain event {domainEvent.GetType().Name}: {error.Message}",
+                                domainEvent,
+                                error);
+                        }
+                    });
+            }
+            catch (DomainEventDispatchException)
+            {
+                // Re-throw our own exception
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Log.DomainEventPublishException(
+                    _logger,
+                    ex,
+                    domainEvent.GetType().Name,
+                    domainEvent.EventId);
+
+                if (_options.StopOnFirstError)
+                {
+                    throw new DomainEventDispatchException(
+                        $"Exception while dispatching domain event {domainEvent.GetType().Name}",
+                        domainEvent,
+                        ex);
+                }
+            }
+        }
+
+        // Clear events from entities after dispatching
+        if (entitiesToClear is not null)
+        {
+            foreach (var entity in entitiesToClear)
             {
                 entity.ClearDomainEvents();
             }
         }
 
-        Log.DomainEventsDispatchCompleted(
-            _logger,
-            entitiesWithEvents.Sum(e => e.DomainEvents.Count));
+        Log.DomainEventsDispatchCompleted(_logger, events.Count);
     }
 }
 

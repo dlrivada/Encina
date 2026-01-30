@@ -116,6 +116,29 @@ public abstract class Entity<TId> : IEntity<TId>, IEquatable<Entity<TId>>
     }
 
     /// <summary>
+    /// Copies all domain events from another aggregate root to this instance.
+    /// </summary>
+    /// <param name="source">The source aggregate root to copy events from.</param>
+    /// <remarks>
+    /// <para>
+    /// This method is used to preserve domain events when working with immutable entities
+    /// (C# records). When updating an immutable entity using a with-expression, the new
+    /// instance won't have the domain events from the original. This method transfers
+    /// those events to the new instance.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> is null.</exception>
+    public void CopyEventsFrom(IAggregateRoot source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        foreach (var domainEvent in source.DomainEvents)
+        {
+            AddDomainEvent(domainEvent);
+        }
+    }
+
+    /// <summary>
     /// Determines whether this entity is equal to another entity.
     /// Two entities are equal if they have the same type and the same Id.
     /// </summary>

@@ -1,5 +1,66 @@
 ## [Unreleased]
 
+### Added
+
+#### Immutable Domain Models Support for EF Core (#569)
+
+Added utilities for using immutable C# records as domain entities with EF Core while preserving domain events through state transitions.
+
+**The Problem**: When using C# record with-expressions to create modified copies of entities, EF Core's change tracker loses track of the entity, and domain events raised during state transitions are lost on the new instance.
+
+**The Solution**: Two complementary extension methods:
+
+| Method | Description |
+|--------|-------------|
+| `WithPreservedEvents<TAggregateRoot>()` | Copies domain events from original to new instance |
+| `UpdateImmutable<TEntity>()` | Handles detach/attach with automatic event preservation |
+
+**Usage Example**:
+
+```csharp
+// Define immutable aggregate root
+public record Order : AggregateRoot<Guid>
+{
+    public required OrderStatus Status { get; init; }
+
+    public Order Ship()
+    {
+        AddDomainEvent(new OrderShippedEvent(Id));
+        return this with { Status = OrderStatus.Shipped };
+    }
+}
+
+// Update with event preservation
+var order = await context.Orders.FindAsync(orderId);
+var shippedOrder = order!.Ship().WithPreservedEvents(order);
+var result = context.UpdateImmutable(shippedOrder);
+await context.SaveChangesAsync(); // Events dispatched automatically
+```
+
+**API**:
+
+- `ImmutableUpdateExtensions.UpdateImmutable<TEntity>()` - Sync update returning `Either<EncinaError, Unit>`
+- `ImmutableUpdateExtensions.UpdateImmutableAsync<TEntity>()` - Async overload
+- `ImmutableUpdateExtensions.WithPreservedEvents<TAggregateRoot>()` - Event preservation helper
+- `IAggregateRoot.CopyEventsFrom()` - Low-level event copying interface method
+
+**Tests Added**:
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 11 | `UpdateImmutable`, `WithPreservedEvents`, `CopyEventsFrom` |
+| Guard Tests | 6 | Null argument validation |
+| Integration Tests | 17 | SQLite, PostgreSQL, SQL Server, MySQL (4 skipped) |
+
+**Documentation**:
+
+- Added immutable records section to `README.md`
+- Created `docs/features/immutable-domain-models.md` feature guide
+
+**Related Issue**: [#569 - Immutable Records Support for EF Core and Domain Events](https://github.com/dlrivada/Encina/issues/569)
+
+---
+
 ### Fixed
 
 #### PostgreSQL EF Core Integration Tests Case-Sensitivity (#570)

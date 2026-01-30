@@ -116,11 +116,29 @@ public static class SqliteSchema
     }
 
     /// <summary>
+    /// Creates the Orders table schema for immutable update integration tests.
+    /// </summary>
+    public static async Task CreateOrdersSchemaAsync(SqliteConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS Orders (
+                Id TEXT PRIMARY KEY,
+                CustomerName TEXT NOT NULL,
+                Status TEXT NOT NULL
+            );
+            """;
+
+        using var command = new SqliteCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(SqliteConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS Orders;
             DROP TABLE IF EXISTS ScheduledMessages;
             DROP TABLE IF EXISTS SagaStates;
             DROP TABLE IF EXISTS InboxMessages;
@@ -161,7 +179,7 @@ public static class SqliteSchema
     public static async Task ClearAllDataAsync(SqliteConnection connection)
     {
         // Delete from each table individually, ignoring errors for missing tables
-        var tables = new[] { "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
+        var tables = new[] { "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
         foreach (var table in tables)
         {
             try

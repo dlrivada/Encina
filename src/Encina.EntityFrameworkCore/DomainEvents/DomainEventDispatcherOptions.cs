@@ -87,4 +87,38 @@ public sealed class DomainEventDispatcherOptions
     /// </remarks>
     /// <value>Default: <see langword="true"/></value>
     public bool ClearEventsAfterDispatch { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether to collect domain events before SaveChanges executes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When <see langword="true"/> (default), domain events are collected from tracked
+    /// entities in <c>SavingChangesAsync</c> (before the save operation) and stored
+    /// for dispatch after the save completes. This ensures events are preserved even
+    /// if entities are detached during the save operation.
+    /// </para>
+    /// <para>
+    /// When <see langword="false"/>, events are collected in <c>SavedChangesAsync</c>
+    /// (after the save operation) from the change tracker. This is the legacy behavior
+    /// and may miss events from entities that were detached during the save.
+    /// </para>
+    /// <para>
+    /// <b>Immutable Records</b>: Set this to <see langword="true"/> when working with
+    /// immutable entities (C# records) that use with-expressions for updates. The
+    /// detach/attach pattern used for immutable updates can cause events to be lost
+    /// if they are not collected before the save operation.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: <see langword="true"/></value>
+    /// <example>
+    /// <code>
+    /// // For immutable record aggregates (recommended)
+    /// config.DomainEventsOptions.CollectEventsBeforeSave = true;
+    ///
+    /// // For legacy behavior or mutable entities only
+    /// config.DomainEventsOptions.CollectEventsBeforeSave = false;
+    /// </code>
+    /// </example>
+    public bool CollectEventsBeforeSave { get; set; } = true;
 }

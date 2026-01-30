@@ -121,6 +121,23 @@ public static class SqlServerSchema
     }
 
     /// <summary>
+    /// Creates the Orders table schema for immutable update integration tests.
+    /// </summary>
+    public static async Task CreateOrdersSchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            DROP TABLE IF EXISTS Orders;
+            CREATE TABLE Orders (
+                    Id UNIQUEIDENTIFIER PRIMARY KEY,
+                    CustomerName NVARCHAR(200) NOT NULL,
+                    Status NVARCHAR(50) NOT NULL
+                );
+            """;
+
+        await ExecuteInTransactionAsync(connection, sql, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Creates the TestRepositoryEntities table schema for repository integration tests.
     /// </summary>
     public static async Task CreateRepositoryTestSchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
@@ -148,6 +165,7 @@ public static class SqlServerSchema
     public static async Task DropAllSchemasAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
+            DROP TABLE IF EXISTS Orders;
             DROP TABLE IF EXISTS TestRepositoryEntities;
             DROP TABLE IF EXISTS ScheduledMessages;
             DROP TABLE IF EXISTS SagaStates;
@@ -165,6 +183,7 @@ public static class SqlServerSchema
     public static async Task ClearAllDataAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
+            IF OBJECT_ID('Orders', 'U') IS NOT NULL DELETE FROM Orders;
             IF OBJECT_ID('TestRepositoryEntities', 'U') IS NOT NULL DELETE FROM TestRepositoryEntities;
             DELETE FROM ScheduledMessages;
             DELETE FROM SagaStates;

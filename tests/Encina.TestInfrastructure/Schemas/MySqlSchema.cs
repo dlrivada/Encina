@@ -109,6 +109,23 @@ public static class MySqlSchema
     }
 
     /// <summary>
+    /// Creates the Orders table schema for immutable update integration tests.
+    /// </summary>
+    public static async Task CreateOrdersSchemaAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS `Orders` (
+                `Id` CHAR(36) PRIMARY KEY,
+                `CustomerName` VARCHAR(200) NOT NULL,
+                `Status` VARCHAR(50) NOT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Creates the TestRepositoryEntities table schema for repository integration tests.
     /// </summary>
     public static async Task CreateTestRepositorySchemaAsync(MySqlConnection connection)
@@ -134,6 +151,7 @@ public static class MySqlSchema
     public static async Task DropAllSchemasAsync(MySqlConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS `Orders`;
             DROP TABLE IF EXISTS `TestRepositoryEntities`;
             DROP TABLE IF EXISTS ScheduledMessages;
             DROP TABLE IF EXISTS SagaStates;
@@ -152,6 +170,7 @@ public static class MySqlSchema
     public static async Task ClearAllDataAsync(MySqlConnection connection)
     {
         const string sql = """
+            DELETE FROM `Orders`;
             DELETE FROM `TestRepositoryEntities`;
             DELETE FROM ScheduledMessages;
             DELETE FROM SagaStates;

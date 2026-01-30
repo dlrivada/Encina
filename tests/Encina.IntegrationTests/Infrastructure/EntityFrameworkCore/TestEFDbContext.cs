@@ -2,6 +2,7 @@ using Encina.EntityFrameworkCore.Inbox;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.EntityFrameworkCore.Scheduling;
+using Encina.TestInfrastructure.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore;
@@ -22,6 +23,7 @@ public sealed class TestEFDbContext : DbContext
     public DbSet<SagaState> SagaStates => Set<SagaState>();
     public DbSet<ScheduledMessage> ScheduledMessages => Set<ScheduledMessage>();
     public DbSet<TestRepositoryEntity> TestRepositoryEntities => Set<TestRepositoryEntity>();
+    public DbSet<TestImmutableOrder> Orders => Set<TestImmutableOrder>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -90,6 +92,18 @@ public sealed class TestEFDbContext : DbContext
             entity.Property(e => e.IsActive).IsRequired();
             entity.Property(e => e.CreatedAtUtc).IsRequired();
             entity.HasIndex(e => e.IsActive);
+        });
+
+        // TestImmutableOrder for immutable update integration tests
+        modelBuilder.Entity<TestImmutableOrder>(entity =>
+        {
+            entity.ToTable("Orders");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
+            entity.Property(e => e.CustomerName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(50).IsRequired();
+            entity.Ignore(e => e.DomainEvents);
+            entity.Ignore(e => e.RowVersion);
         });
     }
 }

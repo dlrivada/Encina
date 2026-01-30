@@ -123,4 +123,7 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 56, Level = LogLevel.Information, Message = "Domain event dispatch completed, {RemainingCount} events remaining (if any, they were skipped)")]
     public static partial void DomainEventsDispatchCompleted(ILogger logger, int remainingCount);
+
+    [LoggerMessage(EventId = 57, Level = LogLevel.Debug, Message = "Pre-save event collection: {EventCount} domain events collected from change tracker")]
+    public static partial void PreSaveEventCollected(ILogger logger, int eventCount);
 }

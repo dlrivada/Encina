@@ -42,6 +42,8 @@ public static class RepositoryErrors
     private const string BulkDeleteFailedCode = "Repository.BulkDeleteFailed";
     private const string BulkMergeFailedCode = "Repository.BulkMergeFailed";
     private const string BulkReadFailedCode = "Repository.BulkReadFailed";
+    private const string EntityNotTrackedCode = "Repository.EntityNotTracked";
+    private const string UpdateFailedCode = "Repository.UpdateFailed";
 
     /// <summary>
     /// Creates a NotFound error when an entity with the specified ID is not found.
@@ -597,4 +599,118 @@ public static class RepositoryErrors
 
         return EncinaErrors.Create(BulkReadFailedCode, message, details: details);
     }
+
+    /// <summary>
+    /// Creates an EntityNotTracked error when an entity is not being tracked by the change tracker.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <returns>An <see cref="EncinaError"/> representing the entity not tracked error.</returns>
+    /// <remarks>
+    /// <para>
+    /// This error is typically used when performing immutable entity updates where the original
+    /// entity must be tracked before it can be replaced with a modified version.
+    /// </para>
+    /// </remarks>
+    public static EncinaError EntityNotTracked<TEntity>()
+        where TEntity : class
+    {
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Entity of type '{entityTypeName}' is not being tracked by the change tracker. " +
+                      "The entity must be loaded/tracked before it can be updated.";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(EntityNotTrackedCode, message, details: details);
+    }
+
+    /// <summary>
+    /// Creates an EntityNotTracked error with a specific entity ID.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <typeparam name="TId">The ID type.</typeparam>
+    /// <param name="id">The ID of the entity that is not tracked.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the entity not tracked error.</returns>
+    public static EncinaError EntityNotTracked<TEntity, TId>(TId id)
+        where TEntity : class
+        where TId : notnull
+    {
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Entity of type '{entityTypeName}' with ID '{id}' is not being tracked by the change tracker. " +
+                      "The entity must be loaded/tracked before it can be updated.";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["EntityId"] = id.ToString()
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(EntityNotTrackedCode, message, details: details);
+    }
+
+    /// <summary>
+    /// Creates an UpdateFailed error when an entity update operation fails.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="reason">The reason for the failure.</param>
+    /// <param name="exception">Optional exception that caused the failure.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the update failure.</returns>
+    /// <remarks>
+    /// <para>
+    /// This error is typically used for immutable entity updates when the detach/attach
+    /// operation fails, or when the entity state cannot be properly modified.
+    /// </para>
+    /// </remarks>
+    public static EncinaError UpdateFailed<TEntity>(string reason, Exception? exception = null)
+        where TEntity : class
+    {
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Update failed for entity of type '{entityTypeName}': {reason}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["Reason"] = reason
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(UpdateFailedCode, message, exception, details);
+    }
+
+    /// <summary>
+    /// Creates an UpdateFailed error for a specific entity ID.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <typeparam name="TId">The ID type.</typeparam>
+    /// <param name="id">The ID of the entity that failed to update.</param>
+    /// <param name="reason">The reason for the failure.</param>
+    /// <param name="exception">Optional exception that caused the failure.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the update failure.</returns>
+    public static EncinaError UpdateFailed<TEntity, TId>(TId id, string reason, Exception? exception = null)
+        where TEntity : class
+        where TId : notnull
+    {
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Update failed for entity of type '{entityTypeName}' with ID '{id}': {reason}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["EntityId"] = id.ToString(),
+            ["Reason"] = reason
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(UpdateFailedCode, message, exception, details);
+    }
+
+    /// <summary>
+    /// Gets the error code for an Entity Not Tracked error.
+    /// </summary>
+    public static string EntityNotTrackedErrorCode => EntityNotTrackedCode;
+
+    /// <summary>
+    /// Gets the error code for an Update Failed error.
+    /// </summary>
+    public static string UpdateFailedErrorCode => UpdateFailedCode;
 }

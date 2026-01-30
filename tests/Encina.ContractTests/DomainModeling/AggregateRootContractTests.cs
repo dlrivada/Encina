@@ -395,6 +395,128 @@ public sealed class AggregateRootContractTests
 
     #endregion
 
+    #region CopyEventsFrom Contract Tests
+
+    [Fact]
+    public void Contract_AllAggregateVariants_SupportCopyEventsFrom()
+    {
+        // Contract: All aggregate variants must support CopyEventsFrom via IAggregateRoot
+        var event1 = new TestDomainEvent(Guid.NewGuid());
+        var event2 = new AnotherTestEvent("test");
+
+        // Test base AggregateRoot
+        var sourceBase = new TestAggregateRoot(Guid.NewGuid());
+        sourceBase.RaiseEvent(event1);
+        sourceBase.RaiseEvent(event2);
+
+        var targetBase = new TestAggregateRoot(Guid.NewGuid());
+        ((IAggregateRoot)targetBase).CopyEventsFrom(sourceBase);
+        targetBase.DomainEvents.Count.ShouldBe(2, "AggregateRoot must support CopyEventsFrom");
+
+        // Test AuditableAggregateRoot
+        var sourceAuditable = new TestAuditableAggregateRoot(Guid.NewGuid());
+        sourceAuditable.RaiseEvent(event1);
+        sourceAuditable.RaiseEvent(event2);
+
+        var targetAuditable = new TestAuditableAggregateRoot(Guid.NewGuid());
+        ((IAggregateRoot)targetAuditable).CopyEventsFrom(sourceAuditable);
+        targetAuditable.DomainEvents.Count.ShouldBe(2, "AuditableAggregateRoot must support CopyEventsFrom");
+
+        // Test SoftDeletableAggregateRoot
+        var sourceSoftDeletable = new TestSoftDeletableAggregateRoot(Guid.NewGuid());
+        sourceSoftDeletable.RaiseEvent(event1);
+        sourceSoftDeletable.RaiseEvent(event2);
+
+        var targetSoftDeletable = new TestSoftDeletableAggregateRoot(Guid.NewGuid());
+        ((IAggregateRoot)targetSoftDeletable).CopyEventsFrom(sourceSoftDeletable);
+        targetSoftDeletable.DomainEvents.Count.ShouldBe(2, "SoftDeletableAggregateRoot must support CopyEventsFrom");
+    }
+
+    [Fact]
+    public void Contract_CopyEventsFrom_AppendsToExistingEvents()
+    {
+        // Contract: CopyEventsFrom must append events, not replace them
+        var event1 = new TestDomainEvent(Guid.NewGuid());
+        var event2 = new AnotherTestEvent("source event");
+        var existingEvent = new AnotherTestEvent("existing event");
+
+        var source = new TestAggregateRoot(Guid.NewGuid());
+        source.RaiseEvent(event1);
+        source.RaiseEvent(event2);
+
+        var target = new TestAggregateRoot(Guid.NewGuid());
+        target.RaiseEvent(existingEvent); // Existing event
+
+        ((IAggregateRoot)target).CopyEventsFrom(source);
+
+        target.DomainEvents.Count.ShouldBe(3, "CopyEventsFrom must append to existing events");
+        target.DomainEvents.ShouldContain(existingEvent, "Existing events must be preserved");
+        target.DomainEvents.ShouldContain(event1, "Copied events must be present");
+        target.DomainEvents.ShouldContain(event2, "Copied events must be present");
+    }
+
+    [Fact]
+    public void Contract_CopyEventsFrom_PreservesEventOrder()
+    {
+        // Contract: CopyEventsFrom must preserve event order
+        var events = Enumerable.Range(0, 5)
+            .Select(i => new TestDomainEvent(Guid.NewGuid()))
+            .ToList();
+
+        var source = new TestAggregateRoot(Guid.NewGuid());
+        foreach (var e in events)
+        {
+            source.RaiseEvent(e);
+        }
+
+        var target = new TestAggregateRoot(Guid.NewGuid());
+        ((IAggregateRoot)target).CopyEventsFrom(source);
+
+        var targetEvents = target.DomainEvents.ToList();
+        for (int i = 0; i < events.Count; i++)
+        {
+            targetEvents[i].ShouldBe(events[i], $"Event at index {i} must maintain order");
+        }
+    }
+
+    [Fact]
+    public void Contract_CopyEventsFrom_DoesNotAffectSource()
+    {
+        // Contract: CopyEventsFrom must not modify source aggregate events
+        var event1 = new TestDomainEvent(Guid.NewGuid());
+        var event2 = new AnotherTestEvent("test");
+
+        var source = new TestAggregateRoot(Guid.NewGuid());
+        source.RaiseEvent(event1);
+        source.RaiseEvent(event2);
+        var originalCount = source.DomainEvents.Count;
+
+        var target = new TestAggregateRoot(Guid.NewGuid());
+        ((IAggregateRoot)target).CopyEventsFrom(source);
+
+        // Clear target events
+        target.ClearDomainEvents();
+
+        // Source should still have its events
+        source.DomainEvents.Count.ShouldBe(originalCount, "Source events must not be affected by target operations");
+    }
+
+    [Fact]
+    public void Contract_IAggregateRoot_HasCopyEventsFromMethod()
+    {
+        // Contract: IAggregateRoot interface must define CopyEventsFrom method
+        var interfaceType = typeof(IAggregateRoot);
+
+        var copyEventsFromMethod = interfaceType.GetMethod("CopyEventsFrom");
+        copyEventsFromMethod.ShouldNotBeNull("IAggregateRoot must have CopyEventsFrom method");
+
+        var parameters = copyEventsFromMethod!.GetParameters();
+        parameters.Length.ShouldBe(1, "CopyEventsFrom must have exactly one parameter");
+        parameters[0].ParameterType.ShouldBe(typeof(IAggregateRoot), "CopyEventsFrom parameter must be IAggregateRoot");
+    }
+
+    #endregion
+
     #region Thread Safety Contract Tests
 
     [Fact]

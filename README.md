@@ -251,6 +251,37 @@ builder.Services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 });
 ```
 
+### Immutable Records Support
+
+Encina supports immutable domain entities (C# records) with EF Core while preserving domain events:
+
+```csharp
+// Define an immutable aggregate root
+public record Order : AggregateRoot<OrderId>
+{
+    public required string CustomerName { get; init; }
+    public required OrderStatus Status { get; init; }
+
+    public Order Ship()
+    {
+        AddDomainEvent(new OrderShippedEvent(Id));
+        return this with { Status = OrderStatus.Shipped };
+    }
+}
+
+// Update with event preservation
+var order = await context.Orders.FindAsync(orderId);
+var shippedOrder = order!.Ship().WithPreservedEvents(order);
+
+var result = context.UpdateImmutable(shippedOrder);
+if (result.IsRight)
+{
+    await context.SaveChangesAsync(); // Events dispatched automatically
+}
+```
+
+See [Immutable Domain Models](docs/features/immutable-domain-models.md) for full documentation.
+
 ### Dapper / ADO.NET / PostgreSQL / MySQL / SQLite / Oracle
 
 ```csharp

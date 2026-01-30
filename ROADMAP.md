@@ -114,6 +114,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ Domain Language DSL [#381](https://github.com/dlrivada/Encina/issues/381) - DomainBuilder, AggregateBuilder, Quantity/Percentage/DateRange/TimeRange
 - ✅ Bounded Context & Module Boundaries [#477](https://github.com/dlrivada/Encina/issues/477) - IBoundedContextModule, BoundedContextValidator
 - ✅ Vertical Slice + Hexagonal Hybrid [#476](https://github.com/dlrivada/Encina/issues/476) - FeatureSlice, IUseCaseHandler, SliceDependency
+- ✅ Immutable Records Support for EF Core [#569](https://github.com/dlrivada/Encina/issues/569) - UpdateImmutable, WithPreservedEvents, domain event preservation
 
 → [View v0.10.0 Issues](https://github.com/dlrivada/Encina/milestone/7)
 
