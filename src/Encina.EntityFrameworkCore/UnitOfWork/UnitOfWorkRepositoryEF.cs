@@ -1,5 +1,6 @@
 using Encina;
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Extensions;
 using Encina.EntityFrameworkCore.Repository;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
@@ -387,6 +388,26 @@ internal sealed class UnitOfWorkRepositoryEF<TEntity, TId> : IFunctionalReposito
             return Left<EncinaError, int>(
                 RepositoryErrors.PersistenceError<TEntity>("DeleteRange", ex));
         }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// This operation handles immutable entity updates by:
+    /// <list type="number">
+    /// <item><description>Finding the original tracked entity</description></item>
+    /// <item><description>Copying domain events from original to modified</description></item>
+    /// <item><description>Detaching the original and attaching the modified as Modified</description></item>
+    /// </list>
+    /// Changes are only tracked; call <see cref="IUnitOfWork.SaveChangesAsync"/> to persist.
+    /// </remarks>
+    public Task<Either<EncinaError, Unit>> UpdateImmutableAsync(
+        TEntity modified,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(modified);
+
+        // Delegate to DbContext extension - no SaveChanges here (Unit of Work pattern)
+        return _dbContext.UpdateImmutableAsync(modified, cancellationToken);
     }
 
     #endregion

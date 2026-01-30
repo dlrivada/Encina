@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Encina;
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Extensions;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -97,6 +98,15 @@ public sealed class UnitOfWorkEF : IUnitOfWork
         _dbContext = dbContext;
         _serviceProvider = serviceProvider;
     }
+
+    /// <summary>
+    /// Gets the underlying database context for internal use.
+    /// </summary>
+    /// <remarks>
+    /// This property is exposed internally to allow extension methods and helper classes
+    /// to access the DbContext for operations like immutable entity updates.
+    /// </remarks>
+    internal DbContext DbContext => _dbContext;
 
     /// <inheritdoc/>
     public bool HasActiveTransaction => _transaction is not null;
@@ -198,6 +208,26 @@ public sealed class UnitOfWorkEF : IUnitOfWork
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         await RollbackInternalAsync().ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public Either<EncinaError, Unit> UpdateImmutable<TEntity>(TEntity modified) where TEntity : class
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(modified);
+
+        return _dbContext.UpdateImmutable(modified);
+    }
+
+    /// <inheritdoc/>
+    public Task<Either<EncinaError, Unit>> UpdateImmutableAsync<TEntity>(
+        TEntity modified,
+        CancellationToken cancellationToken = default) where TEntity : class
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(modified);
+
+        return _dbContext.UpdateImmutableAsync(modified, cancellationToken);
     }
 
     /// <inheritdoc/>

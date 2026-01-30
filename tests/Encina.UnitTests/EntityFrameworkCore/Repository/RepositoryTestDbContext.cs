@@ -12,6 +12,7 @@ public class RepositoryTestDbContext : DbContext
     }
 
     public DbSet<TestEntity> TestEntities => Set<TestEntity>();
+    public DbSet<TestAggregateRoot> TestAggregates => Set<TestAggregateRoot>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -20,6 +21,16 @@ public class RepositoryTestDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
             entity.Property(e => e.Amount).HasPrecision(18, 2);
+        });
+
+        modelBuilder.Entity<TestAggregateRoot>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
+            entity.Property(e => e.Name).HasMaxLength(200);
+            entity.Property(e => e.Amount).HasPrecision(18, 2);
+            entity.Ignore(e => e.DomainEvents);
+            entity.Ignore(e => e.RowVersion);
         });
     }
 }

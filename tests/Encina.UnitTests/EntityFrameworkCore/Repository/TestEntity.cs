@@ -64,3 +64,35 @@ public class TestEntityWithHasId : IHasId<Guid>
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// Test aggregate root for testing immutable update scenarios.
+/// </summary>
+public class TestAggregateRoot : AggregateRoot<Guid>
+{
+    public string Name { get; init; } = string.Empty;
+    public decimal Amount { get; init; }
+
+    public TestAggregateRoot() : base(Guid.NewGuid()) { }
+    public TestAggregateRoot(Guid id) : base(id) { }
+
+    public void RaiseEvent(IDomainEvent domainEvent) => RaiseDomainEvent(domainEvent);
+
+    /// <summary>
+    /// Simulates an immutable update that raises an event and returns a new instance.
+    /// </summary>
+    public TestAggregateRoot WithNewAmount(decimal newAmount)
+    {
+        RaiseDomainEvent(new TestDomainEvent(Id, $"Amount changed to {newAmount}"));
+        return new TestAggregateRoot(Id) { Name = this.Name, Amount = newAmount };
+    }
+}
+
+/// <summary>
+/// Test domain event for aggregate root tests.
+/// </summary>
+public sealed record TestDomainEvent(Guid EntityId, string Message) : IDomainEvent, INotification
+{
+    public Guid EventId { get; init; } = Guid.NewGuid();
+    public DateTime OccurredAtUtc { get; init; } = DateTime.UtcNow;
+}

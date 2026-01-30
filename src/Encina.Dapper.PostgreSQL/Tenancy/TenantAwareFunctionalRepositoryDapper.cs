@@ -575,6 +575,20 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
         }
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// This operation is not supported in Dapper providers because they don't have change tracking.
+    /// Use EF Core providers for immutable record support.
+    /// </remarks>
+    public Task<Either<EncinaError, Unit>> UpdateImmutableAsync(
+        TEntity modified,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(modified);
+        return Task.FromResult<Either<EncinaError, Unit>>(
+            RepositoryErrors.OperationNotSupported<TEntity>("UpdateImmutableAsync"));
+    }
+
     #endregion
 
     #region Helper Methods

@@ -454,6 +454,18 @@ public class TestDbContext : DbContext
 
     public DbSet<TestUoWEntity> TestUoWEntities { get; set; } = null!;
     public DbSet<TestUoWEntity2> TestUoWEntity2s { get; set; } = null!;
+    public DbSet<TestUoWAggregateRoot> TestUoWAggregates { get; set; } = null!;
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TestUoWAggregateRoot>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
+            entity.Ignore(e => e.DomainEvents);
+            entity.Ignore(e => e.RowVersion);
+        });
+    }
 }
 
 /// <summary>
@@ -472,6 +484,19 @@ public class TestUoWEntity2
 {
     public Guid Id { get; set; }
     public string Description { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Test aggregate root that supports raising domain events for testing.
+/// </summary>
+public class TestUoWAggregateRoot : AggregateRoot<Guid>
+{
+    public string Name { get; init; } = string.Empty;
+
+    public TestUoWAggregateRoot() : base(Guid.NewGuid()) { }
+    public TestUoWAggregateRoot(Guid id) : base(id) { }
+
+    public void RaiseTestEvent(IDomainEvent domainEvent) => RaiseDomainEvent(domainEvent);
 }
 
 #endregion

@@ -180,4 +180,71 @@ public interface IUnitOfWork : IAsyncDisposable
     /// otherwise, <c>false</c>.
     /// </value>
     bool HasActiveTransaction { get; }
+
+    /// <summary>
+    /// Updates an immutable entity by handling change tracker operations and preserving domain events.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="modified">The modified entity instance (created via with-expression or clone).</param>
+    /// <returns>
+    /// Right with <see cref="Unit"/> on success;
+    /// Left with <see cref="RepositoryErrors.EntityNotTracked{TEntity}()"/> if the original entity is not tracked;
+    /// Left with <see cref="RepositoryErrors.OperationNotSupported{TEntity}(string)"/> for providers without change tracking.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// This method is designed for use with immutable entities (C# records with <c>init</c> properties).
+    /// When you create a modified copy using a with-expression, the change tracker loses track of the entity.
+    /// This method handles the detach/attach pattern to properly track the modified entity.
+    /// </para>
+    /// <para>
+    /// <b>Provider-specific behavior:</b>
+    /// <list type="bullet">
+    /// <item><description><b>EF Core:</b> Automatically finds and detaches the original tracked entity,
+    /// copies domain events from the original to the modified entity, attaches the modified entity,
+    /// and marks it as modified.</description></item>
+    /// <item><description><b>Dapper/ADO.NET/MongoDB:</b> Returns <see cref="RepositoryErrors.OperationNotSupported{TEntity}(string)"/>
+    /// because these providers lack change tracking. Use <see cref="ImmutableAggregateHelper.PrepareForUpdate{TAggregate}"/>
+    /// followed by the standard <c>UpdateAsync</c> method instead.</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // EF Core provider - full support
+    /// var order = await unitOfWork.Repository&lt;Order, Guid&gt;().GetByIdAsync(orderId);
+    /// var shippedOrder = order.Ship(); // Returns new instance via with-expression
+    /// var result = unitOfWork.UpdateImmutable(shippedOrder);
+    /// if (result.IsRight)
+    ///     await unitOfWork.SaveChangesAsync();
+    ///
+    /// // Dapper/ADO provider - use helper instead
+    /// var order = await repository.GetByIdAsync(orderId);
+    /// var shippedOrder = order.Ship();
+    /// ImmutableAggregateHelper.PrepareForUpdate(shippedOrder, order, eventCollector);
+    /// await repository.UpdateAsync(shippedOrder);
+    /// </code>
+    /// </example>
+    Either<EncinaError, Unit> UpdateImmutable<TEntity>(TEntity modified) where TEntity : class;
+
+    /// <summary>
+    /// Asynchronously updates an immutable entity by handling change tracker operations and preserving domain events.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="modified">The modified entity instance (created via with-expression or clone).</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>
+    /// Right with <see cref="Unit"/> on success;
+    /// Left with <see cref="RepositoryErrors.EntityNotTracked{TEntity}()"/> if the original entity is not tracked;
+    /// Left with <see cref="RepositoryErrors.OperationNotSupported{TEntity}(string)"/> for providers without change tracking.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// This is the async version of <see cref="UpdateImmutable{TEntity}(TEntity)"/>.
+    /// See that method for full documentation on behavior and provider-specific differences.
+    /// </para>
+    /// </remarks>
+    Task<Either<EncinaError, Unit>> UpdateImmutableAsync<TEntity>(
+        TEntity modified,
+        CancellationToken cancellationToken = default) where TEntity : class;
 }

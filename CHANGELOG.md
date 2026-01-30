@@ -2,6 +2,71 @@
 
 ### Added
 
+#### Immutable Records Support for IUnitOfWork and IFunctionalRepository (#572)
+
+Extended immutable record support to `IUnitOfWork` and `IFunctionalRepository` interfaces, providing a consistent API for updating immutable aggregates across all data access patterns.
+
+**New APIs**:
+
+| Interface | Method | Description |
+|-----------|--------|-------------|
+| `IUnitOfWork` | `UpdateImmutable<TEntity>()` | Sync update returning `Either<EncinaError, Unit>` |
+| `IUnitOfWork` | `UpdateImmutableAsync<TEntity>()` | Async overload |
+| `IFunctionalRepository<TEntity, TId>` | `UpdateImmutableAsync()` | Repository-level immutable update |
+
+**Provider Support**:
+
+| Provider | Support | Notes |
+|----------|---------|-------|
+| EF Core | Full | Automatic change tracking and event preservation |
+| Dapper | `OperationNotSupported` | Use `ImmutableAggregateHelper` instead |
+| ADO.NET | `OperationNotSupported` | Use `ImmutableAggregateHelper` instead |
+| MongoDB | `OperationNotSupported` | Use `ImmutableAggregateHelper` instead |
+
+**Non-EF Core Workflow**:
+
+For providers without change tracking, use `ImmutableAggregateHelper.PrepareForUpdate()`:
+
+```csharp
+// For Dapper/ADO.NET/MongoDB
+var order = await repository.GetByIdAsync(orderId, ct);
+var shipped = order.Ship();
+
+// PrepareForUpdate: copies events + tracks aggregate
+ImmutableAggregateHelper.PrepareForUpdate(shipped, order, eventCollector);
+
+await repository.UpdateAsync(shipped, ct);
+await dispatchHelper.DispatchCollectedEventsAsync(ct);
+```
+
+**Usage with IUnitOfWork (EF Core)**:
+
+```csharp
+var order = await unitOfWork.Repository<Order, Guid>().GetByIdAsync(orderId, ct);
+var shipped = order.Ship().WithPreservedEvents(order);
+var result = unitOfWork.UpdateImmutable(shipped);
+await unitOfWork.SaveChangesAsync(ct);
+```
+
+**Tests Added**:
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 64 | `ImmutableAggregateHelper`, `UnitOfWorkEF`, error types |
+| Guard Tests | 10 | Null parameter validation |
+| Contract Tests | 14 | API consistency across providers |
+| Property Tests | 16 | Invariants for event copying and tracking |
+| Integration Tests | 4 | EF Core with SQLite |
+
+**Documentation**:
+
+- Updated `docs/features/immutable-domain-models.md` with IUnitOfWork and non-EF sections
+- Updated `README.md` with IUnitOfWork example
+
+**Related Issue**: [#572 - Immutable Records Support for IUnitOfWork and IFunctionalRepository](https://github.com/dlrivada/Encina/issues/572)
+
+---
+
 #### Immutable Domain Models Support for EF Core (#569)
 
 Added utilities for using immutable C# records as domain entities with EF Core while preserving domain events through state transitions.

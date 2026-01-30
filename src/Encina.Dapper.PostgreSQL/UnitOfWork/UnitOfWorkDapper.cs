@@ -195,6 +195,37 @@ public sealed class UnitOfWorkDapper : IUnitOfWork
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// This operation is not supported for Dapper providers because they lack change tracking.
+    /// Use <see cref="ImmutableAggregateHelper.PrepareForUpdate{TAggregate}"/> followed by the
+    /// standard <c>UpdateAsync</c> method instead.
+    /// </remarks>
+    public Either<EncinaError, Unit> UpdateImmutable<TEntity>(TEntity modified) where TEntity : class
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(modified);
+
+        return RepositoryErrors.OperationNotSupported<TEntity>("UpdateImmutable");
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// This operation is not supported for Dapper providers because they lack change tracking.
+    /// Use <see cref="ImmutableAggregateHelper.PrepareForUpdate{TAggregate}"/> followed by the
+    /// standard <c>UpdateAsync</c> method instead.
+    /// </remarks>
+    public Task<Either<EncinaError, Unit>> UpdateImmutableAsync<TEntity>(
+        TEntity modified,
+        CancellationToken cancellationToken = default) where TEntity : class
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(modified);
+
+        return Task.FromResult<Either<EncinaError, Unit>>(
+            RepositoryErrors.OperationNotSupported<TEntity>("UpdateImmutableAsync"));
+    }
+
+    /// <inheritdoc/>
     public ValueTask DisposeAsync()
     {
         if (_disposed)

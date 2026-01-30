@@ -747,5 +747,21 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
             || message.Contains("Cannot insert duplicate key", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// This operation is not supported for ADO.NET providers because they lack change tracking.
+    /// Use <see cref="ImmutableAggregateHelper.PrepareForUpdate{TAggregate}"/> followed by the
+    /// standard <c>UpdateAsync</c> method instead.
+    /// </remarks>
+    public Task<Either<EncinaError, Unit>> UpdateImmutableAsync(
+        TEntity modified,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(modified);
+
+        return Task.FromResult<Either<EncinaError, Unit>>(
+            RepositoryErrors.OperationNotSupported<TEntity>("UpdateImmutableAsync"));
+    }
+
     #endregion
 }

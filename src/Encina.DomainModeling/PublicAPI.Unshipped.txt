@@ -596,3 +596,12 @@ static Encina.DomainModeling.RepositoryErrors.EntityNotTrackedErrorCode.get -> s
 static Encina.DomainModeling.RepositoryErrors.UpdateFailed<TEntity>(string! reason, System.Exception? exception = null) -> Encina.EncinaError!
 static Encina.DomainModeling.RepositoryErrors.UpdateFailed<TEntity, TId>(TId id, string! reason, System.Exception? exception = null) -> Encina.EncinaError!
 static Encina.DomainModeling.RepositoryErrors.UpdateFailedErrorCode.get -> string!
+
+Encina.DomainModeling.ImmutableAggregateHelper
+static Encina.DomainModeling.ImmutableAggregateHelper.PrepareForUpdate<TAggregate>(TAggregate modified, TAggregate original, Encina.DomainModeling.IDomainEventCollector! collector) -> TAggregate
+static Encina.DomainModeling.RepositoryErrors.OperationNotSupported<TEntity>(string! operationName) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.OperationNotSupported<TEntity>(string! operationName, string! reason) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.OperationNotSupportedErrorCode.get -> string!
+Encina.DomainModeling.IUnitOfWork.UpdateImmutable<TEntity>(TEntity modified) -> LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>
+Encina.DomainModeling.IUnitOfWork.UpdateImmutableAsync<TEntity>(TEntity modified, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>
+Encina.DomainModeling.IFunctionalRepository<TEntity, TId>.UpdateImmutableAsync(TEntity modified, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>

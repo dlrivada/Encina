@@ -365,6 +365,158 @@ public class UnitOfWorkEFIntegrationTests : IAsyncLifetime
 
     #endregion
 
+    #region UpdateImmutable Integration Tests
+
+    [Fact]
+    public async Task UpdateImmutable_ModifiesTrackedEntity()
+    {
+        // Arrange - Create initial aggregate
+        var id = Guid.NewGuid();
+        var original = new TestImmutableAggregate(id) { Name = "Original", Amount = 100m };
+        _dbContext.ImmutableAggregates.Add(original);
+        await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
+
+        // Create UnitOfWork with fresh context
+        using var testContext = _fixture.CreateDbContext();
+        await using var testUnitOfWork = new UnitOfWorkEF(testContext, _serviceProvider);
+
+        // Act - Retrieve and modify using with-expression pattern
+        var trackedOriginal = await testContext.ImmutableAggregates.FindAsync(id);
+        trackedOriginal.ShouldNotBeNull();
+
+        var modified = new TestImmutableAggregate(id) { Name = "Modified", Amount = 200m };
+
+        var result = testUnitOfWork.UpdateImmutable(modified);
+        result.IsRight.ShouldBeTrue();
+
+        var saveResult = await testUnitOfWork.SaveChangesAsync();
+        saveResult.IsRight.ShouldBeTrue();
+
+        // Assert - Verify with fresh context
+        using var verifyContext = _fixture.CreateDbContext();
+        var persisted = await verifyContext.ImmutableAggregates.FindAsync(id);
+        persisted.ShouldNotBeNull();
+        persisted!.Name.ShouldBe("Modified");
+        persisted.Amount.ShouldBe(200m);
+    }
+
+    [Fact]
+    public async Task UpdateImmutableAsync_ModifiesTrackedEntity()
+    {
+        // Arrange - Create initial aggregate
+        var id = Guid.NewGuid();
+        var original = new TestImmutableAggregate(id) { Name = "Original", Amount = 100m };
+        _dbContext.ImmutableAggregates.Add(original);
+        await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
+
+        // Create UnitOfWork with fresh context
+        using var testContext = _fixture.CreateDbContext();
+        await using var testUnitOfWork = new UnitOfWorkEF(testContext, _serviceProvider);
+
+        // Act - Retrieve and modify using with-expression pattern
+        var trackedOriginal = await testContext.ImmutableAggregates.FindAsync(id);
+        trackedOriginal.ShouldNotBeNull();
+
+        var modified = new TestImmutableAggregate(id) { Name = "AsyncModified", Amount = 300m };
+
+        var result = await testUnitOfWork.UpdateImmutableAsync(modified);
+        result.IsRight.ShouldBeTrue();
+
+        var saveResult = await testUnitOfWork.SaveChangesAsync();
+        saveResult.IsRight.ShouldBeTrue();
+
+        // Assert - Verify with fresh context
+        using var verifyContext = _fixture.CreateDbContext();
+        var persisted = await verifyContext.ImmutableAggregates.FindAsync(id);
+        persisted.ShouldNotBeNull();
+        persisted!.Name.ShouldBe("AsyncModified");
+        persisted.Amount.ShouldBe(300m);
+    }
+
+    [Fact]
+    public async Task UpdateImmutable_InTransaction_RollbackRevertsChanges()
+    {
+        // Arrange - Create initial aggregate
+        var id = Guid.NewGuid();
+        var original = new TestImmutableAggregate(id) { Name = "Original", Amount = 100m };
+        _dbContext.ImmutableAggregates.Add(original);
+        await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
+
+        // Create UnitOfWork with fresh context
+        using var testContext = _fixture.CreateDbContext();
+        await using var testUnitOfWork = new UnitOfWorkEF(testContext, _serviceProvider);
+
+        // Act - Start transaction, modify, rollback
+        var beginResult = await testUnitOfWork.BeginTransactionAsync();
+        beginResult.IsRight.ShouldBeTrue();
+
+        var trackedOriginal = await testContext.ImmutableAggregates.FindAsync(id);
+        trackedOriginal.ShouldNotBeNull();
+
+        var modified = new TestImmutableAggregate(id) { Name = "ShouldNotPersist", Amount = 999m };
+
+        var updateResult = await testUnitOfWork.UpdateImmutableAsync(modified);
+        updateResult.IsRight.ShouldBeTrue();
+
+        var saveResult = await testUnitOfWork.SaveChangesAsync();
+        saveResult.IsRight.ShouldBeTrue();
+
+        // Rollback instead of commit
+        await testUnitOfWork.RollbackAsync();
+
+        // Assert - Original values preserved
+        using var verifyContext = _fixture.CreateDbContext();
+        var persisted = await verifyContext.ImmutableAggregates.FindAsync(id);
+        persisted.ShouldNotBeNull();
+        persisted!.Name.ShouldBe("Original");
+        persisted.Amount.ShouldBe(100m);
+    }
+
+    [Fact]
+    public async Task UpdateImmutable_InTransaction_CommitPersistsChanges()
+    {
+        // Arrange - Create initial aggregate
+        var id = Guid.NewGuid();
+        var original = new TestImmutableAggregate(id) { Name = "Original", Amount = 100m };
+        _dbContext.ImmutableAggregates.Add(original);
+        await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
+
+        // Create UnitOfWork with fresh context
+        using var testContext = _fixture.CreateDbContext();
+        await using var testUnitOfWork = new UnitOfWorkEF(testContext, _serviceProvider);
+
+        // Act - Start transaction, modify, commit
+        var beginResult = await testUnitOfWork.BeginTransactionAsync();
+        beginResult.IsRight.ShouldBeTrue();
+
+        var trackedOriginal = await testContext.ImmutableAggregates.FindAsync(id);
+        trackedOriginal.ShouldNotBeNull();
+
+        var modified = new TestImmutableAggregate(id) { Name = "Committed", Amount = 500m };
+
+        var updateResult = await testUnitOfWork.UpdateImmutableAsync(modified);
+        updateResult.IsRight.ShouldBeTrue();
+
+        var saveResult = await testUnitOfWork.SaveChangesAsync();
+        saveResult.IsRight.ShouldBeTrue();
+
+        var commitResult = await testUnitOfWork.CommitAsync();
+        commitResult.IsRight.ShouldBeTrue();
+
+        // Assert - Changes persisted
+        using var verifyContext = _fixture.CreateDbContext();
+        var persisted = await verifyContext.ImmutableAggregates.FindAsync(id);
+        persisted.ShouldNotBeNull();
+        persisted!.Name.ShouldBe("Committed");
+        persisted.Amount.ShouldBe(500m);
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static TestEntity CreateTestEntity(

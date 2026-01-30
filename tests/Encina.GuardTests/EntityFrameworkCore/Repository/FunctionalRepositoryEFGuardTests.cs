@@ -195,6 +195,23 @@ public sealed class FunctionalRepositoryEFGuardTests
         ex.ParamName.ShouldBe("specification");
     }
 
+    [Fact]
+    public async Task UpdateImmutableAsync_NullEntity_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<TestDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        using var dbContext = new TestDbContext(options);
+        var repository = new FunctionalRepositoryEF<RepositoryTestEntity, Guid>(dbContext);
+        RepositoryTestEntity entity = null!;
+
+        // Act & Assert
+        var ex = await Should.ThrowAsync<ArgumentNullException>(() =>
+            repository.UpdateImmutableAsync(entity));
+        ex.ParamName.ShouldBe("modified");
+    }
+
     private sealed class TestDbContext : DbContext
     {
         public TestDbContext(DbContextOptions<TestDbContext> options) : base(options)

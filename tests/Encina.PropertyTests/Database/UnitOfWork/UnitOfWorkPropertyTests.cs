@@ -278,6 +278,94 @@ public sealed class UnitOfWorkPropertyTests
 
     #endregion
 
+    #region UpdateImmutable Invariants
+
+    [Fact]
+    public void Property_UpdateImmutable_NonEFCore_ReturnsOperationNotSupported()
+    {
+        // Property: UpdateImmutable on non-EF Core providers MUST return OperationNotSupported error
+        var (unitOfWork, _) = CreateMockUnitOfWork();
+        var entity = new TestUoWEntity { Id = Guid.NewGuid(), Name = "Test" };
+
+        var result = unitOfWork.UpdateImmutable(entity);
+
+        result.IsLeft.ShouldBeTrue("Non-EF Core UpdateImmutable must return error");
+        result.IfLeft(error =>
+        {
+            var code = error.GetCode();
+            code.IsSome.ShouldBeTrue("Error must have a code");
+            code.IfSome(c => c.ShouldBe(RepositoryErrors.OperationNotSupportedErrorCode,
+                "Error code must be OperationNotSupported"));
+        });
+    }
+
+    [Fact]
+    public async Task Property_UpdateImmutableAsync_NonEFCore_ReturnsOperationNotSupported()
+    {
+        // Property: UpdateImmutableAsync on non-EF Core providers MUST return OperationNotSupported error
+        var (unitOfWork, _) = CreateMockUnitOfWork();
+        var entity = new TestUoWEntity { Id = Guid.NewGuid(), Name = "Test" };
+
+        var result = await unitOfWork.UpdateImmutableAsync(entity);
+
+        result.IsLeft.ShouldBeTrue("Non-EF Core UpdateImmutableAsync must return error");
+        result.IfLeft(error =>
+        {
+            var code = error.GetCode();
+            code.IsSome.ShouldBeTrue("Error must have a code");
+            code.IfSome(c => c.ShouldBe(RepositoryErrors.OperationNotSupportedErrorCode,
+                "Error code must be OperationNotSupported"));
+        });
+    }
+
+    [Fact]
+    public void Property_UpdateImmutable_NullModified_ThrowsArgumentNullException()
+    {
+        // Property: UpdateImmutable with null modified MUST throw ArgumentNullException
+        var (unitOfWork, _) = CreateMockUnitOfWork();
+        TestUoWEntity entity = null!;
+
+        Should.Throw<ArgumentNullException>(() => unitOfWork.UpdateImmutable(entity))
+            .ParamName.ShouldBe("modified");
+    }
+
+    [Fact]
+    public async Task Property_UpdateImmutableAsync_NullModified_ThrowsArgumentNullException()
+    {
+        // Property: UpdateImmutableAsync with null modified MUST throw ArgumentNullException
+        var (unitOfWork, _) = CreateMockUnitOfWork();
+        TestUoWEntity entity = null!;
+
+        var ex = await Should.ThrowAsync<ArgumentNullException>(
+            async () => await unitOfWork.UpdateImmutableAsync(entity));
+        ex.ParamName.ShouldBe("modified");
+    }
+
+    [Fact]
+    public void Property_UpdateImmutable_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Property: UpdateImmutable after dispose MUST throw ObjectDisposedException
+        var (unitOfWork, _) = CreateMockUnitOfWork();
+        unitOfWork.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        var entity = new TestUoWEntity { Id = Guid.NewGuid(), Name = "Test" };
+
+        Should.Throw<ObjectDisposedException>(() => unitOfWork.UpdateImmutable(entity));
+    }
+
+    [Fact]
+    public async Task Property_UpdateImmutableAsync_AfterDispose_ThrowsObjectDisposedException()
+    {
+        // Property: UpdateImmutableAsync after dispose MUST throw ObjectDisposedException
+        var (unitOfWork, _) = CreateMockUnitOfWork();
+        await unitOfWork.DisposeAsync();
+        var entity = new TestUoWEntity { Id = Guid.NewGuid(), Name = "Test" };
+
+        await Should.ThrowAsync<ObjectDisposedException>(
+            async () => await unitOfWork.UpdateImmutableAsync(entity));
+    }
+
+    #endregion
+
     #region Error Handling Invariants
 
     [Fact]
@@ -414,6 +502,25 @@ public sealed class TestableUnitOfWork : IUnitOfWork
         var mockRepo = Substitute.For<IFunctionalRepository<TEntity, TId>>();
         _repositories[entityType] = mockRepo;
         return mockRepo;
+    }
+
+    public LanguageExt.Either<EncinaError, LanguageExt.Unit> UpdateImmutable<TEntity>(TEntity modified)
+        where TEntity : class
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(modified);
+        return RepositoryErrors.OperationNotSupported<TEntity>("UpdateImmutable");
+    }
+
+    public Task<LanguageExt.Either<EncinaError, LanguageExt.Unit>> UpdateImmutableAsync<TEntity>(
+        TEntity modified,
+        CancellationToken cancellationToken = default)
+        where TEntity : class
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(modified);
+        return Task.FromResult<LanguageExt.Either<EncinaError, LanguageExt.Unit>>(
+            RepositoryErrors.OperationNotSupported<TEntity>("UpdateImmutableAsync"));
     }
 
     public Task<LanguageExt.Either<EncinaError, int>> SaveChangesAsync(CancellationToken cancellationToken = default)

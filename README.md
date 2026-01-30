@@ -269,15 +269,20 @@ public record Order : AggregateRoot<OrderId>
     }
 }
 
-// Update with event preservation
+// Update with event preservation (DbContext)
 var order = await context.Orders.FindAsync(orderId);
 var shippedOrder = order!.Ship().WithPreservedEvents(order);
-
 var result = context.UpdateImmutable(shippedOrder);
-if (result.IsRight)
+await context.SaveChangesAsync(); // Events dispatched automatically
+
+// Or with IUnitOfWork pattern
+var orderResult = await unitOfWork.Repository<Order, Guid>().GetByIdAsync(orderId, ct);
+var updateResult = orderResult.Bind(order =>
 {
-    await context.SaveChangesAsync(); // Events dispatched automatically
-}
+    var shipped = order.Ship().WithPreservedEvents(order);
+    return unitOfWork.UpdateImmutable(shipped);
+});
+await unitOfWork.SaveChangesAsync(ct);
 ```
 
 See [Immutable Domain Models](docs/features/immutable-domain-models.md) for full documentation.

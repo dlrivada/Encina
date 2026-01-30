@@ -11,8 +11,12 @@ This guide explains how to use immutable domain entities (C# records) with EF Co
 5. [API Reference](#api-reference)
 6. [Best Practices](#best-practices)
 7. [Integration with EF Core](#integration-with-ef-core)
-8. [Testing](#testing)
-9. [FAQ](#faq)
+8. [Immutable Updates with Unit of Work Pattern](#immutable-updates-with-unit-of-work-pattern)
+9. [Immutable Updates with IFunctionalRepository](#immutable-updates-with-ifunctionalrepository)
+10. [Non-EF Core Provider Workflow](#non-ef-core-provider-workflow)
+11. [Provider Support Comparison](#provider-support-comparison)
+12. [Testing](#testing)
+13. [FAQ](#faq)
 
 ---
 
@@ -440,6 +444,305 @@ modelBuilder.Entity<Order>()
 
 ---
 
+## Immutable Updates with Unit of Work Pattern
+
+When using `IUnitOfWork`, Encina provides a clean API for updating immutable aggregates:
+
+### Using `UpdateImmutable()`
+
+```csharp
+public class ShipOrderHandler : ICommandHandler<ShipOrderCommand, Unit>
+{
+    private readonly IUnitOfWork _unitOfWork;
+
+    public async ValueTask<Either<EncinaError, Unit>> Handle(
+        ShipOrderCommand command,
+        IRequestContext ctx,
+        CancellationToken ct)
+    {
+        await using (_unitOfWork)
+        {
+            var repository = _unitOfWork.Repository<Order, Guid>();
+            var orderResult = await repository.GetByIdAsync(command.OrderId, ct);
+
+            return await orderResult.MatchAsync(
+                Left: error => error,
+                Right: async order =>
+                {
+                    // 1. Perform domain operation
+                    var shippedOrder = order.Ship().WithPreservedEvents(order);
+
+                    // 2. Use UpdateImmutable - handles change tracking automatically
+                    var updateResult = _unitOfWork.UpdateImmutable(shippedOrder);
+
+                    return await updateResult.MatchAsync(
+                        Left: error => error,
+                        Right: async _ =>
+                        {
+                            // 3. Commit changes - events dispatched automatically
+                            await _unitOfWork.SaveChangesAsync(ct);
+                            return Unit.Default;
+                        });
+                });
+        }
+    }
+}
+```
+
+### API Reference
+
+```csharp
+// Synchronous update
+Either<EncinaError, Unit> UpdateImmutable<TEntity>(TEntity modified)
+    where TEntity : class, IAggregateRoot;
+
+// Asynchronous update
+ValueTask<Either<EncinaError, Unit>> UpdateImmutableAsync<TEntity>(
+    TEntity modified,
+    CancellationToken cancellationToken = default)
+    where TEntity : class, IAggregateRoot;
+```
+
+**Returns**: `Either<EncinaError, Unit>` where:
+
+- `Right(Unit.Default)` - Success
+- `Left(RepositoryErrors.EntityNotTracked)` - Original entity not found in change tracker
+- `Left(RepositoryErrors.UpdateFailed)` - Detach/attach operation failed
+
+### Complete Workflow Example
+
+```csharp
+public async ValueTask<Either<EncinaError, Unit>> TransferOrderOwnership(
+    Guid orderId,
+    Guid newOwnerId,
+    CancellationToken ct)
+{
+    await using (_unitOfWork)
+    {
+        var orderRepo = _unitOfWork.Repository<Order, Guid>();
+        var customerRepo = _unitOfWork.Repository<Customer, Guid>();
+
+        // Load both entities
+        var orderResult = await orderRepo.GetByIdAsync(orderId, ct);
+        var customerResult = await customerRepo.GetByIdAsync(newOwnerId, ct);
+
+        return await (orderResult, customerResult).Apply((order, customer) =>
+        {
+            // Domain operations
+            var updatedOrder = order.TransferTo(customer.Id)
+                .WithPreservedEvents(order);
+
+            // Update immutable aggregate
+            return _unitOfWork.UpdateImmutable(updatedOrder)
+                .BindAsync(_ => _unitOfWork.SaveChangesAsync(ct));
+        });
+    }
+}
+```
+
+---
+
+## Immutable Updates with IFunctionalRepository
+
+`IFunctionalRepository<TEntity, TId>` also supports immutable updates through `UpdateImmutableAsync`:
+
+### Basic Usage
+
+```csharp
+public class UpdateOrderStatusHandler : ICommandHandler<UpdateOrderStatusCommand, Unit>
+{
+    private readonly IFunctionalRepository<Order, Guid> _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public async ValueTask<Either<EncinaError, Unit>> Handle(
+        UpdateOrderStatusCommand command,
+        IRequestContext ctx,
+        CancellationToken ct)
+    {
+        return await _repository.GetByIdAsync(command.OrderId, ct)
+            .BindAsync(async order =>
+            {
+                var modifiedOrder = order.UpdateStatus(command.NewStatus)
+                    .WithPreservedEvents(order);
+
+                return await _repository.UpdateImmutableAsync(modifiedOrder, ct);
+            })
+            .BindAsync(_ => _unitOfWork.SaveChangesAsync(ct));
+    }
+}
+```
+
+### API Reference
+
+```csharp
+ValueTask<Either<EncinaError, Unit>> UpdateImmutableAsync(
+    TEntity modified,
+    CancellationToken cancellationToken = default);
+```
+
+### Repository Pattern Benefits
+
+Using `IFunctionalRepository` for immutable updates provides:
+
+| Benefit | Description |
+|---------|-------------|
+| **Consistency** | Same API across EF Core repositories |
+| **Encapsulation** | Aggregate-specific update logic stays in one place |
+| **Testability** | Easy to mock `UpdateImmutableAsync` in unit tests |
+| **ROP Integration** | Returns `Either<EncinaError, Unit>` for explicit error handling |
+
+---
+
+## Non-EF Core Provider Workflow
+
+For providers without change tracking (Dapper, ADO.NET, MongoDB), use `ImmutableAggregateHelper`:
+
+### Why a Different Approach?
+
+Non-EF Core providers lack automatic change tracking. When you update an immutable aggregate:
+
+1. Domain events on the original instance need to be manually copied
+2. The modified aggregate needs to be registered for event dispatch
+3. There's no "detach/attach" pattern needed
+
+### Using `ImmutableAggregateHelper.PrepareForUpdate()`
+
+```csharp
+public class ShipOrderHandler : ICommandHandler<ShipOrderCommand, Unit>
+{
+    private readonly IFunctionalRepository<Order, Guid> _repository;
+    private readonly IDomainEventCollector _eventCollector;
+    private readonly DomainEventDispatchHelper _dispatchHelper;
+
+    public async ValueTask<Either<EncinaError, Unit>> Handle(
+        ShipOrderCommand command,
+        IRequestContext context,
+        CancellationToken ct)
+    {
+        // 1. Load the order
+        var orderResult = await _repository.GetByIdAsync(command.OrderId, ct);
+
+        return await orderResult.MatchAsync(
+            Left: error => error,
+            Right: async order =>
+            {
+                // 2. Perform domain operation (raises event, returns new instance)
+                var shippedOrder = order.Ship();
+
+                // 3. Prepare for update (copies events, tracks aggregate)
+                ImmutableAggregateHelper.PrepareForUpdate(
+                    shippedOrder,
+                    order,
+                    _eventCollector);
+
+                // 4. Persist changes
+                var updateResult = await _repository.UpdateAsync(shippedOrder, ct);
+
+                // 5. Dispatch domain events
+                if (updateResult.IsRight)
+                    await _dispatchHelper.DispatchCollectedEventsAsync(ct);
+
+                return updateResult.Map(_ => Unit.Default);
+            });
+    }
+}
+```
+
+### API Reference
+
+```csharp
+public static TAggregate PrepareForUpdate<TAggregate>(
+    TAggregate modified,
+    TAggregate original,
+    IDomainEventCollector collector)
+    where TAggregate : class, IAggregateRoot
+```
+
+**What it does**:
+
+1. **Copies events**: Calls `modified.CopyEventsFrom(original)` to preserve domain events
+2. **Tracks aggregate**: Calls `collector.TrackAggregate(modified)` for event dispatch
+3. **Returns modified**: Returns the modified aggregate for fluent chaining
+
+**Parameters**:
+
+| Parameter | Description |
+|-----------|-------------|
+| `modified` | The new aggregate instance created via with-expression |
+| `original` | The original aggregate containing domain events |
+| `collector` | The `IDomainEventCollector` for tracking and dispatch |
+
+### Required Dependencies
+
+Register these services when using non-EF Core providers:
+
+```csharp
+services.AddScoped<IDomainEventCollector, DomainEventCollector>();
+services.AddScoped<DomainEventDispatchHelper>();
+```
+
+### Fluent Chaining Pattern
+
+```csharp
+// Compact fluent style
+var preparedOrder = ImmutableAggregateHelper.PrepareForUpdate(
+    order.Ship(),
+    order,
+    _eventCollector);
+
+await _repository.UpdateAsync(preparedOrder, ct);
+await _dispatchHelper.DispatchCollectedEventsAsync(ct);
+```
+
+---
+
+## Provider Support Comparison
+
+| Provider | Change Tracking | UpdateImmutable Support | Helper Required |
+|----------|----------------|------------------------|-----------------|
+| **EF Core** | Yes | `IUnitOfWork.UpdateImmutable()` | None |
+| **EF Core** | Yes | `IFunctionalRepository.UpdateImmutableAsync()` | None |
+| **EF Core** | Yes | `DbContext.UpdateImmutable()` | None |
+| **Dapper** | No | Returns `OperationNotSupported` | `ImmutableAggregateHelper` |
+| **ADO.NET** | No | Returns `OperationNotSupported` | `ImmutableAggregateHelper` |
+| **MongoDB** | No | Returns `OperationNotSupported` | `ImmutableAggregateHelper` |
+
+### Error Handling for Non-EF Providers
+
+Non-EF providers return `RepositoryErrors.OperationNotSupported` from `UpdateImmutableAsync`:
+
+```csharp
+var result = await dapperRepository.UpdateImmutableAsync(modified, ct);
+result.Match(
+    Left: error =>
+    {
+        if (error.Code == "REPO_OPERATION_NOT_SUPPORTED")
+        {
+            // Use ImmutableAggregateHelper instead
+            ImmutableAggregateHelper.PrepareForUpdate(modified, original, collector);
+            // ... proceed with manual update
+        }
+    },
+    Right: _ => { /* Success */ });
+```
+
+### Choosing the Right Approach
+
+```mermaid
+flowchart TD
+    A[Immutable Aggregate Update] --> B{Provider Type?}
+    B -->|EF Core| C[Use UpdateImmutable/UpdateImmutableAsync]
+    B -->|Dapper/ADO.NET/MongoDB| D[Use ImmutableAggregateHelper]
+
+    C --> E[Automatic event copy & tracking]
+    D --> F[Manual PrepareForUpdate call]
+
+    E --> G[SaveChangesAsync dispatches events]
+    F --> H[Manual DispatchCollectedEventsAsync]
+```
+
+---
+
 ## Testing
 
 ### Unit Testing State Transitions
@@ -529,41 +832,39 @@ var result = context.UpdateImmutable(modifiedEntity);
 
 ### How does this interact with the Unit of Work pattern?
 
-`UpdateImmutable` works with the `DbContext` directly. Support for `IUnitOfWork` and `IFunctionalRepository` is planned in [Issue #572](https://github.com/dlrivada/Encina/issues/572).
-
-**Current workaround** (until #572 is implemented):
+`IUnitOfWork` has full support for immutable updates via `UpdateImmutable()` and `UpdateImmutableAsync()`:
 
 ```csharp
-// If your UnitOfWork exposes the DbContext
 var order = await unitOfWork.Repository<Order, Guid>().GetByIdAsync(orderId);
 var shipped = order.Ship().WithPreservedEvents(order);
 
-// Access DbContext directly for immutable update
-unitOfWork.Context.UpdateImmutable(shipped);
+// Use UpdateImmutable on the UnitOfWork
+var result = unitOfWork.UpdateImmutable(shipped);
 await unitOfWork.SaveChangesAsync();
 ```
 
+See [Immutable Updates with Unit of Work Pattern](#immutable-updates-with-unit-of-work-pattern) for complete documentation.
+
 ### How do I use immutables with Dapper/ADO.NET?
 
-Non-EF Core providers don't have a change tracker, so the pattern is different:
+Non-EF Core providers don't have a change tracker. Use `ImmutableAggregateHelper.PrepareForUpdate()`:
 
 ```csharp
 // 1. Load entity
 var order = await repository.GetByIdAsync(orderId);
 
-// 2. Create modified instance with events
+// 2. Create modified instance
 var shipped = order.Ship();
-shipped.CopyEventsFrom(order);
 
-// 3. Track for event dispatch
-eventCollector.TrackAggregate(shipped);
+// 3. PrepareForUpdate copies events and tracks aggregate
+ImmutableAggregateHelper.PrepareForUpdate(shipped, order, eventCollector);
 
 // 4. Update and dispatch events
 await repository.UpdateAsync(shipped);
 await dispatchHelper.DispatchCollectedEventsAsync();
 ```
 
-A helper utility for this pattern is planned in [Issue #572](https://github.com/dlrivada/Encina/issues/572).
+See [Non-EF Core Provider Workflow](#non-ef-core-provider-workflow) for complete documentation.
 
 ---
 

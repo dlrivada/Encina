@@ -273,6 +273,58 @@ public interface IFunctionalRepository<TEntity, in TId> : IFunctionalReadReposit
     Task<Either<EncinaError, int>> DeleteRangeAsync(
         Specification<TEntity> specification,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates an immutable entity by handling change tracker operations and preserving domain events.
+    /// </summary>
+    /// <param name="modified">The modified entity instance (created via with-expression or clone).</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>
+    /// Right with <see cref="Unit"/> on success;
+    /// Left with <see cref="RepositoryErrors.EntityNotTracked{TEntity}()"/> if the original entity is not tracked;
+    /// Left with <see cref="RepositoryErrors.OperationNotSupported{TEntity}(string)"/> for providers without change tracking.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// This method is designed for use with immutable entities (C# records with <c>init</c> properties).
+    /// When you create a modified copy using a with-expression, the change tracker loses track of the entity.
+    /// This method handles the detach/attach pattern to properly track the modified entity.
+    /// </para>
+    /// <para>
+    /// <b>Provider-specific behavior:</b>
+    /// <list type="bullet">
+    /// <item><description><b>EF Core:</b> Automatically handles entity detachment, domain event preservation,
+    /// and reattachment. The original tracked entity is found using the primary key, domain events are
+    /// copied to the modified entity, the original is detached, and the modified entity is attached
+    /// as <c>Modified</c>.</description></item>
+    /// <item><description><b>Dapper/ADO.NET/MongoDB:</b> Returns <see cref="RepositoryErrors.OperationNotSupported{TEntity}(string)"/>
+    /// because these providers lack change tracking. Use <see cref="ImmutableAggregateHelper.PrepareForUpdate{TAggregate}"/>
+    /// followed by <see cref="UpdateAsync"/> instead.</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // EF Core - full immutable update support
+    /// var orderResult = await repository.GetByIdAsync(orderId, ct);
+    /// return await orderResult.MatchAsync(
+    ///     RightAsync: async order =>
+    ///     {
+    ///         var shippedOrder = order.Ship(); // Returns new instance with domain event
+    ///         return await repository.UpdateImmutableAsync(shippedOrder, ct);
+    ///     },
+    ///     Left: error => error);
+    ///
+    /// // Dapper/ADO - use helper pattern
+    /// var order = await repository.GetByIdAsync(orderId, ct);
+    /// var shippedOrder = order.Ship();
+    /// ImmutableAggregateHelper.PrepareForUpdate(shippedOrder, order, eventCollector);
+    /// await repository.UpdateAsync(shippedOrder, ct);
+    /// </code>
+    /// </example>
+    Task<Either<EncinaError, Unit>> UpdateImmutableAsync(
+        TEntity modified,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

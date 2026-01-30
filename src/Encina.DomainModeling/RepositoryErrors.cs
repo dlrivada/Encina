@@ -44,6 +44,7 @@ public static class RepositoryErrors
     private const string BulkReadFailedCode = "Repository.BulkReadFailed";
     private const string EntityNotTrackedCode = "Repository.EntityNotTracked";
     private const string UpdateFailedCode = "Repository.UpdateFailed";
+    private const string OperationNotSupportedCode = "Repository.OperationNotSupported";
 
     /// <summary>
     /// Creates a NotFound error when an entity with the specified ID is not found.
@@ -713,4 +714,75 @@ public static class RepositoryErrors
     /// Gets the error code for an Update Failed error.
     /// </summary>
     public static string UpdateFailedErrorCode => UpdateFailedCode;
+
+    /// <summary>
+    /// Gets the error code for an Operation Not Supported error.
+    /// </summary>
+    public static string OperationNotSupportedErrorCode => OperationNotSupportedCode;
+
+    /// <summary>
+    /// Creates an OperationNotSupported error when an operation requires change tracking that the provider doesn't support.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="operationName">The name of the operation that is not supported (e.g., "UpdateImmutable").</param>
+    /// <returns>An <see cref="EncinaError"/> representing the operation not supported error.</returns>
+    /// <remarks>
+    /// <para>
+    /// This error is returned by non-EF Core providers (Dapper, ADO.NET, MongoDB) when an operation
+    /// requires change tracking capabilities. The error message provides guidance on using
+    /// <see cref="ImmutableAggregateHelper.PrepareForUpdate{TAggregate}"/> as an alternative.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // In a Dapper repository implementation:
+    /// public Task&lt;Either&lt;EncinaError, Unit&gt;&gt; UpdateImmutableAsync(Order modified, CancellationToken ct)
+    /// {
+    ///     // Dapper doesn't have change tracking, return error with guidance
+    ///     return Task.FromResult(
+    ///         Either&lt;EncinaError, Unit&gt;.Left(
+    ///             RepositoryErrors.OperationNotSupported&lt;Order&gt;("UpdateImmutableAsync")));
+    /// }
+    /// </code>
+    /// </example>
+    public static EncinaError OperationNotSupported<TEntity>(string operationName)
+        where TEntity : class
+    {
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Operation '{operationName}' is not supported for entity type '{entityTypeName}' " +
+                      "because this provider does not have change tracking capabilities. " +
+                      "Use ImmutableAggregateHelper.PrepareForUpdate() followed by the standard UpdateAsync() method instead.";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["OperationName"] = operationName,
+            ["RecommendedAlternative"] = "ImmutableAggregateHelper.PrepareForUpdate()"
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(OperationNotSupportedCode, message, details: details);
+    }
+
+    /// <summary>
+    /// Creates an OperationNotSupported error with a custom reason.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="operationName">The name of the operation that is not supported.</param>
+    /// <param name="reason">A custom reason explaining why the operation is not supported.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the operation not supported error.</returns>
+    public static EncinaError OperationNotSupported<TEntity>(string operationName, string reason)
+        where TEntity : class
+    {
+        var entityTypeName = typeof(TEntity).Name;
+        var message = $"Operation '{operationName}' is not supported for entity type '{entityTypeName}': {reason}";
+
+        var details = new Dictionary<string, object?>
+        {
+            ["EntityType"] = entityTypeName,
+            ["OperationName"] = operationName,
+            ["Reason"] = reason
+        }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(OperationNotSupportedCode, message, details: details);
+    }
 }

@@ -1,5 +1,6 @@
 using Encina;
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Extensions;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using static LanguageExt.Prelude;
@@ -417,6 +418,38 @@ public sealed class FunctionalRepositoryEF<TEntity, TId> : IFunctionalRepository
         {
             return Left<EncinaError, int>(
                 RepositoryErrors.PersistenceError<TEntity>("DeleteRange", ex));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, Unit>> UpdateImmutableAsync(
+        TEntity modified,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(modified);
+
+        try
+        {
+            var updateResult = await _dbContext.UpdateImmutableAsync(modified, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (updateResult.IsLeft)
+            {
+                return updateResult;
+            }
+
+            await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return Right<EncinaError, Unit>(Unit.Default);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            return Left<EncinaError, Unit>(
+                RepositoryErrors.ConcurrencyConflict<TEntity>(ex));
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, Unit>(
+                RepositoryErrors.PersistenceError<TEntity>("UpdateImmutable", ex));
         }
     }
 
