@@ -650,5 +650,4 @@ services.AddScoped<IAuditLogStore, SqlAuditLogStore>();
 
 - [Immutable Domain Models](./immutable-domain-models.md) - Using records with audit tracking
 - [Multi-Tenancy](./multi-tenancy.md) - Combining audit tracking with tenant isolation
-- [Soft Delete Pattern](./soft-delete.md) - Advanced soft delete scenarios
 - [Issue #574](https://github.com/dlrivada/Encina/issues/574) - Persistent IAuditLogStore implementations
