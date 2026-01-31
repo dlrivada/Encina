@@ -801,4 +801,4 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - **Issues**: [github.com/dlrivada/Encina/issues](https://github.com/dlrivada/Encina/issues)
 - **Milestones**: [github.com/dlrivada/Encina/milestones](https://github.com/dlrivada/Encina/milestones)
 - **Changelog**: [CHANGELOG.md](CHANGELOG.md)
-- **History**: [docs/history/](docs/history/)
+- **Releases**: [docs/releases/](docs/releases/)

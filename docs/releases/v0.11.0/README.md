@@ -1,6 +1,10 @@
-# January 2026 - Implementation History
+# v0.11.0 - Testing Infrastructure
 
-This document captures the detailed implementation history for Encina during January 2026.
+> **Release Date**: 2026-01-19
+> **Milestone**: [v0.11.0 - Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8)
+> **Status**: Completed (34 issues closed)
+
+This document captures the detailed implementation history for v0.11.0 (January 2026).
 
 > **Historical Note**: File paths referenced in this document reflect the project structure at the time of each entry. Later in January 2026, tests were consolidated from ~210 individual projects into 7 consolidated projects under `tests/`, and solution filters (`.slnf`) were deprecated. See the test consolidation plan in `docs/plans/test-consolidation-plan.md` for details.
 
@@ -109,7 +113,7 @@ Files Created/Updated:
 - `src/Encina.Dapper.SqlServer/README.md` (enhanced Bulk Operations section)
 - `src/Encina.MongoDB/README.md` (NEW - complete documentation with bulk ops)
 - `CHANGELOG.md` (added Bulk Operations entry)
-- `docs/history/2026-01.md` (this file)
+- `docs/releases/v0.11.0/README.md` (this file)
 
 **Performance Metrics** (measured with Testcontainers, 1,000 entities):
 
@@ -218,7 +222,7 @@ Files Updated:
 - `src/Encina.DomainModeling/README.md` - Added domain events and concurrency sections
 - `src/Encina.EntityFrameworkCore/README.md` - Added Domain Event Dispatcher and Entity Configuration Helpers sections
 - `CHANGELOG.md` - Added Issue #292 entry
-- `docs/history/2026-01.md` (this file)
+- `docs/releases/v0.11.0/README.md` (this file)
 
 ---
 
@@ -2138,7 +2142,7 @@ Final SonarCloud analysis results:
 
 - `CHANGELOG.md` - Added v0.11.0 release section
 - `ROADMAP.md` - Marked v0.11.0 as completed, updated quality metrics
-- `docs/history/2026-01.md` - Added milestone completion entry
+- `docs/releases/v0.11.0/README.md` - Added milestone completion entry
 
 #### PRs Merged
 
@@ -3275,7 +3279,7 @@ Implemented comprehensive BenchmarkDotNet micro-benchmarks for all Encina.Entity
 
 - `docs/INVENTORY.md` - Added Section 14: BenchmarkDotNet Micro-Benchmarks
 - `docs/testing/benchmarks/benchmark-results.md` - Section 11 with ACTUAL results
-- `docs/history/2026-01.md` - This entry
+- `docs/releases/v0.11.0/README.md` - This entry
 - `CHANGELOG.md` - Added EntityFrameworkCore benchmarks entry
 
 #### Critical Fix: BenchmarkSwitcher for Command-Line Filtering

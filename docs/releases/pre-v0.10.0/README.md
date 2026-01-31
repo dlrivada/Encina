@@ -1,6 +1,10 @@
-# December 2025 - Implementation History
+# Pre-v0.10.0 Development (December 2025)
 
-This document captures the detailed implementation history for Encina during December 2025.
+> **Version Range**: v0.1.0 - v0.9.0
+> **Period**: December 14-30, 2025
+> **Status**: Foundation phase (before formal versioned milestones)
+
+This document captures the detailed implementation history for Encina during December 2025, covering the initial development from SimpleMediator to Encina and the foundation of 53 packages.
 
 > **Historical Note**: File paths referenced in this document reflect the project structure as it existed during December 2025. In January 2026, tests were consolidated from ~210 individual projects into 7 consolidated projects under `tests/`. See the test consolidation plan in `docs/plans/test-consolidation-plan.md` for details.
 
@@ -25,6 +29,7 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 **Total: 53 packages implemented, 10 planned (via Phase 2 issues), 4,000+ tests**
 
 > **Note**: 5 packages were deprecated:
+>
 > - Wolverine, NServiceBus, MassTransit, Dapr - overlapping concerns with Encina's messaging
 > - EventStoreDB - Marten provides better .NET integration for Event Sourcing
 >
@@ -39,17 +44,20 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 **Commits**: `21426b7`, `e8ae585`, `86bbee1`, `4595130`, `0b970b6`, `e50ad34`, `445f303`, `34ed3a3`, `3353c63`, `44853ef`
 
 **IRequestContext Implementation**:
+
 - Added `IRequestContext` interface for pipeline extensibility
 - Implemented `RequestContext` with CorrelationId, UserId, TenantId, Metadata
 - Added `IRequestContextAccessor` with AsyncLocal storage
 
 **Validation Packages Created**:
+
 - **SimpleMediator.FluentValidation**: Full FluentValidation integration with ROP
 - **SimpleMediator.DataAnnotations**: Built-in .NET validation attributes
 - **SimpleMediator.MiniValidator**: Ultra-lightweight validation (~20KB)
 - **SimpleMediator.GuardClauses**: Defensive programming with Ardalis.GuardClauses
 
 **Documentation**:
+
 - Comprehensive READMEs for each validation package
 - GuardClauses design analysis document
 - Updated FEATURES_ROADMAP with validation status
@@ -63,11 +71,13 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 **Commits**: `457c3ad`, `5c85efa`, `85abaf0`
 
 **Dapper Provider**:
+
 - Created `SimpleMediator.Dapper` with all messaging patterns
 - Implemented OutboxStore, InboxStore, SagaStore, ScheduledMessageStore
 - Added test infrastructure with `SimpleMediator.Dapper.Tests`
 
 **ADO.NET Provider**:
+
 - Created `SimpleMediator.ADO` with pure ADO.NET implementation
 - Same interface as Dapper, different implementation
 - Zero ORM dependencies
@@ -87,14 +97,17 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 | Oracle | SimpleMediator.Dapper.Oracle | SimpleMediator.ADO.Oracle |
 
 **SQL Dialect Translation**:
+
 - Each provider implements dialect-specific SQL (TOP vs LIMIT, GETUTCDATE vs NOW, etc.)
 - All providers share same interfaces from `SimpleMediator.Messaging`
 
 **EntityFrameworkCore & AspNetCore**:
+
 - Added `SimpleMediator.EntityFrameworkCore` with full messaging pattern support
 - Added `SimpleMediator.AspNetCore` with middleware, authorization, Problem Details
 
 **Infrastructure**:
+
 - GitHub Actions workflow monitoring scripts
 - SonarCloud workflow configuration
 - Docker infrastructure for integration testing
@@ -102,6 +115,7 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 - Standardized artifacts output paths
 
 **Documentation**:
+
 - Established MANDATORY 100% test coverage policy
 - Unified tracking documents into single ROADMAP.md
 
@@ -114,6 +128,7 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 **Commits**: `bbd8264`, `7954ddb`, `b501c38`, `01469f1`, `7b35ebe`, `9114592`, `0278cdc`, `34f8ac2`, and more
 
 **OpenTelemetry Integration**:
+
 - Created `SimpleMediator.OpenTelemetry` package
 - `EncinaOpenTelemetryOptions` with ServiceName, ServiceVersion
 - `MessagingActivityEnricher` for Outbox, Inbox, Sagas, Scheduling
@@ -121,6 +136,7 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 - Docker Compose observability stack (Jaeger, Prometheus, Loki, Grafana)
 
 **Stream Requests**:
+
 - Implemented `IStreamRequest<TItem>` interface
 - `IStreamRequestHandler<TRequest, TItem>` interface
 - `IStreamPipelineBehavior<TRequest, TItem>` interface
@@ -129,10 +145,12 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 - 98 tests passing
 
 **Dapr Building Blocks**:
+
 - Completed State Management, Bindings, Secrets building blocks
 - (Later deprecated in Week 4)
 
 **Comprehensive Test Suite**:
+
 - Added 1,763 database provider tests
 - Guard and Contract tests for Stream Requests (31 tests)
 - Property, Integration and Load tests for Stream Requests (56 tests)
@@ -143,33 +161,39 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 **Commits**: `937d4a0`, `288fb9f`, `7c163dd`, `330c10c`, `15e6a34`, `21491cd`, `4cc699a`, `a1362d7`, `3c658fc`, `1e9de53`, `ef01d25`, and more
 
 **Validation Test Coverage**:
+
 - FluentValidation: 68 tests total
 - DataAnnotations: 40% → 95% coverage
 - MiniValidator: 40% → 95% coverage
 - GuardClauses: 50% → 95% coverage
 
 **Job Scheduling Tests**:
+
 - Complete test project structure for Hangfire and Quartz
 - Guard, Contract, Property, Integration, Load tests
 - Job scheduling benchmarks for Quartz.NET
 - Validation benchmarks comparing 4 validation approaches
 
 **AspNetCore & EF Core Tests**:
+
 - AspNetCore comprehensive test suite: 104 total tests
 - EntityFrameworkCore comprehensive test suite: 100% coverage
 
 **Resilience Packages**:
+
 - Created `SimpleMediator.Extensions.Resilience`
 - Created `SimpleMediator.Polly` with retry, circuit breaker, timeout
 - Created `SimpleMediator.Refit` for HTTP client integration
 - Complete test suite with 100% coverage
 
 **Performance Benchmarks**:
+
 - Provider comparison benchmarks (ADO.NET vs Dapper vs EF Core)
 - Saga and Scheduling provider comparison benchmarks
 - Custom FsCheck generators for property-based tests
 
 **Crash Investigation**:
+
 - Documented two issues identified during testing
 - MSBuild stability issues with large solution
 
@@ -195,6 +219,7 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 | SimpleMediator.Caching.Garnet | Microsoft's Redis-compatible | - |
 
 **Key Caching Features**:
+
 - `ICacheProvider` abstraction for provider-agnostic caching
 - `ICacheKeyGenerator` for consistent key generation
 - `CachingPipelineBehavior<TRequest, TResponse>` for automatic query caching
@@ -217,6 +242,7 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 | SimpleMediator.GraphQL | HotChocolate | 15.1.11 |
 
 **Event Sourcing**:
+
 - Created `SimpleMediator.Marten` with Marten v8.0.0-beta-1
 - Created `SimpleMediator.EventStoreDB` (later deprecated)
 - `IAggregate` / `AggregateBase` abstractions
@@ -224,12 +250,14 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 - `EventPublishingPipelineBehavior` for auto-publishing domain events
 
 **Additional Features**:
+
 - Parallel notification dispatch strategies (opt-in)
 - Choreography-based saga abstractions (event-driven)
 - MassTransit integration (later deprecated)
 - Delegate cache optimization
 
 **SignalR Integration**:
+
 - Created `SimpleMediator.SignalR`
 - `EncinaHub` base class for SignalR hubs
 - `[BroadcastToSignalR]` attribute for declarative notification broadcasting
@@ -237,12 +265,14 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 - `ISignalRNotificationBroadcaster` service
 
 **MongoDB Integration**:
+
 - Created `SimpleMediator.MongoDB`
 - `OutboxStoreMongoDB`, `InboxStoreMongoDB`, `SagaStoreMongoDB`, `ScheduledMessageStoreMongoDB`
 - `MongoDbIndexCreator` for automatic index creation
 - TTL indexes for inbox message cleanup
 
 **LoggerMessage Source Generators**:
+
 - Replaced all `ILogger.LogXxx()` with high-performance `LoggerMessage` source generators
 - CA1848 compliance across all packages
 - Zero-allocation logging in hot paths
@@ -256,20 +286,24 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 **Commits**: `cab5e04`, `2f86e28`, `b59f866`, `3e8df3b`, `14f429c`, `962e28d`, `589f5ca`, `c993620`, `f461883`, `e5732ba`, `f0c2565`, `c4e7f41`, `b375dc1`, `3eeef9b`, `0f84bef`, `10a2858`, `2cd1f0d`, `7577821`, `5cfab7c`, `b4339bc`, `f1ea1d0`, `63cdae7`, `4d4b29a`, `d900b81`, `1e9c86e`, `227647d`, `3638e6c`, `2532d03`, `5047426`, `972cf83`, `469085b`
 
 **Major Renaming**:
+
 - Renamed project from **SimpleMediator** to **Encina**
 - Updated all namespaces, package names, and references
 - Corrected error code case to lowercase (`encina.*` instead of `Encina.*`)
 - Complete renaming cleanup across entire codebase
 
 **License Change**:
+
 - Changed license from proprietary to **MIT**
 
 **GitHub Infrastructure**:
+
 - Added GitHub Issue templates (bug_report, feature_request, technical_debt)
 - Improved issue tracking workflow
 - Added Known Issues section to CLAUDE.md
 
 **Test Suite Fixes**:
+
 - Comprehensive test suite fixes for validation behaviors
 - Fixed namespace in SQLite IntegrationTests for CI filter
 - Prevented duplicate behavior registration
@@ -278,16 +312,19 @@ December 2025 was a milestone month for Encina, with the project evolving from *
 - Registered IStreamRequestHandler and IStreamPipelineBehavior via assembly scanning
 
 **CI/CD Improvements**:
+
 - Excluded LoadTests/IntegrationTests from SonarCloud
 - Temporarily excluded ContractTests/PropertyTests from SonarCloud (Issue #7)
 - Added test filter for CI runs
 - Fixed Quality Gate coverage and CI benchmark AOT errors
 
 **Security Fixes**:
+
 - Removed hardcoded passwords from configuration files
 - Moved write permissions from workflow to job level
 
 **Code Quality**:
+
 - Suppressed Roslyn style warnings (IDE0008, IDE0058, IDE0160, IDE0011)
 - Removed unnecessary usings
 - Simplified outcome extraction and null handling
@@ -321,21 +358,25 @@ Encina.FluentValidation / DataAnnotations / MiniValidator
 ```
 
 **Messaging Orchestrator/Factory Architecture**:
+
 - Created InboxOrchestrator, OutboxOrchestrator, SagaOrchestrator, SchedulerOrchestrator
 - Added factory interfaces: IInboxMessageFactory, IOutboxMessageFactory, ISagaStateFactory, IScheduledMessageFactory
 - Implemented factories for all 12 providers (Dapper x5, ADO x5, EF Core, MongoDB)
 - Centralized InboxPipelineBehavior and OutboxPostProcessor in Encina.Messaging
 
 **Security Fixes**:
+
 - Added `SqlIdentifierValidator` to prevent SQL injection (S2077)
 - All store files validate table names against safe regex pattern
 
 **Deprecations**:
+
 - Deprecated EventStoreDB (Marten provides better .NET integration)
 - Deprecated Wolverine, NServiceBus, MassTransit, Dapr (overlapping concerns)
 - Code preserved in `.backup/deprecated-packages/`
 
 **CI/CD Fixes (Many Iterations)**:
+
 - Fixed `InboxEfCoreBenchmarks.IterationSetup()` return type (async → sync)
 - Added solution filters for messaging, resilience, event-sourcing, observability
 - Added VSCode tasks.json with safe build/test configs
@@ -348,6 +389,7 @@ Encina.FluentValidation / DataAnnotations / MiniValidator
 - Added FluentAssertions to Encina.Tests after removing from core
 
 **Documentation**:
+
 - Restructured ROADMAP with 6-phase development approach
 - Documented Issue #5 as blocked by .NET 10 JIT bug
 - Updated CHANGELOG with 2025-12-23 fixes
@@ -357,6 +399,7 @@ Encina.FluentValidation / DataAnnotations / MiniValidator
 - Added comprehensive Messaging Transports documentation
 
 **SonarCloud Configuration**:
+
 - Excluded intentional SQL dialect duplication from analysis
 - Fixed test failures in PropertyTests and ContractTests
 - Corrected ADO.Oracle and ADO.Sqlite SQL scripts syntax
@@ -390,14 +433,17 @@ Encina.FluentValidation / DataAnnotations / MiniValidator
    - Justification: Static DDL scripts, no dynamic code injection
 
 **Code Consolidation**:
+
 - Centralized messaging patterns with shared `Log.cs` and `TransactionPipelineBehavior.cs`
 - Reduced code duplication from ~11% to 1.7%
 
 **Error Handling Improvements**:
+
 - Refactored Encina error handling and validation guards
 - Improved null handling in InboxOrchestrator response deserialization
 
 **Documentation Cleanup**:
+
 - Removed state/roadmap tracking from CLAUDE.md (moved to ROADMAP.md)
 - CLAUDE.md now contains only stable AI instructions
 
@@ -414,6 +460,7 @@ Encina.FluentValidation / DataAnnotations / MiniValidator
 Created the first package of the v0.11.0 Testing Infrastructure milestone:
 
 **Core Components**:
+
 - `FakeEncina` - Thread-safe in-memory IEncina implementation with:
   - Response configuration: `SetupResponse<TRequest, TResponse>()`
   - Error configuration: `SetupError<TRequest, TResponse>()`
@@ -424,6 +471,7 @@ Created the first package of the v0.11.0 Testing Infrastructure milestone:
   - Order-preserving collections using `List<T>` with locking
 
 **Fake Store Implementations**:
+
 - `FakeOutboxStore` - IOutboxStore with verification tracking
 - `FakeInboxStore` - IInboxStore with deduplication testing
 - `FakeSagaStore` - ISagaStore with saga lifecycle tracking
@@ -431,6 +479,7 @@ Created the first package of the v0.11.0 Testing Infrastructure milestone:
 - `FakeDeadLetterStore` - IDeadLetterStore for error handling tests
 
 **DI Integration**:
+
 - `AddFakeEncina()` - Register FakeEncina as IEncina
 - `AddFakeStores()` - Register all fake stores
 - `AddEncinaTestingFakes()` - Complete fake registration
@@ -438,17 +487,19 @@ Created the first package of the v0.11.0 Testing Infrastructure milestone:
 **Tests**: 42 unit tests covering all functionality
 
 **Design Decisions**:
+
 - Changed from `ConcurrentBag` to `List` with locking to preserve insertion order
 - Important for test verification where order matters
 - All operations remain thread-safe for parallel test execution
 
-### December 30 - FakeTimeProvider (Issue #433) 
+### December 30 - FakeTimeProvider (Issue #433)
 
 **New Feature: FakeTimeProvider in Encina.Testing**
 
 Added controllable time provider for testing time-dependent code:
 
 **Core Components**:
+
 - `FakeTimeProvider` - Thread-safe `TimeProvider` implementation:
   - Time manipulation: `SetUtcNow()`, `Advance()`, `AdvanceToNextDay()`, `AdvanceToNextHour()`
   - Convenience methods: `AdvanceMinutes()`, `AdvanceSeconds()`, `AdvanceMilliseconds()`
@@ -463,6 +514,7 @@ Added controllable time provider for testing time-dependent code:
   - Proper disposal and cleanup
 
 **Tests**: 42 unit tests covering:
+
 - Constructor variations (default, with time, with timezone)
 - Time manipulation (SetUtcNow, Advance, convenience methods)
 - Validation (negative duration, backwards time)
@@ -472,6 +524,7 @@ Added controllable time provider for testing time-dependent code:
 - Thread safety
 
 **Design Decisions**:
+
 - Timers only fire when time is advanced, not automatically
 - `DisposeWithoutRemoval()` method to avoid collection modification during Reset
 - Thread-safe with locking for parallel test execution
@@ -483,6 +536,7 @@ Added controllable time provider for testing time-dependent code:
 Created Shouldly-based assertion extensions as open-source alternative to FluentAssertions:
 
 **Core Extensions**:
+
 - `EitherShouldlyExtensions` - Main assertions for `Either<TLeft, TRight>`:
   - Success: `ShouldBeSuccess()`, `ShouldBeRight()`, with overloads for expected value and validators
   - Error: `ShouldBeError()`, `ShouldBeLeft()`, with validator overloads
@@ -506,6 +560,7 @@ Created Shouldly-based assertion extensions as open-source alternative to Fluent
 **Tests**: 71 unit tests covering all assertion methods
 
 **Design Decisions**:
+
 - Uses explicit `if` checks instead of Shouldly's `ShouldStartWith` for case-insensitive comparison
 - Foreach loops instead of `FirstOrDefault` to avoid LanguageExt bottom state issues
 - Open-source alternative to FluentAssertions ($130/dev/year commercial license)
@@ -517,6 +572,7 @@ Created Shouldly-based assertion extensions as open-source alternative to Fluent
 Created intelligent database cleanup for integration tests using the Respawn library:
 
 **Core Components**:
+
 - `DatabaseRespawner` - Abstract base class with common initialization logic
 - `SqlServerRespawner` - SQL Server implementation via Respawn
 - `PostgreSqlRespawner` - PostgreSQL implementation via Respawn
@@ -527,6 +583,7 @@ Created intelligent database cleanup for integration tests using the Respawn lib
 - `RespawnOptions` - Configuration class
 
 **RespawnOptions Features**:
+
 - `TablesToIgnore` - Exclude specific tables from cleanup
 - `SchemasToInclude` / `SchemasToExclude` - Schema filtering
 - `ResetEncinaMessagingTables` - Option to preserve Outbox/Inbox/Saga tables (default: true)
@@ -535,6 +592,7 @@ Created intelligent database cleanup for integration tests using the Respawn lib
 - `EncinaMessagingTables` - Static list of Encina messaging tables
 
 **RespawnerFactory Features**:
+
 - `Create(adapter, connectionString, options)` - Create provider-specific respawner
 - `CreateSqlite(connectionString, options)` - Create SQLite respawner
 - `InferAdapter(connectionString)` - Automatic provider detection from connection string
@@ -542,10 +600,12 @@ Created intelligent database cleanup for integration tests using the Respawn lib
   - Uses connection string keywords: `Server=`, `Host=`, `Data Source=`, port numbers
 
 **Builder Pattern Support**:
+
 - `FromBuilder(Action<ConnectionStringBuilder>)` - Fluent API for connection string construction
 - Integrates with provider-specific connection string builders
 
 **Tests**: 74 unit tests covering:
+
 - Constructor validation for all providers
 - Options configuration and propagation
 - Factory methods with all adapter types
@@ -553,6 +613,7 @@ Created intelligent database cleanup for integration tests using the Respawn lib
 - Edge cases (null, empty, whitespace connection strings)
 
 **Test Type Justifications**:
+
 1. **Unit Tests** ✅ - Implemented (74 tests)
 2. **Integration Tests** - Would test actual database resets with real databases. Requires Docker/Testcontainers infrastructure which is available in the project (`TestInfrastructure`). **Deferred** - tests are essentially what users would write; examples provided in README.
 3. **Property-Based Tests** - Not applicable. No complex invariants or algebraic properties to verify.
@@ -579,6 +640,7 @@ Created intelligent database cleanup for integration tests using the Respawn lib
 ### Package Dependencies
 
 **Database Providers**:
+
 - SQL Server: `Microsoft.Data.SqlClient 6.1.3`
 - PostgreSQL: `Npgsql 10.0.1`
 - MySQL: `MySqlConnector 2.5.0`
@@ -586,6 +648,7 @@ Created intelligent database cleanup for integration tests using the Respawn lib
 - Oracle: `Oracle.ManagedDataAccess.Core 23.26.0`
 
 **Performance Comparison** (ADO.NET vs Dapper vs EF Core):
+
 - ADO.NET: 63ms (baseline - fastest)
 - Dapper: 100ms (1.59x slower)
 - EF Core: 180ms (2.86x slower)
@@ -610,6 +673,7 @@ Created intelligent database cleanup for integration tests using the Respawn lib
 Building the full solution can cause MSBuild crashes due to parallel execution overload with the large test suite (70+ projects).
 
 **Mitigations**:
+
 1. Use `-maxcpucount:1` flag for single-process builds
 2. Use Solution Filters (.slnf) to build only what you need
 
@@ -630,6 +694,7 @@ Stream load tests cause CLR crash on .NET 10 due to JIT bug.
 **Issue Closed**: `#38` (Saga Timeout Support)
 
 **Saga Timeout Implementation**:
+
 - Added `TimeoutAtUtc` property to `ISagaState` interface
 - Added `SagaStatus.TimedOut` status constant
 - Added `SagaErrorCodes.Timeout` error code
@@ -640,6 +705,7 @@ Stream load tests cause CLR crash on .NET 10 due to JIT bug.
 - Full implementation across all providers (EF Core, Dapper, MongoDB, ADO.NET)
 
 **ROP Assertion Extensions** (Encina.TestInfrastructure.Extensions):
+
 - `ShouldBeSuccess()` / `ShouldBeRight()` - Assert Either is Right
 - `ShouldBeError()` / `ShouldBeLeft()` - Assert Either is Left
 - `ShouldBeBottom()` / `ShouldNotBeBottom()` - Assert Either default state
@@ -649,6 +715,7 @@ Stream load tests cause CLR crash on .NET 10 due to JIT bug.
 - Async variants: `ShouldBeSuccessAsync()`, `ShouldBeErrorAsync()`, `ShouldBeErrorWithCodeAsync()`
 
 **Validation Guards**:
+
 - Added unit tests for Request and Notification validation guards
 
 ### December 26 - Health Check Infrastructure (Issue #113)
@@ -656,6 +723,7 @@ Stream load tests cause CLR crash on .NET 10 due to JIT bug.
 **Issue Closed**: `#35` (Health Check Abstractions), `#113` (Automatic Provider Health Checks)
 
 **Health Check Abstractions** (Encina.Messaging.Health):
+
 - `IEncinaHealthCheck` interface for provider-agnostic health monitoring
 - `HealthCheckResult` struct with `Healthy`/`Degraded`/`Unhealthy` status
 - `EncinaHealthCheck` abstract base class with exception handling
@@ -667,11 +735,13 @@ Stream load tests cause CLR crash on .NET 10 due to JIT bug.
 - `CompositeEncinaHealthCheck` for aggregating multiple health checks
 
 **ASP.NET Core Integration** (Encina.AspNetCore.Health):
+
 - `EncinaHealthCheckAdapter` for ASP.NET Core health check integration
 - Extension methods: `AddEncinaHealthChecks()`, `AddEncinaOutbox()`, `AddEncinaInbox()`, `AddEncinaSaga()`, `AddEncinaScheduling()`
 - Kubernetes readiness/liveness probe compatible
 
 **Automatic Provider Health Checks**:
+
 - `ProviderHealthCheckOptions` for configuring provider health checks (enabled by default)
 - `DatabaseHealthCheck` abstract base class for database connectivity checks
 - Opt-out via `config.ProviderHealthCheck.Enabled = false`
@@ -709,6 +779,7 @@ Stream load tests cause CLR crash on .NET 10 due to JIT bug.
 | Quartz.NET | Encina.Quartz | `QuartzHealthCheck` |
 
 **Saga Not Found Handler** (Issue #43):
+
 - `IHandleSagaNotFound<TMessage>` interface for custom handling when saga correlation fails
 - `SagaNotFoundContext` with `Ignore()` and `MoveToDeadLetterAsync()` actions
 - `SagaNotFoundAction` enum (`None`, `Ignored`, `MovedToDeadLetter`)
@@ -716,6 +787,7 @@ Stream load tests cause CLR crash on .NET 10 due to JIT bug.
 - `SagaErrorCodes.HandlerCancelled` and `SagaErrorCodes.HandlerFailed` error codes
 
 **Modular Monolith Support** (Issue #57):
+
 - `IModule` interface for defining application modules
 - `IModuleLifecycle` interface for modules with startup/shutdown hooks
 - `IModuleRegistry` for runtime module discovery and lookup
@@ -726,6 +798,7 @@ Stream load tests cause CLR crash on .NET 10 due to JIT bug.
 - Module ordering: start in registration order, stop in reverse (LIFO)
 
 **Module Health Checks** (Issue #114):
+
 - `IModuleWithHealthChecks` interface for modules to expose their own health checks
 - `IModuleHealthCheck` interface for module-specific health checks with `ModuleName` property
 - `AddEncinaModuleHealthChecks()` extension for registering all module health checks
@@ -735,6 +808,7 @@ Stream load tests cause CLR crash on .NET 10 due to JIT bug.
 - Updated Encina.AspNetCore README with module health check documentation
 
 **Health Checks Integration Guide** (Issue #115):
+
 - Created comprehensive guide at `docs/guides/health-checks.md`
 - Covers integration with `AspNetCore.HealthChecks.*` ecosystem packages
 - Examples for microservice and modular monolith architectures
@@ -750,20 +824,24 @@ Stream load tests cause CLR crash on .NET 10 due to JIT bug.
 - Linked from Encina.AspNetCore README
 
 **Breaking Changes**:
+
 - `EncinaErrors.Create()` and `EncinaErrors.FromException()` `details` parameter changed from `object?` to `IReadOnlyDictionary<string, object?>?` (Issue #34)
 - `EncinaErrorExtensions.GetDetails()` now returns `IReadOnlyDictionary<string, object?>` instead of `Option<object>`
 
 **Integration Tests with Testcontainers**:
+
 - Created fixtures: `MongoDbFixture`, `RabbitMqFixture`, `KafkaFixture`, `NatsFixture`, `RedisFixture`
 - Integration test projects: MongoDB, RabbitMQ, Kafka, NATS, Marten
 - 21 integration tests validating health checks against real infrastructure
 
 **Issue #116 - EF Core PropertyTests Fix**:
+
 - Removed obsolete FsCheck 2.x files (`Generators.cs`, `OutboxStoreEFFsCheckTests.cs`)
 - Fixed `SagaStatus` type ambiguity in `SagaStoreEFPropertyTests.cs`
 - Fixed `SagaStatus` type ambiguity in `SagaStoreEFIntegrationTests.cs`
 
 **Health Check Documentation**:
+
 - Updated README.md (main) with Health Checks overview section
 - Updated Encina.EntityFrameworkCore/README.md with health check documentation
 - Updated Encina.Dapper.PostgreSQL/README.md with health check documentation
@@ -771,6 +849,7 @@ Stream load tests cause CLR crash on .NET 10 due to JIT bug.
 - Updated Encina.Quartz/README.md with health check documentation
 
 **Delegate Cache Optimization** (Issue #49):
+
 - Optimized `ConcurrentDictionary` access patterns with TryGetValue-before-GetOrAdd
 - Added `RequestKindCache` to avoid repeated `IsAssignableFrom` type checks
 - Created `CacheOptimizationBenchmarks.cs` for performance validation
@@ -793,11 +872,13 @@ Implemented a comprehensive two-phase retry strategy for transient error handlin
 | `DelayedRetryProcessor` | BackgroundService for processing pending delayed retries |
 
 **Retry Strategy**:
+
 1. **Immediate Retries** (in-memory): 3 attempts with 100ms delay, exponential backoff
 2. **Delayed Retries** (persistent): 30s → 5m → 30m → 2h with jitter (±20%)
 3. **Dead Letter Queue**: `OnPermanentFailure` callback for DLQ integration
 
 **Error Classification**:
+
 - Exception types: `TimeoutException`, `HttpRequestException` (5xx) → Transient
 - Exception types: `ArgumentException`, `ValidationException`, `HttpRequestException` (4xx) → Permanent
 - Message patterns: "timeout", "connection", "temporary" → Transient
@@ -805,6 +886,7 @@ Implemented a comprehensive two-phase retry strategy for transient error handlin
 **Test Coverage**: 64 unit tests covering all recoverability scenarios.
 
 **Pending Tests** (GitHub Issues created):
+
 - Issue #117: Integration tests (blocked until `IDelayedRetryStore` implementation exists)
 - Issue #118: Property-based tests for error classification
 - Issue #119: Contract tests for Recoverability interfaces
@@ -847,6 +929,7 @@ public class OrderAggregateTests : AggregateTestBase<Order, OrderId>
 ```
 
 **Features**:
+
 - `AggregateTestBase<TAggregate, TId>` - Main base class for typed aggregate identifiers
 - `AggregateTestBase<TAggregate>` - Convenience class for Guid identifiers
 - `Given(params object[] events)` - Set up aggregate event history
@@ -875,11 +958,13 @@ public class OrderAggregateTests : AggregateTestBase<Order, OrderId>
 | **Total** | **75** | Comprehensive coverage |
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: N/A - Testing infrastructure, no external dependencies
 - **Benchmarks**: N/A - Testing infrastructure, not performance-critical path
 - **Load Tests**: N/A - Test helper class, not production code
 
 **Dependencies Added**:
+
 - `Encina.Testing.csproj` now references `Encina.Marten.csproj`
 - Added FsCheck packages to `Encina.Testing.Tests.csproj`
 
@@ -901,6 +986,7 @@ Implemented adaptive rate limiting with automatic outage detection and throttlin
 | `RateLimitState` | State enum (Normal, Throttled, Recovering) |
 
 **RateLimitAttribute Configuration**:
+
 - `MaxRequestsPerWindow` - Maximum requests allowed (default: 100)
 - `WindowSizeSeconds` - Sliding window duration (default: 60)
 - `ErrorThresholdPercent` - Error rate for throttling (default: 50%)
@@ -910,6 +996,7 @@ Implemented adaptive rate limiting with automatic outage detection and throttlin
 - `MinimumThroughputForThrottling` - Min requests before error rate applies (default: 10)
 
 **State Machine**:
+
 ```text
 Normal → (error rate > threshold) → Throttled
 Throttled → (cooldown expires) → Recovering
@@ -918,6 +1005,7 @@ Recovering → (new errors) → Throttled
 ```
 
 **Features**:
+
 - Sliding window rate limiting algorithm
 - Per-key state management with `ConcurrentDictionary`
 - Automatic error rate tracking
@@ -925,6 +1013,7 @@ Recovering → (new errors) → Throttled
 - Thread-safe operations
 
 **Usage Example**:
+
 ```csharp
 [RateLimit(MaxRequestsPerWindow = 100, WindowSizeSeconds = 60)]
 [RateLimit(ErrorThresholdPercent = 50, EnableAdaptiveThrottling = true)]
@@ -944,6 +1033,7 @@ public record CallExternalApiQuery(string Url) : IRequest<ApiResponse>;
 | **Total** | **172** | Comprehensive coverage |
 
 **Files Created**:
+
 - `src/Encina.Polly/RateLimiting/RateLimitState.cs`
 - `src/Encina.Polly/RateLimiting/RateLimitResult.cs`
 - `src/Encina.Polly/RateLimiting/IRateLimiter.cs`
@@ -959,6 +1049,7 @@ public record CallExternalApiQuery(string Url) : IRequest<ApiResponse>;
 - `benchmarks/Encina.Polly.Benchmarks/RateLimitingBenchmarks.cs`
 
 **Files Modified**:
+
 - `src/Encina.Polly/ServiceCollectionExtensions.cs` - Added IRateLimiter and behavior registration
 - `src/Encina/Errors/EncinaErrorCodes.cs` - Added RateLimitExceeded error code
 - `src/Encina.Polly/PublicAPI.Unshipped.txt` - Added public API declarations
@@ -988,6 +1079,7 @@ Implemented a fluent API for defining sagas inline without class inheritance:
 | `SagaResult<TData>` | Result record with SagaId, Data, and StepsExecuted |
 
 **Usage Example**:
+
 ```csharp
 var saga = SagaDefinition.Create<OrderData>("ProcessOrder")
     .Step("Reserve Inventory")
@@ -1019,6 +1111,7 @@ var result = await sagaRunner.RunAsync(saga, initialData);
 ```
 
 **Features**:
+
 - Fluent API without class inheritance required
 - Sequential step execution with data flow between steps
 - Automatic compensation in reverse order on failure
@@ -1039,12 +1132,14 @@ var result = await sagaRunner.RunAsync(saga, initialData);
 | **Total** | **64** | Comprehensive coverage |
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: Covered by unit tests with mocks - `SagaRunner` delegates to existing `SagaOrchestrator` which has its own integration tests
 - **Guard Clause Tests**: Included in unit tests (45 tests)
 - **Load Tests**: N/A - Thin wrapper over `SagaOrchestrator`, existing saga benchmarks cover performance
 - **Benchmarks**: N/A - Minimal overhead, existing saga benchmarks in `SagaProviderComparisonBenchmarks.cs` cover performance
 
 **Files Created**:
+
 - `src/Encina.Messaging/Sagas/LowCeremony/SagaDefinition.cs`
 - `src/Encina.Messaging/Sagas/LowCeremony/SagaStepBuilder.cs`
 - `src/Encina.Messaging/Sagas/LowCeremony/ISagaRunner.cs`
@@ -1056,6 +1151,7 @@ var result = await sagaRunner.RunAsync(saga, initialData);
 - `tests/Encina.Messaging.ContractTests/Sagas/ISagaRunnerContractTests.cs`
 
 **Files Modified**:
+
 - `src/Encina.Messaging/MessagingServiceCollectionExtensions.cs` - Added ISagaRunner registration
 - `src/Encina.Messaging/PublicAPI.Unshipped.txt` - Added public API declarations
 
@@ -1081,6 +1177,7 @@ Implemented a comprehensive Dead Letter Queue pattern for handling permanently f
 | `DeadLetterCleanupProcessor` | BackgroundService for automatic cleanup |
 
 **IDeadLetterStore Interface**:
+
 - `AddAsync(message)` - Add message to DLQ
 - `GetAsync(messageId)` - Retrieve message by ID
 - `GetMessagesAsync(filter, skip, take)` - Query with pagination
@@ -1090,12 +1187,14 @@ Implemented a comprehensive Dead Letter Queue pattern for handling permanently f
 - `DeleteExpiredAsync()` - Cleanup expired messages
 
 **DeadLetterFilter Factory Methods**:
+
 - `DeadLetterFilter.All` - Empty filter (returns all)
 - `DeadLetterFilter.FromSource(pattern)` - Filter by source pattern
 - `DeadLetterFilter.Since(dateTime)` - Filter by timestamp
 - `DeadLetterFilter.ByCorrelationId(id)` - Filter by correlation
 
 **DeadLetterOptions Configuration**:
+
 - `RetentionPeriod` - How long to keep messages (default: 30 days)
 - `CleanupInterval` - Background cleanup frequency (default: 1 hour)
 - `EnableAutomaticCleanup` - Toggle cleanup processor
@@ -1107,6 +1206,7 @@ Implemented a comprehensive Dead Letter Queue pattern for handling permanently f
 - `OnDeadLetter` - Callback for custom notifications
 
 **IDeadLetterManager API**:
+
 - `ReplayAsync(messageId)` - Replay single message through pipeline
 - `ReplayAllAsync(filter, maxMessages)` - Batch replay with filter
 - `GetMessageAsync(messageId)` - Get single message
@@ -1118,6 +1218,7 @@ Implemented a comprehensive Dead Letter Queue pattern for handling permanently f
 - `CleanupExpiredAsync()` - Manual cleanup
 
 **DeadLetterStatistics**:
+
 - `TotalCount` - Total messages in DLQ
 - `PendingCount` - Messages awaiting replay
 - `ReplayedCount` - Successfully replayed messages
@@ -1126,6 +1227,7 @@ Implemented a comprehensive Dead Letter Queue pattern for handling permanently f
 - `OldestPendingAtUtc` / `NewestPendingAtUtc` - Timestamp range
 
 **DeadLetterSourcePatterns Constants**:
+
 - `Recoverability` - From recoverability pipeline failures
 - `Outbox` - From outbox processing failures
 - `Inbox` - From inbox processing failures
@@ -1134,12 +1236,14 @@ Implemented a comprehensive Dead Letter Queue pattern for handling permanently f
 - `Choreography` - From choreography-based saga failures
 
 **DeadLetterHealthCheck**:
+
 - Configurable `WarningThreshold` (default: 10 messages)
 - Configurable `CriticalThreshold` (default: 100 messages)
 - `OldMessageThreshold` for stale message detection
 - Implements `EncinaHealthCheck` base class
 
 **Usage Example**:
+
 ```csharp
 // Configure DLQ
 services.AddEncinaDeadLetterQueue<DeadLetterStoreEF, DeadLetterMessageFactoryEF>(options =>
@@ -1179,11 +1283,13 @@ Console.WriteLine($"Replayed {batchResult.RightToSeq().Head().SuccessCount} of {
 | **Total** | **120** | Comprehensive coverage |
 
 **Why Some Test Types Don't Apply**:
+
 - **Guard Clause Tests**: N/A - Simple DTOs without explicit parameter validation
 - **Load Tests**: N/A - DLQ is not a hot path (only handles permanently failed messages)
 - **Benchmarks**: N/A - Performance depends on underlying store provider
 
 **Files Created**:
+
 - `src/Encina.Messaging/DeadLetter/IDeadLetterMessage.cs`
 - `src/Encina.Messaging/DeadLetter/IDeadLetterStore.cs`
 - `src/Encina.Messaging/DeadLetter/IDeadLetterMessageFactory.cs`
@@ -1211,6 +1317,7 @@ Console.WriteLine($"Replayed {batchResult.RightToSeq().Head().SuccessCount} of {
 - `tests/Encina.Messaging.ContractTests/DeadLetter/IDeadLetterStoreContractTests.cs`
 
 **Files Modified**:
+
 - `src/Encina.Messaging/MessagingConfiguration.cs` - Added `UseDeadLetterQueue` and `DeadLetterOptions`
 - `src/Encina.Messaging/MessagingServiceCollectionExtensions.cs` - Added DeadLetter imports
 
@@ -1233,27 +1340,32 @@ Implemented bulkhead isolation pattern for limiting concurrent executions per ha
 | `BulkheadRejectionReason` | Enum for rejection reasons |
 
 **BulkheadAttribute Configuration**:
+
 - `MaxConcurrency` - Maximum parallel executions (default: 10)
 - `MaxQueuedActions` - Additional requests that can wait (default: 20)
 - `QueueTimeoutMs` - Maximum wait time in queue (default: 30000ms)
 
 **IBulkheadManager Interface**:
+
 - `TryAcquireAsync(key, config, ct)` - Acquire permit with timeout and cancellation
 - `GetMetrics(key)` - Get current metrics (concurrency, queue, rejection rate)
 - `Reset(key)` - Reset bulkhead state
 
 **BulkheadAcquireResult Factory Methods**:
+
 - `Acquired(releaser, metrics)` - Successful acquisition
 - `RejectedBulkheadFull(metrics)` - Both limits reached
 - `RejectedQueueTimeout(metrics)` - Queue wait timeout
 - `RejectedCancelled(metrics)` - Request cancelled
 
 **BulkheadMetrics Calculated Properties**:
+
 - `ConcurrencyUtilization` - Percentage of concurrency capacity in use
 - `QueueUtilization` - Percentage of queue capacity in use
 - `RejectionRate` - Total rejection rate as percentage
 
 **Features**:
+
 - Thread-safe `ConcurrentDictionary` for per-key bulkhead isolation
 - `SemaphoreSlim` for efficient permit management
 - Automatic permit release via `IDisposable` pattern
@@ -1262,6 +1374,7 @@ Implemented bulkhead isolation pattern for limiting concurrent executions per ha
 - Automatic DI registration as singleton via `AddEncinaPolly()`
 
 **Usage Example**:
+
 ```csharp
 // Limit payment processing to 10 concurrent executions
 [Bulkhead(MaxConcurrency = 10, MaxQueuedActions = 20)]
@@ -1290,6 +1403,7 @@ public record CriticalResourceCommand(Guid Id) : ICommand<Unit>;
 | **Total** | **105** | Comprehensive coverage |
 
 **Files Created**:
+
 - `src/Encina.Polly/Attributes/BulkheadAttribute.cs`
 - `src/Encina.Polly/Bulkhead/IBulkheadManager.cs`
 - `src/Encina.Polly/Bulkhead/BulkheadManager.cs`
@@ -1302,6 +1416,7 @@ public record CriticalResourceCommand(Guid Id) : ICommand<Unit>;
 - `benchmarks/Encina.Polly.Benchmarks/BulkheadBenchmarks.cs`
 
 **Files Modified**:
+
 - `src/Encina.Polly/ServiceCollectionExtensions.cs` - Added IBulkheadManager and behavior registration
 - `src/Encina.Polly/PublicAPI.Unshipped.txt` - Added public API declarations
 - `tests/Encina.Polly.IntegrationTests/EndToEndIntegrationTests.cs` - Added bulkhead integration tests
@@ -1404,6 +1519,7 @@ services.AddEncinaMarten(options => {
 | `RunInBackground` | `false` | Run rebuild asynchronously |
 
 **Projection States**:
+
 - `Stopped`, `Starting`, `Running`, `CatchingUp`, `Rebuilding`, `Paused`, `Faulted`, `Stopping`
 
 **Test Coverage**:
@@ -1419,6 +1535,7 @@ services.AddEncinaMarten(options => {
 **Load Tests/Benchmarks**: Not implemented. Justification: The projection code is primarily "glue code" that routes events to handlers and persists to Marten. The actual performance depends on Marten and PostgreSQL, not on our routing logic. Hot path optimization would not provide meaningful gains.
 
 **Files Created**:
+
 - `src/Encina.Marten/Projections/IReadModel.cs`
 - `src/Encina.Marten/Projections/IProjection.cs`
 - `src/Encina.Marten/Projections/ProjectionContext.cs`
@@ -1444,6 +1561,7 @@ services.AddEncinaMarten(options => {
 - `tests/Encina.Marten.Tests/Projections/ProjectionGuardClauseTests.cs`
 
 **Files Modified**:
+
 - `src/Encina.Marten/EncinaMartenOptions.cs` - Added `Projections` property
 - `src/Encina.Marten/ServiceCollectionExtensions.cs` - Added `AddProjection<,>()` method and `IProjectionRegistrar`
 
@@ -1508,21 +1626,25 @@ public class Order : AggregateBase, ISnapshotable<Order>
 | `ConfigureAggregate<T>()` | - | Per-aggregate overrides |
 
 **ISnapshotStore Interface**:
+
 - `SaveAsync(snapshot)` - Persist snapshot to storage
 - `GetLatestAsync(aggregateId)` - Retrieve most recent snapshot
 - `PruneAsync(aggregateId, keepCount)` - Remove old snapshots
 
 **SnapshotAwareAggregateRepository Behavior**:
+
 1. **Load**: Check for latest snapshot → Load snapshot if exists → Replay only events after snapshot version → Fall back to full event replay if no snapshot
 2. **Save**: Save events → Check if version threshold reached → Create snapshot asynchronously → Prune old snapshots
 
 **Error Codes** (SnapshotErrorCodes):
+
 - `snapshot.load_failed` - Failed to load snapshot from storage
 - `snapshot.save_failed` - Failed to persist snapshot
 - `snapshot.prune_failed` - Failed to prune old snapshots
 - `snapshot.invalid_state` - Invalid snapshot state detected
 
 **Logging** (LoggerMessage, EventIds 100-159):
+
 - High-performance logging via source generators
 - Structured logging for debugging and monitoring
 
@@ -1538,12 +1660,14 @@ public class Order : AggregateBase, ISnapshotable<Order>
 | **Total** | **129** | Comprehensive coverage |
 
 **Load Tests/Benchmarks**: Not implemented. Justification:
+
 1. Snapshotting is not a hot path (created every N events, not on every operation)
 2. Main performance benefit is self-evident (snapshot + few events < replaying 1000+ events)
 3. Actual storage performance depends on Marten/PostgreSQL, not our code
 4. Pre-1.0 focus on design quality over micro-optimizations
 
 **Files Created**:
+
 - `src/Encina.Marten/Snapshots/ISnapshotable.cs`
 - `src/Encina.Marten/Snapshots/ISnapshot.cs`
 - `src/Encina.Marten/Snapshots/ISnapshotStore.cs`
@@ -1567,6 +1691,7 @@ public class Order : AggregateBase, ISnapshotable<Order>
 - `tests/Encina.Marten.IntegrationTests/Snapshots/MartenSnapshotStoreIntegrationTests.cs`
 
 **Files Modified**:
+
 - `src/Encina.Marten/EncinaMartenOptions.cs` - Added `Snapshots` property
 - `src/Encina.Marten/ServiceCollectionExtensions.cs` - Added `AddSnapshotableAggregate<T>()` method
 - `tests/Encina.Marten.IntegrationTests/Encina.Marten.IntegrationTests.csproj` - Added NSubstitute reference
@@ -1629,6 +1754,7 @@ services.AddEncinaMarten(options =>
 | `VersioningLog` | High-performance logging with `LoggerMessage` |
 
 **EventUpcasterRegistry Methods**:
+
 - `Register<TUpcaster>()` - Register an upcaster by type
 - `ScanAndRegister(assembly)` - Scan assembly for upcasters
 - `HasUpcasterFor(eventTypeName)` - Check if upcaster exists
@@ -1636,12 +1762,14 @@ services.AddEncinaMarten(options =>
 - `Count` - Number of registered upcasters
 
 **EventVersioningOptions Fluent API**:
+
 - `AddUpcaster<TUpcaster>()` - Add class-based upcaster
 - `AddUpcaster<TFrom, TTo>(Func<TFrom, TTo>)` - Add lambda upcaster
 - `ScanAssembly(assembly)` - Scan assembly for upcasters
 - `ApplyTo(registry)` - Apply configuration to registry
 
 **Error Codes** (EventVersioningErrorCodes):
+
 - `event.versioning.upcast_failed` - Upcasting operation failed
 - `event.versioning.upcaster_not_found` - No upcaster for event type
 - `event.versioning.registration_failed` - Failed to register upcaster
@@ -1649,6 +1777,7 @@ services.AddEncinaMarten(options =>
 - `event.versioning.invalid_configuration` - Invalid configuration
 
 **Logging** (LoggerMessage, EventIds 100-129):
+
 - `ConfiguringMartenUpcasters` (100) - Start of configuration
 - `AddingUpcasterToMarten` (101) - Individual upcaster registration
 - `EventVersioningEnabled` (102) - Configuration complete
@@ -1665,9 +1794,11 @@ services.AddEncinaMarten(options =>
 | **Total** | **41** | Comprehensive coverage |
 
 **Why Some Test Types Don't Apply**:
+
 - **Load Tests/Benchmarks**: N/A - Upcasting is done during event deserialization (Marten's responsibility). Our code is thin wrapper with minimal overhead. The actual performance depends on Marten, not our routing code.
 
 **Files Created**:
+
 - `src/Encina.Marten/Versioning/ConfigureMartenEventVersioning.cs`
 - `src/Encina.Marten/Versioning/VersioningLog.cs`
 - `tests/Encina.Marten.Tests/Versioning/TestEvents.cs`
@@ -1685,6 +1816,7 @@ services.AddEncinaMarten(options =>
 - `tests/Encina.Marten.IntegrationTests/Versioning/EventVersioningIntegrationTests.cs`
 
 **Files Modified**:
+
 - `src/Encina.Marten/ServiceCollectionExtensions.cs` - Added `IEventUpcasterRegistrar` interface and DI registration
 - `src/Encina.Marten/EncinaMartenOptions.cs` - Added `EventVersioning` property (already existed)
 - `src/Encina.Marten/PublicAPI.Unshipped.txt` - Added public API declarations
@@ -1754,6 +1886,7 @@ var result = await runner.RunAsync(definition, new OrderData());
 | `RoutingSlipOptions` | Configuration options |
 
 **Dynamic Route Modification** (via RoutingSlipContext):
+
 - `AddStep(step)` - Add step to end of itinerary
 - `AddStepNext(step)` - Insert step immediately after current
 - `InsertStep(index, step)` - Insert at specific position
@@ -1761,6 +1894,7 @@ var result = await runner.RunAsync(definition, new OrderData());
 - `ClearRemainingSteps()` - Terminate early
 
 **RoutingSlipResult Metrics**:
+
 - `RoutingSlipId` - Unique execution identifier
 - `FinalData` - Data after all steps executed
 - `StepsExecuted` - Total steps executed
@@ -1780,6 +1914,7 @@ var result = await runner.RunAsync(definition, new OrderData());
 | `ContinueCompensationOnFailure` | true | Continue with other compensations if one fails |
 
 **Error Codes** (RoutingSlipErrorCodes):
+
 - `routingslip.not_found` - Routing slip not found
 - `routingslip.invalid_status` - Invalid status for operation
 - `routingslip.step_failed` - Step execution failed
@@ -1789,6 +1924,7 @@ var result = await runner.RunAsync(definition, new OrderData());
 - `routingslip.handler.failed` - Handler threw exception
 
 **Status Constants** (RoutingSlipStatus):
+
 - `Running`, `Completed`, `Compensating`, `Compensated`, `Failed`, `TimedOut`
 
 **Comparison with Saga Pattern**:
@@ -1811,11 +1947,13 @@ var result = await runner.RunAsync(definition, new OrderData());
 | **Total** | **137** | Comprehensive coverage |
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: N/A - RoutingSlip is primarily in-memory execution. There's no database/external dependency. The `IRoutingSlipStore` is an optional persistence abstraction not yet implemented.
 - **Contract Tests**: N/A - `IRoutingSlipRunner` is the only public interface, covered by unit tests.
 - **Load Tests/Benchmarks**: N/A - Performance depends entirely on user-provided step functions, not the routing infrastructure. The pattern is about workflow composition, not hot-path performance.
 
 **Files Created**:
+
 - `src/Encina.Messaging/RoutingSlip/RoutingSlipErrorCodes.cs`
 - `src/Encina.Messaging/RoutingSlip/RoutingSlipStatus.cs`
 - `src/Encina.Messaging/RoutingSlip/RoutingSlipOptions.cs`
@@ -1837,6 +1975,7 @@ var result = await runner.RunAsync(definition, new OrderData());
 - `tests/Encina.Tests/Guards/RoutingSlipGuardsTests.cs`
 
 **Files Modified**:
+
 - `src/Encina.Messaging/MessagingConfiguration.cs` - Added `UseRoutingSlips` and `RoutingSlipOptions`
 - `src/Encina.Messaging/MessagingServiceCollectionExtensions.cs` - Added `IRoutingSlipRunner` registration
 - `src/Encina.Messaging/PublicAPI.Unshipped.txt` - Added public API declarations
@@ -1894,6 +2033,7 @@ public async Task<HttpResponseData> CreateOrder(
 | `ServiceCollectionExtensions` | DI registration |
 
 **HTTP Response Extensions**:
+
 - `ToHttpResponseData<T>()` - Standard response conversion
 - `ToCreatedResponse<T>()` - 201 Created with Location header
 - `ToNoContentResponse()` - 204 No Content for void operations
@@ -1912,6 +2052,7 @@ public async Task<HttpResponseData> CreateOrder(
 | Other | 500 Internal Server Error |
 
 **Request Context Enrichment**:
+
 - Automatic correlation ID extraction/generation
 - User ID extraction from claims
 - Tenant ID extraction from headers or claims
@@ -1941,10 +2082,12 @@ public async Task<HttpResponseData> CreateOrder(
 | **Total** | **100** | Comprehensive coverage |
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: Would require Azure Functions host, actual Azure resources, or complex mocking. The middleware is a thin wrapper that delegates to Azure Functions infrastructure.
 - **Load Tests**: N/A - Azure Functions scaling is handled by the platform, not our code.
 
 **Files Created**:
+
 - `src/Encina.AzureFunctions/Encina.AzureFunctions.csproj`
 - `src/Encina.AzureFunctions/EncinaAzureFunctionsOptions.cs`
 - `src/Encina.AzureFunctions/ServiceCollectionExtensions.cs`
@@ -1975,6 +2118,7 @@ public async Task<HttpResponseData> CreateOrder(
 - `benchmarks/Encina.AzureFunctions.Benchmarks/Program.cs`
 
 **Files Modified**:
+
 - `Directory.Packages.props` - Added Azure Functions Worker package versions
 - `CHANGELOG.md` - Added Azure Functions integration entry
 
@@ -2055,10 +2199,12 @@ public async Task<HttpResponseData> CreateOrder(
 | **Total** | **155** | Comprehensive coverage |
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: Would require AWS Lambda runtime, LocalStack, or complex mocking. The handlers are thin wrappers over AWS SDK types.
 - **Load Tests**: N/A - AWS Lambda scaling is handled by the platform, not our code.
 
 **Files Created**:
+
 - `src/Encina.AwsLambda/Encina.AwsLambda.csproj`
 - `src/Encina.AwsLambda/EncinaAwsLambdaOptions.cs`
 - `src/Encina.AwsLambda/ServiceCollectionExtensions.cs`
@@ -2091,6 +2237,7 @@ public async Task<HttpResponseData> CreateOrder(
 - `benchmarks/Encina.AwsLambda.Benchmarks/Program.cs`
 
 **Files Modified**:
+
 - `Directory.Packages.props` - Added AWS Lambda Core and Events package versions
 - `CHANGELOG.md` - Added AWS Lambda integration entry
 - `ROADMAP.md` - Updated serverless section to show AWS Lambda as complete
@@ -2106,6 +2253,7 @@ public async Task<HttpResponseData> CreateOrder(
 Added Azure Durable Functions support with Railway Oriented Programming (ROP) integration.
 
 **Orchestration Context Extensions**:
+
 - `CallEncinaActivityAsync<TInput, TResult>()` for calling activities that return Either directly
 - `CallEncinaActivityWithResultAsync<TInput, TResult>()` for activities using ActivityResult wrapper
 - `CallEncinaSubOrchestratorAsync<TInput, TResult>()` for sub-orchestrator calls with Either
@@ -2114,12 +2262,14 @@ Added Azure Durable Functions support with Railway Oriented Programming (ROP) in
 - `GetCorrelationId()` for accessing orchestration instance ID as correlation ID
 
 **ActivityResult<T> Serializable Wrapper**:
+
 - Serializable wrapper for Either results (Durable Functions require JSON serialization)
 - `Success()` and `Failure()` factory methods
 - `ToEither()` for conversion back to Either
 - `ToActivityResult()` extension for Either conversion to ActivityResult
 
 **Saga Pattern with DurableSagaBuilder**:
+
 - `DurableSagaBuilder<TData>` fluent API for defining saga workflows
 - `DurableSagaStepBuilder<TData>` for configuring individual steps
 - `Step()` for adding named steps
@@ -2134,6 +2284,7 @@ Added Azure Durable Functions support with Railway Oriented Programming (ROP) in
 - `DurableSagaError` capturing original error and compensation results
 
 **Fan-Out/Fan-In Extensions**:
+
 - `FanOutAsync<TInput, TResult>()` for parallel activity execution with all results
 - `FanOutAllAsync<TInput, TResult>()` requiring all parallel executions to succeed
 - `FanOutFirstSuccessAsync<TInput, TResult>()` returning first successful result
@@ -2141,6 +2292,7 @@ Added Azure Durable Functions support with Railway Oriented Programming (ROP) in
 - `Partition<T>()` for separating successes from failures in result collections
 
 **Configuration & Health Check**:
+
 - `DurableFunctionsOptions` for configuring defaults:
   - `DefaultMaxRetries`, `DefaultFirstRetryInterval`, `DefaultBackoffCoefficient`, `DefaultMaxRetryInterval`
   - `ContinueCompensationOnError`, `DefaultSagaTimeout`
@@ -2159,10 +2311,12 @@ Added Azure Durable Functions support with Railway Oriented Programming (ROP) in
 | **Total** | **228** | Comprehensive coverage |
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: Would require Azure Durable Task runtime or emulator
 - **Load Tests**: N/A - Durable Functions scaling is handled by the platform
 
 **Files Created**:
+
 - `src/Encina.AzureFunctions/Durable/OrchestrationContextExtensions.cs`
 - `src/Encina.AzureFunctions/Durable/ActivityResult.cs`
 - `src/Encina.AzureFunctions/Durable/DurableSagaBuilder.cs`
@@ -2186,6 +2340,7 @@ Added Azure Durable Functions support with Railway Oriented Programming (ROP) in
 - `tests/Encina.AzureFunctions.GuardTests/Durable/DurableFunctionsGuardClauseTests.cs`
 
 **Files Modified**:
+
 - `Directory.Packages.props` - Added Microsoft.Azure.Functions.Worker.Extensions.DurableTask
 - `src/Encina.AzureFunctions/Encina.AzureFunctions.csproj` - Added DurableTask package reference
 - `src/Encina.AzureFunctions/GlobalSuppressions.cs` - Added CA1000 suppression for ActivityResult<T>
@@ -2206,16 +2361,19 @@ Added Azure Durable Functions support with Railway Oriented Programming (ROP) in
 Implemented the ability for pipeline behaviors to be scoped to specific modules, ensuring they only execute when the request is handled by handlers within that module.
 
 **Core Interface**:
+
 - `IModulePipelineBehavior<TModule, TRequest, TResponse>` - Marker interface for module-specific behaviors
 - Same signature as `IPipelineBehavior` but with TModule type parameter for module association
 
 **ModuleBehaviorAdapter**:
+
 - Internal adapter that wraps `IModulePipelineBehavior` implementations
 - Filters execution based on handler-module ownership
 - Uses `IModuleHandlerRegistry` to determine if handler belongs to target module
 - Skips behavior execution (passes directly to next step) if handler is not in target module
 
 **IModuleHandlerRegistry**:
+
 - Maps handler types to their owning modules via assembly association
 - `GetModuleName(Type handlerType)` - Returns module name for a handler type
 - `GetModule(Type handlerType)` - Returns module instance for a handler type
@@ -2224,6 +2382,7 @@ Implemented the ability for pipeline behaviors to be scoped to specific modules,
 - `NullModuleHandlerRegistry` - Null Object pattern for when modules aren't configured
 
 **Request Context Extensions**:
+
 - `GetModuleName()` - Retrieves current module name from context metadata
 - `WithModuleName(string name)` - Sets module name in context (immutable, returns new context)
 - `WithModuleName(IModule module)` - Sets module name from module instance
@@ -2231,11 +2390,13 @@ Implemented the ability for pipeline behaviors to be scoped to specific modules,
 - `IsInModule<TModule>(TModule module)` - Generic check if context is in module
 
 **DI Extension Methods**:
+
 - `AddEncinaModuleBehavior<TModule, TRequest, TResponse, TBehavior>()` - Registers module behavior
 - Overload with `ServiceLifetime` parameter for custom lifetimes (Scoped default)
 - Automatically registers behavior implementation, interface, and adapter
 
 **Assembly Scanner Fix**:
+
 - Skip `ModuleBehaviorAdapter` during assembly scanning (3 type params vs 2 for IPipelineBehavior)
 - Prevents arity mismatch error when scanning Encina assembly
 
@@ -2246,12 +2407,14 @@ Implemented the ability for pipeline behaviors to be scoped to specific modules,
 | Unit | 100 | Core functionality for all module components |
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: Module behaviors are tested in isolation; integration with real Encina pipeline is covered by unit tests with mocks
 - **Property Tests**: Module behavior filtering is deterministic based on registry state
 - **Load Tests**: N/A - Module filtering is a simple boolean check
 - **Benchmarks**: N/A - Module filtering adds negligible overhead (single dictionary lookup)
 
 **Files Created**:
+
 - `src/Encina/Modules/IModulePipelineBehavior.cs`
 - `src/Encina/Modules/ModuleBehaviorAdapter.cs`
 - `src/Encina/Modules/IModuleHandlerRegistry.cs`
@@ -2264,6 +2427,7 @@ Implemented the ability for pipeline behaviors to be scoped to specific modules,
 - `tests/Encina.Tests/Modules/ModuleBehaviorServiceCollectionExtensionsTests.cs`
 
 **Files Modified**:
+
 - `src/Encina/Modules/ModuleServiceCollectionExtensions.cs` - Added IModuleHandlerRegistry registration
 - `src/Encina/Core/ServiceCollectionExtensions.cs` - Added NullModuleHandlerRegistry fallback
 - `src/Encina/Dispatchers/MediatorAssemblyScanner.cs` - Skip ModuleBehaviorAdapter during scanning
@@ -2304,18 +2468,21 @@ Implemented the ability for pipeline behaviors to be scoped to specific modules,
 4. **ROP Integration**: Lock acquisition returns `null` on timeout instead of throwing (TryAcquire pattern)
 
 **Redis Implementation Details**:
+
 - Uses SET NX EX for atomic lock acquisition with expiry
 - Lua script for safe release (verifies ownership via unique lock value)
 - Lock value includes hostname + GUID for debugging
 - Health check verifies Redis connectivity
 
 **SQL Server Implementation Details**:
+
 - Uses sp_getapplock with TRANSACTION scope
 - Requires SqlConnection with active transaction
 - Lock is auto-released when transaction commits/rolls back
 - Health check verifies database connectivity
 
 **Encina.Caching Integration**:
+
 - Updated `Encina.Caching` to reference `Encina.DistributedLock`
 - Re-exports types via global using alias for backward compatibility
 - `IDistributedLockProvider` now comes from dedicated package
@@ -2335,6 +2502,7 @@ Implemented the ability for pipeline behaviors to be scoped to specific modules,
 **Files Created**:
 
 Core Package:
+
 - `src/Encina.DistributedLock/IDistributedLockProvider.cs`
 - `src/Encina.DistributedLock/ILockHandle.cs`
 - `src/Encina.DistributedLock/DistributedLockOptions.cs`
@@ -2343,12 +2511,14 @@ Core Package:
 - `src/Encina.DistributedLock/README.md`
 
 InMemory Provider:
+
 - `src/Encina.DistributedLock.InMemory/InMemoryDistributedLockProvider.cs`
 - `src/Encina.DistributedLock.InMemory/InMemoryLockOptions.cs`
 - `src/Encina.DistributedLock.InMemory/InMemoryLockHandle.cs`
 - `src/Encina.DistributedLock.InMemory/ServiceCollectionExtensions.cs`
 
 Redis Provider:
+
 - `src/Encina.DistributedLock.Redis/RedisDistributedLockProvider.cs`
 - `src/Encina.DistributedLock.Redis/RedisLockOptions.cs`
 - `src/Encina.DistributedLock.Redis/RedisLockHandle.cs`
@@ -2356,6 +2526,7 @@ Redis Provider:
 - `src/Encina.DistributedLock.Redis/ServiceCollectionExtensions.cs`
 
 SQL Server Provider:
+
 - `src/Encina.DistributedLock.SqlServer/SqlServerDistributedLockProvider.cs`
 - `src/Encina.DistributedLock.SqlServer/SqlServerLockOptions.cs`
 - `src/Encina.DistributedLock.SqlServer/SqlServerLockHandle.cs`
@@ -2363,6 +2534,7 @@ SQL Server Provider:
 - `src/Encina.DistributedLock.SqlServer/ServiceCollectionExtensions.cs`
 
 Test Projects:
+
 - `tests/Encina.DistributedLock.Tests/`
 - `tests/Encina.DistributedLock.Redis.Tests/`
 - `tests/Encina.DistributedLock.SqlServer.Tests/`
@@ -2374,6 +2546,7 @@ Test Projects:
 - `benchmarks/Encina.DistributedLock.Benchmarks/`
 
 **Files Modified**:
+
 - `src/Encina.Caching/Encina.Caching.csproj` - Added Encina.DistributedLock reference
 - `src/Encina.Caching/Abstractions/IDistributedLockProvider.cs` - Re-exports from new package
 - `Encina.slnx` - Added all new projects
@@ -2390,6 +2563,7 @@ Implemented the Content-Based Router Enterprise Integration Pattern (EIP), which
 **Core Abstractions**:
 
 `IContentRouter` interface:
+
 ```csharp
 public interface IContentRouter
 {
@@ -2404,6 +2578,7 @@ public interface IContentRouter
 **Fluent Builder API**:
 
 `ContentRouterBuilder` provides a fluent API for defining routing rules:
+
 - `When(condition)` / `When(name, condition)` - Add conditional routes
 - `RouteTo(handler)` - Configure handler (sync/async, with/without Either)
 - `WithPriority(int)` - Set route priority (lower = higher priority)
@@ -2411,6 +2586,7 @@ public interface IContentRouter
 - `Default(handler)` - Fallback route when no conditions match
 
 Example:
+
 ```csharp
 var definition = ContentRouterBuilder.Create<Order, string>()
     .When("HighValue", o => o.Total > 10000)
@@ -2428,6 +2604,7 @@ var result = await router.RouteAsync(definition, order);
 **Configuration Options**:
 
 `ContentRouterOptions`:
+
 - `ThrowOnNoMatch` (default: true) - Return error when no route matches
 - `AllowMultipleMatches` (default: false) - Execute all matching routes
 - `EvaluateInParallel` (default: false) - Parallel route execution
@@ -2461,6 +2638,7 @@ services.AddEncinaMessaging(config =>
 **Files Created**:
 
 ContentRouter Package:
+
 - `src/Encina.Messaging/ContentRouter/IContentRouter.cs`
 - `src/Encina.Messaging/ContentRouter/ContentRouter.cs`
 - `src/Encina.Messaging/ContentRouter/ContentRouterBuilder.cs`
@@ -2470,6 +2648,7 @@ ContentRouter Package:
 - `src/Encina.Messaging/ContentRouter/ContentRouterErrorCodes.cs`
 
 Test Files:
+
 - `tests/Encina.Tests/ContentRouter/ContentRouterTests.cs`
 - `tests/Encina.Tests/ContentRouter/ContentRouterBuilderTests.cs`
 - `tests/Encina.Tests/Guards/ContentRouterGuardsTests.cs`
@@ -2480,6 +2659,7 @@ Test Files:
 - `benchmarks/Encina.Benchmarks/ContentRouterBenchmarks.cs`
 
 **Files Modified**:
+
 - `src/Encina.Messaging/MessagingConfiguration.cs` - Added `UseContentRouter` flag
 - `src/Encina.Messaging/MessagingServiceCollectionExtensions.cs` - Added DI registration
 - `CHANGELOG.md` - Added Content-Based Router entry
@@ -2527,6 +2707,7 @@ Implemented the Scatter-Gather Enterprise Integration Pattern (EIP), which distr
    - Detailed execution tracing for scatter/gather phases
 
 **Test Coverage**:
+
 - 131 tests across all test types
 - Unit tests: 51 builder tests, 16 runner tests
 - Property-based tests: 15 invariant tests
@@ -2536,6 +2717,7 @@ Implemented the Scatter-Gather Enterprise Integration Pattern (EIP), which distr
 - Benchmarks: 6 performance scenarios
 
 **Example Usage**:
+
 ```csharp
 // Price aggregation from multiple suppliers
 var definition = ScatterGatherBuilder.Create<PriceRequest, decimal>("PriceAggregator")
@@ -2555,6 +2737,7 @@ result.Match(
 ```
 
 **Files Created**:
+
 - `src/Encina.Messaging/ScatterGather/GatherStrategy.cs`
 - `src/Encina.Messaging/ScatterGather/ScatterGatherErrorCodes.cs`
 - `src/Encina.Messaging/ScatterGather/ScatterGatherOptions.cs`
@@ -2575,6 +2758,7 @@ result.Match(
 - `benchmarks/Encina.Benchmarks/ScatterGatherBenchmarks.cs`
 
 **Files Modified**:
+
 - `src/Encina.Messaging/MessagingConfiguration.cs` - Added `UseScatterGather` flag and `ScatterGatherOptions`
 - `src/Encina.Messaging/MessagingServiceCollectionExtensions.cs` - Added DI registration for `IScatterGatherRunner`
 - `benchmarks/Encina.Benchmarks/ContentRouterBenchmarks.cs` - Added CA1822 pragma suppression
@@ -2583,6 +2767,7 @@ result.Match(
 
 **EIP Block Completed**:
 With Scatter-Gather, the Enterprise Integration Patterns block in Phase 2 is now complete:
+
 - ✅ Recoverability Pipeline (Issue #39)
 - ✅ Rate Limiting (Issue #40)
 - ✅ Dead Letter Queue (Issue #42)
@@ -2598,6 +2783,7 @@ With Scatter-Gather, the Enterprise Integration Patterns block in Phase 2 is now
 Implemented `Encina.Cli`, a command-line scaffolding tool for quickly creating Encina projects and generating code.
 
 **Features**:
+
 - `encina new <template> <name>` - Create new Encina projects
   - Templates: `api`, `worker`, `console`
   - Options: `--database`, `--caching`, `--transport`, `--output`, `--force`
@@ -2610,11 +2796,13 @@ Implemented `Encina.Cli`, a command-line scaffolding tool for quickly creating E
   - Categories: `caching`, `database`, `transport`, `validation`, `resilience`, `observability`
 
 **Technology Stack**:
+
 - System.CommandLine 2.0.1 for command-line parsing
 - Spectre.Console for terminal UI
 - Packaged as .NET global tool
 
 **Files Created**:
+
 - `src/Encina.Cli/Encina.Cli.csproj`
 - `src/Encina.Cli/Program.cs`
 - `src/Encina.Cli/Commands/NewCommand.cs`
@@ -2629,6 +2817,7 @@ Implemented `Encina.Cli`, a command-line scaffolding tool for quickly creating E
 **Test Coverage**: 65 tests (unit + guard)
 
 **Notes**:
+
 - Tests for load/benchmarks not applicable - CLI tool is not a high-performance hot path
 - Integration tests deferred - would require complex file system setup for each template
 
@@ -2639,6 +2828,7 @@ Implemented `Encina.Cli`, a command-line scaffolding tool for quickly creating E
 ## December 28 - Advanced Messaging Patterns Research & Issues
 
 Conducted comprehensive research on messaging patterns and created 15 new issues for Phase 2 based on:
+
 - Analysis of popular .NET messaging frameworks (MassTransit, Wolverine 4.0, NServiceBus, Rebus)
 - Patterns from other ecosystems (Java Spring, Node.js, Go)
 - 2024-2025 trends in event-driven architecture
@@ -2678,6 +2868,7 @@ All issues assigned to **Phase 2: Functionality** milestone with appropriate lab
 ### Research Sources
 
 Key references consulted:
+
 - [Wolverine 4.0 Multi-Tenancy](https://jeremydmiller.com/2025/05/15/wolverine-4-is-bringing-multi-tenancy-to-ef-core/)
 - [MassTransit v9 Announcement](https://masstransit.io/introduction/v9-announcement)
 - [Azure Claim-Check Pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/claim-check)
@@ -2726,6 +2917,7 @@ Based on the issues, 6 new packages are planned:
 **Research Session**: Comprehensive market research for resilience patterns in modern distributed systems.
 
 **Research Scope**:
+
 - .NET ecosystem: Polly v8, Microsoft.Extensions.Resilience
 - Java ecosystem: Resilience4j patterns
 - Service meshes: Istio, Linkerd, Dapr resiliency
@@ -2771,16 +2963,19 @@ Based on the issues, 6 new packages are planned:
    - Probabilistic early expiration to spread load
 
 **New Labels Created**:
+
 - `area-polly` - Polly v8 integration and resilience strategies
 - `netflix-pattern` - Patterns inspired by Netflix OSS
 - `industry-best-practice` - Industry-proven patterns from major tech companies
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Added Resilience Patterns section with 10 planned features
 - `ROADMAP.md` - Added "Advanced Resilience" section to Phase 2
 - `CHANGELOG.md` - Added detailed entries for all 10 new issues
 
 **Research Sources**:
+
 - [Polly v8 Hedging Strategy](https://www.pollydocs.org/strategies/hedging.html)
 - [Resilience4j Documentation](https://resilience4j.readme.io/)
 - [Netflix Concurrency Limits](https://github.com/Netflix/concurrency-limits)
@@ -2805,6 +3000,7 @@ Based on the issues, 6 new packages are planned:
 
 **Research Methodology**:
 Comprehensive research conducted on scheduling patterns and improvements based on:
+
 - Popular .NET libraries: MassTransit, Hangfire, Quartz.NET, Wolverine
 - Cross-platform solutions: Temporal, Azure Durable Functions, AWS Step Functions
 - Node.js ecosystem: BullMQ, Agenda, Bull
@@ -2881,6 +3077,7 @@ Comprehensive research conducted on scheduling patterns and improvements based o
 **Labels Applied**:
 
 All 15 issues received comprehensive labels:
+
 - `enhancement` - New feature
 - `phase-2-functionality` - Milestone assignment
 - `area-scheduling` - Primary area
@@ -2895,14 +3092,17 @@ All 15 issues received comprehensive labels:
 - `complexity-medium` / `complexity-high`
 
 **New Label Created**:
+
 - `meta-pattern` - Patterns inspired by Meta/Facebook infrastructure (FOQS, etc.)
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Added Scheduling Patterns section with 15 planned improvements
 - `ROADMAP.md` - Added "Advanced Scheduling" section to Phase 2
 - `CHANGELOG.md` - Added detailed entries for all 15 new issues
 
 **Research Sources**:
+
 - [MassTransit Scheduling](https://masstransit.io/documentation/configuration/scheduling)
 - [Hangfire Documentation](https://docs.hangfire.io/)
 - [Quartz.NET Features](https://www.quartz-scheduler.net/)
@@ -2927,6 +3127,7 @@ All 15 issues received comprehensive labels:
 
 **Research Methodology**:
 Comprehensive research conducted on testing patterns and improvements based on:
+
 - .NET testing ecosystem: xUnit, NUnit, TUnit, Testcontainers
 - Data generation: Bogus, AutoBogus, AutoFixture
 - Mocking: WireMock.NET, NSubstitute, Moq
@@ -3014,11 +3215,13 @@ Comprehensive research conducted on testing patterns and improvements based on:
 | `Encina.Testing.TUnit` | #171 | TUnit framework support |
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Added Testing Patterns section with 13 planned improvements
 - `ROADMAP.md` - Added "Advanced Testing" section to Phase 2
 - `CHANGELOG.md` - Added detailed entries for all 13 new issues
 
 **Research Sources**:
+
 - [Testcontainers for .NET](https://testcontainers.com/guides/getting-started-with-testcontainers-for-dotnet/)
 - [Bogus vs AutoFixture](https://matthewregis.dev/posts/comparing-fake-data-generator-with-bogus-vs-autofixture)
 - [Respawn by Jimmy Bogard](https://github.com/jbogard/Respawn)
@@ -3044,6 +3247,7 @@ Comprehensive research conducted on testing patterns and improvements based on:
 **Issues Created**: `#174` - `#188`
 
 **Context**: Comprehensive research on observability patterns and best practices to enhance Encina's `Encina.OpenTelemetry` package. Research covered:
+
 - MassTransit v9 OpenTelemetry integration
 - Wolverine native OpenTelemetry support
 - OpenTelemetry .NET SDK and semantic conventions
@@ -3124,6 +3328,7 @@ Comprehensive research conducted on testing patterns and improvements based on:
    - Grafana integration
 
 **Labels Used**:
+
 - `area-observability` - All issues
 - `area-opentelemetry` - OTel-specific
 - `cloud-azure` - Azure integration (#178)
@@ -3138,6 +3343,7 @@ Comprehensive research conducted on testing patterns and improvements based on:
 - `complexity-low`, `complexity-medium` - Complexity estimates
 
 **New Label Created**:
+
 - `cloud-azure` - Azure cloud platform (to match existing `cloud-aws` and `cloud-gcp`)
 
 **New Packages Planned**:
@@ -3151,11 +3357,13 @@ Comprehensive research conducted on testing patterns and improvements based on:
 | `Encina.Serilog.OpenTelemetry` | #182 | Serilog to OpenTelemetry bridge |
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Added Observability Patterns section with 15 planned improvements
 - `ROADMAP.md` - Added "Advanced Observability" section to Phase 2
 - `CHANGELOG.md` - Added detailed entries for all 15 new issues
 
 **Research Sources**:
+
 - [MassTransit Diagnostics](https://masstransit.io/documentation/configuration/observability)
 - [Wolverine OpenTelemetry](https://wolverine.netlify.app/guide/logging.html)
 - [OpenTelemetry .NET](https://opentelemetry.io/docs/languages/net/)
@@ -3180,6 +3388,7 @@ Comprehensive research conducted on testing patterns and improvements based on:
 **Context**: Final research session of December 2025 focused on Web/API Integration patterns. Conducted comprehensive analysis of current ASP.NET Core 10 features, .NET ecosystem trends, and community demand from r/dotnet, Stack Overflow, and industry frameworks.
 
 **Research Methodology**:
+
 1. Analyzed current Encina Web/API packages (AspNetCore, AwsLambda, AzureFunctions, GraphQL, gRPC, Refit)
 2. Researched .NET 10 new features (SSE, OpenAPI 3.1, built-in validation)
 3. Studied popular frameworks (FastEndpoints, Carter, Wolverine, HotChocolate)
@@ -3211,6 +3420,7 @@ Comprehensive research conducted on testing patterns and improvements based on:
 | #206 | Cloudflare Workers | Low | High |
 
 **Labels Applied**:
+
 - `enhancement` - All issues
 - `area-web-api` - All issues
 - `area-aspnetcore` - Core ASP.NET issues (#189-#193, #197, #198, #202, #203, #204)
@@ -3255,11 +3465,13 @@ Comprehensive research conducted on testing patterns and improvements based on:
 | `Encina.CloudflareWorkers` | #206 | Cloudflare Workers edge computing |
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Added Web/API Integration Patterns section with 18 planned improvements
 - `ROADMAP.md` - Added "Web/API Integration" section to Phase 2
 - `CHANGELOG.md` - Added detailed entries for all 18 new issues
 
 **Research Sources**:
+
 - [ASP.NET Core 10 Release Notes](https://learn.microsoft.com/en-us/aspnet/core/release-notes/aspnetcore-10.0)
 - [Server-Sent Events in .NET 10](https://www.milanjovanovic.tech/blog/server-sent-events-in-aspnetcore-and-dotnet-10)
 - [REPR Design Pattern](https://deviq.com/design-patterns/repr-design-pattern/)
@@ -3315,6 +3527,7 @@ Comprehensive research conducted on testing patterns and improvements based on:
 **Context**: Comprehensive research session focused on expanding Encina's Distributed Lock capabilities. Current implementation includes 4 packages (Core, InMemory, Redis, SqlServer). Research identified major gaps compared to industry-leading libraries.
 
 **Research Methodology**:
+
 1. Analyzed leading .NET distributed lock libraries:
    - **DistributedLock by madelson** - 14 backend providers, unified interface, ~2.8M downloads
    - **RedLock.net** - RedLock algorithm implementation for Redis HA
@@ -3383,6 +3596,7 @@ Comprehensive research conducted on testing patterns and improvements based on:
    - Inspired by AWS DynamoDB Locking Client
 
 4. **Distributed Semaphores (#215)** - HIGH Priority:
+
    ```csharp
    public interface IDistributedSemaphore
    {
@@ -3390,11 +3604,13 @@ Comprehensive research conducted on testing patterns and improvements based on:
        Task<int> GetAvailableCountAsync(string resource, CancellationToken ct);
    }
    ```
+
    - Allow N concurrent holders (configurable)
    - Use cases: rate limiting, connection pooling, resource throttling
    - Implementations: Redis (Lua scripts), PostgreSQL, SQL Server
 
 5. **Leader Election (#216)** - HIGH Priority:
+
    ```csharp
    public interface ILeaderElectionProvider
    {
@@ -3403,6 +3619,7 @@ Comprehensive research conducted on testing patterns and improvements based on:
        IAsyncEnumerable<LeadershipChange> WatchLeadershipAsync(string electionName, CancellationToken ct);
    }
    ```
+
    - Single leader guarantee across cluster
    - Change notifications via IAsyncEnumerable
    - Automatic lease renewal
@@ -3415,20 +3632,24 @@ Comprehensive research conducted on testing patterns and improvements based on:
    - Inspired by Martin Kleppmann "Designing Data-Intensive Applications"
 
 7. **DistributedLockPipelineBehavior (#220)** - HIGH Priority:
+
    ```csharp
    [DistributedLock("{request.EntityId}", ExpirySeconds = 30)]
    public class UpdateEntityCommand : ICommand<Unit> { ... }
    ```
+
    - Declarative attribute for handlers
    - Key template with property placeholders
    - Configurable expiry, retry, wait timeouts
    - Automatic lock acquisition/release around handler
 
 8. **LeaderElectionPipelineBehavior (#221)** - HIGH Priority:
+
    ```csharp
    [RequiresLeadership("scheduler-leader")]
    public class ProcessScheduledMessagesCommand : ICommand<Unit> { ... }
    ```
+
    - Handler only executes on current leader node
    - Non-leaders receive predefined fallback response
    - Use cases: singleton scheduled jobs, exclusive processors
@@ -3443,6 +3664,7 @@ Comprehensive research conducted on testing patterns and improvements based on:
 **Labels Applied**:
 
 All 20 issues received comprehensive labels:
+
 - `enhancement` - All issues
 - `phase-2-functionality` - Milestone assignment
 - `area-distributed-lock` - Primary area
@@ -3488,11 +3710,13 @@ All 20 issues received comprehensive labels:
 | `Encina.DistributedLock.Oracle` | #214 | DBMS_LOCK |
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Expanded Section 8 (Distributed Lock) with 20 new issues, interfaces, and packages
 - `ROADMAP.md` - Added "Advanced Distributed Lock" section to Phase 2
 - `CHANGELOG.md` - Added detailed entries for all 20 new issues with implementation details
 
 **Research Sources**:
+
 - [DistributedLock by madelson](https://github.com/madelson/DistributedLock) - .NET ecosystem leader
 - [RedLock.net](https://github.com/samcook/RedLock.net) - RedLock algorithm implementation
 - [HashiCorp Consul](https://developer.hashicorp.com/consul/docs/dynamic-app-config/sessions) - Session-based locking
@@ -3534,6 +3758,7 @@ All 20 issues received comprehensive labels:
 ### December 29 - Advanced Validation Patterns Research (Issues #227-#236)
 
 **Research Session**: Comprehensive analysis of validation patterns for Encina based on:
+
 - Current .NET ecosystem trends (FluentValidation, Validot, MiniValidator)
 - Cross-platform patterns (TypeScript Zod, Rust validator crate)
 - OWASP security guidelines
@@ -3583,6 +3808,7 @@ All 20 issues received comprehensive labels:
 **Labels Applied**:
 
 All issues received comprehensive labels:
+
 - `enhancement` or `technical-debt` - Issue type
 - `phase-2-functionality` - Milestone assignment
 - `area-validation` - Primary area
@@ -3611,11 +3837,13 @@ All issues received comprehensive labels:
 | `area-source-generators` | Source generators and compile-time code generation | #7B68EE |
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Expanded Section 6 (Validation) with 10 new issues, interfaces, and packages
 - `ROADMAP.md` - Added "Advanced Validation" section to Phase 2
 - `CHANGELOG.md` - Added detailed entries for all 10 new validation issues
 
 **Research Sources**:
+
 - [Validot - Performance-first validation](https://github.com/bartoszlenar/Validot)
 - [Microsoft Options Validation Source Generator](https://learn.microsoft.com/en-us/dotnet/core/extensions/options-validation-generator)
 - [OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html)
@@ -3663,6 +3891,7 @@ All issues received comprehensive labels:
 ### December 29 - Message Transport Patterns Research (Issues #237-#265)
 
 **Research Session**: Comprehensive analysis of message transport patterns for Encina based on:
+
 - .NET messaging ecosystem (MassTransit, NServiceBus, Wolverine, Rebus)
 - Enterprise Integration Patterns (Hohpe & Woolf)
 - Cloud-native messaging (AWS, Azure, GCP)
@@ -3742,6 +3971,7 @@ All issues received comprehensive labels:
 **EIP Implementation Details**:
 
 1. **Message Translator (#243)**:
+
    ```csharp
    public interface IMessageTranslator<TFrom, TTo>
    {
@@ -3749,40 +3979,48 @@ All issues received comprehensive labels:
        ValueTask<Either<EncinaError, TFrom>> ReverseTranslateAsync(TTo target, CancellationToken ct);
    }
    ```
+
    - Bidirectional translation support
    - AutoMapper and Mapster integration
 
 2. **Content Enricher (#244)**:
+
    ```csharp
    public interface IContentEnricher<TMessage>
    {
        ValueTask<Either<EncinaError, TMessage>> EnrichAsync(TMessage message, CancellationToken ct);
    }
    ```
+
    - Async enrichment from external services
    - Caching support for enrichment data
 
 3. **Splitter Pattern (#245)**:
+
    ```csharp
    public interface IMessageSplitter<TComposite, TPart>
    {
        IAsyncEnumerable<TPart> SplitAsync(TComposite composite, CancellationToken ct);
    }
    ```
+
    - Correlation ID propagation
    - Sequential and parallel splitting
 
 4. **Aggregator Pattern (#246)**:
+
    ```csharp
    public interface IMessageAggregator<TPart, TResult>
    {
        ValueTask<Either<EncinaError, TResult>> AggregateAsync(IEnumerable<TPart> parts, CancellationToken ct);
    }
    ```
+
    - Time-based and count-based completion conditions
    - Correlation strategies (CorrelationId, custom keys)
 
 5. **Claim Check Pattern (#247)**:
+
    ```csharp
    public interface IClaimCheckStore
    {
@@ -3790,6 +4028,7 @@ All issues received comprehensive labels:
        ValueTask<Either<EncinaError, T>> CheckOutAsync<T>(string claimToken, CancellationToken ct);
    }
    ```
+
    - Azure Blob, S3, local filesystem providers
    - Automatic check-in/check-out with message metadata
 
@@ -3936,6 +4175,7 @@ All issues received comprehensive labels:
 | `transport-activemq` | Apache ActiveMQ Artemis transport provider | #C03434 |
 
 **Labels Applied to All Issues**:
+
 - `enhancement` - New feature
 - `phase-2-functionality` - Milestone assignment
 - `area-messaging-patterns` - Primary area
@@ -3963,11 +4203,13 @@ All issues received comprehensive labels:
 | `Encina.Messaging.EIP` | #243-#251 | Enterprise Integration Patterns |
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Added complete Message Transport Patterns section with all 29 issues
 - `ROADMAP.md` - Added 5 new sections to Phase 2 (Transports, EIP, Advanced Features, Interoperability, Observability)
 - `CHANGELOG.md` - Added detailed entries for all 29 new issues
 
 **Research Sources**:
+
 - [MassTransit Transports](https://masstransit.io/documentation/transports) - Multi-transport patterns
 - [NServiceBus Transports](https://docs.particular.net/transports/) - Enterprise messaging
 - [Wolverine Transports](https://wolverine.netlify.app/) - Modern .NET messaging
@@ -4011,6 +4253,7 @@ All issues received comprehensive labels:
 **Context**: Comprehensive research session focused on caching patterns, identifying gaps between Encina's current implementation and industry leaders like FusionCache and HybridCache .NET 9.
 
 **Research Methodology**:
+
 1. Analyzed current Encina caching implementation (8 packages, 3 behaviors)
 2. Studied FusionCache features (most popular .NET caching library 2025)
 3. Reviewed HybridCache .NET 9 GA announcement and features
@@ -4043,24 +4286,28 @@ All issues received comprehensive labels:
 | **#270** | Cache Backplane for Multi-Node Sync | High | `pattern-backplane`, `area-coordination`, `area-microservices`, `fustioncache-inspired`, `transport-redis` |
 
 **#266 - Cache Stampede Protection**:
+
 - Single-Flight pattern: Coalesce multiple identical requests
 - Probabilistic Early Expiration (PER): Renew before expiration probabilistically
 - TTL Jitter: Random variation prevents synchronized cache misses
 - Replaces and supersedes #140
 
 **#267 - Eager Refresh**:
+
 - EagerRefreshThreshold property on [Cache] attribute
 - Background refresh when request arrives after threshold (e.g., 80% of TTL)
 - User always receives cached response immediately
 - Factory runs asynchronously, updates cache when done
 
 **#268 - Fail-Safe**:
+
 - Serve stale data when factory fails or times out
 - FailSafeDurationSeconds: Extended TTL for emergency scenarios
 - SoftTimeoutMs: Return stale if factory slow, continue in background
 - HardTimeoutMs: Absolute factory timeout
 
 **#270 - Cache Backplane**:
+
 - ICacheBackplane interface for L1 synchronization
 - Actions: Set, Remove, RemoveByTag, RemoveByPattern, Invalidate
 - Redis implementation with Pub/Sub
@@ -4078,35 +4325,41 @@ All issues received comprehensive labels:
 | **#278** | Auto-Recovery / Self-Healing | Medium | `pattern-circuit-breaker`, `area-resilience`, `area-health-checks`, `fustioncache-inspired` |
 
 **#269 - Cache Warming**:
+
 - ICacheWarmer interface with Priority
 - [CacheWarmer] attribute for query marking
 - CacheWarmingHostedService for startup warming
 - Strategies: Sequential, Parallel, TopHeavy, AccessPattern
 
 **#271 - Tag-Based Invalidation**:
+
 - Tags property on [Cache] attribute
 - [CacheTag] attribute for dynamic tags from response
 - RemoveByTagAsync, RemoveByTagsAsync on ICacheProvider
 - Redis Sets for O(1) tag lookup
 
 **#272 - Read/Write-Through**:
+
 - CacheStrategy enum: CacheAside, ReadThrough, WriteThrough, WriteBehind
 - Write-Behind with IWriteBehindQueue and background flush
 - WriteBehindHostedService for periodic persistence
 
 **#273 - Cache Metrics**:
+
 - Counters: encina.cache.hits, misses, sets, removals, evictions
 - Histograms: latency, value_size_bytes
 - Gauges: size_bytes, entry_count
 - OpenTelemetry integration via ICacheMetrics
 
 **#275 - Multi-Tenant Policies**:
+
 - CacheTenantPolicy per subscription tier
 - ITenantCachePolicyProvider for dynamic resolution
 - ICacheTenantQuotaEnforcer for quota tracking
 - TenantIsolationLevel: KeyPrefix, Database, Instance
 
 **#278 - Auto-Recovery**:
+
 - Retry with exponential backoff
 - Circuit breaker for cache operations
 - ICacheConnectionManager for reconnection
@@ -4121,18 +4374,21 @@ All issues received comprehensive labels:
 | **#277** | New Providers (Memcached, MemoryPack) | Medium | `aot-compatible`, `area-performance`, `new-package` |
 
 **#274 - Advanced Serialization**:
+
 - Per-type serializer configuration
 - MemoryPack support (NativeAOT, 10x faster than MessagePack)
 - Zstd compression (better ratio than LZ4)
 - Smart compression based on payload size
 
 **#276 - Cache Diagnostics**:
+
 - HTTP headers: X-Cache-Status, X-Cache-Key, X-Cache-Age, X-Cache-TTL
 - Diagnostic endpoints: /cache/stats, /cache/keys, /cache/key/{key}
 - ICacheInspector API for programmatic inspection
 - Cache debugger middleware
 
 **#277 - New Providers**:
+
 - Encina.Caching.Memcached - Pure Memcached
 - Encina.Caching.MemoryPack - AOT serialization package
 - Encina.Caching.Pogocache - New 2025 cache (evaluate when stable)
@@ -4151,14 +4407,17 @@ All issues received comprehensive labels:
 | `fustioncache-inspired` | Pattern inspired by FusionCache library | #FF6347 |
 
 **Issue Closed**:
+
 - **#140** (Cache Stampede Prevention) closed as duplicate of #266
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Added complete Caching Patterns section with all 13 issues
 - `ROADMAP.md` - Added Advanced Caching section to Phase 2
 - `CHANGELOG.md` - Added detailed entries for all 13 new issues and 8 new labels
 
 **Research Sources**:
+
 - [FusionCache](https://github.com/ZiggyCreatures/FusionCache) - Eager refresh, fail-safe, backplane, auto-recovery
 - [HybridCache .NET 9](https://devblogs.microsoft.com/dotnet/hybrid-cache-is-now-ga/) - Tag invalidation, L1+L2
 - [Thundering Herd Solutions](https://howtech.substack.com/p/thundering-herd-problem-cache-stampede) - Stampede prevention patterns
@@ -4193,6 +4452,7 @@ All issues received comprehensive labels:
 ### Context
 
 User requested research on potential improvements for Database Providers Patterns in Encina. Investigation covered:
+
 - .NET database patterns and trends 2025
 - Popular libraries: Ardalis.Specification, EFCore.BulkExtensions, Marten, Debezium
 - Frameworks: MassTransit, Wolverine, NServiceBus database integration
@@ -4209,6 +4469,7 @@ User requested research on potential improvements for Database Providers Pattern
 | **#281** | Unit of Work Pattern (IUnitOfWork) | High | Medium |
 
 **#279 - Generic Repository Pattern**:
+
 - Unified `IRepository<TEntity, TId>` interface for CRUD operations
 - `IReadRepository<TEntity, TId>` for CQRS read scenarios
 - Provider implementations: RepositoryEF, RepositoryDapper, RepositoryMongoDB
@@ -4216,12 +4477,14 @@ User requested research on potential improvements for Database Providers Pattern
 - Inspired by [Ardalis.Specification](https://github.com/ardalis/Specification)
 
 **#280 - Specification Pattern**:
+
 - `ISpecification<T>` with Criteria, Includes, OrderBy, Paging
 - `Specification<T>` base class with fluent API
 - `ISpecificationEvaluator<T>` per provider (EF Core, Dapper, MongoDB)
 - Eliminates lambda expression duplication
 
 **#281 - Unit of Work Pattern**:
+
 - `IUnitOfWork` with SaveChangesAsync, BeginTransactionAsync, CommitAsync, RollbackAsync
 - Repository factory method
 - Implementations for EF Core, Dapper, MongoDB
@@ -4233,6 +4496,7 @@ User requested research on potential improvements for Database Providers Pattern
 | **#282** | Multi-Tenancy Database Support | Critical | High |
 
 **#282 - Multi-Tenancy Database Support**:
+
 - Abstractions: `ITenantProvider`, `ITenantEntity`, `TenantInfo`
 - Isolation strategies:
   - Shared Schema (TenantId column)
@@ -4258,6 +4522,7 @@ User requested research on potential improvements for Database Providers Pattern
 | **#294** | Cursor-based Pagination [RESEARCH] | High | Medium |
 
 **#284 - Bulk Operations** (Critical performance feature):
+
 - `IBulkOperations<TEntity>`: BulkInsertAsync, BulkUpdateAsync, BulkDeleteAsync, BulkMergeAsync
 - **Measured Performance (SQL Server 2022, 1,000 entities)**:
   - Insert: Loop ~6.3s vs Bulk ~66ms (~95x faster)
@@ -4266,6 +4531,7 @@ User requested research on potential improvements for Database Providers Pattern
 - Inspired by [EFCore.BulkExtensions](https://github.com/borisdj/EFCore.BulkExtensions)
 
 **#294 - Cursor-based Pagination**:
+
 - Research issue to investigate keyset vs offset pagination
 - Offset: O(n) - performance degrades with page number
 - Cursor: O(1) - consistent performance regardless of position
@@ -4280,12 +4546,14 @@ User requested research on potential improvements for Database Providers Pattern
 | **#286** | Audit Trail Pattern | High | Low |
 
 **#285 - Soft Delete & Temporal Tables**:
+
 - `ISoftDeletable`: IsDeleted, DeletedAtUtc, DeletedBy
 - Global query filter for automatic filtering
 - `ITemporalRepository<TEntity, TId>` for SQL Server temporal tables
 - Queries: GetAsOfAsync, GetHistoryAsync
 
 **#286 - Audit Trail Pattern**:
+
 - `IAuditableEntity`: CreatedAtUtc, CreatedBy, ModifiedAtUtc, ModifiedBy
 - `AuditInterceptor` for automatic SaveChanges population
 - Integration with `IRequestContext.UserId`
@@ -4299,12 +4567,14 @@ User requested research on potential improvements for Database Providers Pattern
 | **#293** | Pagination Abstractions | Critical | Low |
 
 **#292 - Domain Entity Base Classes**:
+
 - `Entity<TId>` with equality, domain events collection
 - `AggregateRoot<TId>` with audit + concurrency
 - `DomainEventDispatcher` SaveChanges interceptor
 - Integration with `INotification` and Outbox pattern
 
 **#293 - Pagination Abstractions**:
+
 - `PagedResult<T>` with TotalCount, TotalPages, HasNext/Previous
 - `PaginationOptions`, `SortedPaginationOptions`
 - `IPagedSpecification<T>` integration
@@ -4316,6 +4586,7 @@ User requested research on potential improvements for Database Providers Pattern
 | **#288** | Change Data Capture (CDC) Integration | Medium | High |
 
 **#288 - CDC Integration**:
+
 - `ChangeEvent<T>` with Operation, Before, After, Metadata
 - New packages planned:
   - `Encina.CDC` - Core abstractions
@@ -4342,6 +4613,7 @@ User requested research on potential improvements for Database Providers Pattern
 ### Labels Updated on Existing Issues
 
 All 16 new issues were enriched with relevant existing labels:
+
 - `industry-best-practice` - All 16 issues (proven patterns)
 - `aot-compatible` - 6 issues (NativeAOT/trimming compatible)
 - `area-compliance`/`area-gdpr` - 4 issues (regulatory compliance)
@@ -4396,6 +4668,7 @@ All 16 new issues were enriched with relevant existing labels:
 ### Context
 
 Extensive research session to identify missing Core Patterns for Encina based on:
+
 - Analysis of leading .NET frameworks (MassTransit, Wolverine, NServiceBus, Orleans)
 - Enterprise Integration Patterns (EIP) book
 - Modern workflow orchestration tools (Azure Durable Functions, Temporal)
@@ -4473,6 +4746,7 @@ All 13 issues were enriched with both existing and new labels:
 ### Research Sources
 
 #### .NET Frameworks
+
 - [Ardalis.Specification](https://github.com/ardalis/Specification) - Specification pattern gold standard
 - [Stateless](https://github.com/dotnet-state-machine/stateless) - State machine library (6k+ stars)
 - [MassTransit](https://masstransit.io/documentation/patterns/saga) - Saga state machines, Automatonymous
@@ -4480,21 +4754,25 @@ All 13 issues were enriched with both existing and new labels:
 - [NServiceBus](https://docs.particular.net/architecture/workflows) - Process Manager, workflows
 
 #### Enterprise Integration Patterns
+
 - [Process Manager](https://www.enterpriseintegrationpatterns.com/patterns/messaging/ProcessManager.html)
 - [Claim Check](https://www.enterpriseintegrationpatterns.com/patterns/messaging/StoreInLibrary.html)
 - [Saga and Process Manager](https://event-driven.io/en/saga_process_manager_distributed_transactions/)
 
 #### Workflow & Durable Execution
+
 - [Azure Durable Functions](https://learn.microsoft.com/en-us/azure/azure-functions/durable/durable-functions-overview)
 - [Temporal](https://temporal.io/) - Durable workflow engine
 - [Durable Task Framework](https://github.com/Azure/durabletask)
 
 #### Cross-Cutting
+
 - [Microsoft.FeatureManagement](https://github.com/microsoft/FeatureManagement-Dotnet) - Feature flags
 - [Anti-Corruption Layer - Azure](https://learn.microsoft.com/en-us/azure/architecture/patterns/anti-corruption-layer)
 - [Multi-Tenancy Patterns](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/tenancy-models)
 
 #### AI/ML & Emerging
+
 - [Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/) - AI agent orchestration (Oct 2025)
 - [Semantic Kernel](https://learn.microsoft.com/en-us/semantic-kernel/) - LLM integration
 - [Spring Modulith 2.0](https://spring.io/projects/spring-modulith) - Integration events
@@ -4567,6 +4845,7 @@ All 13 issues were enriched with both existing and new labels:
 #### Research Sources Analyzed
 
 **Frameworks & Libraries**:
+
 - MassTransit v9 (2025) - Now commercial license, v8 remains MIT
 - Wolverine 5.0 (Oct 2025) - MIT licensed, new interoperability features
 - Axon Framework - Event sourcing and CQRS patterns
@@ -4574,11 +4853,13 @@ All 13 issues were enriched with both existing and new labels:
 - Debezium - CDC leader with Quarkus integration
 
 **Industry Patterns**:
+
 - Netflix: Event streaming, correlation, idempotency
 - Uber: Durable execution, idempotency keys
 - Stripe: Idempotency key patterns for APIs
 
 **Key References**:
+
 - [MassTransit Licensing Change 2025](https://github.com/MassTransit/MassTransit)
 - [Wolverine 5.0 Release](https://jeremydmiller.com/2025/10/23/wolverine-5-0-is-here/)
 - [Temporal Durable Execution](https://temporal.io/how-temporal-works)
@@ -4688,17 +4969,20 @@ All 13 issues were enriched with both existing and new labels:
 #### Research Sources Analyzed
 
 **Primary .NET Frameworks**:
+
 - **Marten 7.x** (2025) - Document DB + Event Store for PostgreSQL
 - **EventStoreDB** - Purpose-built event store database
 - **Eventuous** - Modern .NET event sourcing library
 - **EventSourcingDB** - Emerging TypeScript/Node.js framework with cross-pollination ideas
 
 **Cross-Platform Analysis**:
+
 - **Axon Framework** (Java) - Decider pattern, comprehensive CQRS/ES
 - **Eventuate** - Chris Richardson's microservices patterns
 - **Temporal.io** - Durable execution concepts applicable to ES
 
 **Key Patterns Researched**:
+
 1. **Decider Pattern**: Functional approach with pure `Decide`/`Evolve` functions (Jérémie Chassaing, Oskar Dudycz)
 2. **Crypto-Shredding**: GDPR compliance via key deletion instead of event mutation
 3. **Bi/Tri-Temporal Modeling**: System time, business time, and decision time tracking
@@ -4706,6 +4990,7 @@ All 13 issues were enriched with both existing and new labels:
 5. **Actor-Based ES**: Orleans/Akka-inspired event-sourced grains
 
 **Key References**:
+
 - [Decider Pattern - thinkbeforecoding](https://thinkbeforecoding.com/post/2021/12/17/functional-event-sourcing-decider)
 - [Marten Documentation](https://martendb.io/documents/)
 - [EventStoreDB Projections](https://www.eventstore.com/)
@@ -4822,16 +5107,19 @@ In **July 2025**, MediatR transitioned to a commercial license, creating signifi
 #### Research Sources Analyzed
 
 **Primary .NET Frameworks**:
+
 - **Wolverine 3.x** (2025) - JasperFx's open-source MediatR alternative
 - **Brighter 10.x** - Paramore's command processor with policy support
 - **MassTransit 8.x** - Distributed application framework
 
 **Cross-Platform Analysis**:
+
 - **Axon Framework** (Java) - Comprehensive CQRS/ES with versioning support
 - **GraphQL Relay** - Cursor-based pagination specification
 - **gRPC patterns** - Request enrichment from metadata
 
 **Community Analysis**:
+
 - Reddit r/dotnet threads on MediatR alternatives (July-December 2025)
 - GitHub discussions on Wolverine adoption
 - Dev.to articles on CQRS patterns in production
@@ -4839,6 +5127,7 @@ In **July 2025**, MediatR transitioned to a commercial license, creating signifi
 #### Detailed Feature Descriptions
 
 **#333 Zero-Interface Handlers** (Wolverine-inspired):
+
 ```csharp
 // Convention-based discovery - no IRequestHandler interface needed
 public class OrderHandler
@@ -4851,6 +5140,7 @@ public class OrderHandler
 ```
 
 **#334 Idempotency Pipeline Behavior**:
+
 ```csharp
 // Lightweight deduplication at pipeline level
 [Idempotent(TTL = 3600)]
@@ -4858,6 +5148,7 @@ public record ProcessPayment(Guid PaymentId, decimal Amount) : IRequest<PaymentR
 ```
 
 **#335 Request Timeout Behavior** (Brighter-inspired):
+
 ```csharp
 // Per-request timeout configuration
 [Timeout(milliseconds: 5000, FallbackStrategy = TimeoutFallback.Cancel)]
@@ -4865,6 +5156,7 @@ public record LongRunningQuery : IRequest<Result>;
 ```
 
 **#336 Cursor-Based Pagination** (GraphQL-inspired):
+
 ```csharp
 // O(1) performance pagination
 public record PagedQuery<T> : IRequest<Connection<T>>
@@ -4876,6 +5168,7 @@ public record PagedQuery<T> : IRequest<Connection<T>>
 ```
 
 **#337 Request Versioning** (Axon-inspired):
+
 ```csharp
 // Version evolution with upcasting
 [RequestVersion(2)]
@@ -4886,6 +5179,7 @@ public record CreateOrderV2 : IRequest<Order>, IUpcastable<CreateOrderV1>
 ```
 
 **#339 Batch Command Processing** (MassTransit-inspired):
+
 ```csharp
 // Process multiple commands in single transaction
 public interface IBatchHandler<TRequest, TResponse>
@@ -4938,12 +5232,14 @@ public interface IBatchHandler<TRequest, TResponse>
 #### Research Conducted
 
 Comprehensive analysis of .NET ecosystem patterns based on:
+
 - **Libraries**: Wolverine, NServiceBus, MassTransit, Rebus, Microsoft.FeatureManagement
 - **Frameworks**: Ardalis.Specification, Finbuckle.MultiTenant
 - **Community**: Reddit, Stack Overflow, Milan Jovanovic Blog, Jimmy Bogard
 - **Architecture**: Modular Monolith patterns (kgrzybek/modular-monolith-with-ddd)
 
 **Key Findings**:
+
 - Feature flags are "most requested" feature for SaaS in 2025
 - Multi-tenancy lacks native mediator integration
 - Modular Monolith is recommended architecture for new projects (before microservices)
@@ -5005,7 +5301,7 @@ All issues added to **Phase 2: Functionality** milestone.
 - `docs/INVENTORY.md` - Added "Vertical Slice Architecture Patterns" section with full details
 - `ROADMAP.md` - Added VSA patterns to Phase 2 functionality list
 - `CHANGELOG.md` - Added 12 new issues and 9 new labels to Unreleased section
-- `docs/history/2025-12.md` - This session summary
+- `docs/releases/pre-v0.10.0/README.md` - This session summary
 
 #### Statistics Update (VSA Patterns)
 
@@ -5045,6 +5341,7 @@ All issues added to **Phase 2: Functionality** milestone.
 **Issues Created**: `#357`, `#358`, `#359`, `#360`, `#361`, `#362`, `#363`, `#364`, `#365`, `#366`
 
 **Context**: Comprehensive research on Modular Monolith architecture patterns based on analysis of:
+
 - **ABP Framework** - Full-featured modular monolith framework with multi-tenancy
 - **Wolverine** - Modern .NET messaging framework
 - **NestJS** - Module system inspiration (TypeScript)
@@ -5072,6 +5369,7 @@ All issues added to **Phase 2: Functionality** milestone.
 **Key Patterns Identified**:
 
 ##### Multi-Tenancy (#357)
+
 - `ITenantContext` for tenant identification
 - `ITenantResolver` with 6 strategies (Header, Subdomain, QueryString, Route, Claim, Cookie)
 - `DataIsolationLevel` enum: RowLevel, Schema, Database
@@ -5080,6 +5378,7 @@ All issues added to **Phase 2: Functionality** milestone.
 - **Critical for SaaS applications**
 
 ##### Inter-Module Communication (#358)
+
 - `IDomainEvent` vs `IIntegrationEvent` distinction (DDD best practice)
 - `IIntegrationEventBus` for in-memory inter-module communication
 - `IModulePublicApi<TModule>` for module contracts
@@ -5087,6 +5386,7 @@ All issues added to **Phase 2: Functionality** milestone.
 - **Microservices migration path**
 
 ##### Data Isolation per Module (#359)
+
 - `[ModuleSchema("orders")]` attribute for schema declaration
 - `IModuleDbContext<TModule>` interface
 - Roslyn analyzer for cross-module access detection (ENC001, ENC002, ENC003)
@@ -5094,6 +5394,7 @@ All issues added to **Phase 2: Functionality** milestone.
 - **Enterprise architecture requirement**
 
 ##### Module Lifecycle (#360)
+
 - Automatic module discovery
 - `[DependsOn(typeof(OtherModule))]` for dependencies
 - Topological sort for startup order
@@ -5101,6 +5402,7 @@ All issues added to **Phase 2: Functionality** milestone.
 - Module exports (NestJS-inspired)
 
 ##### Feature Flags (#361)
+
 - `[FeatureGate("FeatureName")]` attribute
 - `FeatureGatePipelineBehavior` with short-circuit
 - `[FallbackHandler]` for fallback handlers
@@ -5108,30 +5410,35 @@ All issues added to **Phase 2: Functionality** milestone.
 - **Trunk-based development enabler**
 
 ##### Module Testing (#362)
+
 - `ModuleTestBase<TModule>` for isolated testing
 - `WithMockedModule<TApi>()` helpers
 - `ModuleArchitecture.Analyze()` for architecture tests
 - Integration with ArchUnitNET patterns
 
 ##### Anti-Corruption Layer (#363)
+
 - `IAntiCorruptionLayer<TExternal, TInternal>` interface
 - `[ModuleAdapter(From, To)]` for inter-module adapters
 - `[ExternalSystemAdapter("LegacyERP")]` for external systems
 - Auto-discovery of adapters
 
 ##### Module Health (#364)
+
 - `IModuleHealthCheck` per-module health checks
 - Dependency-aware health propagation
 - Per-module endpoints: `/health/{moduleName}`
 - Kubernetes readiness/liveness integration
 
 ##### Vertical Slice (#365)
+
 - `[VerticalSlice("Orders/PlaceOrder")]` attribute
 - `[SlicePipeline(...)]` for slice-scoped behaviors
 - CLI generator: `encina generate slice`
 - Feature folder convention
 
 ##### Module Versioning (#366)
+
 - `[ModuleVersion("2.0")]` and `[ModuleApiVersion]` attributes
 - `[Deprecated]` with removal version
 - Roslyn analyzer for deprecated usage (ENC010)
@@ -5155,6 +5462,7 @@ All issues added to **Phase 2: Functionality** milestone.
 | `area-architecture-testing` | Architecture rules and verification |
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - New section "Modular Monolith Architecture Patterns - Nuevas Issues (29 Diciembre 2025)"
 - `ROADMAP.md` - Added Modular Monolith Architecture Patterns to Phase 2
 - `CHANGELOG.md` - Added 10 new feature descriptions in Unreleased section
@@ -5236,6 +5544,7 @@ Encina has excellent infrastructure patterns (Outbox, Inbox, Saga, Scheduling) b
 | `foundational` | #FFD700 | Building blocks for other patterns |
 
 **Labels Applied**:
+
 - All issues: `enhancement`, `phase-2-functionality`, `area-domain-modeling`
 - Where applicable: `aot-compatible`, `foundational`, `industry-best-practice`
 - Specific: `area-compliance`, `area-gdpr`, `area-auditing`, `area-specifications`, `area-acl`
@@ -5327,6 +5636,7 @@ public interface IBusinessRule
 | Provider | Marten/PostgreSQL | Provider-agnostic |
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Added section 2.8 "Domain Modeling Building Blocks"
 - `ROADMAP.md` - Added Domain Modeling Building Blocks to Phase 2
 - `CHANGELOG.md` - Added 15 new feature descriptions in Unreleased section
@@ -5341,6 +5651,7 @@ public interface IBusinessRule
 | Planned New Packages | 97+ | 100+ (+3 new) |
 
 **New Packages Identified**:
+
 1. `Encina.DomainModeling` - Core domain modeling building blocks
 2. `Encina.Specifications` - Specification pattern abstractions
 3. `Encina.Specifications.EntityFrameworkCore` - EF Core specification evaluator
@@ -5379,6 +5690,7 @@ public interface IBusinessRule
 **Research Focus**: What microservices patterns are missing from Encina and most demanded by the .NET community in 2025?
 
 **Research Methodology**:
+
 1. Analyzed current Encina INVENTORY.md to identify existing microservices capabilities
 2. Conducted web research on latest trends in MassTransit, Wolverine, NServiceBus, Dapr, Orleans
 3. Reviewed community discussions, Stack Overflow, GitHub issues, Reddit r/dotnet
@@ -5403,6 +5715,7 @@ public interface IBusinessRule
 | Eventual Consistency | ❌ Missing | Low-Medium | LOW - Nice-to-have |
 
 **Sources Consulted**:
+
 - [Microsoft Microservices Patterns](https://learn.microsoft.com/en-us/azure/architecture/microservices/design/patterns)
 - [Wolverine for MediatR Users](https://jeremydmiller.com/2025/01/28/wolverine-for-mediatr-users/)
 - [Dapr CNCF Blog](https://www.cncf.io/blog/2025/12/09/building-microservices-the-easy-way-with-dapr/)
@@ -5473,6 +5786,7 @@ Encina.Sidecar                           # Sidecar pattern support
 **Key Decision: Dapr Re-Planning**:
 
 Dapr was previously deprecated with the rationale "Infrastructure concerns belong at platform level". However, research showed:
+
 - Dapr graduated as a CNCF project (October 2024)
 - Dapr is the most recommended microservices framework in 2025 community discussions
 - Provides building blocks, not just infrastructure concerns
@@ -5480,12 +5794,14 @@ Dapr was previously deprecated with the rationale "Infrastructure concerns belon
 - Strong .NET support via Dapr.Client NuGet package
 
 **Decision**: Re-plan Dapr integration (Issue #387) with:
+
 - State Store as alternative backend for Outbox/Inbox/Saga stores
 - Pub/Sub as message transport option
 - Workflows as Saga orchestration backend
 - Actors integration
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Added complete "Microservices Architecture Patterns" section
 - `ROADMAP.md` - Added Microservices patterns to Phase 2, updated Dapr deprecation note
 - `CHANGELOG.md` - Added 12 new features with detailed descriptions
@@ -5526,6 +5842,7 @@ Dapr was previously deprecated with the rationale "Infrastructure concerns belon
 **Research Focus**: What security patterns are missing from Encina and most demanded by the .NET community in 2025 for enterprise applications?
 
 **Research Sources**:
+
 - Spring Security architecture and features
 - NestJS Guards and Interceptors
 - MediatR authorization patterns
@@ -5537,6 +5854,7 @@ Dapr was previously deprecated with the rationale "Infrastructure concerns belon
 - r/dotnet and Stack Overflow discussions (December 2025)
 
 **Existing Implementation Analysis**:
+
 - Found only `AuthorizationPipelineBehavior` in `Encina.AspNetCore`
 - Uses ASP.NET Core's built-in `IAuthorizationService` with `[Authorize]` attributes
 - No field-level encryption, PII masking, audit trail, or OWASP-specific validation
@@ -5555,12 +5873,14 @@ Dapr was previously deprecated with the rationale "Infrastructure concerns belon
 | #401 | ABAC Engine | Medium | Very High |
 
 **New Labels Created**:
+
 | Label | Description | Color |
 |-------|-------------|-------|
 | `area-security` | Security patterns and authentication/authorization | #B22222 |
 | `owasp-pattern` | Based on OWASP security best practices | #DC143C |
 
 **Packages Planned** (11 new):
+
 ```text
 Encina.Security                          # Core security abstractions
 ├── Encina.Security.Audit                # Audit trail logging
@@ -5590,6 +5910,7 @@ Encina.Security                          # Core security abstractions
 **Research Focus**: What compliance patterns are needed to ensure 100% GDPR and EU regulation compliance for distributed architectures where data may circulate through multiple servers, potentially outside the EU?
 
 **Research Sources**:
+
 - GDPR Official Text (Articles 5-49)
 - European Data Protection Board (EDPB) Guidelines
 - Schrems II Decision (C-311/18) implications
@@ -5603,6 +5924,7 @@ Encina.Security                          # Core security abstractions
 - r/dotnet, r/gdpr, Stack Overflow (December 2025)
 
 **Key Compliance Concepts Identified**:
+
 - **Data Subject Rights** (Arts. 15-22): Access, Rectification, Erasure, Portability, Restriction, Objection
 - **Consent Management** (Art. 7): Explicit, granular, withdrawable, versioned consent
 - **Data Residency vs Sovereignty**: Physical location vs legal jurisdiction
@@ -5614,6 +5936,7 @@ Encina.Security                          # Core security abstractions
 - **Pseudonymization** (Art. 4(5)): Reversible with key, crypto-shredding
 
 **Existing Implementation Analysis**:
+
 - Found Retention references in Dead Letter and Inbox patterns
 - No GDPR-specific abstractions, consent management, or data subject rights handling
 - No data residency enforcement or cross-border transfer validation
@@ -5638,6 +5961,7 @@ Encina.Security                          # Core security abstractions
 | #415 | EU AI Act | EU 2024/1689 | Medium | Very High |
 
 **New Labels Created** (6 new):
+
 | Label | Description | Color |
 |-------|-------------|-------|
 | `area-compliance` | Regulatory compliance patterns (GDPR, NIS2, AI Act) | #4B0082 |
@@ -5648,6 +5972,7 @@ Encina.Security                          # Core security abstractions
 | `area-data-protection` | Data protection and privacy features | #4B0082 |
 
 **Packages Planned** (14 new):
+
 ```text
 Encina.Compliance.GDPR                   # Core GDPR abstractions
 ├── Encina.Compliance.Consent            # Consent management
@@ -5692,10 +6017,11 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 | #415 | `eu-regulation`, `area-data-protection`, `area-ai-ml`, `industry-best-practice` |
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Added "Security Patterns" and "Compliance Patterns (GDPR & EU Laws)" sections
 - `ROADMAP.md` - Added Security and Compliance patterns to Phase 2
 - `CHANGELOG.md` - Added 22 new features with detailed descriptions
-- `docs/history/2025-12.md` - Added Sessions 4 and 5 documentation
+- `docs/releases/pre-v0.10.0/README.md` - Added Sessions 4 and 5 documentation
 
 **Issue Statistics Update**:
 
@@ -5751,6 +6077,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 **Context**: Research into .NET Aspire ecosystem, community demands (from GitHub discussions, Reddit, StackOverflow), and integration opportunities for Encina. Analysis of Aspire Roadmap 2025-2026, Community Toolkit patterns, and successful integrations like MassTransit and Wolverine.
 
 **Key Findings from Research**:
+
 - Testing is "the largest gap" according to official Aspire roadmap (#10644)
 - Dapr + Aspire is the most demanded combination for microservices
 - Service Defaults centralize cross-cutting concerns (OpenTelemetry, health checks, resilience)
@@ -5796,6 +6123,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 | #425 | `aspire-integration`, `area-aspire`, `area-hot-reload`, `area-developer-experience`, `area-performance` |
 
 **New Packages Planned** (7):
+
 - `Encina.Aspire.Hosting` - AppHost integration
 - `Encina.Aspire.ServiceDefaults` - Service Defaults extension
 - `Encina.Aspire.Testing` - Testing integration
@@ -5805,10 +6133,11 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 - `Encina.Aspire.AI` - AI/MCP integration
 
 **Documentation Updated**:
+
 - `docs/INVENTORY.md` - Added ".NET Aspire Integration Patterns" section (#416-#425)
 - `ROADMAP.md` - Added Aspire integration to Phase 2 features
 - `CHANGELOG.md` - Added 10 new Aspire features with detailed descriptions
-- `docs/history/2025-12.md` - Added Session 6 documentation
+- `docs/releases/pre-v0.10.0/README.md` - Added Session 6 documentation
 
 **Issue Statistics Update**:
 
@@ -5840,6 +6169,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
    - #422 AI - Experimental, roadmap 2026
 
 **References Used**:
+
 - [Aspire Roadmap 2025-2026](https://github.com/dotnet/aspire/discussions/10644)
 - [Aspire End of Year Update December 2025](https://github.com/dotnet/aspire/discussions/13608)
 - [Aspire Service Defaults](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/service-defaults)
@@ -5899,6 +6229,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 #### High Priority Issues Detail
 
 **#426 - Encina.Testing.Fakes**:
+
 - `FakeEncina : IEncina` with configurable handlers
 - `WithHandler<TRequest, TResponse>()`, `WithError<TRequest>()`
 - Verification: `VerifySent<TRequest>(times)`, `VerifyPublished<TNotification>(times)`
@@ -5906,6 +6237,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 - Thread-safe, in-memory implementations
 
 **#427 - Encina.Testing.Respawn**:
+
 - `RespawnDatabaseFixture<TContainer>` base class
 - FK-aware deterministic deletion (3x faster than truncate)
 - `ResetDatabaseAsync()` for fast test isolation
@@ -5913,12 +6245,14 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 - Providers: SQL Server, PostgreSQL, MySQL, Oracle, SQLite
 
 **#428 - Encina.Testing.WireMock**:
+
 - `EncinaWireMockFixture : IAsyncLifetime`
 - Fluent stubbing: `StubGet()`, `StubPost()`, `StubFault()`, `StubDelay()`
 - `FaultType`: ConnectionReset, EmptyResponse, MalformedResponse, Timeout
 - Verification: `VerifyCallMade()`, `VerifyNoCallsMade()`, `GetReceivedRequests()`
 
 **#429 - Encina.Testing.Shouldly**:
+
 - Open-source alternative to FluentAssertions (commercial license since Jan 2025)
 - `ShouldBeSuccess()`, `ShouldBeError()` for `Either<EncinaError, T>`
 - EncinaError-specific: `ShouldBeValidationError()`, `ShouldBeNotFoundError()`
@@ -5928,12 +6262,14 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 #### Research Sources
 
 **Community Trends .NET 2025**:
+
 - [FluentAssertions licensing change](https://towardsdev.com/should-you-pay-for-fluentassertions-a-comparison-with-shouldly-ed59e142e850)
 - [Microsoft .NET Testing Best Practices](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-best-practices)
 - [Testcontainers Best Practices](https://www.milanjovanovic.tech/blog/testcontainers-best-practices-dotnet-integration-testing)
 - [Stryker.NET Mutation Testing](https://stryker-mutator.io/docs/stryker-net/introduction/)
 
 **Leading Libraries Analyzed**:
+
 - [Verify](https://github.com/VerifyTests/Verify) - 2.5K+ stars, de-facto snapshot testing
 - [Bogus](https://github.com/bchavez/Bogus) - 8K+ stars, realistic data generation
 - [Respawn](https://github.com/jbogard/Respawn) - 1.5K+ stars, intelligent DB reset
@@ -5944,6 +6280,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 - [PactNet](https://github.com/pact-foundation/pact-net) - 800+ stars, contract testing
 
 **Frameworks Inspiring Design**:
+
 - MediatR testing patterns
 - MassTransit test harness
 - Wolverine test support
@@ -6027,6 +6364,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 #### High Priority Issues Detail
 
 **#438 - Encina.Analyzers**:
+
 - 10+ Roslyn analyzers: ENC001 (CancellationToken), ENC002 (Validator missing), ENC003 (Saga compensation)
 - Code fixes: generate handler skeleton, add CancellationToken, implement IIdempotentRequest
 - Compatible with NativeAOT and Source Generators
@@ -6034,6 +6372,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 - Inspiration: Roslynator, awesome-analyzers
 
 **#440 - Encina.Aspire**:
+
 - `EncinaResource` as first-class Aspire resource
 - Dashboard panel for Outbox, Inbox, Sagas, Cache
 - Health checks automatically registered
@@ -6041,6 +6380,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 - Service discovery integration
 
 **#445 - Developer Dashboard**:
+
 - Local web UI for development debugging
 - Panels: Handlers, Pipeline, Outbox, Inbox, Sagas, Cache, Errors
 - Real-time updates via SignalR
@@ -6051,12 +6391,14 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 #### Medium Priority Issues Detail
 
 **#439 - Saga Visualizer**:
+
 - Generate diagrams from saga definitions
 - Formats: Mermaid, Graphviz (DOT), PlantUML
 - Runtime state highlighting
 - CLI: `encina visualize saga <SagaName> --output mermaid`
 
 **#441 - Enhanced Exception Formatting**:
+
 - Pretty-print for `EncinaError` with box-drawing characters
 - Demystified stack traces (Ben.Demystifier-inspired)
 - Validation errors grouped by property
@@ -6064,18 +6406,21 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 - Spectre.Console integration optional
 
 **#442 - Hot Reload Support**:
+
 - Integration with `MetadataUpdateHandler.ClearCache`
 - Pipeline cache invalidation
 - Handler registry refresh
 - Development-only (no production impact)
 
 **#443 - AI-Ready Request Tracing**:
+
 - Automatic request/response serialization in traces
 - PII redaction: `[Trace(RedactProperties = ["CreditCard", "SSN"])]`
 - AI-compatible JSON export format
 - Sampling strategies: errors always, slow requests, random rate
 
 **#444 - Enhanced Testing Fixtures**:
+
 - `EncinaTestFixture` fluent builder
 - Either assertions: `ShouldBeSuccess()`, `ShouldBeError()`
 - Time-travel for sagas: `AdvanceTimeBy(TimeSpan.FromHours(24))`
@@ -6083,6 +6428,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 - Snapshot testing integration with Verify
 
 **#446 - OpenAPI Integration**:
+
 - Auto-generate OpenAPI spec from Commands/Queries
 - `app.MapEncinaEndpoints()` for endpoint generation
 - FluentValidation constraints → OpenAPI schema
@@ -6091,17 +6437,20 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 #### Research Sources
 
 **Competitor Analysis**:
+
 - [Wolverine DX](https://wolverine.netlify.app/) - Zero-config, hot reload, diagnostics
 - [MassTransit Saga Visualizer](https://github.com/MassTransit/MassTransit/discussions/3411)
 - [Hangfire Dashboard](https://www.hangfire.io/)
 - [.NET Aspire Dashboard](https://aspire.dev/)
 
 **Roslyn Analyzers**:
+
 - [Roslynator](https://github.com/dotnet/roslynator)
 - [awesome-analyzers](https://github.com/cybermaxs/awesome-analyzers)
 - [How to write a Roslyn Analyzer](https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/)
 
 **Developer Experience Patterns**:
+
 - [Ben.Demystifier](https://github.com/benaadams/Ben.Demystifier)
 - [elmah.io Stack Trace Formatter](https://elmah.io/tools/stack-trace-formatter/)
 - [FluentAssertions](https://fluentassertions.com/)
@@ -6144,6 +6493,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 **Research Focus**: Investigation of cloud-native patterns and integrations essential for modern Kubernetes and cloud deployments. Analyzed .NET Aspire, Dapr, Kubernetes patterns, and SaaS enablers.
 
 **Research Sources**:
+
 - [.NET Aspire Documentation](https://learn.microsoft.com/en-us/dotnet/aspire/)
 - [Dapr .NET Integration](https://docs.dapr.io/developing-applications/sdks/dotnet/)
 - [Dapr + Aspire Integration](https://www.diagrid.io/blog/net-aspire-dapr-what-are-they-and-how-they-complement-each-other)
@@ -6175,6 +6525,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 #### Key Patterns Identified
 
 **#449 - Encina.Aspire** (.NET Aspire Integration):
+
 - `AddEncinaAspireDefaults()` extension method
 - Service Discovery for distributed handlers
 - OpenTelemetry pre-configured for pipeline
@@ -6182,6 +6533,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 - Aspire Dashboard integration
 
 **#450 - Encina.Dapr** (Dapr Building Blocks):
+
 - `DaprSagaStore`, `DaprOutboxStore`, `DaprInboxStore` via Dapr State API
 - `DaprOutboxPublisher` via Dapr Pub/Sub (any broker)
 - `DaprDistributedLockProvider` via Dapr Lock API
@@ -6189,6 +6541,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 - Secrets injection via `[DaprSecret]` attribute
 
 **#451 - Encina.FeatureFlags** (Feature Flags):
+
 - `IFeatureFlagProvider` abstraction
 - `[Feature("key")]` attribute for handler injection
 - Providers: ConfigCat, LaunchDarkly, Azure App Configuration, OpenFeature
@@ -6196,44 +6549,52 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 - IRequestContext integration for targeting
 
 **#452 - Encina.Secrets** (Secrets Management):
+
 - `ISecretsProvider` abstraction
 - `[Secret("key")]` attribute for DI injection
 - Providers: Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, Dapr
 - Secret rotation monitoring (optional)
 
 **#453 - Encina.ServiceDiscovery** (Service Discovery):
+
 - `IServiceDiscoveryProvider` abstraction
 - Load balancing: RoundRobin, Random, LeastConnections
 - Providers: Kubernetes DNS, Consul, Aspire
 - `IEncina.SendToService<>()` extension methods
 
 **#454 - Encina.HealthChecks** (Kubernetes Health Probes):
+
 - `OutboxHealthCheck`, `InboxHealthCheck`, `SagaHealthCheck`, `HandlerHealthCheck`
 - Separate endpoints: `/health/live`, `/health/ready`, `/health/startup`
 - Configurable thresholds per check
 
 **#455 - Encina.GracefulShutdown** (K8s Graceful Termination):
+
 - `IInFlightRequestTracker` for active request tracking
 - `InFlightTrackingBehavior` pipeline behavior
 - Pre-stop delay, Outbox flush before shutdown
 
 **#456 - Encina.MultiTenancy** (Multi-Tenancy):
+
 - Tenant resolution: Header, Subdomain, Route, Claim, Custom
 - Data isolation: Row, Schema, Database
 - Tenant-aware stores for all messaging patterns
 - GDPR data residency support
 
 **#457 - Encina.CDC** (Change Data Capture):
+
 - `ICdcProvider` abstraction
 - Providers: SQL Server CDC, PostgreSQL Logical, Debezium
 - Near real-time, minimal database load
 
 **#458 - Encina.ApiVersioning** (Handler Versioning):
+
 - `[ApiVersion("1.0")]` attribute
 - Version resolution: Header, Query, Path, MediaType
 - Deprecation with Sunset header
 
 **#459 - Encina.Orleans** (Orleans Integration):
+
 - `IGrainHandler<,>` interface
 - Saga grains with Orleans state and reminders
 - Scheduling via grain timers
@@ -6241,6 +6602,7 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 #### Labels Used
 
 Existing labels applied:
+
 - `kubernetes-native`, `aspire-integration`, `dapr-integration`, `orleans-integration`
 - `area-health-checks`, `area-service-discovery`, `area-feature-flags`
 - `cloud-aws`, `cloud-azure`, `cloud-gcp`
@@ -6468,6 +6830,7 @@ The new Hexagonal Architecture issues complement and in some cases consolidate e
 **Research Focus**: AI and LLM integration patterns for .NET applications
 
 **Investigation Sources**:
+
 - Microsoft.Extensions.AI (GA) - Unified AI abstractions
 - Microsoft.Extensions.VectorData (GA) - Vector store abstractions
 - Semantic Kernel Agent Orchestration - Multi-agent patterns
@@ -6493,6 +6856,7 @@ The new Hexagonal Architecture issues complement and in some cases consolidate e
 | #492 | AI Streaming Pipeline Enhancement | MEDIUM | - |
 
 **Key Findings**:
+
 - MCP has become industry standard (adopted by OpenAI, Anthropic, Microsoft)
 - Semantic caching reduces LLM costs by 40-70% (GPTCache, ScyllaDB research)
 - Prompt injection is OWASP #1 threat for LLMs - guardrails essential
@@ -6503,6 +6867,7 @@ The new Hexagonal Architecture issues complement and in some cases consolidate e
 - Microsoft.Extensions.AI and VectorData are now GA (December 2025)
 
 **New Packages Planned** (14 total):
+
 - `Encina.MCP` - Model Context Protocol server/client
 - `Encina.AI.Safety` - Guardrails and content moderation
 - `Encina.AI.Safety.Azure` - Azure Prompt Shields provider
@@ -6519,6 +6884,7 @@ The new Hexagonal Architecture issues complement and in some cases consolidate e
 - `Encina.AI.Caching.Qdrant` - Semantic caching with Qdrant
 
 **Documents Updated**:
+
 - `docs/INVENTORY.md` - New section "18. AI/LLM Patterns" with full details
 - `ROADMAP.md` - AI/LLM Patterns section in Phase 2
 - `CHANGELOG.md` - 12 new AI/LLM features documented
@@ -6549,12 +6915,14 @@ The new Hexagonal Architecture issues complement and in some cases consolidate e
 **Total: 364 issues redistributed across 10 milestones**
 
 **Documents Updated**:
+
 - `ROADMAP.md` - New Phase 2 section with milestone table and details
 - `CHANGELOG.md` - Milestone reorganization recorded in Unreleased
 - `README.md` - Roadmap section updated with milestone table
 - `docs/INVENTORY.md` - Statistics and Features Pendientes sections updated
 
 **Path to 1.0.0**:
+
 ```
 v0.10.0 → v0.19.0 (Phase 2 subdivided)
          ↓
@@ -6578,6 +6946,7 @@ Phase 6: Release (13 issues)
 **Package Created**: `Encina.DomainModeling` - Core DDD tactical pattern building blocks
 
 **Entity Base Class** (Issue #369):
+
 - `IEntity` and `IEntity<TId>` interfaces
 - `Entity<TId>` abstract base class with identity-based equality
 - Equality operators (`==`, `!=`) with proper null handling
@@ -6585,6 +6954,7 @@ Phase 6: Release (13 issues)
 - `ToString()` returning "TypeName Id=value"
 
 **Value Objects** (Issue #367):
+
 - `ValueObject` abstract base class with structural equality
 - `GetEqualityComponents()` for defining equality
 - `SingleValueObject<TValue>` for wrapping primitives
@@ -6592,6 +6962,7 @@ Phase 6: Release (13 issues)
 - `IComparable<T>` implementation for ordering
 
 **Strongly Typed IDs** (Issue #374):
+
 - `IStronglyTypedId` and `IStronglyTypedId<TValue>` interfaces
 - `StronglyTypedId<TValue>` base class with equality and comparison
 - `GuidStronglyTypedId<TSelf>` with `New()`, `From()`, `TryParse()`, `Empty`
@@ -6601,6 +6972,7 @@ Phase 6: Release (13 issues)
 - Uses LanguageExt `Option<T>` for `TryParse()` return type
 
 **AggregateRoot**:
+
 - `IAggregateRoot` and `IAggregateRoot<TId>` interfaces
 - `AggregateRoot<TId>` with `DomainEvents` collection and `RaiseDomainEvent()`
 - `ClearDomainEvents()` for post-persistence clearing
@@ -6608,6 +6980,7 @@ Phase 6: Release (13 issues)
 - `SoftDeletableAggregateRoot<TId>` with `IsDeleted`, `DeletedAtUtc`, `DeletedBy`, `Delete()`, `Restore()`
 
 **Domain Events vs Integration Events** (Issue #312):
+
 - `IDomainEvent` interface with `EventId` and `OccurredAtUtc`
 - `DomainEvent` abstract record with auto-generated values
 - `RichDomainEvent` with `CorrelationId`, `CausationId`, `AggregateId`, `AggregateVersion`, `EventVersion`
@@ -6615,16 +6988,19 @@ Phase 6: Release (13 issues)
 - `IntegrationEvent` abstract record base class
 
 **Anti-Corruption Layer** (Issue #299):
+
 - `IDomainEventToIntegrationEventMapper<TDomainEvent, TIntegrationEvent>` interface
 - Maps domain events to integration events for external publishing
 
 **Auditing Interfaces**:
+
 - `IAuditable` - CreatedAtUtc, CreatedBy, ModifiedAtUtc, ModifiedBy
 - `ISoftDeletable` - IsDeleted, DeletedAtUtc, DeletedBy
 - `IConcurrencyAware` - RowVersion for optimistic concurrency
 - `IVersioned` - Version number for event sourcing/tracking
 
 **Code Analysis Suppressions**:
+
 - CA1000 (static members on generic types) - Justified for factory methods like `New()`, `From()`
 - CA1036 (comparison operators) - DDD types don't need `<`, `>` operators
 
@@ -6639,11 +7015,13 @@ Phase 6: Release (13 issues)
 | **Total** | **257** | Comprehensive coverage |
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: N/A - Pure in-memory domain modeling, no I/O
 - **Benchmarks**: N/A - Simple object creation, not performance-critical
 - **Load Tests**: N/A - No concurrency concerns, synchronous operations
 
 **Files Created**:
+
 ```
 src/Encina.DomainModeling/
 ├── Encina.DomainModeling.csproj
@@ -6687,6 +7065,7 @@ tests/Encina.DomainModeling.GuardTests/
 ```
 
 **Duplicate Issues Consolidated**:
+
 - ACL duplicates closed: #474, #386, #378, #363 → kept #299
 - Domain Events duplicates closed: #470, #384, #350 → kept #312
 - Specification duplicates closed: #471, #371, #347 → kept #295
@@ -6698,6 +7077,7 @@ tests/Encina.DomainModeling.GuardTests/
 **Issues Closed**: `#295` (Specification Pattern), `#372` (Business Rules), `#377` (Domain Service Marker), `#299` (Anti-Corruption Layer - expanded), `#468` (Result Pattern Extensions)
 
 **Specification Pattern** (Issue #295 - consolidates #347, #371, #471):
+
 - `Specification<T>` abstract base class with expression-based criteria
 - `IsSatisfiedBy(T entity)` method for in-memory evaluation
 - `ToExpression()` for LINQ/EF Core integration
@@ -6711,6 +7091,7 @@ tests/Encina.DomainModeling.GuardTests/
   - `Selector` for projections
 
 **Business Rules Pattern** (Issue #372):
+
 - `IBusinessRule` interface with `IsSatisfied`, `ErrorMessage`, `ErrorCode`
 - `BusinessRule` abstract base class
 - `BusinessRuleError` record for individual rule failures
@@ -6721,12 +7102,14 @@ tests/Encina.DomainModeling.GuardTests/
 - Separation from input validation (semantic difference: domain invariants vs input format)
 
 **Domain Service Marker** (Issue #377):
+
 - `IDomainService` marker interface
 - Enables DI auto-discovery via assembly scanning
 - Semantic clarity for domain layer services
 - No implementation requirements (pure marker)
 
 **Anti-Corruption Layer Pattern** (Issue #299 - expanded):
+
 - `IAntiCorruptionLayer<TExternal, TDomain>` interface for sync translation
 - `IAsyncAntiCorruptionLayer<TExternal, TDomain>` for async translation
 - `AntiCorruptionLayerBase<TExternal, TDomain>` abstract base with:
@@ -6737,6 +7120,7 @@ tests/Encina.DomainModeling.GuardTests/
 - Protects domain from external system changes
 
 **Result Pattern Extensions** (Issue #468):
+
 - Fluent API for `Either<TError, T>` from LanguageExt:
   - `Map()` - Transform success value
   - `Bind()` - Chain operations that return Either
@@ -6766,11 +7150,13 @@ tests/Encina.DomainModeling.GuardTests/
 | **Total** | **558** | Comprehensive coverage |
 
 **Property Tests Added**:
+
 - `SpecificationProperties.cs` - And/Or/Not composition, commutativity, associativity, De Morgan's laws
 - `BusinessRuleProperties.cs` - IsSatisfied consistency, Check extensions, error codes
 - `EitherExtensionsProperties.cs` - Monad laws (identity, composition, associativity), Combine, Ensure
 
 **Contract Tests Added**:
+
 - `SpecificationContracts.cs` - Abstract class, methods, QuerySpecification properties
 - `BusinessRuleContracts.cs` - IBusinessRule, BusinessRule, extensions, errors
 - `AntiCorruptionLayerContracts.cs` - Interfaces, base class, TranslationError
@@ -6778,6 +7164,7 @@ tests/Encina.DomainModeling.GuardTests/
 - `EitherExtensionsContracts.cs` - Static class, extension methods
 
 **Files Created**:
+
 ```
 src/Encina.DomainModeling/
 ├── Specification.cs         # Specification<T> and QuerySpecification<T>
@@ -6800,6 +7187,7 @@ tests/Encina.DomainModeling.ContractTests/
 ```
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: N/A - Pure in-memory domain modeling, no I/O
 - **Benchmarks**: N/A - Simple object operations, not performance-critical
 - **Load Tests**: N/A - No concurrency concerns, synchronous operations
@@ -6811,6 +7199,7 @@ tests/Encina.DomainModeling.ContractTests/
 **Issues Closed**: `#368` (Rich Domain Events), `#373` (Integration Events), `#380` (Generic Repository)
 
 **Rich Domain Events - Envelope Pattern** (Issue #368):
+
 - `IDomainEventMetadata` interface for event metadata contract:
   - `CorrelationId`, `CausationId` for event tracing
   - `UserId`, `TenantId` for multi-tenancy support
@@ -6831,6 +7220,7 @@ tests/Encina.DomainModeling.ContractTests/
   - `GetMetadataValue()` - Safe metadata dictionary access
 
 **Integration Events Pattern** (Issue #373):
+
 - `IAsyncDomainEventToIntegrationEventMapper<TDomain, TIntegration>` for async mapping:
   - `MapAsync()` method with CancellationToken support
   - Use for database lookups, external service calls
@@ -6859,6 +7249,7 @@ tests/Encina.DomainModeling.ContractTests/
   - `Compose()` - Compose two mappers into single mapper
 
 **Generic Repository Pattern** (Issue #380):
+
 - `IReadOnlyRepository<TEntity, TId>` for query operations:
   - `GetByIdAsync()` - Returns `Option<TEntity>` (ROP-friendly)
   - `FindAsync()` - Query by `Specification<TEntity>`
@@ -6902,6 +7293,7 @@ tests/Encina.DomainModeling.ContractTests/
 | **Total** | **700** | +142 from P2's 558 |
 
 **Property Tests Added**:
+
 - `DomainEventEnvelopeProperties.cs`:
   - Metadata factory methods (Empty, WithCorrelation, ForUser, ForTenant)
   - Envelope creation preserves event data
@@ -6920,6 +7312,7 @@ tests/Encina.DomainModeling.ContractTests/
   - EntityNotFoundException properties
 
 **Contract Tests Added**:
+
 - `DomainEventEnvelopeContracts.cs`:
   - IDomainEventMetadata interface structure
   - DomainEventMetadata record properties and methods
@@ -6943,6 +7336,7 @@ tests/Encina.DomainModeling.ContractTests/
   - RepositoryExtensions static class
 
 **Files Created**:
+
 ```
 src/Encina.DomainModeling/
 ├── DomainEventEnvelope.cs       # Envelope pattern with metadata
@@ -6961,10 +7355,12 @@ tests/Encina.DomainModeling.ContractTests/
 ```
 
 **Files Modified**:
+
 - `Encina.DomainModeling.csproj` - Added `<NoWarn>` for RS0016/RS0017/RS0026/RS0036/RS0037 (pre-1.0 relaxed API tracking)
 - `GlobalSuppressions.cs` - Added CA1000 suppression for `PagedResult<T>.Empty()`
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: N/A - Pure in-memory domain modeling, no I/O
 - **Benchmarks**: N/A - Simple object operations, not performance-critical
 - **Load Tests**: N/A - No concurrency concerns, synchronous operations
@@ -6976,6 +7372,7 @@ tests/Encina.DomainModeling.ContractTests/
 **Issues Closed**: `#475` (Ports & Adapters), `#478` (Result/DTO Mapping), `#479` (Application Services)
 
 **Ports & Adapters Factory Pattern** (Issue #475):
+
 - `IPort` marker interface for hexagonal architecture boundaries
 - `IInboundPort` - Ports driven by external actors (controllers, handlers)
 - `IOutboundPort` - Ports that drive external systems (repositories, APIs)
@@ -6997,6 +7394,7 @@ tests/Encina.DomainModeling.ContractTests/
   - `AddPortsFromAssemblies()` - Scan multiple assemblies
 
 **Result/DTO Mapping with ROP Semantics** (Issue #478):
+
 - `IResultMapper<TDomain, TDto>` - Sync mapper with `Either<MappingError, TDto>`
 - `IAsyncResultMapper<TDomain, TDto>` - Async mapper with CancellationToken
 - `IBidirectionalMapper<TDomain, TDto>` - Two-way mapping with `MapToDomain()`
@@ -7019,6 +7417,7 @@ tests/Encina.DomainModeling.ContractTests/
   - `AddResultMappersFromAssembly()` - Assembly scanning
 
 **Application Services Interface** (Issue #479):
+
 - `IApplicationService` marker interface for use case orchestration
 - `IApplicationService<TInput, TOutput>` - Typed service with `ExecuteAsync()`
 - `IApplicationService<TOutput>` - Parameterless service (scheduled tasks)
@@ -7050,6 +7449,7 @@ tests/Encina.DomainModeling.ContractTests/
 | **Total** | **825** | +125 from P3's 700 |
 
 **Property Tests Added**:
+
 - `PortsAndAdaptersProperties.cs`:
   - AdapterError factory methods (OperationFailed, Cancelled, NotFound, etc.)
   - AdapterBase Execute/ExecuteAsync behavior
@@ -7067,6 +7467,7 @@ tests/Encina.DomainModeling.ContractTests/
   - Error conversion methods
 
 **Contract Tests Added**:
+
 - `PortsAndAdaptersContracts.cs`:
   - IPort/IInboundPort/IOutboundPort hierarchy
   - IAdapter<TPort> generic constraints
@@ -7087,6 +7488,7 @@ tests/Encina.DomainModeling.ContractTests/
   - ApplicationServiceRegistrationExtensions
 
 **Files Created**:
+
 ```
 src/Encina.DomainModeling/
 ├── PortsAndAdapters.cs      # IPort, IAdapter, AdapterBase, AdapterError
@@ -7105,11 +7507,13 @@ tests/Encina.DomainModeling.ContractTests/
 ```
 
 **Files Modified**:
+
 - `Encina.DomainModeling.csproj` - Added Microsoft.Extensions.DependencyInjection.Abstractions, Logging.Abstractions
 - `GlobalSuppressions.cs` - Added CA1848 suppression for AdapterBase logging
 - `Encina.DomainModeling.PropertyTests.csproj` - Added DI and Logging packages
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: N/A - Pure in-memory domain modeling, no I/O
 - **Benchmarks**: N/A - Simple object operations, not performance-critical
 - **Load Tests**: N/A - No concurrency concerns, synchronous operations
@@ -7123,6 +7527,7 @@ tests/Encina.DomainModeling.ContractTests/
 **v0.10.0 - DDD Foundations milestone is now COMPLETE!**
 
 **Bounded Context Patterns** (Issues #379, #477):
+
 - `BoundedContextAttribute` - Mark types with bounded context membership
 - `ContextRelationship` enum - All DDD context relationships:
   - `Conformist`, `AntiCorruptionLayer`, `SharedKernel`, `CustomerSupplier`
@@ -7153,6 +7558,7 @@ tests/Encina.DomainModeling.ContractTests/
   - `ValidateBoundedContexts()` - Validate dependencies
 
 **Domain Language DSL** (Issue #381):
+
 - `DomainBuilder<T, TBuilder>` - CRTP fluent builder:
   - `Build()` - Returns `Either<DomainBuilderError, T>`
   - `BuildOrThrow()` - Builds or throws on failure
@@ -7198,6 +7604,7 @@ tests/Encina.DomainModeling.ContractTests/
     - `Contains()`, `Overlaps()` checks
 
 **Vertical Slice + Hexagonal Hybrid** (Issue #476):
+
 - `FeatureSlice` abstract class - Base for vertical slices:
   - `FeatureName` - Required slice identifier
   - `Description` - Optional description
@@ -7246,6 +7653,7 @@ tests/Encina.DomainModeling.ContractTests/
 | **Total** | **1061** | +236 from P4's 825 |
 
 **Property Tests Added**:
+
 - `BoundedContextProperties.cs`:
   - ContextMap relation management
   - SharedKernel/CustomerSupplier/PublishedLanguage convenience methods
@@ -7269,6 +7677,7 @@ tests/Encina.DomainModeling.ContractTests/
   - UseCaseHandler registration
 
 **Contract Tests Added**:
+
 - `BoundedContextContracts.cs`:
   - BoundedContextAttribute structure
   - ContextRelationship enum values
@@ -7300,6 +7709,7 @@ tests/Encina.DomainModeling.ContractTests/
   - UseCaseHandlerExtensions static class
 
 **Files Created**:
+
 ```
 src/Encina.DomainModeling/
 ├── BoundedContext.cs    # BoundedContextAttribute, ContextMap, BoundedContextModule, etc.
@@ -7318,11 +7728,13 @@ tests/Encina.DomainModeling.ContractTests/
 ```
 
 **Technical Notes**:
+
 - Renamed `Ensure<T>()` to `EnsureValid<T>()` to avoid ambiguity with `EitherExtensions.Ensure<TError, T>()`
 - Property tests use `IsValid()` helper to filter whitespace-only strings from FsCheck
 - FeatureSlice registration adds both concrete type and FeatureSlice base type for retrieval
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: N/A - Pure in-memory domain modeling, no I/O
 - **Benchmarks**: N/A - Simple object operations, not performance-critical
 - **Load Tests**: N/A - No concurrency concerns, synchronous operations
@@ -7334,6 +7746,7 @@ tests/Encina.DomainModeling.ContractTests/
 **v0.10.0 - DDD Foundations milestone COMPLETE with this final issue!**
 
 **Problem**: DRY violation with duplicate ValidationPipelineBehavior implementations:
+
 - `Encina.FluentValidation.ValidationPipelineBehavior` - Direct FluentValidation integration
 - `Encina.DataAnnotations.DataAnnotationsValidationBehavior` - Direct DataAnnotations integration
 - `Encina.MiniValidator.MiniValidationBehavior` - Direct MiniValidator integration
@@ -7343,11 +7756,13 @@ Each bypassed the centralized `ValidationOrchestrator` and `IValidationProvider`
 **Solution**: Consolidate on the single `Encina.Validation.ValidationPipelineBehavior<,>` from the core package.
 
 **Files Deleted**:
+
 - `src/Encina.FluentValidation/ValidationPipelineBehavior.cs`
 - `src/Encina.DataAnnotations/DataAnnotationsValidationBehavior.cs`
 - `src/Encina.MiniValidator/MiniValidationBehavior.cs`
 
 **Test Files Deleted** (obsolete, tested deleted behaviors):
+
 - `tests/Encina.FluentValidation.Tests/ValidationPipelineBehaviorTests.cs`
 - `tests/Encina.FluentValidation.Tests/Guards/ValidationPipelineBehaviorGuardsTests.cs`
 - `tests/Encina.FluentValidation.PropertyTests/ValidationPipelineBehaviorPropertyTests.cs`
@@ -7368,6 +7783,7 @@ Each bypassed the centralized `ValidationOrchestrator` and `IValidationProvider`
 - `tests/Encina.MiniValidator.LoadTests/MiniValidationBehaviorLoadTests.cs`
 
 **Files Modified**:
+
 - `src/Encina.FluentValidation/PublicAPI.Unshipped.txt` - Removed behavior entries
 - `src/Encina.DataAnnotations/PublicAPI.Unshipped.txt` - Removed behavior entries
 - `src/Encina.MiniValidator/PublicAPI.Unshipped.txt` - Removed behavior entries
@@ -7375,11 +7791,13 @@ Each bypassed the centralized `ValidationOrchestrator` and `IValidationProvider`
 
 **ServiceCollectionExtensions Already Correct**:
 All three packages were already correctly registering the centralized behavior:
+
 - `Encina.FluentValidation`: Uses `EncinaValidation.ValidationPipelineBehavior<,>`
 - `Encina.DataAnnotations`: Uses `ValidationPipelineBehavior<,>` with `using Encina.Validation`
 - `Encina.MiniValidator`: Uses `ValidationPipelineBehavior<,>` with `using Encina.Validation`
 
 **Architecture After Consolidation**:
+
 ```text
 Encina (core)
 ├── Encina.Validation.IValidationProvider (interface)
@@ -7394,6 +7812,7 @@ Encina.FluentValidation / DataAnnotations / MiniValidator
 ```
 
 **Breaking Changes**:
+
 - `Encina.FluentValidation.ValidationPipelineBehavior<,>` removed - use `Encina.Validation.ValidationPipelineBehavior<,>`
 - `Encina.DataAnnotations.DataAnnotationsValidationBehavior<,>` removed
 - `Encina.MiniValidator.MiniValidationBehavior<,>` removed
@@ -7402,6 +7821,7 @@ Encina.FluentValidation / DataAnnotations / MiniValidator
 No action needed if using `AddEncinaFluentValidation()`, `AddDataAnnotationsValidation()`, or `AddMiniValidation()` extension methods - they already register the centralized behavior.
 
 **Why Test Types Not Created**:
+
 - The existing tests in `Encina.Tests` and `Encina.ContractTests` already cover `ValidationPipelineBehavior<,>` in the core package
 - Integration/property/guard tests for providers remain in respective test projects testing `IValidationProvider` implementations
 - No new code was written, only duplicates removed
@@ -7413,6 +7833,7 @@ No action needed if using `AddEncinaFluentValidation()`, `AddDataAnnotationsVali
 **New Package**: HTTP API mocking for integration tests using WireMock.NET.
 
 **Files Created**:
+
 ```text
 src/Encina.Testing.WireMock/
 ├── Encina.Testing.WireMock.csproj
@@ -7430,6 +7851,7 @@ tests/Encina.Testing.WireMock.Tests/
 ```
 
 **Key Components**:
+
 - `EncinaWireMockFixture` - xUnit fixture with fluent stubbing API:
   - HTTP method stubs: `StubGet()`, `StubPost()`, `StubPut()`, `StubPatch()`, `StubDelete()`
   - `Stub()` with request configuration for advanced matching
@@ -7448,14 +7870,17 @@ tests/Encina.Testing.WireMock.Tests/
 - `ReceivedRequest` record: Path, Method, Headers, Body, Timestamp
 
 **Dependencies Added to Directory.Packages.props**:
+
 - `WireMock.Net` v1.19.0
 - `WireMock.Net.Testcontainers` v1.14.0
 
 **Test Results**: 37 tests passing
+
 - 33 fixture tests covering all stub types, verification, reset, and error cases
 - 4 enum tests for FaultType values
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: The unit tests already use real WireMock.Net (in-process), effectively integration tests
 - **Property Tests**: N/A - Fixture behavior is deterministic, no invariants to verify
 - **Contract Tests**: N/A - No interfaces to verify contract compliance
@@ -7483,42 +7908,50 @@ Realistic test data generation with Bogus integration for Encina applications.
 | `ScheduledMessageFaker` | Generate scheduled messages for scheduling tests |
 
 **Extension Methods** (`EncinaFakerExtensions`):
+
 - Identifiers: `CorrelationId()`, `UserId()`, `TenantId()`, `IdempotencyKey()`
 - Message types: `NotificationType()`, `RequestType()`, `SagaType()`, `SagaStatus()`
 - UTC timestamps: `RecentUtc()`, `SoonUtc()`
 - JSON: `JsonContent(propertyCount)`
 
 **OutboxMessageFaker Features**:
+
 - `AsProcessed()` - Generate processed messages
 - `AsFailed(retryCount)` - Generate failed messages with error info
 - `WithNotificationType()`, `WithContent()` - Customization
 
 **InboxMessageFaker Features**:
+
 - `AsProcessed(response)` - Generate with cached response
 - `AsFailed(retryCount)` - Generate failed messages
 - `AsExpired()` - Generate expired messages for cleanup tests
 - `WithMessageId()`, `WithRequestType()` - Customization
 
 **SagaStateFaker Features**:
+
 - `AsCompleted()`, `AsCompensating()`, `AsFailed()`, `AsTimedOut()` - Lifecycle states
 - `WithSagaType()`, `WithSagaId()`, `WithData()`, `AtStep()` - Customization
 
 **ScheduledMessageFaker Features**:
+
 - `AsDue()` - Generate messages ready for execution
 - `AsRecurring(cron)` - Generate recurring with cron expression
 - `AsRecurringExecuted()` - Generate with last execution timestamp
 - `ScheduledAt()`, `WithRequestType()`, `WithContent()` - Customization
 
 **Fake Implementations**:
+
 - `FakeOutboxMessage` - Implements `IOutboxMessage`
 - `FakeInboxMessage` - Implements `IInboxMessage`
 - `FakeSagaState` - Implements `ISagaState`
 - `FakeScheduledMessage` - Implements `IScheduledMessage`
 
 **Dependencies Added to Directory.Packages.props**:
+
 - `Bogus` v35.6.1
 
 **Test Results**: 75 tests passing
+
 - `EncinaFakerTests` - 21 tests for base class and extensions
 - `OutboxMessageFakerTests` - 13 tests for outbox messages
 - `InboxMessageFakerTests` - 14 tests for inbox messages
@@ -7526,6 +7959,7 @@ Realistic test data generation with Bogus integration for Encina applications.
 - `ScheduledMessageFakerTests` - 13 tests for scheduled messages
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: N/A - Fakers don't require external resources
 - **Property Tests**: N/A - Bogus library handles randomization invariants
 - **Contract Tests**: N/A - Internal implementations, no public interface contracts
@@ -7553,39 +7987,47 @@ Integration testing support for Encina-based applications using .NET Aspire's `D
 | `FailureSimulationExtensions` | Failure simulation for resilience testing |
 
 **Configuration Options**:
+
 - `ClearOutboxBeforeTest`, `ClearInboxBeforeTest`, `ResetSagasBeforeTest` - Data cleanup
 - `ClearScheduledMessagesBeforeTest`, `ClearDeadLetterBeforeTest` - Additional cleanup
 - `DefaultWaitTimeout`, `PollingInterval` - Wait operation settings
 
 **Assertion Extensions**:
+
 - `AssertOutboxContainsAsync<T>()` - Verify outbox contains notification type
 - `AssertInboxProcessedAsync()` - Verify inbox message was processed
 - `AssertSagaCompletedAsync<T>()`, `AssertSagaCompensatedAsync<T>()` - Saga lifecycle
 - `AssertDeadLetterContainsAsync<T>()` - Dead letter verification
 
 **Wait Helpers**:
+
 - `WaitForOutboxProcessingAsync()` - Wait for all outbox messages to be processed
 - `WaitForSagaCompletionAsync<T>()` - Wait for specific saga to complete
 
 **Inspection Helpers**:
+
 - `GetPendingOutboxMessages()`, `GetRunningSagas<T>()`, `GetDeadLetterMessages()`
 - `GetEncinaTestContext()`, `GetOutboxStore()`, `GetSagaStore()`
 
 **Failure Simulation**:
+
 - `SimulateSagaTimeout()`, `SimulateSagaFailure()` - Saga failure scenarios
 - `SimulateOutboxMessageFailure()`, `SimulateOutboxDeadLetter()` - Outbox failures
 - `SimulateInboxMessageFailure()`, `SimulateInboxExpiration()` - Inbox failures
 - `AddToDeadLetterAsync()` - Directly add messages to dead letter store
 
 **Dependencies Added to Directory.Packages.props**:
+
 - `Aspire.Hosting.Testing` v13.1.0
 
 **Test Results**: 34 tests passing
+
 - `EncinaTestSupportOptionsTests` - 8 tests for configuration defaults
 - `EncinaTestContextTests` - 15 tests for context and cleanup
 - `DistributedApplicationTestingBuilderExtensionsTests` - 11 tests for builder extension
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: Would require full Aspire AppHost setup (complex infrastructure)
 - **Property Tests**: N/A - Assertion/configuration logic, not data invariants
 - **Contract Tests**: N/A - Extension methods, not public interfaces
@@ -7603,6 +8045,7 @@ Integration testing support for Encina-based applications using .NET Aspire's `D
 **Description**: Snapshot testing integration with Verify. Provides helpers for snapshot testing Either results, aggregates, sagas, and messaging entities with automatic scrubbing of timestamps and IDs.
 
 **Files Created**:
+
 ```text
 src/Encina.Testing.Verify/
 ├── Encina.Testing.Verify.csproj
@@ -7638,17 +8081,20 @@ tests/Encina.Testing.Verify.Tests/
 | `PrepareDeadLetterMessages()` | Prepare dead letter messages for verification |
 
 **Automatic Scrubbing**:
+
 - **Timestamps**: All Encina UTC timestamp properties (CreatedAtUtc, ProcessedAtUtc, etc.)
 - **ISO 8601**: Timestamps in content replaced with `[TIMESTAMP]`
 - **GUIDs**: Replaced with deterministic placeholders (Guid_1, Guid_2, etc.)
 - **Stack Traces**: Removed from error messages for stable snapshots
 
 **Dependencies**:
+
 - Verify v28.8.0
 - Verify.Xunit v28.8.0 (for xUnit test framework)
 - Encina core libraries
 
 **Test Coverage**:
+
 - **Unit Tests**: 18 tests covering all public methods
 - **Integration Tests**: N/A - Library wraps Verify, tested via unit tests
 - **Property Tests**: N/A - Snapshot testing is deterministic by design
@@ -7667,6 +8113,7 @@ tests/Encina.Testing.Verify.Tests/
 **Description**: Architecture testing rules using ArchUnitNET. Provides pre-built rules for enforcing clean architecture patterns, handler dependencies, sealed classes, and layer separation.
 
 **Files Created**:
+
 ```text
 src/Encina.Testing.Architecture/
 ├── Encina.Testing.Architecture.csproj
@@ -7720,12 +8167,14 @@ tests/Encina.Testing.Architecture.Tests/
 | `ArchitectureRuleException` | Exception with formatted violation messages |
 
 **Dependencies**:
+
 - TngTech.ArchUnitNET v0.12.3
 - TngTech.ArchUnitNET.xUnit v0.13.1
 - xunit.core
 - Encina core library
 
 **Test Coverage**:
+
 - **Unit Tests**: 57 tests covering all public methods
 - **Integration Tests**: N/A - Library wraps ArchUnitNET, tested via unit tests
 - **Property Tests**: N/A - Architecture rules are deterministic
@@ -7745,6 +8194,7 @@ tests/Encina.Testing.Architecture.Tests/
 FluentAssertions adopted commercial licensing in January 2025 ($130/developer/year), making it unsuitable for open-source projects. Shouldly remains MIT-licensed and provides similar functionality.
 
 **Migration Scope**:
+
 - 114 test projects updated
 - ~1,500+ assertion statements migrated
 - All test types covered: Unit, Integration, Contract, Property, Guard, Load
@@ -7766,6 +8216,7 @@ FluentAssertions adopted commercial licensing in January 2025 ($130/developer/ye
 | `FluentActions.Invoking(...)` | `Should.Throw<T>(() => ...)` |
 
 **Edge Cases Handled**:
+
 1. `Func<T>` to `Action` conversion for `Should.Throw<T>()` (wrap return value in `_ =`)
 2. Struct types (e.g., `EncinaError`, `HealthCheckResult`) cannot use `ShouldNotBeNull()`
 3. `IEnumerable` `.Count` is a method, not property - use `.Count().ShouldBe(n)`
@@ -7773,6 +8224,7 @@ FluentAssertions adopted commercial licensing in January 2025 ($130/developer/ye
 5. Collection expressions `[...]` preferred over `new[] { }` for CA1861 compliance
 
 **Custom Extensions** (`Encina.Testing.Shouldly`):
+
 - `ShouldBeSuccess()` / `ShouldBeRight()` - Assert `Either` is Right
 - `ShouldBeError()` / `ShouldBeLeft()` - Assert `Either` is Left
 - `AllShouldBeSuccess()` - All items in collection should be Right
@@ -7780,6 +8232,7 @@ FluentAssertions adopted commercial licensing in January 2025 ($130/developer/ye
 - `ShouldBeErrorWithCode()` - Assert specific `EncinaError` code
 
 **Test Results**:
+
 - Encina.Tests: 1,038 passed
 - Encina.DomainModeling.Tests: 175 passed
 - All core test projects compiling and passing
@@ -7795,6 +8248,7 @@ FluentAssertions adopted commercial licensing in January 2025 ($130/developer/ye
 Extended `Encina.Testing.Bogus` with domain model faker support following CodeRabbit's recommendation to extend the existing package rather than creating a new one.
 
 **Implementation Approach**:
+
 - Followed CodeRabbit analysis recommendation: extend existing `Encina.Testing.Bogus` package
 - Used manual Bogus (not AutoBogus) for seed reproducibility
 - Extension methods on `Randomizer` and `Date` classes for easy integration
@@ -7820,6 +8274,7 @@ Extended `Encina.Testing.Bogus` with domain model faker support following CodeRa
 | `TimeRangeValue(minHourSpan, maxHourSpan)` | Time range tuple | (TimeOnly, TimeOnly) |
 
 **Key Design Decisions**:
+
 1. **All IDs must be positive** - Entity IDs are never 0 or negative (business invariant)
 2. **Seed reproducibility** - Same seed produces same values across runs
 3. **Guard clauses** - All parameters validated with `ArgumentOutOfRangeException`
@@ -7835,6 +8290,7 @@ Extended `Encina.Testing.Bogus` with domain model faker support following CodeRa
 | **Total** | **77** | New tests for domain model extensions |
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: N/A - Pure extension methods, no external dependencies
 - **Contract Tests**: N/A - These are extensions on Bogus types, not Encina interfaces
 - **Guard Clause Tests**: Already covered in unit tests with dedicated guard tests
@@ -7842,15 +8298,18 @@ Extended `Encina.Testing.Bogus` with domain model faker support following CodeRa
 - **Benchmarks**: N/A - No complex algorithms, just random value generation
 
 **Files Modified**:
+
 - `src/Encina.Testing.Bogus/EncinaFaker.cs` - Added ~400 lines of extension methods in 3 regions
 - `src/Encina.Testing.Bogus/README.md` - Added domain model faker documentation
 
 **Files Created**:
+
 - `tests/Encina.Testing.Bogus.Tests/EncinaFakerExtensionsTests.cs` - 54 unit tests
 - `tests/Encina.Testing.Bogus.PropertyTests/Encina.Testing.Bogus.PropertyTests.csproj` - New project
 - `tests/Encina.Testing.Bogus.PropertyTests/EncinaFakerExtensionsProperties.cs` - 23 property tests
 
 **Property Test Invariants Verified**:
+
 1. `IntEntityId_AlwaysPositive` - Entity IDs are always >= 1
 2. `IntEntityId_WithinRange_RespectsBounds` - Range parameters are honored
 3. `GuidEntityId_NeverEmpty` - GUIDs are never Guid.Empty
@@ -7904,10 +8363,12 @@ Pre-configured xUnit fixtures for Docker-based integration testing:
 | `RedisContainerFixture` | Redis | `redis:7-alpine` |
 
 **Additional Components**:
+
 - `ConfiguredContainerFixture<TContainer>` - Generic fixture for custom-configured containers
 - `EncinaContainers` - Static factory class with default and custom configuration support
 
 **Key Features**:
+
 - All fixtures implement `IAsyncLifetime` for xUnit integration
 - Properties: `Container`, `ConnectionString`, `IsRunning`
 - Guard against accessing before initialization (throws `InvalidOperationException`)
@@ -7922,6 +8383,7 @@ Pre-configured xUnit fixtures for Docker-based integration testing:
 | **Total** | **33** | All tests passing |
 
 **Why Some Test Types Don't Apply**:
+
 - **Integration Tests**: Would require Docker running - these ARE the integration testing tools
 - **Property-Based Tests**: N/A - No complex invariants, just container lifecycle management
 - **Contract Tests**: N/A - Implements Testcontainers library interfaces
@@ -7930,6 +8392,7 @@ Pre-configured xUnit fixtures for Docker-based integration testing:
 - **Benchmarks**: N/A - Container performance is Testcontainers' concern
 
 **Files Created**:
+
 - `src/Encina.Testing.Testcontainers/Encina.Testing.Testcontainers.csproj`
 - `src/Encina.Testing.Testcontainers/SqlServerContainerFixture.cs`
 - `src/Encina.Testing.Testcontainers/PostgreSqlContainerFixture.cs`
@@ -7972,6 +8435,7 @@ public class OrderRepositoryTests : IClassFixture<SqlServerContainerFixture>
 #### Problem Addressed
 
 All 5 database fixtures (SqlServer, PostgreSQL, MySQL, MongoDB, Redis) had nearly identical lifecycle management code:
+
 - `_container` field initialization
 - `Container` property with null checks
 - `ConnectionString` property with reflection fallback to `GetConnectionString()`
@@ -8115,6 +8579,7 @@ public class SqlServerContainerFixture : ContainerFixtureBase<MsSqlContainer>
 - ✅ Tests: **33/33 passing** (all container fixture tests pass)
 
 **Files Modified**:
+
 - `src/Encina.Testing.Testcontainers/ContainerFixtureBase.cs` (NEW - 165 lines)
 - `src/Encina.Testing.Testcontainers/SqlServerContainerFixture.cs` (refactored)
 - `src/Encina.Testing.Testcontainers/PostgreSqlContainerFixture.cs` (refactored)
@@ -8133,18 +8598,21 @@ Integration tests using Testcontainers need a way to reset database state betwee
 #### Solution: DatabaseIntegrationTestBase
 
 Created abstract base class that:
+
 1. Wraps container fixtures with Respawn integration
 2. Automatically resets database before each test
 3. Provides customizable cleanup options
 4. Offers database-specific convenience classes
 
 **Files Created**:
+
 - `src/Encina.Testing.Testcontainers/DatabaseIntegrationTestBase.cs` - Generic base class
 - `src/Encina.Testing.Testcontainers/SqlServerIntegrationTestBase.cs` - SQL Server specific
 - `src/Encina.Testing.Testcontainers/PostgreSqlIntegrationTestBase.cs` - PostgreSQL specific
 - `src/Encina.Testing.Testcontainers/MySqlIntegrationTestBase.cs` - MySQL specific
 
 **Test Files Created**:
+
 - `tests/Encina.Testing.Testcontainers.Tests/DatabaseIntegrationTestBaseTests.cs`
 - `tests/Encina.Testing.Testcontainers.Tests/SqlServerIntegrationTestBaseTests.cs`
 - `tests/Encina.Testing.Testcontainers.Tests/PostgreSqlIntegrationTestBaseTests.cs`
@@ -8226,10 +8694,12 @@ public class OrderRepositoryTests : SqlServerIntegrationTestBase
 ```
 
 **Build Verification**:
+
 - ✅ Compilation: Successful (0 errors, 0 warnings)
 - ✅ Tests: **51/51 passing** (18 new tests added)
 
 **Package Dependencies Updated**:
+
 - `Encina.Testing.Testcontainers` now references `Encina.Testing.Respawn`
 
 ---
@@ -8276,6 +8746,7 @@ public class OrderRepositoryTests : SqlServerIntegrationTestBase
 ### Test Coverage
 
 **Unit Tests** (Location: `tests/Encina.Testing.Tests/Messaging/`):
+
 - `OutboxTestHelperTests.cs` - 27 tests
 - `InboxTestHelperTests.cs` - 24 tests
 - `SagaTestHelperTests.cs` - 29 tests
@@ -8283,10 +8754,12 @@ public class OrderRepositoryTests : SqlServerIntegrationTestBase
 - **Total: 115 unit tests**
 
 **Property-Based Tests** (FsCheck):
+
 - `MessagingTestHelpersPropertyTests.cs` - 23 properties
 - Invariants tested: message tracking, time monotonicity, state transitions, ID uniqueness
 
 **Guard Clause Tests**:
+
 - `MessagingTestHelpersGuardClauseTests.cs` - 33 tests
 - Validates `ArgumentNullException` for all null parameters
 
@@ -8378,17 +8851,17 @@ helper
 
 **Pipeline Behavior Rules**:
 
-5. **`PipelineBehaviorsShouldImplementCorrectInterface()`**
+1. **`PipelineBehaviorsShouldImplementCorrectInterface()`**
    - Verifies classes with "Behavior" or "PipelineBehavior" suffix implement `IPipelineBehavior<,>`
    - Supports command-specific and query-specific behavior interfaces
 
 **Saga Pattern Rules**:
 
-6. **`SagaDataShouldBeSealed()`**
+1. **`SagaDataShouldBeSealed()`**
    - Verifies saga data classes (ending with "SagaData") are sealed
    - Ensures proper serialization behavior and prevents inheritance complications
 
-### Builder Updates (`EncinaArchitectureRulesBuilder.cs`):
+### Builder Updates (`EncinaArchitectureRulesBuilder.cs`)
 
 - `EnforceHandlerInterfaces()` - Enable handler interface check
 - `EnforceCommandInterfaces()` - Enable command interface check
@@ -8399,9 +8872,10 @@ helper
 - `ApplyAllStandardRules()` - Standard rules (excludes saga rules)
 - `ApplyAllSagaRules()` - Opt-in saga rules (EnforceSealedSagas, EnforceSealedSagaData)
 
-### Test Base Updates (`EncinaArchitectureTestBase.cs`):
+### Test Base Updates (`EncinaArchitectureTestBase.cs`)
 
 New test methods (all virtual for override):
+
 - `HandlersShouldImplementCorrectInterface()`
 - `CommandsShouldImplementICommand()`
 - `QueriesShouldImplementIQuery()`
@@ -8412,6 +8886,7 @@ New test methods (all virtual for override):
 ### Test Coverage
 
 **Unit Tests** (`tests/Encina.Testing.Architecture.Tests/`):
+
 - 12 new tests for CQRS pattern rules
 - 7 new tests for builder methods
 - Total: 71 tests (all passing)
@@ -8474,7 +8949,7 @@ Following CodeRabbit's analysis, these decisions were made:
 
 **Namespace `Encina.Testing.Sagas`**:
 
-4. **`SagaSpecification<TSaga, TSagaData>`** - Abstract base class for saga BDD testing:
+1. **`SagaSpecification<TSaga, TSagaData>`** - Abstract base class for saga BDD testing:
    - **Given phase**: `GivenData(Action<TSagaData>)`, `GivenSagaData(TSagaData)`
    - **When phase**: `WhenComplete()`, `WhenStep(int)`, `WhenCompensate(int)`
    - **Then phase (Success)**: `ThenSuccess()`, `ThenSuccessAnd()`, `ThenData()`
@@ -8498,6 +8973,7 @@ Following CodeRabbit's analysis, these decisions were made:
 ### Test Coverage
 
 **Unit Tests** (`tests/Encina.Testing.Tests/`):
+
 - `Handlers/HandlerSpecificationTests.cs` - 35 tests
 - `Handlers/ScenarioTests.cs` - 31 tests
 - `Sagas/SagaSpecificationTests.cs` - 26 tests
@@ -8506,6 +8982,7 @@ Following CodeRabbit's analysis, these decisions were made:
 ### Usage Examples
 
 **Handler BDD Test**:
+
 ```csharp
 public class CreateOrderHandlerSpecs : HandlerSpecification<CreateOrderCommand, OrderResult>
 {
@@ -8526,6 +9003,7 @@ public class CreateOrderHandlerSpecs : HandlerSpecification<CreateOrderCommand, 
 ```
 
 **Inline Scenario Test**:
+
 ```csharp
 [Fact]
 public async Task Order_creation_with_premium_customer()
@@ -8542,6 +9020,7 @@ public async Task Order_creation_with_premium_customer()
 ```
 
 **Saga BDD Test**:
+
 ```csharp
 using Moq;
 using LanguageExt;

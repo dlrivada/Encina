@@ -1181,14 +1181,14 @@ Nunca dejaremos sin resolver o anotar un problema identificado. Lo normal será 
 |------|---------|
 | `CHANGELOG.md` | Track released changes (follows Keep a Changelog format) |
 | `ROADMAP.md` | High-level roadmap and planned features |
-| `docs/history/YYYY-MM.md` | Detailed monthly implementation history |
+| `docs/releases/vX.Y.Z/` | Version-based release documentation |
 | `docs/architecture/adr/*.md` | Architecture Decision Records |
 | `docs/roadmap-documentacion.md` | Documentation-specific roadmap |
 
 ### When Updating Documentation
 
 - **After completing a feature** → Update `CHANGELOG.md` (Unreleased section)
-- **After major implementation phase** → Update `docs/history/YYYY-MM.md`
+- **After major implementation phase** → Update `docs/releases/vX.Y.Z/README.md`
 - **After architectural decisions** → Create ADR in `docs/architecture/adr/`
 - **After releasing** → Move Unreleased to version section in `CHANGELOG.md`
 

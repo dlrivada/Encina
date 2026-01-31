@@ -476,7 +476,7 @@ dotnet run --file scripts/run-stryker.cs
 
 - [ROADMAP.md](ROADMAP.md) - Development phases and planned features
 - [CHANGELOG.md](CHANGELOG.md) - Version history
-- [docs/history/](docs/history/) - Detailed implementation records
+- [docs/releases/](docs/releases/) - Version-based release documentation
 - [docs/messaging/](docs/messaging/) - Saga patterns and transport guides
 
 ## Roadmap

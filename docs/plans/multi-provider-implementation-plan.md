@@ -506,7 +506,7 @@ For EACH issue, update:
 | README.md | `src/Encina.{Provider}/README.md` | Add feature documentation |
 | ROADMAP.md | `ROADMAP.md` (root) | Mark features as complete |
 | CHANGELOG.md | `CHANGELOG.md` (root) | Add to Unreleased section |
-| History | `docs/history/2026-01.md` | Add implementation details |
+| History | `docs/releases/v0.11.0/README.md` | Add implementation details |
 | INVENTORY.md | `docs/INVENTORY.md` | Update file listings |
 
 ---
@@ -547,7 +547,7 @@ For each issue:
 - [ ] **Step 13**: Update README.md for each provider
 - [ ] **Step 14**: Update ROADMAP.md
 - [ ] **Step 15**: Update CHANGELOG.md
-- [ ] **Step 16**: Update docs/history/2026-01.md
+- [ ] **Step 16**: Update docs/releases/v0.11.0/README.md
 - [ ] **Step 17**: Update docs/INVENTORY.md
 - [ ] **Step 18**: Comment Issue with implementation summary
 - [ ] **Step 19**: **STOP - Wait for user review**
