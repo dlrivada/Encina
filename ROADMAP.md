@@ -161,11 +161,11 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ Module Isolation by Database Permissions [#534](https://github.com/dlrivada/Encina/issues/534) - Schema-based module isolation across all providers
 - ✅ Read/Write Database Separation [#283](https://github.com/dlrivada/Encina/issues/283) - CQRS physical split with automatic routing and read replica support
 - ✅ Bulk Operations (Insert/Update/Delete) [#284](https://github.com/dlrivada/Encina/issues/284) - High-performance bulk operations up to 459x faster
+- ✅ Audit Trail Pattern (IAuditableEntity) [#286](https://github.com/dlrivada/Encina/issues/286) - Granular interfaces, EF Core interceptor, explicit helpers for all 13 providers
 
 **Remaining:**
 
 - Soft Delete & Temporal Tables
-- Audit Trail Pattern
 - Optimistic Concurrency
 - CDC Integration
 - Pagination abstractions
@@ -177,7 +177,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 *Production-ready for EU/GDPR*
 
 - Core Security abstractions
-- Audit Trail logging
+- ~~Audit Trail logging~~ (Moved to v0.12.0 as #286)
 - Field-Level Encryption
 - PII Masking
 - GDPR Core (RoPA, Consent, Data Subject Rights)

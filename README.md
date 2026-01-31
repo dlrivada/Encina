@@ -36,6 +36,7 @@ Encina is a comprehensive toolkit for building robust .NET applications. Built o
 - **Railway Oriented Programming**: All operations return `Either<EncinaError, T>` - no exceptions for business logic
 - **CQRS Support**: Explicit `ICommand<T>` and `IQuery<T>` contracts with dedicated handlers
 - **Pipeline Behaviors**: Composable middleware for validation, caching, transactions, and more
+- **Audit Trail**: Automatic tracking of who created/modified entities and when (see [docs](docs/features/audit-tracking.md))
 - **Streaming**: `IAsyncEnumerable` support via `IStreamRequest<TItem>`
 - **Observability**: Built-in OpenTelemetry integration with ActivitySource and Metrics
 - **Pay-for-What-You-Use**: All features are opt-in via satellite packages

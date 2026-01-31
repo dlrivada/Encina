@@ -101,6 +101,222 @@
 - Caching: Redis, Memory
 - Event sourcing: Marten
 
+#### Specialized Provider Categories (Beyond the 13 Database Providers)
+
+Beyond the 13 database providers, Encina has **specialized provider categories** that apply to specific feature areas. Each category has its own coherence rules.
+
+##### 1. Caching Providers (8 providers)
+
+| Provider | Type | Characteristics |
+|----------|------|-----------------|
+| **Encina.Caching.Memory** | L1 (In-Memory) | `IMemoryCache` wrapper, no distribution |
+| **Encina.Caching.Hybrid** | L1+L2 (Multi-tier) | .NET 10 `HybridCache`, best of both |
+| **Encina.Caching.Redis** | L2 (Distributed) | StackExchange.Redis, industry standard |
+| **Encina.Caching.Valkey** | L2 (Distributed) | Open-source Redis fork (LF project) |
+| **Encina.Caching.Dragonfly** | L2 (Distributed) | Redis-compatible, lower latency |
+| **Encina.Caching.Garnet** | L2 (Distributed) | Microsoft's Redis alternative (C# native) |
+| **Encina.Caching.KeyDB** | L2 (Distributed) | Redis-compatible, multi-threaded |
+| **Encina.Caching.Memcached** | L2 (Distributed) | Simple protocol (planned) |
+
+**When caching provider rules apply:**
+
+- Implementing `ICacheProvider`
+- Implementing `IPubSubProvider` (for backplane sync)
+- Cache stampede protection, eager refresh, fail-safe patterns
+- Tag-based invalidation, read/write-through patterns
+
+**All 8 caching providers must support:**
+
+- Get/Set/Remove operations
+- TTL and expiration
+- Serialization abstraction
+- Pub/Sub for backplane (where applicable)
+
+##### 2. Messaging Transport Providers (10 existing + 6 planned)
+
+| Provider | Strategy | Best For |
+|----------|----------|----------|
+| **Encina.RabbitMQ** | Message Broker | Task distribution, work queues |
+| **Encina.AzureServiceBus** | Message Broker | Azure-native, enterprise |
+| **Encina.AmazonSQS** | Message Broker | AWS-native, serverless |
+| **Encina.Kafka** | Event Streaming | Audit logs, event sourcing, replay |
+| **Encina.NATS** | Pub/Sub + JetStream | Real-time, IoT, edge |
+| **Encina.Redis.PubSub** | Pub/Sub | Real-time broadcasting |
+| **Encina.MQTT** | Pub/Sub (IoT) | IoT devices, constrained networks |
+| **Encina.InMemory** | Testing | Unit tests, development |
+| **Encina.gRPC** | Request/Response | Service-to-service RPC |
+| **Encina.GraphQL** | Query Language | API gateway, BFF |
+
+**Planned transports (v0.15.0):**
+
+- `Encina.GoogleCloudPubSub` - GCP coverage
+- `Encina.AmazonEventBridge` - AWS EventBridge
+- `Encina.Pulsar` - Apache Pulsar
+- `Encina.Redis.Streams` - Redis Streams
+- `Encina.ActiveMQ` - Apache ActiveMQ Artemis
+- `Encina.Dapr` - Dapr abstraction layer
+
+**When messaging transport rules apply:**
+
+- Implementing `IMessageTransport`
+- Outbox publishing to external brokers
+- Inbox consumption from external sources
+- Dead letter queue handling
+
+**All messaging transports must support:**
+
+- Send/Publish operations
+- Subscription management
+- Error handling and DLQ
+- Message metadata propagation
+
+##### 3. Distributed Lock Providers (4 existing + 8 planned)
+
+| Provider | Backend | Mechanism |
+|----------|---------|-----------|
+| **Encina.DistributedLock.InMemory** | In-Memory | Single-process (testing) |
+| **Encina.DistributedLock.Redis** | Redis | Redlock algorithm |
+| **Encina.DistributedLock.SqlServer** | SQL Server | `sp_getapplock` |
+| **Encina.DistributedLock.PostgreSQL** | PostgreSQL | `pg_advisory_lock` (planned) |
+| **Encina.DistributedLock.MySQL** | MySQL | `GET_LOCK` (planned) |
+| **Encina.DistributedLock.Azure** | Azure Blob | Blob leases (planned) |
+| **Encina.DistributedLock.DynamoDB** | DynamoDB | Conditional writes (planned) |
+| **Encina.DistributedLock.Consul** | Consul | Sessions (planned) |
+| **Encina.DistributedLock.etcd** | etcd | Leases (planned) |
+| **Encina.DistributedLock.ZooKeeper** | ZooKeeper | Ephemeral nodes (planned) |
+
+**When distributed lock rules apply:**
+
+- Implementing `IDistributedLockProvider`
+- Leader election features
+- Resource coordination patterns
+
+**All lock providers must support:**
+
+- TryAcquire with timeout
+- Auto-release on timeout
+- Cancellation token support
+
+##### 4. Validation Providers (3 providers)
+
+| Provider | Framework | Characteristics |
+|----------|-----------|-----------------|
+| **Encina.FluentValidation** | FluentValidation | Fluent API, complex rules, async |
+| **Encina.DataAnnotations** | DataAnnotations | Attribute-based, built-in |
+| **Encina.MiniValidator** | MiniValidator | Lightweight, zero-allocation |
+
+**When validation provider rules apply:**
+
+- Implementing `IValidationProvider`
+- Registration via `ServiceCollectionExtensions`
+
+**All validation providers must:**
+
+- Integrate with `ValidationOrchestrator`
+- Return `ValidationResult` with errors
+- Support the same `ValidationPipelineBehavior`
+
+##### 5. Scheduling Providers (2 + adapters)
+
+| Provider | Backend | Characteristics |
+|----------|---------|-----------------|
+| **Encina.Messaging** (built-in) | Database | In-database scheduling, simple |
+| **Encina.Hangfire** | Hangfire | Persistent jobs, dashboard |
+| **Encina.Quartz** | Quartz.NET | Advanced triggers, clustering |
+
+**When scheduling rules apply:**
+
+- Implementing `IScheduledMessageStore`
+- Scheduler backend adapters
+
+##### 6. Event Sourcing Providers (1 primary)
+
+| Provider | Backend | Characteristics |
+|----------|---------|-----------------|
+| **Encina.Marten** | PostgreSQL | Event store + document DB |
+| **Encina.EventStoreDB** | EventStoreDB | Dedicated event store (future) |
+
+**When event sourcing rules apply:**
+
+- Implementing aggregate repositories
+- Projection infrastructure
+- Snapshot handling
+- GDPR compliance (crypto-shredding)
+
+##### 7. Cloud/Serverless Providers (3 providers)
+
+| Provider | Platform | Triggers |
+|----------|----------|----------|
+| **Encina.AzureFunctions** | Azure Functions | HTTP, Queue, Timer, Durable |
+| **Encina.AwsLambda** | AWS Lambda | HTTP, SQS, CloudWatch, API Gateway |
+| **Encina.GoogleCloudFunctions** | GCP Functions | HTTP, Pub/Sub (planned) |
+
+**Cloud provider triangle rule:**
+When implementing cloud-specific features, consider AWS/Azure/GCP coverage.
+
+##### 8. Resilience Providers (3 providers)
+
+| Provider | Framework | Use Case |
+|----------|-----------|----------|
+| **Encina.Polly** | Polly | Circuit breaker, retry, bulkhead |
+| **Encina.Extensions.Resilience** | Microsoft.Extensions.Resilience | .NET 10 native patterns |
+| **Encina.Extensions.Http.Resilience** | Microsoft.Extensions.Http.Resilience | HTTP client resilience |
+
+##### 9. Observability Providers (1 + exporters)
+
+| Provider | Backend | Purpose |
+|----------|---------|---------|
+| **Encina.OpenTelemetry** | OpenTelemetry SDK | Tracing, metrics, instrumentation |
+| **Encina.OpenTelemetry.AzureMonitor** | Azure Monitor | Azure exporter (planned) |
+| **Encina.OpenTelemetry.AwsXRay** | AWS X-Ray | AWS exporter (planned) |
+| **Encina.OpenTelemetry.Prometheus** | Prometheus | Metrics scraping (planned) |
+
+##### 10. Testing Providers (12 packages)
+
+| Provider | Purpose |
+|----------|---------|
+| **Encina.Testing** | Core test fixtures, fluent assertions |
+| **Encina.Testing.Fakes** | Fake IEncina, stores, collectors |
+| **Encina.Testing.Respawn** | Database reset between tests |
+| **Encina.Testing.WireMock** | HTTP mocking |
+| **Encina.Testing.Shouldly** | Shouldly assertions |
+| **Encina.Testing.Verify** | Snapshot testing |
+| **Encina.Testing.Bogus** | Fake data generation |
+| **Encina.Testing.FsCheck** | Property-based testing |
+| **Encina.Testing.Architecture** | ArchUnitNET rules |
+| **Encina.Testing.Testcontainers** | Docker-based DB testing |
+| **Encina.Testing.TUnit** | NativeAOT-compatible tests |
+| **Encina.Testing.Pact** | Contract testing |
+
+#### Provider Applicability Matrix
+
+Use this matrix to determine which providers apply to each feature type:
+
+| Feature Type | Database (13) | Caching (8) | Transport (10+) | Lock (4+) | Validation (3) |
+|--------------|:-------------:|:-----------:|:---------------:|:---------:|:--------------:|
+| **Outbox/Inbox/Saga** | ✅ Required | ❌ | ❌ | ❌ | ❌ |
+| **Scheduled Messages** | ✅ Required | ❌ | ❌ | ❌ | ❌ |
+| **Query Caching** | ❌ | ✅ Required | ❌ | ❌ | ❌ |
+| **Message Publishing** | ❌ | ❌ | ✅ Required | ❌ | ❌ |
+| **Resource Locking** | ❌ | ❌ | ❌ | ✅ Required | ❌ |
+| **Request Validation** | ❌ | ❌ | ❌ | ❌ | ✅ Required |
+| **Unit of Work** | ✅ Required | ❌ | ❌ | ❌ | ❌ |
+| **Multi-Tenancy** | ✅ Required | ✅ Where applicable | ✅ Where applicable | ❌ | ❌ |
+| **Audit Trail** | ✅ Required | ❌ | ❌ | ❌ | ❌ |
+
+#### When to Consider Each Provider Category
+
+| Scenario | Providers to Consider |
+|----------|----------------------|
+| Implementing a messaging store feature | All 13 database providers |
+| Adding a new cache pattern | All 8 caching providers |
+| Creating a new transport-agnostic feature | All messaging transports |
+| Adding cloud-specific feature | AWS + Azure + GCP (triangle) |
+| Creating a validation pattern | All 3 validation providers |
+| Adding distributed coordination | All distributed lock providers |
+
+> **Rule of thumb**: If a feature touches provider-specific code, it must be implemented consistently across ALL providers in that category.
+
 #### Opt-In Configuration
 
 All messaging patterns are disabled by default:
@@ -908,11 +1124,16 @@ await connection.QueryAsync<Message>(sql, new { NowUtc = nowUtc });
 5. ❌ Don't make patterns mandatory - everything is opt-in
 6. ❌ Don't mix provider-specific code with abstractions
 7. ❌ Don't compromise design for non-existent legacy users
-8. ❌ Don't implement provider features for only some providers - ALL 13 required (see Multi-Provider Implementation Rule)
-9. ❌ Don't skip test types without creating a justification `.md` file
-10. ❌ Don't leave test coverage below 85%
-11. ❌ Don't use `BenchmarkRunner.Run<T>()` - use `BenchmarkSwitcher.FromAssembly().Run(args, config)` (see BenchmarkDotNet Guidelines)
-12. ❌ Don't return `IQueryable<T>` from benchmark methods - always materialize with `.ToList()`
+8. ❌ Don't implement database features for only some providers - ALL 13 database providers required
+9. ❌ Don't implement caching features for only some providers - ALL 8 caching providers required
+10. ❌ Don't implement messaging features for only some transports - consider ALL applicable transports
+11. ❌ Don't implement cloud features without considering AWS/Azure/GCP triangle
+12. ❌ Don't skip test types without creating a justification `.md` file
+13. ❌ Don't leave test coverage below 85%
+14. ❌ Don't use `BenchmarkRunner.Run<T>()` - use `BenchmarkSwitcher.FromAssembly().Run(args, config)`
+15. ❌ Don't return `IQueryable<T>` from benchmark methods - always materialize with `.ToList()`
+
+> **Provider Rules Summary**: See [Specialized Provider Categories](#specialized-provider-categories-beyond-the-13-database-providers) for detailed rules on each provider category.
 
 ### Remember
 >

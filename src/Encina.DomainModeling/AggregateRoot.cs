@@ -202,3 +202,219 @@ public abstract class SoftDeletableAggregateRoot<TId> : AuditableAggregateRoot<T
         DeletedBy = null;
     }
 }
+
+/// <summary>
+/// Base class for aggregate roots with automatic audit tracking via EF Core interceptors.
+/// </summary>
+/// <typeparam name="TId">The type of the aggregate root identifier.</typeparam>
+/// <remarks>
+/// <para>
+/// This class extends <see cref="AggregateRoot{TId}"/> and implements <see cref="IAuditableEntity"/>
+/// with public setters, allowing the <c>AuditInterceptor</c> to automatically populate
+/// audit fields when aggregates are added or modified.
+/// </para>
+/// <para>
+/// <b>AuditedAggregateRoot vs AuditableAggregateRoot:</b>
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <see cref="AuditedAggregateRoot{TId}"/>: Uses <see cref="IAuditableEntity"/> with <b>public setters</b>.
+///       Audit fields are automatically populated by interceptors. Best for typical CRUD scenarios.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       <see cref="AuditableAggregateRoot{TId}"/>: Uses <see cref="IAuditable"/> with <b>private setters</b>.
+///       Audit fields are set via explicit domain methods (<c>SetCreatedBy</c>, <c>SetModifiedBy</c>).
+///       Best for immutable domain patterns.
+///     </description>
+///   </item>
+/// </list>
+/// </para>
+/// <para>
+/// This class also inherits <see cref="IConcurrencyAware"/> from <see cref="AggregateRoot{TId}"/>,
+/// providing optimistic concurrency support via <see cref="AggregateRoot{TId}.RowVersion"/>.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public class Order : AuditedAggregateRoot&lt;OrderId&gt;
+/// {
+///     public string CustomerName { get; private set; }
+///     public OrderStatus Status { get; private set; }
+///
+///     private Order() : base(default!) { } // For ORM
+///
+///     public static Order Create(OrderId id, string customerName)
+///     {
+///         var order = new Order(id) { CustomerName = customerName, Status = OrderStatus.Pending };
+///         order.RaiseDomainEvent(new OrderCreated(id.Value, customerName));
+///         return order;
+///     }
+/// }
+///
+/// // Configuration - audit fields are automatically populated
+/// services.AddEncinaEntityFrameworkCore(config =>
+/// {
+///     config.UseAuditing = true;
+/// });
+/// </code>
+/// </example>
+public abstract class AuditedAggregateRoot<TId> : AggregateRoot<TId>, IAuditableEntity
+    where TId : notnull
+{
+    /// <summary>
+    /// Gets the time provider used for setting audit timestamps in tests.
+    /// </summary>
+    /// <remarks>
+    /// This property is primarily used for unit testing to inject a controlled time source.
+    /// In production, the <c>AuditInterceptor</c> sets the timestamps directly.
+    /// </remarks>
+    protected TimeProvider TimeProvider { get; }
+
+    /// <inheritdoc />
+    public DateTime CreatedAtUtc { get; set; }
+
+    /// <inheritdoc />
+    public string? CreatedBy { get; set; }
+
+    /// <inheritdoc />
+    public DateTime? ModifiedAtUtc { get; set; }
+
+    /// <inheritdoc />
+    public string? ModifiedBy { get; set; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AuditedAggregateRoot{TId}"/> class.
+    /// </summary>
+    /// <param name="id">The unique identifier for this aggregate root.</param>
+    /// <param name="timeProvider">
+    /// Optional time provider for testing. In production, the <c>AuditInterceptor</c>
+    /// sets the timestamps, so this parameter is typically only used in tests.
+    /// </param>
+    protected AuditedAggregateRoot(TId id, TimeProvider? timeProvider = null) : base(id)
+    {
+        TimeProvider = timeProvider ?? TimeProvider.System;
+    }
+}
+
+/// <summary>
+/// Base class for aggregate roots with automatic audit tracking and soft delete support.
+/// </summary>
+/// <typeparam name="TId">The type of the aggregate root identifier.</typeparam>
+/// <remarks>
+/// <para>
+/// This class extends <see cref="AuditedAggregateRoot{TId}"/> and implements <see cref="ISoftDeletable"/>,
+/// combining automatic audit population with soft delete capabilities. Use this when you need:
+/// <list type="bullet">
+///   <item><description>Automatic creation and modification tracking via interceptors</description></item>
+///   <item><description>Soft delete support with deletion tracking</description></item>
+///   <item><description>Optimistic concurrency via RowVersion</description></item>
+/// </list>
+/// </para>
+/// <para>
+/// Soft delete properties (<see cref="IsDeleted"/>, <see cref="DeletedAtUtc"/>, <see cref="DeletedBy"/>)
+/// have public setters for interceptor compatibility, but prefer using the <see cref="Delete"/> and
+/// <see cref="Restore"/> methods for domain logic as they maintain consistency.
+/// </para>
+/// <para>
+/// <b>FullyAuditedAggregateRoot vs SoftDeletableAggregateRoot:</b>
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <see cref="FullyAuditedAggregateRoot{TId}"/>: Uses <see cref="IAuditableEntity"/> with <b>public setters</b>.
+///       Best for interceptor-based automatic population.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       <see cref="SoftDeletableAggregateRoot{TId}"/>: Uses <see cref="IAuditable"/> with <b>private setters</b>.
+///       Best for method-based population in immutable domain patterns.
+///     </description>
+///   </item>
+/// </list>
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public class Customer : FullyAuditedAggregateRoot&lt;CustomerId&gt;
+/// {
+///     public string Name { get; private set; }
+///     public string Email { get; private set; }
+///
+///     private Customer() : base(default!) { } // For ORM
+///
+///     public static Customer Create(CustomerId id, string name, string email)
+///     {
+///         var customer = new Customer(id) { Name = name, Email = email };
+///         customer.RaiseDomainEvent(new CustomerCreated(id.Value, name));
+///         return customer;
+///     }
+///
+///     public void Deactivate(string? deletedBy = null)
+///     {
+///         Delete(deletedBy);
+///         RaiseDomainEvent(new CustomerDeactivated(Id.Value));
+///     }
+/// }
+/// </code>
+/// </example>
+public abstract class FullyAuditedAggregateRoot<TId> : AuditedAggregateRoot<TId>, ISoftDeletable
+    where TId : notnull
+{
+    /// <inheritdoc />
+    public bool IsDeleted { get; set; }
+
+    /// <inheritdoc />
+    public DateTime? DeletedAtUtc { get; set; }
+
+    /// <inheritdoc />
+    public string? DeletedBy { get; set; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FullyAuditedAggregateRoot{TId}"/> class.
+    /// </summary>
+    /// <param name="id">The unique identifier for this aggregate root.</param>
+    /// <param name="timeProvider">
+    /// Optional time provider for testing. In production, the <c>AuditInterceptor</c>
+    /// sets the timestamps, so this parameter is typically only used in tests.
+    /// </param>
+    protected FullyAuditedAggregateRoot(TId id, TimeProvider? timeProvider = null) : base(id, timeProvider)
+    {
+    }
+
+    /// <summary>
+    /// Marks this aggregate as deleted (soft delete).
+    /// </summary>
+    /// <param name="deletedBy">The identifier of the user who deleted this aggregate.</param>
+    /// <remarks>
+    /// <para>
+    /// This method sets <see cref="IsDeleted"/> to <c>true</c>, <see cref="DeletedAtUtc"/> to the
+    /// current UTC time, and <see cref="DeletedBy"/> to the provided user identifier.
+    /// </para>
+    /// <para>
+    /// Query filters should be configured in EF Core to automatically exclude soft-deleted entities
+    /// from normal queries. Use <c>.IgnoreQueryFilters()</c> when you need to access deleted entities.
+    /// </para>
+    /// </remarks>
+    public virtual void Delete(string? deletedBy = null)
+    {
+        IsDeleted = true;
+        DeletedAtUtc = TimeProvider.GetUtcNow().UtcDateTime;
+        DeletedBy = deletedBy;
+    }
+
+    /// <summary>
+    /// Restores a soft-deleted aggregate.
+    /// </summary>
+    /// <remarks>
+    /// This method sets <see cref="IsDeleted"/> to <c>false</c> and clears <see cref="DeletedAtUtc"/>
+    /// and <see cref="DeletedBy"/> properties.
+    /// </remarks>
+    public virtual void Restore()
+    {
+        IsDeleted = false;
+        DeletedAtUtc = null;
+        DeletedBy = null;
+    }
+}

@@ -2,6 +2,86 @@
 
 ### Added
 
+#### Audit Trail Pattern (IAuditableEntity) (#286)
+
+Added comprehensive audit trail tracking for entity creation, modification, and soft delete operations across all 13 database providers.
+
+**Granular Interfaces**:
+
+| Interface | Property | Type | Description |
+|-----------|----------|------|-------------|
+| `ICreatedAtUtc` | `CreatedAtUtc` | `DateTime` | Creation timestamp |
+| `ICreatedBy` | `CreatedBy` | `string?` | Creator user ID |
+| `IModifiedAtUtc` | `ModifiedAtUtc` | `DateTime?` | Last modification timestamp |
+| `IModifiedBy` | `ModifiedBy` | `string?` | Last modifier user ID |
+| `IAuditableEntity` | All above | - | Composite interface for EF Core |
+| `IAuditable` | All above (read-only) | - | For immutable records |
+| `ISoftDeletable` | `IsDeleted`, `DeletedAtUtc`, `DeletedBy` | - | Soft delete tracking |
+
+**Base Classes**:
+
+| Class | Description |
+|-------|-------------|
+| `AuditedEntity<TId>` | Entity with audit fields |
+| `AuditedAggregateRoot<TId>` | Aggregate with audit + concurrency |
+| `FullyAuditedAggregateRoot<TId>` | Audit + soft delete |
+| `AuditableAggregateRoot<TId>` | Immutable audit pattern |
+| `SoftDeletableAggregateRoot<TId>` | Immutable soft delete |
+
+**EF Core Automatic Tracking**:
+
+```csharp
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseAuditing = true;
+    config.AuditingOptions.TrackCreatedBy = true;
+    config.AuditingOptions.TrackModifiedBy = true;
+});
+```
+
+**Non-EF Core Explicit Helpers**:
+
+```csharp
+// Static helper
+AuditFieldPopulator.PopulateForCreate(entity, userId, timeProvider);
+AuditFieldPopulator.PopulateForUpdate(entity, userId, timeProvider);
+AuditFieldPopulator.PopulateForDelete(entity, userId, timeProvider);
+
+// Extension methods (per provider)
+entity.WithAuditCreate(userId, timeProvider);
+entity.WithAuditUpdate(userId, timeProvider);
+```
+
+**Optional Audit Log Store**:
+
+```csharp
+// Enable detailed audit logging
+config.AuditingOptions.LogChangesToStore = true;
+services.AddSingleton<IAuditLogStore, InMemoryAuditLogStore>();
+```
+
+**Provider Support**:
+
+| Provider | Automatic (Interceptor) | Manual (Helpers) |
+|----------|------------------------|------------------|
+| EF Core (4 DBs) | ✅ | ✅ |
+| Dapper (4 DBs) | ❌ | ✅ |
+| ADO.NET (4 DBs) | ❌ | ✅ |
+| MongoDB | ❌ | ✅ |
+
+**Tests Added**:
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 135 | Interfaces, base classes, interceptor, utilities |
+| Guard Tests | 19 | Null parameter validation |
+
+**Documentation**: See `docs/features/audit-tracking.md` for complete guide.
+
+**Related Issue**: [#286 - Audit Trail Pattern (IAuditableEntity)](https://github.com/dlrivada/Encina/issues/286)
+
+---
+
 #### Immutable Records Support for IUnitOfWork and IFunctionalRepository (#572)
 
 Extended immutable record support to `IUnitOfWork` and `IFunctionalRepository` interfaces, providing a consistent API for updating immutable aggregates across all data access patterns.

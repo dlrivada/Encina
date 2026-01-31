@@ -62,6 +62,48 @@
 
 ---
 
+## Reglas de Coherencia de Proveedores
+
+> **IMPORTANTE**: Esta sección define las reglas de implementación para cada categoría de proveedores. Ver también [CLAUDE.md](../CLAUDE.md) para las reglas detalladas.
+
+### Proveedores de Base de Datos (13 obligatorios)
+
+Los patrones de mensajería (Outbox, Inbox, Saga, Scheduling) DEBEN implementarse para los 13 proveedores de base de datos:
+
+| Categoría | Proveedores | Total |
+|-----------|-------------|-------|
+| ADO.NET | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
+| Dapper | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
+| EF Core | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
+| MongoDB | MongoDB | 1 |
+
+### Proveedores Especializados por Categoría
+
+| Categoría | Proveedores | Aplica a Features |
+|-----------|-------------|-------------------|
+| **Caching** (8) | Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB, Memcached | Query caching, cache patterns |
+| **Messaging** (10+) | RabbitMQ, Kafka, NATS, MQTT, Azure SB, SQS, GCP Pub/Sub, etc. | Event publishing, subscriptions |
+| **Distributed Lock** (4+) | InMemory, Redis, SqlServer, PostgreSQL, etc. | Resource coordination |
+| **Validation** (3) | FluentValidation, DataAnnotations, MiniValidator | Request validation |
+| **Scheduling** (2+) | Built-in, Hangfire, Quartz | Job scheduling |
+| **Event Sourcing** (1+) | Marten, EventStoreDB (future) | Aggregate persistence |
+| **Cloud** (3) | Azure, AWS, GCP | Serverless, cloud-native |
+| **Testing** (12) | Fakes, Respawn, WireMock, etc. | Test infrastructure |
+
+### Matriz de Aplicabilidad
+
+| Feature Type | Database (13) | Caching (8) | Transport (10+) | Validation (3) |
+|--------------|:-------------:|:-----------:|:---------------:|:--------------:|
+| Outbox/Inbox/Saga | ✅ | ❌ | ❌ | ❌ |
+| Query Caching | ❌ | ✅ | ❌ | ❌ |
+| Event Publishing | ❌ | ❌ | ✅ | ❌ |
+| Request Validation | ❌ | ❌ | ❌ | ✅ |
+| Multi-Tenancy | ✅ | ✅ | ✅ | ❌ |
+
+> **Regla**: Si una feature toca código específico de proveedor, DEBE implementarse consistentemente en TODOS los proveedores de esa categoría.
+
+---
+
 ## Arquitectura General
 
 ```mermaid
@@ -1592,7 +1634,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | Issue | Feature | Descripción | Prioridad | Complejidad | Labels |
 |-------|---------|-------------|-----------|-------------|--------|
 | **#285** | Soft Delete & Temporal | Borrado lógico + tablas temporales SQL Server | Alta | Baja | `area-audit`, `area-compliance`, `area-gdpr`, `dotnet-10` |
-| **#286** | Audit Trail | IAuditableEntity con CreatedAt/By, ModifiedAt/By | Alta | Baja | `area-audit`, `area-compliance`, `area-observability` |
+| **#286** ✅ | Audit Trail | IAuditableEntity con CreatedAt/By, ModifiedAt/By | Alta | Baja | `area-audit`, `area-compliance`, `area-observability` |
 
 **#285 - Soft Delete & Temporal Tables**:
 
@@ -1602,13 +1644,17 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - `ITemporalRepository<TEntity, TId>` para SQL Server temporal tables
 - Queries: GetAsOfAsync, GetHistoryAsync, GetChangedBetweenAsync
 
-**#286 - Audit Trail Pattern**:
+**#286 - Audit Trail Pattern** ✅ **COMPLETADO (30-ene-2026)**:
 
-- Interfaces: `ICreatedAtUtc`, `ICreatedBy`, `IModifiedAtUtc`, `IModifiedBy`, `IAuditableEntity`
-- `AuditInterceptor` para población automática en SaveChanges
+- Interfaces granulares: `ICreatedAtUtc`, `ICreatedBy`, `IModifiedAtUtc`, `IModifiedBy`, `IAuditableEntity`, `IAuditable`
+- `AuditInterceptor` (EF Core) para población automática en SaveChanges
+- `AuditFieldPopulator` + extensiones para Dapper/ADO.NET/MongoDB
 - Integración con `IRequestContext.UserId`
 - `TimeProvider` para timestamps testeables
-- Opcional: `IAuditLogStore` para log detallado de cambios
+- Opcional: `IAuditLogStore`, `InMemoryAuditLogStore` para log detallado de cambios
+- Base classes: `AuditedEntity<TId>`, `AuditedAggregateRoot<TId>`, `FullyAuditedAggregateRoot<TId>`
+- Soporte para los 13 providers (EF Core 4, Dapper 4, ADO.NET 4, MongoDB 1)
+- 154+ tests (Unit, Guard)
 
 ##### Domain Model Patterns (Issues #287, #292-#293)
 

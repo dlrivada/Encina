@@ -1,4 +1,5 @@
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Auditing;
 using Encina.EntityFrameworkCore.BulkOperations;
 using Encina.EntityFrameworkCore.DomainEvents;
 using Encina.EntityFrameworkCore.Health;
@@ -255,6 +256,27 @@ public static class ServiceCollectionExtensions
 
             // Register the interceptor as singleton
             services.TryAddSingleton<DomainEventDispatcherInterceptor>();
+        }
+
+        if (config.UseAuditing)
+        {
+            // Register audit interceptor options
+            var auditOptions = new AuditInterceptorOptions
+            {
+                Enabled = true,
+                TrackCreatedAt = config.AuditingOptions.TrackCreatedAt,
+                TrackCreatedBy = config.AuditingOptions.TrackCreatedBy,
+                TrackModifiedAt = config.AuditingOptions.TrackModifiedAt,
+                TrackModifiedBy = config.AuditingOptions.TrackModifiedBy,
+                LogAuditChanges = config.AuditingOptions.LogAuditChanges
+            };
+            services.TryAddSingleton(auditOptions);
+
+            // Register TimeProvider for consistent timestamps
+            services.TryAddSingleton(TimeProvider.System);
+
+            // Register the interceptor as singleton
+            services.TryAddSingleton<AuditInterceptor>();
         }
 
         // Register provider health check if enabled

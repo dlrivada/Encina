@@ -1,3 +1,4 @@
+using Encina.Messaging.Auditing;
 using Encina.Messaging.ContentRouter;
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.DomainEvents;
@@ -342,6 +343,40 @@ public sealed class MessagingConfiguration
     public bool UseReadWriteSeparation { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable automatic audit field population.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, entities implementing <see cref="Encina.DomainModeling.IAuditableEntity"/>
+    /// (or its granular interfaces <see cref="Encina.DomainModeling.ICreatedAtUtc"/>,
+    /// <see cref="Encina.DomainModeling.ICreatedBy"/>, <see cref="Encina.DomainModeling.IModifiedAtUtc"/>,
+    /// <see cref="Encina.DomainModeling.IModifiedBy"/>) will have their audit fields automatically
+    /// populated during save operations.
+    /// </para>
+    /// <para>
+    /// Features include:
+    /// <list type="bullet">
+    /// <item><description>Automatic <c>CreatedAtUtc</c> and <c>CreatedBy</c> on entity creation</description></item>
+    /// <item><description>Automatic <c>ModifiedAtUtc</c> and <c>ModifiedBy</c> on entity modification</description></item>
+    /// <item><description>User ID resolution from <see cref="IRequestContext.UserId"/></description></item>
+    /// <item><description>Granular control via <see cref="AuditingOptions"/></description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseAuditing = true;
+    ///     config.AuditingOptions.TrackCreatedBy = true;
+    ///     config.AuditingOptions.TrackModifiedBy = true;
+    /// });
+    /// </code>
+    /// </example>
+    public bool UseAuditing { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -488,6 +523,33 @@ public sealed class MessagingConfiguration
     public DomainEventsOptions DomainEventsOptions { get; } = new();
 
     /// <summary>
+    /// Gets the configuration options for automatic audit field population.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use this to configure:
+    /// <list type="bullet">
+    /// <item><description>Whether to track creation timestamps (<c>TrackCreatedAt</c>)</description></item>
+    /// <item><description>Whether to track creation user (<c>TrackCreatedBy</c>)</description></item>
+    /// <item><description>Whether to track modification timestamps (<c>TrackModifiedAt</c>)</description></item>
+    /// <item><description>Whether to track modification user (<c>TrackModifiedBy</c>)</description></item>
+    /// <item><description>Whether to log audit changes for debugging (<c>LogAuditChanges</c>)</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseAuditing = true;
+    ///     config.AuditingOptions.TrackCreatedBy = true;
+    ///     config.AuditingOptions.LogAuditChanges = true;
+    /// });
+    /// </code>
+    /// </example>
+    public AuditingOptions AuditingOptions { get; } = new();
+
+    /// <summary>
     /// Gets the configuration options for provider-specific health checks.
     /// </summary>
     /// <remarks>
@@ -506,5 +568,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing;
 }

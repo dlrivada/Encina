@@ -210,3 +210,93 @@ public abstract class Entity<TId> : IEntity<TId>, IEquatable<Entity<TId>>
         return $"{GetType().Name} [Id={Id}]";
     }
 }
+
+/// <summary>
+/// Base class for entities with automatic audit tracking via EF Core interceptors.
+/// </summary>
+/// <typeparam name="TId">The type of the entity identifier.</typeparam>
+/// <remarks>
+/// <para>
+/// This class extends <see cref="Entity{TId}"/> and implements <see cref="IAuditableEntity"/>
+/// with public setters, allowing the <c>AuditInterceptor</c> to automatically populate
+/// audit fields when entities are added or modified.
+/// </para>
+/// <para>
+/// <b>AuditedEntity vs Entity with IAuditable:</b>
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <see cref="AuditedEntity{TId}"/>: Uses <see cref="IAuditableEntity"/> with public setters.
+///       Audit fields are automatically populated by interceptors. Best for typical CRUD scenarios.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       Entity implementing <see cref="IAuditable"/>: Uses getter-only properties.
+///       Audit fields are set via explicit domain methods. Best for immutable domain patterns.
+///     </description>
+///   </item>
+/// </list>
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public class OrderLine : AuditedEntity&lt;Guid&gt;
+/// {
+///     public Guid OrderId { get; private set; }
+///     public string ProductName { get; private set; }
+///     public decimal UnitPrice { get; private set; }
+///     public int Quantity { get; private set; }
+///
+///     private OrderLine() : base(Guid.Empty) { } // For ORM
+///
+///     public OrderLine(Guid id, Guid orderId, string productName, decimal unitPrice, int quantity)
+///         : base(id)
+///     {
+///         OrderId = orderId;
+///         ProductName = productName;
+///         UnitPrice = unitPrice;
+///         Quantity = quantity;
+///     }
+/// }
+/// </code>
+/// </example>
+[SuppressMessage("SonarAnalyzer.CSharp", "S4035:Seal class or implement IEqualityComparer",
+    Justification = "DDD base class: Entity equality is by ID, derived types inherit this semantic")]
+public abstract class AuditedEntity<TId> : Entity<TId>, IAuditableEntity
+    where TId : notnull
+{
+    /// <summary>
+    /// Gets the time provider used for setting audit timestamps in tests.
+    /// </summary>
+    /// <remarks>
+    /// This property is primarily used for unit testing to inject a controlled time source.
+    /// In production, the <c>AuditInterceptor</c> sets the timestamps directly.
+    /// </remarks>
+    protected TimeProvider TimeProvider { get; }
+
+    /// <inheritdoc />
+    public DateTime CreatedAtUtc { get; set; }
+
+    /// <inheritdoc />
+    public string? CreatedBy { get; set; }
+
+    /// <inheritdoc />
+    public DateTime? ModifiedAtUtc { get; set; }
+
+    /// <inheritdoc />
+    public string? ModifiedBy { get; set; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AuditedEntity{TId}"/> class.
+    /// </summary>
+    /// <param name="id">The unique identifier for this entity.</param>
+    /// <param name="timeProvider">
+    /// Optional time provider for testing. In production, the <c>AuditInterceptor</c>
+    /// sets the timestamps, so this parameter is typically only used in tests.
+    /// </param>
+    protected AuditedEntity(TId id, TimeProvider? timeProvider = null) : base(id)
+    {
+        TimeProvider = timeProvider ?? TimeProvider.System;
+    }
+}

@@ -128,6 +128,76 @@ public static class EntityConfigurationExtensions
     }
 
     /// <summary>
+    /// Configures the audit properties for entities with automatic interceptor-based population.
+    /// </summary>
+    /// <typeparam name="T">The entity type that implements <see cref="IAuditableEntity"/>.</typeparam>
+    /// <param name="builder">The entity type builder.</param>
+    /// <returns>The entity type builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method configures the same properties as <see cref="ConfigureAuditProperties{T}"/>,
+    /// but is intended for entities implementing <see cref="IAuditableEntity"/> (with public setters)
+    /// that are automatically populated by the <c>AuditInterceptor</c>.
+    /// </para>
+    /// <para>
+    /// <b>IAuditableEntity vs IAuditable</b>:
+    /// <list type="bullet">
+    /// <item>
+    /// <description>
+    /// <see cref="IAuditableEntity"/>: Has <b>public setters</b> for interceptor-based population.
+    /// Use <see cref="ConfigureAuditableEntityProperties{T}"/> for these entities.
+    /// </description>
+    /// </item>
+    /// <item>
+    /// <description>
+    /// <see cref="IAuditable"/>: Has <b>getter-only</b> properties for method-based population.
+    /// Use <see cref="ConfigureAuditProperties{T}"/> for these entities.
+    /// </description>
+    /// </item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// The configuration includes:
+    /// <list type="bullet">
+    /// <item><description><see cref="IAuditableEntity.CreatedAtUtc"/>: Required, when the entity was created</description></item>
+    /// <item><description><see cref="IAuditableEntity.CreatedBy"/>: Optional (max 256 chars), who created the entity</description></item>
+    /// <item><description><see cref="IAuditableEntity.ModifiedAtUtc"/>: Optional, when the entity was last modified</description></item>
+    /// <item><description><see cref="IAuditableEntity.ModifiedBy"/>: Optional (max 256 chars), who last modified the entity</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// public class OrderConfiguration : IEntityTypeConfiguration&lt;Order&gt;
+    /// {
+    ///     public void Configure(EntityTypeBuilder&lt;Order&gt; builder)
+    ///     {
+    ///         builder.HasKey(o => o.Id);
+    ///         builder.ConfigureAuditableEntityProperties();
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public static EntityTypeBuilder<T> ConfigureAuditableEntityProperties<T>(this EntityTypeBuilder<T> builder)
+        where T : class, IAuditableEntity
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Property(e => e.CreatedAtUtc)
+            .IsRequired();
+
+        builder.Property(e => e.CreatedBy)
+            .HasMaxLength(256);
+
+        builder.Property(e => e.ModifiedAtUtc);
+
+        builder.Property(e => e.ModifiedBy)
+            .HasMaxLength(256);
+
+        return builder;
+    }
+
+    /// <summary>
     /// Configures soft delete support with a global query filter.
     /// </summary>
     /// <typeparam name="T">The entity type that implements <see cref="ISoftDeletable"/>.</typeparam>
@@ -221,8 +291,12 @@ public static class EntityConfigurationExtensions
         builder.Property(e => e.RowVersion)
             .IsRowVersion();
 
-        // Check for IAuditable
-        if (typeof(IAuditable).IsAssignableFrom(typeof(T)))
+        // Check for IAuditableEntity (interceptor-based) first, then IAuditable (method-based)
+        if (typeof(IAuditableEntity).IsAssignableFrom(typeof(T)))
+        {
+            ConfigureAuditableEntityPropertiesInternal(builder);
+        }
+        else if (typeof(IAuditable).IsAssignableFrom(typeof(T)))
         {
             // We need to cast the builder, but since T implements IAuditable, this is safe
             ConfigureAuditableProperties(builder);
@@ -267,8 +341,12 @@ public static class EntityConfigurationExtensions
         builder.Property(e => e.RowVersion)
             .IsRowVersion();
 
-        // Check for IAuditable
-        if (typeof(IAuditable).IsAssignableFrom(typeof(T)))
+        // Check for IAuditableEntity (interceptor-based) first, then IAuditable (method-based)
+        if (typeof(IAuditableEntity).IsAssignableFrom(typeof(T)))
+        {
+            ConfigureAuditableEntityPropertiesInternal(builder);
+        }
+        else if (typeof(IAuditable).IsAssignableFrom(typeof(T)))
         {
             ConfigureAuditableProperties(builder);
         }
@@ -314,6 +392,43 @@ public static class EntityConfigurationExtensions
         if (modifiedByProperty is not null)
         {
             builder.Property(nameof(IAuditable.ModifiedBy))
+                .HasMaxLength(256);
+        }
+    }
+
+    /// <summary>
+    /// Helper method to configure audit properties for IAuditableEntity without requiring the constraint.
+    /// Used internally by ConfigureAggregateRoot when the entity implements IAuditableEntity.
+    /// </summary>
+    private static void ConfigureAuditableEntityPropertiesInternal<T>(EntityTypeBuilder<T> builder)
+        where T : class
+    {
+        var entityType = typeof(T);
+        var createdAtProperty = entityType.GetProperty(nameof(IAuditableEntity.CreatedAtUtc));
+        var createdByProperty = entityType.GetProperty(nameof(IAuditableEntity.CreatedBy));
+        var modifiedAtProperty = entityType.GetProperty(nameof(IAuditableEntity.ModifiedAtUtc));
+        var modifiedByProperty = entityType.GetProperty(nameof(IAuditableEntity.ModifiedBy));
+
+        if (createdAtProperty is not null)
+        {
+            builder.Property(nameof(IAuditableEntity.CreatedAtUtc))
+                .IsRequired();
+        }
+
+        if (createdByProperty is not null)
+        {
+            builder.Property(nameof(IAuditableEntity.CreatedBy))
+                .HasMaxLength(256);
+        }
+
+        if (modifiedAtProperty is not null)
+        {
+            builder.Property(nameof(IAuditableEntity.ModifiedAtUtc));
+        }
+
+        if (modifiedByProperty is not null)
+        {
+            builder.Property(nameof(IAuditableEntity.ModifiedBy))
                 .HasMaxLength(256);
         }
     }
