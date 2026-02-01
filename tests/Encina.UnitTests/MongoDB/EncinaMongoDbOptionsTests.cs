@@ -15,6 +15,7 @@ public sealed class EncinaMongoDbOptionsTests
         options.UseInbox.ShouldBeFalse();
         options.UseSagas.ShouldBeFalse();
         options.UseScheduling.ShouldBeFalse();
+        options.UseAuditLogStore.ShouldBeFalse();
         options.CreateIndexes.ShouldBeTrue();
         options.Collections.ShouldNotBeNull();
         options.SagaOptions.ShouldNotBeNull();
@@ -33,6 +34,7 @@ public sealed class EncinaMongoDbOptionsTests
             UseInbox = true,
             UseSagas = true,
             UseScheduling = true,
+            UseAuditLogStore = true,
             CreateIndexes = false
         };
 
@@ -42,6 +44,7 @@ public sealed class EncinaMongoDbOptionsTests
         options.UseInbox.ShouldBeTrue();
         options.UseSagas.ShouldBeTrue();
         options.UseScheduling.ShouldBeTrue();
+        options.UseAuditLogStore.ShouldBeTrue();
         options.CreateIndexes.ShouldBeFalse();
     }
 }

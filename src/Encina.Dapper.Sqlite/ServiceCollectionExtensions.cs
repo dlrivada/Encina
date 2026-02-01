@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.Dapper.Sqlite.Auditing;
 using Encina.Dapper.Sqlite.BulkOperations;
 using Encina.Dapper.Sqlite.Health;
 using Encina.Dapper.Sqlite.Inbox;
@@ -8,6 +9,7 @@ using Encina.Dapper.Sqlite.Sagas;
 using Encina.Dapper.Sqlite.Scheduling;
 using Encina.Dapper.Sqlite.UnitOfWork;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
 using Encina.Messaging.Health;
 using Microsoft.Data.Sqlite;
@@ -49,6 +51,12 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreDapper,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        // Register audit log store if enabled
+        if (config.UseAuditLogStore)
+        {
+            services.AddScoped<IAuditLogStore, AuditLogStoreDapper>();
+        }
 
         // Register provider health check if enabled
         if (config.ProviderHealthCheck.Enabled)

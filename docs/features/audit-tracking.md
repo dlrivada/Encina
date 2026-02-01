@@ -363,13 +363,12 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
     };
 });
 
-// Optional: Register audit log store for detailed history
-// InMemoryAuditLogStore is for TESTING ONLY - not for production
-services.AddSingleton<IAuditLogStore, InMemoryAuditLogStore>();
+// Register audit log store for detailed history
+// Option 1: Use built-in database-backed store (recommended for production)
+config.UseAuditLogStore = true;  // Auto-registers AuditLogStoreEF
 
-// For production, use database-backed stores (see Issue #574)
-// services.AddScoped<IAuditLogStore, AuditLogStoreEF>();          // EF Core
-// services.AddScoped<IAuditLogStore, AuditLogStoreDapperSqlServer>(); // Dapper
+// Option 2: Use InMemoryAuditLogStore for TESTING ONLY
+// services.AddSingleton<IAuditLogStore, InMemoryAuditLogStore>();
 ```
 
 ---
@@ -534,12 +533,31 @@ public class ModifierOnly : IModifiedBy
 
 ### What about persistent audit log storage?
 
-Currently, only `InMemoryAuditLogStore` is provided (for testing purposes). Persistent database-backed implementations for all 13 providers are tracked in [Issue #574](https://github.com/dlrivada/Encina/issues/574).
+Encina provides persistent database-backed `IAuditLogStore` implementations for all 13 database providers:
 
-For production use with `LogChangesToStore = true`, you can:
+- **EF Core**: `AuditLogStoreEF` - works with SQLite, SQL Server, PostgreSQL, MySQL
+- **Dapper**: `AuditLogStoreDapper` - provider-specific implementations for all 4 databases
+- **ADO.NET**: `AuditLogStoreADO` - provider-specific implementations for all 4 databases
+- **MongoDB**: `AuditLogStoreMongoDB` - with optimized indexes for efficient history lookups
 
-1. **Wait for #574**: Database-backed stores for EF Core, Dapper, ADO.NET, and MongoDB
-2. **Implement your own**: Create a class implementing `IAuditLogStore` for your database
+Enable persistent audit logging:
+
+```csharp
+// EF Core
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseAuditing = true;
+    config.AuditingOptions.LogChangesToStore = true;
+    config.UseAuditLogStore = true;  // Registers AuditLogStoreEF
+});
+
+// MongoDB
+services.AddEncinaMongoDB(config =>
+{
+    config.UseAuditLogStore = true;  // Registers AuditLogStoreMongoDB
+    config.CreateIndexes = true;     // Creates optimized indexes
+});
+```
 
 ### How do I query soft-deleted entities?
 
@@ -590,10 +608,10 @@ services.AddScoped<IRequestContext, HttpRequestContext>();
 | Store | Package | Status | Use Case |
 |-------|---------|--------|----------|
 | `InMemoryAuditLogStore` | `Encina.DomainModeling` | ✅ Available | **Testing only** |
-| `AuditLogStoreEF` | `Encina.EntityFrameworkCore` | 🔜 Planned (#574) | EF Core (all 4 providers) |
-| `AuditLogStoreDapper*` | `Encina.Dapper.*` | 🔜 Planned (#574) | Dapper (4 providers) |
-| `AuditLogStoreAdo*` | `Encina.ADO.*` | 🔜 Planned (#574) | ADO.NET (4 providers) |
-| `AuditLogStoreMongo` | `Encina.MongoDB` | 🔜 Planned (#574) | MongoDB |
+| `AuditLogStoreEF` | `Encina.EntityFrameworkCore` | ✅ Available | EF Core (all 4 providers) |
+| `AuditLogStoreDapper` | `Encina.Dapper.*` | ✅ Available | Dapper (SQLite, SqlServer, PostgreSQL, MySQL) |
+| `AuditLogStoreADO` | `Encina.ADO.*` | ✅ Available | ADO.NET (SQLite, SqlServer, PostgreSQL, MySQL) |
+| `AuditLogStoreMongoDB` | `Encina.MongoDB` | ✅ Available | MongoDB |
 
 ### Custom Implementation
 

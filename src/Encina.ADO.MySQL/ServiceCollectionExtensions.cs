@@ -1,9 +1,11 @@
 using System.Data;
+using Encina.ADO.MySQL.Auditing;
 using Encina.ADO.MySQL.Health;
 using Encina.ADO.MySQL.Inbox;
 using Encina.ADO.MySQL.Outbox;
 using Encina.ADO.MySQL.Sagas;
 using Encina.ADO.MySQL.Scheduling;
+using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,6 +45,12 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreADO,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        // Register audit log store if enabled
+        if (config.UseAuditLogStore)
+        {
+            services.AddScoped<IAuditLogStore, AuditLogStoreADO>();
+        }
 
         // Register provider health check if enabled
         if (config.ProviderHealthCheck.Enabled)

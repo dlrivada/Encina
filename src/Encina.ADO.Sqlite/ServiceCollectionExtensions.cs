@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.ADO.Sqlite.Auditing;
 using Encina.ADO.Sqlite.BulkOperations;
 using Encina.ADO.Sqlite.Health;
 using Encina.ADO.Sqlite.Inbox;
@@ -8,6 +9,7 @@ using Encina.ADO.Sqlite.Sagas;
 using Encina.ADO.Sqlite.Scheduling;
 using Encina.ADO.Sqlite.UnitOfWork;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
 using Encina.Messaging.Health;
 using Microsoft.Data.Sqlite;
@@ -47,6 +49,12 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreADO,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        // Register audit log store if enabled
+        if (config.UseAuditLogStore)
+        {
+            services.AddScoped<IAuditLogStore, AuditLogStoreADO>();
+        }
 
         // Register provider health check if enabled
         if (config.ProviderHealthCheck.Enabled)

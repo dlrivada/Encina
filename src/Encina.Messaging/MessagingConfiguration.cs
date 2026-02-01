@@ -377,6 +377,34 @@ public sealed class MessagingConfiguration
     public bool UseAuditing { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable persistent audit log storage.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, audit log entries are persisted to the database using the
+    /// provider-specific <c>IAuditLogStore</c> implementation. This is separate from
+    /// <see cref="UseAuditing"/> which only populates audit fields on entities.
+    /// </para>
+    /// <para>
+    /// <b>Note</b>: This requires <see cref="UseAuditing"/> to be enabled and
+    /// <see cref="AuditingOptions.LogChangesToStore"/> to be set to <c>true</c>
+    /// for the <c>AuditInterceptor</c> to log changes to the store.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseAuditing = true;
+    ///     config.UseAuditLogStore = true;
+    ///     config.AuditingOptions.LogChangesToStore = true;
+    /// });
+    /// </code>
+    /// </example>
+    public bool UseAuditLogStore { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -568,5 +596,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore;
 }

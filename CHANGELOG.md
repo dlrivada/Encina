@@ -82,6 +82,57 @@ services.AddSingleton<IAuditLogStore, InMemoryAuditLogStore>();
 
 ---
 
+#### Persistent IAuditLogStore Implementations for All 13 Database Providers (#574)
+
+Added database-backed `IAuditLogStore` implementations for all 13 database providers, enabling persistent audit trail storage for production use.
+
+**New Implementations**:
+
+| Store Class | Package | Database |
+|-------------|---------|----------|
+| `AuditLogStoreEF` | `Encina.EntityFrameworkCore` | SQLite, SQL Server, PostgreSQL, MySQL |
+| `AuditLogStoreDapper` | `Encina.Dapper.*` | SQLite, SQL Server, PostgreSQL, MySQL |
+| `AuditLogStoreADO` | `Encina.ADO.*` | SQLite, SQL Server, PostgreSQL, MySQL |
+| `AuditLogStoreMongoDB` | `Encina.MongoDB` | MongoDB |
+
+**MongoDB Support**:
+
+- New `AuditLogDocument` with BSON serialization attributes
+- Optimized indexes for entity history lookups
+- Sparse indexes for UserId and CorrelationId fields
+
+**Configuration**:
+
+```csharp
+// EF Core
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseAuditLogStore = true;  // Registers AuditLogStoreEF
+});
+
+// MongoDB
+services.AddEncinaMongoDB(config =>
+{
+    config.UseAuditLogStore = true;  // Registers AuditLogStoreMongoDB
+});
+
+// Dapper (auto-registered via UseAuditLogStore in options)
+// ADO.NET (auto-registered via UseAuditLogStore in options)
+```
+
+**Tests Added**:
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 45+ | All store implementations |
+| Guard Tests | 20+ | Constructor and method null checks |
+
+**Documentation**: Updated `docs/features/audit-tracking.md` with production configuration examples.
+
+**Related Issue**: [#574 - Persistent IAuditLogStore Implementations](https://github.com/dlrivada/Encina/issues/574)
+
+---
+
 #### Immutable Records Support for IUnitOfWork and IFunctionalRepository (#572)
 
 Extended immutable record support to `IUnitOfWork` and `IFunctionalRepository` interfaces, providing a consistent API for updating immutable aggregates across all data access patterns.

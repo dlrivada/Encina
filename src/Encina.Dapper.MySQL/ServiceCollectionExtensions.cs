@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.Dapper.MySQL.Auditing;
 using Encina.Dapper.MySQL.Health;
 using Encina.Dapper.MySQL.Inbox;
 using Encina.Dapper.MySQL.Outbox;
@@ -7,6 +8,7 @@ using Encina.Dapper.MySQL.Sagas;
 using Encina.Dapper.MySQL.Scheduling;
 using Encina.Dapper.MySQL.UnitOfWork;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,6 +49,12 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreDapper,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        // Register audit log store if enabled
+        if (config.UseAuditLogStore)
+        {
+            services.AddScoped<IAuditLogStore, AuditLogStoreDapper>();
+        }
 
         // Register provider health check if enabled
         if (config.ProviderHealthCheck.Enabled)

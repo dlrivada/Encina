@@ -1,3 +1,4 @@
+using Encina.MongoDB.Auditing;
 using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Outbox;
 using Encina.MongoDB.Sagas;
@@ -52,6 +53,11 @@ internal sealed class MongoDbIndexCreator : IHostedService
             if (_options.UseScheduling)
             {
                 await CreateSchedulingIndexesAsync(database, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (_options.UseAuditLogStore)
+            {
+                await CreateAuditLogIndexesAsync(database, cancellationToken).ConfigureAwait(false);
             }
 
             Log.IndexesCreatedSuccessfully(_logger);
@@ -175,5 +181,47 @@ internal sealed class MongoDbIndexCreator : IHostedService
 
         await collection.Indexes.CreateManyAsync(indexModels, cancellationToken).ConfigureAwait(false);
         Log.CreatedSchedulingIndexes(_logger);
+    }
+
+    private async Task CreateAuditLogIndexesAsync(IMongoDatabase database, CancellationToken cancellationToken)
+    {
+        var collection = database.GetCollection<AuditLogDocument>(_options.Collections.AuditLogs);
+
+        var indexModels = new List<CreateIndexModel<AuditLogDocument>>
+        {
+            // Composite index for efficient history lookups by entity
+            new(
+                Builders<AuditLogDocument>.IndexKeys
+                    .Ascending(d => d.EntityType)
+                    .Ascending(d => d.EntityId),
+                new CreateIndexOptions { Name = "IX_AuditLogs_Entity" }
+            ),
+            // Index for time-based queries
+            new(
+                Builders<AuditLogDocument>.IndexKeys.Ascending(d => d.TimestampUtc),
+                new CreateIndexOptions { Name = "IX_AuditLogs_Timestamp" }
+            ),
+            // Sparse index on UserId for user activity tracking (only non-null values)
+            new(
+                Builders<AuditLogDocument>.IndexKeys.Ascending(d => d.UserId),
+                new CreateIndexOptions
+                {
+                    Name = "IX_AuditLogs_UserId",
+                    Sparse = true
+                }
+            ),
+            // Sparse index on CorrelationId for request correlation tracking (only non-null values)
+            new(
+                Builders<AuditLogDocument>.IndexKeys.Ascending(d => d.CorrelationId),
+                new CreateIndexOptions
+                {
+                    Name = "IX_AuditLogs_CorrelationId",
+                    Sparse = true
+                }
+            )
+        };
+
+        await collection.Indexes.CreateManyAsync(indexModels, cancellationToken).ConfigureAwait(false);
+        Log.CreatedAuditLogIndexes(_logger);
     }
 }

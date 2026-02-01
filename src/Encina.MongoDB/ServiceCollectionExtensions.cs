@@ -1,10 +1,12 @@
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Modules.Isolation;
+using Encina.MongoDB.Auditing;
 using Encina.MongoDB.BulkOperations;
 using Encina.MongoDB.Health;
 using Encina.MongoDB.Inbox;
@@ -93,6 +95,12 @@ public static class ServiceCollectionExtensions
             services.AddScoped<SchedulerOrchestrator>();
         }
 
+        // Register audit log store if enabled
+        if (options.UseAuditLogStore)
+        {
+            services.AddScoped<IAuditLogStore, AuditLogStoreMongoDB>();
+        }
+
         // Create indexes if configured
         if (options.CreateIndexes)
         {
@@ -172,6 +180,12 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreMongoDB>();
             services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
             services.AddScoped<SchedulerOrchestrator>();
+        }
+
+        // Register audit log store if enabled
+        if (options.UseAuditLogStore)
+        {
+            services.AddScoped<IAuditLogStore, AuditLogStoreMongoDB>();
         }
 
         // Create indexes if configured

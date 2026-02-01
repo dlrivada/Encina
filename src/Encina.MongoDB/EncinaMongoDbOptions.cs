@@ -48,6 +48,20 @@ public sealed class EncinaMongoDbOptions
     public bool UseScheduling { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Audit Log Store.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers IAuditLogStore implemented by AuditLogStoreMongoDB.
+    /// </para>
+    /// <para>
+    /// The audit log store provides a persistent backing for detailed audit trail tracking,
+    /// capturing entity changes, user actions, and correlation information.
+    /// </para>
+    /// </remarks>
+    public bool UseAuditLogStore { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to create indexes automatically.
     /// </summary>
     public bool CreateIndexes { get; set; } = true;
@@ -142,4 +156,9 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for scheduled messages.
     /// </summary>
     public string ScheduledMessages { get; set; } = "scheduled_messages";
+
+    /// <summary>
+    /// Gets or sets the collection name for audit logs.
+    /// </summary>
+    public string AuditLogs { get; set; } = "audit_logs";
 }

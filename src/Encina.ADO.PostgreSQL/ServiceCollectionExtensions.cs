@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.ADO.PostgreSQL.Auditing;
 using Encina.ADO.PostgreSQL.Health;
 using Encina.ADO.PostgreSQL.Inbox;
 using Encina.ADO.PostgreSQL.Outbox;
@@ -7,6 +8,7 @@ using Encina.ADO.PostgreSQL.Sagas;
 using Encina.ADO.PostgreSQL.Scheduling;
 using Encina.ADO.PostgreSQL.UnitOfWork;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,6 +48,12 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreADO,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        // Register audit log store if enabled
+        if (config.UseAuditLogStore)
+        {
+            services.AddScoped<IAuditLogStore, AuditLogStoreADO>();
+        }
 
         // Register provider health check if enabled
         if (config.ProviderHealthCheck.Enabled)

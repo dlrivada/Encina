@@ -98,4 +98,25 @@ public sealed class AuditingOptions
     /// </remarks>
     /// <value>Default: <see langword="false"/></value>
     public bool LogAuditChanges { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to persist detailed audit log entries to an <see cref="Encina.DomainModeling.Auditing.IAuditLogStore"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When <see langword="true"/> and an <see cref="Encina.DomainModeling.Auditing.IAuditLogStore"/> is registered,
+    /// the interceptor will create detailed audit log entries capturing old and new values for each entity change.
+    /// These entries are persisted after a successful <c>SaveChanges</c> operation.
+    /// </para>
+    /// <para>
+    /// <b>Requirements</b>: An implementation of <see cref="Encina.DomainModeling.Auditing.IAuditLogStore"/>
+    /// must be registered in the DI container for this feature to work.
+    /// </para>
+    /// <para>
+    /// <b>Performance Note</b>: Enabling this adds overhead for serializing entity values and
+    /// storing audit entries. Consider the performance impact for high-throughput scenarios.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: <see langword="false"/></value>
+    public bool LogChangesToStore { get; set; }
 }

@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.Dapper.PostgreSQL.Auditing;
 using Encina.Dapper.PostgreSQL.Health;
 using Encina.Dapper.PostgreSQL.Inbox;
 using Encina.Dapper.PostgreSQL.Outbox;
@@ -7,6 +8,7 @@ using Encina.Dapper.PostgreSQL.Sagas;
 using Encina.Dapper.PostgreSQL.Scheduling;
 using Encina.Dapper.PostgreSQL.UnitOfWork;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,6 +50,12 @@ public static class ServiceCollectionExtensions
             ScheduledMessageStoreDapper,
             ScheduledMessageFactory,
             OutboxProcessor>(config);
+
+        // Register audit log store if enabled
+        if (config.UseAuditLogStore)
+        {
+            services.AddScoped<IAuditLogStore, AuditLogStoreDapper>();
+        }
 
         // Register provider health check if enabled
         if (config.ProviderHealthCheck.Enabled)

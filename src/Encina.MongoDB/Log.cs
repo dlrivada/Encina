@@ -162,4 +162,14 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 63, Level = LogLevel.Debug, Message = "Module database mapping: '{ModuleName}' -> '{DatabaseName}'")]
     public static partial void ModuleDatabaseMapping(ILogger logger, string moduleName, string databaseName);
+
+    // AuditLogStoreMongoDB: EventIds 70-79
+    [LoggerMessage(EventId = 70, Level = LogLevel.Debug, Message = "Added audit log entry {EntryId} for {EntityType}:{EntityId}")]
+    public static partial void AddedAuditLogEntry(ILogger logger, string entryId, string entityType, string entityId);
+
+    [LoggerMessage(EventId = 71, Level = LogLevel.Debug, Message = "Retrieved {Count} audit log entries for {EntityType}:{EntityId}")]
+    public static partial void RetrievedAuditLogHistory(ILogger logger, int count, string entityType, string entityId);
+
+    [LoggerMessage(EventId = 72, Level = LogLevel.Debug, Message = "Created audit log indexes")]
+    public static partial void CreatedAuditLogIndexes(ILogger logger);
 }

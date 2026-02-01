@@ -1,4 +1,5 @@
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using Encina.EntityFrameworkCore.Auditing;
 using Encina.EntityFrameworkCore.BulkOperations;
 using Encina.EntityFrameworkCore.DomainEvents;
@@ -268,7 +269,8 @@ public static class ServiceCollectionExtensions
                 TrackCreatedBy = config.AuditingOptions.TrackCreatedBy,
                 TrackModifiedAt = config.AuditingOptions.TrackModifiedAt,
                 TrackModifiedBy = config.AuditingOptions.TrackModifiedBy,
-                LogAuditChanges = config.AuditingOptions.LogAuditChanges
+                LogAuditChanges = config.AuditingOptions.LogAuditChanges,
+                LogChangesToStore = config.AuditingOptions.LogChangesToStore
             };
             services.TryAddSingleton(auditOptions);
 
@@ -277,6 +279,12 @@ public static class ServiceCollectionExtensions
 
             // Register the interceptor as singleton
             services.TryAddSingleton<AuditInterceptor>();
+        }
+
+        if (config.UseAuditLogStore)
+        {
+            // Register persistent audit log store
+            services.AddScoped<IAuditLogStore, AuditLogStoreEF>();
         }
 
         // Register provider health check if enabled
