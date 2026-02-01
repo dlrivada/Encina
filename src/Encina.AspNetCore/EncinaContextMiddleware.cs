@@ -19,6 +19,8 @@ namespace Encina.AspNetCore;
 /// <item><description><b>UserId</b>: From ClaimsPrincipal (configurable claim type)</description></item>
 /// <item><description><b>TenantId</b>: From claims or X-Tenant-ID header</description></item>
 /// <item><description><b>IdempotencyKey</b>: From X-Idempotency-Key header</description></item>
+/// <item><description><b>IpAddress</b>: From X-Forwarded-For header or Connection.RemoteIpAddress (for audit)</description></item>
+/// <item><description><b>UserAgent</b>: From User-Agent header (for audit)</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -68,12 +70,18 @@ public sealed class EncinaContextMiddleware
         // Extract idempotency key from header
         var idempotencyKey = ExtractIdempotencyKey(context);
 
+        // Extract audit context (IP address and User-Agent)
+        var ipAddress = ExtractIpAddress(context);
+        var userAgent = ExtractUserAgent(context);
+
         // Create enriched request context
         var requestContext = RequestContext.CreateForTest(
             userId: userId,
             tenantId: tenantId,
             idempotencyKey: idempotencyKey,
-            correlationId: correlationId);
+            correlationId: correlationId)
+            .WithIpAddress(ipAddress)
+            .WithUserAgent(userAgent);
 
         // Set context for this request scope
         contextAccessor.RequestContext = requestContext;
@@ -181,6 +189,63 @@ public sealed class EncinaContextMiddleware
             !string.IsNullOrWhiteSpace(headerValue))
         {
             return headerValue.ToString();
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extracts the client IP address from the HTTP context.
+    /// </summary>
+    /// <param name="context">The HTTP context.</param>
+    /// <returns>The client IP address, or <c>null</c> if unavailable.</returns>
+    /// <remarks>
+    /// <para>
+    /// Priority order:
+    /// <list type="number">
+    /// <item>X-Forwarded-For header (first IP in comma-separated list)</item>
+    /// <item>Connection.RemoteIpAddress</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// X-Forwarded-For is checked first to support reverse proxy scenarios where the
+    /// original client IP is forwarded by the proxy.
+    /// </para>
+    /// </remarks>
+    private static string? ExtractIpAddress(HttpContext context)
+    {
+        // 1. Check X-Forwarded-For header (common in reverse proxy scenarios)
+        if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor) &&
+            !string.IsNullOrWhiteSpace(forwardedFor))
+        {
+            // X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
+            // The first one is the original client
+            var firstIp = forwardedFor.ToString().Split(',', StringSplitOptions.TrimEntries)[0];
+            if (!string.IsNullOrWhiteSpace(firstIp))
+            {
+                return firstIp;
+            }
+        }
+
+        // 2. Fall back to Connection.RemoteIpAddress
+        return context.Connection.RemoteIpAddress?.ToString();
+    }
+
+    /// <summary>
+    /// Extracts the User-Agent header from the HTTP context.
+    /// </summary>
+    /// <param name="context">The HTTP context.</param>
+    /// <returns>The User-Agent header value, or <c>null</c> if not present.</returns>
+    /// <remarks>
+    /// The User-Agent identifies the client application, browser, or device making the request.
+    /// Useful for audit trails and security analysis.
+    /// </remarks>
+    private static string? ExtractUserAgent(HttpContext context)
+    {
+        if (context.Request.Headers.TryGetValue("User-Agent", out var userAgent) &&
+            !string.IsNullOrWhiteSpace(userAgent))
+        {
+            return userAgent.ToString();
         }
 
         return null;
