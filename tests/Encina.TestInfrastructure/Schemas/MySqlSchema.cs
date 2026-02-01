@@ -46,6 +46,7 @@ public static class MySqlSchema
                 RetryCount INT NOT NULL DEFAULT 0,
                 NextRetryAtUtc DATETIME(6) NULL,
                 ExpiresAtUtc DATETIME(6) NOT NULL,
+                Metadata TEXT NULL,
                 INDEX IX_InboxMessages_ExpiresAtUtc (ExpiresAtUtc)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """;

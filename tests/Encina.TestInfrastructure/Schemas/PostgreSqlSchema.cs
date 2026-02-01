@@ -47,7 +47,8 @@ public static class PostgreSqlSchema
                 ErrorMessage TEXT NULL,
                 RetryCount INTEGER NOT NULL DEFAULT 0,
                 NextRetryAtUtc TIMESTAMP NULL,
-                ExpiresAtUtc TIMESTAMP NOT NULL
+                ExpiresAtUtc TIMESTAMP NOT NULL,
+                Metadata TEXT NULL
             );
 
             CREATE INDEX IF NOT EXISTS IX_InboxMessages_ExpiresAtUtc
