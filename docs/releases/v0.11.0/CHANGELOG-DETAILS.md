@@ -1017,9 +1017,9 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - **Scope**: Affects load tests only (NBomber + `IAsyncEnumerable<Either<EncinaError, T>>` under high concurrency). Production code is not affected.
     - **Affected Versions**: .NET 10.0.x (all current releases)
     - **Upstream Bug**: [dotnet/runtime#121736](https://github.com/dotnet/runtime/issues/121736) - Fixed in .NET 11, awaiting .NET 10.x backport
-    - **CI/CD Mitigation**: Load tests are excluded via project name pattern (`*LoadTests*`) in [.github/workflows/ci.yml](.github/workflows/ci.yml). Dedicated load test workflow runs separately with workaround.
+    - **CI/CD Mitigation**: Load tests are excluded via project name pattern (`*LoadTests*`) in `.github/workflows/ci.yml`. Dedicated load test workflow runs separately with workaround.
     - **Local Workaround**: Set `DOTNET_JitObjectStackAllocationConditionalEscape=0` before running load tests
-    - **Internal Docs**: See [docs/releases/pre-v0.10.0/README.md](docs/releases/pre-v0.10.0/README.md#clr-crash-on-net-10-issue-5) "Known Issues" section
+    - **Internal Docs**: See `docs/releases/pre-v0.10.0/README.md` "Known Issues" section
 
 #### AI/LLM Patterns Issues (12 new features planned based on December 29, 2025 research)
 
@@ -3347,7 +3347,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - Comprehensive test coverage: 131 tests (unit, property, contract, guard, load)
   - Benchmarks for scatter-gather performance across strategies
   - Example: a fully working, copy-pastable scatter-gather example is available in
-    [docs/examples.md](docs/examples.md). The changelog previously contained
+    the documentation. The changelog previously contained
     simplified placeholder snippets; the full examples (with imports and helper
     implementations) live in the documentation to avoid non-compilable copy/paste.
 
@@ -3890,9 +3890,9 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
   - **Built-in vs Custom Implementations**:
     - **Built-in (Testing)**: `FakeDeadLetterStore` in `Encina.Testing.Fakes` - In-memory store for unit/integration tests
     - **Custom (Production)**: Implement `IDeadLetterStore` and `IDeadLetterMessageFactory` for your persistence layer (EF Core, Dapper, ADO.NET, NoSQL, etc.)
-    - **API Location**: Interface contracts in `Encina.Messaging.DeadLetter` namespace ([IDeadLetterStore.cs](src/Encina.Messaging/DeadLetter/IDeadLetterStore.cs), [IDeadLetterMessageFactory.cs](src/Encina.Messaging/DeadLetter/IDeadLetterMessageFactory.cs))
+    - **API Location**: Interface contracts in `Encina.Messaging.DeadLetter` namespace (`IDeadLetterStore.cs`, `IDeadLetterMessageFactory.cs`)
     - **Contract Tests**: Use `IDeadLetterStoreContractTests` base class to verify custom implementations
-    - **Sample Implementation**: See [FakeDeadLetterStore.cs](src/Encina.Testing.Fakes/Stores/FakeDeadLetterStore.cs) for implementation reference
+    - **Sample Implementation**: See `src/Encina.Testing.Fakes/Stores/FakeDeadLetterStore.cs` for implementation reference
   - Example (Testing with built-in FakeDeadLetterStore):
 
     ```csharp
