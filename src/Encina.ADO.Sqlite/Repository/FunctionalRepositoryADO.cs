@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Reflection;
 using Encina;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using LanguageExt;
 using Microsoft.Data.Sqlite;
 using static LanguageExt.Prelude;
@@ -56,6 +57,8 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
     private readonly IDbConnection _connection;
     private readonly IEntityMapping<TEntity, TId> _mapping;
     private readonly SpecificationSqlBuilder<TEntity> _sqlBuilder;
+    private readonly IRequestContext? _requestContext;
+    private readonly TimeProvider _timeProvider;
 
     // Cached SQL statements
     private readonly string _selectByIdSql;
@@ -74,7 +77,13 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="mapping">The entity mapping configuration.</param>
-    public FunctionalRepositoryADO(IDbConnection connection, IEntityMapping<TEntity, TId> mapping)
+    /// <param name="requestContext">Optional request context for audit fields.</param>
+    /// <param name="timeProvider">Optional time provider for audit timestamps.</param>
+    public FunctionalRepositoryADO(
+        IDbConnection connection,
+        IEntityMapping<TEntity, TId> mapping,
+        IRequestContext? requestContext = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(mapping);
@@ -82,6 +91,8 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
         _connection = connection;
         _mapping = mapping;
         _sqlBuilder = new SpecificationSqlBuilder<TEntity>(mapping.ColumnMappings);
+        _requestContext = requestContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         // Build property cache for entity materialization
         _propertyCache = typeof(TEntity).GetProperties()
@@ -346,6 +357,9 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
 
         try
         {
+            // Populate audit fields before persistence
+            AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+
             await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
             using var command = _connection.CreateCommand();
@@ -376,6 +390,9 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
 
         try
         {
+            // Populate audit fields before persistence
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+
             await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
             using var command = _connection.CreateCommand();
@@ -453,6 +470,12 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
 
         try
         {
+            // Populate audit fields before persistence
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+            }
+
             await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
             foreach (var entity in entityList)
@@ -489,6 +512,12 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
 
         try
         {
+            // Populate audit fields before persistence
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+            }
+
             await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
             foreach (var entity in entityList)

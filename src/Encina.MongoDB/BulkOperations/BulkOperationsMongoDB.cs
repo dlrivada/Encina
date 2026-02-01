@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Encina;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using LanguageExt;
 using MongoDB.Driver;
 using static LanguageExt.Prelude;
@@ -47,6 +48,8 @@ public sealed class BulkOperationsMongoDB<TEntity, TId> : IBulkOperations<TEntit
     private readonly Expression<Func<TEntity, TId>> _idSelector;
     private readonly Func<TEntity, TId> _compiledIdSelector;
     private readonly IClientSessionHandle? _session;
+    private readonly IRequestContext? _requestContext;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BulkOperationsMongoDB{TEntity, TId}"/> class.
@@ -54,10 +57,14 @@ public sealed class BulkOperationsMongoDB<TEntity, TId> : IBulkOperations<TEntit
     /// <param name="collection">The MongoDB collection.</param>
     /// <param name="idSelector">Expression to select the ID property from an entity.</param>
     /// <param name="session">Optional client session for transaction participation.</param>
+    /// <param name="requestContext">Optional request context for audit field population.</param>
+    /// <param name="timeProvider">Optional time provider for audit timestamps.</param>
     public BulkOperationsMongoDB(
         IMongoCollection<TEntity> collection,
         Expression<Func<TEntity, TId>> idSelector,
-        IClientSessionHandle? session = null)
+        IClientSessionHandle? session = null,
+        IRequestContext? requestContext = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(collection);
         ArgumentNullException.ThrowIfNull(idSelector);
@@ -66,6 +73,8 @@ public sealed class BulkOperationsMongoDB<TEntity, TId> : IBulkOperations<TEntit
         _idSelector = idSelector;
         _compiledIdSelector = idSelector.Compile();
         _session = session;
+        _requestContext = requestContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -81,6 +90,12 @@ public sealed class BulkOperationsMongoDB<TEntity, TId> : IBulkOperations<TEntit
             return Right<EncinaError, int>(0);
 
         config ??= BulkConfig.Default;
+
+        // Populate audit fields before persistence
+        foreach (var entity in entityList)
+        {
+            AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+        }
 
         try
         {
@@ -140,6 +155,12 @@ public sealed class BulkOperationsMongoDB<TEntity, TId> : IBulkOperations<TEntit
             return Right<EncinaError, int>(0);
 
         config ??= BulkConfig.Default;
+
+        // Populate audit fields before persistence
+        foreach (var entity in entityList)
+        {
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+        }
 
         try
         {
@@ -248,6 +269,12 @@ public sealed class BulkOperationsMongoDB<TEntity, TId> : IBulkOperations<TEntit
             return Right<EncinaError, int>(0);
 
         config ??= BulkConfig.Default;
+
+        // Populate audit fields before persistence (use Create for inserts/upserts)
+        foreach (var entity in entityList)
+        {
+            AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+        }
 
         try
         {

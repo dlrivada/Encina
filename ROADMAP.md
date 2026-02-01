@@ -161,7 +161,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ Module Isolation by Database Permissions [#534](https://github.com/dlrivada/Encina/issues/534) - Schema-based module isolation across all providers
 - ✅ Read/Write Database Separation [#283](https://github.com/dlrivada/Encina/issues/283) - CQRS physical split with automatic routing and read replica support
 - ✅ Bulk Operations (Insert/Update/Delete) [#284](https://github.com/dlrivada/Encina/issues/284) - High-performance bulk operations up to 459x faster
-- ✅ Audit Trail Pattern (IAuditableEntity) [#286](https://github.com/dlrivada/Encina/issues/286) - Granular interfaces, EF Core interceptor, explicit helpers for all 13 providers
+- ✅ Audit Trail Pattern (IAuditableEntity) [#286](https://github.com/dlrivada/Encina/issues/286), [#623](https://github.com/dlrivada/Encina/issues/623) - Granular interfaces, auto-population in Repository for all 13 providers (EF Core, Dapper, ADO.NET, MongoDB)
 
 **Remaining:**
 

@@ -54,6 +54,8 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
     private readonly ITenantProvider _tenantProvider;
     private readonly DapperTenancyOptions _options;
     private readonly TenantAwareSpecificationSqlBuilder<TEntity> _sqlBuilder;
+    private readonly IRequestContext? _requestContext;
+    private readonly TimeProvider _timeProvider;
 
     // Cached SQL statements
     private readonly string _insertSql;
@@ -66,11 +68,15 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
     /// <param name="mapping">The tenant-aware entity mapping.</param>
     /// <param name="tenantProvider">The tenant provider for current tenant context.</param>
     /// <param name="options">The Dapper tenancy options.</param>
+    /// <param name="requestContext">Optional request context for audit field population.</param>
+    /// <param name="timeProvider">Optional time provider for audit timestamps. Defaults to <see cref="TimeProvider.System"/>.</param>
     public TenantAwareFunctionalRepositoryDapper(
         IDbConnection connection,
         ITenantEntityMapping<TEntity, TId> mapping,
         ITenantProvider tenantProvider,
-        DapperTenancyOptions options)
+        DapperTenancyOptions options,
+        IRequestContext? requestContext = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(mapping);
@@ -81,6 +87,8 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
         _mapping = mapping;
         _tenantProvider = tenantProvider;
         _options = options;
+        _requestContext = requestContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         // Create a generic mapping interface for the SQL builder
         var genericMapping = new GenericTenantMappingAdapter<TEntity, TId>(mapping);
@@ -339,6 +347,9 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
             // Auto-assign tenant ID if enabled
             AssignTenantIdIfNeeded(entity);
 
+            // Populate audit fields for create operation
+            AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+
             await _connection.ExecuteAsync(_insertSql, entity);
             return Right<EncinaError, TEntity>(entity);
         }
@@ -369,6 +380,9 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
             {
                 return validationResult.Map(_ => entity);
             }
+
+            // Populate audit fields for update operation
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
 
             var tenantFilter = GetTenantFilter();
 
@@ -479,10 +493,11 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
         try
         {
-            // Auto-assign tenant ID to all entities if enabled
+            // Auto-assign tenant ID and populate audit fields for all entities
             foreach (var entity in entityList)
             {
                 AssignTenantIdIfNeeded(entity);
+                AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
             }
 
             await _connection.ExecuteAsync(_insertSql, entityList);

@@ -4,6 +4,7 @@ using System.Reflection;
 using Encina;
 using Encina.ADO.SqlServer.Repository;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using LanguageExt;
 using Microsoft.Data.SqlClient;
 using static LanguageExt.Prelude;
@@ -35,6 +36,8 @@ internal sealed class UnitOfWorkRepositoryADO<TEntity, TId> : IFunctionalReposit
     private readonly IEntityMapping<TEntity, TId> _mapping;
     private readonly UnitOfWorkADO _unitOfWork;
     private readonly SpecificationSqlBuilder<TEntity> _sqlBuilder;
+    private readonly IRequestContext? _requestContext;
+    private readonly TimeProvider _timeProvider;
 
     // Cached SQL statements
     private readonly string _selectByIdSql;
@@ -54,10 +57,14 @@ internal sealed class UnitOfWorkRepositoryADO<TEntity, TId> : IFunctionalReposit
     /// <param name="connection">The database connection.</param>
     /// <param name="mapping">The entity mapping configuration.</param>
     /// <param name="unitOfWork">The parent Unit of Work.</param>
+    /// <param name="requestContext">Optional request context for audit fields.</param>
+    /// <param name="timeProvider">Optional time provider for audit timestamps.</param>
     public UnitOfWorkRepositoryADO(
         IDbConnection connection,
         IEntityMapping<TEntity, TId> mapping,
-        UnitOfWorkADO unitOfWork)
+        UnitOfWorkADO unitOfWork,
+        IRequestContext? requestContext = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(mapping);
@@ -67,6 +74,8 @@ internal sealed class UnitOfWorkRepositoryADO<TEntity, TId> : IFunctionalReposit
         _mapping = mapping;
         _unitOfWork = unitOfWork;
         _sqlBuilder = new SpecificationSqlBuilder<TEntity>(mapping.ColumnMappings);
+        _requestContext = requestContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         // Build property cache for entity materialization
         _propertyCache = typeof(TEntity).GetProperties()
@@ -308,6 +317,9 @@ internal sealed class UnitOfWorkRepositoryADO<TEntity, TId> : IFunctionalReposit
 
         try
         {
+            // Populate audit fields before persistence
+            AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+
             using var command = CreateCommand(_insertSql);
             AddEntityParameters(command, entity, forInsert: true);
 
@@ -339,6 +351,9 @@ internal sealed class UnitOfWorkRepositoryADO<TEntity, TId> : IFunctionalReposit
 
         try
         {
+            // Populate audit fields before persistence
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+
             using var command = CreateCommand(_updateSql);
             AddEntityParameters(command, entity, forInsert: false);
 
@@ -422,6 +437,12 @@ internal sealed class UnitOfWorkRepositoryADO<TEntity, TId> : IFunctionalReposit
 
         try
         {
+            // Populate audit fields before persistence
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+            }
+
             foreach (var entity in entityList)
             {
                 using var command = CreateCommand(_insertSql);
@@ -458,6 +479,12 @@ internal sealed class UnitOfWorkRepositoryADO<TEntity, TId> : IFunctionalReposit
 
         try
         {
+            // Populate audit fields before persistence
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+            }
+
             foreach (var entity in entityList)
             {
                 using var command = CreateCommand(_updateSql);

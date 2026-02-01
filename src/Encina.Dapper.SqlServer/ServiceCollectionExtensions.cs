@@ -235,6 +235,12 @@ public static class ServiceCollectionExtensions
     /// <para>
     /// Requires an <see cref="IDbConnection"/> to be registered in the service collection.
     /// </para>
+    /// <para>
+    /// When <see cref="IRequestContext"/> and/or <see cref="TimeProvider"/> are registered,
+    /// the repository will automatically populate audit fields (<see cref="ICreatedAtUtc"/>,
+    /// <see cref="ICreatedBy"/>, <see cref="IModifiedAtUtc"/>, <see cref="IModifiedBy"/>)
+    /// on entities implementing these interfaces.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
@@ -263,8 +269,23 @@ public static class ServiceCollectionExtensions
         // Register the mapping as singleton (immutable)
         services.AddSingleton<IEntityMapping<TEntity, TId>>(mapping);
 
-        // Register the repository with scoped lifetime
-        services.AddScoped<IFunctionalRepository<TEntity, TId>, FunctionalRepositoryDapper<TEntity, TId>>();
+        // Ensure TimeProvider is registered (default to System if not present)
+        services.TryAddSingleton(TimeProvider.System);
+
+        // Register the repository with scoped lifetime, injecting audit dependencies
+        services.AddScoped<IFunctionalRepository<TEntity, TId>>(sp =>
+        {
+            var connection = sp.GetRequiredService<IDbConnection>();
+            var entityMapping = sp.GetRequiredService<IEntityMapping<TEntity, TId>>();
+            var requestContext = sp.GetService<IRequestContext>();
+            var timeProvider = sp.GetService<TimeProvider>();
+
+            return new FunctionalRepositoryDapper<TEntity, TId>(
+                connection,
+                entityMapping,
+                requestContext,
+                timeProvider);
+        });
         services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
             sp.GetRequiredService<IFunctionalRepository<TEntity, TId>>());
 
@@ -314,8 +335,23 @@ public static class ServiceCollectionExtensions
         // Register the mapping as singleton (immutable)
         services.AddSingleton<IEntityMapping<TEntity, TId>>(mapping);
 
+        // Ensure TimeProvider is registered (default to System if not present)
+        services.TryAddSingleton(TimeProvider.System);
+
         // Register only the read repository with scoped lifetime
-        services.AddScoped<IFunctionalReadRepository<TEntity, TId>, FunctionalRepositoryDapper<TEntity, TId>>();
+        services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
+        {
+            var connection = sp.GetRequiredService<IDbConnection>();
+            var entityMapping = sp.GetRequiredService<IEntityMapping<TEntity, TId>>();
+            var requestContext = sp.GetService<IRequestContext>();
+            var timeProvider = sp.GetService<TimeProvider>();
+
+            return new FunctionalRepositoryDapper<TEntity, TId>(
+                connection,
+                entityMapping,
+                requestContext,
+                timeProvider);
+        });
 
         return services;
     }

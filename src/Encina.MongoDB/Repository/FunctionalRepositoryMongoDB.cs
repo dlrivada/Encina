@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Encina;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using LanguageExt;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -49,15 +50,21 @@ public sealed class FunctionalRepositoryMongoDB<TEntity, TId> : IFunctionalRepos
     private readonly Expression<Func<TEntity, TId>> _idSelector;
     private readonly Func<TEntity, TId> _compiledIdSelector;
     private readonly SpecificationFilterBuilder<TEntity> _filterBuilder;
+    private readonly IRequestContext? _requestContext;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FunctionalRepositoryMongoDB{TEntity, TId}"/> class.
     /// </summary>
     /// <param name="collection">The MongoDB collection.</param>
     /// <param name="idSelector">Expression to select the ID property from an entity.</param>
+    /// <param name="requestContext">Optional request context for audit field population.</param>
+    /// <param name="timeProvider">Optional time provider for audit timestamps. Defaults to <see cref="TimeProvider.System"/>.</param>
     public FunctionalRepositoryMongoDB(
         IMongoCollection<TEntity> collection,
-        Expression<Func<TEntity, TId>> idSelector)
+        Expression<Func<TEntity, TId>> idSelector,
+        IRequestContext? requestContext = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(collection);
         ArgumentNullException.ThrowIfNull(idSelector);
@@ -66,6 +73,8 @@ public sealed class FunctionalRepositoryMongoDB<TEntity, TId> : IFunctionalRepos
         _idSelector = idSelector;
         _compiledIdSelector = idSelector.Compile();
         _filterBuilder = new SpecificationFilterBuilder<TEntity>();
+        _requestContext = requestContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     #region Read Operations
@@ -277,6 +286,9 @@ public sealed class FunctionalRepositoryMongoDB<TEntity, TId> : IFunctionalRepos
 
         try
         {
+            // Populate audit fields before persistence
+            AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+
             await _collection.InsertOneAsync(entity, cancellationToken: cancellationToken).ConfigureAwait(false);
             return Right<EncinaError, TEntity>(entity);
         }
@@ -300,6 +312,9 @@ public sealed class FunctionalRepositoryMongoDB<TEntity, TId> : IFunctionalRepos
 
         try
         {
+            // Populate audit fields before persistence
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+
             var id = _compiledIdSelector(entity);
             var filter = BuildIdFilter(id);
 
@@ -368,6 +383,12 @@ public sealed class FunctionalRepositoryMongoDB<TEntity, TId> : IFunctionalRepos
 
         try
         {
+            // Populate audit fields before persistence
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+            }
+
             await _collection.InsertManyAsync(entityList, cancellationToken: cancellationToken).ConfigureAwait(false);
             return Right<EncinaError, IReadOnlyList<TEntity>>(entityList);
         }
@@ -394,6 +415,12 @@ public sealed class FunctionalRepositoryMongoDB<TEntity, TId> : IFunctionalRepos
 
         try
         {
+            // Populate audit fields before persistence
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+            }
+
             var bulkOps = entityList.Select(entity =>
             {
                 var id = _compiledIdSelector(entity);

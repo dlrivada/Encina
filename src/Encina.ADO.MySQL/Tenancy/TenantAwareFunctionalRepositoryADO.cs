@@ -2,6 +2,7 @@ using System.Data;
 using System.Globalization;
 using System.Reflection;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using Encina.Tenancy;
 using LanguageExt;
 using MySqlConnector;
@@ -51,6 +52,8 @@ public sealed class TenantAwareFunctionalRepositoryADO<TEntity, TId> : IFunction
     private readonly ITenantProvider _tenantProvider;
     private readonly ADOTenancyOptions _options;
     private readonly TenantAwareSpecificationSqlBuilder<TEntity> _tenantSqlBuilder;
+    private readonly IRequestContext? _requestContext;
+    private readonly TimeProvider _timeProvider;
 
     // Cached SQL statements
     private readonly string _insertSql;
@@ -67,11 +70,15 @@ public sealed class TenantAwareFunctionalRepositoryADO<TEntity, TId> : IFunction
     /// <param name="mapping">The tenant-aware entity mapping configuration.</param>
     /// <param name="tenantProvider">The tenant provider for current tenant context.</param>
     /// <param name="options">The tenancy options.</param>
+    /// <param name="requestContext">Optional request context for audit fields.</param>
+    /// <param name="timeProvider">Optional time provider for audit timestamps.</param>
     public TenantAwareFunctionalRepositoryADO(
         IDbConnection connection,
         ITenantEntityMapping<TEntity, TId> mapping,
         ITenantProvider tenantProvider,
-        ADOTenancyOptions options)
+        ADOTenancyOptions options,
+        IRequestContext? requestContext = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(mapping);
@@ -82,6 +89,8 @@ public sealed class TenantAwareFunctionalRepositoryADO<TEntity, TId> : IFunction
         _mapping = mapping;
         _tenantProvider = tenantProvider;
         _options = options;
+        _requestContext = requestContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         // Create tenant-aware SQL builder with object ID adapter
         var objectMapping = new GenericTenantMappingAdapter<TEntity, TId>(mapping);
@@ -368,6 +377,9 @@ public sealed class TenantAwareFunctionalRepositoryADO<TEntity, TId> : IFunction
             // Auto-assign tenant ID if enabled
             AssignTenantIdIfNeeded(entity);
 
+            // Populate audit fields before persistence
+            AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+
             await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
             using var command = _connection.CreateCommand();
@@ -404,6 +416,9 @@ public sealed class TenantAwareFunctionalRepositoryADO<TEntity, TId> : IFunction
             {
                 return validationResult.Map(_ => entity);
             }
+
+            // Populate audit fields before persistence
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
 
             await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
@@ -535,10 +550,11 @@ public sealed class TenantAwareFunctionalRepositoryADO<TEntity, TId> : IFunction
 
         try
         {
-            // Auto-assign tenant IDs
+            // Auto-assign tenant IDs and populate audit fields
             foreach (var entity in entityList)
             {
                 AssignTenantIdIfNeeded(entity);
+                AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
             }
 
             await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
@@ -583,6 +599,12 @@ public sealed class TenantAwareFunctionalRepositoryADO<TEntity, TId> : IFunction
             {
                 return validationResult;
             }
+        }
+
+        // Populate audit fields before persistence
+        foreach (var entity in entityList)
+        {
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
         }
 
         try

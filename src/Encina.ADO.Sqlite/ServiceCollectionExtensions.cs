@@ -160,11 +160,18 @@ public static class ServiceCollectionExtensions
         // Register the mapping as a singleton for Unit of Work to resolve
         services.AddSingleton<IEntityMapping<TEntity, TId>>(mapping);
 
-        // Register the repository with scoped lifetime
+        // Register TimeProvider.System as singleton if not already registered
+        services.TryAddSingleton(TimeProvider.System);
+
+        // Register the repository with scoped lifetime, resolving audit dependencies
         services.AddScoped<IFunctionalRepository<TEntity, TId>>(sp =>
         {
             var connection = sp.GetRequiredService<IDbConnection>();
-            return new FunctionalRepositoryADO<TEntity, TId>(connection, mapping);
+            var requestContext = sp.GetService<IRequestContext>();
+            var timeProvider = sp.GetService<TimeProvider>();
+
+            return new FunctionalRepositoryADO<TEntity, TId>(
+                connection, mapping, requestContext, timeProvider);
         });
 
         services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
@@ -216,11 +223,18 @@ public static class ServiceCollectionExtensions
         configure(builder);
         var mapping = builder.Build();
 
+        // Register TimeProvider.System as singleton if not already registered
+        services.TryAddSingleton(TimeProvider.System);
+
         // Register only the read repository with scoped lifetime
         services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
         {
             var connection = sp.GetRequiredService<IDbConnection>();
-            return new FunctionalRepositoryADO<TEntity, TId>(connection, mapping);
+            var requestContext = sp.GetService<IRequestContext>();
+            var timeProvider = sp.GetService<TimeProvider>();
+
+            return new FunctionalRepositoryADO<TEntity, TId>(
+                connection, mapping, requestContext, timeProvider);
         });
 
         return services;

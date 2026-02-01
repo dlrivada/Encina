@@ -62,12 +62,12 @@ services.AddSingleton<IAuditLogStore, InMemoryAuditLogStore>();
 
 **Provider Support**:
 
-| Provider | Automatic (Interceptor) | Manual (Helpers) |
-|----------|------------------------|------------------|
-| EF Core (4 DBs) | ✅ | ✅ |
-| Dapper (4 DBs) | ❌ | ✅ |
-| ADO.NET (4 DBs) | ❌ | ✅ |
-| MongoDB | ❌ | ✅ |
+| Provider | Automatic (Interceptor/Repository) | Manual (Helpers) |
+|----------|-----------------------------------|------------------|
+| EF Core (4 DBs) | ✅ via `AuditInterceptor` | ✅ |
+| Dapper (4 DBs) | ✅ via Repository (v0.12.0+) | ✅ |
+| ADO.NET (4 DBs) | ✅ via Repository (v0.12.0+) | ✅ |
+| MongoDB | ✅ via Repository (v0.12.0+) | ✅ |
 
 **Tests Added**:
 
@@ -130,6 +130,73 @@ services.AddEncinaMongoDB(config =>
 **Documentation**: Updated `docs/features/audit-tracking.md` with production configuration examples.
 
 **Related Issue**: [#574 - Persistent IAuditLogStore Implementations](https://github.com/dlrivada/Encina/issues/574)
+
+---
+
+#### Automatic IAuditableEntity Field Population for Dapper, ADO.NET, and MongoDB (#623)
+
+Extended automatic audit field population to 9 additional providers (4 Dapper, 4 ADO.NET, 1 MongoDB), bringing feature parity with EF Core's `AuditInterceptor`.
+
+**Affected Providers**:
+
+| Provider Category | Databases | Status |
+|-------------------|-----------|--------|
+| Dapper | SQLite, SQL Server, PostgreSQL, MySQL | ✅ Added |
+| ADO.NET | SQLite, SQL Server, PostgreSQL, MySQL | ✅ Added |
+| MongoDB | MongoDB | ✅ Added |
+
+**How It Works**:
+
+Repository classes now accept optional `IRequestContext?` and `TimeProvider?` constructor parameters. When provided, the repository automatically populates audit fields:
+
+- `AddAsync` / `AddRangeAsync` → calls `AuditFieldPopulator.PopulateForCreate()`
+- `UpdateAsync` / `UpdateRangeAsync` → calls `AuditFieldPopulator.PopulateForUpdate()`
+
+**Configuration**:
+
+```csharp
+// DI registration (TimeProvider and IRequestContext are auto-resolved)
+services.AddScoped<IRequestContext, HttpRequestContext>();
+services.TryAddSingleton(TimeProvider.System);
+
+// Repository automatically uses audit context
+services.AddEncinaDapper(config => { ... });
+```
+
+**Backward Compatibility**:
+
+- Constructor parameters are optional with default values
+- Existing code continues to work without changes
+- When `IRequestContext` is null, timestamps are still set (via `TimeProvider.System`)
+
+**Excluded Providers**:
+
+- **Marten**: Event sourcing with immutable events - audit is in event metadata
+- **InMemory**: Messaging-only, no entity persistence
+
+**Tests Added**:
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 12 | Constructor validation across providers |
+| Integration Tests | 28 | Full CRUD audit verification |
+
+**Updated Repository Classes**:
+
+- `FunctionalRepositoryDapper<TEntity, TId>` (4 providers)
+- `UnitOfWorkRepositoryDapper<TEntity, TId>` (4 providers)
+- `TenantAwareFunctionalRepositoryDapper<TEntity, TId>` (4 providers)
+- `FunctionalRepositoryADO<TEntity, TId>` (4 providers)
+- `UnitOfWorkRepositoryADO<TEntity, TId>` (4 providers)
+- `TenantAwareFunctionalRepositoryADO<TEntity, TId>` (4 providers)
+- `FunctionalRepositoryMongoDB<TEntity, TId>`
+- `UnitOfWorkRepositoryMongoDB<TEntity, TId>`
+- `TenantAwareFunctionalRepositoryMongoDB<TEntity, TId>`
+- `BulkOperationsMongoDB<TEntity, TId>`
+
+**Documentation**: Updated `docs/features/audit-tracking.md` with automatic population examples.
+
+**Related Issue**: [#623 - Auto-populate IAuditableEntity fields for Dapper, ADO.NET, and MongoDB](https://github.com/dlrivada/Encina/issues/623)
 
 ---
 

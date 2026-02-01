@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using Encina.ADO.SqlServer.Repository;
 using Encina.DomainModeling;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
@@ -86,6 +87,69 @@ public class FunctionalRepositoryADOTests : IDisposable
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
             new FunctionalRepositoryADO<TestEntityADO, Guid>(connection, null!));
+    }
+
+    [Fact]
+    public void Constructor_WithRequestContext_CreatesInstance()
+    {
+        // Arrange
+        var connection = Substitute.For<IDbConnection>();
+        var requestContext = Substitute.For<IRequestContext>();
+        requestContext.UserId.Returns("user-123");
+
+        // Act
+        var repository = new FunctionalRepositoryADO<TestEntityADO, Guid>(
+            connection, _mapping, requestContext);
+
+        // Assert
+        repository.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Constructor_WithTimeProvider_CreatesInstance()
+    {
+        // Arrange
+        var connection = Substitute.For<IDbConnection>();
+        var fakeTime = new FakeTimeProvider(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero));
+
+        // Act
+        var repository = new FunctionalRepositoryADO<TestEntityADO, Guid>(
+            connection, _mapping, null, fakeTime);
+
+        // Assert
+        repository.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Constructor_WithBothAuditParameters_CreatesInstance()
+    {
+        // Arrange
+        var connection = Substitute.For<IDbConnection>();
+        var requestContext = Substitute.For<IRequestContext>();
+        requestContext.UserId.Returns("user-123");
+        var fakeTime = new FakeTimeProvider(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero));
+
+        // Act
+        var repository = new FunctionalRepositoryADO<TestEntityADO, Guid>(
+            connection, _mapping, requestContext, fakeTime);
+
+        // Assert
+        repository.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Constructor_WithNullTimeProvider_UsesSystemTime()
+    {
+        // Arrange
+        var connection = Substitute.For<IDbConnection>();
+        var requestContext = Substitute.For<IRequestContext>();
+
+        // Act - Should not throw
+        var repository = new FunctionalRepositoryADO<TestEntityADO, Guid>(
+            connection, _mapping, requestContext, null);
+
+        // Assert
+        repository.ShouldNotBeNull();
     }
 
     #endregion
@@ -896,6 +960,19 @@ public class MinAmountADOSpec : Specification<TestEntityADO>
 
     public override Expression<Func<TestEntityADO, bool>> ToExpression()
         => e => e.Amount >= _minAmount;
+}
+
+/// <summary>
+/// Test entity implementing IAuditableEntity for audit field population tests.
+/// </summary>
+public class AuditableTestEntityADO : IAuditableEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime? ModifiedAtUtc { get; set; }
+    public string? ModifiedBy { get; set; }
 }
 
 #endregion

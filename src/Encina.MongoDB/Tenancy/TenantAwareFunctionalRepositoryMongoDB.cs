@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using Encina.Tenancy;
 using LanguageExt;
 using MongoDB.Driver;
@@ -51,6 +52,8 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
     private readonly Expression<Func<TEntity, TId>> _idSelector;
     private readonly Func<TEntity, TId> _compiledIdSelector;
     private readonly TenantAwareSpecificationFilterBuilder<TEntity> _filterBuilder;
+    private readonly IRequestContext? _requestContext;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TenantAwareFunctionalRepositoryMongoDB{TEntity, TId}"/> class.
@@ -60,12 +63,16 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
     /// <param name="tenantProvider">The tenant provider for current tenant context.</param>
     /// <param name="options">The MongoDB tenancy options.</param>
     /// <param name="idSelector">Expression to select the ID property from an entity.</param>
+    /// <param name="requestContext">Optional request context for audit field population.</param>
+    /// <param name="timeProvider">Optional time provider for audit timestamps.</param>
     public TenantAwareFunctionalRepositoryMongoDB(
         IMongoCollection<TEntity> collection,
         ITenantEntityMapping<TEntity, TId> mapping,
         ITenantProvider tenantProvider,
         MongoDbTenancyOptions options,
-        Expression<Func<TEntity, TId>> idSelector)
+        Expression<Func<TEntity, TId>> idSelector,
+        IRequestContext? requestContext = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(collection);
         ArgumentNullException.ThrowIfNull(mapping);
@@ -79,6 +86,8 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
         _options = options;
         _idSelector = idSelector;
         _compiledIdSelector = idSelector.Compile();
+        _requestContext = requestContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         // Create generic mapping adapter for filter builder
         var genericMapping = new GenericTenantMappingAdapter<TEntity, TId>(mapping);
@@ -310,6 +319,9 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
             // Auto-assign tenant ID if enabled
             AssignTenantIdIfNeeded(entity);
 
+            // Populate audit fields before persistence
+            AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+
             await _collection.InsertOneAsync(entity, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
             return Right<EncinaError, TEntity>(entity);
@@ -341,6 +353,9 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
             {
                 return validationResult.Map(_ => entity);
             }
+
+            // Populate audit fields before persistence
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
 
             var id = _compiledIdSelector(entity);
             var idFilter = BuildIdFilter(id);
@@ -429,6 +444,7 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
             foreach (var entity in entityList)
             {
                 AssignTenantIdIfNeeded(entity);
+                AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
             }
 
             await _collection.InsertManyAsync(entityList, cancellationToken: cancellationToken)
@@ -466,6 +482,12 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
                 {
                     return validationResult;
                 }
+            }
+
+            // Populate audit fields before persistence
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
             }
 
             var tenantFilter = _filterBuilder.BuildTenantFilter();

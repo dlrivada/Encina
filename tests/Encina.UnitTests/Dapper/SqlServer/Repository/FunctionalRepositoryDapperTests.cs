@@ -2,6 +2,7 @@ using System.Data;
 using System.Linq.Expressions;
 using Encina.Dapper.SqlServer.Repository;
 using Encina.DomainModeling;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -60,6 +61,69 @@ public class FunctionalRepositoryDapperTests
 
         // Act
         var repository = new FunctionalRepositoryDapper<TestEntityDapper, Guid>(connection, _mapping);
+
+        // Assert
+        repository.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Constructor_WithRequestContext_CreatesInstance()
+    {
+        // Arrange
+        var connection = Substitute.For<IDbConnection>();
+        var requestContext = Substitute.For<IRequestContext>();
+        requestContext.UserId.Returns("user-123");
+
+        // Act
+        var repository = new FunctionalRepositoryDapper<TestEntityDapper, Guid>(
+            connection, _mapping, requestContext);
+
+        // Assert
+        repository.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Constructor_WithTimeProvider_CreatesInstance()
+    {
+        // Arrange
+        var connection = Substitute.For<IDbConnection>();
+        var fakeTime = new FakeTimeProvider(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero));
+
+        // Act
+        var repository = new FunctionalRepositoryDapper<TestEntityDapper, Guid>(
+            connection, _mapping, null, fakeTime);
+
+        // Assert
+        repository.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Constructor_WithBothAuditParameters_CreatesInstance()
+    {
+        // Arrange
+        var connection = Substitute.For<IDbConnection>();
+        var requestContext = Substitute.For<IRequestContext>();
+        requestContext.UserId.Returns("user-123");
+        var fakeTime = new FakeTimeProvider(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero));
+
+        // Act
+        var repository = new FunctionalRepositoryDapper<TestEntityDapper, Guid>(
+            connection, _mapping, requestContext, fakeTime);
+
+        // Assert
+        repository.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Constructor_WithNullTimeProvider_UsesSystemTime()
+    {
+        // Arrange
+        var connection = Substitute.For<IDbConnection>();
+        var requestContext = Substitute.For<IRequestContext>();
+
+        // Act - Should not throw
+        var repository = new FunctionalRepositoryDapper<TestEntityDapper, Guid>(
+            connection, _mapping, requestContext, null);
 
         // Assert
         repository.ShouldNotBeNull();
@@ -816,6 +880,19 @@ public class NameStringEqualsNullDapperSpec : Specification<TestEntityDapper>
 {
     public override Expression<Func<TestEntityDapper, bool>> ToExpression()
         => e => e.Name.Equals(null, StringComparison.Ordinal);
+}
+
+/// <summary>
+/// Test entity implementing IAuditableEntity for audit field population tests.
+/// </summary>
+public class AuditableTestEntityDapper : IAuditableEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime? ModifiedAtUtc { get; set; }
+    public string? ModifiedBy { get; set; }
 }
 
 #endregion

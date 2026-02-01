@@ -42,6 +42,8 @@ internal sealed class UnitOfWorkRepositoryDapper<TEntity, TId> : IFunctionalRepo
     private readonly IEntityMapping<TEntity, TId> _mapping;
     private readonly UnitOfWorkDapper _unitOfWork;
     private readonly SpecificationSqlBuilder<TEntity> _sqlBuilder;
+    private readonly IRequestContext? _requestContext;
+    private readonly TimeProvider _timeProvider;
 
     // Cached SQL statements
     private readonly string _selectByIdSql;
@@ -58,10 +60,14 @@ internal sealed class UnitOfWorkRepositoryDapper<TEntity, TId> : IFunctionalRepo
     /// <param name="connection">The database connection.</param>
     /// <param name="mapping">The entity mapping configuration.</param>
     /// <param name="unitOfWork">The parent Unit of Work.</param>
+    /// <param name="requestContext">Optional request context for audit field population.</param>
+    /// <param name="timeProvider">Optional time provider for audit timestamps. Defaults to <see cref="TimeProvider.System"/>.</param>
     public UnitOfWorkRepositoryDapper(
         IDbConnection connection,
         IEntityMapping<TEntity, TId> mapping,
-        UnitOfWorkDapper unitOfWork)
+        UnitOfWorkDapper unitOfWork,
+        IRequestContext? requestContext = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(mapping);
@@ -73,6 +79,8 @@ internal sealed class UnitOfWorkRepositoryDapper<TEntity, TId> : IFunctionalRepo
         _connection = connection;
         _mapping = mapping;
         _unitOfWork = unitOfWork;
+        _requestContext = requestContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _sqlBuilder = new SpecificationSqlBuilder<TEntity>(mapping.ColumnMappings);
 
         // Pre-build SQL statements
@@ -326,6 +334,9 @@ internal sealed class UnitOfWorkRepositoryDapper<TEntity, TId> : IFunctionalRepo
 
         try
         {
+            // Populate audit fields for create operation
+            AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+
             var parameters = BuildEntityParameters(entity, excludeInsert: true);
             await _connection.ExecuteAsync(
                 new CommandDefinition(
@@ -361,6 +372,9 @@ internal sealed class UnitOfWorkRepositoryDapper<TEntity, TId> : IFunctionalRepo
 
         try
         {
+            // Populate audit fields for update operation
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+
             var parameters = BuildEntityParameters(entity, excludeUpdate: true);
             var rowsAffected = await _connection.ExecuteAsync(
                 new CommandDefinition(
@@ -446,6 +460,12 @@ internal sealed class UnitOfWorkRepositoryDapper<TEntity, TId> : IFunctionalRepo
 
         try
         {
+            // Populate audit fields for each entity
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+            }
+
             var parameterList = entityList.Select(e => BuildEntityParameters(e, excludeInsert: true));
             await _connection.ExecuteAsync(
                 new CommandDefinition(
@@ -483,6 +503,12 @@ internal sealed class UnitOfWorkRepositoryDapper<TEntity, TId> : IFunctionalRepo
 
         try
         {
+            // Populate audit fields for each entity
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+            }
+
             var parameterList = entityList.Select(e => BuildEntityParameters(e, excludeUpdate: true));
             await _connection.ExecuteAsync(
                 new CommandDefinition(

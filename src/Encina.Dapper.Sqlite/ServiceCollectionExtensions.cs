@@ -156,8 +156,20 @@ public static class ServiceCollectionExtensions
         // Register the mapping as singleton (immutable)
         services.AddSingleton<IEntityMapping<TEntity, TId>>(mapping);
 
-        // Register the repository with scoped lifetime
-        services.AddScoped<IFunctionalRepository<TEntity, TId>, FunctionalRepositoryDapper<TEntity, TId>>();
+        // Register TimeProvider.System as singleton if not already registered
+        services.TryAddSingleton(TimeProvider.System);
+
+        // Register the repository with scoped lifetime, resolving audit dependencies
+        services.AddScoped<IFunctionalRepository<TEntity, TId>>(sp =>
+        {
+            var connection = sp.GetRequiredService<IDbConnection>();
+            var entityMapping = sp.GetRequiredService<IEntityMapping<TEntity, TId>>();
+            var requestContext = sp.GetService<IRequestContext>();
+            var timeProvider = sp.GetService<TimeProvider>();
+
+            return new FunctionalRepositoryDapper<TEntity, TId>(
+                connection, entityMapping, requestContext, timeProvider);
+        });
         services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
             sp.GetRequiredService<IFunctionalRepository<TEntity, TId>>());
 
@@ -207,8 +219,20 @@ public static class ServiceCollectionExtensions
         // Register the mapping as singleton (immutable)
         services.AddSingleton<IEntityMapping<TEntity, TId>>(mapping);
 
+        // Register TimeProvider.System as singleton if not already registered
+        services.TryAddSingleton(TimeProvider.System);
+
         // Register only the read repository with scoped lifetime
-        services.AddScoped<IFunctionalReadRepository<TEntity, TId>, FunctionalRepositoryDapper<TEntity, TId>>();
+        services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
+        {
+            var connection = sp.GetRequiredService<IDbConnection>();
+            var entityMapping = sp.GetRequiredService<IEntityMapping<TEntity, TId>>();
+            var requestContext = sp.GetService<IRequestContext>();
+            var timeProvider = sp.GetService<TimeProvider>();
+
+            return new FunctionalRepositoryDapper<TEntity, TId>(
+                connection, entityMapping, requestContext, timeProvider);
+        });
 
         return services;
     }

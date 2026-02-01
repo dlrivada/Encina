@@ -60,6 +60,8 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
     private readonly IDbConnection _connection;
     private readonly IEntityMapping<TEntity, TId> _mapping;
     private readonly SpecificationSqlBuilder<TEntity> _sqlBuilder;
+    private readonly IRequestContext? _requestContext;
+    private readonly TimeProvider _timeProvider;
 
     // Cached SQL statements
     private readonly string _selectByIdSql;
@@ -75,13 +77,21 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="mapping">The entity mapping configuration.</param>
-    public FunctionalRepositoryDapper(IDbConnection connection, IEntityMapping<TEntity, TId> mapping)
+    /// <param name="requestContext">Optional request context for audit field population.</param>
+    /// <param name="timeProvider">Optional time provider for audit timestamps. Defaults to <see cref="TimeProvider.System"/>.</param>
+    public FunctionalRepositoryDapper(
+        IDbConnection connection,
+        IEntityMapping<TEntity, TId> mapping,
+        IRequestContext? requestContext = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(mapping);
 
         _connection = connection;
         _mapping = mapping;
+        _requestContext = requestContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _sqlBuilder = new SpecificationSqlBuilder<TEntity>(mapping.ColumnMappings);
 
         // Pre-build SQL statements
@@ -292,6 +302,9 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
 
         try
         {
+            // Populate audit fields for create operation
+            AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+
             await _connection.ExecuteAsync(_insertSql, entity);
             return Right<EncinaError, TEntity>(entity);
         }
@@ -316,6 +329,9 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
 
         try
         {
+            // Populate audit fields for update operation
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+
             var rowsAffected = await _connection.ExecuteAsync(_updateSql, entity);
 
             if (rowsAffected == 0)
@@ -378,6 +394,12 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
 
         try
         {
+            // Populate audit fields for each entity
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+            }
+
             await _connection.ExecuteAsync(_insertSql, entityList);
             return Right<EncinaError, IReadOnlyList<TEntity>>(entityList);
         }
@@ -404,6 +426,12 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
 
         try
         {
+            // Populate audit fields for each entity
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+            }
+
             await _connection.ExecuteAsync(_updateSql, entityList);
             return Right<EncinaError, Unit>(Unit.Default);
         }

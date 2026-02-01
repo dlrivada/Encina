@@ -269,6 +269,9 @@ public static class ServiceCollectionExtensions
         // Register the options for UnitOfWork to access
         services.AddSingleton(options);
 
+        // Register TimeProvider.System as singleton if not already registered
+        services.TryAddSingleton(TimeProvider.System);
+
         // Register the collection as scoped
         services.AddScoped<IMongoCollection<TEntity>>(sp =>
         {
@@ -278,11 +281,14 @@ public static class ServiceCollectionExtensions
             return database.GetCollection<TEntity>(collectionName);
         });
 
-        // Register the repository with scoped lifetime
+        // Register the repository with scoped lifetime, resolving audit dependencies
         services.AddScoped<IFunctionalRepository<TEntity, TId>>(sp =>
         {
             var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
-            return new FunctionalRepositoryMongoDB<TEntity, TId>(collection, idProperty);
+            var requestContext = sp.GetService<IRequestContext>();
+            var timeProvider = sp.GetService<TimeProvider>();
+            return new FunctionalRepositoryMongoDB<TEntity, TId>(
+                collection, idProperty, requestContext, timeProvider);
         });
 
         services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
@@ -335,6 +341,9 @@ public static class ServiceCollectionExtensions
         var collectionName = options.GetEffectiveCollectionName();
         var idProperty = options.IdProperty!;
 
+        // Register TimeProvider.System as singleton if not already registered
+        services.TryAddSingleton(TimeProvider.System);
+
         // Register the collection as scoped
         services.TryAddScoped<IMongoCollection<TEntity>>(sp =>
         {
@@ -348,7 +357,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
         {
             var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
-            return new FunctionalRepositoryMongoDB<TEntity, TId>(collection, idProperty);
+            var requestContext = sp.GetService<IRequestContext>();
+            var timeProvider = sp.GetService<TimeProvider>();
+            return new FunctionalRepositoryMongoDB<TEntity, TId>(
+                collection, idProperty, requestContext, timeProvider);
         });
 
         return services;
@@ -483,11 +495,17 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // Register TimeProvider.System as singleton if not already registered
+        services.TryAddSingleton(TimeProvider.System);
+
         services.TryAddScoped<IBulkOperations<TEntity>>(sp =>
         {
             var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
             var options = sp.GetRequiredService<MongoDbRepositoryOptions<TEntity, TId>>();
-            return new BulkOperationsMongoDB<TEntity, TId>(collection, options.IdProperty!);
+            var requestContext = sp.GetService<IRequestContext>();
+            var timeProvider = sp.GetService<TimeProvider>();
+            return new BulkOperationsMongoDB<TEntity, TId>(
+                collection, options.IdProperty!, null, requestContext, timeProvider);
         });
 
         return services;

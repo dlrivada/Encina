@@ -114,7 +114,7 @@ Encina provides two complementary approaches:
 
 For EF Core, the `AuditInterceptor` automatically populates audit fields during `SaveChanges`:
 
-```
+```text
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │  Application    │────►│ AuditInterceptor │────►│   Database      │
 │  SaveChanges()  │     │ Populates fields │     │   Persists      │
@@ -130,9 +130,29 @@ For EF Core, the `AuditInterceptor` automatically populates audit fields during 
                         └──────────────────┘
 ```
 
-### 2. Explicit Helpers (Non-EF Core)
+### 2. Automatic Population via Repository (Dapper/ADO.NET/MongoDB)
 
-For Dapper, ADO.NET, and MongoDB, use `AuditFieldPopulator` or extension methods:
+Starting with v0.12.0, Dapper, ADO.NET, and MongoDB repositories **automatically populate audit fields** when the repository is configured with `IRequestContext` and/or `TimeProvider`:
+
+```text
+┌─────────────────┐     ┌──────────────────────┐     ┌─────────────────┐
+│  Application    │────►│ Repository.AddAsync  │────►│   Database      │
+│  AddAsync()     │     │ Calls Populator      │     │   Persists      │
+└─────────────────┘     └──────────────────────┘     └─────────────────┘
+                               │
+                               ▼
+                        ┌─────────────────────────────┐
+                        │ AuditFieldPopulator:        │
+                        │ - PopulateForCreate(entity) │
+                        │ - PopulateForUpdate(entity) │
+                        └─────────────────────────────┘
+```
+
+This provides feature parity with EF Core's `AuditInterceptor` for non-EF Core providers.
+
+### 3. Explicit Helpers (Manual Usage)
+
+For scenarios requiring manual control, use `AuditFieldPopulator` or extension methods:
 
 ```csharp
 // Static helper
@@ -204,7 +224,39 @@ public async Task<Order> CreateOrderAsync(CreateOrderRequest request)
 
 ### Non-EF Core Approach (Dapper/ADO.NET/MongoDB)
 
-**Step 1: Implement the interface**
+**Option A: Automatic via Repository (Recommended)**
+
+Configure your repository with `IRequestContext` and `TimeProvider` for automatic audit field population:
+
+**Step 1: Register IRequestContext and TimeProvider**
+
+```csharp
+// In your DI configuration
+services.AddScoped<IRequestContext, HttpRequestContext>();
+services.TryAddSingleton(TimeProvider.System);
+
+// Add Dapper repository
+services.AddEncinaDapper(config =>
+{
+    config.ConnectionString = connectionString;
+    // IRequestContext and TimeProvider are automatically resolved
+});
+
+// Or ADO.NET repository
+services.AddEncinaADO(config =>
+{
+    config.ConnectionString = connectionString;
+});
+
+// Or MongoDB repository
+services.AddEncinaMongoDB(config =>
+{
+    config.ConnectionString = connectionString;
+    config.DatabaseName = "mydb";
+});
+```
+
+**Step 2: Implement the interface on your entity**
 
 ```csharp
 public class Order : IAuditableEntity
@@ -218,7 +270,48 @@ public class Order : IAuditableEntity
 }
 ```
 
-**Step 2: Use helpers before persistence**
+**Step 3: Use the repository - fields are auto-populated!**
+
+```csharp
+public class OrderService
+{
+    private readonly IFunctionalRepository<Order, Guid> _repository;
+
+    public OrderService(IFunctionalRepository<Order, Guid> repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<Order> CreateOrderAsync(CreateOrderRequest request)
+    {
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            Description = request.Description
+        };
+
+        // Audit fields are automatically populated!
+        await _repository.AddAsync(order);
+
+        // order.CreatedAtUtc and order.CreatedBy are set
+        return order;
+    }
+
+    public async Task UpdateOrderAsync(Order order)
+    {
+        order.Description = "Updated";
+
+        // Modified fields are automatically populated!
+        await _repository.UpdateAsync(order);
+
+        // order.ModifiedAtUtc and order.ModifiedBy are set
+    }
+}
+```
+
+**Option B: Manual with Helpers**
+
+For scenarios requiring manual control:
 
 ```csharp
 // Using static helper
@@ -230,7 +323,7 @@ public async Task<Order> CreateOrderAsync(CreateOrderRequest request)
         Description = request.Description
     };
 
-    // Populate audit fields
+    // Manually populate audit fields
     AuditFieldPopulator.PopulateForCreate(order, _currentUser.Id, _timeProvider);
 
     // Persist with Dapper
@@ -426,21 +519,44 @@ public class Order : FullyAuditedAggregateRoot<Guid>
 
 Audit tracking is supported across all 13 database providers:
 
-| Provider | Automatic (Interceptor) | Manual (Helpers) |
-|----------|------------------------|------------------|
-| EF Core SQLite | ✅ | ✅ |
-| EF Core SQL Server | ✅ | ✅ |
-| EF Core PostgreSQL | ✅ | ✅ |
-| EF Core MySQL | ✅ | ✅ |
-| Dapper SQLite | ❌ | ✅ |
-| Dapper SQL Server | ❌ | ✅ |
-| Dapper PostgreSQL | ❌ | ✅ |
-| Dapper MySQL | ❌ | ✅ |
-| ADO.NET SQLite | ❌ | ✅ |
-| ADO.NET SQL Server | ❌ | ✅ |
-| ADO.NET PostgreSQL | ❌ | ✅ |
-| ADO.NET MySQL | ❌ | ✅ |
-| MongoDB | ❌ | ✅ |
+| Provider | Automatic (Interceptor/Repository) | Manual (Helpers) |
+|----------|-----------------------------------|------------------|
+| EF Core SQLite | ✅ via `AuditInterceptor` | ✅ |
+| EF Core SQL Server | ✅ via `AuditInterceptor` | ✅ |
+| EF Core PostgreSQL | ✅ via `AuditInterceptor` | ✅ |
+| EF Core MySQL | ✅ via `AuditInterceptor` | ✅ |
+| Dapper SQLite | ✅ via Repository (v0.12.0+) | ✅ |
+| Dapper SQL Server | ✅ via Repository (v0.12.0+) | ✅ |
+| Dapper PostgreSQL | ✅ via Repository (v0.12.0+) | ✅ |
+| Dapper MySQL | ✅ via Repository (v0.12.0+) | ✅ |
+| ADO.NET SQLite | ✅ via Repository (v0.12.0+) | ✅ |
+| ADO.NET SQL Server | ✅ via Repository (v0.12.0+) | ✅ |
+| ADO.NET PostgreSQL | ✅ via Repository (v0.12.0+) | ✅ |
+| ADO.NET MySQL | ✅ via Repository (v0.12.0+) | ✅ |
+| MongoDB | ✅ via Repository (v0.12.0+) | ✅ |
+
+### Graceful Degradation
+
+When `IRequestContext` is not available (null), audit operations continue normally:
+
+- **Timestamps** (`CreatedAtUtc`, `ModifiedAtUtc`) are still populated using `TimeProvider`
+- **User IDs** (`CreatedBy`, `ModifiedBy`) remain `null`
+- **No exceptions** are thrown - operations complete successfully
+
+```csharp
+// Repository without IRequestContext - still works!
+var repository = new FunctionalRepositoryDapper<Order, Guid>(
+    connection,
+    mapping,
+    requestContext: null,  // No user context available
+    TimeProvider.System);
+
+var order = new Order { Id = Guid.NewGuid() };
+await repository.AddAsync(order);
+
+// order.CreatedAtUtc is set to current time
+// order.CreatedBy is null (no user context)
+```
 
 ---
 

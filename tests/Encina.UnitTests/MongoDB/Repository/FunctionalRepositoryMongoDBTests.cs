@@ -1,6 +1,8 @@
 using System.Linq.Expressions;
+using Encina;
 using Encina.DomainModeling;
 using Encina.MongoDB.Repository;
+using Encina.Testing.Time;
 using MongoDB.Driver;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -45,6 +47,77 @@ public class FunctionalRepositoryMongoDBTests
             new FunctionalRepositoryMongoDB<TestDocument, Guid>(
                 _mockCollection,
                 null!));
+    }
+
+    [Fact]
+    public void Constructor_WithRequestContext_CreatesInstance()
+    {
+        // Arrange
+        var requestContext = Substitute.For<IRequestContext>();
+        requestContext.UserId.Returns("test-user");
+
+        // Act
+        var repository = new FunctionalRepositoryMongoDB<TestDocument, Guid>(
+            _mockCollection,
+            d => d.Id,
+            requestContext);
+
+        // Assert
+        repository.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Constructor_WithTimeProvider_CreatesInstance()
+    {
+        // Arrange
+        var fakeTime = new DateTimeOffset(2024, 6, 15, 10, 30, 0, TimeSpan.Zero);
+        var timeProvider = new FakeTimeProvider(fakeTime);
+
+        // Act
+        var repository = new FunctionalRepositoryMongoDB<TestDocument, Guid>(
+            _mockCollection,
+            d => d.Id,
+            timeProvider: timeProvider);
+
+        // Assert
+        repository.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Constructor_WithBothAuditParameters_CreatesInstance()
+    {
+        // Arrange
+        var requestContext = Substitute.For<IRequestContext>();
+        requestContext.UserId.Returns("test-user");
+        var fakeTime = new DateTimeOffset(2024, 6, 15, 10, 30, 0, TimeSpan.Zero);
+        var timeProvider = new FakeTimeProvider(fakeTime);
+
+        // Act
+        var repository = new FunctionalRepositoryMongoDB<TestDocument, Guid>(
+            _mockCollection,
+            d => d.Id,
+            requestContext,
+            timeProvider);
+
+        // Assert
+        repository.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Constructor_WithNullTimeProvider_UsesSystemTime()
+    {
+        // Arrange
+        var requestContext = Substitute.For<IRequestContext>();
+
+        // Act - Should not throw, defaults to TimeProvider.System
+        var repository = new FunctionalRepositoryMongoDB<TestDocument, Guid>(
+            _mockCollection,
+            d => d.Id,
+            requestContext,
+            timeProvider: null);
+
+        // Assert
+        repository.ShouldNotBeNull();
     }
 
     #endregion

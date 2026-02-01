@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Encina;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Auditing;
 using Encina.MongoDB.Repository;
 using LanguageExt;
 using MongoDB.Driver;
@@ -34,6 +35,8 @@ internal sealed class UnitOfWorkRepositoryMongoDB<TEntity, TId> : IFunctionalRep
     private readonly Func<TEntity, TId> _compiledIdSelector;
     private readonly UnitOfWorkMongoDB _unitOfWork;
     private readonly SpecificationFilterBuilder<TEntity> _filterBuilder;
+    private readonly IRequestContext? _requestContext;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="UnitOfWorkRepositoryMongoDB{TEntity, TId}"/> class.
@@ -41,10 +44,14 @@ internal sealed class UnitOfWorkRepositoryMongoDB<TEntity, TId> : IFunctionalRep
     /// <param name="collection">The MongoDB collection.</param>
     /// <param name="idSelector">Expression to select the ID property from an entity.</param>
     /// <param name="unitOfWork">The parent Unit of Work.</param>
+    /// <param name="requestContext">Optional request context for audit information.</param>
+    /// <param name="timeProvider">Optional time provider for timestamps.</param>
     public UnitOfWorkRepositoryMongoDB(
         IMongoCollection<TEntity> collection,
         Expression<Func<TEntity, TId>> idSelector,
-        UnitOfWorkMongoDB unitOfWork)
+        UnitOfWorkMongoDB unitOfWork,
+        IRequestContext? requestContext = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(collection);
         ArgumentNullException.ThrowIfNull(idSelector);
@@ -55,6 +62,8 @@ internal sealed class UnitOfWorkRepositoryMongoDB<TEntity, TId> : IFunctionalRep
         _compiledIdSelector = idSelector.Compile();
         _unitOfWork = unitOfWork;
         _filterBuilder = new SpecificationFilterBuilder<TEntity>();
+        _requestContext = requestContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     #region Read Operations
@@ -280,6 +289,9 @@ internal sealed class UnitOfWorkRepositoryMongoDB<TEntity, TId> : IFunctionalRep
 
         try
         {
+            // Populate audit fields before persistence
+            AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+
             var session = _unitOfWork.CurrentSession;
 
             if (session is not null)
@@ -313,6 +325,9 @@ internal sealed class UnitOfWorkRepositoryMongoDB<TEntity, TId> : IFunctionalRep
 
         try
         {
+            // Populate audit fields before persistence
+            AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+
             var id = _compiledIdSelector(entity);
             var filter = BuildIdFilter(id);
             var replaceOptions = new ReplaceOptions { IsUpsert = false };
@@ -396,6 +411,12 @@ internal sealed class UnitOfWorkRepositoryMongoDB<TEntity, TId> : IFunctionalRep
 
         try
         {
+            // Populate audit fields before persistence
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForCreate(entity, _requestContext?.UserId, _timeProvider);
+            }
+
             var session = _unitOfWork.CurrentSession;
 
             if (session is not null)
@@ -431,6 +452,12 @@ internal sealed class UnitOfWorkRepositoryMongoDB<TEntity, TId> : IFunctionalRep
 
         try
         {
+            // Populate audit fields before persistence
+            foreach (var entity in entityList)
+            {
+                AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+            }
+
             var bulkOps = entityList.Select(entity =>
             {
                 var id = _compiledIdSelector(entity);
