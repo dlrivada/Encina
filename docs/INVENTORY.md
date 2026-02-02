@@ -5325,7 +5325,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
   - `AuditStoreMongoDB` (MongoDB)
   - `InMemoryAuditStore` (Testing/Development)
 - **Paquete**: `Encina.Security.Audit` (core) + store implementations en cada provider package
-- **Documentación**: [docs/features/audit-tracking.md](../features/audit-tracking.md)
+- **Documentación**: [docs/features/audit-tracking.md](./features/audit-tracking.md)
 - Labels: `area-security`, `area-observability`, `area-auditing`, `area-gdpr`, `industry-best-practice`, `eu-regulation`
 - Referencias: [NIST SP 800-92](https://csrc.nist.gov/publications/detail/sp/800-92/final), [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
 

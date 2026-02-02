@@ -32,17 +32,17 @@ public sealed class MartenActivityEnricherTests : IDisposable
     private static EventWithMetadata CreateTestEvent(
         string? correlationId = null,
         string? causationId = null) => new()
-    {
-        Id = Guid.NewGuid(),
-        StreamId = Guid.NewGuid(),
-        Version = 5,
-        Sequence = 1000,
-        EventTypeName = "OrderCreated",
-        Data = new { OrderId = 123 },
-        Timestamp = DateTimeOffset.UtcNow,
-        CorrelationId = correlationId,
-        CausationId = causationId,
-    };
+        {
+            Id = Guid.NewGuid(),
+            StreamId = Guid.NewGuid(),
+            Version = 5,
+            Sequence = 1000,
+            EventTypeName = "OrderCreated",
+            Data = new { OrderId = 123 },
+            Timestamp = DateTimeOffset.UtcNow,
+            CorrelationId = correlationId,
+            CausationId = causationId,
+        };
 
     [Fact]
     public void EnrichWithEvent_NullActivity_DoesNotThrow()
