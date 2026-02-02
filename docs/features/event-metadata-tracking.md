@@ -394,6 +394,6 @@ result.Match(
 
 ## See Also
 
-- [Marten Event Versioning](../marten/event-versioning.md)
-- [OpenTelemetry Integration](../observability/opentelemetry.md)
-- [Request Context](../core/request-context.md)
+- Marten Event Versioning (documentation planned)
+- OpenTelemetry Integration (documentation planned)
+- Request Context (documentation planned)
