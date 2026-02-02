@@ -79,6 +79,40 @@ public static class ActivityTagNames
     }
 
     /// <summary>
+    /// Event metadata tags for correlation and causation tracking.
+    /// </summary>
+    /// <remarks>
+    /// These tags are used to link event sourcing events with OpenTelemetry traces,
+    /// enabling end-to-end tracing of event flows across distributed systems.
+    /// </remarks>
+    public static class EventMetadata
+    {
+        /// <summary>Tag name for the event identifier.</summary>
+        public const string MessageId = "event.message_id";
+
+        /// <summary>Tag name for the correlation identifier linking related events.</summary>
+        public const string CorrelationId = "event.correlation_id";
+
+        /// <summary>Tag name for the causation identifier linking cause-effect events.</summary>
+        public const string CausationId = "event.causation_id";
+
+        /// <summary>Tag name for the event stream identifier.</summary>
+        public const string StreamId = "event.stream_id";
+
+        /// <summary>Tag name for the event type name.</summary>
+        public const string TypeName = "event.type_name";
+
+        /// <summary>Tag name for the event version within the stream.</summary>
+        public const string Version = "event.version";
+
+        /// <summary>Tag name for the event sequence number (global position).</summary>
+        public const string Sequence = "event.sequence";
+
+        /// <summary>Tag name for the event timestamp.</summary>
+        public const string Timestamp = "event.timestamp";
+    }
+
+    /// <summary>
     /// Saga-specific tags.
     /// </summary>
     public static class Saga

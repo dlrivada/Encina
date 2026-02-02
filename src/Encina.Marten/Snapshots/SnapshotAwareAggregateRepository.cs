@@ -19,33 +19,50 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
 {
     private readonly IDocumentSession _session;
     private readonly ISnapshotStore<TAggregate> _snapshotStore;
+    private readonly IRequestContext _requestContext;
     private readonly ILogger<SnapshotAwareAggregateRepository<TAggregate>> _logger;
     private readonly EncinaMartenOptions _options;
     private readonly AggregateSnapshotConfig _snapshotConfig;
+    private readonly EventMetadataEnrichmentService? _enrichmentService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SnapshotAwareAggregateRepository{TAggregate}"/> class.
     /// </summary>
     /// <param name="session">The Marten document session.</param>
     /// <param name="snapshotStore">The snapshot store.</param>
+    /// <param name="requestContext">The current request context for metadata extraction.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
+    /// <param name="enrichers">Optional collection of metadata enrichers.</param>
     public SnapshotAwareAggregateRepository(
         IDocumentSession session,
         ISnapshotStore<TAggregate> snapshotStore,
+        IRequestContext requestContext,
         ILogger<SnapshotAwareAggregateRepository<TAggregate>> logger,
-        IOptions<EncinaMartenOptions> options)
+        IOptions<EncinaMartenOptions> options,
+        IEnumerable<IEventMetadataEnricher>? enrichers = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(snapshotStore);
+        ArgumentNullException.ThrowIfNull(requestContext);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
 
         _session = session;
         _snapshotStore = snapshotStore;
+        _requestContext = requestContext;
         _logger = logger;
         _options = options.Value;
         _snapshotConfig = _options.Snapshots.GetConfigFor<TAggregate>();
+
+        // Create enrichment service if metadata tracking is enabled
+        if (_options.Metadata.IsAnyMetadataEnabled())
+        {
+            _enrichmentService = new EventMetadataEnrichmentService(
+                _options.Metadata,
+                enrichers ?? [],
+                logger);
+        }
     }
 
     /// <inheritdoc />
@@ -123,6 +140,9 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
 
             Log.SavingEvents(_logger, uncommittedEvents.Count, typeof(TAggregate).Name, aggregate.Id);
 
+            // Enrich session with metadata before appending events
+            _enrichmentService?.EnrichSession(_session, _requestContext, uncommittedEvents);
+
             // Append events to the stream
             var expectedVersion = aggregate.Version - uncommittedEvents.Count;
             _session.Events.Append(aggregate.Id, expectedVersion, uncommittedEvents.ToArray());
@@ -185,6 +205,9 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
             }
 
             Log.CreatingAggregate(_logger, typeof(TAggregate).Name, aggregate.Id, uncommittedEvents.Count);
+
+            // Enrich session with metadata before starting stream
+            _enrichmentService?.EnrichSession(_session, _requestContext, uncommittedEvents);
 
             // Start a new stream
             _session.Events.StartStream<TAggregate>(aggregate.Id, uncommittedEvents.ToArray());

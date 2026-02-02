@@ -48,3 +48,16 @@ Encina.OpenTelemetry.ActivityTagNames.Systems
 const Encina.OpenTelemetry.ActivityTagNames.Systems.Inbox = "encina.inbox" -> string!
 const Encina.OpenTelemetry.ActivityTagNames.Systems.Outbox = "encina.outbox" -> string!
 const Encina.OpenTelemetry.ActivityTagNames.Systems.Scheduling = "encina.scheduling" -> string!
+Encina.OpenTelemetry.ActivityTagNames.EventMetadata
+const Encina.OpenTelemetry.ActivityTagNames.EventMetadata.MessageId = "event.message_id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.EventMetadata.CorrelationId = "event.correlation_id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.EventMetadata.CausationId = "event.causation_id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.EventMetadata.StreamId = "event.stream_id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.EventMetadata.TypeName = "event.type_name" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.EventMetadata.Version = "event.version" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.EventMetadata.Sequence = "event.sequence" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.EventMetadata.Timestamp = "event.timestamp" -> string!
+Encina.OpenTelemetry.Enrichers.EventMetadataActivityEnricher
+static Encina.OpenTelemetry.Enrichers.EventMetadataActivityEnricher.EnrichWithEvent(System.Diagnostics.Activity? activity, System.Guid eventId, System.Guid streamId, string! eventTypeName, long version, long sequence, System.DateTimeOffset timestamp, string? correlationId = null, string? causationId = null) -> void
+static Encina.OpenTelemetry.Enrichers.EventMetadataActivityEnricher.EnrichWithCorrelationIds(System.Diagnostics.Activity? activity, string? correlationId, string? causationId = null) -> void
+static Encina.OpenTelemetry.Enrichers.EventMetadataActivityEnricher.EnrichWithQueryResult(System.Diagnostics.Activity? activity, int totalCount, int returnedCount, bool hasMore, string? correlationId = null) -> void

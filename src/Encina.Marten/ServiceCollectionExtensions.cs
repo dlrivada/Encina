@@ -72,6 +72,12 @@ public static class ServiceCollectionExtensions
             services.AddEventVersioning(options.EventVersioning);
         }
 
+        // Register event metadata infrastructure if any metadata features are enabled
+        if (options.Metadata.IsAnyMetadataEnabled())
+        {
+            services.AddEventMetadata(options.Metadata);
+        }
+
         return services;
     }
 
@@ -184,6 +190,25 @@ public static class ServiceCollectionExtensions
 
         // Configure Marten to use registered upcasters
         services.TryAddSingleton<IConfigureOptions<StoreOptions>, ConfigureMartenEventVersioning>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds event metadata infrastructure to the service collection.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="options">The event metadata options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    internal static IServiceCollection AddEventMetadata(
+        this IServiceCollection services,
+        EventMetadataOptions options)
+    {
+        // Configure Marten to enable metadata columns
+        services.TryAddSingleton<IConfigureOptions<StoreOptions>, ConfigureMartenEventMetadata>();
+
+        // Register event metadata query service
+        services.TryAddScoped<IEventMetadataQuery, MartenEventMetadataQuery>();
 
         return services;
     }

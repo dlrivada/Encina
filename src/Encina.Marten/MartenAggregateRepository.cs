@@ -15,27 +15,44 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
     where TAggregate : class, IAggregate
 {
     private readonly IDocumentSession _session;
+    private readonly IRequestContext _requestContext;
     private readonly ILogger<MartenAggregateRepository<TAggregate>> _logger;
     private readonly EncinaMartenOptions _options;
+    private readonly EventMetadataEnrichmentService? _enrichmentService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MartenAggregateRepository{TAggregate}"/> class.
     /// </summary>
     /// <param name="session">The Marten document session.</param>
+    /// <param name="requestContext">The current request context for metadata extraction.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
+    /// <param name="enrichers">Optional collection of metadata enrichers.</param>
     public MartenAggregateRepository(
         IDocumentSession session,
+        IRequestContext requestContext,
         ILogger<MartenAggregateRepository<TAggregate>> logger,
-        IOptions<EncinaMartenOptions> options)
+        IOptions<EncinaMartenOptions> options,
+        IEnumerable<IEventMetadataEnricher>? enrichers = null)
     {
         ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(requestContext);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
 
         _session = session;
+        _requestContext = requestContext;
         _logger = logger;
         _options = options.Value;
+
+        // Create enrichment service if metadata tracking is enabled
+        if (_options.Metadata.IsAnyMetadataEnabled())
+        {
+            _enrichmentService = new EventMetadataEnrichmentService(
+                _options.Metadata,
+                enrichers ?? [],
+                logger);
+        }
     }
 
     /// <inheritdoc />
@@ -130,6 +147,9 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
 
             Log.SavingEvents(_logger, uncommittedEvents.Count, typeof(TAggregate).Name, aggregate.Id);
 
+            // Enrich session with metadata before appending events
+            _enrichmentService?.EnrichSession(_session, _requestContext, uncommittedEvents);
+
             // Append events to the stream
             var expectedVersion = aggregate.Version - uncommittedEvents.Count;
             _session.Events.Append(aggregate.Id, expectedVersion, uncommittedEvents.ToArray());
@@ -189,6 +209,9 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
             }
 
             Log.CreatingAggregate(_logger, typeof(TAggregate).Name, aggregate.Id, uncommittedEvents.Count);
+
+            // Enrich session with metadata before starting stream
+            _enrichmentService?.EnrichSession(_session, _requestContext, uncommittedEvents);
 
             // Start a new stream
             _session.Events.StartStream<TAggregate>(aggregate.Id, uncommittedEvents.ToArray());

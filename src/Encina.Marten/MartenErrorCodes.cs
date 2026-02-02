@@ -44,4 +44,19 @@ public static class MartenErrorCodes
     /// Error code when publishing domain events fails.
     /// </summary>
     public const string PublishEventsFailed = "marten.publish_events_failed";
+
+    /// <summary>
+    /// Error code when an event metadata query fails.
+    /// </summary>
+    public const string QueryFailed = "marten.query_failed";
+
+    /// <summary>
+    /// Error code when a query has invalid parameters.
+    /// </summary>
+    public const string InvalidQuery = "marten.invalid_query";
+
+    /// <summary>
+    /// Error code when an event is not found.
+    /// </summary>
+    public const string EventNotFound = "marten.event_not_found";
 }

@@ -2,6 +2,103 @@
 
 ### Added
 
+#### Causation and Correlation ID Tracking in Event Metadata (#321)
+
+Added comprehensive event metadata tracking for Marten event sourcing, enabling end-to-end distributed tracing and causal chain reconstruction.
+
+**Event Metadata Options**:
+
+```csharp
+services.AddEncinaMarten(options =>
+{
+    // Core tracking (enabled by default)
+    options.Metadata.CorrelationIdEnabled = true;
+    options.Metadata.CausationIdEnabled = true;
+    options.Metadata.CaptureUserId = true;
+    options.Metadata.CaptureTenantId = true;
+    options.Metadata.CaptureTimestamp = true;
+
+    // Optional features
+    options.Metadata.CaptureCommitSha = true;
+    options.Metadata.CommitSha = "abc123";
+    options.Metadata.CaptureSemanticVersion = true;
+    options.Metadata.SemanticVersion = "1.0.0";
+
+    // Custom headers
+    options.Metadata.CustomHeaders["Environment"] = "Production";
+});
+```
+
+**Automatic Metadata Propagation**:
+
+- Correlation ID automatically propagated from `IRequestContext`
+- Causation ID defaults to correlation ID or can be set explicitly via metadata
+- Custom metadata enrichers via `IEventMetadataEnricher` interface
+
+**Query Capabilities**:
+
+| Method | Description |
+|--------|-------------|
+| `GetEventsByCorrelationIdAsync()` | Find all events from a workflow |
+| `GetEventsByCausationIdAsync()` | Find events caused by a specific event |
+| `GetCausalChainAsync()` | Reconstruct event causation chains |
+| `GetEventByIdAsync()` | Get single event with full metadata |
+
+**OpenTelemetry Integration**:
+
+```csharp
+// Generic activity enrichment
+EventMetadataActivityEnricher.EnrichWithCorrelationIds(activity, correlationId, causationId);
+EventMetadataActivityEnricher.EnrichWithEvent(activity, eventId, streamId, ...);
+
+// Marten-specific enrichment
+MartenActivityEnricher.EnrichWithEvent(activity, eventWithMetadata);
+MartenActivityEnricher.EnrichWithQueryResult(activity, queryResult);
+MartenActivityEnricher.EnrichWithCausalChain(activity, chain, direction);
+```
+
+**Activity Tag Names**:
+
+| Tag | Description |
+|-----|-------------|
+| `event.message_id` | Unique event identifier |
+| `event.correlation_id` | Links related events across a workflow |
+| `event.causation_id` | Links cause-effect relationships |
+| `event.stream_id` | Aggregate/stream identifier |
+| `event.type_name` | Event type name |
+| `event.version` | Version within the stream |
+| `event.sequence` | Global sequence number |
+| `event.timestamp` | Event timestamp (ISO 8601) |
+
+**New Types**:
+
+| Type | Purpose |
+|------|---------|
+| `EventMetadataOptions` | Configuration for metadata capture |
+| `IEventMetadataQuery` | Query interface for events by metadata |
+| `MartenEventMetadataQuery` | Marten implementation of query interface |
+| `IEventMetadataEnricher` | Custom metadata enrichment hook |
+| `EventWithMetadata` | Event data with all metadata fields |
+| `EventQueryOptions` | Pagination and filtering options |
+| `EventQueryResult` | Paginated query results |
+| `CausalChainDirection` | Ancestors or Descendants traversal |
+| `EventMetadataActivityEnricher` | OpenTelemetry activity enricher |
+| `MartenActivityEnricher` | Marten-specific activity enricher |
+
+**Tests Added**:
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 128+ | Options, enrichment, query validation |
+| Integration Tests | 15+ | Metadata persistence, query capabilities |
+| OpenTelemetry Tests | 44 | Activity enrichment |
+
+**Documentation**: See `docs/features/event-metadata-tracking.md` for complete guide.
+
+**Related Issue**: [#321 - Causation and Correlation ID Tracking](https://github.com/dlrivada/Encina/issues/321)
+
+---
+
 #### Audit Trail Pattern (IAuditableEntity) (#286)
 
 Added comprehensive audit trail tracking for entity creation, modification, and soft delete operations across all 13 database providers.

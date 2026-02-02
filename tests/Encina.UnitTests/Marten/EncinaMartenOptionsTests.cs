@@ -17,6 +17,19 @@ public sealed class EncinaMartenOptionsTests
         options.Projections.ShouldNotBeNull();
         options.Snapshots.ShouldNotBeNull();
         options.EventVersioning.ShouldNotBeNull();
+        options.Metadata.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Metadata_DefaultValues_AreCorrect()
+    {
+        var options = new EncinaMartenOptions();
+
+        // Metadata should have correlation and causation tracking enabled by default
+        options.Metadata.CorrelationIdEnabled.ShouldBeTrue();
+        options.Metadata.CausationIdEnabled.ShouldBeTrue();
+        options.Metadata.CaptureUserId.ShouldBeTrue();
+        options.Metadata.CaptureTenantId.ShouldBeTrue();
     }
 
     [Fact]

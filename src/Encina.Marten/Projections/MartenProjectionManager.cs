@@ -483,6 +483,19 @@ public sealed class MartenProjectionManager : IProjectionManager
 
     private static ProjectionContext CreateContext(IEvent eventData)
     {
+        // Extract metadata from event headers
+        var metadata = new Dictionary<string, object>();
+        if (eventData.Headers is not null)
+        {
+            foreach (var header in eventData.Headers)
+            {
+                if (header.Value is not null)
+                {
+                    metadata[header.Key] = header.Value;
+                }
+            }
+        }
+
         return new ProjectionContext
         {
             StreamId = eventData.StreamId,
@@ -490,6 +503,9 @@ public sealed class MartenProjectionManager : IProjectionManager
             GlobalPosition = eventData.Sequence,
             Timestamp = eventData.Timestamp.UtcDateTime,
             EventType = eventData.EventTypeName,
+            CorrelationId = eventData.CorrelationId,
+            CausationId = eventData.CausationId,
+            Metadata = metadata,
         };
     }
 

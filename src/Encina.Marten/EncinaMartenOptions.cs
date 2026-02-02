@@ -92,4 +92,35 @@ public sealed class EncinaMartenOptions
     /// </code>
     /// </example>
     public EventVersioningOptions EventVersioning { get; } = new();
+
+    /// <summary>
+    /// Gets the event metadata options for causation and correlation ID tracking.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Event metadata enables automatic tracking of causation and correlation IDs
+    /// for distributed tracing and debugging in event-sourced systems.
+    /// </para>
+    /// <para>
+    /// By default, correlation ID and causation ID tracking are enabled.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaMarten(options =>
+    /// {
+    ///     // Correlation and causation tracking are enabled by default
+    ///     options.Metadata.CorrelationIdEnabled = true;
+    ///     options.Metadata.CausationIdEnabled = true;
+    ///
+    ///     // Optionally capture additional metadata
+    ///     options.Metadata.CaptureCommitSha = true;
+    ///     options.Metadata.CommitSha = "abc123";
+    ///
+    ///     // Add custom static headers
+    ///     options.Metadata.CustomHeaders["Environment"] = "Production";
+    /// });
+    /// </code>
+    /// </example>
+    public EventMetadataOptions Metadata { get; } = new();
 }

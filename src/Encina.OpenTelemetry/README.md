@@ -118,6 +118,62 @@ All spans include:
 - Success/failure status
 - Error details (if failed)
 
+### Event Metadata (Correlation & Causation)
+
+When using Encina.Marten for event sourcing, you can enrich activities with event metadata for end-to-end distributed tracing:
+
+```csharp
+using Encina.OpenTelemetry.Enrichers;
+using System.Diagnostics;
+
+// Enrich with correlation IDs from RequestContext
+var activity = Activity.Current;
+EventMetadataActivityEnricher.EnrichWithCorrelationIds(
+    activity,
+    requestContext.CorrelationId,
+    commandId); // causation ID
+
+// Enrich with full event details
+EventMetadataActivityEnricher.EnrichWithEvent(
+    activity,
+    eventId: eventWithMetadata.Id,
+    streamId: eventWithMetadata.StreamId,
+    eventTypeName: eventWithMetadata.EventTypeName,
+    version: eventWithMetadata.Version,
+    sequence: eventWithMetadata.Sequence,
+    timestamp: eventWithMetadata.Timestamp,
+    correlationId: eventWithMetadata.CorrelationId,
+    causationId: eventWithMetadata.CausationId);
+```
+
+Event metadata tags follow semantic conventions:
+
+| Tag | Description |
+|-----|-------------|
+| `event.message_id` | Unique event identifier |
+| `event.correlation_id` | Links related events across a workflow |
+| `event.causation_id` | Links cause-effect event relationships |
+| `event.stream_id` | Aggregate/stream identifier |
+| `event.type_name` | Event type name |
+| `event.version` | Version within the stream |
+| `event.sequence` | Global sequence number |
+| `event.timestamp` | Event timestamp (ISO 8601) |
+
+For Marten-specific types, use `MartenActivityEnricher` from `Encina.Marten.Instrumentation`:
+
+```csharp
+using Encina.Marten.Instrumentation;
+
+// Enrich directly from EventWithMetadata
+MartenActivityEnricher.EnrichWithEvent(activity, eventWithMetadata);
+
+// Enrich from query results
+MartenActivityEnricher.EnrichWithQueryResult(activity, queryResult);
+
+// Enrich from causal chain traversal
+MartenActivityEnricher.EnrichWithCausalChain(activity, events, CausalChainDirection.Ancestors);
+```
+
 ### Metrics
 
 Encina exposes the following metrics:
