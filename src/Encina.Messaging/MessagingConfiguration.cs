@@ -405,6 +405,41 @@ public sealed class MessagingConfiguration
     public bool UseAuditLogStore { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable security audit trail storage.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, CQRS request/response operations are audited to the database
+    /// using the provider-specific <c>IAuditStore</c> implementation from
+    /// <c>Encina.Security.Audit</c>. This is separate from <see cref="UseAuditLogStore"/>
+    /// which logs entity changes.
+    /// </para>
+    /// <para>
+    /// Security audit trail features:
+    /// <list type="bullet">
+    /// <item><description>Records command and query operations with outcomes</description></item>
+    /// <item><description>Captures user, tenant, correlation, and timing information</description></item>
+    /// <item><description>Supports request/response payload capture with PII redaction</description></item>
+    /// <item><description>Provides SHA-256 payload hashing for tamper detection</description></item>
+    /// <item><description>Enables compliance with SOX, HIPAA, and GDPR requirements</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Requires</b>: <c>Encina.Security.Audit</c> package to be configured.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseSecurityAuditStore = true;
+    /// });
+    /// </code>
+    /// </example>
+    public bool UseSecurityAuditStore { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -596,5 +631,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore;
 }

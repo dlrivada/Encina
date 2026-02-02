@@ -26,6 +26,9 @@ public class AuditEntryTests
         var payloadHash = "abc123";
         var metadata = new Dictionary<string, object?> { ["key"] = "value" };
 
+        var startedAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var completedAtUtc = DateTimeOffset.UtcNow;
+
         // Act
         var entry = new AuditEntry
         {
@@ -38,6 +41,8 @@ public class AuditEntryTests
             EntityId = entityId,
             Outcome = outcome,
             TimestampUtc = timestampUtc,
+            StartedAtUtc = startedAtUtc,
+            CompletedAtUtc = completedAtUtc,
             IpAddress = ipAddress,
             UserAgent = userAgent,
             RequestPayloadHash = payloadHash,
@@ -130,6 +135,8 @@ public class AuditEntryTests
         var id = Guid.NewGuid();
         var timestamp = DateTime.UtcNow;
         var metadata = new Dictionary<string, object?>();
+        var startedAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var completedAtUtc = DateTimeOffset.UtcNow;
         var entry1 = new AuditEntry
         {
             Id = id,
@@ -138,6 +145,8 @@ public class AuditEntryTests
             EntityType = "Order",
             Outcome = AuditOutcome.Success,
             TimestampUtc = timestamp,
+            StartedAtUtc = startedAtUtc,
+            CompletedAtUtc = completedAtUtc,
             Metadata = metadata
         };
         var entry2 = new AuditEntry
@@ -148,6 +157,8 @@ public class AuditEntryTests
             EntityType = "Order",
             Outcome = AuditOutcome.Success,
             TimestampUtc = timestamp,
+            StartedAtUtc = startedAtUtc,
+            CompletedAtUtc = completedAtUtc,
             Metadata = metadata
         };
 
@@ -162,6 +173,8 @@ public class AuditEntryTests
         var id = Guid.NewGuid();
         var timestamp = DateTime.UtcNow;
         var metadata = new Dictionary<string, object?>();
+        var startedAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var completedAtUtc = DateTimeOffset.UtcNow;
         var entry1 = new AuditEntry
         {
             Id = id,
@@ -170,6 +183,8 @@ public class AuditEntryTests
             EntityType = "Order",
             Outcome = AuditOutcome.Success,
             TimestampUtc = timestamp,
+            StartedAtUtc = startedAtUtc,
+            CompletedAtUtc = completedAtUtc,
             Metadata = metadata
         };
         var entry2 = new AuditEntry
@@ -180,6 +195,8 @@ public class AuditEntryTests
             EntityType = "Order",
             Outcome = AuditOutcome.Success,
             TimestampUtc = timestamp,
+            StartedAtUtc = startedAtUtc,
+            CompletedAtUtc = completedAtUtc,
             Metadata = metadata
         };
 
@@ -222,6 +239,8 @@ public class AuditEntryTests
             EntityType = entityType ?? "TestEntity",
             Outcome = outcome ?? AuditOutcome.Success,
             TimestampUtc = timestampUtc ?? DateTime.UtcNow,
+            StartedAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1),
+            CompletedAtUtc = DateTimeOffset.UtcNow,
             ErrorMessage = errorMessage,
             Metadata = metadata ?? new Dictionary<string, object?>()
         };

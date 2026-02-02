@@ -62,4 +62,36 @@ public interface IAuditEntryFactory
         IRequestContext context,
         AuditOutcome outcome,
         string? errorMessage);
+
+    /// <summary>
+    /// Creates an <see cref="AuditEntry"/> from a request with full timing and response capture.
+    /// </summary>
+    /// <typeparam name="TRequest">The type of the request being audited.</typeparam>
+    /// <typeparam name="TResponse">The type of the response.</typeparam>
+    /// <param name="request">The request instance.</param>
+    /// <param name="response">The response instance, or <c>default</c> if the operation failed.</param>
+    /// <param name="context">The request context containing correlation, user, and tenant information.</param>
+    /// <param name="outcome">The outcome of the operation.</param>
+    /// <param name="errorMessage">The error message if <paramref name="outcome"/> is not <see cref="AuditOutcome.Success"/>.</param>
+    /// <param name="startedAtUtc">When the operation started.</param>
+    /// <param name="completedAtUtc">When the operation completed.</param>
+    /// <returns>A fully populated <see cref="AuditEntry"/> with timing and payload information.</returns>
+    /// <remarks>
+    /// <para>
+    /// This overload captures additional information:
+    /// <list type="bullet">
+    /// <item>Start and completion timestamps for duration tracking</item>
+    /// <item>Request and response payloads (when enabled in <see cref="AuditOptions"/>)</item>
+    /// <item>Sensitive field redaction based on <see cref="AuditableAttribute.SensitiveFields"/></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    AuditEntry Create<TRequest, TResponse>(
+        TRequest request,
+        TResponse? response,
+        IRequestContext context,
+        AuditOutcome outcome,
+        string? errorMessage,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset completedAtUtc);
 }

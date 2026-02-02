@@ -246,6 +246,62 @@ public class ServiceCollectionExtensionsTests
         descriptor.Lifetime.Should().Be(ServiceLifetime.Singleton);
     }
 
+    [Fact]
+    public void AddEncinaAudit_WithAutoPurgeEnabled_ShouldRegisterRetentionService()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddEncinaAudit(options =>
+        {
+            options.EnableAutoPurge = true;
+            options.RetentionDays = 90;
+            options.PurgeIntervalHours = 12;
+        });
+
+        // Assert
+        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
+            d.ImplementationType == typeof(AuditRetentionService));
+        descriptor.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AddEncinaAudit_WithAutoPurgeDisabled_ShouldNotRegisterRetentionService()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddEncinaAudit(options =>
+        {
+            options.EnableAutoPurge = false;
+        });
+
+        // Assert
+        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
+            d.ImplementationType == typeof(AuditRetentionService));
+        descriptor.Should().BeNull();
+    }
+
+    [Fact]
+    public void AddEncinaAudit_WithDefaultOptions_ShouldNotRegisterRetentionService()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddEncinaAudit(); // EnableAutoPurge defaults to false
+
+        // Assert
+        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
+            d.ImplementationType == typeof(AuditRetentionService));
+        descriptor.Should().BeNull();
+    }
+
     #region Custom Test Implementations
 
     private sealed class CustomPiiMasker : IPiiMasker
@@ -273,6 +329,14 @@ public class ServiceCollectionExtensionsTests
         public ValueTask<Either<EncinaError, IReadOnlyList<AuditEntry>>> GetByCorrelationIdAsync(
             string correlationId, CancellationToken cancellationToken = default)
             => new(Prelude.Right<EncinaError, IReadOnlyList<AuditEntry>>(EmptyEntries));
+
+        public ValueTask<Either<EncinaError, PagedResult<AuditEntry>>> QueryAsync(
+            AuditQuery query, CancellationToken cancellationToken = default)
+            => new(Prelude.Right<EncinaError, PagedResult<AuditEntry>>(PagedResult<AuditEntry>.Empty()));
+
+        public ValueTask<Either<EncinaError, int>> PurgeEntriesAsync(
+            DateTime olderThanUtc, CancellationToken cancellationToken = default)
+            => new(Prelude.Right<EncinaError, int>(0));
     }
 
     #endregion

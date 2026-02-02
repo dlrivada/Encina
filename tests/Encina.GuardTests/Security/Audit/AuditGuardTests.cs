@@ -296,6 +296,118 @@ public class AuditGuardTests
 
     #endregion
 
+    #region AuditRetentionService Guard Tests
+
+    [Fact]
+    public void AuditRetentionService_Constructor_NullAuditStore_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var options = Options.Create(new AuditOptions());
+        var logger = Substitute.For<ILogger<AuditRetentionService>>();
+
+        // Act
+        var act = () => new AuditRetentionService(null!, options, logger);
+
+        // Assert
+        act.Should().Throw<ArgumentNullException>()
+            .WithParameterName("auditStore");
+    }
+
+    [Fact]
+    public void AuditRetentionService_Constructor_NullOptions_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var auditStore = Substitute.For<IAuditStore>();
+        var logger = Substitute.For<ILogger<AuditRetentionService>>();
+
+        // Act
+        var act = () => new AuditRetentionService(auditStore, null!, logger);
+
+        // Assert
+        act.Should().Throw<ArgumentNullException>()
+            .WithParameterName("options");
+    }
+
+    [Fact]
+    public void AuditRetentionService_Constructor_NullLogger_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var auditStore = Substitute.For<IAuditStore>();
+        var options = Options.Create(new AuditOptions());
+
+        // Act
+        var act = () => new AuditRetentionService(auditStore, options, null!);
+
+        // Assert
+        act.Should().Throw<ArgumentNullException>()
+            .WithParameterName("logger");
+    }
+
+    #endregion
+
+    #region DefaultSensitiveDataRedactor Guard Tests
+
+    [Fact]
+    public void DefaultSensitiveDataRedactor_Constructor_NullOptions_ThrowsArgumentNullException()
+    {
+        // Act
+        var act = () => new DefaultSensitiveDataRedactor(null!);
+
+        // Assert
+        act.Should().Throw<ArgumentNullException>()
+            .WithParameterName("options");
+    }
+
+    [Fact]
+    public void DefaultSensitiveDataRedactor_MaskForAuditGeneric_NullRequest_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var options = Options.Create(new AuditOptions());
+        var redactor = new DefaultSensitiveDataRedactor(options);
+
+        // Act
+        var act = () => redactor.MaskForAudit<TestCommand>(null!);
+
+        // Assert
+        act.Should().Throw<ArgumentNullException>()
+            .WithParameterName("request");
+    }
+
+    [Fact]
+    public void DefaultSensitiveDataRedactor_MaskForAuditObject_NullRequest_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var options = Options.Create(new AuditOptions());
+        var redactor = new DefaultSensitiveDataRedactor(options);
+
+        // Act
+        var act = () => redactor.MaskForAudit((object)null!);
+
+        // Assert
+        act.Should().Throw<ArgumentNullException>()
+            .WithParameterName("request");
+    }
+
+    #endregion
+
+    #region InMemoryAuditStore QueryAsync Guard Tests
+
+    [Fact]
+    public async Task InMemoryAuditStore_QueryAsync_NullQuery_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var store = new InMemoryAuditStore();
+
+        // Act
+        var act = async () => await store.QueryAsync(null!);
+
+        // Assert
+        await act.Should().ThrowAsync<ArgumentNullException>()
+            .WithParameterName("query");
+    }
+
+    #endregion
+
     #region Test Types
 
     // Must be public for NSubstitute to create proxies

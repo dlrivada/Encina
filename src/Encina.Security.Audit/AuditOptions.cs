@@ -26,6 +26,18 @@ namespace Encina.Security.Audit;
 ///     options.IncludePayloadHash = true;
 ///     options.RetentionDays = 2555; // 7 years for SOX
 ///
+///     // Enable payload capture with size limit
+///     options.IncludeRequestPayload = true;
+///     options.IncludeResponsePayload = true;
+///     options.MaxPayloadSizeBytes = 65536; // 64 KB
+///
+///     // Define global sensitive fields to redact
+///     options.GlobalSensitiveFields = new[] { "dateOfBirth", "taxId", "bankAccount" };
+///
+///     // Enable automatic purging
+///     options.EnableAutoPurge = true;
+///     options.PurgeIntervalHours = 24;
+///
 ///     // Exclude internal infrastructure commands
 ///     options.ExcludeType&lt;RefreshCacheCommand&gt;();
 ///     options.ExcludeType&lt;HealthCheckQuery&gt;();
@@ -77,6 +89,110 @@ public sealed class AuditOptions
     /// </para>
     /// </remarks>
     public bool IncludePayloadHash { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether to include the full request payload in audit entries.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Default is <c>false</c>. When enabled, the JSON-serialized request (after sensitive
+    /// field redaction) is stored in <see cref="AuditEntry.RequestPayload"/>.
+    /// </para>
+    /// <para>
+    /// <b>Warning:</b> Enabling this increases storage requirements significantly.
+    /// Use <see cref="MaxPayloadSizeBytes"/> to limit payload size.
+    /// </para>
+    /// <para>
+    /// Sensitive fields defined in <see cref="GlobalSensitiveFields"/> and
+    /// <see cref="AuditableAttribute.SensitiveFields"/> are replaced with "[REDACTED]".
+    /// </para>
+    /// </remarks>
+    public bool IncludeRequestPayload { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to include the full response payload in audit entries.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Default is <c>false</c>. When enabled, the JSON-serialized response (after sensitive
+    /// field redaction) is stored in <see cref="AuditEntry.ResponsePayload"/>.
+    /// </para>
+    /// <para>
+    /// <b>Warning:</b> Enabling this increases storage requirements significantly.
+    /// Use <see cref="MaxPayloadSizeBytes"/> to limit payload size.
+    /// </para>
+    /// <para>
+    /// Response payloads are only captured for successful operations.
+    /// </para>
+    /// </remarks>
+    public bool IncludeResponsePayload { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum size in bytes for stored payloads.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Default is 65,536 bytes (64 KB). Payloads exceeding this size will not be stored
+    /// and will be set to <c>null</c> in the audit entry.
+    /// </para>
+    /// <para>
+    /// This limit applies to both <see cref="AuditEntry.RequestPayload"/> and
+    /// <see cref="AuditEntry.ResponsePayload"/> independently.
+    /// </para>
+    /// </remarks>
+    public int MaxPayloadSizeBytes { get; set; } = 65536; // 64 KB
+
+    /// <summary>
+    /// Gets or sets the global list of field names to redact from payloads.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// These field names are redacted from all audit payloads in addition to the
+    /// default sensitive fields (password, token, secret, apikey, etc.).
+    /// </para>
+    /// <para>
+    /// Field matching is case-insensitive and supports both exact and partial matches
+    /// (e.g., "ssn" matches "SSN", "ssnNumber", "customerSsn").
+    /// </para>
+    /// <para>
+    /// Individual requests can add additional sensitive fields via
+    /// <see cref="AuditableAttribute.SensitiveFields"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// options.GlobalSensitiveFields = new[] { "dateOfBirth", "taxId", "bankAccount" };
+    /// </code>
+    /// </example>
+    public IReadOnlyList<string>? GlobalSensitiveFields { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to enable automatic purging of old audit entries.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Default is <c>false</c>. When enabled, a background service will periodically
+    /// purge entries older than <see cref="RetentionDays"/>.
+    /// </para>
+    /// <para>
+    /// The purge interval is controlled by <see cref="PurgeIntervalHours"/>.
+    /// </para>
+    /// </remarks>
+    public bool EnableAutoPurge { get; set; }
+
+    /// <summary>
+    /// Gets or sets the interval in hours between automatic purge operations.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Default is 24 hours (once daily). Only applies when <see cref="EnableAutoPurge"/>
+    /// is <c>true</c>.
+    /// </para>
+    /// <para>
+    /// Consider running purges during off-peak hours to minimize performance impact.
+    /// </para>
+    /// </remarks>
+    public int PurgeIntervalHours { get; set; } = 24;
 
     /// <summary>
     /// Gets or sets the retention period for audit entries in days.

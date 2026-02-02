@@ -105,7 +105,9 @@ public class AuditOutcomeTests
             Action = "Test",
             EntityType = "TestEntity",
             Outcome = AuditOutcome.Denied,
-            TimestampUtc = DateTime.UtcNow
+            TimestampUtc = DateTime.UtcNow,
+            StartedAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1),
+            CompletedAtUtc = DateTimeOffset.UtcNow
         };
 
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };

@@ -43,6 +43,14 @@ namespace Encina.Security.Audit;
 /// // Disable payload hashing for large payloads
 /// [Auditable(IncludePayloadValue = false)]
 /// public sealed record ImportBulkDataCommand(byte[] Data) : ICommand;
+///
+/// // Specify sensitive fields for domain-specific redaction
+/// [Auditable(SensitiveFields = new[] { "Diagnosis", "InsuranceNumber" })]
+/// public sealed record UpdatePatientCommand(
+///     Guid PatientId,
+///     string Diagnosis,         // Will be "[REDACTED]" in audit payload
+///     string InsuranceNumber    // Will be "[REDACTED]" in audit payload
+/// ) : ICommand;
 /// </code>
 /// </example>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
@@ -157,4 +165,36 @@ public sealed class AuditableAttribute : Attribute
     /// </code>
     /// </example>
     public bool Skip { get; init; }
+
+    /// <summary>
+    /// Gets or sets the names of fields that should be redacted in audit payloads.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Specifies request-specific field names that contain sensitive data and should be
+    /// replaced with "[REDACTED]" in <see cref="AuditEntry.RequestPayload"/> and
+    /// <see cref="AuditEntry.ResponsePayload"/>.
+    /// </para>
+    /// <para>
+    /// These fields are redacted in addition to global sensitive fields defined in
+    /// <c>AuditOptions.GlobalSensitiveFields</c>. Field matching is case-insensitive.
+    /// </para>
+    /// <para>
+    /// Common sensitive field names are already handled globally (e.g., "password", "token",
+    /// "apiKey", "secret", "creditCard", "ssn"). Use this property for domain-specific
+    /// sensitive fields unique to this request.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// [Auditable(SensitiveFields = new[] { "PatientDiagnosis", "InsuranceId", "MedicalHistory" })]
+    /// public sealed record UpdatePatientCommand(
+    ///     Guid PatientId,
+    ///     string PatientDiagnosis,    // Will be redacted
+    ///     string InsuranceId,          // Will be redacted
+    ///     string MedicalHistory        // Will be redacted
+    /// ) : ICommand;
+    /// </code>
+    /// </example>
+    public string[]? SensitiveFields { get; init; }
 }

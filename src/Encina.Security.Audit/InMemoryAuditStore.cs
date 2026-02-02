@@ -132,6 +132,129 @@ public sealed class InMemoryAuditStore : IAuditStore
         return ValueTask.FromResult<Either<EncinaError, IReadOnlyList<AuditEntry>>>(Right<EncinaError, IReadOnlyList<AuditEntry>>(entries));
     }
 
+    /// <inheritdoc/>
+    public ValueTask<Either<EncinaError, PagedResult<AuditEntry>>> QueryAsync(
+        AuditQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return ValueTask.FromResult<Either<EncinaError, PagedResult<AuditEntry>>>(
+                Left(EncinaError.New("Operation was cancelled")));
+        }
+
+        // Validate pagination
+        var pageNumber = Math.Max(1, query.PageNumber);
+        var pageSize = Math.Clamp(query.PageSize, 1, AuditQuery.MaxPageSize);
+
+        // Apply all filters
+        var filtered = _entries.Values.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(query.UserId))
+        {
+            filtered = filtered.Where(e => e.UserId == query.UserId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.TenantId))
+        {
+            filtered = filtered.Where(e => e.TenantId == query.TenantId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.EntityType))
+        {
+            filtered = filtered.Where(e => e.EntityType.Equals(query.EntityType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.EntityId))
+        {
+            filtered = filtered.Where(e => e.EntityId == query.EntityId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Action))
+        {
+            filtered = filtered.Where(e => e.Action.Equals(query.Action, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (query.Outcome.HasValue)
+        {
+            filtered = filtered.Where(e => e.Outcome == query.Outcome.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.CorrelationId))
+        {
+            filtered = filtered.Where(e => e.CorrelationId == query.CorrelationId);
+        }
+
+        if (query.FromUtc.HasValue)
+        {
+            filtered = filtered.Where(e => e.TimestampUtc >= query.FromUtc.Value);
+        }
+
+        if (query.ToUtc.HasValue)
+        {
+            filtered = filtered.Where(e => e.TimestampUtc <= query.ToUtc.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.IpAddress))
+        {
+            filtered = filtered.Where(e => e.IpAddress == query.IpAddress);
+        }
+
+        if (query.MinDuration.HasValue)
+        {
+            filtered = filtered.Where(e => e.Duration >= query.MinDuration.Value);
+        }
+
+        if (query.MaxDuration.HasValue)
+        {
+            filtered = filtered.Where(e => e.Duration <= query.MaxDuration.Value);
+        }
+
+        // Get total count before pagination
+        var allResults = filtered.ToList();
+        var totalCount = allResults.Count;
+
+        // Apply ordering and pagination
+        var items = allResults
+            .OrderByDescending(e => e.TimestampUtc)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        var result = PagedResult<AuditEntry>.Create(items, totalCount, pageNumber, pageSize);
+        return ValueTask.FromResult<Either<EncinaError, PagedResult<AuditEntry>>>(Right(result));
+    }
+
+    /// <inheritdoc/>
+    public ValueTask<Either<EncinaError, int>> PurgeEntriesAsync(
+        DateTime olderThanUtc,
+        CancellationToken cancellationToken = default)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return ValueTask.FromResult<Either<EncinaError, int>>(
+                Left(EncinaError.New("Operation was cancelled")));
+        }
+
+        var entriesToPurge = _entries
+            .Where(kvp => kvp.Value.TimestampUtc < olderThanUtc)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        var purgedCount = 0;
+        foreach (var id in entriesToPurge)
+        {
+            if (_entries.TryRemove(id, out _))
+            {
+                purgedCount++;
+            }
+        }
+
+        return ValueTask.FromResult<Either<EncinaError, int>>(Right(purgedCount));
+    }
+
     /// <summary>
     /// Gets all audit entries in the store.
     /// </summary>

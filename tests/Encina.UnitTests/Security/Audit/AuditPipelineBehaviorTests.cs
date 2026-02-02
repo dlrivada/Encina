@@ -27,7 +27,16 @@ public class AuditPipelineBehaviorTests : IDisposable
 #pragma warning restore CA2012
 
         _entryFactory = Substitute.For<IAuditEntryFactory>();
-        _entryFactory.Create(Arg.Any<object>(), Arg.Any<IRequestContext>(), Arg.Any<AuditOutcome>(), Arg.Any<string?>())
+
+        // Setup mock for the new 7-parameter Create method used by the behavior
+        _entryFactory.Create(
+            Arg.Any<object>(),
+            Arg.Any<object?>(),
+            Arg.Any<IRequestContext>(),
+            Arg.Any<AuditOutcome>(),
+            Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>())
             .Returns(CreateTestEntry());
 
         _options = Options.Create(new AuditOptions());
@@ -75,6 +84,8 @@ public class AuditPipelineBehaviorTests : IDisposable
         EntityId = Guid.NewGuid().ToString(),
         Outcome = AuditOutcome.Success,
         TimestampUtc = DateTime.UtcNow,
+        StartedAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1),
+        CompletedAtUtc = DateTimeOffset.UtcNow,
         Metadata = new Dictionary<string, object?>()
     };
 
@@ -95,7 +106,14 @@ public class AuditPipelineBehaviorTests : IDisposable
         await behavior.Handle(request, context, () => new ValueTask<Either<EncinaError, Unit>>(Unit.Default), CancellationToken.None);
 
         // Assert
-        _entryFactory.Received(1).Create(Arg.Any<TestCommand>(), Arg.Any<IRequestContext>(), Arg.Any<AuditOutcome>(), Arg.Any<string?>());
+        _entryFactory.Received(1).Create(
+            Arg.Any<TestCommand>(),
+            Arg.Any<Unit?>(),
+            Arg.Any<IRequestContext>(),
+            Arg.Any<AuditOutcome>(),
+            Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     [Fact]
@@ -113,7 +131,14 @@ public class AuditPipelineBehaviorTests : IDisposable
         await behavior.Handle(request, context, () => new ValueTask<Either<EncinaError, Unit>>(Unit.Default), CancellationToken.None);
 
         // Assert
-        _entryFactory.DidNotReceive().Create(Arg.Any<TestCommand>(), Arg.Any<IRequestContext>(), Arg.Any<AuditOutcome>(), Arg.Any<string?>());
+        _entryFactory.DidNotReceive().Create(
+            Arg.Any<TestCommand>(),
+            Arg.Any<Unit?>(),
+            Arg.Any<IRequestContext>(),
+            Arg.Any<AuditOutcome>(),
+            Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     [Fact]
@@ -132,7 +157,14 @@ public class AuditPipelineBehaviorTests : IDisposable
         await behavior.Handle(request, context, () => new ValueTask<Either<EncinaError, string>>("result"), CancellationToken.None);
 
         // Assert
-        _entryFactory.DidNotReceive().Create(Arg.Any<TestQuery>(), Arg.Any<IRequestContext>(), Arg.Any<AuditOutcome>(), Arg.Any<string?>());
+        _entryFactory.DidNotReceive().Create(
+            Arg.Any<TestQuery>(),
+            Arg.Any<string?>(),
+            Arg.Any<IRequestContext>(),
+            Arg.Any<AuditOutcome>(),
+            Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     [Fact]
@@ -151,7 +183,14 @@ public class AuditPipelineBehaviorTests : IDisposable
         await behavior.Handle(request, context, () => new ValueTask<Either<EncinaError, string>>("result"), CancellationToken.None);
 
         // Assert
-        _entryFactory.Received(1).Create(Arg.Any<TestQuery>(), Arg.Any<IRequestContext>(), Arg.Any<AuditOutcome>(), Arg.Any<string?>());
+        _entryFactory.Received(1).Create(
+            Arg.Any<TestQuery>(),
+            Arg.Any<string?>(),
+            Arg.Any<IRequestContext>(),
+            Arg.Any<AuditOutcome>(),
+            Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     [Fact]
@@ -171,7 +210,14 @@ public class AuditPipelineBehaviorTests : IDisposable
         await behavior.Handle(request, context, () => new ValueTask<Either<EncinaError, string>>("result"), CancellationToken.None);
 
         // Assert
-        _entryFactory.Received(1).Create(Arg.Any<AuditableQuery>(), Arg.Any<IRequestContext>(), Arg.Any<AuditOutcome>(), Arg.Any<string?>());
+        _entryFactory.Received(1).Create(
+            Arg.Any<AuditableQuery>(),
+            Arg.Any<string?>(),
+            Arg.Any<IRequestContext>(),
+            Arg.Any<AuditOutcome>(),
+            Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     [Fact]
@@ -191,7 +237,14 @@ public class AuditPipelineBehaviorTests : IDisposable
         await behavior.Handle(request, context, () => new ValueTask<Either<EncinaError, Unit>>(Unit.Default), CancellationToken.None);
 
         // Assert
-        _entryFactory.DidNotReceive().Create(Arg.Any<SkippedCommand>(), Arg.Any<IRequestContext>(), Arg.Any<AuditOutcome>(), Arg.Any<string?>());
+        _entryFactory.DidNotReceive().Create(
+            Arg.Any<SkippedCommand>(),
+            Arg.Any<Unit?>(),
+            Arg.Any<IRequestContext>(),
+            Arg.Any<AuditOutcome>(),
+            Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     [Fact]
@@ -213,7 +266,14 @@ public class AuditPipelineBehaviorTests : IDisposable
         await behavior.Handle(request, context, () => new ValueTask<Either<EncinaError, Unit>>(Unit.Default), CancellationToken.None);
 
         // Assert
-        _entryFactory.DidNotReceive().Create(Arg.Any<TestCommand>(), Arg.Any<IRequestContext>(), Arg.Any<AuditOutcome>(), Arg.Any<string?>());
+        _entryFactory.DidNotReceive().Create(
+            Arg.Any<TestCommand>(),
+            Arg.Any<Unit?>(),
+            Arg.Any<IRequestContext>(),
+            Arg.Any<AuditOutcome>(),
+            Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     #endregion
@@ -236,9 +296,12 @@ public class AuditPipelineBehaviorTests : IDisposable
         // Assert
         _entryFactory.Received(1).Create(
             Arg.Any<TestCommand>(),
+            Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Success,
-            Arg.Any<string?>());
+            Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     [Fact]
@@ -258,9 +321,12 @@ public class AuditPipelineBehaviorTests : IDisposable
         // Assert
         _entryFactory.Received(1).Create(
             Arg.Any<TestCommand>(),
+            Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Denied,
-            Arg.Is<string>(s => s.Contains("not authorized")));
+            Arg.Is<string>(s => s.Contains("not authorized")),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     [Fact]
@@ -280,9 +346,12 @@ public class AuditPipelineBehaviorTests : IDisposable
         // Assert
         _entryFactory.Received(1).Create(
             Arg.Any<TestCommand>(),
+            Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Denied,
-            Arg.Is<string>(s => s.Contains("forbidden")));
+            Arg.Is<string>(s => s.Contains("forbidden")),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     [Fact]
@@ -302,9 +371,12 @@ public class AuditPipelineBehaviorTests : IDisposable
         // Assert
         _entryFactory.Received(1).Create(
             Arg.Any<TestCommand>(),
+            Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Failure,
-            Arg.Is<string>(s => s.Contains("Validation") || s.Contains("required")));
+            Arg.Is<string>(s => s.Contains("Validation") || s.Contains("required")),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     [Fact]
@@ -324,9 +396,12 @@ public class AuditPipelineBehaviorTests : IDisposable
         // Assert
         _entryFactory.Received(1).Create(
             Arg.Any<TestCommand>(),
+            Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Failure,
-            Arg.Any<string?>());
+            Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     #endregion
@@ -352,9 +427,12 @@ public class AuditPipelineBehaviorTests : IDisposable
         await act.Should().ThrowAsync<InvalidOperationException>();
         _entryFactory.Received(1).Create(
             Arg.Any<TestCommand>(),
+            Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Error,
-            Arg.Is<string>(s => s.Contains("Something went wrong")));
+            Arg.Is<string>(s => s.Contains("Something went wrong")),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     [Fact]
@@ -378,9 +456,12 @@ public class AuditPipelineBehaviorTests : IDisposable
         await act.Should().ThrowAsync<OperationCanceledException>();
         _entryFactory.Received(1).Create(
             Arg.Any<TestCommand>(),
+            Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Error,
-            Arg.Is<string>(s => s.Contains("cancelled")));
+            Arg.Is<string>(s => s.Contains("cancelled")),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<DateTimeOffset>());
     }
 
     [Fact]

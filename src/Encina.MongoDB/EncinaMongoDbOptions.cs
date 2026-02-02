@@ -62,6 +62,20 @@ public sealed class EncinaMongoDbOptions
     public bool UseAuditLogStore { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Security Audit Store.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers IAuditStore implemented by AuditStoreMongoDB.
+    /// </para>
+    /// <para>
+    /// The security audit store provides comprehensive audit trail for operations
+    /// including request/response payloads, outcome tracking, and compliance features.
+    /// </para>
+    /// </remarks>
+    public bool UseSecurityAuditStore { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to create indexes automatically.
     /// </summary>
     public bool CreateIndexes { get; set; } = true;
@@ -161,4 +175,9 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for audit logs.
     /// </summary>
     public string AuditLogs { get; set; } = "audit_logs";
+
+    /// <summary>
+    /// Gets or sets the collection name for security audit entries.
+    /// </summary>
+    public string SecurityAuditEntries { get; set; } = "security_audit_entries";
 }

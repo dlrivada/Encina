@@ -78,9 +78,13 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
             return await nextStep().ConfigureAwait(false);
         }
 
+        // Capture start time
+        var startedAtUtc = DateTimeOffset.UtcNow;
+
         Either<EncinaError, TResponse> result;
         AuditOutcome outcome = AuditOutcome.Success;
         string? errorMessage = null;
+        TResponse? response = default;
 
         try
         {
@@ -88,9 +92,10 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
 
             // Map Either result to audit outcome
             _ = result.Match(
-                Right: _ =>
+                Right: value =>
                 {
                     outcome = AuditOutcome.Success;
+                    response = value;
                     return LanguageExt.Unit.Default;
                 },
                 Left: error =>
@@ -105,8 +110,9 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
             outcome = AuditOutcome.Error;
             errorMessage = "Operation was cancelled";
 
-            // Record cancellation and re-throw
-            _ = RecordAuditEntryAsync(request, context, outcome, errorMessage);
+            // Capture completion time and record cancellation
+            var completedAtUtc = DateTimeOffset.UtcNow;
+            _ = RecordAuditEntryAsync(request, default, context, outcome, errorMessage, startedAtUtc, completedAtUtc);
             throw;
         }
         catch (Exception ex)
@@ -114,13 +120,15 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
             outcome = AuditOutcome.Error;
             errorMessage = ex.Message;
 
-            // Record exception and re-throw
-            _ = RecordAuditEntryAsync(request, context, outcome, errorMessage);
+            // Capture completion time and record exception
+            var completedAtUtc = DateTimeOffset.UtcNow;
+            _ = RecordAuditEntryAsync(request, default, context, outcome, errorMessage, startedAtUtc, completedAtUtc);
             throw;
         }
 
-        // Fire-and-forget audit recording
-        _ = RecordAuditEntryAsync(request, context, outcome, errorMessage);
+        // Fire-and-forget audit recording with completion time
+        var finalCompletedAt = DateTimeOffset.UtcNow;
+        _ = RecordAuditEntryAsync(request, response, context, outcome, errorMessage, startedAtUtc, finalCompletedAt);
 
         return result;
     }
@@ -203,13 +211,23 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
 
     private async Task RecordAuditEntryAsync(
         TRequest request,
+        TResponse? response,
         IRequestContext context,
         AuditOutcome outcome,
-        string? errorMessage)
+        string? errorMessage,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset completedAtUtc)
     {
         try
         {
-            var entry = _entryFactory.Create(request, context, outcome, errorMessage);
+            var entry = _entryFactory.Create(
+                request,
+                response,
+                context,
+                outcome,
+                errorMessage,
+                startedAtUtc,
+                completedAtUtc);
 
             var result = await _auditStore.RecordAsync(entry).ConfigureAwait(false);
 

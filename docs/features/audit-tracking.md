@@ -780,8 +780,488 @@ services.AddScoped<IAuditLogStore, SqlAuditLogStore>();
 
 ---
 
+## Security Audit Trail (Pipeline Behavior)
+
+Starting with v0.12.0, Encina provides a comprehensive **Security Audit Trail** system that automatically logs all command and query operations through a pipeline behavior. This is separate from entity-level audit fields and provides operation-level audit logging.
+
+### Overview
+
+The Security Audit system captures:
+
+| Field | Description |
+|-------|-------------|
+| **Action** | The operation type (Create, Update, Delete, Get, List, etc.) |
+| **EntityType** | The request/command type being executed |
+| **UserId** | Who performed the operation |
+| **Outcome** | Success, Failure, or Denied |
+| **Duration** | How long the operation took |
+| **Payloads** | Request and response data (with PII redaction) |
+| **Metadata** | IP address, user agent, correlation ID |
+
+### Quick Start
+
+```csharp
+// Enable audit trail logging
+services.AddEncinaAudit(options =>
+{
+    options.AuditAllCommands = true;    // Audit all commands
+    options.AuditAllQueries = false;    // Don't audit queries by default
+    options.IncludeRequestPayload = true;
+    options.IncludeResponsePayload = false;
+    options.EnableAutoPurge = true;     // Auto-delete old entries
+    options.RetentionDays = 90;
+});
+
+// Mark specific operations for auditing
+[Auditable(Action = "CreateOrder", SensitiveFields = ["CreditCard", "Password"])]
+public record CreateOrderCommand(string CustomerId, string CreditCard) : ICommand<OrderId>;
+```
+
+### Payload Capture Configuration
+
+Control what data is captured in audit entries:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `IncludeRequestPayload` | `bool` | `true` | Capture request data |
+| `IncludeResponsePayload` | `bool` | `false` | Capture response data |
+| `MaxPayloadSizeBytes` | `int` | `65536` | Maximum payload size (truncated if exceeded) |
+| `IncludePayloadHash` | `bool` | `true` | Include SHA256 hash of original payload |
+
+**Configuration Example (appsettings.json):**
+
+```json
+{
+  "Encina": {
+    "Audit": {
+      "AuditAllCommands": true,
+      "AuditAllQueries": false,
+      "IncludeRequestPayload": true,
+      "IncludeResponsePayload": false,
+      "MaxPayloadSizeBytes": 65536,
+      "IncludePayloadHash": true,
+      "RetentionDays": 90,
+      "EnableAutoPurge": true,
+      "PurgeIntervalHours": 24
+    }
+  }
+}
+```
+
+### Sensitive Data Redaction
+
+Encina automatically redacts sensitive fields from audit payloads to protect PII:
+
+**Default Sensitive Field Patterns:**
+
+- `password`, `secret`, `token`, `key`, `apikey`, `api_key`
+- `authorization`, `bearer`, `credential`
+- `ssn`, `socialsecuritynumber`, `social_security_number`
+- `creditcard`, `credit_card`, `cardnumber`, `card_number`, `cvv`, `cvc`, `pin`
+- `accesstoken`, `access_token`, `refreshtoken`, `refresh_token`
+- `privatekey`, `private_key`, `connectionstring`, `connection_string`
+
+**Adding Global Sensitive Fields:**
+
+```csharp
+services.AddEncinaAudit(options =>
+{
+    options.GlobalSensitiveFields = ["AccountNumber", "TaxId", "DateOfBirth"];
+});
+```
+
+**Per-Operation Sensitive Fields:**
+
+```csharp
+[Auditable(SensitiveFields = ["CreditCard", "CVV", "BankAccount"])]
+public record ProcessPaymentCommand(string CreditCard, string CVV) : ICommand<PaymentResult>;
+```
+
+**Redacted Payload Example:**
+
+```json
+{
+  "customerId": "cust-123",
+  "creditCard": "[REDACTED]",
+  "cvv": "[REDACTED]",
+  "amount": 99.99
+}
+```
+
+### IPiiMasker Interface
+
+The `IPiiMasker` interface allows custom redaction implementations:
+
+```csharp
+public interface IPiiMasker
+{
+    T MaskForAudit<T>(T request) where T : notnull;
+    object MaskForAudit(object request);
+}
+```
+
+**Built-in Implementations:**
+
+| Implementation | Description |
+|----------------|-------------|
+| `NullPiiMasker` | No redaction (default) |
+| `DefaultSensitiveDataRedactor` | JSON-based field redaction |
+
+**Using DefaultSensitiveDataRedactor:**
+
+```csharp
+services.AddEncinaAudit(options =>
+{
+    // Enables DefaultSensitiveDataRedactor
+    options.GlobalSensitiveFields = ["Password", "ApiKey"];
+});
+
+// Or register manually
+services.AddSingleton<IPiiMasker, DefaultSensitiveDataRedactor>();
+```
+
+### Auto-Purge Configuration
+
+Automatically delete old audit entries to manage storage:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `EnableAutoPurge` | `bool` | `false` | Enable automatic purging |
+| `RetentionDays` | `int` | `2555` | Days to keep entries (~7 years) |
+| `PurgeIntervalHours` | `int` | `24` | Hours between purge runs |
+
+```csharp
+services.AddEncinaAudit(options =>
+{
+    options.EnableAutoPurge = true;
+    options.RetentionDays = 90;        // Keep 90 days
+    options.PurgeIntervalHours = 12;   // Run every 12 hours
+});
+```
+
+The `AuditRetentionService` is a `BackgroundService` that runs automatically when `EnableAutoPurge` is true.
+
+### Querying Audit Entries
+
+Use `IAuditStore.QueryAsync` with `AuditQuery` for flexible querying:
+
+**AuditQuery Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `UserId` | `string?` | Filter by user |
+| `TenantId` | `string?` | Filter by tenant |
+| `EntityType` | `string?` | Filter by entity/request type |
+| `EntityId` | `string?` | Filter by specific entity |
+| `Action` | `string?` | Filter by action (Create, Update, etc.) |
+| `Outcome` | `AuditOutcome?` | Filter by outcome (Success, Failure, Denied) |
+| `CorrelationId` | `string?` | Filter by correlation ID |
+| `FromUtc` | `DateTime?` | Filter by minimum timestamp |
+| `ToUtc` | `DateTime?` | Filter by maximum timestamp |
+| `IpAddress` | `string?` | Filter by IP address |
+| `MinDuration` | `TimeSpan?` | Filter by minimum duration |
+| `MaxDuration` | `TimeSpan?` | Filter by maximum duration |
+| `PageNumber` | `int` | Page number (default: 1) |
+| `PageSize` | `int` | Page size (default: 50, max: 1000) |
+
+**Query Examples:**
+
+```csharp
+// Inject the audit store
+public class AuditController
+{
+    private readonly IAuditStore _auditStore;
+
+    public AuditController(IAuditStore auditStore) => _auditStore = auditStore;
+
+    // Query by user with date range
+    public async Task<PagedResult<AuditEntry>> GetUserActivity(string userId)
+    {
+        var query = new AuditQuery
+        {
+            UserId = userId,
+            FromUtc = DateTime.UtcNow.AddDays(-30),
+            PageSize = 100
+        };
+
+        var result = await _auditStore.QueryAsync(query);
+        return result.Match(
+            Right: pagedResult => pagedResult,
+            Left: error => throw new InvalidOperationException(error.Message));
+    }
+
+    // Query failed operations
+    public async Task<PagedResult<AuditEntry>> GetFailedOperations()
+    {
+        var query = AuditQuery.Builder()
+            .WithOutcome(AuditOutcome.Failure)
+            .InDateRange(DateTime.UtcNow.AddDays(-7), DateTime.UtcNow)
+            .WithPageSize(50)
+            .Build();
+
+        var result = await _auditStore.QueryAsync(query);
+        return result.Match(r => r, e => throw new Exception(e.Message));
+    }
+
+    // Query slow operations
+    public async Task<PagedResult<AuditEntry>> GetSlowOperations()
+    {
+        var query = new AuditQuery
+        {
+            MinDuration = TimeSpan.FromSeconds(5),
+            Outcome = AuditOutcome.Success,
+            PageSize = 20
+        };
+
+        var result = await _auditStore.QueryAsync(query);
+        return result.Match(r => r, e => throw new Exception(e.Message));
+    }
+}
+```
+
+**PagedResult Structure:**
+
+```csharp
+public sealed record PagedResult<T>
+{
+    public IReadOnlyList<T> Items { get; }
+    public int TotalCount { get; }
+    public int PageNumber { get; }
+    public int PageSize { get; }
+    public int TotalPages { get; }
+    public bool HasPreviousPage { get; }
+    public bool HasNextPage { get; }
+}
+```
+
+### Store-Specific Setup
+
+#### EF Core (All 4 Databases)
+
+```csharp
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseAuditStore = true;  // Registers AuditStoreEF
+});
+
+// Run migrations to create SecurityAuditEntries table
+dotnet ef migrations add AddSecurityAuditEntries
+dotnet ef database update
+```
+
+**Migration adds:**
+
+```csharp
+migrationBuilder.CreateTable(
+    name: "SecurityAuditEntries",
+    columns: table => new
+    {
+        Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+        CorrelationId = table.Column<string>(nullable: false),
+        UserId = table.Column<string>(nullable: true),
+        TenantId = table.Column<string>(nullable: true),
+        Action = table.Column<string>(nullable: false),
+        EntityType = table.Column<string>(nullable: false),
+        EntityId = table.Column<string>(nullable: true),
+        Outcome = table.Column<int>(nullable: false),
+        ErrorMessage = table.Column<string>(nullable: true),
+        TimestampUtc = table.Column<DateTime>(nullable: false),
+        StartedAtUtc = table.Column<DateTimeOffset>(nullable: false),
+        CompletedAtUtc = table.Column<DateTimeOffset>(nullable: false),
+        IpAddress = table.Column<string>(nullable: true),
+        UserAgent = table.Column<string>(nullable: true),
+        RequestPayloadHash = table.Column<string>(nullable: true),
+        RequestPayload = table.Column<string>(nullable: true),
+        ResponsePayload = table.Column<string>(nullable: true),
+        Metadata = table.Column<string>(nullable: true)
+    });
+```
+
+#### Dapper (SQLite, SQL Server, PostgreSQL, MySQL)
+
+Execute the appropriate SQL script for your database:
+
+**SQL Server:**
+
+```sql
+CREATE TABLE SecurityAuditEntries (
+    Id UNIQUEIDENTIFIER PRIMARY KEY,
+    CorrelationId NVARCHAR(100) NOT NULL,
+    UserId NVARCHAR(256),
+    TenantId NVARCHAR(100),
+    Action NVARCHAR(100) NOT NULL,
+    EntityType NVARCHAR(500) NOT NULL,
+    EntityId NVARCHAR(256),
+    Outcome INT NOT NULL,
+    ErrorMessage NVARCHAR(MAX),
+    TimestampUtc DATETIME2 NOT NULL,
+    StartedAtUtc DATETIMEOFFSET NOT NULL,
+    CompletedAtUtc DATETIMEOFFSET NOT NULL,
+    IpAddress NVARCHAR(45),
+    UserAgent NVARCHAR(500),
+    RequestPayloadHash NVARCHAR(64),
+    RequestPayload NVARCHAR(MAX),
+    ResponsePayload NVARCHAR(MAX),
+    Metadata NVARCHAR(MAX)
+);
+
+CREATE INDEX IX_SecurityAuditEntries_UserId ON SecurityAuditEntries(UserId);
+CREATE INDEX IX_SecurityAuditEntries_EntityType_EntityId ON SecurityAuditEntries(EntityType, EntityId);
+CREATE INDEX IX_SecurityAuditEntries_TimestampUtc ON SecurityAuditEntries(TimestampUtc);
+CREATE INDEX IX_SecurityAuditEntries_CorrelationId ON SecurityAuditEntries(CorrelationId);
+```
+
+**PostgreSQL:**
+
+```sql
+CREATE TABLE "SecurityAuditEntries" (
+    "Id" UUID PRIMARY KEY,
+    "CorrelationId" VARCHAR(100) NOT NULL,
+    "UserId" VARCHAR(256),
+    "TenantId" VARCHAR(100),
+    "Action" VARCHAR(100) NOT NULL,
+    "EntityType" VARCHAR(500) NOT NULL,
+    "EntityId" VARCHAR(256),
+    "Outcome" INTEGER NOT NULL,
+    "ErrorMessage" TEXT,
+    "TimestampUtc" TIMESTAMP NOT NULL,
+    "StartedAtUtc" TIMESTAMPTZ NOT NULL,
+    "CompletedAtUtc" TIMESTAMPTZ NOT NULL,
+    "IpAddress" VARCHAR(45),
+    "UserAgent" VARCHAR(500),
+    "RequestPayloadHash" VARCHAR(64),
+    "RequestPayload" TEXT,
+    "ResponsePayload" TEXT,
+    "Metadata" JSONB
+);
+
+CREATE INDEX "IX_SecurityAuditEntries_UserId" ON "SecurityAuditEntries"("UserId");
+CREATE INDEX "IX_SecurityAuditEntries_EntityType_EntityId" ON "SecurityAuditEntries"("EntityType", "EntityId");
+CREATE INDEX "IX_SecurityAuditEntries_TimestampUtc" ON "SecurityAuditEntries"("TimestampUtc");
+```
+
+**MySQL:**
+
+```sql
+CREATE TABLE `SecurityAuditEntries` (
+    `Id` CHAR(36) PRIMARY KEY,
+    `CorrelationId` VARCHAR(100) NOT NULL,
+    `UserId` VARCHAR(256),
+    `TenantId` VARCHAR(100),
+    `Action` VARCHAR(100) NOT NULL,
+    `EntityType` VARCHAR(500) NOT NULL,
+    `EntityId` VARCHAR(256),
+    `Outcome` INT NOT NULL,
+    `ErrorMessage` TEXT,
+    `TimestampUtc` DATETIME(6) NOT NULL,
+    `StartedAtUtc` DATETIME(6) NOT NULL,
+    `CompletedAtUtc` DATETIME(6) NOT NULL,
+    `IpAddress` VARCHAR(45),
+    `UserAgent` VARCHAR(500),
+    `RequestPayloadHash` VARCHAR(64),
+    `RequestPayload` LONGTEXT,
+    `ResponsePayload` LONGTEXT,
+    `Metadata` JSON
+);
+
+CREATE INDEX `IX_SecurityAuditEntries_UserId` ON `SecurityAuditEntries`(`UserId`);
+CREATE INDEX `IX_SecurityAuditEntries_EntityType_EntityId` ON `SecurityAuditEntries`(`EntityType`, `EntityId`);
+CREATE INDEX `IX_SecurityAuditEntries_TimestampUtc` ON `SecurityAuditEntries`(`TimestampUtc`);
+```
+
+**SQLite:**
+
+```sql
+CREATE TABLE "SecurityAuditEntries" (
+    "Id" TEXT PRIMARY KEY,
+    "CorrelationId" TEXT NOT NULL,
+    "UserId" TEXT,
+    "TenantId" TEXT,
+    "Action" TEXT NOT NULL,
+    "EntityType" TEXT NOT NULL,
+    "EntityId" TEXT,
+    "Outcome" INTEGER NOT NULL,
+    "ErrorMessage" TEXT,
+    "TimestampUtc" TEXT NOT NULL,
+    "StartedAtUtc" TEXT NOT NULL,
+    "CompletedAtUtc" TEXT NOT NULL,
+    "IpAddress" TEXT,
+    "UserAgent" TEXT,
+    "RequestPayloadHash" TEXT,
+    "RequestPayload" TEXT,
+    "ResponsePayload" TEXT,
+    "Metadata" TEXT
+);
+
+CREATE INDEX "IX_SecurityAuditEntries_UserId" ON "SecurityAuditEntries"("UserId");
+CREATE INDEX "IX_SecurityAuditEntries_EntityType_EntityId" ON "SecurityAuditEntries"("EntityType", "EntityId");
+CREATE INDEX "IX_SecurityAuditEntries_TimestampUtc" ON "SecurityAuditEntries"("TimestampUtc");
+```
+
+#### ADO.NET (SQLite, SQL Server, PostgreSQL, MySQL)
+
+Use the same SQL scripts as Dapper (above).
+
+#### MongoDB
+
+```csharp
+services.AddEncinaMongoDB(config =>
+{
+    config.UseAuditStore = true;
+    config.CreateIndexes = true;  // Creates optimized indexes
+});
+```
+
+**Collection: `security_audit_entries`**
+
+**Indexes created:**
+
+```javascript
+db.security_audit_entries.createIndex({ "UserId": 1 })
+db.security_audit_entries.createIndex({ "EntityType": 1, "EntityId": 1 })
+db.security_audit_entries.createIndex({ "TimestampUtc": -1 })
+db.security_audit_entries.createIndex({ "CorrelationId": 1 })
+db.security_audit_entries.createIndex({ "TenantId": 1 })
+```
+
+#### InMemoryAuditStore (Testing/Development)
+
+```csharp
+// Default - InMemoryAuditStore is registered automatically
+services.AddEncinaAudit();
+
+// For testing
+var store = new InMemoryAuditStore();
+await store.RecordAsync(entry);
+var entries = store.GetAllEntries();  // Testing helper
+store.Clear();  // Reset between tests
+```
+
+### Provider Comparison Table
+
+| Provider | GUID Column | DateTime Column | Payload Column | Index Support |
+|----------|-------------|-----------------|----------------|---------------|
+| SQL Server | `UNIQUEIDENTIFIER` | `DATETIMEOFFSET` | `NVARCHAR(MAX)` | Full |
+| PostgreSQL | `UUID` | `TIMESTAMPTZ` | `JSONB` | Full + JSON |
+| MySQL | `CHAR(36)` | `DATETIME(6)` | `JSON` | Full + JSON |
+| SQLite | `TEXT` | `TEXT` (ISO 8601) | `TEXT` | Basic |
+| MongoDB | `UUID` (BSON) | `Date` | `Document` | Full + TTL |
+| EF Core | Provider-dependent | Provider-dependent | Provider-dependent | Via migrations |
+
+### Performance Recommendations
+
+| Scenario | Recommendation |
+|----------|----------------|
+| High-volume writes | Use async `RecordAsync`, consider batching |
+| Large payloads | Set `MaxPayloadSizeBytes` limit, disable response capture |
+| Query performance | Create indexes on frequently queried fields |
+| Storage management | Enable `EnableAutoPurge` with appropriate `RetentionDays` |
+| PII compliance | Configure `GlobalSensitiveFields` comprehensively |
+
+---
+
 ## See Also
 
 - [Immutable Domain Models](./immutable-domain-models.md) - Using records with audit tracking
 - [Multi-Tenancy](./multi-tenancy.md) - Combining audit tracking with tenant isolation
-- [Issue #574](https://github.com/dlrivada/Encina/issues/574) - Persistent IAuditLogStore implementations
+- [Issue #395](https://github.com/dlrivada/Encina/issues/395) - Security Audit Trail implementation

@@ -21,6 +21,7 @@ using Encina.Messaging.ReadWriteSeparation;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Modules.Isolation;
+using Encina.Security.Audit;
 using Encina.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -285,6 +286,12 @@ public static class ServiceCollectionExtensions
         {
             // Register persistent audit log store
             services.AddScoped<IAuditLogStore, AuditLogStoreEF>();
+        }
+
+        if (config.UseSecurityAuditStore)
+        {
+            // Register security audit trail store (Encina.Security.Audit)
+            services.AddScoped<IAuditStore, AuditStoreEF>();
         }
 
         // Register provider health check if enabled

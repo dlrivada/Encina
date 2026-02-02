@@ -172,4 +172,32 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 72, Level = LogLevel.Debug, Message = "Created audit log indexes")]
     public static partial void CreatedAuditLogIndexes(ILogger logger);
+
+    // AuditStoreMongoDB (Security Audit): EventIds 80-89
+    [LoggerMessage(EventId = 80, Level = LogLevel.Debug, Message = "Added security audit entry {EntryId} for {EntityType}:{EntityId}")]
+    public static partial void AddedSecurityAuditEntry(ILogger logger, Guid entryId, string entityType, string? entityId);
+
+    [LoggerMessage(EventId = 81, Level = LogLevel.Debug, Message = "Created security audit indexes")]
+    public static partial void CreatedSecurityAuditIndexes(ILogger logger);
+
+    [LoggerMessage(EventId = 82, Level = LogLevel.Error, Message = "Failed to record audit entry {EntryId}")]
+    public static partial void FailedToRecordAuditEntry(ILogger logger, Exception exception, Guid entryId);
+
+    [LoggerMessage(EventId = 83, Level = LogLevel.Error, Message = "Failed to query audit entries by entity type {EntityType}")]
+    public static partial void FailedToQueryAuditEntriesByEntity(ILogger logger, Exception exception, string entityType);
+
+    [LoggerMessage(EventId = 84, Level = LogLevel.Error, Message = "Failed to query audit entries by user {UserId}")]
+    public static partial void FailedToQueryAuditEntriesByUser(ILogger logger, Exception exception, string userId);
+
+    [LoggerMessage(EventId = 85, Level = LogLevel.Error, Message = "Failed to query audit entries by correlation ID {CorrelationId}")]
+    public static partial void FailedToQueryAuditEntriesByCorrelationId(ILogger logger, Exception exception, string correlationId);
+
+    [LoggerMessage(EventId = 86, Level = LogLevel.Error, Message = "Failed to execute audit query")]
+    public static partial void FailedToExecuteAuditQuery(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 87, Level = LogLevel.Information, Message = "Purged {Count} audit entries older than {OlderThanUtc}")]
+    public static partial void PurgedAuditEntries(ILogger logger, int count, DateTime olderThanUtc);
+
+    [LoggerMessage(EventId = 88, Level = LogLevel.Error, Message = "Failed to purge audit entries older than {OlderThanUtc}")]
+    public static partial void FailedToPurgeAuditEntries(ILogger logger, Exception exception, DateTime olderThanUtc);
 }

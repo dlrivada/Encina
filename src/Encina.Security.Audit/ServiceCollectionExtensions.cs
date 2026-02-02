@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Encina.Security.Audit;
 
@@ -23,6 +24,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IPiiMasker"/> → <see cref="NullPiiMasker"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IAuditStore"/> → <see cref="InMemoryAuditStore"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="AuditPipelineBehavior{TRequest, TResponse}"/> (Scoped, open generic)</item>
+    /// <item><see cref="AuditRetentionService"/> (Hosted service, only when <see cref="AuditOptions.EnableAutoPurge"/> is true)</item>
     /// </list>
     /// </para>
     /// <para>
@@ -85,6 +87,16 @@ public static class ServiceCollectionExtensions
         // Register factory and behavior
         services.AddScoped<IAuditEntryFactory, DefaultAuditEntryFactory>();
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(AuditPipelineBehavior<,>));
+
+        // Register auto-purge service if enabled
+        // Note: We need to evaluate the options to check if EnableAutoPurge is true
+        var optionsInstance = new AuditOptions();
+        configure?.Invoke(optionsInstance);
+
+        if (optionsInstance.EnableAutoPurge)
+        {
+            services.AddHostedService<AuditRetentionService>();
+        }
 
         return services;
     }

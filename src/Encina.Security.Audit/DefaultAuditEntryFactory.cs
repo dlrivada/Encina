@@ -17,6 +17,8 @@ namespace Encina.Security.Audit;
 /// <item>Extracts entity type and action from <see cref="AuditableAttribute"/> or type name conventions</item>
 /// <item>Extracts entity ID from request properties</item>
 /// <item>Computes SHA-256 hash of the request payload (after PII masking)</item>
+/// <item>Serializes and redacts request/response payloads (when enabled)</item>
+/// <item>Captures operation timing (start, completion, duration)</item>
 /// <item>Populates context information from <see cref="IRequestContext"/></item>
 /// </list>
 /// </para>
@@ -30,6 +32,8 @@ public sealed class DefaultAuditEntryFactory : IAuditEntryFactory
     };
 
     private readonly IPiiMasker _piiMasker;
+    private readonly DefaultSensitiveDataRedactor? _redactor;
+    private readonly IOptions<AuditOptions> _optionsAccessor;
     private readonly AuditOptions _options;
 
     /// <summary>
@@ -46,7 +50,11 @@ public sealed class DefaultAuditEntryFactory : IAuditEntryFactory
         ArgumentNullException.ThrowIfNull(options);
 
         _piiMasker = piiMasker;
+        _optionsAccessor = options;
         _options = options.Value;
+
+        // If the piiMasker is a DefaultSensitiveDataRedactor, use it for JSON redaction
+        _redactor = piiMasker as DefaultSensitiveDataRedactor;
     }
 
     /// <inheritdoc/>
@@ -55,6 +63,24 @@ public sealed class DefaultAuditEntryFactory : IAuditEntryFactory
         IRequestContext context,
         AuditOutcome outcome,
         string? errorMessage)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(context);
+
+        // Use context timestamp for both start and complete (legacy behavior)
+        var timestamp = context.Timestamp;
+        return Create<TRequest, object>(request, default, context, outcome, errorMessage, timestamp, timestamp);
+    }
+
+    /// <inheritdoc/>
+    public AuditEntry Create<TRequest, TResponse>(
+        TRequest request,
+        TResponse? response,
+        IRequestContext context,
+        AuditOutcome outcome,
+        string? errorMessage,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset completedAtUtc)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
@@ -70,9 +96,22 @@ public sealed class DefaultAuditEntryFactory : IAuditEntryFactory
         // Extract entity ID
         var entityId = RequestMetadataExtractor.TryExtractEntityId(request);
 
+        // Get sensitive fields from attribute
+        var sensitiveFields = auditableAttribute?.SensitiveFields;
+
         // Compute payload hash if enabled
-        var includePayload = auditableAttribute?.IncludePayload ?? _options.IncludePayloadHash;
-        var payloadHash = includePayload ? ComputePayloadHash(request) : null;
+        var includePayloadHash = auditableAttribute?.IncludePayload ?? _options.IncludePayloadHash;
+        var payloadHash = includePayloadHash ? ComputePayloadHash(request, sensitiveFields) : null;
+
+        // Serialize request payload if enabled
+        var requestPayload = _options.IncludeRequestPayload
+            ? SerializeAndRedactPayload(request, sensitiveFields)
+            : null;
+
+        // Serialize response payload if enabled and operation was successful
+        var responsePayload = _options.IncludeResponsePayload && outcome == AuditOutcome.Success && response is not null
+            ? SerializeAndRedactPayload(response, sensitiveFields)
+            : null;
 
         // Build metadata
         var metadata = BuildMetadata(context, auditableAttribute);
@@ -88,20 +127,32 @@ public sealed class DefaultAuditEntryFactory : IAuditEntryFactory
             EntityId = entityId,
             Outcome = outcome,
             ErrorMessage = errorMessage,
-            TimestampUtc = context.Timestamp.UtcDateTime,
+            TimestampUtc = completedAtUtc.UtcDateTime,
+            StartedAtUtc = startedAtUtc,
+            CompletedAtUtc = completedAtUtc,
             IpAddress = GetIpAddress(context),
             UserAgent = GetUserAgent(context),
             RequestPayloadHash = payloadHash,
+            RequestPayload = requestPayload,
+            ResponsePayload = responsePayload,
             Metadata = metadata
         };
     }
 
-    private string? ComputePayloadHash(object request)
+    private string? ComputePayloadHash(object request, string[]? additionalSensitiveFields)
     {
         try
         {
             // Apply PII masking before hashing
-            var maskedRequest = _piiMasker.MaskForAudit(request);
+            object maskedRequest;
+            if (_redactor is not null && additionalSensitiveFields?.Length > 0)
+            {
+                maskedRequest = _redactor.MaskForAudit(request, additionalSensitiveFields);
+            }
+            else
+            {
+                maskedRequest = _piiMasker.MaskForAudit(request);
+            }
 
             // Serialize to JSON
             var json = JsonSerializer.Serialize(maskedRequest, maskedRequest.GetType(), JsonOptions);
@@ -112,6 +163,34 @@ public sealed class DefaultAuditEntryFactory : IAuditEntryFactory
 
             // Convert to hex string
             return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+        catch
+        {
+            // If serialization fails, return null rather than failing the audit
+            return null;
+        }
+    }
+
+    private string? SerializeAndRedactPayload(object payload, string[]? additionalSensitiveFields)
+    {
+        try
+        {
+            // Serialize first
+            var json = JsonSerializer.Serialize(payload, payload.GetType(), JsonOptions);
+
+            // Check size limit
+            if (Encoding.UTF8.GetByteCount(json) > _options.MaxPayloadSizeBytes)
+            {
+                return null;
+            }
+
+            // Apply redaction if we have a redactor
+            if (_redactor is not null)
+            {
+                json = _redactor.RedactJsonString(json, additionalSensitiveFields);
+            }
+
+            return json;
         }
         catch
         {

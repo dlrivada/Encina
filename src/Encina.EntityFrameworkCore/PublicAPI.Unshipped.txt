@@ -171,3 +171,51 @@ Encina.EntityFrameworkCore.Auditing.AuditLogStoreEF.AuditLogStoreEF(Microsoft.En
 Encina.EntityFrameworkCore.Auditing.AuditLogStoreEF.LogAsync(Encina.DomainModeling.Auditing.AuditLogEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.EntityFrameworkCore.Auditing.AuditLogStoreEF.GetHistoryAsync(string! entityType, string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.DomainModeling.Auditing.AuditLogEntry!>!>!
 static Encina.EntityFrameworkCore.Configuration.EntityConfigurationExtensions.ConfigureAuditableEntityProperties<T>(this Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T>! builder) -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T>!
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.Id.get -> System.Guid
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.Id.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.CorrelationId.get -> string!
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.CorrelationId.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.UserId.get -> string?
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.UserId.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.TenantId.get -> string?
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.TenantId.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.Action.get -> string!
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.Action.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.EntityType.get -> string!
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.EntityType.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.EntityId.get -> string?
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.EntityId.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.Outcome.get -> Encina.Security.Audit.AuditOutcome
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.Outcome.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.ErrorMessage.get -> string?
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.ErrorMessage.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.TimestampUtc.get -> System.DateTime
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.TimestampUtc.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.StartedAtUtc.get -> System.DateTimeOffset
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.StartedAtUtc.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.CompletedAtUtc.get -> System.DateTimeOffset
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.CompletedAtUtc.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.IpAddress.get -> string?
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.IpAddress.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.UserAgent.get -> string?
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.UserAgent.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.RequestPayloadHash.get -> string?
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.RequestPayloadHash.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.RequestPayload.get -> string?
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.RequestPayload.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.ResponsePayload.get -> string?
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.ResponsePayload.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.Metadata.get -> string?
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntity.Metadata.set -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntityConfiguration
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntityConfiguration.AuditEntryEntityConfiguration() -> void
+Encina.EntityFrameworkCore.Auditing.AuditEntryEntityConfiguration.Configure(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<Encina.EntityFrameworkCore.Auditing.AuditEntryEntity!>! builder) -> void
+Encina.EntityFrameworkCore.Auditing.AuditStoreEF
+Encina.EntityFrameworkCore.Auditing.AuditStoreEF.AuditStoreEF(Microsoft.EntityFrameworkCore.DbContext! dbContext) -> void
+Encina.EntityFrameworkCore.Auditing.AuditStoreEF.RecordAsync(Encina.Security.Audit.AuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError!, LanguageExt.Unit>>
+Encina.EntityFrameworkCore.Auditing.AuditStoreEF.GetByEntityAsync(string! entityType, string? entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError!, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.AuditEntry!>!>>
+Encina.EntityFrameworkCore.Auditing.AuditStoreEF.GetByUserAsync(string! userId, System.DateTime? fromUtc, System.DateTime? toUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError!, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.AuditEntry!>!>>
+Encina.EntityFrameworkCore.Auditing.AuditStoreEF.GetByCorrelationIdAsync(string! correlationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError!, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.AuditEntry!>!>>
+Encina.EntityFrameworkCore.Auditing.AuditStoreEF.QueryAsync(Encina.Security.Audit.AuditQuery! query, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError!, Encina.Security.Audit.PagedResult<Encina.Security.Audit.AuditEntry!>!>>
+Encina.EntityFrameworkCore.Auditing.AuditStoreEF.PurgeEntriesAsync(System.DateTime olderThanUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError!, int>>

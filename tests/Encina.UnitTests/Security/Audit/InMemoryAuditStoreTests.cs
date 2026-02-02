@@ -337,6 +337,367 @@ public class InMemoryAuditStoreTests
 
     #endregion
 
+    #region QueryAsync Tests
+
+    [Fact]
+    public async Task QueryAsync_WithNoFilters_ShouldReturnAllEntriesPaginated()
+    {
+        // Arrange
+        for (int i = 0; i < 25; i++)
+        {
+            await _store.RecordAsync(CreateTestEntry());
+        }
+
+        var query = new AuditQuery { PageSize = 10 };
+
+        // Act
+        var result = await _store.QueryAsync(query);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: paged =>
+            {
+                paged.TotalCount.Should().Be(25);
+                paged.Items.Should().HaveCount(10);
+                paged.PageNumber.Should().Be(1);
+                paged.TotalPages.Should().Be(3);
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithUserIdFilter_ShouldReturnMatchingEntries()
+    {
+        // Arrange
+        await _store.RecordAsync(CreateTestEntry() with { UserId = "user-1" });
+        await _store.RecordAsync(CreateTestEntry() with { UserId = "user-1" });
+        await _store.RecordAsync(CreateTestEntry() with { UserId = "user-2" });
+
+        var query = new AuditQuery { UserId = "user-1" };
+
+        // Act
+        var result = await _store.QueryAsync(query);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: paged =>
+            {
+                paged.TotalCount.Should().Be(2);
+                paged.Items.All(e => e.UserId == "user-1").Should().BeTrue();
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithEntityTypeFilter_ShouldReturnMatchingEntries()
+    {
+        // Arrange
+        await _store.RecordAsync(CreateTestEntry() with { EntityType = "Order" });
+        await _store.RecordAsync(CreateTestEntry() with { EntityType = "Order" });
+        await _store.RecordAsync(CreateTestEntry() with { EntityType = "Customer" });
+
+        var query = new AuditQuery { EntityType = "Order" };
+
+        // Act
+        var result = await _store.QueryAsync(query);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: paged =>
+            {
+                paged.TotalCount.Should().Be(2);
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithOutcomeFilter_ShouldReturnMatchingEntries()
+    {
+        // Arrange
+        await _store.RecordAsync(CreateTestEntry() with { Outcome = AuditOutcome.Success });
+        await _store.RecordAsync(CreateTestEntry() with { Outcome = AuditOutcome.Failure });
+        await _store.RecordAsync(CreateTestEntry() with { Outcome = AuditOutcome.Failure });
+
+        var query = new AuditQuery { Outcome = AuditOutcome.Failure };
+
+        // Act
+        var result = await _store.QueryAsync(query);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: paged =>
+            {
+                paged.TotalCount.Should().Be(2);
+                paged.Items.All(e => e.Outcome == AuditOutcome.Failure).Should().BeTrue();
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithDateRangeFilter_ShouldReturnMatchingEntries()
+    {
+        // Arrange
+        var baseTime = DateTime.UtcNow;
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = baseTime.AddDays(-5) });
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = baseTime });
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = baseTime.AddDays(5) });
+
+        var query = new AuditQuery
+        {
+            FromUtc = baseTime.AddDays(-1),
+            ToUtc = baseTime.AddDays(1)
+        };
+
+        // Act
+        var result = await _store.QueryAsync(query);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: paged =>
+            {
+                paged.TotalCount.Should().Be(1);
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithPagination_ShouldReturnCorrectPage()
+    {
+        // Arrange
+        for (int i = 0; i < 25; i++)
+        {
+            await _store.RecordAsync(CreateTestEntry());
+        }
+
+        var query = new AuditQuery { PageNumber = 2, PageSize = 10 };
+
+        // Act
+        var result = await _store.QueryAsync(query);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: paged =>
+            {
+                paged.TotalCount.Should().Be(25);
+                paged.Items.Should().HaveCount(10);
+                paged.PageNumber.Should().Be(2);
+                paged.HasPreviousPage.Should().BeTrue();
+                paged.HasNextPage.Should().BeTrue();
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithDurationFilter_ShouldReturnMatchingEntries()
+    {
+        // Arrange
+        var now = DateTimeOffset.UtcNow;
+        await _store.RecordAsync(CreateTestEntry() with
+        {
+            StartedAtUtc = now.AddMilliseconds(-50),
+            CompletedAtUtc = now
+        }); // 50ms duration
+        await _store.RecordAsync(CreateTestEntry() with
+        {
+            StartedAtUtc = now.AddMilliseconds(-200),
+            CompletedAtUtc = now
+        }); // 200ms duration
+        await _store.RecordAsync(CreateTestEntry() with
+        {
+            StartedAtUtc = now.AddSeconds(-2),
+            CompletedAtUtc = now
+        }); // 2s duration
+
+        var query = new AuditQuery
+        {
+            MinDuration = TimeSpan.FromMilliseconds(100),
+            MaxDuration = TimeSpan.FromSeconds(1)
+        };
+
+        // Act
+        var result = await _store.QueryAsync(query);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: paged =>
+            {
+                paged.TotalCount.Should().Be(1); // Only the 200ms entry
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithNullQuery_ShouldThrowArgumentNullException()
+    {
+        // Act
+        var act = async () => await _store.QueryAsync(null!);
+
+        // Assert
+        await act.Should().ThrowAsync<ArgumentNullException>()
+            .WithParameterName("query");
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithMultipleFilters_ShouldApplyAll()
+    {
+        // Arrange
+        await _store.RecordAsync(CreateTestEntry() with { UserId = "user-1", EntityType = "Order", Outcome = AuditOutcome.Success });
+        await _store.RecordAsync(CreateTestEntry() with { UserId = "user-1", EntityType = "Order", Outcome = AuditOutcome.Failure });
+        await _store.RecordAsync(CreateTestEntry() with { UserId = "user-1", EntityType = "Customer", Outcome = AuditOutcome.Success });
+        await _store.RecordAsync(CreateTestEntry() with { UserId = "user-2", EntityType = "Order", Outcome = AuditOutcome.Success });
+
+        var query = new AuditQuery
+        {
+            UserId = "user-1",
+            EntityType = "Order",
+            Outcome = AuditOutcome.Success
+        };
+
+        // Act
+        var result = await _store.QueryAsync(query);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: paged =>
+            {
+                paged.TotalCount.Should().Be(1);
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    #endregion
+
+    #region PurgeEntriesAsync Tests
+
+    [Fact]
+    public async Task PurgeEntriesAsync_ShouldDeleteOldEntries()
+    {
+        // Arrange
+        var cutoffDate = DateTime.UtcNow;
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = cutoffDate.AddDays(-10) });
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = cutoffDate.AddDays(-5) });
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = cutoffDate.AddDays(1) });
+
+        // Act
+        var result = await _store.PurgeEntriesAsync(cutoffDate);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: count =>
+            {
+                count.Should().Be(2); // 2 entries older than cutoff
+                _store.Count.Should().Be(1); // 1 entry remains
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    [Fact]
+    public async Task PurgeEntriesAsync_WhenNoOldEntries_ShouldReturnZero()
+    {
+        // Arrange
+        var cutoffDate = DateTime.UtcNow.AddDays(-30);
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = DateTime.UtcNow });
+
+        // Act
+        var result = await _store.PurgeEntriesAsync(cutoffDate);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: count =>
+            {
+                count.Should().Be(0);
+                _store.Count.Should().Be(1);
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    [Fact]
+    public async Task PurgeEntriesAsync_WhenAllEntriesAreOld_ShouldDeleteAll()
+    {
+        // Arrange
+        var cutoffDate = DateTime.UtcNow.AddDays(1);
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = DateTime.UtcNow.AddDays(-10) });
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = DateTime.UtcNow.AddDays(-5) });
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = DateTime.UtcNow });
+
+        // Act
+        var result = await _store.PurgeEntriesAsync(cutoffDate);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: count =>
+            {
+                count.Should().Be(3);
+                _store.Count.Should().Be(0);
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    [Fact]
+    public async Task PurgeEntriesAsync_WithEmptyStore_ShouldReturnZero()
+    {
+        // Act
+        var result = await _store.PurgeEntriesAsync(DateTime.UtcNow);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: count =>
+            {
+                count.Should().Be(0);
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    [Fact]
+    public async Task PurgeEntriesAsync_ShouldOnlyDeleteEntriesStrictlyBeforeCutoff()
+    {
+        // Arrange
+        var cutoffDate = DateTime.UtcNow;
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = cutoffDate.AddMilliseconds(-1) }); // Just before
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = cutoffDate }); // Exactly at cutoff - should NOT be deleted
+        await _store.RecordAsync(CreateTestEntry() with { TimestampUtc = cutoffDate.AddMilliseconds(1) }); // Just after
+
+        // Act
+        var result = await _store.PurgeEntriesAsync(cutoffDate);
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        _ = result.Match(
+            Right: count =>
+            {
+                count.Should().Be(1); // Only entry before cutoff
+                _store.Count.Should().Be(2); // Cutoff and after remain
+                return true;
+            },
+            Left: _ => false);
+    }
+
+    #endregion
+
     #region Concurrent Access Tests
 
     [Fact]
@@ -431,6 +792,8 @@ public class InMemoryAuditStoreTests
         EntityId = Guid.NewGuid().ToString(),
         Outcome = AuditOutcome.Success,
         TimestampUtc = DateTime.UtcNow,
+        StartedAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1),
+        CompletedAtUtc = DateTimeOffset.UtcNow,
         Metadata = new Dictionary<string, object?>()
     };
 

@@ -18,6 +18,12 @@ public class AuditOptionsTests
         options.AuditAllCommands.Should().BeTrue();
         options.AuditAllQueries.Should().BeFalse();
         options.IncludePayloadHash.Should().BeTrue();
+        options.IncludeRequestPayload.Should().BeFalse();
+        options.IncludeResponsePayload.Should().BeFalse();
+        options.MaxPayloadSizeBytes.Should().Be(65536); // 64 KB
+        options.GlobalSensitiveFields.Should().BeNull();
+        options.EnableAutoPurge.Should().BeFalse();
+        options.PurgeIntervalHours.Should().Be(24);
         options.RetentionDays.Should().Be(2555); // ~7 years for SOX compliance
     }
 
@@ -216,6 +222,55 @@ public class AuditOptionsTests
         options.AuditAllQueries.Should().BeTrue();
         options.IncludePayloadHash.Should().BeFalse();
         options.RetentionDays.Should().Be(365);
+    }
+
+    [Fact]
+    public void EnableAutoPurge_ShouldBeSettable()
+    {
+        // Arrange & Act
+        var options = new AuditOptions
+        {
+            EnableAutoPurge = true,
+            PurgeIntervalHours = 12
+        };
+
+        // Assert
+        options.EnableAutoPurge.Should().BeTrue();
+        options.PurgeIntervalHours.Should().Be(12);
+    }
+
+    [Fact]
+    public void PayloadSettings_ShouldBeSettable()
+    {
+        // Arrange & Act
+        var options = new AuditOptions
+        {
+            IncludeRequestPayload = true,
+            IncludeResponsePayload = true,
+            MaxPayloadSizeBytes = 131072 // 128 KB
+        };
+
+        // Assert
+        options.IncludeRequestPayload.Should().BeTrue();
+        options.IncludeResponsePayload.Should().BeTrue();
+        options.MaxPayloadSizeBytes.Should().Be(131072);
+    }
+
+    [Fact]
+    public void GlobalSensitiveFields_ShouldBeSettable()
+    {
+        // Arrange & Act
+        var options = new AuditOptions
+        {
+            GlobalSensitiveFields = ["customField", "dateOfBirth", "taxId"]
+        };
+
+        // Assert
+        options.GlobalSensitiveFields.Should().NotBeNull();
+        options.GlobalSensitiveFields.Should().HaveCount(3);
+        options.GlobalSensitiveFields.Should().Contain("customField");
+        options.GlobalSensitiveFields.Should().Contain("dateOfBirth");
+        options.GlobalSensitiveFields.Should().Contain("taxId");
     }
 
     private sealed class TestCommand { }

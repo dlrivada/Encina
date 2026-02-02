@@ -99,4 +99,73 @@ public interface IAuditStore
     ValueTask<Either<EncinaError, IReadOnlyList<AuditEntry>>> GetByCorrelationIdAsync(
         string correlationId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Queries audit entries with flexible filtering and pagination.
+    /// </summary>
+    /// <param name="query">The query parameters for filtering and pagination.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>
+    /// <c>Either.Right</c> with a paginated result set,
+    /// or <c>Either.Left(EncinaError)</c> on failure.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// This is the primary query method that supports all filtering options.
+    /// Results are ordered by <see cref="AuditEntry.TimestampUtc"/> descending (newest first).
+    /// </para>
+    /// <para>
+    /// Returns an empty <see cref="PagedResult{T}"/> (not an error) when no entries match the query.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var query = AuditQuery.Builder()
+    ///     .ForUser("user-123")
+    ///     .WithOutcome(AuditOutcome.Failure)
+    ///     .InDateRange(DateTime.UtcNow.AddDays(-7), null)
+    ///     .WithPageSize(100)
+    ///     .Build();
+    ///
+    /// var result = await auditStore.QueryAsync(query, cancellationToken);
+    /// </code>
+    /// </example>
+    ValueTask<Either<EncinaError, PagedResult<AuditEntry>>> QueryAsync(
+        AuditQuery query,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Purges audit entries older than the specified date.
+    /// </summary>
+    /// <param name="olderThanUtc">Entries with <see cref="AuditEntry.TimestampUtc"/> before this date will be deleted.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>
+    /// <c>Either.Right</c> with the number of entries purged,
+    /// or <c>Either.Left(EncinaError)</c> on failure.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// Use this method to implement data retention policies. Typically called from a background
+    /// service at regular intervals (e.g., daily) to remove entries older than
+    /// <see cref="AuditOptions.RetentionDays"/>.
+    /// </para>
+    /// <para>
+    /// This operation may be slow for large datasets. Consider running during off-peak hours.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Purge entries older than 7 years (2555 days)
+    /// var retentionDate = DateTime.UtcNow.AddDays(-options.Value.RetentionDays);
+    /// var result = await auditStore.PurgeEntriesAsync(retentionDate, cancellationToken);
+    ///
+    /// result.Match(
+    ///     Right: count => logger.LogInformation("Purged {Count} audit entries", count),
+    ///     Left: error => logger.LogError("Failed to purge audit entries: {Message}", error.Message)
+    /// );
+    /// </code>
+    /// </example>
+    ValueTask<Either<EncinaError, int>> PurgeEntriesAsync(
+        DateTime olderThanUtc,
+        CancellationToken cancellationToken = default);
 }

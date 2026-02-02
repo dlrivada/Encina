@@ -21,6 +21,10 @@ namespace Encina.Security.Audit;
 /// </remarks>
 /// <example>
 /// <code>
+/// var startedAt = DateTimeOffset.UtcNow;
+/// // ... execute operation ...
+/// var completedAt = DateTimeOffset.UtcNow;
+///
 /// var entry = new AuditEntry
 /// {
 ///     Id = Guid.NewGuid(),
@@ -31,9 +35,16 @@ namespace Encina.Security.Audit;
 ///     EntityType = "Order",
 ///     EntityId = "ORD-12345",
 ///     Outcome = AuditOutcome.Success,
-///     TimestampUtc = DateTime.UtcNow,
-///     RequestPayloadHash = "a1b2c3d4..."
+///     TimestampUtc = completedAt.UtcDateTime,
+///     StartedAtUtc = startedAt,
+///     CompletedAtUtc = completedAt,
+///     RequestPayloadHash = "a1b2c3d4...",
+///     RequestPayload = "{\"amount\":100,\"password\":\"[REDACTED]\"}",
+///     ResponsePayload = "{\"orderId\":\"ORD-12345\",\"status\":\"Created\"}"
 /// };
+///
+/// // Duration is calculated automatically
+/// Console.WriteLine($"Operation took {entry.Duration.TotalMilliseconds}ms");
 /// </code>
 /// </example>
 public sealed record AuditEntry
@@ -130,8 +141,37 @@ public sealed record AuditEntry
     /// <remarks>
     /// Captured at the time of audit entry creation, representing when the operation completed.
     /// Always stored in UTC for consistent cross-timezone queries.
+    /// For backward compatibility, this returns <see cref="CompletedAtUtc"/> as a <see cref="DateTime"/>.
     /// </remarks>
     public required DateTime TimestampUtc { get; init; }
+
+    /// <summary>
+    /// UTC timestamp when the operation started execution.
+    /// </summary>
+    /// <remarks>
+    /// Captured immediately before invoking the next handler in the pipeline.
+    /// Used together with <see cref="CompletedAtUtc"/> to calculate <see cref="Duration"/>.
+    /// </remarks>
+    public required DateTimeOffset StartedAtUtc { get; init; }
+
+    /// <summary>
+    /// UTC timestamp when the operation completed execution.
+    /// </summary>
+    /// <remarks>
+    /// Captured immediately after the handler returns (success or failure).
+    /// Used together with <see cref="StartedAtUtc"/> to calculate <see cref="Duration"/>.
+    /// </remarks>
+    public required DateTimeOffset CompletedAtUtc { get; init; }
+
+    /// <summary>
+    /// Duration of the operation.
+    /// </summary>
+    /// <remarks>
+    /// Computed property that calculates the time elapsed between
+    /// <see cref="StartedAtUtc"/> and <see cref="CompletedAtUtc"/>.
+    /// Useful for performance monitoring and SLA compliance.
+    /// </remarks>
+    public TimeSpan Duration => CompletedAtUtc - StartedAtUtc;
 
     /// <summary>
     /// IP address of the client that initiated the request.
@@ -164,6 +204,36 @@ public sealed record AuditEntry
     /// </para>
     /// </remarks>
     public string? RequestPayloadHash { get; init; }
+
+    /// <summary>
+    /// Full JSON representation of the request payload after sensitive data redaction.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Contains the complete request object serialized to JSON with sensitive fields
+    /// (passwords, tokens, PII) replaced with "[REDACTED]".
+    /// </para>
+    /// <para>
+    /// <c>null</c> when payload capture is disabled via <c>AuditOptions.IncludeRequestPayload</c>
+    /// or when the payload exceeds <c>AuditOptions.MaxPayloadSizeBytes</c>.
+    /// </para>
+    /// </remarks>
+    public string? RequestPayload { get; init; }
+
+    /// <summary>
+    /// Full JSON representation of the response payload after sensitive data redaction.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Contains the complete response object serialized to JSON with sensitive fields
+    /// (passwords, tokens, PII) replaced with "[REDACTED]".
+    /// </para>
+    /// <para>
+    /// <c>null</c> when payload capture is disabled via <c>AuditOptions.IncludeResponsePayload</c>,
+    /// when the operation failed, or when the payload exceeds <c>AuditOptions.MaxPayloadSizeBytes</c>.
+    /// </para>
+    /// </remarks>
+    public string? ResponsePayload { get; init; }
 
     /// <summary>
     /// Additional custom metadata for extensibility.

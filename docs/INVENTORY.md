@@ -1,6 +1,6 @@
 # Encina - Inventario Completo
 
-> **Documento generado**: 6 de enero de 2026
+> **Documento generado**: 2 de febrero de 2026
 > **Versión**: Pre-1.0 (Phase 2 reorganizada en 10 milestones: v0.10.0 → v0.19.0)
 > **Propósito**: Inventario exhaustivo de todas las funcionalidades, patrones, paquetes y características de Encina
 
@@ -30,7 +30,7 @@
 | **Patrones DDD & Workflow** | 0 (+ 10 planificados) |
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
-| **Patrones Security** | 0 (+ 8 planificados: #394-#401) |
+| **Patrones Security** | 1 implementado (#395 Audit Trail) (+ 7 planificados: #394, #396-#401) |
 | **Patrones Compliance (GDPR/EU)** | 0 (+ 14 planificados: #402-#415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
@@ -1314,6 +1314,7 @@ src/
 | InboxStore | ✅ | ✅ | ✅ | ✅ | N/A |
 | SagaStore | ✅ | ✅ | ✅ | ✅ | N/A |
 | ScheduledMessageStore | ✅ | ✅ | ✅ | ✅ | N/A |
+| **AuditStore** | ✅ | ✅ | ✅ | ✅ | N/A |
 | AggregateRepository | N/A | N/A | N/A | N/A | ✅ |
 | SnapshotStore | N/A | N/A | N/A | N/A | ✅ |
 | ProjectionManager | N/A | N/A | N/A | N/A | ✅ |
@@ -4554,15 +4555,17 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Labels: `area-ddd`, `area-scalability`, `area-performance`
 - Fuentes: [DDD and Bulk Operations](https://enterprisecraftsmanship.com/posts/ddd-bulk-operations/), [Bulk Actions with CQRS](https://blog.sapiensworks.com/post/2013/12/16/Bulk-Actions-With-DDD-And-CQRS.aspx)
 
-**#351 - Audit Trail Pipeline Behavior**:
+**#351 - Audit Trail Pipeline Behavior** → **Superseded by #395 (Encina.Security.Audit)**:
 
-- `[Auditable]`, `[NotAuditable]` atributos
-- `IAuditStore` con implementaciones EF Core, Dapper, Elasticsearch
-- `AuditingPipelineBehavior<,>` automático
-- `ISensitiveDataRedactor` para redacción de PII
-- Auto-purge con retention policy
-- Captura: UserId, TenantId, IpAddress, UserAgent, Duration
-- Nuevo paquete planificado: `Encina.Auditing`, `Encina.Auditing.EntityFrameworkCore`
+> **Nota**: Este issue fue consolidado en #395 (v0.13.0 - Security & Compliance). Ver sección [#395 - Encina.Security.Audit](#395---encinasecurityaudit---audit-trail-logging---implementado-feb-2026) para la implementación completa.
+
+- ✅ `[Auditable]`, `[AuditableAttribute]` atributos
+- ✅ `IAuditStore` con 13 implementaciones (EF Core, Dapper, ADO.NET, MongoDB × 4 DB cada uno)
+- ✅ `AuditPipelineBehavior<,>` automático
+- ✅ `IPiiMasker` / `DefaultSensitiveDataRedactor` para redacción de datos sensibles
+- ✅ Auto-purge con `AuditRetentionService` y retention policy
+- ✅ Captura: UserId, TenantId, IpAddress, UserAgent, Duration, RequestPayload, ResponsePayload
+- ✅ Paquete implementado: `Encina.Security.Audit`
 - Labels: `area-compliance`, `area-gdpr`, `area-security`
 - Fuentes: [Event Sourcing Pattern (Audit benefit)](https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing)
 
@@ -5281,7 +5284,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 | Issue | Patrón | Descripción | Prioridad | Complejidad | Labels Principales |
 |-------|--------|-------------|-----------|-------------|-------------------|
 | **#394** | Security Core | Abstracciones core de seguridad con RBAC, policies y permission-based auth | Crítica | Alta | `area-security`, `area-authentication`, `area-authorization`, `owasp-pattern`, `aot-compatible` |
-| **#395** | Audit Trail | Logging de auditoría con who/what/when/where para compliance | Crítica | Alta | `area-security`, `area-auditing`, `area-gdpr`, `eu-regulation` |
+| **#395** ✅ | Audit Trail | Logging de auditoría con who/what/when/where para compliance | Crítica | Alta | `area-security`, `area-auditing`, `area-gdpr`, `eu-regulation` |
 | **#396** | Field Encryption | Encriptación a nivel de campo con key rotation y Azure Key Vault/AWS KMS | Alta | Alta | `area-security`, `area-encryption`, `area-gdpr`, `pattern-crypto-shredding`, `owasp-pattern` |
 | **#397** | PII Masking | Enmascaramiento de datos PII con redacción automática para GDPR | Alta | Media | `area-security`, `area-gdpr`, `pattern-data-masking`, `eu-regulation` |
 | **#398** | Anti-Tampering | Firma de requests con HMAC/RSA para verificación de integridad | Alta | Media | `area-security`, `area-web-api`, `owasp-pattern` |
@@ -5305,16 +5308,24 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - Labels: `area-security`, `area-authentication`, `area-authorization`, `area-pipeline`, `industry-best-practice`, `owasp-pattern`, `aot-compatible`
 - Referencias: [Spring Security](https://spring.io/projects/spring-security), [NestJS Guards](https://docs.nestjs.com/guards), [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
 
-**#395 - Encina.Security.Audit - Audit Trail Logging**:
+**#395 - Encina.Security.Audit - Audit Trail Logging** ✅ **IMPLEMENTADO (Feb 2026)**:
 
-- `IAuditLogger` con `LogAsync(AuditEvent)`, `QueryAsync(AuditQuery)`
-- `AuditEvent` con Who, What, When, Where, Why, Resource, OldValue, NewValue
-- `AuditPipelineBehavior` para captura automática de todas las operaciones
-- `[Auditable]` atributo con niveles: None, Minimal, Standard, Detailed
-- Storage backends: Database, Elasticsearch, Azure Table Storage, CloudWatch
-- Sensitive data redaction automática
-- **Nuevo paquete planificado**: `Encina.Security.Audit`
-- **Demanda de comunidad**: MUY ALTA - Requerido para compliance (SOX, HIPAA, GDPR)
+- `IAuditStore` con `RecordAsync`, `QueryAsync`, `GetByEntityAsync`, `GetByUserAsync`, `GetByCorrelationIdAsync`, `PurgeEntriesAsync`
+- `AuditEntry` con Id, UserId, TenantId, Action, EntityType, EntityId, Outcome, TimestampUtc, Duration, IpAddress, UserAgent, RequestPayload, ResponsePayload, Metadata
+- `AuditPipelineBehavior<TRequest, TResponse>` para captura automática de todas las operaciones
+- `[Auditable]` atributo con Action, EntityType, SensitiveFields, IncludePayload, Skip
+- `AuditQuery` con paginación y filtros: UserId, TenantId, EntityType, Action, Outcome, DateRange, Duration
+- `PagedResult<T>` para resultados paginados con navegación
+- `DefaultSensitiveDataRedactor` (implementa `IPiiMasker`) para redacción automática de campos sensibles
+- `AuditRetentionService` (BackgroundService) para auto-purge basado en RetentionDays
+- **Store implementations para todos los 13 providers**:
+  - `AuditStoreEF` (EF Core: SQLite, SQL Server, PostgreSQL, MySQL)
+  - `AuditStoreDapper` (Dapper: SQLite, SQL Server, PostgreSQL, MySQL)
+  - `AuditStoreADO` (ADO.NET: SQLite, SQL Server, PostgreSQL, MySQL)
+  - `AuditStoreMongoDB` (MongoDB)
+  - `InMemoryAuditStore` (Testing/Development)
+- **Paquete**: `Encina.Security.Audit` (core) + store implementations en cada provider package
+- **Documentación**: [docs/features/audit-tracking.md](../features/audit-tracking.md)
 - Labels: `area-security`, `area-observability`, `area-auditing`, `area-gdpr`, `industry-best-practice`, `eu-regulation`
 - Referencias: [NIST SP 800-92](https://csrc.nist.gov/publications/detail/sp/800-92/final), [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
 
@@ -5405,7 +5416,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 | Paquete | Issue | Descripción | Prioridad |
 |---------|-------|-------------|-----------|
 | `Encina.Security` | #394 | Core security abstractions, RBAC, policies | Crítica |
-| `Encina.Security.Audit` | #395 | Audit trail logging | Crítica |
+| `Encina.Security.Audit` | #395 ✅ | Audit trail logging (IMPLEMENTADO) | Crítica |
 | `Encina.Security.Encryption` | #396 | Field-level encryption | Alta |
 | `Encina.Security.PII` | #397 | PII masking and protection | Alta |
 | `Encina.Security.AntiTampering` | #398 | Request signing and verification | Alta |
