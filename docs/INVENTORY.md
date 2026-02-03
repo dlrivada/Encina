@@ -1634,16 +1634,20 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 
 | Issue | Feature | Descripción | Prioridad | Complejidad | Labels |
 |-------|---------|-------------|-----------|-------------|--------|
-| **#285** | Soft Delete & Temporal | Borrado lógico + tablas temporales SQL Server | Alta | Baja | `area-audit`, `area-compliance`, `area-gdpr`, `dotnet-10` |
+| **#285** ✅ | Soft Delete & Temporal | Borrado lógico + tablas temporales SQL Server | Alta | Baja | `area-audit`, `area-compliance`, `area-gdpr`, `dotnet-10` |
 | **#286** ✅ | Audit Trail | IAuditableEntity con CreatedAt/By, ModifiedAt/By | Alta | Baja | `area-audit`, `area-compliance`, `area-observability` |
 
-**#285 - Soft Delete & Temporal Tables**:
+**#285 - Soft Delete & Temporal Tables** ✅ **COMPLETADO (03-feb-2026)**:
 
-- `ISoftDeletable`: IsDeleted, DeletedAtUtc, DeletedBy
-- `ISoftDeleteRepository<TEntity, TId>` con RestoreAsync, HardDeleteAsync
-- Global query filter automático
-- `ITemporalRepository<TEntity, TId>` para SQL Server temporal tables
-- Queries: GetAsOfAsync, GetHistoryAsync, GetChangedBetweenAsync
+- **Interfaces**: `ISoftDeletable` (read-only), `ISoftDeletableEntity` (mutable) con IsDeleted, DeletedAtUtc, DeletedBy
+- **Base Classes**: `SoftDeletableEntity<TId>`, `FullyAuditedEntity<TId>`, `SoftDeletableAggregateRoot<TId>`
+- **EF Core**: `SoftDeleteInterceptor` para conversión automática delete→update
+- **Repository**: `ISoftDeleteRepository<TEntity, TId>` con GetByIdWithDeletedAsync, ListWithDeletedAsync, RestoreAsync, HardDeleteAsync
+- **Global Query Filter**: Exclusión automática de entidades soft-deleted
+- **Pipeline Behavior**: `SoftDeleteQueryFilterBehavior<TRequest, TResponse>` con `IIncludeDeleted` marker interface
+- **Temporal Tables** (SQL Server): `ITemporalRepository<TEntity, TId>` con GetAsOfAsync, GetHistoryAsync, GetChangedBetweenAsync, ListAsOfAsync
+- **Provider Support**: EF Core (4 DBs), Dapper (4 DBs), ADO.NET (4 DBs), MongoDB (1) - Total 13 providers
+- **Tests**: 52+ tests (Unit, Guard, Integration)
 
 **#286 - Audit Trail Pattern** ✅ **COMPLETADO (30-ene-2026)**:
 

@@ -236,6 +236,249 @@ public interface IAggregateRepository<TAggregate, TId> : IRepository<TAggregate,
 }
 
 /// <summary>
+/// Repository interface with soft delete-specific operations.
+/// </summary>
+/// <typeparam name="TEntity">The entity type (must implement <see cref="ISoftDeletable"/>).</typeparam>
+/// <typeparam name="TId">The ID type.</typeparam>
+/// <remarks>
+/// <para>
+/// This interface extends <see cref="IRepository{TEntity, TId}"/> with operations specific to
+/// soft-deletable entities. Normal repository operations respect the global soft delete filter
+/// (excluding soft-deleted entities), while this interface provides methods to bypass the filter
+/// when needed.
+/// </para>
+/// <para>
+/// All operations follow the Railway Oriented Programming pattern, returning
+/// <c>Either&lt;RepositoryError, T&gt;</c> to explicitly handle success and failure cases.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public class OrderRepository : ISoftDeleteRepository&lt;Order, OrderId&gt;
+/// {
+///     public async Task&lt;Either&lt;RepositoryError, IReadOnlyList&lt;Order&gt;&gt;&gt; ListWithDeletedAsync(
+///         Specification&lt;Order&gt; spec, CancellationToken ct)
+///     {
+///         // Query with IgnoreQueryFilters() to include soft-deleted
+///         var orders = await _context.Orders
+///             .IgnoreQueryFilters()
+///             .Where(spec.ToExpression())
+///             .ToListAsync(ct);
+///         return Right(orders);
+///     }
+/// }
+/// </code>
+/// </example>
+public interface ISoftDeleteRepository<TEntity, TId> : IRepository<TEntity, TId>
+    where TEntity : class, IEntity<TId>, ISoftDeletable
+    where TId : notnull
+{
+    /// <summary>
+    /// Lists entities matching the specification, including soft-deleted entities.
+    /// </summary>
+    /// <param name="specification">The specification to filter entities.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>Either the matching entities (including soft-deleted) or an error.</returns>
+    /// <remarks>
+    /// This method bypasses the global soft delete filter, returning all entities
+    /// that match the specification regardless of their <see cref="ISoftDeletable.IsDeleted"/> status.
+    /// </remarks>
+    Task<Either<RepositoryError, IReadOnlyList<TEntity>>> ListWithDeletedAsync(
+        Specification<TEntity> specification,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets an entity by ID, including soft-deleted entities.
+    /// </summary>
+    /// <param name="id">The entity ID.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>Either the entity (even if soft-deleted) or a NotFound error.</returns>
+    /// <remarks>
+    /// This method bypasses the global soft delete filter, returning the entity
+    /// regardless of its <see cref="ISoftDeletable.IsDeleted"/> status.
+    /// </remarks>
+    Task<Either<RepositoryError, TEntity>> GetByIdWithDeletedAsync(
+        TId id,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Restores a soft-deleted entity.
+    /// </summary>
+    /// <param name="id">The ID of the entity to restore.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>Either the restored entity or an error (NotFound if entity doesn't exist, or if entity is not soft-deleted).</returns>
+    /// <remarks>
+    /// <para>
+    /// This method sets <see cref="ISoftDeletable.IsDeleted"/> to <c>false</c> and clears
+    /// <see cref="ISoftDeletable.DeletedAtUtc"/> and <see cref="ISoftDeletable.DeletedBy"/>.
+    /// </para>
+    /// <para>
+    /// If the entity is not currently soft-deleted, implementations should return an error
+    /// indicating that the entity cannot be restored.
+    /// </para>
+    /// </remarks>
+    Task<Either<RepositoryError, TEntity>> RestoreAsync(
+        TId id,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Permanently deletes a soft-deleted entity (hard delete).
+    /// </summary>
+    /// <param name="id">The ID of the entity to permanently delete.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>Either Unit on success or an error (NotFound if entity doesn't exist).</returns>
+    /// <remarks>
+    /// <para>
+    /// This method performs an actual database delete, removing the entity permanently.
+    /// Use with caution as this operation cannot be undone.
+    /// </para>
+    /// <para>
+    /// Some implementations may require the entity to be soft-deleted first before allowing
+    /// hard delete as a safety measure.
+    /// </para>
+    /// </remarks>
+    Task<Either<RepositoryError, Unit>> HardDeleteAsync(
+        TId id,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Repository interface with temporal query operations for SQL Server temporal tables.
+/// </summary>
+/// <typeparam name="TEntity">The entity type.</typeparam>
+/// <typeparam name="TId">The ID type.</typeparam>
+/// <remarks>
+/// <para>
+/// This interface provides point-in-time query capabilities for entities stored in
+/// SQL Server system-versioned temporal tables. Temporal tables automatically track
+/// the history of data changes, enabling:
+/// <list type="bullet">
+///   <item><description>Point-in-time queries ("what did this look like last week?")</description></item>
+///   <item><description>Historical data analysis and auditing</description></item>
+///   <item><description>Compliance with data retention requirements</description></item>
+/// </list>
+/// </para>
+/// <para>
+/// <b>Important:</b> All <see cref="DateTime"/> parameters must be in UTC.
+/// The implementation will use the provided UTC time to query the temporal history.
+/// </para>
+/// <para>
+/// All operations follow the Railway Oriented Programming pattern, returning
+/// <c>Either&lt;RepositoryError, T&gt;</c> to explicitly handle success and failure cases.
+/// </para>
+/// <para>
+/// <b>Database Support:</b> Currently only SQL Server temporal tables are supported.
+/// The interface is designed to be generic for potential future provider support.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// // Query entity state at a specific point in time
+/// var lastWeek = DateTime.UtcNow.AddDays(-7);
+/// var result = await repository.GetAsOfAsync(orderId, lastWeek);
+/// result.Match(
+///     Right: order => Console.WriteLine($"Order status was: {order.Status}"),
+///     Left: error => Console.WriteLine($"Error: {error.Message}")
+/// );
+///
+/// // Get full history of changes
+/// var history = await repository.GetHistoryAsync(orderId);
+/// foreach (var version in history.IfRight(Enumerable.Empty&lt;Order&gt;()))
+/// {
+///     Console.WriteLine($"Version at {version.ModifiedAtUtc}: {version.Status}");
+/// }
+/// </code>
+/// </example>
+public interface ITemporalRepository<TEntity, TId> : IReadOnlyRepository<TEntity, TId>
+    where TEntity : class, IEntity<TId>
+    where TId : notnull
+{
+    /// <summary>
+    /// Gets the entity state as it existed at a specific point in time.
+    /// </summary>
+    /// <param name="id">The entity ID.</param>
+    /// <param name="asOfUtc">The point in time (UTC) to query. Must be a UTC DateTime.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>Either the entity state at the specified time or a NotFound error if the entity didn't exist at that time.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method queries the temporal history table to retrieve the entity state
+    /// as it was at the specified point in time.
+    /// </para>
+    /// <para>
+    /// If the entity was created after <paramref name="asOfUtc"/>, a NotFound error is returned.
+    /// If the entity was deleted before <paramref name="asOfUtc"/>, the last known state is returned.
+    /// </para>
+    /// </remarks>
+    Task<Either<RepositoryError, TEntity>> GetAsOfAsync(
+        TId id,
+        DateTime asOfUtc,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all historical versions of an entity.
+    /// </summary>
+    /// <param name="id">The entity ID.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>Either all historical versions of the entity (ordered by time, newest first) or an error.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method queries the temporal history table to retrieve all versions of the entity
+    /// from creation to the current state. The result includes both historical records
+    /// and the current record.
+    /// </para>
+    /// <para>
+    /// Results are ordered by modification time, with the most recent version first.
+    /// </para>
+    /// </remarks>
+    Task<Either<RepositoryError, IReadOnlyList<TEntity>>> GetHistoryAsync(
+        TId id,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all entities that were changed between two points in time.
+    /// </summary>
+    /// <param name="fromUtc">The start of the time range (UTC, inclusive).</param>
+    /// <param name="toUtc">The end of the time range (UTC, inclusive).</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>Either all entities that had changes in the specified time range or an error.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method queries the temporal history table to find all entities that were
+    /// created, modified, or deleted between <paramref name="fromUtc"/> and <paramref name="toUtc"/>.
+    /// </para>
+    /// <para>
+    /// This is useful for change data capture scenarios, auditing, and incremental data synchronization.
+    /// </para>
+    /// </remarks>
+    Task<Either<RepositoryError, IReadOnlyList<TEntity>>> GetChangedBetweenAsync(
+        DateTime fromUtc,
+        DateTime toUtc,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists entities matching the specification as they existed at a specific point in time.
+    /// </summary>
+    /// <param name="specification">The specification to filter entities.</param>
+    /// <param name="asOfUtc">The point in time (UTC) to query. Must be a UTC DateTime.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>Either the matching entities at the specified time or an error.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method combines point-in-time queries with specification-based filtering,
+    /// allowing complex historical queries like "all active orders from last month".
+    /// </para>
+    /// <para>
+    /// The specification is applied to the entity state as it was at <paramref name="asOfUtc"/>.
+    /// </para>
+    /// </remarks>
+    Task<Either<RepositoryError, IReadOnlyList<TEntity>>> ListAsOfAsync(
+        Specification<TEntity> specification,
+        DateTime asOfUtc,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Represents a paged result of entities.
 /// </summary>
 /// <typeparam name="T">The entity type.</typeparam>

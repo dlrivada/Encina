@@ -222,3 +222,32 @@ static Encina.ADO.SqlServer.Extensions.AuditExtensions.WithAuditCreate<T>(this T
 static Encina.ADO.SqlServer.Extensions.AuditExtensions.WithAuditUpdate<T>(this T entity, string? userId, System.TimeProvider! timeProvider) -> T
 static Encina.ADO.SqlServer.Extensions.AuditExtensions.WithAuditDelete<T>(this T entity, string? userId, System.TimeProvider! timeProvider) -> T
 static Encina.ADO.SqlServer.Extensions.AuditExtensions.WithAuditRestore<T>(this T entity) -> T
+Encina.ADO.SqlServer.SoftDelete.ISoftDeleteEntityMapping<TEntity, TId>
+Encina.ADO.SqlServer.SoftDelete.ISoftDeleteEntityMapping<TEntity, TId>.IsSoftDeletable.get -> bool
+Encina.ADO.SqlServer.SoftDelete.ISoftDeleteEntityMapping<TEntity, TId>.IsDeletedColumnName.get -> string!
+Encina.ADO.SqlServer.SoftDelete.ISoftDeleteEntityMapping<TEntity, TId>.DeletedAtColumnName.get -> string?
+Encina.ADO.SqlServer.SoftDelete.ISoftDeleteEntityMapping<TEntity, TId>.DeletedByColumnName.get -> string?
+Encina.ADO.SqlServer.SoftDelete.ISoftDeleteEntityMapping<TEntity, TId>.SetIsDeleted(TEntity entity, bool value) -> void
+Encina.ADO.SqlServer.SoftDelete.ISoftDeleteEntityMapping<TEntity, TId>.SetDeletedAt(TEntity entity, System.DateTime? value) -> void
+Encina.ADO.SqlServer.SoftDelete.ISoftDeleteEntityMapping<TEntity, TId>.SetDeletedBy(TEntity entity, string? value) -> void
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>.SoftDeleteEntityMappingBuilder() -> void
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>.ToTable(string! tableName) -> Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>!
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>.HasId<TProperty>(System.Linq.Expressions.Expression<System.Func<TEntity, TProperty>!>! propertySelector, string? columnName = null) -> Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>!
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>.HasSoftDelete(System.Linq.Expressions.Expression<System.Func<TEntity, bool>!>! propertySelector, string? columnName = null) -> Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>!
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>.HasDeletedAt(System.Linq.Expressions.Expression<System.Func<TEntity, System.DateTime?>!>! propertySelector, string? columnName = null) -> Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>!
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>.HasDeletedBy(System.Linq.Expressions.Expression<System.Func<TEntity, string?>!>! propertySelector, string? columnName = null) -> Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>!
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>.MapProperty<TProperty>(System.Linq.Expressions.Expression<System.Func<TEntity, TProperty>!>! propertySelector, string? columnName = null) -> Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>!
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>.ExcludeFromInsert<TProperty>(System.Linq.Expressions.Expression<System.Func<TEntity, TProperty>!>! propertySelector) -> Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>!
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>.ExcludeFromUpdate<TProperty>(System.Linq.Expressions.Expression<System.Func<TEntity, TProperty>!>! propertySelector) -> Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>!
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteEntityMappingBuilder<TEntity, TId>.Build() -> Encina.ADO.SqlServer.SoftDelete.ISoftDeleteEntityMapping<TEntity, TId>!
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteSpecificationSqlBuilder<TEntity>
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteSpecificationSqlBuilder<TEntity>.SoftDeleteSpecificationSqlBuilder(Encina.ADO.SqlServer.SoftDelete.ISoftDeleteEntityMapping<TEntity, object!>! mapping, Encina.Messaging.SoftDelete.SoftDeleteOptions! options) -> void
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteSpecificationSqlBuilder<TEntity>.IncludeDeleted() -> Encina.ADO.SqlServer.SoftDelete.SoftDeleteSpecificationSqlBuilder<TEntity>!
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteSpecificationSqlBuilder<TEntity>.BuildWhereClause(Encina.DomainModeling.Specification<TEntity>! specification) -> (string! WhereClause, System.Action<System.Data.IDbCommand!>! AddParameters)
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteSpecificationSqlBuilder<TEntity>.BuildWhereClause(Encina.DomainModeling.QuerySpecification<TEntity>! specification) -> (string! WhereClause, System.Action<System.Data.IDbCommand!>! AddParameters)
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteSpecificationSqlBuilder<TEntity>.BuildOrderByClause(Encina.DomainModeling.IQuerySpecification<TEntity>! specification) -> string!
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteSpecificationSqlBuilder<TEntity>.BuildPaginationClause(Encina.DomainModeling.IQuerySpecification<TEntity>! specification) -> string!
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteSpecificationSqlBuilder<TEntity>.BuildSelectStatement(string! tableName) -> (string! Sql, System.Action<System.Data.IDbCommand!>! AddParameters)
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteSpecificationSqlBuilder<TEntity>.BuildSelectStatement(string! tableName, Encina.DomainModeling.Specification<TEntity>! specification) -> (string! Sql, System.Action<System.Data.IDbCommand!>! AddParameters)
+Encina.ADO.SqlServer.SoftDelete.SoftDeleteSpecificationSqlBuilder<TEntity>.BuildSelectStatement(string! tableName, Encina.DomainModeling.QuerySpecification<TEntity>! specification) -> (string! Sql, System.Action<System.Data.IDbCommand!>! AddParameters)

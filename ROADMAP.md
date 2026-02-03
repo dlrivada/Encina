@@ -162,10 +162,10 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ Read/Write Database Separation [#283](https://github.com/dlrivada/Encina/issues/283) - CQRS physical split with automatic routing and read replica support
 - ✅ Bulk Operations (Insert/Update/Delete) [#284](https://github.com/dlrivada/Encina/issues/284) - High-performance bulk operations up to 459x faster
 - ✅ Audit Trail Pattern (IAuditableEntity) [#286](https://github.com/dlrivada/Encina/issues/286), [#623](https://github.com/dlrivada/Encina/issues/623) - Granular interfaces, auto-population in Repository for all 13 providers (EF Core, Dapper, ADO.NET, MongoDB)
+- ✅ Soft Delete & Temporal Tables [#285](https://github.com/dlrivada/Encina/issues/285) - ISoftDeletable/ISoftDeletableEntity interfaces, SoftDeleteInterceptor, SoftDeleteRepository, global query filters, SQL Server temporal tables with point-in-time queries
 
 **Remaining:**
 
-- Soft Delete & Temporal Tables
 - Optimistic Concurrency
 - CDC Integration
 - Pagination abstractions
@@ -352,7 +352,7 @@ Key areas already completed:
   - ✅ Multi-Tenancy Database Support [#282](https://github.com/dlrivada/Encina/issues/282) — Tenant isolation (shared schema, schema-per-tenant, DB-per-tenant) - **COMPLETED** (Encina.Tenancy, Encina.Tenancy.AspNetCore, provider implementations for EF Core, Dapper, ADO.NET, MongoDB)
   - ✅ Read/Write Database Separation [#283](https://github.com/dlrivada/Encina/issues/283) — CQRS physical split with read replicas - **COMPLETED** (Automatic routing via pipeline behaviors, read replica support for EF Core, Dapper, ADO.NET, MongoDB with read preferences)
   - ✅ Bulk Operations [#284](https://github.com/dlrivada/Encina/issues/284) — BulkInsert/Update/Delete/Merge (up to 315x faster than SaveChanges) - **COMPLETED**
-  - Soft Delete & Temporal Tables [#285](https://github.com/dlrivada/Encina/issues/285) — Logical delete + SQL Server temporal tables
+  - ✅ Soft Delete & Temporal Tables [#285](https://github.com/dlrivada/Encina/issues/285) — Logical delete + SQL Server temporal tables - **COMPLETED** (ISoftDeletable interfaces, SoftDeleteInterceptor, SoftDeleteRepository, global query filters across EF Core, Dapper, ADO.NET, MongoDB; SQL Server temporal tables with point-in-time queries)
   - Audit Trail Pattern [#286](https://github.com/dlrivada/Encina/issues/286) — IAuditableEntity with CreatedAt/By, ModifiedAt/By
   - Optimistic Concurrency [#287](https://github.com/dlrivada/Encina/issues/287) — IConcurrencyAware with conflict resolution
   - CDC Integration [#288](https://github.com/dlrivada/Encina/issues/288) — Change Data Capture with Debezium/Kafka

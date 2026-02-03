@@ -138,3 +138,49 @@ public interface IQueryPipelineBehavior<TQuery> : IQueryPipelineBehavior<TQuery,
     where TQuery : IQuery<Unit>
 {
 }
+
+/// <summary>
+/// Marker interface for queries that need to include soft-deleted entities in results.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Queries implementing this interface can bypass the global soft delete filter when
+/// <see cref="IncludeDeleted"/> is set to <c>true</c>. This is useful for administrative
+/// interfaces, audit views, or data recovery scenarios.
+/// </para>
+/// <para>
+/// <b>Usage Pattern:</b> Implement this interface on queries that need conditional access
+/// to soft-deleted entities. A pipeline behavior (e.g., <c>SoftDeleteQueryFilterBehavior</c>)
+/// can check for this interface and modify the query context accordingly.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// // Query that can optionally include deleted entities
+/// public sealed record GetAllOrdersQuery(bool IncludeDeleted = false)
+///     : IQuery&lt;IReadOnlyList&lt;OrderDto&gt;&gt;, IIncludeDeleted;
+///
+/// // Usage: Get only active orders (default)
+/// var activeOrders = await encina.SendAsync(new GetAllOrdersQuery());
+///
+/// // Usage: Get all orders including deleted (admin view)
+/// var allOrders = await encina.SendAsync(new GetAllOrdersQuery(IncludeDeleted: true));
+/// </code>
+/// </example>
+public interface IIncludeDeleted
+{
+    /// <summary>
+    /// Gets a value indicating whether soft-deleted entities should be included in the query results.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When <c>true</c>, the query should bypass soft delete filters and include entities
+    /// where <c>IsDeleted = true</c>.
+    /// </para>
+    /// <para>
+    /// When <c>false</c> (default), normal soft delete filtering applies, excluding
+    /// soft-deleted entities from results.
+    /// </para>
+    /// </remarks>
+    bool IncludeDeleted { get; }
+}

@@ -5,6 +5,7 @@ using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Encina.Messaging.SoftDelete;
 using Encina.Modules.Isolation;
 using Encina.MongoDB.Auditing;
 using Encina.MongoDB.BulkOperations;
@@ -16,6 +17,7 @@ using Encina.MongoDB.ReadWriteSeparation;
 using Encina.MongoDB.Repository;
 using Encina.MongoDB.Sagas;
 using Encina.MongoDB.Scheduling;
+using Encina.MongoDB.SoftDelete;
 using Encina.MongoDB.UnitOfWork;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -362,6 +364,159 @@ public static class ServiceCollectionExtensions
             return new FunctionalRepositoryMongoDB<TEntity, TId>(
                 collection, idProperty, requestContext, timeProvider);
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers a functional repository with soft delete support for an entity type using MongoDB.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <typeparam name="TId">The entity identifier type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="repositoryConfigure">Configuration action for repository options.</param>
+    /// <param name="mappingConfigure">Configuration action for soft delete entity mapping.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IFunctionalRepository{TEntity, TId}"/>,
+    /// <see cref="IFunctionalReadRepository{TEntity, TId}"/>, and
+    /// <see cref="SoftDeletableFunctionalRepositoryMongoDB{TEntity, TId}"/> with scoped lifetime.
+    /// </para>
+    /// <para>
+    /// The soft delete repository automatically filters out soft-deleted entities from queries
+    /// and converts <c>DeleteAsync</c> operations into soft deletes (setting <c>IsDeleted = true</c>).
+    /// </para>
+    /// <para>
+    /// Inject <see cref="SoftDeletableFunctionalRepositoryMongoDB{TEntity, TId}"/> directly to access
+    /// soft delete specific operations:
+    /// <list type="bullet">
+    ///   <item><description><c>RestoreAsync</c>: Restores a soft-deleted entity</description></item>
+    ///   <item><description><c>HardDeleteAsync</c>: Permanently deletes an entity</description></item>
+    ///   <item><description><c>ListWithDeletedAsync</c>: Queries including soft-deleted entities</description></item>
+    ///   <item><description><c>GetByIdWithDeletedAsync</c>: Gets entity by ID including soft-deleted</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// The entity does not need to implement <c>ISoftDeletable</c> since the soft delete properties
+    /// are mapped explicitly via the <paramref name="mappingConfigure"/> action.
+    /// </para>
+    /// <para>
+    /// Requires <see cref="IMongoClient"/> and <see cref="EncinaMongoDbOptions"/> to be registered,
+    /// typically via <see cref="AddEncinaMongoDB(IServiceCollection, Action{EncinaMongoDbOptions})"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaMongoDB(options =>
+    /// {
+    ///     options.ConnectionString = "mongodb://localhost:27017";
+    ///     options.DatabaseName = "MyApp";
+    /// });
+    ///
+    /// services.AddEncinaSoftDeleteRepository&lt;Order, Guid&gt;(
+    ///     repositoryConfig =>
+    ///     {
+    ///         repositoryConfig.CollectionName = "orders";
+    ///         repositoryConfig.IdProperty = o => o.Id;
+    ///     },
+    ///     mappingConfig =>
+    ///     {
+    ///         mappingConfig
+    ///             .HasId(o => o.Id)
+    ///             .HasSoftDelete(o => o.IsDeleted, "isDeleted")
+    ///             .HasDeletedAt(o => o.DeletedAtUtc, "deletedAtUtc")
+    ///             .HasDeletedBy(o => o.DeletedBy, "deletedBy");
+    ///     });
+    ///
+    /// // Usage with IFunctionalRepository (soft delete transparent)
+    /// public class OrderService(IFunctionalRepository&lt;Order, Guid&gt; repo)
+    /// {
+    ///     public async Task DeleteAsync(Guid id, CancellationToken ct)
+    ///     {
+    ///         // Soft delete (sets IsDeleted = true)
+    ///         await repo.DeleteAsync(id, ct);
+    ///     }
+    /// }
+    ///
+    /// // Usage with explicit soft delete operations
+    /// public class OrderAdminService(SoftDeletableFunctionalRepositoryMongoDB&lt;Order, Guid&gt; repo)
+    /// {
+    ///     public async Task RestoreAsync(Guid id, CancellationToken ct)
+    ///     {
+    ///         await repo.RestoreAsync(id, ct);
+    ///     }
+    ///
+    ///     public async Task PermanentDeleteAsync(Guid id, CancellationToken ct)
+    ///     {
+    ///         await repo.HardDeleteAsync(id, ct);
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaSoftDeleteRepository<TEntity, TId>(
+        this IServiceCollection services,
+        Action<MongoDbRepositoryOptions<TEntity, TId>> repositoryConfigure,
+        Action<SoftDeleteEntityMappingBuilder<TEntity, TId>> mappingConfigure)
+        where TEntity : class
+        where TId : notnull
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(repositoryConfigure);
+        ArgumentNullException.ThrowIfNull(mappingConfigure);
+
+        // Build repository options
+        var repositoryOptions = new MongoDbRepositoryOptions<TEntity, TId>();
+        repositoryConfigure(repositoryOptions);
+        repositoryOptions.Validate();
+
+        var collectionName = repositoryOptions.GetEffectiveCollectionName();
+        var idProperty = repositoryOptions.IdProperty!;
+
+        // Build soft delete mapping
+        var mappingBuilder = new SoftDeleteEntityMappingBuilder<TEntity, TId>();
+        mappingConfigure(mappingBuilder);
+        var mapping = mappingBuilder.Build();
+
+        // Register the options for UnitOfWork to access
+        services.AddSingleton(repositoryOptions);
+
+        // Register the mapping as singleton (immutable after configuration)
+        services.AddSingleton(mapping);
+
+        // Register TimeProvider.System as singleton if not already registered
+        services.TryAddSingleton(TimeProvider.System);
+
+        // Register SoftDeleteOptions if not already registered
+        services.TryAddSingleton<SoftDeleteOptions>();
+
+        // Register the collection as scoped
+        services.AddScoped<IMongoCollection<TEntity>>(sp =>
+        {
+            var mongoClient = sp.GetRequiredService<IMongoClient>();
+            var mongoOptions = sp.GetRequiredService<IOptions<EncinaMongoDbOptions>>().Value;
+            var database = mongoClient.GetDatabase(mongoOptions.DatabaseName);
+            return database.GetCollection<TEntity>(collectionName);
+        });
+
+        // Register the soft delete repository with scoped lifetime
+        services.AddScoped<SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>>(sp =>
+        {
+            var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
+            var entityMapping = sp.GetRequiredService<ISoftDeleteEntityMapping<TEntity, TId>>();
+            var softDeleteOptions = sp.GetRequiredService<SoftDeleteOptions>();
+            var requestContext = sp.GetService<IRequestContext>();
+            var timeProvider = sp.GetService<TimeProvider>();
+            return new SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>(
+                collection, entityMapping, softDeleteOptions, requestContext, timeProvider);
+        });
+
+        // Register interfaces pointing to the same implementation
+        services.AddScoped<IFunctionalRepository<TEntity, TId>>(sp =>
+            sp.GetRequiredService<SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>>());
+
+        services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
+            sp.GetRequiredService<SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>>());
 
         return services;
     }

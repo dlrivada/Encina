@@ -1,3 +1,4 @@
+using System.Reflection;
 using Encina.DomainModeling;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -472,5 +473,271 @@ public static class EntityConfigurationExtensions
 
             builder.HasQueryFilter(lambda);
         }
+    }
+
+    /// <summary>
+    /// Applies soft delete query filters to all entities implementing <see cref="ISoftDeletable"/>.
+    /// </summary>
+    /// <param name="modelBuilder">The model builder.</param>
+    /// <returns>The model builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method scans all entity types in the model and applies a global query filter
+    /// (<c>HasQueryFilter(e =&gt; !e.IsDeleted)</c>) to those implementing <see cref="ISoftDeletable"/>.
+    /// </para>
+    /// <para>
+    /// <b>Usage</b>: Call this method in your <c>OnModelCreating</c> override after all entities
+    /// are configured, or use it in combination with <c>ApplyConfigurationsFromAssembly</c>.
+    /// </para>
+    /// <para>
+    /// <b>Note</b>: If you need to include soft-deleted entities in a query, use
+    /// <c>IgnoreQueryFilters()</c> on the query.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// protected override void OnModelCreating(ModelBuilder modelBuilder)
+    /// {
+    ///     base.OnModelCreating(modelBuilder);
+    ///
+    ///     modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+    ///
+    ///     // Apply soft delete filters to all ISoftDeletable entities
+    ///     modelBuilder.ApplySoftDeleteQueryFilters();
+    /// }
+    /// </code>
+    /// </example>
+    public static ModelBuilder ApplySoftDeleteQueryFilters(this ModelBuilder modelBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (typeof(ISoftDeletable).IsAssignableFrom(entityType.ClrType))
+            {
+                var method = typeof(EntityConfigurationExtensions)
+                    .GetMethod(nameof(ApplySoftDeleteQueryFilterInternal), BindingFlags.NonPublic | BindingFlags.Static)!
+                    .MakeGenericMethod(entityType.ClrType);
+
+                method.Invoke(null, [modelBuilder]);
+            }
+        }
+
+        return modelBuilder;
+    }
+
+    /// <summary>
+    /// Internal method to apply soft delete query filter to a specific entity type.
+    /// </summary>
+    private static void ApplySoftDeleteQueryFilterInternal<T>(ModelBuilder modelBuilder)
+        where T : class, ISoftDeletable
+    {
+        modelBuilder.Entity<T>().HasQueryFilter(e => !e.IsDeleted);
+    }
+
+    /// <summary>
+    /// Configures soft delete support for entities implementing <see cref="ISoftDeletableEntity"/> with mutable properties.
+    /// </summary>
+    /// <typeparam name="T">The entity type that implements <see cref="ISoftDeletableEntity"/>.</typeparam>
+    /// <param name="builder">The entity type builder.</param>
+    /// <returns>The entity type builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method configures the same properties as <see cref="ConfigureSoftDelete{T}"/>,
+    /// but is intended for entities implementing <see cref="ISoftDeletableEntity"/> (with public setters)
+    /// that are automatically populated by the <c>SoftDeleteInterceptor</c>.
+    /// </para>
+    /// <para>
+    /// <b>ISoftDeletableEntity vs ISoftDeletable</b>:
+    /// <list type="bullet">
+    /// <item>
+    /// <description>
+    /// <see cref="ISoftDeletableEntity"/>: Has <b>public setters</b> for interceptor-based population.
+    /// Use <see cref="ConfigureSoftDeletableEntity{T}"/> for these entities.
+    /// </description>
+    /// </item>
+    /// <item>
+    /// <description>
+    /// <see cref="ISoftDeletable"/>: Has <b>getter-only</b> properties for method-based population.
+    /// Use <see cref="ConfigureSoftDelete{T}"/> for these entities.
+    /// </description>
+    /// </item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// public class OrderConfiguration : IEntityTypeConfiguration&lt;Order&gt;
+    /// {
+    ///     public void Configure(EntityTypeBuilder&lt;Order&gt; builder)
+    ///     {
+    ///         builder.HasKey(o => o.Id);
+    ///         builder.ConfigureSoftDeletableEntity();
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public static EntityTypeBuilder<T> ConfigureSoftDeletableEntity<T>(this EntityTypeBuilder<T> builder)
+        where T : class, ISoftDeletableEntity
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Property(e => e.IsDeleted)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(e => e.DeletedAtUtc);
+
+        builder.Property(e => e.DeletedBy)
+            .HasMaxLength(256);
+
+        builder.HasQueryFilter(e => !e.IsDeleted);
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures the entity as a SQL Server temporal table (system-versioned).
+    /// </summary>
+    /// <typeparam name="T">The entity type.</typeparam>
+    /// <param name="builder">The entity type builder.</param>
+    /// <param name="historyTableName">
+    /// Optional custom name for the history table. If not specified, defaults to <c>{TableName}History</c>.
+    /// </param>
+    /// <param name="historyTableSchema">
+    /// Optional schema for the history table. If not specified, uses the same schema as the main table.
+    /// </param>
+    /// <param name="periodStartColumnName">
+    /// Optional name for the period start column. Defaults to <c>PeriodStart</c>.
+    /// </param>
+    /// <param name="periodEndColumnName">
+    /// Optional name for the period end column. Defaults to <c>PeriodEnd</c>.
+    /// </param>
+    /// <returns>The entity type builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// SQL Server temporal tables (system-versioned tables) automatically track the full history
+    /// of data changes. This method configures an entity to use temporal table features.
+    /// </para>
+    /// <para>
+    /// <b>Requirements</b>:
+    /// <list type="bullet">
+    /// <item><description>SQL Server 2016 or later</description></item>
+    /// <item><description>Microsoft.EntityFrameworkCore.SqlServer package</description></item>
+    /// <item><description>EF Core 6.0 or later</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Generated Table Structure</b>:
+    /// <list type="bullet">
+    /// <item><description>Main table: Contains current data with hidden period columns</description></item>
+    /// <item><description>History table: Contains all historical versions of rows</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Note</b>: This method uses EF Core's built-in temporal table support via
+    /// <c>ToTable(tb => tb.IsTemporal())</c>. The SQL Server provider handles
+    /// the DDL generation for temporal tables.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// public class OrderConfiguration : IEntityTypeConfiguration&lt;Order&gt;
+    /// {
+    ///     public void Configure(EntityTypeBuilder&lt;Order&gt; builder)
+    ///     {
+    ///         builder.HasKey(o => o.Id);
+    ///
+    ///         // Configure as temporal table with default settings
+    ///         builder.ConfigureTemporalTable();
+    ///
+    ///         // Or with custom history table
+    ///         builder.ConfigureTemporalTable(
+    ///             historyTableName: "OrderAuditHistory",
+    ///             historyTableSchema: "audit");
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public static EntityTypeBuilder<T> ConfigureTemporalTable<T>(
+        this EntityTypeBuilder<T> builder,
+        string? historyTableName = null,
+        string? historyTableSchema = null,
+        string periodStartColumnName = "PeriodStart",
+        string periodEndColumnName = "PeriodEnd")
+        where T : class
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.ToTable(tb => tb.IsTemporal(temporal =>
+        {
+            temporal.HasPeriodStart(periodStartColumnName);
+            temporal.HasPeriodEnd(periodEndColumnName);
+
+            if (historyTableName is not null)
+            {
+                if (historyTableSchema is not null)
+                {
+                    temporal.UseHistoryTable(historyTableName, historyTableSchema);
+                }
+                else
+                {
+                    temporal.UseHistoryTable(historyTableName);
+                }
+            }
+        }));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures the entity as a SQL Server temporal table using configuration options.
+    /// </summary>
+    /// <typeparam name="T">The entity type.</typeparam>
+    /// <param name="builder">The entity type builder.</param>
+    /// <param name="options">The temporal table configuration options.</param>
+    /// <param name="tableName">
+    /// The name of the main table. Required to compute the history table name when using the suffix pattern.
+    /// </param>
+    /// <returns>The entity type builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This overload uses <see cref="Encina.Messaging.Temporal.TemporalTableOptions"/> for configuration,
+    /// allowing consistent defaults across all temporal tables in an application.
+    /// </para>
+    /// <para>
+    /// The history table name is computed as <c>{tableName}{DefaultHistoryTableSuffix}</c> from options.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // In DbContext.OnModelCreating
+    /// protected override void OnModelCreating(ModelBuilder modelBuilder)
+    /// {
+    ///     modelBuilder.Entity&lt;Order&gt;(entity =>
+    ///     {
+    ///         entity.ToTable("Orders");
+    ///         entity.ConfigureTemporalTable(_temporalOptions, "Orders");
+    ///     });
+    /// }
+    /// </code>
+    /// </example>
+    public static EntityTypeBuilder<T> ConfigureTemporalTable<T>(
+        this EntityTypeBuilder<T> builder,
+        Messaging.Temporal.TemporalTableOptions options,
+        string tableName)
+        where T : class
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(tableName);
+
+        var historyTableName = $"{tableName}{options.DefaultHistoryTableSuffix}";
+
+        return builder.ConfigureTemporalTable(
+            historyTableName,
+            options.DefaultHistoryTableSchema,
+            options.DefaultPeriodStartColumnName,
+            options.DefaultPeriodEndColumnName);
     }
 }

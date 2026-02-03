@@ -11,6 +11,8 @@ using Encina.Messaging.RoutingSlip;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.ScatterGather;
 using Encina.Messaging.Scheduling;
+using Encina.Messaging.SoftDelete;
+using Encina.Messaging.Temporal;
 using Encina.Messaging.Tenancy;
 using Encina.Modules.Isolation;
 
@@ -405,6 +407,54 @@ public sealed class MessagingConfiguration
     public bool UseAuditLogStore { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable automatic soft delete handling.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, delete operations on entities implementing <see cref="Encina.DomainModeling.ISoftDeletableEntity"/>
+    /// are automatically converted to soft deletes. Instead of physically removing the entity from the database,
+    /// the entity's <c>IsDeleted</c> property is set to <c>true</c>.
+    /// </para>
+    /// <para>
+    /// Features include:
+    /// <list type="bullet">
+    /// <item><description>Automatic conversion of delete to soft delete on <c>SaveChanges</c></description></item>
+    /// <item><description>Automatic <c>DeletedAtUtc</c> timestamp population</description></item>
+    /// <item><description>Automatic <c>DeletedBy</c> user tracking from <see cref="IRequestContext.UserId"/></description></item>
+    /// <item><description>Global query filters to exclude soft-deleted entities from queries</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>ISoftDeletableEntity vs ISoftDeletable</b>:
+    /// <list type="bullet">
+    /// <item>
+    /// <description>
+    /// <see cref="Encina.DomainModeling.ISoftDeletableEntity"/>: Has <b>public setters</b> for interceptor-based population.
+    /// Use this for automatic soft delete handling.
+    /// </description>
+    /// </item>
+    /// <item>
+    /// <description>
+    /// <see cref="Encina.DomainModeling.ISoftDeletable"/>: Has <b>getter-only</b> properties for method-based population.
+    /// Use this for immutable domain patterns where soft delete is handled via domain methods.
+    /// </description>
+    /// </item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseSoftDelete = true;
+    ///     config.SoftDeleteOptions.TrackDeletedBy = true;
+    /// });
+    /// </code>
+    /// </example>
+    public bool UseSoftDelete { get; set; }
+
+    /// <summary>
     /// Gets or sets whether to enable security audit trail storage.
     /// </summary>
     /// <remarks>
@@ -438,6 +488,47 @@ public sealed class MessagingConfiguration
     /// </code>
     /// </example>
     public bool UseSecurityAuditStore { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to enable SQL Server temporal table support.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, temporal repositories are registered for point-in-time querying
+    /// of entities stored in SQL Server system-versioned temporal tables.
+    /// </para>
+    /// <para>
+    /// <b>Features include</b>:
+    /// <list type="bullet">
+    /// <item><description>Point-in-time queries ("what did this look like last week?")</description></item>
+    /// <item><description>Full history retrieval for audit and compliance</description></item>
+    /// <item><description>Change tracking between two points in time</description></item>
+    /// <item><description>Specification-based historical queries</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Requirements</b>:
+    /// <list type="bullet">
+    /// <item><description>SQL Server 2016 or later</description></item>
+    /// <item><description>EF Core 6.0 or later with Microsoft.EntityFrameworkCore.SqlServer</description></item>
+    /// <item><description>Tables configured as temporal using <c>ConfigureTemporalTable</c></description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseTemporalTables = true;
+    ///     config.TemporalTableOptions.DefaultHistoryTableSuffix = "History";
+    /// });
+    ///
+    /// // In DbContext configuration
+    /// modelBuilder.Entity&lt;Order&gt;().ConfigureTemporalTable();
+    /// </code>
+    /// </example>
+    public bool UseTemporalTables { get; set; }
 
     /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
@@ -613,6 +704,59 @@ public sealed class MessagingConfiguration
     public AuditingOptions AuditingOptions { get; } = new();
 
     /// <summary>
+    /// Gets the configuration options for automatic soft delete handling.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use this to configure:
+    /// <list type="bullet">
+    /// <item><description>Whether to track deletion timestamps (<c>TrackDeletedAt</c>)</description></item>
+    /// <item><description>Whether to track the user who deleted (<c>TrackDeletedBy</c>)</description></item>
+    /// <item><description>Whether to log soft delete operations for debugging (<c>LogSoftDeletes</c>)</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseSoftDelete = true;
+    ///     config.SoftDeleteOptions.TrackDeletedBy = true;
+    ///     config.SoftDeleteOptions.LogSoftDeletes = true;
+    /// });
+    /// </code>
+    /// </example>
+    public SoftDeleteOptions SoftDeleteOptions { get; } = new();
+
+    /// <summary>
+    /// Gets the configuration options for SQL Server temporal tables.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use this to configure:
+    /// <list type="bullet">
+    /// <item><description>History table naming conventions (<c>DefaultHistoryTableSuffix</c>)</description></item>
+    /// <item><description>History table schema (<c>DefaultHistoryTableSchema</c>)</description></item>
+    /// <item><description>Period column names (<c>DefaultPeriodStartColumnName</c>, <c>DefaultPeriodEndColumnName</c>)</description></item>
+    /// <item><description>UTC DateTime validation (<c>ValidateUtcDateTime</c>)</description></item>
+    /// <item><description>Query logging for debugging (<c>LogTemporalQueries</c>)</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseTemporalTables = true;
+    ///     config.TemporalTableOptions.DefaultHistoryTableSuffix = "Audit";
+    ///     config.TemporalTableOptions.DefaultHistoryTableSchema = "history";
+    ///     config.TemporalTableOptions.ValidateUtcDateTime = true;
+    /// });
+    /// </code>
+    /// </example>
+    public TemporalTableOptions TemporalTableOptions { get; } = new();
+
+    /// <summary>
     /// Gets the configuration options for provider-specific health checks.
     /// </summary>
     /// <remarks>
@@ -631,5 +775,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables;
 }

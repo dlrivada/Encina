@@ -11,6 +11,8 @@ using Encina.EntityFrameworkCore.ReadWriteSeparation;
 using Encina.EntityFrameworkCore.Repository;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.EntityFrameworkCore.Scheduling;
+using Encina.EntityFrameworkCore.SoftDelete;
+using Encina.EntityFrameworkCore.Temporal;
 using Encina.EntityFrameworkCore.Tenancy;
 using Encina.EntityFrameworkCore.UnitOfWork;
 using Encina.Messaging;
@@ -288,10 +290,35 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAuditLogStore, AuditLogStoreEF>();
         }
 
+        if (config.UseSoftDelete)
+        {
+            // Register soft delete interceptor options
+            var softDeleteOptions = new SoftDeleteInterceptorOptions
+            {
+                Enabled = true,
+                TrackDeletedAt = config.SoftDeleteOptions.TrackDeletedAt,
+                TrackDeletedBy = config.SoftDeleteOptions.TrackDeletedBy,
+                LogSoftDeletes = config.SoftDeleteOptions.LogSoftDeletes
+            };
+            services.TryAddSingleton(softDeleteOptions);
+
+            // Register TimeProvider for consistent timestamps (if not already registered by UseAuditing)
+            services.TryAddSingleton(TimeProvider.System);
+
+            // Register the interceptor as singleton
+            services.TryAddSingleton<SoftDeleteInterceptor>();
+        }
+
         if (config.UseSecurityAuditStore)
         {
             // Register security audit trail store (Encina.Security.Audit)
             services.AddScoped<IAuditStore, AuditStoreEF>();
+        }
+
+        if (config.UseTemporalTables)
+        {
+            // Register temporal table options for point-in-time queries
+            services.TryAddSingleton(config.TemporalTableOptions);
         }
 
         // Register provider health check if enabled
@@ -477,6 +504,122 @@ public static class ServiceCollectionExtensions
 
         // Register UnitOfWork with scoped lifetime
         services.TryAddScoped<IUnitOfWork, UnitOfWorkEF>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds a soft delete repository for an entity type with soft delete support.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type that implements <see cref="ISoftDeletable"/>.</typeparam>
+    /// <typeparam name="TId">The entity identifier type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method registers <see cref="ISoftDeleteRepository{TEntity, TId}"/> with scoped lifetime.
+    /// The repository provides operations for querying soft-deleted entities, restoring them,
+    /// and performing hard deletes.
+    /// </para>
+    /// <para>
+    /// <b>Requirements</b>:
+    /// <list type="bullet">
+    /// <item><description><see cref="DbContext"/> must be registered in DI</description></item>
+    /// <item><description><typeparamref name="TEntity"/> must implement <see cref="ISoftDeletable"/></description></item>
+    /// <item><description>For restore operations, entity should implement <see cref="ISoftDeletableEntity"/></description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Register DbContext and soft delete repository
+    /// services.AddDbContext&lt;AppDbContext&gt;(options => ...);
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseSoftDelete = true;
+    /// });
+    /// services.AddEncinaSoftDeleteRepository&lt;Order, OrderId&gt;();
+    ///
+    /// // Use in a service
+    /// public class OrderService(ISoftDeleteRepository&lt;Order, OrderId&gt; repository)
+    /// {
+    ///     public Task&lt;Either&lt;RepositoryError, Order&gt;&gt; RestoreOrderAsync(OrderId id, CancellationToken ct)
+    ///         =&gt; repository.RestoreAsync(id, ct);
+    ///
+    ///     public Task&lt;Either&lt;RepositoryError, Unit&gt;&gt; PermanentDeleteAsync(OrderId id, CancellationToken ct)
+    ///         =&gt; repository.HardDeleteAsync(id, ct);
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaSoftDeleteRepository<TEntity, TId>(
+        this IServiceCollection services)
+        where TEntity : class, IEntity<TId>, ISoftDeletable
+        where TId : notnull
+    {
+        services.TryAddScoped<ISoftDeleteRepository<TEntity, TId>, SoftDeleteRepositoryEF<TEntity, TId>>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds a temporal repository for an entity type with SQL Server temporal table support.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <typeparam name="TId">The entity identifier type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method registers <see cref="ITemporalRepository{TEntity, TId}"/> with scoped lifetime.
+    /// The repository provides point-in-time query capabilities for entities stored in
+    /// SQL Server temporal tables (system-versioned tables).
+    /// </para>
+    /// <para>
+    /// <b>Requirements</b>:
+    /// <list type="bullet">
+    /// <item><description><see cref="DbContext"/> must be registered in DI</description></item>
+    /// <item><description>SQL Server 2016 or later</description></item>
+    /// <item><description>Entity must be configured as temporal using <c>ConfigureTemporalTable</c></description></item>
+    /// <item><description><see cref="MessagingConfiguration.UseTemporalTables"/> must be enabled</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Temporal Query Capabilities</b>:
+    /// <list type="bullet">
+    /// <item><description><c>GetAsOfAsync</c>: Query entity state at a specific point in time</description></item>
+    /// <item><description><c>GetHistoryAsync</c>: Retrieve all historical versions of an entity</description></item>
+    /// <item><description><c>GetChangedBetweenAsync</c>: Query changes within a time range</description></item>
+    /// <item><description><c>ListAsOfAsync</c>: Combine point-in-time queries with specifications</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Register DbContext and temporal repository
+    /// services.AddDbContext&lt;AppDbContext&gt;(options => ...);
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseTemporalTables = true;
+    /// });
+    /// services.AddEncinaTemporalRepository&lt;Order, OrderId&gt;();
+    ///
+    /// // Use in a service
+    /// public class OrderAuditService(ITemporalRepository&lt;Order, OrderId&gt; repository)
+    /// {
+    ///     public Task&lt;Either&lt;RepositoryError, Order&gt;&gt; GetOrderLastWeekAsync(OrderId id, CancellationToken ct)
+    ///         =&gt; repository.GetAsOfAsync(id, DateTime.UtcNow.AddDays(-7), ct);
+    ///
+    ///     public Task&lt;Either&lt;RepositoryError, IReadOnlyList&lt;Order&gt;&gt;&gt; GetOrderHistoryAsync(OrderId id, CancellationToken ct)
+    ///         =&gt; repository.GetHistoryAsync(id, ct);
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaTemporalRepository<TEntity, TId>(
+        this IServiceCollection services)
+        where TEntity : class, IEntity<TId>
+        where TId : notnull
+    {
+        services.TryAddScoped<ITemporalRepository<TEntity, TId>, TemporalRepositoryEF<TEntity, TId>>();
 
         return services;
     }

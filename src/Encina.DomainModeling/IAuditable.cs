@@ -225,7 +225,7 @@ public interface IAuditable
 }
 
 /// <summary>
-/// Interface for entities that support soft delete.
+/// Interface for entities that support soft delete with getter-only properties.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -235,7 +235,27 @@ public interface IAuditable
 /// <para>
 /// Query filters should be applied to exclude soft-deleted entities from normal queries.
 /// </para>
+/// <para>
+/// <b>ISoftDeletable vs ISoftDeletableEntity:</b>
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <see cref="ISoftDeletable"/>: Has <b>getter-only</b> properties for method-based population.
+///       Use this for immutable domain patterns where soft delete fields are set via domain methods
+///       (e.g., <c>Delete</c>, <c>Restore</c>).
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       <see cref="ISoftDeletableEntity"/>: Has <b>public setters</b> for interceptor-based population.
+///       Use this when you want automatic soft delete field population via EF Core interceptors.
+///     </description>
+///   </item>
+/// </list>
+/// </para>
 /// </remarks>
+/// <seealso cref="ISoftDeletableEntity"/>
+/// <seealso cref="SoftDeletableAggregateRoot{TId}"/>
 public interface ISoftDeletable
 {
     /// <summary>
@@ -252,6 +272,86 @@ public interface ISoftDeletable
     /// Gets the identifier of the user who deleted this entity.
     /// </summary>
     string? DeletedBy { get; }
+}
+
+/// <summary>
+/// Interface for entities that support soft delete with mutable properties for interceptor-based population.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This interface is designed for automatic population by EF Core SaveChanges interceptors.
+/// Entities implementing this interface will have their soft delete properties automatically
+/// set when they are deleted from the database (delete operation is converted to soft delete).
+/// </para>
+/// <para>
+/// The properties have public setters to allow the interceptor to populate them.
+/// For immutable domain patterns where soft delete fields are set via methods, use <see cref="ISoftDeletable"/> instead.
+/// </para>
+/// <para>
+/// <b>ISoftDeletableEntity vs ISoftDeletable:</b>
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <see cref="ISoftDeletableEntity"/>: Has <b>public setters</b> for interceptor-based population.
+///       Use this when you want automatic soft delete field population via EF Core interceptors.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       <see cref="ISoftDeletable"/>: Has <b>getter-only</b> properties for method-based population.
+///       Use this for immutable domain patterns where soft delete fields are set via domain methods.
+///     </description>
+///   </item>
+/// </list>
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// // Automatic soft delete via interceptor
+/// public class Order : FullyAuditedAggregateRoot&lt;OrderId&gt;
+/// {
+///     // ISoftDeletableEntity properties are inherited and auto-populated
+///     // when a delete operation is performed
+///     public string CustomerName { get; private set; }
+/// }
+///
+/// // Configuration
+/// services.AddEncinaEntityFrameworkCore(config =>
+/// {
+///     config.UseSoftDelete = true;
+/// });
+/// </code>
+/// </example>
+/// <seealso cref="ISoftDeletable"/>
+/// <seealso cref="FullyAuditedAggregateRoot{TId}"/>
+public interface ISoftDeletableEntity : ISoftDeletable
+{
+    /// <summary>
+    /// Gets or sets a value indicating whether this entity has been soft-deleted.
+    /// </summary>
+    /// <remarks>
+    /// This property is automatically set to <c>true</c> by the <c>SoftDeleteInterceptor</c>
+    /// when the entity state is <c>EntityState.Deleted</c>.
+    /// </remarks>
+    new bool IsDeleted { get; set; }
+
+    /// <summary>
+    /// Gets or sets the timestamp when this entity was deleted (UTC).
+    /// </summary>
+    /// <remarks>
+    /// This property is automatically populated by the <c>SoftDeleteInterceptor</c>
+    /// when the entity is soft-deleted.
+    /// </remarks>
+    new DateTime? DeletedAtUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the identifier of the user who deleted this entity.
+    /// </summary>
+    /// <remarks>
+    /// This property is automatically populated by the <c>SoftDeleteInterceptor</c>
+    /// from <c>IRequestContext.UserId</c> when the entity is soft-deleted.
+    /// </remarks>
+    new string? DeletedBy { get; set; }
 }
 
 #endregion

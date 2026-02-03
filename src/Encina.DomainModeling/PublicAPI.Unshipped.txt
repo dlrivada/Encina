@@ -688,3 +688,37 @@ Encina.DomainModeling.Auditing.InMemoryAuditLogStore.LogAsync(Encina.DomainModel
 Encina.DomainModeling.Auditing.InMemoryAuditLogStore.GetHistoryAsync(string! entityType, string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.DomainModeling.Auditing.AuditLogEntry!>!>!
 Encina.DomainModeling.Auditing.InMemoryAuditLogStore.Clear() -> void
 Encina.DomainModeling.Auditing.InMemoryAuditLogStore.GetTotalCount() -> int
+Encina.DomainModeling.ISoftDeletableEntity
+Encina.DomainModeling.ISoftDeletableEntity.IsDeleted.get -> bool
+Encina.DomainModeling.ISoftDeletableEntity.IsDeleted.set -> void
+Encina.DomainModeling.ISoftDeletableEntity.DeletedAtUtc.get -> System.DateTime?
+Encina.DomainModeling.ISoftDeletableEntity.DeletedAtUtc.set -> void
+Encina.DomainModeling.ISoftDeletableEntity.DeletedBy.get -> string?
+Encina.DomainModeling.ISoftDeletableEntity.DeletedBy.set -> void
+Encina.DomainModeling.SoftDeletableEntity<TId>
+Encina.DomainModeling.SoftDeletableEntity<TId>.SoftDeletableEntity(TId id, System.TimeProvider? timeProvider = null) -> void
+Encina.DomainModeling.SoftDeletableEntity<TId>.IsDeleted.get -> bool
+Encina.DomainModeling.SoftDeletableEntity<TId>.DeletedAtUtc.get -> System.DateTime?
+Encina.DomainModeling.SoftDeletableEntity<TId>.DeletedBy.get -> string?
+virtual Encina.DomainModeling.SoftDeletableEntity<TId>.Delete(string? deletedBy = null) -> void
+virtual Encina.DomainModeling.SoftDeletableEntity<TId>.Restore() -> void
+Encina.DomainModeling.FullyAuditedEntity<TId>
+Encina.DomainModeling.FullyAuditedEntity<TId>.FullyAuditedEntity(TId id, System.TimeProvider? timeProvider = null) -> void
+Encina.DomainModeling.FullyAuditedEntity<TId>.IsDeleted.get -> bool
+Encina.DomainModeling.FullyAuditedEntity<TId>.IsDeleted.set -> void
+Encina.DomainModeling.FullyAuditedEntity<TId>.DeletedAtUtc.get -> System.DateTime?
+Encina.DomainModeling.FullyAuditedEntity<TId>.DeletedAtUtc.set -> void
+Encina.DomainModeling.FullyAuditedEntity<TId>.DeletedBy.get -> string?
+Encina.DomainModeling.FullyAuditedEntity<TId>.DeletedBy.set -> void
+virtual Encina.DomainModeling.FullyAuditedEntity<TId>.Delete(string? deletedBy = null) -> void
+virtual Encina.DomainModeling.FullyAuditedEntity<TId>.Restore() -> void
+Encina.DomainModeling.ISoftDeleteRepository<TEntity, TId>
+Encina.DomainModeling.ISoftDeleteRepository<TEntity, TId>.ListWithDeletedAsync(Encina.DomainModeling.Specification<TEntity>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.DomainModeling.RepositoryError!, System.Collections.Generic.IReadOnlyList<TEntity>!>>!
+Encina.DomainModeling.ISoftDeleteRepository<TEntity, TId>.GetByIdWithDeletedAsync(TId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.DomainModeling.RepositoryError!, TEntity>>!
+Encina.DomainModeling.ISoftDeleteRepository<TEntity, TId>.RestoreAsync(TId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.DomainModeling.RepositoryError!, TEntity>>!
+Encina.DomainModeling.ISoftDeleteRepository<TEntity, TId>.HardDeleteAsync(TId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.DomainModeling.RepositoryError!, LanguageExt.Unit>>!
+Encina.DomainModeling.ITemporalRepository<TEntity, TId>
+Encina.DomainModeling.ITemporalRepository<TEntity, TId>.GetAsOfAsync(TId id, System.DateTime asOfUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.DomainModeling.RepositoryError!, TEntity>>!
+Encina.DomainModeling.ITemporalRepository<TEntity, TId>.GetHistoryAsync(TId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.DomainModeling.RepositoryError!, System.Collections.Generic.IReadOnlyList<TEntity>!>>!
+Encina.DomainModeling.ITemporalRepository<TEntity, TId>.GetChangedBetweenAsync(System.DateTime fromUtc, System.DateTime toUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.DomainModeling.RepositoryError!, System.Collections.Generic.IReadOnlyList<TEntity>!>>!
+Encina.DomainModeling.ITemporalRepository<TEntity, TId>.ListAsOfAsync(Encina.DomainModeling.Specification<TEntity>! specification, System.DateTime asOfUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.DomainModeling.RepositoryError!, System.Collections.Generic.IReadOnlyList<TEntity>!>>!

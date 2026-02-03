@@ -2,6 +2,105 @@
 
 ### Added
 
+#### Soft Delete & Temporal Tables Support (#285)
+
+Added comprehensive soft delete pattern and SQL Server temporal tables support across all database providers.
+
+**Soft Delete Pattern**:
+
+- **Domain Modeling**: `ISoftDeletable` (read-only) and `ISoftDeletableEntity` (mutable) interfaces
+- **Base Classes**: `SoftDeletableEntity<TId>`, `FullyAuditedEntity<TId>`, `SoftDeletableAggregateRoot<TId>`
+- **EF Core**: `SoftDeleteInterceptor` for automatic delete-to-update conversion
+- **Repository**: `ISoftDeleteRepository<TEntity, TId>` with specialized operations
+- **Global Query Filters**: Automatic exclusion of soft-deleted entities
+
+```csharp
+// Configure soft delete in EF Core
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseSoftDelete = true;
+    config.SoftDeleteOptions.TrackDeletedAt = true;
+    config.SoftDeleteOptions.TrackDeletedBy = true;
+});
+
+// Entity implementation
+public class Order : SoftDeletableEntity<OrderId>
+{
+    // Inherits IsDeleted, DeletedAtUtc, DeletedBy
+}
+
+// Repository operations
+await repository.GetByIdWithDeletedAsync(id);    // Include soft-deleted
+await repository.ListWithDeletedAsync(spec);     // Include soft-deleted
+await repository.RestoreAsync(id);               // Restore entity
+await repository.HardDeleteAsync(id);            // Permanent delete
+```
+
+**Temporal Tables** (SQL Server):
+
+- **Point-in-Time Queries**: `GetAsOfAsync(id, timestamp)` - Entity state at a specific time
+- **Entity History**: `GetHistoryAsync(id)` - Complete history with all versions
+- **Time Range Queries**: `GetChangedBetweenAsync(start, end)` - Changes in a time window
+- **Filtered Historical Queries**: `ListAsOfAsync(spec, timestamp)` - Historical queries with specifications
+
+```csharp
+// Configure temporal table
+modelBuilder.Entity<Order>().ConfigureTemporalTable();
+
+// Query historical state
+var orderAtLastWeek = await repository.GetAsOfAsync(orderId, lastWeek);
+var history = await repository.GetHistoryAsync(orderId);
+var changes = await repository.GetChangedBetweenAsync(startDate, endDate);
+```
+
+**Pipeline Behavior**:
+
+- `SoftDeleteQueryFilterBehavior<TRequest, TResponse>`: Automatic filter context setup
+- `IIncludeDeleted`: Marker interface to bypass soft delete filtering
+- `ISoftDeleteFilterContext`: Scoped service for filter state communication
+
+**Provider Support**:
+
+| Provider | Soft Delete | Temporal Tables |
+|----------|:-----------:|:---------------:|
+| EF Core (4 DBs) | ✅ | ✅ (SQL Server) |
+| Dapper (4 DBs) | ✅ | N/A |
+| ADO.NET (4 DBs) | ✅ | N/A |
+| MongoDB | ✅ | N/A |
+
+**New Types**:
+
+| Type | Purpose |
+|------|---------|
+| `ISoftDeletable` | Read-only soft delete interface |
+| `ISoftDeletableEntity` | Mutable soft delete interface |
+| `SoftDeletableEntity<TId>` | Base entity with soft delete |
+| `FullyAuditedEntity<TId>` | Base entity with audit + soft delete |
+| `SoftDeletableAggregateRoot<TId>` | Aggregate root with soft delete |
+| `SoftDeleteInterceptor` | EF Core SaveChanges interceptor |
+| `SoftDeleteInterceptorOptions` | Interceptor configuration |
+| `SoftDeleteRepositoryEF<TEntity, TId>` | EF Core soft delete repository |
+| `ISoftDeleteRepository<TEntity, TId>` | Repository interface |
+| `ITemporalRepository<TEntity, TId>` | Temporal query repository interface |
+| `TemporalRepositoryEF<TEntity, TId>` | EF Core temporal repository |
+| `SoftDeleteQueryFilterBehavior<,>` | Pipeline behavior for filtering |
+| `ISoftDeleteFilterContext` | Scoped filter state |
+| `IIncludeDeleted` | Marker to bypass soft delete |
+
+**Tests Added**:
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 28+ | Interceptor, repository, domain classes |
+| Guard Tests | 24+ | Null parameter validation |
+| Integration Tests | 11+ | Real database operations with SQL Server |
+
+**Documentation**: See `docs/features/soft-delete.md` and `docs/features/temporal-tables.md` for complete guides.
+
+**Related Issue**: [#285 - Soft Delete & Temporal Tables Support](https://github.com/dlrivada/Encina/issues/285)
+
+---
+
 #### Causation and Correlation ID Tracking in Event Metadata (#321)
 
 Added comprehensive event metadata tracking for Marten event sourcing, enabling end-to-end distributed tracing and causal chain reconstruction.

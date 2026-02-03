@@ -10,6 +10,7 @@ using Encina.Messaging.Sagas;
 using Encina.Messaging.Sagas.LowCeremony;
 using Encina.Messaging.ScatterGather;
 using Encina.Messaging.Scheduling;
+using Encina.Messaging.SoftDelete;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -131,6 +132,11 @@ public static class MessagingServiceCollectionExtensions
             services.AddScoped<IScatterGatherRunner, ScatterGatherRunner>();
         }
 
+        if (config.UseSoftDelete)
+        {
+            RegisterSoftDeleteServices(services, config);
+        }
+
         return services;
     }
 
@@ -217,6 +223,46 @@ public static class MessagingServiceCollectionExtensions
             services.AddScoped<IScatterGatherRunner, ScatterGatherRunner>();
         }
 
+        if (config.UseSoftDelete)
+        {
+            RegisterSoftDeleteServices(services, config);
+        }
+
         return services;
+    }
+
+    /// <summary>
+    /// Registers soft delete filter services and pipeline behavior.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="config">The messaging configuration.</param>
+    /// <remarks>
+    /// <para>
+    /// Registers the following services:
+    /// <list type="bullet">
+    /// <item><description><see cref="SoftDeleteOptions"/>: Singleton configuration options</description></item>
+    /// <item><description><see cref="ISoftDeleteFilterContext"/>: Scoped filter state context</description></item>
+    /// <item><description><see cref="SoftDeleteQueryFilterBehavior{TRequest, TResponse}"/>: Pipeline behavior for filter configuration</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Pipeline Behavior Order</b>: The soft delete filter behavior should run early in the pipeline,
+    /// before validation and authorization behaviors, to ensure the filter context is configured
+    /// before any data access occurs.
+    /// </para>
+    /// </remarks>
+    private static void RegisterSoftDeleteServices(
+        IServiceCollection services,
+        MessagingConfiguration config)
+    {
+        // Register options as singleton
+        services.AddSingleton(config.SoftDeleteOptions);
+
+        // Register the scoped filter context for communicating filter state
+        // from pipeline behaviors to repositories
+        services.TryAddScoped<ISoftDeleteFilterContext, SoftDeleteFilterContext>();
+
+        // Register the pipeline behavior to configure filter context based on request type
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(SoftDeleteQueryFilterBehavior<,>));
     }
 }

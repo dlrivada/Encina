@@ -300,3 +300,240 @@ public abstract class AuditedEntity<TId> : Entity<TId>, IAuditableEntity
         TimeProvider = timeProvider ?? TimeProvider.System;
     }
 }
+
+/// <summary>
+/// Base class for soft-deletable entities with method-based (private setter) population.
+/// </summary>
+/// <typeparam name="TId">The type of the entity identifier.</typeparam>
+/// <remarks>
+/// <para>
+/// This class extends <see cref="AuditedEntity{TId}"/> and implements <see cref="ISoftDeletable"/>
+/// with private setters. Soft delete fields are set via explicit domain methods (<see cref="Delete"/>
+/// and <see cref="Restore"/>).
+/// </para>
+/// <para>
+/// <b>SoftDeletableEntity vs FullyAuditedEntity:</b>
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <see cref="SoftDeletableEntity{TId}"/>: Uses <see cref="ISoftDeletable"/> with <b>private setters</b>.
+///       Soft delete fields are set via explicit domain methods. Best for immutable domain patterns.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       <see cref="FullyAuditedEntity{TId}"/>: Uses <see cref="ISoftDeletableEntity"/> with <b>public setters</b>.
+///       Best for interceptor-based automatic population.
+///     </description>
+///   </item>
+/// </list>
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public class OrderLine : SoftDeletableEntity&lt;Guid&gt;
+/// {
+///     public Guid OrderId { get; private set; }
+///     public string ProductName { get; private set; }
+///
+///     private OrderLine() : base(Guid.Empty) { } // For ORM
+///
+///     public OrderLine(Guid id, Guid orderId, string productName) : base(id)
+///     {
+///         OrderId = orderId;
+///         ProductName = productName;
+///     }
+///
+///     public void Remove(string? deletedBy = null)
+///     {
+///         Delete(deletedBy);
+///     }
+/// }
+/// </code>
+/// </example>
+/// <seealso cref="FullyAuditedEntity{TId}"/>
+/// <seealso cref="SoftDeletableAggregateRoot{TId}"/>
+[SuppressMessage("SonarAnalyzer.CSharp", "S4035:Seal class or implement IEqualityComparer",
+    Justification = "DDD base class: Entity equality is by ID, derived types inherit this semantic")]
+public abstract class SoftDeletableEntity<TId> : AuditedEntity<TId>, ISoftDeletable
+    where TId : notnull
+{
+    /// <inheritdoc />
+    public bool IsDeleted { get; private set; }
+
+    /// <inheritdoc />
+    public DateTime? DeletedAtUtc { get; private set; }
+
+    /// <inheritdoc />
+    public string? DeletedBy { get; private set; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SoftDeletableEntity{TId}"/> class.
+    /// </summary>
+    /// <param name="id">The unique identifier for this entity.</param>
+    /// <param name="timeProvider">
+    /// Optional time provider for testing. In production, the <c>AuditInterceptor</c>
+    /// sets the timestamps, so this parameter is typically only used in tests.
+    /// </param>
+    protected SoftDeletableEntity(TId id, TimeProvider? timeProvider = null) : base(id, timeProvider)
+    {
+    }
+
+    /// <summary>
+    /// Marks this entity as deleted (soft delete).
+    /// </summary>
+    /// <param name="deletedBy">The identifier of the user who deleted this entity.</param>
+    /// <remarks>
+    /// <para>
+    /// This method sets <see cref="IsDeleted"/> to <c>true</c>, <see cref="DeletedAtUtc"/> to the
+    /// current UTC time, and <see cref="DeletedBy"/> to the provided user identifier.
+    /// </para>
+    /// <para>
+    /// Query filters should be configured in EF Core to automatically exclude soft-deleted entities
+    /// from normal queries. Use <c>.IgnoreQueryFilters()</c> when you need to access deleted entities.
+    /// </para>
+    /// </remarks>
+    public virtual void Delete(string? deletedBy = null)
+    {
+        IsDeleted = true;
+        DeletedAtUtc = TimeProvider.GetUtcNow().UtcDateTime;
+        DeletedBy = deletedBy;
+    }
+
+    /// <summary>
+    /// Restores a soft-deleted entity.
+    /// </summary>
+    /// <remarks>
+    /// This method sets <see cref="IsDeleted"/> to <c>false</c> and clears <see cref="DeletedAtUtc"/>
+    /// and <see cref="DeletedBy"/> properties.
+    /// </remarks>
+    public virtual void Restore()
+    {
+        IsDeleted = false;
+        DeletedAtUtc = null;
+        DeletedBy = null;
+    }
+}
+
+/// <summary>
+/// Base class for entities with automatic audit tracking and soft delete support via EF Core interceptors.
+/// </summary>
+/// <typeparam name="TId">The type of the entity identifier.</typeparam>
+/// <remarks>
+/// <para>
+/// This class extends <see cref="AuditedEntity{TId}"/> and implements <see cref="ISoftDeletableEntity"/>,
+/// combining automatic audit population with soft delete capabilities. Use this when you need:
+/// <list type="bullet">
+///   <item><description>Automatic creation and modification tracking via interceptors</description></item>
+///   <item><description>Soft delete support with deletion tracking</description></item>
+/// </list>
+/// </para>
+/// <para>
+/// Soft delete properties (<see cref="IsDeleted"/>, <see cref="DeletedAtUtc"/>, <see cref="DeletedBy"/>)
+/// have public setters for interceptor compatibility, but prefer using the <see cref="Delete"/> and
+/// <see cref="Restore"/> methods for domain logic as they maintain consistency.
+/// </para>
+/// <para>
+/// <b>FullyAuditedEntity vs SoftDeletableEntity:</b>
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <see cref="FullyAuditedEntity{TId}"/>: Uses <see cref="ISoftDeletableEntity"/> with <b>public setters</b>.
+///       Best for interceptor-based automatic population.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       <see cref="SoftDeletableEntity{TId}"/>: Uses <see cref="ISoftDeletable"/> with <b>private setters</b>.
+///       Best for method-based population in immutable domain patterns.
+///     </description>
+///   </item>
+/// </list>
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public class OrderLine : FullyAuditedEntity&lt;Guid&gt;
+/// {
+///     public Guid OrderId { get; private set; }
+///     public string ProductName { get; private set; }
+///
+///     private OrderLine() : base(Guid.Empty) { } // For ORM
+///
+///     public OrderLine(Guid id, Guid orderId, string productName) : base(id)
+///     {
+///         OrderId = orderId;
+///         ProductName = productName;
+///     }
+/// }
+///
+/// // Configuration - soft delete fields are automatically populated
+/// services.AddEncinaEntityFrameworkCore(config =>
+/// {
+///     config.UseSoftDelete = true;
+/// });
+/// </code>
+/// </example>
+/// <seealso cref="SoftDeletableEntity{TId}"/>
+/// <seealso cref="FullyAuditedAggregateRoot{TId}"/>
+[SuppressMessage("SonarAnalyzer.CSharp", "S4035:Seal class or implement IEqualityComparer",
+    Justification = "DDD base class: Entity equality is by ID, derived types inherit this semantic")]
+public abstract class FullyAuditedEntity<TId> : AuditedEntity<TId>, ISoftDeletableEntity
+    where TId : notnull
+{
+    /// <inheritdoc />
+    public bool IsDeleted { get; set; }
+
+    /// <inheritdoc />
+    public DateTime? DeletedAtUtc { get; set; }
+
+    /// <inheritdoc />
+    public string? DeletedBy { get; set; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FullyAuditedEntity{TId}"/> class.
+    /// </summary>
+    /// <param name="id">The unique identifier for this entity.</param>
+    /// <param name="timeProvider">
+    /// Optional time provider for testing. In production, the <c>AuditInterceptor</c>
+    /// sets the timestamps, so this parameter is typically only used in tests.
+    /// </param>
+    protected FullyAuditedEntity(TId id, TimeProvider? timeProvider = null) : base(id, timeProvider)
+    {
+    }
+
+    /// <summary>
+    /// Marks this entity as deleted (soft delete).
+    /// </summary>
+    /// <param name="deletedBy">The identifier of the user who deleted this entity.</param>
+    /// <remarks>
+    /// <para>
+    /// This method sets <see cref="IsDeleted"/> to <c>true</c>, <see cref="DeletedAtUtc"/> to the
+    /// current UTC time, and <see cref="DeletedBy"/> to the provided user identifier.
+    /// </para>
+    /// <para>
+    /// Query filters should be configured in EF Core to automatically exclude soft-deleted entities
+    /// from normal queries. Use <c>.IgnoreQueryFilters()</c> when you need to access deleted entities.
+    /// </para>
+    /// </remarks>
+    public virtual void Delete(string? deletedBy = null)
+    {
+        IsDeleted = true;
+        DeletedAtUtc = TimeProvider.GetUtcNow().UtcDateTime;
+        DeletedBy = deletedBy;
+    }
+
+    /// <summary>
+    /// Restores a soft-deleted entity.
+    /// </summary>
+    /// <remarks>
+    /// This method sets <see cref="IsDeleted"/> to <c>false</c> and clears <see cref="DeletedAtUtc"/>
+    /// and <see cref="DeletedBy"/> properties.
+    /// </remarks>
+    public virtual void Restore()
+    {
+        IsDeleted = false;
+        DeletedAtUtc = null;
+        DeletedBy = null;
+    }
+}
