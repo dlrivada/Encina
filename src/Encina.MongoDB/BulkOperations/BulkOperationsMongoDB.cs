@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Encina;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
+using Encina.DomainModeling.Concurrency;
 using LanguageExt;
 using MongoDB.Driver;
 using static LanguageExt.Prelude;
@@ -162,9 +163,13 @@ public sealed class BulkOperationsMongoDB<TEntity, TId> : IBulkOperations<TEntit
             AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
         }
 
+        // Track whether we're dealing with versioned entities for conflict detection
+        var hasVersionedEntities = entityList.Count > 0 && entityList[0] is IVersioned;
+
         try
         {
             var totalModified = 0L;
+            var totalExpected = 0;
 
             // Process in batches
             foreach (var batch in ChunkEntities(entityList, config.BatchSize))
@@ -173,6 +178,19 @@ public sealed class BulkOperationsMongoDB<TEntity, TId> : IBulkOperations<TEntit
                 {
                     var id = _compiledIdSelector(entity);
                     var filter = BuildIdFilter(id);
+
+                    // Handle versioned entities for optimistic concurrency
+                    if (entity is IVersionedEntity versionedEntity)
+                    {
+                        var originalVersion = versionedEntity.Version;
+                        filter = BuildVersionedFilter(filter, originalVersion);
+                        versionedEntity.Version = (int)(originalVersion + 1);
+                    }
+                    else if (entity is IVersioned versioned)
+                    {
+                        filter = BuildVersionedFilter(filter, versioned.Version);
+                    }
+
                     return new ReplaceOneModel<TEntity>(filter, entity) { IsUpsert = false };
                 }).ToList();
 
@@ -191,6 +209,16 @@ public sealed class BulkOperationsMongoDB<TEntity, TId> : IBulkOperations<TEntit
                 }
 
                 totalModified += result.ModifiedCount;
+                totalExpected += batch.Count;
+            }
+
+            // Check for concurrency conflicts in versioned entities
+            if (hasVersionedEntities && totalModified < totalExpected)
+            {
+                var conflictCount = totalExpected - (int)totalModified;
+                return Left<EncinaError, int>(
+                    RepositoryErrors.ConcurrencyConflict<TEntity>(
+                        new InvalidOperationException($"{conflictCount} entities had version conflicts during bulk update")));
             }
 
             return Right<EncinaError, int>((int)totalModified);
@@ -374,6 +402,20 @@ public sealed class BulkOperationsMongoDB<TEntity, TId> : IBulkOperations<TEntit
     {
         // Build a Filter.In expression using the ID selector
         return Builders<TEntity>.Filter.In(_idSelector, ids);
+    }
+
+    /// <summary>
+    /// Builds a filter that includes the expected version for optimistic concurrency control.
+    /// </summary>
+    /// <param name="idFilter">The ID filter.</param>
+    /// <param name="expectedVersion">The expected version of the entity.</param>
+    /// <returns>A combined filter that includes the version check.</returns>
+    private static FilterDefinition<TEntity> BuildVersionedFilter(
+        FilterDefinition<TEntity> idFilter,
+        long expectedVersion)
+    {
+        var versionFilter = Builders<TEntity>.Filter.Eq("Version", expectedVersion);
+        return Builders<TEntity>.Filter.And(idFilter, versionFilter);
     }
 
     #endregion

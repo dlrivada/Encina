@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
+using Encina.DomainModeling.Concurrency;
 using Encina.Tenancy;
 using LanguageExt;
 using MongoDB.Driver;
@@ -362,6 +363,20 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
             var tenantFilter = _filterBuilder.BuildTenantFilter();
             var combinedFilter = Builders<TEntity>.Filter.And(idFilter, tenantFilter);
 
+            // Handle versioned entities for optimistic concurrency
+            long? originalVersion = null;
+            if (entity is IVersionedEntity versionedEntity)
+            {
+                originalVersion = versionedEntity.Version;
+                combinedFilter = BuildVersionedFilter(combinedFilter, originalVersion.Value);
+                versionedEntity.Version = (int)(originalVersion.Value + 1);
+            }
+            else if (entity is IVersioned versioned)
+            {
+                originalVersion = versioned.Version;
+                combinedFilter = BuildVersionedFilter(combinedFilter, originalVersion.Value);
+            }
+
             var result = await _collection.ReplaceOneAsync(
                 combinedFilter,
                 entity,
@@ -371,6 +386,14 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
 
             if (result.MatchedCount == 0)
             {
+                // If we had a version filter and no match, it's a concurrency conflict
+                if (originalVersion.HasValue)
+                {
+                    return Left<EncinaError, TEntity>(
+                        RepositoryErrors.ConcurrencyConflict<TEntity>(
+                            new ConcurrencyConflictInfo<TEntity>(entity, entity, default)));
+                }
+
                 return Left<EncinaError, TEntity>(RepositoryErrors.NotFound<TEntity, TId>(id));
             }
 
@@ -492,18 +515,43 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
 
             var tenantFilter = _filterBuilder.BuildTenantFilter();
 
+            // Track whether we're dealing with versioned entities for conflict detection
+            var hasVersionedEntities = entityList.Count > 0 && entityList[0] is IVersioned;
+
             var bulkOps = entityList.Select(entity =>
             {
                 var id = _compiledIdSelector(entity);
                 var idFilter = BuildIdFilter(id);
                 var combinedFilter = Builders<TEntity>.Filter.And(idFilter, tenantFilter);
+
+                // Handle versioned entities for optimistic concurrency
+                if (entity is IVersionedEntity versionedEntity)
+                {
+                    var originalVersion = versionedEntity.Version;
+                    combinedFilter = BuildVersionedFilter(combinedFilter, originalVersion);
+                    versionedEntity.Version = (int)(originalVersion + 1);
+                }
+                else if (entity is IVersioned versioned)
+                {
+                    combinedFilter = BuildVersionedFilter(combinedFilter, versioned.Version);
+                }
+
                 return new ReplaceOneModel<TEntity>(combinedFilter, entity) { IsUpsert = false };
             }).ToList();
 
             if (bulkOps.Count > 0)
             {
-                await _collection.BulkWriteAsync(bulkOps, cancellationToken: cancellationToken)
+                var result = await _collection.BulkWriteAsync(bulkOps, cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
+
+                // Check for concurrency conflicts in versioned entities
+                if (hasVersionedEntities && result.MatchedCount < entityList.Count)
+                {
+                    var conflictCount = entityList.Count - (int)result.MatchedCount;
+                    return Left<EncinaError, Unit>(
+                        RepositoryErrors.ConcurrencyConflict<TEntity>(
+                            new InvalidOperationException($"{conflictCount} entities had version conflicts")));
+                }
             }
 
             return Right<EncinaError, Unit>(Unit.Default);
@@ -643,6 +691,20 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
     private static bool HasDuplicateKeyError(MongoBulkWriteException ex)
     {
         return ex.WriteErrors?.Any(e => e.Category == ServerErrorCategory.DuplicateKey) == true;
+    }
+
+    /// <summary>
+    /// Builds a filter that includes the expected version for optimistic concurrency control.
+    /// </summary>
+    /// <param name="baseFilter">The base filter (typically includes ID and tenant filter).</param>
+    /// <param name="expectedVersion">The expected version of the entity.</param>
+    /// <returns>A combined filter that includes the version check.</returns>
+    private static FilterDefinition<TEntity> BuildVersionedFilter(
+        FilterDefinition<TEntity> baseFilter,
+        long expectedVersion)
+    {
+        var versionFilter = Builders<TEntity>.Filter.Eq("Version", expectedVersion);
+        return Builders<TEntity>.Filter.And(baseFilter, versionFilter);
     }
 
     #endregion

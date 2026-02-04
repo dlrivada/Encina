@@ -1,5 +1,6 @@
 using Encina;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Concurrency;
 using Encina.EntityFrameworkCore.Extensions;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
@@ -266,6 +267,15 @@ public sealed class FunctionalRepositoryEF<TEntity, TId> : IFunctionalRepository
     {
         ArgumentNullException.ThrowIfNull(entity);
 
+        // Store original values before update attempt for conflict info
+        TEntity? originalEntity = null;
+        if (entity is IHasId<TId> hasId)
+        {
+            originalEntity = await _dbSet.AsNoTracking()
+                .FirstOrDefaultAsync(e => EF.Property<TId>(e, "Id")!.Equals(hasId.Id), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         try
         {
             _dbSet.Update(entity);
@@ -275,8 +285,14 @@ public sealed class FunctionalRepositoryEF<TEntity, TId> : IFunctionalRepository
         }
         catch (DbUpdateConcurrencyException ex)
         {
+            var conflictInfo = await CreateConcurrencyConflictInfoAsync(
+                originalEntity ?? entity,
+                entity,
+                ex,
+                cancellationToken).ConfigureAwait(false);
+
             return Left<EncinaError, TEntity>(
-                RepositoryErrors.ConcurrencyConflict<TEntity>(ex));
+                RepositoryErrors.ConcurrencyConflict(conflictInfo, ex));
         }
         catch (Exception ex)
         {
@@ -290,6 +306,8 @@ public sealed class FunctionalRepositoryEF<TEntity, TId> : IFunctionalRepository
         TId id,
         CancellationToken cancellationToken = default)
     {
+        TEntity? originalEntity = null;
+
         try
         {
             var entity = await _dbSet.FindAsync([id], cancellationToken).ConfigureAwait(false);
@@ -299,6 +317,7 @@ public sealed class FunctionalRepositoryEF<TEntity, TId> : IFunctionalRepository
                 return Left<EncinaError, Unit>(RepositoryErrors.NotFound<TEntity, TId>(id));
             }
 
+            originalEntity = entity;
             _dbSet.Remove(entity);
             await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
@@ -306,6 +325,18 @@ public sealed class FunctionalRepositoryEF<TEntity, TId> : IFunctionalRepository
         }
         catch (DbUpdateConcurrencyException ex)
         {
+            if (originalEntity is not null)
+            {
+                var conflictInfo = await CreateConcurrencyConflictInfoAsync(
+                    originalEntity,
+                    originalEntity,
+                    ex,
+                    cancellationToken).ConfigureAwait(false);
+
+                return Left<EncinaError, Unit>(
+                    RepositoryErrors.ConcurrencyConflict(conflictInfo, ex));
+            }
+
             return Left<EncinaError, Unit>(
                 RepositoryErrors.ConcurrencyConflict<TEntity, TId>(id, ex));
         }
@@ -332,8 +363,14 @@ public sealed class FunctionalRepositoryEF<TEntity, TId> : IFunctionalRepository
         }
         catch (DbUpdateConcurrencyException ex)
         {
+            var conflictInfo = await CreateConcurrencyConflictInfoAsync(
+                entity,
+                entity,
+                ex,
+                cancellationToken).ConfigureAwait(false);
+
             return Left<EncinaError, Unit>(
-                RepositoryErrors.ConcurrencyConflict<TEntity>(ex));
+                RepositoryErrors.ConcurrencyConflict(conflictInfo, ex));
         }
         catch (Exception ex)
         {
@@ -388,6 +425,20 @@ public sealed class FunctionalRepositoryEF<TEntity, TId> : IFunctionalRepository
         }
         catch (DbUpdateConcurrencyException ex)
         {
+            // For range updates, try to identify the first conflicting entity
+            var conflictingEntry = ex.Entries.Count > 0 ? ex.Entries[0] : null;
+            if (conflictingEntry?.Entity is TEntity conflictingEntity)
+            {
+                var conflictInfo = await CreateConcurrencyConflictInfoAsync(
+                    conflictingEntity,
+                    conflictingEntity,
+                    ex,
+                    cancellationToken).ConfigureAwait(false);
+
+                return Left<EncinaError, Unit>(
+                    RepositoryErrors.ConcurrencyConflict(conflictInfo, ex));
+            }
+
             return Left<EncinaError, Unit>(
                 RepositoryErrors.ConcurrencyConflict<TEntity>(ex));
         }
@@ -443,8 +494,14 @@ public sealed class FunctionalRepositoryEF<TEntity, TId> : IFunctionalRepository
         }
         catch (DbUpdateConcurrencyException ex)
         {
+            var conflictInfo = await CreateConcurrencyConflictInfoAsync(
+                modified,
+                modified,
+                ex,
+                cancellationToken).ConfigureAwait(false);
+
             return Left<EncinaError, Unit>(
-                RepositoryErrors.ConcurrencyConflict<TEntity>(ex));
+                RepositoryErrors.ConcurrencyConflict(conflictInfo, ex));
         }
         catch (Exception ex)
         {
@@ -479,6 +536,61 @@ public sealed class FunctionalRepositoryEF<TEntity, TId> : IFunctionalRepository
 
         // Fallback to entity type name
         return entity.GetType().Name;
+    }
+
+    /// <summary>
+    /// Creates a <see cref="ConcurrencyConflictInfo{TEntity}"/> by fetching the current database state.
+    /// </summary>
+    /// <param name="currentEntity">The entity state when originally loaded.</param>
+    /// <param name="proposedEntity">The entity state being saved.</param>
+    /// <param name="ex">The concurrency exception containing entry information.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A <see cref="ConcurrencyConflictInfo{TEntity}"/> with all three entity states.</returns>
+    private async Task<ConcurrencyConflictInfo<TEntity>> CreateConcurrencyConflictInfoAsync(
+        TEntity currentEntity,
+        TEntity proposedEntity,
+        DbUpdateConcurrencyException ex,
+        CancellationToken cancellationToken)
+    {
+        TEntity? databaseEntity = null;
+
+        // Try to get the current database state
+        var entry = ex.Entries.FirstOrDefault(e => e.Entity is TEntity);
+        if (entry is not null)
+        {
+            try
+            {
+                // Reload the entry to get current database values
+                await entry.ReloadAsync(cancellationToken).ConfigureAwait(false);
+                databaseEntity = entry.Entity as TEntity;
+            }
+            catch
+            {
+                // Entity may have been deleted - databaseEntity stays null
+            }
+        }
+
+        // If we couldn't get it from the entry, try by ID
+        if (databaseEntity is null && proposedEntity is IHasId<TId> hasId)
+        {
+            try
+            {
+                databaseEntity = await _dbSet.AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        e => EF.Property<TId>(e, "Id")!.Equals(hasId.Id),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch
+            {
+                // Entity may have been deleted - databaseEntity stays null
+            }
+        }
+
+        return new ConcurrencyConflictInfo<TEntity>(
+            CurrentEntity: currentEntity,
+            ProposedEntity: proposedEntity,
+            DatabaseEntity: databaseEntity);
     }
 
     #endregion

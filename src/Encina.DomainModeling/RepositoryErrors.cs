@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Encina;
+using Encina.DomainModeling.Concurrency;
 
 namespace Encina.DomainModeling;
 
@@ -132,6 +133,63 @@ public static class RepositoryErrors
         {
             ["EntityType"] = entityTypeName
         }.ToImmutableDictionary();
+
+        return EncinaErrors.Create(ConcurrencyConflictCode, message, innerException, details);
+    }
+
+    /// <summary>
+    /// Creates a ConcurrencyConflict error with detailed information about the conflicting entity states.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="conflictInfo">
+    /// Information about the conflict, including the current, proposed, and database entity states.
+    /// </param>
+    /// <param name="innerException">Optional inner exception with details about the conflict.</param>
+    /// <returns>An <see cref="EncinaError"/> representing the concurrency conflict error with entity state details.</returns>
+    /// <remarks>
+    /// <para>
+    /// This overload provides rich conflict information that can be used by
+    /// <see cref="IConcurrencyConflictResolver{TEntity}"/> implementations to resolve conflicts,
+    /// or for logging and debugging purposes.
+    /// </para>
+    /// <para>
+    /// The error details dictionary includes:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><description><c>EntityType</c>: The name of the entity type.</description></item>
+    ///   <item><description><c>CurrentEntity</c>: The entity state when originally loaded.</description></item>
+    ///   <item><description><c>ProposedEntity</c>: The entity state being saved.</description></item>
+    ///   <item><description><c>DatabaseEntity</c>: The current database state (may be <c>null</c> if deleted).</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // In a repository when detecting a concurrency conflict:
+    /// var conflictInfo = new ConcurrencyConflictInfo&lt;Order&gt;(
+    ///     CurrentEntity: originalOrder,
+    ///     ProposedEntity: modifiedOrder,
+    ///     DatabaseEntity: await GetByIdAsync(order.Id, ct)
+    /// );
+    ///
+    /// return Left(RepositoryErrors.ConcurrencyConflict(conflictInfo, ex));
+    /// </code>
+    /// </example>
+    public static EncinaError ConcurrencyConflict<TEntity>(
+        ConcurrencyConflictInfo<TEntity> conflictInfo,
+        Exception? innerException = null)
+        where TEntity : class
+    {
+        ArgumentNullException.ThrowIfNull(conflictInfo);
+
+        var entityTypeName = typeof(TEntity).Name;
+        var deletedInfo = conflictInfo.WasDeleted
+            ? " The entity was deleted by another process."
+            : string.Empty;
+
+        var message = $"Concurrency conflict occurred for entity of type '{entityTypeName}'. " +
+                      $"The entity has been modified by another process.{deletedInfo}";
+
+        var details = conflictInfo.ToDictionary();
 
         return EncinaErrors.Create(ConcurrencyConflictCode, message, innerException, details);
     }

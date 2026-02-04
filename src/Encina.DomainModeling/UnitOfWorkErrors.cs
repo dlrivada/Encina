@@ -121,6 +121,61 @@ public static class UnitOfWorkErrors
     }
 
     /// <summary>
+    /// Creates a SaveChangesFailed error when persisting changes fails with concurrency conflict,
+    /// including detailed information about the conflicting entity states.
+    /// </summary>
+    /// <param name="exception">The concurrency exception.</param>
+    /// <param name="conflictingEntities">List of entity types involved in the conflict.</param>
+    /// <param name="additionalDetails">
+    /// Additional details about the conflict, such as current, proposed, and database entity values.
+    /// </param>
+    /// <returns>An <see cref="EncinaError"/> representing the save changes failure with rich conflict information.</returns>
+    /// <remarks>
+    /// <para>
+    /// This overload provides the most detailed error information, suitable for debugging
+    /// and conflict resolution scenarios. The <paramref name="additionalDetails"/> dictionary
+    /// may contain:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><description><c>CurrentEntity</c>: The entity state when originally loaded.</description></item>
+    ///   <item><description><c>ProposedEntity</c>: The entity state being saved.</description></item>
+    ///   <item><description><c>DatabaseEntity</c>: The current database state (may be null if deleted).</description></item>
+    ///   <item><description><c>FirstConflictEntityType</c>: The type of the first conflicting entity.</description></item>
+    /// </list>
+    /// </remarks>
+    public static EncinaError SaveChangesFailed(
+        Exception exception,
+        IEnumerable<string>? conflictingEntities,
+        IReadOnlyDictionary<string, object?>? additionalDetails)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        var entityList = conflictingEntities?.ToList() ?? [];
+        var entityInfo = entityList.Count > 0
+            ? $" Conflicting entities: {string.Join(", ", entityList)}."
+            : string.Empty;
+
+        var message = $"Failed to save changes due to concurrency conflict.{entityInfo}";
+
+        var detailsBuilder = new Dictionary<string, object?>
+        {
+            ["ExceptionType"] = exception.GetType().FullName,
+            ["ConflictingEntities"] = entityList
+        };
+
+        // Merge additional details
+        if (additionalDetails is not null)
+        {
+            foreach (var kvp in additionalDetails)
+            {
+                detailsBuilder[kvp.Key] = kvp.Value;
+            }
+        }
+
+        return EncinaErrors.Create(SaveChangesFailedCode, message, exception, detailsBuilder.ToImmutableDictionary());
+    }
+
+    /// <summary>
     /// Creates a CommitFailed error when committing a transaction fails.
     /// </summary>
     /// <param name="exception">The exception that caused the commit to fail.</param>

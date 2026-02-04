@@ -876,14 +876,12 @@ public class ActiveEntitySqliteADOSpec : Specification<TestEntitySqliteADO>
 
 /// <summary>
 /// Specification that causes NotSupportedException (for testing unsupported expressions).
-/// Uses an unsupported method call expression (List.Contains).
+/// Uses an unsupported method call expression (string.Replace).
 /// </summary>
 public class UnsupportedSqliteSpec : Specification<TestEntitySqliteADO>
 {
-    private readonly List<Guid> _validIds = [Guid.NewGuid()];
-
     public override Expression<Func<TestEntitySqliteADO, bool>> ToExpression()
-        => e => _validIds.Contains(e.Id);
+        => e => e.Name.Replace("a", "b") == "test";
 }
 
 /// <summary>

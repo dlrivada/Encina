@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Encina.DomainModeling;
 using LanguageExt;
@@ -168,11 +169,31 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
                 throw;
             }
 
+            // Note: Marten uses event stream versioning, which differs from entity-level versioning
+            // used by other providers. When a concurrency conflict occurs:
+            // - We have the aggregate the caller attempted to save (with uncommitted events)
+            // - We do NOT have the "original" entity state before modifications
+            // - We do NOT have the current database state without an additional query
+            // The conflict info provides what we can: the aggregate being saved and version context
+            var expectedVersion = aggregate.Version - aggregate.UncommittedEvents.Count;
+            var conflictDetails = new Dictionary<string, object?>
+            {
+                ["EntityType"] = typeof(TAggregate).Name,
+                ["AggregateId"] = aggregate.Id,
+                ["ExpectedVersion"] = expectedVersion,
+                ["AggregateVersion"] = aggregate.Version,
+                ["UncommittedEventCount"] = aggregate.UncommittedEvents.Count,
+                ["ConflictType"] = "EventStreamVersionConflict",
+                ["Note"] = "Marten uses event stream versioning. The 'ExpectedVersion' is the stream version we expected when appending events."
+            }.ToImmutableDictionary();
+
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
-                EncinaErrors.FromException(
+                EncinaErrors.Create(
                     MartenErrorCodes.ConcurrencyConflict,
+                    $"Concurrency conflict saving aggregate {typeof(TAggregate).Name} with ID {aggregate.Id}. " +
+                    $"Expected stream version {expectedVersion} but the stream has been modified by another process.",
                     ex,
-                    $"Concurrency conflict saving aggregate {typeof(TAggregate).Name} with ID {aggregate.Id}."));
+                    conflictDetails));
         }
         catch (Exception ex) when (!IsConcurrencyException(ex))
         {

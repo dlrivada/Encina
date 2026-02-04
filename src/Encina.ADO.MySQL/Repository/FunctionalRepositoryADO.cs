@@ -4,6 +4,7 @@ using System.Reflection;
 using Encina;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
+using Encina.DomainModeling.Concurrency;
 using LanguageExt;
 using MySqlConnector;
 using static LanguageExt.Prelude;
@@ -396,15 +397,57 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
 
             await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
-            using var command = _connection.CreateCommand();
-            command.CommandText = _updateSql;
-            AddEntityParameters(command, entity, forInsert: false);
-
-            // Add ID parameter for WHERE clause
             var id = _mapping.GetId(entity);
-            AddParameter(command, "@Id", ConvertIdForStorage(id));
+            int rowsAffected;
 
-            var rowsAffected = await ExecuteNonQueryAsync(command, cancellationToken).ConfigureAwait(false);
+            // Handle versioned entities for optimistic concurrency
+            if (entity is IVersionedEntity versionedEntity)
+            {
+                var originalVersion = versionedEntity.Version;
+                versionedEntity.Version = (int)(originalVersion + 1);
+
+                var versionedSql = BuildVersionedUpdateSql();
+
+                using var command = _connection.CreateCommand();
+                command.CommandText = versionedSql;
+                AddEntityParameters(command, entity, forInsert: false);
+                AddParameter(command, "@Id", ConvertIdForStorage(id));
+                AddParameter(command, "@OriginalVersion", originalVersion);
+
+                rowsAffected = await ExecuteNonQueryAsync(command, cancellationToken).ConfigureAwait(false);
+
+                if (rowsAffected == 0)
+                {
+                    // Check if entity exists to distinguish NotFound from ConcurrencyConflict
+                    using var existsCommand = _connection.CreateCommand();
+                    existsCommand.CommandText = $"SELECT CASE WHEN EXISTS (SELECT 1 FROM `{_mapping.TableName}` WHERE `{_mapping.IdColumnName}` = @Id) THEN 1 ELSE 0 END";
+                    AddParameter(existsCommand, "@Id", ConvertIdForStorage(id));
+
+                    var exists = Convert.ToInt32(await ExecuteScalarAsync(existsCommand, cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+
+                    if (exists == 1)
+                    {
+                        // Entity exists but version mismatch - concurrency conflict
+                        return Left<EncinaError, TEntity>(
+                            RepositoryErrors.ConcurrencyConflict<TEntity>(
+                                new ConcurrencyConflictInfo<TEntity>(entity, entity, default)));
+                    }
+
+                    return Left<EncinaError, TEntity>(RepositoryErrors.NotFound<TEntity, TId>(id));
+                }
+
+                return Right<EncinaError, TEntity>(entity);
+            }
+
+            // Non-versioned entity - use standard update
+            using (var command = _connection.CreateCommand())
+            {
+                command.CommandText = _updateSql;
+                AddEntityParameters(command, entity, forInsert: false);
+                AddParameter(command, "@Id", ConvertIdForStorage(id));
+
+                rowsAffected = await ExecuteNonQueryAsync(command, cancellationToken).ConfigureAwait(false);
+            }
 
             if (rowsAffected == 0)
             {
@@ -510,6 +553,11 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
         ArgumentNullException.ThrowIfNull(entities);
 
         var entityList = entities.ToList();
+        if (entityList.Count == 0)
+            return Right<EncinaError, Unit>(Unit.Default);
+
+        // Check if we're dealing with versioned entities
+        var hasVersionedEntities = entityList[0] is IVersioned;
 
         try
         {
@@ -521,6 +569,45 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
 
             await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
+            if (hasVersionedEntities)
+            {
+                // Handle versioned entities with optimistic concurrency
+                var versionedSql = BuildVersionedUpdateSql();
+                var totalUpdated = 0;
+
+                foreach (var entity in entityList)
+                {
+                    if (entity is IVersionedEntity versionedEntity)
+                    {
+                        var originalVersion = versionedEntity.Version;
+                        versionedEntity.Version = (int)(originalVersion + 1);
+
+                        using var command = _connection.CreateCommand();
+                        command.CommandText = versionedSql;
+                        AddEntityParameters(command, entity, forInsert: false);
+
+                        var id = _mapping.GetId(entity);
+                        AddParameter(command, "@Id", ConvertIdForStorage(id));
+                        AddParameter(command, "@OriginalVersion", originalVersion);
+
+                        var rowsAffected = await ExecuteNonQueryAsync(command, cancellationToken).ConfigureAwait(false);
+                        totalUpdated += rowsAffected;
+                    }
+                }
+
+                // Check for concurrency conflicts
+                if (totalUpdated < entityList.Count)
+                {
+                    var conflictCount = entityList.Count - totalUpdated;
+                    return Left<EncinaError, Unit>(
+                        RepositoryErrors.ConcurrencyConflict<TEntity>(
+                            new InvalidOperationException($"{conflictCount} entities had version conflicts")));
+                }
+
+                return Right<EncinaError, Unit>(Unit.Default);
+            }
+
+            // Non-versioned entities - use standard update
             foreach (var entity in entityList)
             {
                 using var command = _connection.CreateCommand();
@@ -619,6 +706,18 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
         var setClauses = string.Join(", ", updatableProperties.Select(kvp => $"`{kvp.Value}` = @{kvp.Key}"));
 
         return $"UPDATE `{_mapping.TableName}` SET {setClauses} WHERE `{_mapping.IdColumnName}` = @Id";
+    }
+
+    private string BuildVersionedUpdateSql()
+    {
+        var updatableProperties = _mapping.ColumnMappings
+            .Where(kvp => !_mapping.UpdateExcludedProperties.Contains(kvp.Key))
+            .ToList();
+
+        var setClauses = string.Join(", ", updatableProperties.Select(kvp => $"`{kvp.Value}` = @{kvp.Key}"));
+
+        // Add version check to WHERE clause for optimistic concurrency
+        return $"UPDATE `{_mapping.TableName}` SET {setClauses} WHERE `{_mapping.IdColumnName}` = @Id AND `Version` = @OriginalVersion";
     }
 
     private string BuildDeleteByIdSql()

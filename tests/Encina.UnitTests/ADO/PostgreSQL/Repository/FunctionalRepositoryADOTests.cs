@@ -928,14 +928,12 @@ public class ActiveEntityPgADOSpec : Specification<TestEntityPgADO>
 
 /// <summary>
 /// Specification that causes NotSupportedException (for testing unsupported expressions).
-/// Uses an unsupported method call expression (List.Contains).
+/// Uses an unsupported method call expression (string.Replace).
 /// </summary>
 public class UnsupportedPgSpec : Specification<TestEntityPgADO>
 {
-    private readonly List<Guid> _validIds = [Guid.NewGuid()];
-
     public override Expression<Func<TestEntityPgADO, bool>> ToExpression()
-        => e => _validIds.Contains(e.Id);
+        => e => e.Name.Replace("a", "b") == "test";
 }
 
 /// <summary>

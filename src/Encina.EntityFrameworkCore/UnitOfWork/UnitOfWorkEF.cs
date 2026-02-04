@@ -1,9 +1,12 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using Encina;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Concurrency;
 using Encina.EntityFrameworkCore.Extensions;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage;
 using static LanguageExt.Prelude;
 
@@ -137,12 +140,9 @@ public sealed class UnitOfWorkEF : IUnitOfWork
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            var conflictingEntities = ex.Entries
-                .Select(e => e.Entity.GetType().Name)
-                .Distinct()
-                .ToList();
-
-            return Left<EncinaError, int>(UnitOfWorkErrors.SaveChangesFailed(ex, conflictingEntities));
+            var conflictDetails = await ExtractConflictDetailsAsync(ex, cancellationToken).ConfigureAwait(false);
+            return Left<EncinaError, int>(
+                UnitOfWorkErrors.SaveChangesFailed(ex, conflictDetails.EntityTypeNames, conflictDetails.Details));
         }
         catch (DbUpdateException ex)
         {
@@ -152,6 +152,65 @@ public sealed class UnitOfWorkEF : IUnitOfWork
         {
             return Left<EncinaError, int>(UnitOfWorkErrors.SaveChangesFailed(ex));
         }
+    }
+
+    /// <summary>
+    /// Extracts detailed conflict information from a concurrency exception.
+    /// </summary>
+    private static async Task<(IReadOnlyList<string> EntityTypeNames, ImmutableDictionary<string, object?> Details)> ExtractConflictDetailsAsync(
+        DbUpdateConcurrencyException ex,
+        CancellationToken cancellationToken)
+    {
+        var entityTypeNames = ex.Entries
+            .Select(e => e.Entity.GetType().Name)
+            .Distinct()
+            .ToList();
+
+        var detailsBuilder = ImmutableDictionary.CreateBuilder<string, object?>();
+        detailsBuilder.Add("ConflictingEntityTypes", entityTypeNames);
+
+        // Try to extract detailed information about the first conflicting entry
+        var firstEntry = ex.Entries.Count > 0 ? ex.Entries[0] : null;
+        if (firstEntry is not null)
+        {
+            detailsBuilder.Add("FirstConflictEntityType", firstEntry.Entity.GetType().FullName);
+
+            try
+            {
+                // Get proposed values (what we're trying to save)
+                var proposedValues = GetPropertyValues(firstEntry.CurrentValues);
+                detailsBuilder.Add(ConcurrencyConflictInfo<object>.ProposedEntityKey, proposedValues);
+
+                // Get original values (what we started with)
+                var originalValues = GetPropertyValues(firstEntry.OriginalValues);
+                detailsBuilder.Add(ConcurrencyConflictInfo<object>.CurrentEntityKey, originalValues);
+
+                // Try to reload to get database values
+                await firstEntry.ReloadAsync(cancellationToken).ConfigureAwait(false);
+                var databaseValues = GetPropertyValues(firstEntry.CurrentValues);
+                detailsBuilder.Add(ConcurrencyConflictInfo<object>.DatabaseEntityKey, databaseValues);
+            }
+            catch
+            {
+                // Entity may have been deleted, or reload failed
+                detailsBuilder.Add(ConcurrencyConflictInfo<object>.DatabaseEntityKey, null);
+            }
+        }
+
+        return (entityTypeNames, detailsBuilder.ToImmutable());
+    }
+
+    /// <summary>
+    /// Extracts property values from an entry as a dictionary.
+    /// </summary>
+    private static Dictionary<string, object?> GetPropertyValues(PropertyValues values)
+    {
+        var result = new Dictionary<string, object?>();
+        foreach (var property in values.Properties)
+        {
+            result[property.Name] = values[property];
+        }
+        return result;
     }
 
     /// <inheritdoc/>

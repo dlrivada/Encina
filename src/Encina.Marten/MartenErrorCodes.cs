@@ -26,8 +26,23 @@ public static class MartenErrorCodes
     public const string CreateFailed = "marten.create_failed";
 
     /// <summary>
-    /// Error code when a concurrency conflict occurs.
+    /// Error code when a concurrency conflict occurs during event stream append.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This error code is specific to Marten's event stream versioning model, which differs
+    /// from entity-level versioning used by other providers (EF Core, Dapper, ADO.NET).
+    /// </para>
+    /// <para>
+    /// In Marten, concurrency is based on the expected version of the event stream.
+    /// When events are appended with <c>Events.Append(id, expectedVersion, events)</c>,
+    /// if the stream has been modified by another process, a version conflict occurs.
+    /// </para>
+    /// <para>
+    /// This corresponds to <c>RepositoryErrors.ConcurrencyConflictErrorCode</c> in the
+    /// general repository abstraction, but with Marten-specific semantics.
+    /// </para>
+    /// </remarks>
     public const string ConcurrencyConflict = "marten.concurrency_conflict";
 
     /// <summary>

@@ -761,14 +761,12 @@ public class MinAmountDapperSpec : Specification<TestEntityDapper>
 
 /// <summary>
 /// Specification that causes NotSupportedException (for testing unsupported expressions).
-/// Uses an unsupported method call expression (List.Contains).
+/// Uses an unsupported method call expression (string.Replace).
 /// </summary>
 public class UnsupportedDapperSpec : Specification<TestEntityDapper>
 {
-    private readonly List<Guid> _validIds = [Guid.NewGuid()];
-
     public override Expression<Func<TestEntityDapper, bool>> ToExpression()
-        => e => _validIds.Contains(e.Id);
+        => e => e.Name.Replace("a", "b") == "test";
 }
 
 /// <summary>

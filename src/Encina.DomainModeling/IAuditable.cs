@@ -359,14 +359,44 @@ public interface ISoftDeletableEntity : ISoftDeletable
 #region Concurrency and Versioning Interfaces
 
 /// <summary>
-/// Interface for entities that support optimistic concurrency.
+/// Interface for entities that support optimistic concurrency using a binary row version
+/// with getter-only property for immutable domain patterns.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Optimistic concurrency uses a version token (row version, ETag) to detect conflicts
 /// when multiple clients try to update the same record simultaneously.
 /// </para>
+/// <para>
+/// <b>IConcurrencyAware vs IConcurrencyAwareEntity:</b>
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <see cref="IConcurrencyAware"/>: Has a <b>getter-only</b> property for immutable domain patterns.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       <see cref="IConcurrencyAwareEntity"/>: Has a <b>public setter</b> for interceptor-based population.
+///       Use this when you want automatic row version management via EF Core interceptors.
+///     </description>
+///   </item>
+/// </list>
+/// </para>
+/// <para>
+/// Supported databases with native row versioning:
+/// </para>
+/// <list type="bullet">
+///   <item><description><b>SQL Server</b>: Uses <c>ROWVERSION</c>/<c>TIMESTAMP</c> columns (automatic)</description></item>
+///   <item><description><b>PostgreSQL</b>: Uses <c>xmin</c> system column or custom <c>bytea</c> column</description></item>
+/// </list>
+/// <para>
+/// For databases that don't support native row versioning (SQLite, MySQL, MongoDB),
+/// use <see cref="IVersioned"/> or <see cref="IVersionedEntity"/> instead.
+/// </para>
 /// </remarks>
+/// <seealso cref="IConcurrencyAwareEntity"/>
+/// <seealso cref="IVersioned"/>
 public interface IConcurrencyAware
 {
     /// <summary>
@@ -376,20 +406,176 @@ public interface IConcurrencyAware
 }
 
 /// <summary>
-/// Interface for entities that track version numbers.
+/// Interface for entities that support optimistic concurrency using a binary row version
+/// with mutable property for interceptor-based population.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This interface is designed for automatic population by database providers (EF Core, ADO.NET, Dapper).
+/// Entities implementing this interface will have their <see cref="RowVersion"/> property
+/// automatically managed by the database provider during read/write operations.
+/// </para>
+/// <para>
+/// The property has a public setter to allow the provider to populate it.
+/// For immutable domain patterns where the row version is read-only, use <see cref="IConcurrencyAware"/> instead.
+/// </para>
+/// <para>
+/// <b>IConcurrencyAwareEntity vs IConcurrencyAware:</b>
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <see cref="IConcurrencyAwareEntity"/>: Has a <b>public setter</b> for provider-based population.
+///       Use this when you want automatic row version management via EF Core configuration.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       <see cref="IConcurrencyAware"/>: Has a <b>getter-only</b> property for immutable domain patterns.
+///     </description>
+///   </item>
+/// </list>
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public class Order : IEntity&lt;OrderId&gt;, IConcurrencyAwareEntity
+/// {
+///     public OrderId Id { get; init; }
+///     public byte[] RowVersion { get; set; } = [];
+///     public string Status { get; private set; } = "Pending";
+///
+///     public void Ship() =&gt; Status = "Shipped";
+/// }
+/// </code>
+/// </example>
+/// <seealso cref="IConcurrencyAware"/>
+/// <seealso cref="IVersionedEntity"/>
+public interface IConcurrencyAwareEntity : IConcurrencyAware
+{
+    /// <summary>
+    /// Gets or sets the concurrency token (row version) for optimistic concurrency control.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This property is automatically populated by the database provider when the entity is read,
+    /// and automatically checked/updated when the entity is saved.
+    /// </para>
+    /// <para>
+    /// Do not modify this property manually in application code.
+    /// The database provider manages its value.
+    /// </para>
+    /// </remarks>
+    new byte[] RowVersion { get; set; }
+}
+
+/// <summary>
+/// Interface for entities that track version numbers with getter-only property
+/// for immutable domain patterns.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Version numbers are useful for event sourcing, optimistic concurrency with integer versions,
 /// and tracking the number of modifications to an entity.
 /// </para>
+/// <para>
+/// <b>IVersioned vs IVersionedEntity:</b>
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <see cref="IVersioned"/>: Has a <b>getter-only</b> property for immutable domain patterns.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       <see cref="IVersionedEntity"/>: Has a <b>public setter</b> for interceptor-based population.
+///       Use this when you want automatic version management via EF Core configuration.
+///     </description>
+///   </item>
+/// </list>
+/// </para>
+/// <para>
+/// Works consistently across all database providers:
+/// </para>
+/// <list type="bullet">
+///   <item><description><b>MongoDB</b>: Uses a <c>_version</c> field with atomic increment</description></item>
+///   <item><description><b>SQLite</b>: Uses integer version column</description></item>
+///   <item><description><b>MySQL</b>: Uses integer version column</description></item>
+///   <item><description><b>SQL Server</b>: Can use integer version as alternative to ROWVERSION</description></item>
+///   <item><description><b>PostgreSQL</b>: Can use integer version as alternative to xmin</description></item>
+/// </list>
 /// </remarks>
+/// <seealso cref="IVersionedEntity"/>
+/// <seealso cref="IConcurrencyAware"/>
 public interface IVersioned
 {
     /// <summary>
     /// Gets the version number of this entity.
     /// </summary>
     long Version { get; }
+}
+
+/// <summary>
+/// Interface for entities that track version numbers with mutable property
+/// for interceptor-based population.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This interface is designed for automatic population by database providers (EF Core, ADO.NET, Dapper).
+/// Entities implementing this interface will have their <see cref="Version"/> property
+/// automatically incremented by the database provider during update operations.
+/// </para>
+/// <para>
+/// The property has a public setter to allow the provider to populate it.
+/// For immutable domain patterns where the version is read-only, use <see cref="IVersioned"/> instead.
+/// </para>
+/// <para>
+/// <b>IVersionedEntity vs IVersioned:</b>
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <see cref="IVersionedEntity"/>: Has a <b>public setter</b> for provider-based population.
+///       Use this when you want automatic version management via EF Core configuration.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       <see cref="IVersioned"/>: Has a <b>getter-only</b> property for immutable domain patterns.
+///     </description>
+///   </item>
+/// </list>
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public class Product : IEntity&lt;ProductId&gt;, IVersionedEntity
+/// {
+///     public ProductId Id { get; init; }
+///     public int Version { get; set; }
+///     public string Name { get; private set; } = string.Empty;
+///     public decimal Price { get; private set; }
+///
+///     public void UpdatePrice(decimal newPrice) =&gt; Price = newPrice;
+/// }
+/// </code>
+/// </example>
+/// <seealso cref="IVersioned"/>
+/// <seealso cref="IConcurrencyAwareEntity"/>
+public interface IVersionedEntity : IVersioned
+{
+    /// <summary>
+    /// Gets or sets the version number for optimistic concurrency control.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This property starts at 0 for new entities and is incremented by 1 with each successful update.
+    /// The increment is performed atomically by the database provider during the update operation.
+    /// </para>
+    /// <para>
+    /// Do not modify this property manually in application code except when creating new entities
+    /// (leave at 0 or default). The database provider manages version increments.
+    /// </para>
+    /// </remarks>
+    new int Version { get; set; }
 }
 
 #endregion

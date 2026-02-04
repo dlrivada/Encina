@@ -101,6 +101,105 @@ var changes = await repository.GetChangedBetweenAsync(startDate, endDate);
 
 ---
 
+#### Optimistic Concurrency Abstractions (#287)
+
+Added comprehensive optimistic concurrency control using Railway Oriented Programming (ROP) patterns for conflict detection and resolution.
+
+**Core Interfaces**:
+
+- `IVersioned`: Read-only interface with `long Version` property for integer-based versioning
+- `IVersionedEntity`: Combines `IVersioned` with `IEntity<Guid>` for versioned entities
+- `IConcurrencyAwareEntity`: Interface for row versioning with `byte[] RowVersion` (EF Core `[Timestamp]`)
+
+**Conflict Detection**:
+
+```csharp
+// ConcurrencyConflictInfo captures all states for conflict resolution
+public record ConcurrencyConflictInfo<TEntity>(
+    TEntity CurrentEntity,      // What we loaded initially
+    TEntity ProposedEntity,     // What we want to save
+    TEntity? DatabaseEntity     // What's currently in DB (null if deleted)
+) where TEntity : class
+{
+    public bool WasDeleted => DatabaseEntity is null;
+}
+```
+
+**Built-in Conflict Resolvers**:
+
+```csharp
+// Last write wins - proposed entity replaces database state
+var resolver = new LastWriteWinsResolver<Order>();
+
+// First write wins - database state is preserved
+var resolver = new FirstWriteWinsResolver<Order>();
+
+// Custom merge - implement your own merge logic
+public class OrderMergeResolver : MergeResolver<Order>
+{
+    protected override async Task<Either<EncinaError, Order>> MergeAsync(
+        Order current, Order proposed, Order database)
+    {
+        // Custom merge logic here
+        return proposed with { Version = database.Version + 1 };
+    }
+}
+```
+
+**ROP Integration**:
+
+```csharp
+// Create concurrency error with conflict info
+var conflictInfo = new ConcurrencyConflictInfo<Order>(current, proposed, database);
+var error = RepositoryErrors.ConcurrencyConflict(conflictInfo);
+
+// Error includes entity type and conflict details
+error.GetCode();    // Option.Some("Repository.ConcurrencyConflict")
+error.GetDetails(); // Dictionary with EntityType, CurrentEntity, ProposedEntity, etc.
+```
+
+**Provider Support**:
+
+| Provider | Versioning | Row Version | Conflict Info |
+|----------|:----------:|:-----------:|:-------------:|
+| EF Core (4 DBs) | ✅ | ✅ `[Timestamp]` | ✅ |
+| Dapper (4 DBs) | ✅ | Manual SQL | ✅ |
+| ADO.NET (4 DBs) | ✅ | Manual SQL | ✅ |
+| MongoDB | ✅ | ✅ | ✅ |
+| Marten | ✅ Event Stream | N/A | ✅ |
+
+**Marten Event Stream Versioning**:
+
+Marten uses event stream versioning (aggregate version equals total event count) rather than entity-level versioning. Conflict info includes `ExpectedVersion`, `AggregateVersion`, and `UncommittedEventCount`.
+
+**New Types**:
+
+| Type | Purpose |
+|------|---------|
+| `IVersioned` | Integer version interface |
+| `IVersionedEntity` | Versioned entity interface |
+| `IConcurrencyAwareEntity` | Row version interface |
+| `ConcurrencyConflictInfo<T>` | Conflict state capture |
+| `IConcurrencyConflictResolver<T>` | Resolver interface |
+| `LastWriteWinsResolver<T>` | Proposed wins resolver |
+| `FirstWriteWinsResolver<T>` | Database wins resolver |
+| `MergeResolver<T>` | Custom merge base class |
+| `RepositoryErrors.ConcurrencyConflict()` | Error factory methods |
+
+**Tests Added**:
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 79+ | Resolvers, conflict info, error creation |
+| Guard Tests | 10+ | Null parameter validation |
+| Integration Tests | 13+ | Real database operations (EF Core, Dapper) |
+
+**Documentation**: See `docs/features/optimistic-concurrency.md` for complete guide.
+
+**Related Issue**: [#287 - Optimistic Concurrency Abstractions](https://github.com/dlrivada/Encina/issues/287)
+
+---
+
 #### Causation and Correlation ID Tracking in Event Metadata (#321)
 
 Added comprehensive event metadata tracking for Marten event sourcing, enabling end-to-end distributed tracing and causal chain reconstruction.

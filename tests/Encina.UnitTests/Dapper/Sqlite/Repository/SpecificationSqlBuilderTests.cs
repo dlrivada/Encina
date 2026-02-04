@@ -518,14 +518,12 @@ public class SqliteDescriptionStringEqualsNullSpec : Specification<TestOrderSqli
 
 /// <summary>
 /// Specification that causes NotSupportedException (for testing unsupported expressions).
-/// Uses an unsupported method call expression (List.Contains).
+/// Uses an unsupported method call expression (string.Replace).
 /// </summary>
 public class SqliteUnsupportedSpec : Specification<TestOrderSqlite>
 {
-    private readonly List<Guid> _validIds = [Guid.NewGuid()];
-
     public override Expression<Func<TestOrderSqlite, bool>> ToExpression()
-        => e => _validIds.Contains(e.Id);
+        => o => o.Description != null && o.Description.Replace("a", "b") == "test";
 }
 
 #endregion

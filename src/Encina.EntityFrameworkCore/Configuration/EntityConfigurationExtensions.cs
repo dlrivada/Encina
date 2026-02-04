@@ -84,6 +84,60 @@ public static class EntityConfigurationExtensions
     }
 
     /// <summary>
+    /// Configures the version property for optimistic concurrency control using integer versioning.
+    /// </summary>
+    /// <typeparam name="T">The entity type that implements <see cref="IVersioned"/>.</typeparam>
+    /// <param name="builder">The entity type builder.</param>
+    /// <returns>The entity type builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method configures the <see cref="IVersioned.Version"/> property as a concurrency token.
+    /// Unlike <see cref="ConfigureConcurrencyToken{T}"/> which uses binary row versions,
+    /// this method uses an integer version that is manually incremented with each update.
+    /// </para>
+    /// <para>
+    /// <b>Cross-provider compatibility</b>:
+    /// Integer versioning works consistently across all database providers:
+    /// <list type="bullet">
+    /// <item><description><b>SQL Server</b>: Integer column with concurrency check</description></item>
+    /// <item><description><b>PostgreSQL</b>: Integer column with concurrency check</description></item>
+    /// <item><description><b>SQLite</b>: Integer column (no native row version support)</description></item>
+    /// <item><description><b>MySQL</b>: Integer column with concurrency check</description></item>
+    /// <item><description><b>MongoDB</b>: Uses the same <c>Version</c> field pattern</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Important</b>: The version increment must be handled manually in repository operations.
+    /// Unlike row versions which are database-managed, integer versions must be incremented
+    /// in application code before saving.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// public class ProductConfiguration : IEntityTypeConfiguration&lt;Product&gt;
+    /// {
+    ///     public void Configure(EntityTypeBuilder&lt;Product&gt; builder)
+    ///     {
+    ///         builder.HasKey(p => p.Id);
+    ///         builder.ConfigureVersionedEntity();
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    /// <seealso cref="ConfigureConcurrencyToken{T}"/>
+    public static EntityTypeBuilder<T> ConfigureVersionedEntity<T>(this EntityTypeBuilder<T> builder)
+        where T : class, IVersioned
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Property(e => e.Version)
+            .IsConcurrencyToken()
+            .HasDefaultValue(0);
+
+        return builder;
+    }
+
+    /// <summary>
     /// Configures the audit properties for tracking creation and modification metadata.
     /// </summary>
     /// <typeparam name="T">The entity type that implements <see cref="IAuditable"/>.</typeparam>
@@ -527,12 +581,106 @@ public static class EntityConfigurationExtensions
     }
 
     /// <summary>
+    /// Applies optimistic concurrency configuration to all entities implementing concurrency interfaces.
+    /// </summary>
+    /// <param name="modelBuilder">The model builder.</param>
+    /// <returns>The model builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method scans all entity types in the model and applies the appropriate concurrency
+    /// configuration based on which interface they implement:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>
+    ///   <description>
+    ///     <see cref="IConcurrencyAware"/>: Configures <c>RowVersion</c> property as <c>IsRowVersion()</c>
+    ///     for native database row versioning (SQL Server, PostgreSQL).
+    ///   </description>
+    /// </item>
+    /// <item>
+    ///   <description>
+    ///     <see cref="IVersioned"/>: Configures <c>Version</c> property as <c>IsConcurrencyToken()</c>
+    ///     for integer-based versioning (MongoDB, SQLite, cross-platform).
+    ///   </description>
+    /// </item>
+    /// </list>
+    /// <para>
+    /// <b>Usage</b>: Call this method in your <c>OnModelCreating</c> override after all entities
+    /// are configured, typically after <c>ApplyConfigurationsFromAssembly</c>.
+    /// </para>
+    /// <para>
+    /// <b>Note</b>: If an entity implements both interfaces, <see cref="IConcurrencyAware"/> takes
+    /// precedence as it provides native database support where available.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// protected override void OnModelCreating(ModelBuilder modelBuilder)
+    /// {
+    ///     base.OnModelCreating(modelBuilder);
+    ///
+    ///     modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+    ///
+    ///     // Apply concurrency configuration to all IVersioned/IConcurrencyAware entities
+    ///     modelBuilder.ApplyConcurrencyConfiguration();
+    /// }
+    /// </code>
+    /// </example>
+    public static ModelBuilder ApplyConcurrencyConfiguration(this ModelBuilder modelBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var clrType = entityType.ClrType;
+
+            // IConcurrencyAware takes precedence (native row versioning)
+            if (typeof(IConcurrencyAware).IsAssignableFrom(clrType))
+            {
+                var method = typeof(EntityConfigurationExtensions)
+                    .GetMethod(nameof(ApplyConcurrencyAwareConfigurationInternal), BindingFlags.NonPublic | BindingFlags.Static)!
+                    .MakeGenericMethod(clrType);
+
+                method.Invoke(null, [modelBuilder]);
+            }
+            else if (typeof(IVersioned).IsAssignableFrom(clrType))
+            {
+                var method = typeof(EntityConfigurationExtensions)
+                    .GetMethod(nameof(ApplyVersionedConfigurationInternal), BindingFlags.NonPublic | BindingFlags.Static)!
+                    .MakeGenericMethod(clrType);
+
+                method.Invoke(null, [modelBuilder]);
+            }
+        }
+
+        return modelBuilder;
+    }
+
+    /// <summary>
     /// Internal method to apply soft delete query filter to a specific entity type.
     /// </summary>
     private static void ApplySoftDeleteQueryFilterInternal<T>(ModelBuilder modelBuilder)
         where T : class, ISoftDeletable
     {
         modelBuilder.Entity<T>().HasQueryFilter(e => !e.IsDeleted);
+    }
+
+    /// <summary>
+    /// Internal method to apply IConcurrencyAware configuration to a specific entity type.
+    /// </summary>
+    private static void ApplyConcurrencyAwareConfigurationInternal<T>(ModelBuilder modelBuilder)
+        where T : class, IConcurrencyAware
+    {
+        modelBuilder.Entity<T>().Property(e => e.RowVersion).IsRowVersion();
+    }
+
+    /// <summary>
+    /// Internal method to apply IVersioned configuration to a specific entity type.
+    /// </summary>
+    private static void ApplyVersionedConfigurationInternal<T>(ModelBuilder modelBuilder)
+        where T : class, IVersioned
+    {
+        modelBuilder.Entity<T>().Property(e => e.Version).IsConcurrencyToken().HasDefaultValue(0);
     }
 
     /// <summary>

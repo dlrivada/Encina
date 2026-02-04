@@ -40,8 +40,9 @@ public class SpecificationSqlBuilderTests
         var parameters = CaptureParameters(addParameters);
 
         // Assert - SQLite uses double-quotes for identifiers
+        // SQLite doesn't have native GUID type, so GUIDs are stored as strings
         whereClause.ShouldBe("WHERE \"CustomerId\" = @p0");
-        parameters["@p0"].ShouldBe(customerId);
+        parameters["@p0"].ShouldBe(customerId.ToString());
     }
 
     [Fact]

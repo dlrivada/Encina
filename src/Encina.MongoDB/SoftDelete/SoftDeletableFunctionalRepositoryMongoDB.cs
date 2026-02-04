@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Encina;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
+using Encina.DomainModeling.Concurrency;
 using Encina.Messaging.SoftDelete;
 using LanguageExt;
 using MongoDB.Driver;
@@ -338,6 +339,16 @@ public sealed class SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// For entities implementing <see cref="IVersionedEntity"/>, this method performs
+    /// optimistic concurrency control by including the version in the filter predicate.
+    /// If the version doesn't match, a concurrency conflict error is returned.
+    /// </para>
+    /// <para>
+    /// The version is automatically incremented before the update operation.
+    /// </para>
+    /// </remarks>
     public async Task<Either<EncinaError, TEntity>> UpdateAsync(
         TEntity entity,
         CancellationToken cancellationToken = default)
@@ -350,7 +361,30 @@ public sealed class SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>
             AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
 
             var id = _mapping.GetId(entity);
-            var filter = BuildIdFilter(id);
+            var idFilter = BuildIdFilter(id);
+
+            // Build versioned filter if entity implements IVersionedEntity
+            long? originalVersion = null;
+            FilterDefinition<TEntity> filter;
+
+            if (entity is IVersionedEntity versionedEntity)
+            {
+                originalVersion = versionedEntity.Version;
+                filter = BuildVersionedFilter(idFilter, originalVersion.Value);
+
+                // Increment version before save
+                versionedEntity.Version = (int)(originalVersion.Value + 1);
+            }
+            else if (entity is IVersioned versioned)
+            {
+                // For IVersioned (getter-only), we can still check but not increment
+                originalVersion = versioned.Version;
+                filter = BuildVersionedFilter(idFilter, originalVersion.Value);
+            }
+            else
+            {
+                filter = idFilter;
+            }
 
             var result = await _collection.ReplaceOneAsync(
                 filter,
@@ -361,6 +395,32 @@ public sealed class SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>
 
             if (result.MatchedCount == 0)
             {
+                // Determine if it's a "not found" or "concurrency conflict"
+                if (originalVersion.HasValue)
+                {
+                    // Check if entity exists with a different version
+                    var exists = await _collection.CountDocumentsAsync(
+                        idFilter,
+                        new CountOptions { Limit = 1 },
+                        cancellationToken).ConfigureAwait(false);
+
+                    if (exists > 0)
+                    {
+                        // Entity exists but version doesn't match - concurrency conflict
+                        var databaseEntity = await _collection.Find(idFilter)
+                            .FirstOrDefaultAsync(cancellationToken)
+                            .ConfigureAwait(false);
+
+                        var conflictInfo = new ConcurrencyConflictInfo<TEntity>(
+                            CurrentEntity: entity,
+                            ProposedEntity: entity,
+                            DatabaseEntity: databaseEntity);
+
+                        return Left<EncinaError, TEntity>(
+                            RepositoryErrors.ConcurrencyConflict(conflictInfo));
+                    }
+                }
+
                 return Left<EncinaError, TEntity>(RepositoryErrors.NotFound<TEntity, TId>(id));
             }
 
@@ -472,6 +532,16 @@ public sealed class SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// For entities implementing <see cref="IVersionedEntity"/>, this method performs
+    /// optimistic concurrency control by including the version in each filter predicate.
+    /// If any version doesn't match, a concurrency conflict error is returned.
+    /// </para>
+    /// <para>
+    /// The version is automatically incremented for each entity before the update operation.
+    /// </para>
+    /// </remarks>
     public async Task<Either<EncinaError, Unit>> UpdateRangeAsync(
         IEnumerable<TEntity> entities,
         CancellationToken cancellationToken = default)
@@ -479,25 +549,75 @@ public sealed class SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>
         ArgumentNullException.ThrowIfNull(entities);
 
         var entityList = entities.ToList();
+        var originalVersions = new Dictionary<TEntity, long>();
 
         try
         {
-            // Populate audit fields before persistence
+            // Populate audit fields and handle versioning before persistence
             foreach (var entity in entityList)
             {
                 AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
+
+                // Store original version and increment for IVersionedEntity
+                if (entity is IVersionedEntity versionedEntity)
+                {
+                    originalVersions[entity] = versionedEntity.Version;
+                    versionedEntity.Version = (int)(versionedEntity.Version + 1);
+                }
+                else if (entity is IVersioned versioned)
+                {
+                    originalVersions[entity] = versioned.Version;
+                }
             }
 
             var bulkOps = entityList.Select(entity =>
             {
                 var id = _mapping.GetId(entity);
-                var filter = BuildIdFilter(id);
+                var idFilter = BuildIdFilter(id);
+
+                // Use versioned filter if we have original version info
+                var filter = originalVersions.TryGetValue(entity, out var originalVersion)
+                    ? BuildVersionedFilter(idFilter, originalVersion)
+                    : idFilter;
+
                 return new ReplaceOneModel<TEntity>(filter, entity) { IsUpsert = false };
             }).ToList();
 
             if (bulkOps.Count > 0)
             {
-                await _collection.BulkWriteAsync(bulkOps, cancellationToken: cancellationToken).ConfigureAwait(false);
+                var result = await _collection.BulkWriteAsync(bulkOps, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                // Check for concurrency conflicts (matched count less than entity count)
+                if (result.MatchedCount < entityList.Count && originalVersions.Count > 0)
+                {
+                    // Find the first entity that wasn't matched (potential concurrency conflict)
+                    foreach (var entity in entityList)
+                    {
+                        var id = _mapping.GetId(entity);
+                        var idFilter = BuildIdFilter(id);
+
+                        var exists = await _collection.CountDocumentsAsync(
+                            idFilter,
+                            new CountOptions { Limit = 1 },
+                            cancellationToken).ConfigureAwait(false);
+
+                        if (exists > 0 && originalVersions.ContainsKey(entity))
+                        {
+                            // Entity exists but version didn't match - concurrency conflict
+                            var databaseEntity = await _collection.Find(idFilter)
+                                .FirstOrDefaultAsync(cancellationToken)
+                                .ConfigureAwait(false);
+
+                            var conflictInfo = new ConcurrencyConflictInfo<TEntity>(
+                                CurrentEntity: entity,
+                                ProposedEntity: entity,
+                                DatabaseEntity: databaseEntity);
+
+                            return Left<EncinaError, Unit>(
+                                RepositoryErrors.ConcurrencyConflict(conflictInfo));
+                        }
+                    }
+                }
             }
 
             return Right<EncinaError, Unit>(Unit.Default);
@@ -736,6 +856,21 @@ public sealed class SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>
         }
 
         return Builders<TEntity>.Filter.And(idFilter, softDeleteFilter);
+    }
+
+    /// <summary>
+    /// Builds a filter that combines the ID filter with a version equality check.
+    /// </summary>
+    /// <param name="idFilter">The base ID filter.</param>
+    /// <param name="expectedVersion">The expected version for optimistic concurrency.</param>
+    /// <returns>A combined filter that matches both ID and version.</returns>
+    private static FilterDefinition<TEntity> BuildVersionedFilter(
+        FilterDefinition<TEntity> idFilter,
+        long expectedVersion)
+    {
+        // Use BSON field access for the Version property
+        var versionFilter = Builders<TEntity>.Filter.Eq("Version", expectedVersion);
+        return Builders<TEntity>.Filter.And(idFilter, versionFilter);
     }
 
     private static EncinaError MapMongoException(MongoException ex, string operation)

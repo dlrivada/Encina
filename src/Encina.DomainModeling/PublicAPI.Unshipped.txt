@@ -62,6 +62,38 @@ Encina.DomainModeling.IStronglyTypedId<TValue>
 Encina.DomainModeling.IStronglyTypedId<TValue>.Value.get -> TValue
 Encina.DomainModeling.IVersioned
 Encina.DomainModeling.IVersioned.Version.get -> long
+Encina.DomainModeling.IVersionedEntity
+Encina.DomainModeling.IVersionedEntity.Version.get -> int
+Encina.DomainModeling.IVersionedEntity.Version.set -> void
+Encina.DomainModeling.IConcurrencyAwareEntity
+Encina.DomainModeling.IConcurrencyAwareEntity.RowVersion.get -> byte[]!
+Encina.DomainModeling.IConcurrencyAwareEntity.RowVersion.set -> void
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.ConcurrencyConflictInfo(TEntity CurrentEntity, TEntity ProposedEntity, TEntity? DatabaseEntity) -> void
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.CurrentEntity.get -> TEntity
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.CurrentEntity.init -> void
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.CurrentEntityKey -> string!
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.DatabaseEntity.get -> TEntity?
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.DatabaseEntity.init -> void
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.DatabaseEntityKey -> string!
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.EntityTypeKey -> string!
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.ProposedEntity.get -> TEntity
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.ProposedEntity.init -> void
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.ProposedEntityKey -> string!
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.ToDictionary(System.Text.Json.JsonSerializerOptions? serializerOptions = null) -> System.Collections.Immutable.ImmutableDictionary<string!, object?>!
+Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>.WasDeleted.get -> bool
+Encina.DomainModeling.Concurrency.IConcurrencyConflictResolver<TEntity>
+Encina.DomainModeling.Concurrency.IConcurrencyConflictResolver<TEntity>.ResolveAsync(TEntity current, TEntity proposed, TEntity database, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
+Encina.DomainModeling.Concurrency.Resolvers.FirstWriteWinsResolver<TEntity>
+Encina.DomainModeling.Concurrency.Resolvers.FirstWriteWinsResolver<TEntity>.FirstWriteWinsResolver() -> void
+Encina.DomainModeling.Concurrency.Resolvers.FirstWriteWinsResolver<TEntity>.ResolveAsync(TEntity current, TEntity proposed, TEntity database, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
+Encina.DomainModeling.Concurrency.Resolvers.LastWriteWinsResolver<TEntity>
+Encina.DomainModeling.Concurrency.Resolvers.LastWriteWinsResolver<TEntity>.LastWriteWinsResolver() -> void
+Encina.DomainModeling.Concurrency.Resolvers.LastWriteWinsResolver<TEntity>.ResolveAsync(TEntity current, TEntity proposed, TEntity database, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
+Encina.DomainModeling.Concurrency.Resolvers.MergeResolver<TEntity>
+Encina.DomainModeling.Concurrency.Resolvers.MergeResolver<TEntity>.MergeResolver() -> void
+Encina.DomainModeling.Concurrency.Resolvers.MergeResolver<TEntity>.ResolveAsync(TEntity current, TEntity proposed, TEntity database, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
+virtual Encina.DomainModeling.Concurrency.Resolvers.MergeResolver<TEntity>.MergeAsync(TEntity current, TEntity proposed, TEntity database, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
 Encina.DomainModeling.IntStronglyTypedId<TSelf>
 Encina.DomainModeling.IntStronglyTypedId<TSelf>.IntStronglyTypedId(int value) -> void
 Encina.DomainModeling.IntegrationEvent
@@ -443,6 +475,7 @@ static Encina.DomainModeling.RepositoryErrors.AlreadyExists<TEntity>(string! rea
 static Encina.DomainModeling.RepositoryErrors.AlreadyExists<TEntity, TId>(TId id) -> Encina.EncinaError!
 static Encina.DomainModeling.RepositoryErrors.AlreadyExistsErrorCode.get -> string!
 static Encina.DomainModeling.RepositoryErrors.ConcurrencyConflict<TEntity>(System.Exception? innerException = null) -> Encina.EncinaError!
+static Encina.DomainModeling.RepositoryErrors.ConcurrencyConflict<TEntity>(Encina.DomainModeling.Concurrency.ConcurrencyConflictInfo<TEntity>! conflictInfo, System.Exception? innerException = null) -> Encina.EncinaError!
 static Encina.DomainModeling.RepositoryErrors.ConcurrencyConflict<TEntity, TId>(TId id, System.Exception? innerException = null) -> Encina.EncinaError!
 static Encina.DomainModeling.RepositoryErrors.ConcurrencyConflictErrorCode.get -> string!
 static Encina.DomainModeling.RepositoryErrors.InvalidOperation<TEntity>(string! operation, string! reason) -> Encina.EncinaError!

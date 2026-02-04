@@ -99,6 +99,7 @@ Los patrones de mensajería (Outbox, Inbox, Saga, Scheduling) DEBEN implementars
 | Event Publishing | ❌ | ❌ | ✅ | ❌ |
 | Request Validation | ❌ | ❌ | ❌ | ✅ |
 | Multi-Tenancy | ✅ | ✅ | ✅ | ❌ |
+| **Optimistic Concurrency** | ✅ | ❌ | ❌ | ❌ |
 
 > **Regla**: Si una feature toca código específico de proveedor, DEBE implementarse consistentemente en TODOS los proveedores de esa categoría.
 
@@ -1665,16 +1666,23 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 
 | Issue | Feature | Descripción | Prioridad | Complejidad | Labels |
 |-------|---------|-------------|-----------|-------------|--------|
-| **#287** | Optimistic Concurrency | `IConcurrencyAware` con RowVersion + conflict resolution | Alta | Baja | `area-concurrency`, `area-event-sourcing` |
+| **#287** ✅ | Optimistic Concurrency | `IVersioned`/`IVersionedEntity` + conflict resolvers + ROP integration | Alta | Baja | `area-concurrency`, `area-event-sourcing` |
 | **#292** ✅ | Domain Entity Base | `Entity<TId>`, `AggregateRoot<TId>` con domain events | Alta | Baja | `area-ddd`, `area-event-sourcing`, `area-messaging`, `aot-compatible` |
 | **#293** | Pagination Abstractions | `PagedResult<T>`, `PaginationOptions`, `IPagedSpecification<T>` | Crítica | Baja | `area-pagination`, `area-repository`, `area-web-api`, `aot-compatible` |
 
-**#287 - Optimistic Concurrency**:
+**#287 - Optimistic Concurrency** ✅ **COMPLETADO (febrero 2026)**:
 
-- `IConcurrencyAware` (RowVersion) e `IVersioned` (integer version)
-- `ConcurrencyConflictException` con detalles de entidad
-- `IConcurrencyConflictResolver<TEntity>`: ClientWins, DatabaseWins, Merge
-- `IConcurrentRepository<TEntity, TId>` con retry support
+- `IVersioned` interface con `long Version` para integer versioning
+- `IVersionedEntity` interface que combina `IVersioned` con `IEntity<Guid>`
+- `IConcurrencyAwareEntity` interface para row versioning (EF Core `[Timestamp]`)
+- `ConcurrencyConflictInfo<TEntity>` record para capturar estados de conflicto (Current, Proposed, Database)
+- `IConcurrencyConflictResolver<TEntity>` interface con 3 implementaciones built-in:
+  - `LastWriteWinsResolver<T>` - Proposed wins, incrementa version
+  - `FirstWriteWinsResolver<T>` - Database wins, mantiene estado actual
+  - `MergeResolver<T>` - Custom merge logic (abstract)
+- `RepositoryErrors.ConcurrencyConflict()` factory methods para ROP integration
+- Soporte completo para 13 providers + Marten (event stream versioning)
+- 79+ unit tests, 10 guard tests, integration tests para EF Core y Dapper
 
 **#292 - Domain Entity Base Classes** ✅ **COMPLETADO (enero 2026)**:
 

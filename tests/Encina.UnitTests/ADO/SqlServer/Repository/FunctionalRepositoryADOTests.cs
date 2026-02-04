@@ -939,14 +939,12 @@ public class ActiveEntityADOSpec : Specification<TestEntityADO>
 
 /// <summary>
 /// Specification that causes NotSupportedException (for testing unsupported expressions).
-/// Uses an unsupported method call expression (List.Contains).
+/// Uses an unsupported method call expression (string.Replace).
 /// </summary>
 public class UnsupportedSpec : Specification<TestEntityADO>
 {
-    private readonly List<Guid> _validIds = [Guid.NewGuid()];
-
     public override Expression<Func<TestEntityADO, bool>> ToExpression()
-        => e => _validIds.Contains(e.Id);
+        => e => e.Name.Replace("a", "b") == "test";
 }
 
 /// <summary>

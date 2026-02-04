@@ -1,6 +1,7 @@
 using System.Data;
 using Dapper;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Concurrency;
 using Encina.Tenancy;
 using LanguageExt;
 using static LanguageExt.Prelude;
@@ -389,7 +390,56 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
             AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
 
             var tenantFilter = GetTenantFilter();
+            var id = _mapping.GetId(entity);
 
+            // Handle versioned entities for optimistic concurrency
+            if (entity is IVersionedEntity versionedEntity)
+            {
+                var originalVersion = versionedEntity.Version;
+                versionedEntity.Version = (int)(originalVersion + 1);
+
+                var versionedSql = BuildVersionedUpdateSql();
+
+                // Build parameters combining entity properties with OriginalVersion and tenantId
+                var parameters = new DynamicParameters(entity);
+                parameters.Add("OriginalVersion", originalVersion);
+
+                if (!string.IsNullOrEmpty(tenantFilter.filter) && _mapping.IsTenantEntity)
+                {
+                    versionedSql = $"{versionedSql} AND {tenantFilter.filter}";
+                    parameters.Add("tenantId", tenantFilter.tenantId);
+                }
+
+                var rowsAffected = await _connection.ExecuteAsync(versionedSql, parameters);
+
+                if (rowsAffected == 0)
+                {
+                    // Check if entity exists to distinguish NotFound from ConcurrencyConflict
+                    var existsSql = !string.IsNullOrEmpty(tenantFilter.filter) && _mapping.IsTenantEntity
+                        ? $"SELECT EXISTS (SELECT 1 FROM \"{_mapping.TableName}\" WHERE \"{_mapping.IdColumnName}\" = @Id AND {tenantFilter.filter})"
+                        : $"SELECT EXISTS (SELECT 1 FROM \"{_mapping.TableName}\" WHERE \"{_mapping.IdColumnName}\" = @Id)";
+
+                    var existsParams = !string.IsNullOrEmpty(tenantFilter.filter) && _mapping.IsTenantEntity
+                        ? new { Id = id, tenantId = tenantFilter.tenantId }
+                        : (object)new { Id = id };
+
+                    var exists = await _connection.ExecuteScalarAsync<int>(existsSql, existsParams);
+
+                    if (exists == 1)
+                    {
+                        // Entity exists but version mismatch - concurrency conflict
+                        return Left<EncinaError, TEntity>(
+                            RepositoryErrors.ConcurrencyConflict<TEntity>(
+                                new ConcurrencyConflictInfo<TEntity>(entity, entity, default)));
+                    }
+
+                    return Left<EncinaError, TEntity>(RepositoryErrors.NotFound<TEntity, TId>(id));
+                }
+
+                return Right<EncinaError, TEntity>(entity);
+            }
+
+            // Non-versioned entity - use standard update
             // Build UPDATE with tenant filter
             if (!string.IsNullOrEmpty(tenantFilter.filter) && _mapping.IsTenantEntity)
             {
@@ -403,7 +453,6 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
                 if (rowsAffected == 0)
                 {
-                    var id = _mapping.GetId(entity);
                     return Left<EncinaError, TEntity>(RepositoryErrors.NotFound<TEntity, TId>(id));
                 }
 
@@ -415,7 +464,6 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
 
                 if (rowsAffected == 0)
                 {
-                    var id = _mapping.GetId(entity);
                     return Left<EncinaError, TEntity>(RepositoryErrors.NotFound<TEntity, TId>(id));
                 }
 
@@ -527,6 +575,11 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
         ArgumentNullException.ThrowIfNull(entities);
 
         var entityList = entities.ToList();
+        if (entityList.Count == 0)
+            return Right<EncinaError, Unit>(Unit.Default);
+
+        // Check if we're dealing with versioned entities
+        var hasVersionedEntities = entityList[0] is IVersioned;
 
         try
         {
@@ -538,10 +591,52 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
                 {
                     return validationResult;
                 }
+
+                AuditFieldPopulator.PopulateForUpdate(entity, _requestContext?.UserId, _timeProvider);
             }
 
-            // For simplicity, we update one by one with tenant filter
-            // In a production scenario, you might want to batch this
+            if (hasVersionedEntities)
+            {
+                // Handle versioned entities with optimistic concurrency
+                var versionedSql = BuildVersionedUpdateSql();
+                var tenantFilter = GetTenantFilter();
+                var totalUpdated = 0;
+
+                foreach (var entity in entityList)
+                {
+                    if (entity is IVersionedEntity versionedEntity)
+                    {
+                        var originalVersion = versionedEntity.Version;
+                        versionedEntity.Version = (int)(originalVersion + 1);
+
+                        var parameters = new DynamicParameters(entity);
+                        parameters.Add("OriginalVersion", originalVersion);
+
+                        var sql = versionedSql;
+                        if (!string.IsNullOrEmpty(tenantFilter.filter) && _mapping.IsTenantEntity)
+                        {
+                            sql = $"{versionedSql} AND {tenantFilter.filter}";
+                            parameters.Add("tenantId", tenantFilter.tenantId);
+                        }
+
+                        var rowsAffected = await _connection.ExecuteAsync(sql, parameters);
+                        totalUpdated += rowsAffected;
+                    }
+                }
+
+                // Check for concurrency conflicts
+                if (totalUpdated < entityList.Count)
+                {
+                    var conflictCount = entityList.Count - totalUpdated;
+                    return Left<EncinaError, Unit>(
+                        RepositoryErrors.ConcurrencyConflict<TEntity>(
+                            new InvalidOperationException($"{conflictCount} entities had version conflicts")));
+                }
+
+                return Right<EncinaError, Unit>(Unit.Default);
+            }
+
+            // Non-versioned entities - update one by one with tenant filter
             foreach (var entity in entityList)
             {
                 var updateResult = await UpdateAsync(entity, cancellationToken);
@@ -717,6 +812,20 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
         var idProperty = _mapping.ColumnMappings.First(kvp => kvp.Value == _mapping.IdColumnName);
 
         return $"UPDATE \"{_mapping.TableName}\" SET {setClauses} WHERE \"{_mapping.IdColumnName}\" = @{idProperty.Key}";
+    }
+
+    private string BuildVersionedUpdateSql()
+    {
+        var updatableProperties = _mapping.ColumnMappings
+            .Where(kvp => !_mapping.UpdateExcludedProperties.Contains(kvp.Key))
+            .ToList();
+
+        // SQLite uses double-quotes for identifiers
+        var setClauses = string.Join(", ", updatableProperties.Select(kvp => $"\"{kvp.Value}\" = @{kvp.Key}"));
+        var idProperty = _mapping.ColumnMappings.First(kvp => kvp.Value == _mapping.IdColumnName);
+
+        // Add version check to WHERE clause for optimistic concurrency
+        return $"UPDATE \"{_mapping.TableName}\" SET {setClauses} WHERE \"{_mapping.IdColumnName}\" = @{idProperty.Key} AND \"Version\" = @OriginalVersion";
     }
 
     private static bool IsDuplicateKeyException(Exception ex)
