@@ -761,6 +761,5 @@ WHERE Id = @Id AND Version = @OriginalVersion
 
 ## See Also
 
-- [Immutable Domain Models](./immutable-domain-models.md) - Works well with versioned entities
-- [Audit Tracking](./audit-tracking.md) - Combine with versioning for full audit trail
-- [Unit of Work](../patterns/unit-of-work.md) - Transaction boundaries with concurrency
+- [Railway Oriented Programming (ADR-001)](../architecture/adr/001-railway-oriented-programming.md) - Error handling patterns
+- [Marten Event Sourcing](./event-metadata-tracking.md) - Event sourcing with Marten

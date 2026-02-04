@@ -1,7 +1,7 @@
 using System.Data;
 using Dapper;
-using Encina.DomainModeling;
 using Encina.Dapper.PostgreSQL.Repository;
+using Encina.DomainModeling;
 using Encina.Messaging.Temporal;
 using LanguageExt;
 using Microsoft.Extensions.Logging;

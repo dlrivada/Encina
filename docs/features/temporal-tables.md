@@ -481,4 +481,4 @@ When an entity is soft-deleted:
 
 - [Soft Delete](soft-delete.md) - Logical deletion pattern
 - [Audit Trail](audit-tracking.md) - Track who created/modified entities
-- [Repository Pattern](../architecture/repository-pattern.md) - Data access abstractions
+- [Patterns Guide](../architecture/patterns-guide.md) - Data access patterns
