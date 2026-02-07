@@ -230,6 +230,133 @@ public sealed class FunctionalRepositoryEF<TEntity, TId> : IFunctionalRepository
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        PaginationOptions pagination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(pagination);
+
+        try
+        {
+            var pagedResult = await _dbSet
+                .AsNoTracking()
+                .ToPagedResultAsync(pagination, cancellationToken)
+                .ConfigureAwait(false);
+
+            return Right<EncinaError, PagedResult<TEntity>>(pagedResult);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(
+                RepositoryErrors.PersistenceError<TEntity>("GetPaged", ex));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        Specification<TEntity> specification,
+        PaginationOptions pagination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(pagination);
+
+        try
+        {
+            var query = SpecificationEvaluator.GetQuery(_dbSet.AsQueryable(), specification);
+            var pagedResult = await query
+                .ToPagedResultAsync(pagination, cancellationToken)
+                .ConfigureAwait(false);
+
+            return Right<EncinaError, PagedResult<TEntity>>(pagedResult);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(
+                RepositoryErrors.PersistenceError<TEntity>("GetPaged", ex));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        IPagedSpecification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+
+        try
+        {
+            // IPagedSpecification implementations should inherit from Specification<T>
+            // through PagedQuerySpecification<T>
+            if (specification is not Specification<TEntity> spec)
+            {
+                throw new InvalidOperationException(
+                    $"The specification {specification.GetType().Name} must inherit from Specification<{typeof(TEntity).Name}> or PagedQuerySpecification<{typeof(TEntity).Name}>.");
+            }
+
+            // Build a base query with filtering (no pagination) for accurate count
+            // The specification criteria is applied without Skip/Take
+            var baseQuery = _dbSet.AsNoTracking().Where(spec.ToExpression());
+
+            // Apply ordering if the specification is a QuerySpecification
+            if (specification is IQuerySpecification<TEntity> querySpec)
+            {
+                baseQuery = ApplyOrderingForPaging(baseQuery, querySpec);
+            }
+
+            // Use ToPagedResultAsync which handles count and pagination correctly
+            var pagedResult = await baseQuery
+                .ToPagedResultAsync(specification.Pagination, cancellationToken)
+                .ConfigureAwait(false);
+
+            return Right<EncinaError, PagedResult<TEntity>>(pagedResult);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(
+                RepositoryErrors.PersistenceError<TEntity>("GetPaged", ex));
+        }
+    }
+
+    /// <summary>
+    /// Applies ordering from a query specification without pagination.
+    /// </summary>
+    private static IQueryable<TEntity> ApplyOrderingForPaging(
+        IQueryable<TEntity> query,
+        IQuerySpecification<TEntity> querySpec)
+    {
+        IOrderedQueryable<TEntity>? orderedQuery = null;
+
+        // Apply primary ordering
+        if (querySpec.OrderBy is not null)
+        {
+            orderedQuery = query.OrderBy(querySpec.OrderBy);
+        }
+        else if (querySpec.OrderByDescending is not null)
+        {
+            orderedQuery = query.OrderByDescending(querySpec.OrderByDescending);
+        }
+
+        if (orderedQuery is null)
+        {
+            return query;
+        }
+
+        // Apply secondary orderings
+        foreach (var thenBy in querySpec.ThenByExpressions)
+        {
+            orderedQuery = orderedQuery.ThenBy(thenBy);
+        }
+
+        foreach (var thenByDesc in querySpec.ThenByDescendingExpressions)
+        {
+            orderedQuery = orderedQuery.ThenByDescending(thenByDesc);
+        }
+
+        return orderedQuery;
+    }
+
     #endregion
 
     #region Write Operations

@@ -548,3 +548,107 @@ public abstract class QuerySpecification<T, TResult> : QuerySpecification<T>, IQ
     /// </remarks>
     public Expression<Func<T, TResult>>? Selector { get; protected set; }
 }
+
+/// <summary>
+/// Extended specification that combines query functionality with pagination options.
+/// </summary>
+/// <typeparam name="T">The type of entity this specification applies to.</typeparam>
+/// <remarks>
+/// <para>
+/// This class extends <see cref="QuerySpecification{T}"/> with standardized pagination
+/// through <see cref="PaginationOptions"/>. It automatically applies paging when constructed.
+/// </para>
+/// <para>
+/// Use this class when you want to encapsulate both query criteria and pagination
+/// in a single, reusable specification object.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public class ActiveOrdersPagedSpec : PagedQuerySpecification&lt;Order&gt;
+/// {
+///     public ActiveOrdersPagedSpec(int customerId, PaginationOptions pagination)
+///         : base(pagination)
+///     {
+///         AddCriteria(o =&gt; o.CustomerId == customerId);
+///         AddCriteria(o =&gt; o.Status == OrderStatus.Active);
+///         ApplyOrderByDescending(o =&gt; o.CreatedAtUtc);
+///     }
+/// }
+///
+/// // Usage
+/// var pagination = new PaginationOptions(PageNumber: 2, PageSize: 25);
+/// var spec = new ActiveOrdersPagedSpec(customerId, pagination);
+/// var result = await repository.GetPagedAsync(spec, cancellationToken);
+/// </code>
+/// </example>
+public abstract class PagedQuerySpecification<T> : QuerySpecification<T>, IPagedSpecification<T>
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PagedQuerySpecification{T}"/> class.
+    /// </summary>
+    /// <param name="pagination">The pagination options to apply.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="pagination"/> is null.</exception>
+    protected PagedQuerySpecification(PaginationOptions pagination)
+    {
+        ArgumentNullException.ThrowIfNull(pagination);
+        Pagination = pagination;
+        ApplyPaging(pagination.Skip, pagination.PageSize);
+    }
+
+    /// <summary>
+    /// Gets the pagination options for this specification.
+    /// </summary>
+    public PaginationOptions Pagination { get; }
+}
+
+/// <summary>
+/// Extended specification that combines query, projection, and pagination functionality.
+/// </summary>
+/// <typeparam name="T">The source entity type.</typeparam>
+/// <typeparam name="TResult">The projected result type.</typeparam>
+/// <remarks>
+/// <para>
+/// This class extends <see cref="QuerySpecification{T, TResult}"/> with standardized pagination.
+/// It allows you to specify filtering, projection, and pagination in a single specification.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public class OrderSummaryPagedSpec : PagedQuerySpecification&lt;Order, OrderSummaryDto&gt;
+/// {
+///     public OrderSummaryPagedSpec(int customerId, PaginationOptions pagination)
+///         : base(pagination)
+///     {
+///         AddCriteria(o =&gt; o.CustomerId == customerId);
+///         ApplyOrderByDescending(o =&gt; o.CreatedAtUtc);
+///
+///         Selector = o =&gt; new OrderSummaryDto
+///         {
+///             Id = o.Id,
+///             Total = o.Total,
+///             Status = o.Status.ToString()
+///         };
+///     }
+/// }
+/// </code>
+/// </example>
+public abstract class PagedQuerySpecification<T, TResult> : QuerySpecification<T, TResult>, IPagedSpecification<T, TResult>
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PagedQuerySpecification{T, TResult}"/> class.
+    /// </summary>
+    /// <param name="pagination">The pagination options to apply.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="pagination"/> is null.</exception>
+    protected PagedQuerySpecification(PaginationOptions pagination)
+    {
+        ArgumentNullException.ThrowIfNull(pagination);
+        Pagination = pagination;
+        ApplyPaging(pagination.Skip, pagination.PageSize);
+    }
+
+    /// <summary>
+    /// Gets the pagination options for this specification.
+    /// </summary>
+    public PaginationOptions Pagination { get; }
+}

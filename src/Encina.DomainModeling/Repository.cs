@@ -486,6 +486,25 @@ public interface ITemporalRepository<TEntity, TId> : IReadOnlyRepository<TEntity
 /// <param name="PageNumber">The current page number (1-based).</param>
 /// <param name="PageSize">The page size.</param>
 /// <param name="TotalCount">The total count of items across all pages.</param>
+/// <remarks>
+/// <para>
+/// This record provides a standardized container for paged query results.
+/// It includes computed properties for navigation and display purposes.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// var result = new PagedResult&lt;Order&gt;(orders, pageNumber: 2, pageSize: 10, totalCount: 45);
+///
+/// Console.WriteLine($"Showing {result.FirstItemIndex}-{result.LastItemIndex} of {result.TotalCount}");
+/// // Output: "Showing 11-20 of 45"
+///
+/// if (result.HasNextPage)
+/// {
+///     // Navigate to next page
+/// }
+/// </code>
+/// </example>
 public sealed record PagedResult<T>(
     IReadOnlyList<T> Items,
     int PageNumber,
@@ -511,6 +530,34 @@ public sealed record PagedResult<T>(
     /// Gets whether the result is empty.
     /// </summary>
     public bool IsEmpty => Items.Count == 0;
+
+    /// <summary>
+    /// Gets the 1-based index of the first item in the current page.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For page 1 with size 20, this returns 1.
+    /// For page 2 with size 20, this returns 21.
+    /// </para>
+    /// <para>
+    /// Returns 0 if the result is empty.
+    /// </para>
+    /// </remarks>
+    public int FirstItemIndex => TotalCount == 0 ? 0 : (PageNumber - 1) * PageSize + 1;
+
+    /// <summary>
+    /// Gets the 1-based index of the last item in the current page.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For page 1 with size 20 and total 45 items, this returns 20.
+    /// For page 3 with size 20 and total 45 items, this returns 45.
+    /// </para>
+    /// <para>
+    /// Returns 0 if the result is empty.
+    /// </para>
+    /// </remarks>
+    public int LastItemIndex => TotalCount == 0 ? 0 : Math.Min(PageNumber * PageSize, TotalCount);
 
     /// <summary>
     /// Creates an empty paged result.

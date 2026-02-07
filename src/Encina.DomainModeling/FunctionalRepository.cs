@@ -142,6 +142,100 @@ public interface IFunctionalReadRepository<TEntity, in TId>
     /// Right with true if any entity exists, false otherwise; Left with error if the operation fails.
     /// </returns>
     Task<Either<EncinaError, bool>> AnyAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a paged result of all entities.
+    /// </summary>
+    /// <param name="pagination">The pagination options specifying page number and size.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>
+    /// Right with the paged result containing items and pagination metadata;
+    /// Left with error if the operation fails.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// This method returns all entities with pagination applied. For filtering,
+    /// use the overload that accepts a <see cref="Specification{TEntity}"/> or
+    /// <see cref="IPagedSpecification{TEntity}"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var pagination = new PaginationOptions(PageNumber: 1, PageSize: 25);
+    /// var result = await repository.GetPagedAsync(pagination, ct);
+    /// result.Match(
+    ///     Right: paged => Console.WriteLine($"Showing {paged.FirstItemIndex}-{paged.LastItemIndex} of {paged.TotalCount}"),
+    ///     Left: error => Console.WriteLine($"Error: {error.Message}")
+    /// );
+    /// </code>
+    /// </example>
+    Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        PaginationOptions pagination,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a paged result of entities matching the specification.
+    /// </summary>
+    /// <param name="specification">The specification to filter entities.</param>
+    /// <param name="pagination">The pagination options specifying page number and size.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>
+    /// Right with the paged result containing filtered items and pagination metadata;
+    /// Left with error if the operation fails.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// This method applies the specification's criteria before pagination.
+    /// The total count reflects the number of entities matching the specification,
+    /// not all entities in the repository.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var spec = new ActiveOrdersSpec(customerId);
+    /// var pagination = new PaginationOptions(PageNumber: 2, PageSize: 10);
+    /// var result = await repository.GetPagedAsync(spec, pagination, ct);
+    /// </code>
+    /// </example>
+    Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        Specification<TEntity> specification,
+        PaginationOptions pagination,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a paged result using a paged specification that encapsulates both criteria and pagination.
+    /// </summary>
+    /// <param name="specification">The paged specification containing both filter criteria and pagination options.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>
+    /// Right with the paged result containing filtered items and pagination metadata;
+    /// Left with error if the operation fails.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// Use this overload when you want to encapsulate filtering and pagination
+    /// in a single reusable specification object.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// public class ActiveOrdersPagedSpec : PagedQuerySpecification&lt;Order&gt;
+    /// {
+    ///     public ActiveOrdersPagedSpec(int customerId, PaginationOptions pagination)
+    ///         : base(pagination)
+    ///     {
+    ///         AddCriteria(o =&gt; o.CustomerId == customerId);
+    ///         AddCriteria(o =&gt; o.Status == OrderStatus.Active);
+    ///     }
+    /// }
+    ///
+    /// var spec = new ActiveOrdersPagedSpec(customerId, new PaginationOptions(2, 25));
+    /// var result = await repository.GetPagedAsync(spec, ct);
+    /// </code>
+    /// </example>
+    Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        IPagedSpecification<TEntity> specification,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

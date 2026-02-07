@@ -1255,7 +1255,7 @@ var order = new OrderBuilder()
 
 ```
 src/
-├── Encina.DomainModeling/              # NUEVO - Core DDD Building Blocks
+├── Encina.DomainModeling/              # Core DDD Building Blocks
 │   ├── ValueObject<T>
 │   ├── Entity<TId>
 │   ├── AggregateRoot<TId>
@@ -1265,16 +1265,26 @@ src/
 │   ├── StronglyTypedId<T>
 │   ├── ISoftDeletable
 │   ├── IAudited
-│   └── IDomainService
-│
-├── Encina.Specifications/              # NUEVO - Specification Pattern
+│   ├── IDomainService
+│   │
+│   ├── # Specification Pattern
 │   ├── Specification<T>
-│   ├── AndSpecification<T>
-│   ├── OrSpecification<T>
-│   └── NotSpecification<T>
+│   ├── QuerySpecification<T>
+│   ├── ISpecification<T>
+│   ├── IQuerySpecification<T>
+│   │
+│   ├── # Pagination (v0.12.0) ✅
+│   ├── PaginationOptions                # Record con PageNumber, PageSize, Skip
+│   ├── SortedPaginationOptions          # Extiende con SortBy, SortDescending
+│   ├── PagedResult<T>                   # Record con Items, computed navigation
+│   ├── IPagedSpecification<T>           # Interface para specs paginadas
+│   └── PagedQuerySpecification<T>       # Base class abstracta
 │
-├── Encina.Specifications.EntityFrameworkCore/   # NUEVO - EF Core integration
-│   └── SpecificationEvaluator
+├── Encina.EntityFrameworkCore/
+│   ├── Extensions/
+│   │   └── QueryablePagedExtensions     # ToPagedResultAsync() (v0.12.0) ✅
+│   └── Repository/
+│       └── FunctionalRepositoryEF       # GetPagedAsync() overloads (v0.12.0) ✅
 ```
 
 #### Referencias de Investigación
@@ -1485,7 +1495,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - `IReadRepository<TEntity, TId>` para escenarios CQRS
 - Implementaciones: `FunctionalRepositoryEF`, `FunctionalRepositoryDapper`, `FunctionalRepositoryMongoDB`
 - Integración con Specification Pattern para queries complejas
-- Test coverage: ~150 tests across all providers
+- Test coverage: ~150 tests across all providers (as of v0.11.0, Jan 2026)
 - Inspirado en [Ardalis.Specification](https://github.com/ardalis/Specification)
 
 **#280 - Specification Pattern** (Implementado enero 2026):
@@ -1494,7 +1504,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - `ISpecificationEvaluator<T>` por provider: `SpecificationEvaluatorEF`, `SpecificationEvaluatorDapper`, `SpecificationEvaluatorMongoDB`
 - `AndSpecification`, `OrSpecification`, `NotSpecification` para composición
 - `PagedResult<T>` y `PaginationOptions` para paginación
-- Test coverage: ~120 tests across all providers
+- Test coverage: ~120 tests across all providers (as of v0.11.0, Jan 2026)
 - Inspirado en [DevIQ Specification Pattern](https://deviq.com/design-patterns/specification-pattern/)
 
 **#281 - Unit of Work Pattern** (Implementado enero 2026):
@@ -1502,7 +1512,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - `IUnitOfWork` con `SaveChangesAsync`, `BeginTransactionAsync`, `CommitAsync`, `RollbackAsync`
 - `Repository<TEntity, TId>()` factory method
 - Implementaciones: `UnitOfWorkEF`, `UnitOfWorkDapper`, `UnitOfWorkMongoDB`
-- Test coverage: ~100 tests across all providers
+- Test coverage: ~100 tests across all providers (as of v0.11.0, Jan 2026)
 - Inspirado en [Microsoft UoW Pattern](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/infrastructure-persistence-layer-implementation-entity-framework-core)
 
 ##### Multi-Tenancy (Issue #282) ✅ COMPLETADO
@@ -1532,7 +1542,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
   - ADO.NET: `TenantAdoNetContext`, auto-filtering
   - MongoDB: `TenantMongoDbContext`, database-per-tenant
 - **Configuration**: `TenancyOptions`, `TenancyAspNetCoreOptions`
-- **Test coverage**: 376 tests across all providers
+- **Test coverage**: 376 tests across all providers (as of v0.11.0, Jan 2026)
 - Inspirado en [Azure Multi-Tenant Patterns](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/approaches/storage-data)
 
 ##### Module Isolation (Issue #534) ✅ COMPLETADO
@@ -1563,7 +1573,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
   - `DevelopmentValidationOnly` - Validación runtime de SQL sin permisos de BD
   - `SchemaWithPermissions` - Usuarios de BD con permisos por schema (producción)
   - `ConnectionPerModule` - Conexión separada por módulo (máximo aislamiento)
-- **Test coverage**: 172 tests (SqlSchemaExtractor, PermissionScript, script generators)
+- **Test coverage**: 172 tests (SqlSchemaExtractor, PermissionScript, script generators) (as of v0.11.0, Jan 2026)
 - Inspirado en [Modular Monolith Data Isolation](https://www.milanjovanovic.tech/blog/modular-monolith-data-isolation)
 
 ##### Performance Patterns (Issues #283-#284, #289, #290-#291, #294)
@@ -1599,7 +1609,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
   - `BulkOperationsADO` (ADO.NET): SqlBulkCopy + MERGE + TVP
   - `BulkOperationsMongoDB` (MongoDB): InsertMany + BulkWrite
 - Error codes: `Repository.BulkInsertFailed`, `Repository.BulkUpdateFailed`, `Repository.BulkDeleteFailed`, `Repository.BulkMergeFailed`, `Repository.BulkReadFailed`
-- Test coverage: 65 unit tests + 11 integration tests + benchmarks
+- Test coverage: 65 unit tests + 11 integration tests + benchmarks (as of v0.11.0, Jan 2026)
 - Inspirado en [EFCore.BulkExtensions](https://github.com/borisdj/EFCore.BulkExtensions)
 
 **#289 - Database Sharding**:
@@ -1668,7 +1678,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 |-------|---------|-------------|-----------|-------------|--------|
 | **#287** ✅ | Optimistic Concurrency | `IVersioned`/`IVersionedEntity` + conflict resolvers + ROP integration | Alta | Baja | `area-concurrency`, `area-event-sourcing` |
 | **#292** ✅ | Domain Entity Base | `Entity<TId>`, `AggregateRoot<TId>` con domain events | Alta | Baja | `area-ddd`, `area-event-sourcing`, `area-messaging`, `aot-compatible` |
-| **#293** | Pagination Abstractions | `PagedResult<T>`, `PaginationOptions`, `IPagedSpecification<T>` | Crítica | Baja | `area-pagination`, `area-repository`, `area-web-api`, `aot-compatible` |
+| **#293** ✅ | Pagination Abstractions | `PagedResult<T>`, `PaginationOptions`, `IPagedSpecification<T>`, `PagedQuerySpecification<T>` | Crítica | Baja | `area-pagination`, `area-repository`, `area-web-api`, `aot-compatible` |
 
 **#287 - Optimistic Concurrency** ✅ **COMPLETADO (febrero 2026)**:
 
@@ -1697,13 +1707,56 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - Entity configuration helpers: `ConfigureConcurrencyToken()`, `ConfigureAuditProperties()`, `ConfigureSoftDelete()`, `ConfigureAggregateRoot()`
 - Integración con `INotification` y Outbox pattern para reliable event publishing
 
-**#293 - Pagination Abstractions**:
+**#293 - Pagination Abstractions** ✅ **IMPLEMENTADO**:
 
-- `PaginationOptions(PageNumber, PageSize)` con Skip calculation
-- `SortedPaginationOptions` con sorting
-- `PagedResult<T>` con TotalCount, TotalPages, HasNext/Previous
-- `IPagedSpecification<T>`, `PagedSpecification<T>` base class
-- Repository: `ListPagedAsync(IPagedSpecification<T>)`
+**Records de Opciones de Paginación** (`Encina.DomainModeling`):
+- `PaginationOptions(PageNumber, PageSize)` - Record inmutable con:
+  - Constructor con defaults (PageNumber=1, PageSize=20)
+  - `Skip` - Computed property: `(PageNumber - 1) * PageSize`
+  - `Default` - Static singleton instance
+  - `WithPage(int)` - Fluent builder con validación (≥1)
+  - `WithSize(int)` - Fluent builder con validación (≥1)
+
+- `SortedPaginationOptions` - Hereda de `PaginationOptions`:
+  - `SortBy` - Nombre de propiedad para ordenar (nullable)
+  - `SortDescending` - Dirección del ordenamiento
+  - `WithSort(string, bool)` - Fluent builder con validación
+  - Métodos `WithPage`/`WithSize` que retornan `SortedPaginationOptions`
+
+**Resultado Paginado** (`Encina.DomainModeling`):
+- `PagedResult<T>` record con computed properties:
+  - `Items` - `IReadOnlyList<T>` de elementos
+  - `PageNumber`, `PageSize`, `TotalCount` - Datos base
+  - `TotalPages` - `Math.Ceiling(TotalCount / PageSize)`
+  - `HasPreviousPage` - `PageNumber > 1`
+  - `HasNextPage` - `PageNumber < TotalPages`
+  - `FirstItemIndex` - `(PageNumber - 1) * PageSize + 1` (1-based)
+  - `LastItemIndex` - `Min(FirstItemIndex + Items.Count - 1, TotalCount)`
+  - `IsFirstPage`, `IsLastPage` - Helpers de navegación
+  - `Map<TDestination>()` - Proyección funcional con selector
+
+**Especificaciones Paginadas** (`Encina.DomainModeling`):
+- `IPagedSpecification<T>` interface:
+  - `PaginationOptions Pagination { get; }`
+  - Hereda de `ISpecification<T>`
+
+- `PagedQuerySpecification<T>` abstract class:
+  - Implementa `IPagedSpecification<T>` + `IQuerySpecification<T>`
+  - Constructor con `PaginationOptions` (validación null-check)
+  - Acceso a `AddCriteria`, `AddInclude`, `ApplyOrderBy`, etc.
+
+**Extensiones EF Core** (`Encina.EntityFrameworkCore`):
+- `QueryablePagedExtensions.ToPagedResultAsync<T>()`:
+  - Overload sin proyección: `IQueryable<T> → PagedResult<T>`
+  - Overload con proyección: `IQueryable<T> + Expression<Func<T, TResult>> → PagedResult<TResult>`
+  - Ejecuta `CountAsync()` y `Skip().Take().ToListAsync()` eficientemente
+
+**Repository Pattern Integration** (`Encina.EntityFrameworkCore`):
+- `IFunctionalRepository<T>.GetPagedAsync()` con 3 overloads:
+  - `GetPagedAsync(PaginationOptions)` - Básico sin filtros
+  - `GetPagedAsync(Expression<Func<T,bool>>, PaginationOptions)` - Con predicado
+  - `GetPagedAsync(IPagedSpecification<T>)` - Con specification completa
+- Todas las variantes retornan `Either<EncinaError, PagedResult<T>>`
 
 ##### Integration Patterns (Issue #288)
 
@@ -1748,7 +1801,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
    - ✅ #534 (Module Isolation) - Aislamiento para modular monoliths
 
 2. **Próximo (Cierra gaps críticos)**:
-   - #293 (Pagination) - Básico pero faltante
+   - ~~#293 (Pagination) - Básico pero faltante~~ ✅ Completado (febrero 2026)
    - ~~#284 (Bulk Operations) - Performance crítico para ETL~~ ✅ Completado
    - ~~#292 (Domain Entity Base) - DDD foundations~~ ✅ Completado
 

@@ -101,6 +101,114 @@ var changes = await repository.GetChangedBetweenAsync(startDate, endDate);
 
 ---
 
+#### Pagination Abstractions (#293)
+
+Added comprehensive pagination abstractions for data access, supporting offset-based pagination with sorting capabilities.
+
+**Core Types** (`Encina.DomainModeling`):
+
+- **`PaginationOptions`**: Immutable record with `PageNumber` (1-based), `PageSize`, and computed `Skip`
+- **`SortedPaginationOptions`**: Extends `PaginationOptions` with `SortBy` and `SortDescending`
+- **`PagedResult<T>`**: Result record with computed navigation properties
+- **`IPagedSpecification<T>`**: Interface for specification-based pagination
+- **`PagedQuerySpecification<T>`**: Abstract base class combining specification and pagination
+
+```csharp
+// Basic pagination
+var options = PaginationOptions.Default
+    .WithPage(2)
+    .WithSize(25);
+
+var result = await repository.GetPagedAsync(options);
+// result: Either<EncinaError, PagedResult<Entity>>
+
+// With sorting
+var sortedOptions = SortedPaginationOptions.Default
+    .WithSort("CreatedAtUtc", descending: true)
+    .WithPage(1)
+    .WithSize(50);
+
+// Using specifications
+public class ActiveOrdersSpec : PagedQuerySpecification<Order>
+{
+    public ActiveOrdersSpec(PaginationOptions pagination) : base(pagination)
+    {
+        AddCriteria(o => o.Status == OrderStatus.Active);
+        ApplyOrderByDescending(o => o.CreatedAtUtc);
+    }
+}
+
+var spec = new ActiveOrdersSpec(PaginationOptions.Default.WithSize(20));
+var result = await repository.GetPagedAsync(spec);
+```
+
+**PagedResult Properties**:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Items` | `IReadOnlyList<T>` | Current page items |
+| `PageNumber` | `int` | Current page (1-based) |
+| `PageSize` | `int` | Items per page |
+| `TotalCount` | `int` | Total items across all pages |
+| `TotalPages` | `int` | Computed total pages |
+| `HasPreviousPage` | `bool` | Navigation helper |
+| `HasNextPage` | `bool` | Navigation helper |
+| `FirstItemIndex` | `int` | First item index (1-based) |
+| `LastItemIndex` | `int` | Last item index (1-based) |
+| `IsFirstPage` | `bool` | Navigation helper |
+| `IsLastPage` | `bool` | Navigation helper |
+
+**EF Core Extensions** (`Encina.EntityFrameworkCore`):
+
+- `ToPagedResultAsync<T>()` - Convert `IQueryable<T>` to paginated result
+- `ToPagedResultAsync<T, TResult>()` - With projection expression
+
+```csharp
+// Direct IQueryable usage
+var result = await dbContext.Orders
+    .Where(o => o.IsActive)
+    .OrderByDescending(o => o.CreatedAtUtc)
+    .ToPagedResultAsync(new PaginationOptions(1, 25));
+
+// With projection
+var dtos = await dbContext.Orders
+    .ToPagedResultAsync(
+        o => new OrderDto(o.Id, o.Total),
+        new PaginationOptions(1, 25));
+```
+
+**Repository Integration**:
+
+- `GetPagedAsync(PaginationOptions)` - Basic pagination
+- `GetPagedAsync(Specification, PaginationOptions)` - With filter
+- `GetPagedAsync(IPagedSpecification)` - Specification-based
+
+All methods return `Either<EncinaError, PagedResult<T>>` for ROP integration.
+
+**New Types**:
+
+| Type | Purpose |
+|------|---------|
+| `PaginationOptions` | Base pagination parameters |
+| `SortedPaginationOptions` | Pagination with sorting |
+| `PagedResult<T>` | Pagination result with navigation |
+| `IPagedSpecification<T>` | Specification interface for pagination |
+| `IPagedSpecification<T, TResult>` | With projection |
+| `PagedQuerySpecification<T>` | Abstract base class |
+| `PagedQuerySpecification<T, TResult>` | With projection |
+| `QueryablePagedExtensions` | EF Core extension methods |
+
+**Tests Added**:
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 221 | PaginationOptions, PagedResult, specs, extensions |
+| Guard Tests | 25 | Null and invalid parameter validation |
+
+**Related Issue**: [#293 - Pagination Abstractions](https://github.com/dlrivada/Encina/issues/293)
+
+---
+
 #### Optimistic Concurrency Abstractions (#287)
 
 Added comprehensive optimistic concurrency control using Railway Oriented Programming (ROP) patterns for conflict detection and resolution.

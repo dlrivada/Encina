@@ -222,6 +222,16 @@ Encina.DomainModeling.Specification<T>.Not() -> Encina.DomainModeling.Specificat
 Encina.DomainModeling.Specification<T>.Or(Encina.DomainModeling.Specification<T>! other) -> Encina.DomainModeling.Specification<T>!
 Encina.DomainModeling.Specification<T>.Specification() -> void
 Encina.DomainModeling.Specification<T>.ToFunc() -> System.Func<T, bool>!
+Encina.DomainModeling.SortedPaginationOptions
+Encina.DomainModeling.SortedPaginationOptions.SortBy.get -> string?
+Encina.DomainModeling.SortedPaginationOptions.SortBy.init -> void
+Encina.DomainModeling.SortedPaginationOptions.SortDescending.get -> bool
+Encina.DomainModeling.SortedPaginationOptions.SortDescending.init -> void
+Encina.DomainModeling.SortedPaginationOptions.SortedPaginationOptions(int PageNumber = 1, int PageSize = 20, string? SortBy = null, bool SortDescending = false) -> void
+Encina.DomainModeling.SortedPaginationOptions.WithPage(int pageNumber) -> Encina.DomainModeling.SortedPaginationOptions!
+Encina.DomainModeling.SortedPaginationOptions.WithSize(int pageSize) -> Encina.DomainModeling.SortedPaginationOptions!
+Encina.DomainModeling.SortedPaginationOptions.WithSort(string! sortBy, bool descending = false) -> Encina.DomainModeling.SortedPaginationOptions!
+static Encina.DomainModeling.SortedPaginationOptions.Default.get -> Encina.DomainModeling.SortedPaginationOptions!
 Encina.DomainModeling.TranslationError
 Encina.DomainModeling.TranslationError.ErrorCode.get -> string!
 Encina.DomainModeling.TranslationError.ErrorCode.init -> void
@@ -380,10 +390,18 @@ Encina.DomainModeling.IRepository<TEntity, TId>.RemoveByIdAsync(TId id, System.T
 Encina.DomainModeling.IRepository<TEntity, TId>.RemoveRange(System.Collections.Generic.IEnumerable<TEntity>! entities) -> void
 Encina.DomainModeling.IRepository<TEntity, TId>.Update(TEntity entity) -> void
 Encina.DomainModeling.IRepository<TEntity, TId>.UpdateRange(System.Collections.Generic.IEnumerable<TEntity>! entities) -> void
+Encina.DomainModeling.PagedQuerySpecification<T>
+Encina.DomainModeling.PagedQuerySpecification<T>.PagedQuerySpecification(Encina.DomainModeling.PaginationOptions! pagination) -> void
+Encina.DomainModeling.PagedQuerySpecification<T>.Pagination.get -> Encina.DomainModeling.PaginationOptions!
+Encina.DomainModeling.PagedQuerySpecification<T, TResult>
+Encina.DomainModeling.PagedQuerySpecification<T, TResult>.PagedQuerySpecification(Encina.DomainModeling.PaginationOptions! pagination) -> void
+Encina.DomainModeling.PagedQuerySpecification<T, TResult>.Pagination.get -> Encina.DomainModeling.PaginationOptions!
 Encina.DomainModeling.PagedResult<T>
+Encina.DomainModeling.PagedResult<T>.FirstItemIndex.get -> int
 Encina.DomainModeling.PagedResult<T>.HasNextPage.get -> bool
 Encina.DomainModeling.PagedResult<T>.HasPreviousPage.get -> bool
 Encina.DomainModeling.PagedResult<T>.IsEmpty.get -> bool
+Encina.DomainModeling.PagedResult<T>.LastItemIndex.get -> int
 Encina.DomainModeling.PagedResult<T>.Items.get -> System.Collections.Generic.IReadOnlyList<T>!
 Encina.DomainModeling.PagedResult<T>.Items.init -> void
 Encina.DomainModeling.PagedResult<T>.Map<TResult>(System.Func<T, TResult>! selector) -> Encina.DomainModeling.PagedResult<TResult>!
@@ -395,6 +413,16 @@ Encina.DomainModeling.PagedResult<T>.PagedResult(System.Collections.Generic.IRea
 Encina.DomainModeling.PagedResult<T>.TotalCount.get -> int
 Encina.DomainModeling.PagedResult<T>.TotalCount.init -> void
 Encina.DomainModeling.PagedResult<T>.TotalPages.get -> int
+Encina.DomainModeling.PaginationOptions
+Encina.DomainModeling.PaginationOptions.PageNumber.get -> int
+Encina.DomainModeling.PaginationOptions.PageNumber.init -> void
+Encina.DomainModeling.PaginationOptions.PageSize.get -> int
+Encina.DomainModeling.PaginationOptions.PageSize.init -> void
+Encina.DomainModeling.PaginationOptions.PaginationOptions(int PageNumber = 1, int PageSize = 20) -> void
+Encina.DomainModeling.PaginationOptions.Skip.get -> int
+Encina.DomainModeling.PaginationOptions.WithPage(int pageNumber) -> Encina.DomainModeling.PaginationOptions!
+Encina.DomainModeling.PaginationOptions.WithSize(int pageSize) -> Encina.DomainModeling.PaginationOptions!
+static Encina.DomainModeling.PaginationOptions.Default.get -> Encina.DomainModeling.PaginationOptions!
 Encina.DomainModeling.RepositoryError
 Encina.DomainModeling.RepositoryError.EntityId.get -> object?
 Encina.DomainModeling.RepositoryError.EntityId.init -> void
@@ -450,6 +478,9 @@ Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.CountAsync(Encina.
 Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.CountAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, int>>!
 Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.FirstOrDefaultAsync(Encina.DomainModeling.Specification<TEntity>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
 Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.GetByIdAsync(TId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, TEntity>>!
+Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.GetPagedAsync(Encina.DomainModeling.IPagedSpecification<TEntity>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, Encina.DomainModeling.PagedResult<TEntity>!>>!
+Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.GetPagedAsync(Encina.DomainModeling.PaginationOptions! pagination, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, Encina.DomainModeling.PagedResult<TEntity>!>>!
+Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.GetPagedAsync(Encina.DomainModeling.Specification<TEntity>! specification, Encina.DomainModeling.PaginationOptions! pagination, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, Encina.DomainModeling.PagedResult<TEntity>!>>!
 Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.ListAsync(Encina.DomainModeling.Specification<TEntity>! specification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, System.Collections.Generic.IReadOnlyList<TEntity>!>>!
 Encina.DomainModeling.IFunctionalReadRepository<TEntity, TId>.ListAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError!, System.Collections.Generic.IReadOnlyList<TEntity>!>>!
 Encina.DomainModeling.IFunctionalRepository<TEntity, TId>
@@ -515,6 +546,10 @@ Encina.DomainModeling.IQuerySpecification<T>.ThenByDescendingExpressions.get -> 
 Encina.DomainModeling.IQuerySpecification<T>.ThenByExpressions.get -> System.Collections.Generic.IReadOnlyList<System.Linq.Expressions.Expression<System.Func<T, object!>!>!>!
 Encina.DomainModeling.IQuerySpecification<T, TResult>
 Encina.DomainModeling.IQuerySpecification<T, TResult>.Selector.get -> System.Linq.Expressions.Expression<System.Func<T, TResult>!>?
+Encina.DomainModeling.IPagedSpecification<T>
+Encina.DomainModeling.IPagedSpecification<T>.Pagination.get -> Encina.DomainModeling.PaginationOptions!
+Encina.DomainModeling.IPagedSpecification<T, TResult>
+Encina.DomainModeling.IPagedSpecification<T, TResult>.Selector.get -> System.Linq.Expressions.Expression<System.Func<T, TResult>!>?
 Encina.DomainModeling.ISpecification<T>
 Encina.DomainModeling.ISpecification<T>.IsSatisfiedBy(T entity) -> bool
 Encina.DomainModeling.ISpecification<T>.ToExpression() -> System.Linq.Expressions.Expression<System.Func<T, bool>!>!

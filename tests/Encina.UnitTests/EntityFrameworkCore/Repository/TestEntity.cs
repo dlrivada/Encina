@@ -13,6 +13,7 @@ public class TestEntity
     public decimal Amount { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAtUtc { get; set; }
+    public int SortOrder { get; set; }
 }
 
 /// <summary>

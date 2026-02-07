@@ -186,3 +186,82 @@ public interface IQuerySpecification<T, TResult> : IQuerySpecification<T>
     /// </summary>
     Expression<Func<T, TResult>>? Selector { get; }
 }
+
+/// <summary>
+/// Defines the contract for specifications that include pagination options.
+/// </summary>
+/// <typeparam name="T">The type of entity this specification applies to.</typeparam>
+/// <remarks>
+/// <para>
+/// This interface combines the filtering capabilities of <see cref="ISpecification{T}"/>
+/// with standardized pagination through <see cref="PaginationOptions"/>.
+/// </para>
+/// <para>
+/// Use this interface when you want to encapsulate both query criteria and pagination
+/// parameters in a single specification object.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public class ActiveOrdersPagedSpec : PagedQuerySpecification&lt;Order&gt;
+/// {
+///     public ActiveOrdersPagedSpec(int customerId, PaginationOptions pagination)
+///         : base(pagination)
+///     {
+///         AddCriteria(o =&gt; o.CustomerId == customerId);
+///         AddCriteria(o =&gt; o.Status == OrderStatus.Active);
+///         ApplyOrderByDescending(o =&gt; o.CreatedAtUtc);
+///     }
+/// }
+/// </code>
+/// </example>
+public interface IPagedSpecification<T> : ISpecification<T>
+{
+    /// <summary>
+    /// Gets the pagination options for this specification.
+    /// </summary>
+    /// <remarks>
+    /// The pagination options determine the page number and page size
+    /// for the query results.
+    /// </remarks>
+    PaginationOptions Pagination { get; }
+}
+
+/// <summary>
+/// Defines the contract for paged specifications with projection support.
+/// </summary>
+/// <typeparam name="T">The source entity type.</typeparam>
+/// <typeparam name="TResult">The projected result type.</typeparam>
+/// <remarks>
+/// <para>
+/// This interface extends <see cref="IPagedSpecification{T}"/> with projection capabilities,
+/// allowing you to specify both pagination and result transformation in a single specification.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public class OrderSummaryPagedSpec : PagedQuerySpecification&lt;Order, OrderSummaryDto&gt;
+/// {
+///     public OrderSummaryPagedSpec(int customerId, PaginationOptions pagination)
+///         : base(pagination)
+///     {
+///         AddCriteria(o =&gt; o.CustomerId == customerId);
+///         ApplyOrderByDescending(o =&gt; o.CreatedAtUtc);
+///
+///         Selector = o =&gt; new OrderSummaryDto
+///         {
+///             Id = o.Id,
+///             Total = o.Total,
+///             Status = o.Status.ToString()
+///         };
+///     }
+/// }
+/// </code>
+/// </example>
+public interface IPagedSpecification<T, TResult> : IPagedSpecification<T>
+{
+    /// <summary>
+    /// Gets the selector expression for projecting results.
+    /// </summary>
+    Expression<Func<T, TResult>>? Selector { get; }
+}
