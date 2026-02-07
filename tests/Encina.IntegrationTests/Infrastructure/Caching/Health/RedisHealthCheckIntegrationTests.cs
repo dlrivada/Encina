@@ -21,10 +21,9 @@ public class RedisHealthCheckIntegrationTests
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WhenRedisIsRunning_ReturnsHealthy()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -38,10 +37,9 @@ public class RedisHealthCheckIntegrationTests
         (result.Description ?? string.Empty).ShouldContain("reachable");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-redis" };
@@ -56,10 +54,9 @@ public class RedisHealthCheckIntegrationTests
         result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomTags_UsesCustomTags()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var customTags = new[] { "custom", "tags" };

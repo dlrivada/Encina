@@ -204,28 +204,31 @@ public static class TenancySchema
     /// <summary>
     /// Creates the TenantTestEntities table for PostgreSQL.
     /// </summary>
+    /// <remarks>
+    /// Uses lowercase identifiers to match PostgreSQL's default identifier folding behavior.
+    /// </remarks>
     public static async Task CreateTenantTestEntitiesSchemaAsync(NpgsqlConnection connection)
     {
         const string sql = """
-            CREATE TABLE IF NOT EXISTS TenantTestEntities (
-                Id UUID PRIMARY KEY,
-                TenantId VARCHAR(128) NOT NULL,
-                Name VARCHAR(256) NOT NULL,
-                Description VARCHAR(1024) NULL,
-                Amount DECIMAL(18,2) NOT NULL,
-                IsActive BOOLEAN NOT NULL DEFAULT TRUE,
-                CreatedAtUtc TIMESTAMP NOT NULL,
-                UpdatedAtUtc TIMESTAMP NULL
+            CREATE TABLE IF NOT EXISTS tenanttestentities (
+                id UUID PRIMARY KEY,
+                tenantid VARCHAR(128) NOT NULL,
+                name VARCHAR(256) NOT NULL,
+                description VARCHAR(1024) NULL,
+                amount DECIMAL(18,2) NOT NULL,
+                isactive BOOLEAN NOT NULL DEFAULT TRUE,
+                createdatutc TIMESTAMPTZ NOT NULL,
+                updatedatutc TIMESTAMPTZ NULL
             );
 
-            CREATE INDEX IF NOT EXISTS IX_TenantTestEntities_TenantId
-            ON TenantTestEntities(TenantId);
+            CREATE INDEX IF NOT EXISTS ix_tenanttestentities_tenantid
+            ON tenanttestentities(tenantid);
 
-            CREATE INDEX IF NOT EXISTS IX_TenantTestEntities_TenantId_IsActive
-            ON TenantTestEntities(TenantId, IsActive);
+            CREATE INDEX IF NOT EXISTS ix_tenanttestentities_tenantid_isactive
+            ON tenanttestentities(tenantid, isactive);
 
-            CREATE INDEX IF NOT EXISTS IX_TenantTestEntities_CreatedAtUtc
-            ON TenantTestEntities(CreatedAtUtc);
+            CREATE INDEX IF NOT EXISTS ix_tenanttestentities_createdatutc
+            ON tenanttestentities(createdatutc);
             """;
 
         await using var command = new NpgsqlCommand(sql, connection);
@@ -235,19 +238,22 @@ public static class TenancySchema
     /// <summary>
     /// Creates the ReadWriteTestEntities table for PostgreSQL.
     /// </summary>
+    /// <remarks>
+    /// Uses lowercase identifiers to match PostgreSQL's default identifier folding behavior.
+    /// </remarks>
     public static async Task CreateReadWriteTestEntitiesSchemaAsync(NpgsqlConnection connection)
     {
         const string sql = """
-            CREATE TABLE IF NOT EXISTS ReadWriteTestEntities (
-                Id UUID PRIMARY KEY,
-                Name VARCHAR(256) NOT NULL,
-                Value INTEGER NOT NULL,
-                Timestamp TIMESTAMP NOT NULL,
-                WriteCounter INTEGER NOT NULL DEFAULT 0
+            CREATE TABLE IF NOT EXISTS readwritetestentities (
+                id UUID PRIMARY KEY,
+                name VARCHAR(256) NOT NULL,
+                value INTEGER NOT NULL,
+                timestamp TIMESTAMPTZ NOT NULL,
+                writecounter INTEGER NOT NULL DEFAULT 0
             );
 
-            CREATE INDEX IF NOT EXISTS IX_ReadWriteTestEntities_Timestamp
-            ON ReadWriteTestEntities(Timestamp);
+            CREATE INDEX IF NOT EXISTS ix_readwritetestentities_timestamp
+            ON readwritetestentities(timestamp);
             """;
 
         await using var command = new NpgsqlCommand(sql, connection);
@@ -260,8 +266,8 @@ public static class TenancySchema
     public static async Task DropTenancyTablesAsync(NpgsqlConnection connection)
     {
         const string sql = """
-            DROP TABLE IF EXISTS TenantTestEntities CASCADE;
-            DROP TABLE IF EXISTS ReadWriteTestEntities CASCADE;
+            DROP TABLE IF EXISTS tenanttestentities CASCADE;
+            DROP TABLE IF EXISTS readwritetestentities CASCADE;
             """;
 
         await using var command = new NpgsqlCommand(sql, connection);
@@ -274,8 +280,8 @@ public static class TenancySchema
     public static async Task ClearTenancyDataAsync(NpgsqlConnection connection)
     {
         const string sql = """
-            DELETE FROM TenantTestEntities;
-            DELETE FROM ReadWriteTestEntities;
+            DELETE FROM tenanttestentities;
+            DELETE FROM readwritetestentities;
             """;
 
         try

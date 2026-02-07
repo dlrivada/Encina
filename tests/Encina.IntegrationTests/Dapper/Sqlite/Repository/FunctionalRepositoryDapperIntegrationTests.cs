@@ -11,9 +11,10 @@ namespace Encina.IntegrationTests.Dapper.Sqlite.Repository;
 /// <summary>
 /// Integration tests for <see cref="FunctionalRepositoryDapper{TEntity, TId}"/> using real SQLite.
 /// </summary>
+[Collection("Dapper-Sqlite")]
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-public class FunctionalRepositoryDapperIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
+public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;

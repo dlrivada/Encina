@@ -9,20 +9,24 @@ namespace Encina.IntegrationTests.ADO.MySQL.Sagas;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.MySQL")]
-public sealed class SagaStoreADOTests : IClassFixture<MySqlFixture>
+[Collection("ADO-MySQL")]
+public sealed class SagaStoreADOTests : IAsyncLifetime
 {
     private readonly MySqlFixture _fixture;
-    private readonly SagaStoreADO _store;
+    private SagaStoreADO _store = null!;
 
     public SagaStoreADOTests(MySqlFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new SagaStoreADO(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidSaga_ShouldPersist()

@@ -18,8 +18,8 @@ public sealed class InboxStoreADO : IInboxStore
     /// Initializes a new instance of the <see cref="InboxStoreADO"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
-    /// <param name="tableName">The inbox table name (default: InboxMessages).</param>
-    public InboxStoreADO(IDbConnection connection, string tableName = "InboxMessages")
+    /// <param name="tableName">The inbox table name (default: inboxmessages).</param>
+    public InboxStoreADO(IDbConnection connection, string tableName = "inboxmessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
 
@@ -33,9 +33,9 @@ public sealed class InboxStoreADO : IInboxStore
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
         var sql = $@"
-            SELECT *
+            SELECT messageid, requesttype, receivedatutc, processedatutc, expiresatutc, response, errormessage, retrycount, nextretryatutc, metadata
             FROM {_tableName}
-            WHERE MessageId = @MessageId";
+            WHERE messageid = @MessageId";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
@@ -49,26 +49,26 @@ public sealed class InboxStoreADO : IInboxStore
         {
             return new InboxMessage
             {
-                MessageId = reader.GetString(reader.GetOrdinal("MessageId")),
-                RequestType = reader.GetString(reader.GetOrdinal("RequestType")),
-                ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal("ReceivedAtUtc")),
-                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("ProcessedAtUtc"))
+                MessageId = reader.GetString(reader.GetOrdinal("messageid")),
+                RequestType = reader.GetString(reader.GetOrdinal("requesttype")),
+                ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal("receivedatutc")),
+                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("processedatutc"))
                     ? null
-                    : reader.GetDateTime(reader.GetOrdinal("ProcessedAtUtc")),
-                ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal("ExpiresAtUtc")),
-                Response = reader.IsDBNull(reader.GetOrdinal("Response"))
+                    : reader.GetDateTime(reader.GetOrdinal("processedatutc")),
+                ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal("expiresatutc")),
+                Response = reader.IsDBNull(reader.GetOrdinal("response"))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("Response")),
-                ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
+                    : reader.GetString(reader.GetOrdinal("response")),
+                ErrorMessage = reader.IsDBNull(reader.GetOrdinal("errormessage"))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("ErrorMessage")),
-                RetryCount = reader.GetInt32(reader.GetOrdinal("RetryCount")),
-                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("NextRetryAtUtc"))
+                    : reader.GetString(reader.GetOrdinal("errormessage")),
+                RetryCount = reader.GetInt32(reader.GetOrdinal("retrycount")),
+                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("nextretryatutc"))
                     ? null
-                    : reader.GetDateTime(reader.GetOrdinal("NextRetryAtUtc")),
-                Metadata = reader.IsDBNull(reader.GetOrdinal("Metadata"))
+                    : reader.GetDateTime(reader.GetOrdinal("nextretryatutc")),
+                Metadata = reader.IsDBNull(reader.GetOrdinal("metadata"))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("Metadata"))
+                    : reader.GetString(reader.GetOrdinal("metadata"))
             };
         }
 
@@ -82,7 +82,7 @@ public sealed class InboxStoreADO : IInboxStore
 
         var sql = $@"
             INSERT INTO {_tableName}
-            (MessageId, RequestType, ReceivedAtUtc, ProcessedAtUtc, ExpiresAtUtc, Response, ErrorMessage, RetryCount, NextRetryAtUtc, Metadata)
+            (messageid, requesttype, receivedatutc, processedatutc, expiresatutc, response, errormessage, retrycount, nextretryatutc, metadata)
             VALUES
             (@MessageId, @RequestType, @ReceivedAtUtc, @ProcessedAtUtc, @ExpiresAtUtc, @Response, @ErrorMessage, @RetryCount, @NextRetryAtUtc, @Metadata)";
 
@@ -115,10 +115,10 @@ public sealed class InboxStoreADO : IInboxStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = NOW() AT TIME ZONE 'UTC',
-                Response = @Response,
-                ErrorMessage = NULL
-            WHERE MessageId = @MessageId";
+            SET processedatutc = NOW() AT TIME ZONE 'UTC',
+                response = @Response,
+                errormessage = NULL
+            WHERE messageid = @MessageId";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
@@ -143,10 +143,10 @@ public sealed class InboxStoreADO : IInboxStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ErrorMessage = @ErrorMessage,
-                RetryCount = RetryCount + 1,
-                NextRetryAtUtc = @NextRetryAtUtc
-            WHERE MessageId = @MessageId";
+            SET errormessage = @ErrorMessage,
+                retrycount = retrycount + 1,
+                nextretryatutc = @NextRetryAtUtc
+            WHERE messageid = @MessageId";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
@@ -168,11 +168,11 @@ public sealed class InboxStoreADO : IInboxStore
         if (batchSize <= 0)
             throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
         var sql = $@"
-            SELECT *
+            SELECT messageid, requesttype, receivedatutc, processedatutc, expiresatutc, response, errormessage, retrycount, nextretryatutc, metadata
             FROM {_tableName}
-            WHERE ExpiresAtUtc < NOW() AT TIME ZONE 'UTC'
-              AND ProcessedAtUtc IS NOT NULL
-            ORDER BY ExpiresAtUtc
+            WHERE expiresatutc < NOW() AT TIME ZONE 'UTC'
+              AND processedatutc IS NOT NULL
+            ORDER BY expiresatutc
             LIMIT @BatchSize";
 
         using var command = _connection.CreateCommand();
@@ -189,26 +189,26 @@ public sealed class InboxStoreADO : IInboxStore
         {
             messages.Add(new InboxMessage
             {
-                MessageId = reader.GetString(reader.GetOrdinal("MessageId")),
-                RequestType = reader.GetString(reader.GetOrdinal("RequestType")),
-                ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal("ReceivedAtUtc")),
-                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("ProcessedAtUtc"))
+                MessageId = reader.GetString(reader.GetOrdinal("messageid")),
+                RequestType = reader.GetString(reader.GetOrdinal("requesttype")),
+                ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal("receivedatutc")),
+                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("processedatutc"))
                     ? null
-                    : reader.GetDateTime(reader.GetOrdinal("ProcessedAtUtc")),
-                ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal("ExpiresAtUtc")),
-                Response = reader.IsDBNull(reader.GetOrdinal("Response"))
+                    : reader.GetDateTime(reader.GetOrdinal("processedatutc")),
+                ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal("expiresatutc")),
+                Response = reader.IsDBNull(reader.GetOrdinal("response"))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("Response")),
-                ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
+                    : reader.GetString(reader.GetOrdinal("response")),
+                ErrorMessage = reader.IsDBNull(reader.GetOrdinal("errormessage"))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("ErrorMessage")),
-                RetryCount = reader.GetInt32(reader.GetOrdinal("RetryCount")),
-                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("NextRetryAtUtc"))
+                    : reader.GetString(reader.GetOrdinal("errormessage")),
+                RetryCount = reader.GetInt32(reader.GetOrdinal("retrycount")),
+                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("nextretryatutc"))
                     ? null
-                    : reader.GetDateTime(reader.GetOrdinal("NextRetryAtUtc")),
-                Metadata = reader.IsDBNull(reader.GetOrdinal("Metadata"))
+                    : reader.GetDateTime(reader.GetOrdinal("nextretryatutc")),
+                Metadata = reader.IsDBNull(reader.GetOrdinal("metadata"))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("Metadata"))
+                    : reader.GetString(reader.GetOrdinal("metadata"))
             });
         }
 
@@ -227,7 +227,7 @@ public sealed class InboxStoreADO : IInboxStore
         var idList = string.Join(",", messageIds.Select(id => $"'{id.Replace("'", "''", StringComparison.Ordinal)}'"));
         var sql = $@"
             DELETE FROM {_tableName}
-            WHERE MessageId IN ({idList})";
+            WHERE messageid IN ({idList})";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
@@ -245,8 +245,8 @@ public sealed class InboxStoreADO : IInboxStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ""RetryCount"" = ""RetryCount"" + 1
-            WHERE ""MessageId"" = @MessageId";
+            SET retrycount = retrycount + 1
+            WHERE messageid = @MessageId";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;

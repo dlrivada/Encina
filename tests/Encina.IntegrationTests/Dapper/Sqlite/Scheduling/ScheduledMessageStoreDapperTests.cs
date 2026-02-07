@@ -8,22 +8,26 @@ namespace Encina.IntegrationTests.Dapper.Sqlite.Scheduling;
 /// Integration tests for <see cref="ScheduledMessageStoreDapper"/>.
 /// Tests against real SQLite database with proper cleanup.
 /// </summary>
+[Collection("Dapper-Sqlite")]
 [Trait("Category", "Integration")]
-public sealed class ScheduledMessageStoreDapperTests : IClassFixture<SqliteFixture>
+public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
 {
     private readonly SqliteFixture _database;
-    private readonly ScheduledMessageStoreDapper _store;
+    private ScheduledMessageStoreDapper _store = null!;
 
     public ScheduledMessageStoreDapperTests(SqliteFixture database)
     {
         _database = database;
+    }
+
+    public async Task InitializeAsync()
+    {
         DapperTypeHandlers.RegisterSqliteHandlers();
-
-        // Clear all data before each test to ensure clean state
-        _database.ClearAllDataAsync().GetAwaiter().GetResult();
-
+        await _database.ClearAllDataAsync();
         _store = new ScheduledMessageStoreDapper(_database.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidMessage_ShouldPersist()

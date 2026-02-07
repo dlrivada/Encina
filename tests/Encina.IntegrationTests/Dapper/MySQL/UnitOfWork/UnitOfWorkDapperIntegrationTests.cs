@@ -13,21 +13,25 @@ namespace Encina.IntegrationTests.Dapper.MySQL.UnitOfWork;
 /// <summary>
 /// Integration tests for <see cref="UnitOfWorkDapper"/> using real MySQL.
 /// </summary>
+[Collection("Dapper-MySQL")]
 [Trait("Category", "Integration")]
 [Trait("Database", "MySQL")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable", Justification = "Disposal handled by IAsyncLifetime.DisposeAsync")]
 public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
 {
-    private readonly MySqlFixture _fixture = new();
+    private readonly MySqlFixture _fixture;
     private IDbConnection _connection = null!;
     private UnitOfWorkDapper _unitOfWork = null!;
     private IServiceProvider _serviceProvider = null!;
     private IEntityMapping<TestUoWProduct, Guid> _mapping = null!;
 
+    public UnitOfWorkDapperIntegrationTests(MySqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         // Create the test schema
         using var schemaConnection = _fixture.CreateConnection() as MySqlConnection;
         if (schemaConnection != null)
@@ -49,7 +53,7 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
     {
         await _unitOfWork.DisposeAsync();
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private static async Task CreateTestProductsSchemaAsync(MySqlConnection connection)
@@ -93,10 +97,9 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
 
     #region Transaction Commit Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Transaction_CommitMultipleEntities_AllPersisted()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -125,10 +128,9 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
 
     #region Transaction Rollback Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Transaction_Rollback_NoChangesPersisted()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -151,10 +153,9 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
 
     #region Repository Caching Tests
 
-    [SkippableFact]
+    [Fact]
     public void Repository_SameEntityType_ReturnsSameInstance()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Act
         var repository1 = _unitOfWork.Repository<TestUoWProduct, Guid>();
@@ -168,10 +169,9 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
 
     #region Transaction State Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task BeginTransaction_SetsHasActiveTransactionTrue()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         _unitOfWork.HasActiveTransaction.ShouldBeFalse();
@@ -187,10 +187,9 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
         await _unitOfWork.RollbackAsync();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Commit_ClearsHasActiveTransaction()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await _unitOfWork.BeginTransactionAsync();
@@ -203,10 +202,9 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
         _unitOfWork.HasActiveTransaction.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Rollback_ClearsHasActiveTransaction()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await _unitOfWork.BeginTransactionAsync();
@@ -219,10 +217,9 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
         _unitOfWork.HasActiveTransaction.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task BeginTransaction_WhenAlreadyActive_ReturnsError()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await _unitOfWork.BeginTransactionAsync();
@@ -237,10 +234,9 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
         await _unitOfWork.RollbackAsync();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Commit_WhenNoTransaction_ReturnsError()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Act
         var result = await _unitOfWork.CommitAsync();

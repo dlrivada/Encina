@@ -51,10 +51,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Write Collection Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task GetWriteCollectionAsync_ShouldReturnCollectionWithPrimaryReadPreference()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -67,10 +66,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadPreference.ShouldBe(ReadPreference.Primary);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetWriteCollectionAsync_ShouldAllowInsertOperations()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -86,10 +84,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         result["key"].AsString.ShouldBe("write_test_value");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetWriteCollectionAsync_WithEmptyCollectionName_ShouldThrow()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -103,10 +100,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Read Collection Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task GetReadCollectionAsync_WithDefaultOptions_ShouldUseSecondaryPreferred()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -119,10 +115,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadPreference.ReadPreferenceMode.ShouldBe(ReadPreferenceMode.SecondaryPreferred);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetReadCollectionAsync_WithPrimaryReadPreference_ShouldUsePrimary()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -137,10 +132,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadPreference.ShouldBe(ReadPreference.Primary);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetReadCollectionAsync_WithSecondaryReadPreference_ShouldUseSecondary()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -155,10 +149,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadPreference.ReadPreferenceMode.ShouldBe(ReadPreferenceMode.Secondary);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetReadCollectionAsync_WithNearestReadPreference_ShouldUseNearest()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -173,10 +166,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadPreference.ReadPreferenceMode.ShouldBe(ReadPreferenceMode.Nearest);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetReadCollectionAsync_WithMajorityReadConcern_ShouldApplyReadConcern()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -191,10 +183,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadConcern.ShouldBe(ReadConcern.Majority);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetReadCollectionAsync_WithLocalReadConcern_ShouldApplyReadConcern()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -209,10 +200,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadConcern.ShouldBe(ReadConcern.Local);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetReadCollectionAsync_ShouldAllowQueryOperations()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -228,10 +218,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         result["key"].AsString.ShouldBe("read_test_value");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetReadCollectionAsync_WithMaxStaleness_ShouldApplyToReadPreference()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange - MongoDB requires minimum 90 seconds for maxStaleness
         var maxStaleness = TimeSpan.FromSeconds(120);
@@ -252,10 +241,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Context-Based Routing Tests (GetCollectionAsync)
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_WithReadIntent_ShouldUseConfiguredReadPreference()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -268,10 +256,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadPreference.ReadPreferenceMode.ShouldBe(ReadPreferenceMode.SecondaryPreferred);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_WithWriteIntent_ShouldUsePrimary()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -284,10 +271,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadPreference.ShouldBe(ReadPreference.Primary);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_WithForceWriteIntent_ShouldUsePrimary()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -300,10 +286,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadPreference.ShouldBe(ReadPreference.Primary);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_WithNoContext_ShouldDefaultToPrimary()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -316,10 +301,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadPreference.ShouldBe(ReadPreference.Primary);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_WithReadIntent_AndSecondaryPreference_ShouldApplyReadConcern()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -336,10 +320,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadConcern.ShouldBe(ReadConcern.Majority);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_SwitchingIntents_ShouldReturnDifferentReadPreferences()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -364,10 +347,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Database Name Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task GetDatabaseNameAsync_ShouldReturnConfiguredDatabaseName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -379,10 +361,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         databaseName.ShouldBe(MongoDbReplicaSetFixture.DatabaseName);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetDatabaseNameAsync_WithEmptyDatabaseName_ShouldThrow()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -399,10 +380,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Read Preference Conversion Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task ReadPreferenceConversion_AllValues_ShouldMapCorrectly()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Test all MongoReadPreference enum values
         var testCases = new[]
@@ -435,10 +415,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Read Concern Conversion Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task ReadConcernConversion_AllValues_ShouldMapCorrectly()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Test all MongoReadConcern enum values
         var testCases = new[]
@@ -472,10 +451,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Concurrent Access Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_ConcurrentAccessWithDifferentIntents_ShouldIsolateCorrectly()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory();

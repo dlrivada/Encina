@@ -41,10 +41,9 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var store = CreateStore();
@@ -68,10 +67,9 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         stored.RetryCount.ShouldBe(0);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetMessageAsync_ExistingMessage_ShouldReturnMessage()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -97,10 +95,9 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         result.RequestType.ShouldBe("TestRequest");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetMessageAsync_NonExistentMessage_ShouldReturnNull()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var store = CreateStore();
@@ -112,10 +109,9 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         result.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetExpiredMessagesAsync_ShouldReturnExpiredMessages()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -149,10 +145,9 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         messageList.First().MessageId.ShouldBe(expired.MessageId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MarkAsProcessedAsync_ShouldUpdateTimestampAndResponse()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -179,10 +174,9 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         updated.Response.ShouldBe(response);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MarkAsFailedAsync_ShouldUpdateErrorAndIncrementRetryCount()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -212,10 +206,9 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         updated.NextRetryAtUtc!.Value.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task RemoveExpiredMessagesAsync_ShouldDeleteSpecifiedMessages()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -263,10 +256,9 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         kept.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task IncrementRetryCountAsync_ShouldIncrementCount()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -292,10 +284,9 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         updated!.RetryCount.ShouldBe(3);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task EdgeCase_NullProcessedAtUtc_ShouldBeStoredCorrectly()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var store = CreateStore();
@@ -317,10 +308,9 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         stored!.ProcessedAtUtc.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task EdgeCase_NullErrorMessage_ShouldBeStoredCorrectly()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var store = CreateStore();
@@ -342,10 +332,9 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         stored!.ErrorMessage.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task EdgeCase_NullNextRetryAtUtc_ShouldBeStoredCorrectly()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var store = CreateStore();
@@ -367,10 +356,9 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         stored!.NextRetryAtUtc.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConcurrentWrites_WithUniqueMessageIds_ShouldNotCorruptData()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange & Act
         var tasks = Enumerable.Range(0, 10).Select(async i =>

@@ -20,10 +20,11 @@ namespace Encina.IntegrationTests.Infrastructure.Dapper.Sqlite.BulkOperations;
 /// These tests verify the actual multi-row INSERT, UPDATE, DELETE, and MERGE operations
 /// work correctly against a real SQLite database using Dapper.
 /// </remarks>
+[Collection("Dapper-Sqlite")]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.Sqlite")]
 [Trait("Feature", "BulkOperations")]
-public sealed class BulkOperationsDapperSqliteIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
+public sealed class BulkOperationsDapperSqliteIntegrationTests : IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;
@@ -36,7 +37,6 @@ public sealed class BulkOperationsDapperSqliteIntegrationTests : IClassFixture<S
 
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
         _connection = _fixture.CreateConnection();
 
         // Create test table
@@ -50,7 +50,6 @@ public sealed class BulkOperationsDapperSqliteIntegrationTests : IClassFixture<S
     public async Task DisposeAsync()
     {
         await DropBulkTestTableAsync();
-        await _fixture.DisposeAsync();
     }
 
     private async Task CreateBulkTestTableAsync()

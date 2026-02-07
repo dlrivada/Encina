@@ -179,15 +179,16 @@ public sealed class BulkOperationsDapper<TEntity, TId> : IBulkOperations<TEntity
                 .ConfigureAwait(false);
 
             // UPDATE from temp table using Dapper
+            // Note: PostgreSQL doesn't allow table aliases in SET clause, so we reference columns directly
             var setClauses = columnsToUpdate
                 .Where(kvp => kvp.Value != _mapping.IdColumnName)
-                .Select(kvp => $"t.\"{kvp.Value}\" = s.\"{kvp.Value}\"");
+                .Select(kvp => $"\"{kvp.Value}\" = s.\"{kvp.Value}\"");
 
             var updateSql = $@"
-                UPDATE {_mapping.TableName} t
+                UPDATE {_mapping.TableName}
                 SET {string.Join(", ", setClauses)}
                 FROM {tempTableName} s
-                WHERE t.""{_mapping.IdColumnName}"" = s.""{_mapping.IdColumnName}""";
+                WHERE {_mapping.TableName}.""{_mapping.IdColumnName}"" = s.""{_mapping.IdColumnName}""";
 
             var command = new CommandDefinition(
                 updateSql,
@@ -354,6 +355,10 @@ public sealed class BulkOperationsDapper<TEntity, TId> : IBulkOperations<TEntity
         {
             await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
+            // Convert object[] to TId[] for proper Npgsql type mapping
+            // Npgsql requires a properly typed array for ANY() clauses
+            var typedIds = idList.Select(id => (TId)id).ToArray();
+
             var columnNames = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
             var sql = $@"
                 SELECT {columnNames}
@@ -362,7 +367,7 @@ public sealed class BulkOperationsDapper<TEntity, TId> : IBulkOperations<TEntity
 
             var command = new CommandDefinition(
                 sql,
-                new { ids = idList.ToArray() },
+                new { ids = typedIds },
                 _transaction,
                 cancellationToken: cancellationToken);
 
@@ -549,7 +554,7 @@ public sealed class BulkOperationsDapper<TEntity, TId> : IBulkOperations<TEntity
             _ when type == typeof(float) => NpgsqlDbType.Real,
             _ when type == typeof(string) => NpgsqlDbType.Text,
             _ when type == typeof(Guid) => NpgsqlDbType.Uuid,
-            _ when type == typeof(DateTime) => NpgsqlDbType.Timestamp,
+            _ when type == typeof(DateTime) => NpgsqlDbType.TimestampTz,
             _ when type == typeof(DateTimeOffset) => NpgsqlDbType.TimestampTz,
             _ when type == typeof(TimeSpan) => NpgsqlDbType.Interval,
             _ when type == typeof(byte[]) => NpgsqlDbType.Bytea,
@@ -574,7 +579,7 @@ public sealed class BulkOperationsDapper<TEntity, TId> : IBulkOperations<TEntity
             _ when type == typeof(float) => "REAL",
             _ when type == typeof(string) => "TEXT",
             _ when type == typeof(Guid) => "UUID",
-            _ when type == typeof(DateTime) => "TIMESTAMP",
+            _ when type == typeof(DateTime) => "TIMESTAMPTZ",
             _ when type == typeof(DateTimeOffset) => "TIMESTAMPTZ",
             _ when type == typeof(TimeSpan) => "INTERVAL",
             _ when type == typeof(byte[]) => "BYTEA",

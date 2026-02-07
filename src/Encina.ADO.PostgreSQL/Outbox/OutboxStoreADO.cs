@@ -18,8 +18,8 @@ public sealed class OutboxStoreADO : IOutboxStore
     /// Initializes a new instance of the <see cref="OutboxStoreADO"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
-    /// <param name="tableName">The outbox table name (default: OutboxMessages).</param>
-    public OutboxStoreADO(IDbConnection connection, string tableName = "OutboxMessages")
+    /// <param name="tableName">The outbox table name (default: outboxmessages).</param>
+    public OutboxStoreADO(IDbConnection connection, string tableName = "outboxmessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
 
@@ -41,12 +41,12 @@ public sealed class OutboxStoreADO : IOutboxStore
         ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
 
         var sql = $@"
-            SELECT *
+            SELECT id, notificationtype, content, createdatutc, processedatutc, errormessage, retrycount, nextretryatutc
             FROM {_tableName}
-            WHERE ProcessedAtUtc IS NULL
-              AND RetryCount < @MaxRetries
-              AND (NextRetryAtUtc IS NULL OR NextRetryAtUtc <= NOW() AT TIME ZONE 'UTC')
-            ORDER BY CreatedAtUtc
+            WHERE processedatutc IS NULL
+              AND retrycount < @MaxRetries
+              AND (nextretryatutc IS NULL OR nextretryatutc <= NOW() AT TIME ZONE 'UTC')
+            ORDER BY createdatutc
             LIMIT @BatchSize";
 
         using var command = _connection.CreateCommand();
@@ -64,20 +64,20 @@ public sealed class OutboxStoreADO : IOutboxStore
         {
             messages.Add(new OutboxMessage
             {
-                Id = reader.GetGuid(reader.GetOrdinal("Id")),
-                NotificationType = reader.GetString(reader.GetOrdinal("NotificationType")),
-                Content = reader.GetString(reader.GetOrdinal("Content")),
-                CreatedAtUtc = reader.GetDateTime(reader.GetOrdinal("CreatedAtUtc")),
-                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("ProcessedAtUtc"))
+                Id = reader.GetGuid(reader.GetOrdinal("id")),
+                NotificationType = reader.GetString(reader.GetOrdinal("notificationtype")),
+                Content = reader.GetString(reader.GetOrdinal("content")),
+                CreatedAtUtc = reader.GetDateTime(reader.GetOrdinal("createdatutc")),
+                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("processedatutc"))
                     ? null
-                    : reader.GetDateTime(reader.GetOrdinal("ProcessedAtUtc")),
-                ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
+                    : reader.GetDateTime(reader.GetOrdinal("processedatutc")),
+                ErrorMessage = reader.IsDBNull(reader.GetOrdinal("errormessage"))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("ErrorMessage")),
-                RetryCount = reader.GetInt32(reader.GetOrdinal("RetryCount")),
-                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("NextRetryAtUtc"))
+                    : reader.GetString(reader.GetOrdinal("errormessage")),
+                RetryCount = reader.GetInt32(reader.GetOrdinal("retrycount")),
+                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("nextretryatutc"))
                     ? null
-                    : reader.GetDateTime(reader.GetOrdinal("NextRetryAtUtc"))
+                    : reader.GetDateTime(reader.GetOrdinal("nextretryatutc"))
             });
         }
 
@@ -91,7 +91,7 @@ public sealed class OutboxStoreADO : IOutboxStore
 
         var sql = $@"
             INSERT INTO {_tableName}
-            (Id, NotificationType, Content, CreatedAtUtc, ProcessedAtUtc, ErrorMessage, RetryCount, NextRetryAtUtc)
+            (id, notificationtype, content, createdatutc, processedatutc, errormessage, retrycount, nextretryatutc)
             VALUES
             (@Id, @NotificationType, @Content, @CreatedAtUtc, @ProcessedAtUtc, @ErrorMessage, @RetryCount, @NextRetryAtUtc)";
 
@@ -119,9 +119,9 @@ public sealed class OutboxStoreADO : IOutboxStore
             throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmpty, nameof(messageId));
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = NOW() AT TIME ZONE 'UTC',
-                ErrorMessage = NULL
-            WHERE Id = @Id";
+            SET processedatutc = NOW() AT TIME ZONE 'UTC',
+                errormessage = NULL
+            WHERE id = @Id";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
@@ -146,10 +146,10 @@ public sealed class OutboxStoreADO : IOutboxStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ErrorMessage = @ErrorMessage,
-                RetryCount = RetryCount + 1,
-                NextRetryAtUtc = @NextRetryAtUtc
-            WHERE Id = @Id";
+            SET errormessage = @ErrorMessage,
+                retrycount = retrycount + 1,
+                nextretryatutc = @NextRetryAtUtc
+            WHERE id = @Id";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;

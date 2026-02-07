@@ -20,10 +20,11 @@ namespace Encina.IntegrationTests.Infrastructure.Dapper.SqlServer.BulkOperations
 /// <remarks>
 /// Run with: dotnet test --filter "FullyQualifiedName~BulkOperationsPerformanceTests" --configuration Release
 /// </remarks>
+[Collection("Dapper-SqlServer")]
 [Trait("Category", "Performance")]
 [Trait("Provider", "Dapper.SqlServer")]
 [Trait("Feature", "BulkOperations")]
-public sealed class BulkOperationsPerformanceTests : IClassFixture<SqlServerFixture>, IAsyncLifetime
+public sealed class BulkOperationsPerformanceTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _fixture;
     private readonly ITestOutputHelper _output;

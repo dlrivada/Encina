@@ -17,9 +17,16 @@ namespace Encina.IntegrationTests.ADO.MySQL.Tenancy;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "MySQL")]
+[Collection("ADO-MySQL")]
 public class TenancyADOIntegrationTests : IAsyncLifetime
 {
-    private readonly MySqlFixture _fixture = new();
+    private readonly MySqlFixture _fixture;
+
+    public TenancyADOIntegrationTests(MySqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     private IDbConnection _connection = null!;
     private TenantAwareFunctionalRepositoryADO<TenantTestEntity, Guid> _repository = null!;
     private ITenantEntityMapping<TenantTestEntity, Guid> _mapping = null!;
@@ -31,8 +38,6 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         using var schemaConnection = _fixture.CreateConnection() as MySqlConnection;
         if (schemaConnection != null)
         {
@@ -68,7 +73,7 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private async Task ClearDataAsync()
@@ -88,10 +93,9 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
 
     #region Automatic Tenant Filter Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_OnlyReturnsCurrentTenantData()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -118,10 +122,9 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetByIdAsync_OnlyReturnsCurrentTenantEntity()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -139,10 +142,9 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
         result.IfLeft(error => error.Message.ShouldContain("not found"));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithSpecification_AppliesTenantFilterWithSpec()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -173,10 +175,9 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
 
     #region Automatic Tenant ID Assignment Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_AutomaticallyAssignsTenantId()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -196,10 +197,9 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
         retrieved.IfRight(e => e.TenantId.ShouldBe(Tenant1));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AddRangeAsync_AssignsTenantIdToAllEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -236,10 +236,9 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
 
     #region Cross-Tenant Isolation Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateAsync_CanOnlyUpdateOwnTenantEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -263,10 +262,9 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
         retrieved.IfRight(e => e.Name.ShouldBe("Original"));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DeleteAsync_CanOnlyDeleteOwnTenantEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -288,10 +286,9 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
         retrieved.IsRight.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CountAsync_OnlyCountsCurrentTenantEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -320,10 +317,9 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
         result2.IfRight(count => count.ShouldBe(3));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AnyAsync_OnlyChecksCurrentTenantEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -350,10 +346,9 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
 
     #region Tenant Context Switching Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task TenantSwitch_ChangesVisibleData()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         await ClearDataAsync();

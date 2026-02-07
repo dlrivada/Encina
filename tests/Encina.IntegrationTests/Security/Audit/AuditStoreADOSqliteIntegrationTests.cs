@@ -12,17 +12,20 @@ namespace Encina.IntegrationTests.Security.Audit;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-[Collection("SqliteSerial")]
+[Collection("ADO-Sqlite")]
 public class AuditStoreADOSqliteIntegrationTests : IAsyncLifetime
 {
-    private readonly SqliteFixture _fixture = new();
+    private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;
     private AuditStoreADO _store = null!;
 
+    public AuditStoreADOSqliteIntegrationTests(SqliteFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         // Create test schema
         if (_fixture.CreateConnection() is SqliteConnection schemaConnection)
         {
@@ -40,8 +43,8 @@ public class AuditStoreADOSqliteIntegrationTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        // Do NOT dispose _connection - it's the shared SQLite in-memory connection owned by the fixture.
+        await _fixture.ClearAllDataAsync();
     }
 
     private static async Task CreateAuditSchemaAsync(SqliteConnection connection)

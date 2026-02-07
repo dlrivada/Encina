@@ -11,7 +11,8 @@ namespace Encina.IntegrationTests.Testing.Respawn;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "PostgreSql")]
-public sealed class PostgreSqlRespawnerIntegrationTests : IClassFixture<PostgreSqlFixture>, IAsyncLifetime, IDisposable
+[Collection("ADO-PostgreSQL")]
+public sealed class PostgreSqlRespawnerIntegrationTests : IAsyncLifetime, IDisposable
 {
     private readonly PostgreSqlFixture _fixture;
     private PostgreSqlRespawner _respawner = null!;
@@ -194,7 +195,7 @@ public sealed class PostgreSqlRespawnerIntegrationTests : IClassFixture<PostgreS
             {
                 SagaId = Guid.NewGuid(),
                 SagaType = "TestSaga",
-                CurrentStep = "Step1",
+                CurrentStep = 1,
                 Status = "InProgress",
                 Data = "{}",
                 StartedAtUtc = DateTime.UtcNow,
@@ -203,8 +204,8 @@ public sealed class PostgreSqlRespawnerIntegrationTests : IClassFixture<PostgreS
 
         // Insert ScheduledMessage
         await connection.ExecuteAsync("""
-            INSERT INTO scheduledmessages (id, requesttype, content, scheduledatutc, retrycount)
-            VALUES (@Id, @RequestType, @Content, @ScheduledAtUtc, @RetryCount)
+            INSERT INTO scheduledmessages (id, requesttype, content, scheduledatutc, retrycount, createdatutc)
+            VALUES (@Id, @RequestType, @Content, @ScheduledAtUtc, @RetryCount, @CreatedAtUtc)
             """,
             new
             {
@@ -212,7 +213,8 @@ public sealed class PostgreSqlRespawnerIntegrationTests : IClassFixture<PostgreS
                 RequestType = "TestScheduledRequest",
                 Content = "{}",
                 ScheduledAtUtc = DateTime.UtcNow.AddHours(1),
-                RetryCount = 0
+                RetryCount = 0,
+                CreatedAtUtc = DateTime.UtcNow
             });
     }
 

@@ -18,10 +18,10 @@ public sealed class OutboxStoreDapper : IOutboxStore
     /// Initializes a new instance of the <see cref="OutboxStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
-    /// <param name="tableName">The outbox table name (default: OutboxMessages).</param>
+    /// <param name="tableName">The outbox table name (default: outboxmessages).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> or <paramref name="tableName"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is empty or whitespace.</exception>
-    public OutboxStoreDapper(IDbConnection connection, string tableName = "OutboxMessages")
+    public OutboxStoreDapper(IDbConnection connection, string tableName = "outboxmessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
@@ -35,7 +35,7 @@ public sealed class OutboxStoreDapper : IOutboxStore
 
         var sql = $@"
             INSERT INTO {_tableName}
-            (Id, NotificationType, Content, CreatedAtUtc, ProcessedAtUtc, ErrorMessage, RetryCount, NextRetryAtUtc)
+            (id, notificationtype, content, createdatutc, processedatutc, errormessage, retrycount, nextretryatutc)
             VALUES
             (@Id, @NotificationType, @Content, @CreatedAtUtc, @ProcessedAtUtc, @ErrorMessage, @RetryCount, @NextRetryAtUtc)";
 
@@ -54,12 +54,12 @@ public sealed class OutboxStoreDapper : IOutboxStore
             throw new ArgumentException(StoreValidationMessages.MaxRetriesCannotBeNegative, nameof(maxRetries));
 
         var sql = $@"
-            SELECT *
+            SELECT id, notificationtype, content, createdatutc, processedatutc, errormessage, retrycount, nextretryatutc
             FROM {_tableName}
-            WHERE ProcessedAtUtc IS NULL
-              AND RetryCount < @MaxRetries
-              AND (NextRetryAtUtc IS NULL OR NextRetryAtUtc <= NOW() AT TIME ZONE 'UTC')
-            ORDER BY CreatedAtUtc
+            WHERE processedatutc IS NULL
+              AND retrycount < @MaxRetries
+              AND (nextretryatutc IS NULL OR nextretryatutc <= NOW() AT TIME ZONE 'UTC')
+            ORDER BY createdatutc
             LIMIT @BatchSize";
 
         var messages = await _connection.QueryAsync<OutboxMessage>(
@@ -77,9 +77,9 @@ public sealed class OutboxStoreDapper : IOutboxStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = NOW() AT TIME ZONE 'UTC',
-                ErrorMessage = NULL
-            WHERE Id = @MessageId";
+            SET processedatutc = NOW() AT TIME ZONE 'UTC',
+                errormessage = NULL
+            WHERE id = @MessageId";
 
         await _connection.ExecuteAsync(sql, new { MessageId = messageId });
     }
@@ -97,10 +97,10 @@ public sealed class OutboxStoreDapper : IOutboxStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ErrorMessage = @ErrorMessage,
-                RetryCount = RetryCount + 1,
-                NextRetryAtUtc = @NextRetryAtUtc
-            WHERE Id = @MessageId";
+            SET errormessage = @ErrorMessage,
+                retrycount = retrycount + 1,
+                nextretryatutc = @NextRetryAtUtc
+            WHERE id = @MessageId";
 
         await _connection.ExecuteAsync(
             sql,

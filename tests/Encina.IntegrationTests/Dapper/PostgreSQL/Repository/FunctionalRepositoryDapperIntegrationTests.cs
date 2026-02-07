@@ -11,19 +11,23 @@ namespace Encina.IntegrationTests.Dapper.PostgreSQL.Repository;
 /// <summary>
 /// Integration tests for <see cref="FunctionalRepositoryDapper{TEntity, TId}"/> using real PostgreSQL.
 /// </summary>
+[Collection("Dapper-PostgreSQL")]
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
 public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 {
-    private readonly PostgreSqlFixture _fixture = new();
+    private readonly PostgreSqlFixture _fixture;
     private IDbConnection _connection = null!;
     private FunctionalRepositoryDapper<TestProduct, Guid> _repository = null!;
     private IEntityMapping<TestProduct, Guid> _mapping = null!;
 
+    public FunctionalRepositoryDapperIntegrationTests(PostgreSqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         // Create the test schema
         using var schemaConnection = _fixture.CreateConnection() as NpgsqlConnection;
         if (schemaConnection != null)
@@ -47,7 +51,7 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private static async Task CreateTestProductsSchemaAsync(NpgsqlConnection connection)
@@ -59,7 +63,7 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
                 name VARCHAR(200) NOT NULL,
                 price DECIMAL(18,2) NOT NULL,
                 is_active BOOLEAN NOT NULL,
-                created_at_utc TIMESTAMP NOT NULL
+                created_at_utc TIMESTAMPTZ NOT NULL
             );
             CREATE INDEX IF NOT EXISTS ix_test_products_is_active ON test_products(is_active);
             """;
@@ -79,10 +83,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 
     #region GetByIdAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task GetByIdAsync_ExistingEntity_ReturnsRight()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -101,10 +104,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetByIdAsync_NonExistingEntity_ReturnsLeft()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -122,10 +124,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 
     #region ListAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_EmptyTable_ReturnsEmptyList()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -138,10 +139,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
         result.IfRight(entities => entities.ShouldBeEmpty());
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithEntities_ReturnsAllEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -160,10 +160,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
         result.IfRight(list => list.Count.ShouldBe(3));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithSpecification_ReturnsFilteredEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -191,10 +190,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 
     #region AddAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_ValidEntity_ReturnsRightAndPersists()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -216,10 +214,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 
     #region UpdateAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateAsync_ExistingEntity_ReturnsRightAndUpdates()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -244,10 +241,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 
     #region DeleteAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task DeleteAsync_ExistingEntity_ReturnsRightAndRemoves()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -264,10 +260,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
         stored.IsLeft.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DeleteAsync_NonExistingEntity_ReturnsLeft()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -285,10 +280,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 
     #region CountAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task CountAsync_WithEntities_ReturnsCorrectCount()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -311,10 +305,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 
     #region AnyAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task AnyAsync_EmptyTable_ReturnsFalse()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -327,10 +320,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
         result.IfRight(any => any.ShouldBeFalse());
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AnyAsync_WithEntities_ReturnsTrue()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -344,10 +336,9 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
         result.IfRight(any => any.ShouldBeTrue());
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AnyAsync_WithSpecification_ReturnsTrue()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();

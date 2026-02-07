@@ -20,10 +20,9 @@ public sealed class KafkaHealthCheckIntegrationTests : IClassFixture<KafkaFixtur
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WhenKafkaIsRunning_ReturnsHealthy()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Kafka container not available");
 
         // Arrange
         using var serviceProvider = CreateServiceProvider();
@@ -37,10 +36,9 @@ public sealed class KafkaHealthCheckIntegrationTests : IClassFixture<KafkaFixtur
         result.Description!.ShouldContain("connected");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Kafka container not available");
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-kafka" };
@@ -55,10 +53,9 @@ public sealed class KafkaHealthCheckIntegrationTests : IClassFixture<KafkaFixtur
         result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
-    [SkippableFact]
+    [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Kafka container not available");
 
         // Arrange
         using var serviceProvider = CreateServiceProvider();

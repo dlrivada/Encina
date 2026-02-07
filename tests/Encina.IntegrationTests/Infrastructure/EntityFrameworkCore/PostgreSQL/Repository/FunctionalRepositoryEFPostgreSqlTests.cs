@@ -33,8 +33,7 @@ public sealed class FunctionalRepositoryEFPostgreSqlTests : IAsyncLifetime
     public async Task AddAsync_ValidEntity_PersistsToDatabase()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var repository = new FunctionalRepositoryEF<TestRepositoryEntity, Guid>(context);
 
         var entity = new TestRepositoryEntity
@@ -51,7 +50,7 @@ public sealed class FunctionalRepositoryEFPostgreSqlTests : IAsyncLifetime
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var stored = await verifyContext.Set<TestRepositoryEntity>().FindAsync(entity.Id);
         stored.ShouldNotBeNull();
         stored!.Name.ShouldBe("Test Entity");
@@ -61,8 +60,7 @@ public sealed class FunctionalRepositoryEFPostgreSqlTests : IAsyncLifetime
     public async Task GetByIdAsync_ExistingEntity_ReturnsEntity()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
 
         var entity = new TestRepositoryEntity
         {
@@ -89,8 +87,7 @@ public sealed class FunctionalRepositoryEFPostgreSqlTests : IAsyncLifetime
     public async Task ListAsync_WithEntities_ReturnsAll()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
 
         context.Set<TestRepositoryEntity>().AddRange(
             new TestRepositoryEntity { Id = Guid.NewGuid(), Name = "Entity 1", Amount = 10m, IsActive = true, CreatedAtUtc = DateTime.UtcNow },
@@ -112,8 +109,7 @@ public sealed class FunctionalRepositoryEFPostgreSqlTests : IAsyncLifetime
     public async Task DeleteAsync_ExistingEntity_RemovesFromDatabase()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
 
         var entity = new TestRepositoryEntity
         {
@@ -133,7 +129,7 @@ public sealed class FunctionalRepositoryEFPostgreSqlTests : IAsyncLifetime
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var stored = await verifyContext.Set<TestRepositoryEntity>().FindAsync(entity.Id);
         stored.ShouldBeNull();
     }

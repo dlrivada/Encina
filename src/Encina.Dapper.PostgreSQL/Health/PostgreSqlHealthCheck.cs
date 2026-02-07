@@ -27,6 +27,8 @@ public sealed class PostgreSqlHealthCheck : DatabaseHealthCheck
     /// </summary>
     public const string DefaultName = "encina-postgresql";
 
+    private static readonly string[] ProviderTags = ["postgresql"];
+
     /// <summary>
     /// Initializes a new instance of the <see cref="PostgreSqlHealthCheck"/> class.
     /// </summary>
@@ -35,7 +37,7 @@ public sealed class PostgreSqlHealthCheck : DatabaseHealthCheck
     public PostgreSqlHealthCheck(
         IServiceProvider serviceProvider,
         ProviderHealthCheckOptions? options)
-        : base(DefaultName, CreateConnectionFactory(serviceProvider), options)
+        : base(DefaultName, CreateConnectionFactory(serviceProvider), options, ProviderTags)
     {
     }
 

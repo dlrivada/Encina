@@ -21,10 +21,9 @@ public sealed class MongoDbReplicaSetFixtureTests
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     public void Fixture_WhenDockerAvailable_ShouldBeAvailable()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         _fixture.IsAvailable.ShouldBeTrue();
         _fixture.Client.ShouldNotBeNull();
@@ -32,10 +31,9 @@ public sealed class MongoDbReplicaSetFixtureTests
         _fixture.ConnectionString.ShouldNotBeNullOrEmpty();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ReplicaSet_WhenInitialized_ShouldHavePrimary()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Act
         var status = await _fixture.GetReplicaSetStatusAsync();
@@ -51,10 +49,9 @@ public sealed class MongoDbReplicaSetFixtureTests
         hasPrimary.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ReplicaSet_ShouldSupportReadPreferences()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var database = _fixture.Database!;
@@ -90,10 +87,9 @@ public sealed class MongoDbReplicaSetFixtureTests
         await database.DropCollectionAsync(collectionName);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ReplicaSet_ShouldSupportTransactions()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var database = _fixture.Database!;

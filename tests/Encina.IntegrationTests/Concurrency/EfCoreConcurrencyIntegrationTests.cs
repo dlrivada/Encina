@@ -309,6 +309,8 @@ public class VersionedTestEntity : IVersionedEntity
 
 /// <summary>
 /// DbContext for concurrency integration tests.
+/// Auto-increments Version on modified IVersionedEntity entries to enable
+/// EF Core's concurrency token detection.
 /// </summary>
 public sealed class ConcurrencyTestDbContext : DbContext
 {
@@ -318,6 +320,29 @@ public sealed class ConcurrencyTestDbContext : DbContext
     }
 
     public DbSet<VersionedTestEntity> VersionedTestEntities => Set<VersionedTestEntity>();
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        IncrementVersionOnModifiedEntities();
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    public override int SaveChanges()
+    {
+        IncrementVersionOnModifiedEntities();
+        return base.SaveChanges();
+    }
+
+    private void IncrementVersionOnModifiedEntities()
+    {
+        foreach (var entry in ChangeTracker.Entries<IVersionedEntity>())
+        {
+            if (entry.State == EntityState.Modified)
+            {
+                entry.Entity.Version++;
+            }
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

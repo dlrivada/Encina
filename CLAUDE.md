@@ -590,11 +590,68 @@ Run with:
 dotnet run --file scripts/run-integration-tests.cs
 ```
 
+#### Collection Fixtures (Container Reduction Strategy)
+
+> **CRITICAL**: Integration tests use shared xUnit `[Collection]` fixtures to keep Docker containers low (~23 instead of ~71). **NEVER** create per-class fixtures for database tests.
+
+**Rule**: Every integration test class MUST use `[Collection("Provider-Database")]` to share a single Docker container per provider/database combination.
+
+**Existing collections** (defined in `Collections.cs` files):
+
+| Collection | Fixture | Notes |
+| ---------- | ------- | ----- |
+| `ADO-SqlServer` | `SqlServerFixture` | |
+| `ADO-PostgreSQL` | `PostgreSqlFixture` | |
+| `ADO-MySQL` | `MySqlFixture` | |
+| `ADO-Sqlite` | `SqliteFixture` | `DisableParallelization = true` |
+| `Dapper-SqlServer` | `SqlServerFixture` | |
+| `Dapper-PostgreSQL` | `PostgreSqlFixture` | |
+| `Dapper-MySQL` | `MySqlFixture` | |
+| `Dapper-Sqlite` | `SqliteFixture` | `DisableParallelization = true` |
+| `EFCore-SqlServer` | `EFCoreSqlServerFixture` | |
+| `EFCore-PostgreSQL` | `EFCorePostgreSqlFixture` | |
+| `EFCore-MySQL` | `EFCoreMySqlFixture` | |
+| `EFCore-Sqlite` | `EFCoreSqliteFixture` | `DisableParallelization = true` |
+
+**New test class template:**
+
+```csharp
+[Collection("ADO-PostgreSQL")]  // REQUIRED - shares fixture across all classes
+[Trait("Category", "Integration")]
+[Trait("Database", "PostgreSQL")]
+public class MyNewTests : IAsyncLifetime
+{
+    private readonly PostgreSqlFixture _fixture;
+
+    public MyNewTests(PostgreSqlFixture fixture) => _fixture = fixture;
+
+    public async Task InitializeAsync() => await _fixture.ClearAllDataAsync();
+    public Task DisposeAsync() => Task.CompletedTask;
+}
+```
+
+**Rules:**
+
+1. ❌ NEVER use `IClassFixture<T>` for database fixtures - always use `[Collection]`
+2. ❌ NEVER call `new SqlServerFixture()` or `_fixture = new()` - inject via constructor
+3. ❌ NEVER call `_fixture.DisposeAsync()` from tests - the collection owns the lifecycle
+4. ✅ Use `_fixture.ClearAllDataAsync()` in `InitializeAsync()` for data cleanup
+5. ✅ Use `_fixture.CreateConnection()` for shared connections (but NEVER dispose them for SQLite)
+
+**SQLite special rules** (shared in-memory DB):
+
+- `CreateConnection()` returns the SAME shared connection object
+- NEVER wrap it in `using`/`await using`
+- NEVER pass it to wrappers that dispose (like `SchemaValidatingConnection`)
+- When a disposable connection is needed, create: `new SqliteConnection(_fixture.ConnectionString)`
+
+See [Integration Test Container Strategy](docs/testing/integration-tests.md#collection-fixture-strategy) for full details.
+
 #### Test Organization
 
 ```
 tests/
-├── Encina.UnitTests/          # Consolidated unit tests (~4,600 tests)
+├── Encina.UnitTests/          # Consolidated unit tests (9,164 tests as of v0.12.0-dev, Feb 2026)
 │   ├── ADO/
 │   ├── AspNetCore/
 │   ├── Caching/
@@ -604,10 +661,10 @@ tests/
 │   ├── EntityFrameworkCore/
 │   ├── Messaging/
 │   └── ...
-├── Encina.IntegrationTests/   # Consolidated integration tests (~710 tests)
-├── Encina.PropertyTests/      # Property-based tests (~485 tests)
-├── Encina.ContractTests/      # Contract tests (~400 tests)
-├── Encina.GuardTests/         # Guard clause tests (~300 tests)
+├── Encina.IntegrationTests/   # Consolidated integration tests (2,251 tests)
+├── Encina.PropertyTests/      # Property-based tests (352 tests)
+├── Encina.ContractTests/      # Contract tests (247 tests)
+├── Encina.GuardTests/         # Guard clause tests (1,037 tests)
 ├── Encina.LoadTests/          # Load testing harness
 ├── Encina.NBomber/            # NBomber scenarios
 ├── Encina.BenchmarkTests/     # BenchmarkDotNet benchmarks

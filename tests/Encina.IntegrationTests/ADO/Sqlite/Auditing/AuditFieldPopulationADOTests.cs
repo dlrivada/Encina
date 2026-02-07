@@ -17,10 +17,10 @@ namespace Encina.IntegrationTests.ADO.Sqlite.Auditing;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-[Collection("SqliteSerial")]
+[Collection("ADO-Sqlite")]
 public class AuditFieldPopulationADOTests : IAsyncLifetime
 {
-    private readonly SqliteFixture _fixture = new();
+    private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;
     private FunctionalRepositoryADO<AuditableProduct, Guid> _repository = null!;
     private FunctionalRepositoryADO<AuditableProduct, Guid> _repositoryWithAudit = null!;
@@ -32,8 +32,9 @@ public class AuditFieldPopulationADOTests : IAsyncLifetime
     private static readonly DateTimeOffset FixedTime = new(2024, 7, 20, 14, 45, 0, TimeSpan.Zero);
     private const string TestUserId = "ado-test-user-789";
 
-    public AuditFieldPopulationADOTests()
+    public AuditFieldPopulationADOTests(SqliteFixture fixture)
     {
+        _fixture = fixture;
         _fakeTimeProvider = new FakeTimeProvider(FixedTime);
         _mockRequestContext = Substitute.For<IRequestContext>();
         _mockRequestContext.UserId.Returns(TestUserId);
@@ -41,8 +42,6 @@ public class AuditFieldPopulationADOTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         // Create test schema
         if (_fixture.CreateConnection() is SqliteConnection schemaConnection)
         {
@@ -89,10 +88,10 @@ public class AuditFieldPopulationADOTests : IAsyncLifetime
             _fakeTimeProvider);
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
-        _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        // Do NOT dispose _connection - it's the shared SQLite in-memory connection owned by the fixture.
+        return Task.CompletedTask;
     }
 
     private static async Task CreateAuditableProductsSchemaAsync(SqliteConnection connection)

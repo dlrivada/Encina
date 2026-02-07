@@ -35,7 +35,7 @@ public sealed class ImmutableUpdatesPostgreSqlTests : IAsyncLifetime
     public async Task UpdateImmutable_ModifiedEntity_PersistsChangesToDatabase()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
 
         var id = Guid.NewGuid();
         var originalOrder = new TestImmutableOrder(id) { CustomerName = "John Doe", Status = "Pending" };
@@ -53,7 +53,7 @@ public sealed class ImmutableUpdatesPostgreSqlTests : IAsyncLifetime
         await context.SaveChangesAsync();
 
         // Verify changes persisted
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var stored = await verifyContext.Orders.FindAsync(id);
         stored.ShouldNotBeNull();
         stored!.Status.ShouldBe("Shipped");
@@ -63,7 +63,7 @@ public sealed class ImmutableUpdatesPostgreSqlTests : IAsyncLifetime
     public async Task UpdateImmutable_PreservesDomainEvents()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
 
         var id = Guid.NewGuid();
         var originalOrder = new TestImmutableOrder(id) { CustomerName = "Jane Doe", Status = "Pending" };
@@ -88,7 +88,7 @@ public sealed class ImmutableUpdatesPostgreSqlTests : IAsyncLifetime
     public async Task UpdateImmutable_UntrackedEntity_ReturnsError()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
 
         var entity = new TestImmutableOrder(Guid.NewGuid()) { CustomerName = "Test", Status = "New" };
 
@@ -109,7 +109,7 @@ public sealed class ImmutableUpdatesPostgreSqlTests : IAsyncLifetime
     public async Task UpdateImmutable_DetachesOriginalAndAttachesModified()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
 
         var id = Guid.NewGuid();
         var originalOrder = new TestImmutableOrder(id) { CustomerName = "Original", Status = "Pending" };

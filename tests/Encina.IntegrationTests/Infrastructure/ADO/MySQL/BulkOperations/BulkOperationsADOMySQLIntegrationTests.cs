@@ -23,7 +23,8 @@ namespace Encina.IntegrationTests.Infrastructure.ADO.MySQL.BulkOperations;
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.MySQL")]
 [Trait("Feature", "BulkOperations")]
-public sealed class BulkOperationsADOMySQLIntegrationTests : IClassFixture<MySqlFixture>, IAsyncLifetime, IDisposable
+[Collection("ADO-MySQL")]
+public sealed class BulkOperationsADOMySQLIntegrationTests : IAsyncLifetime, IDisposable
 {
     private readonly MySqlFixture _fixture;
     private MySqlConnection? _connection;
@@ -37,8 +38,6 @@ public sealed class BulkOperationsADOMySQLIntegrationTests : IClassFixture<MySql
 
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         // Create connection with AllowLoadLocalInfile for MySqlBulkLoader
         var connectionStringBuilder = new MySqlConnectionStringBuilder(_fixture.ConnectionString)
         {
@@ -62,7 +61,6 @@ public sealed class BulkOperationsADOMySQLIntegrationTests : IClassFixture<MySql
         {
             await _connection.DisposeAsync();
         }
-        await _fixture.DisposeAsync();
     }
 
     public void Dispose()

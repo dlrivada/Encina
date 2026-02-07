@@ -14,20 +14,24 @@ namespace Encina.IntegrationTests.ADO.Sqlite.Outbox;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.Sqlite")]
-public sealed class OutboxStoreADOTests : IClassFixture<SqliteFixture>
+[Collection("ADO-Sqlite")]
+public sealed class OutboxStoreADOTests : IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
-    private readonly OutboxStoreADO _store;
+    private OutboxStoreADO _store = null!;
 
     public OutboxStoreADOTests(SqliteFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new OutboxStoreADO(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 

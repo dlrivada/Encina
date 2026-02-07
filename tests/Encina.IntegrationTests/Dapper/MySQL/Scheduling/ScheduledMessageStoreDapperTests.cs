@@ -9,21 +9,25 @@ namespace Encina.IntegrationTests.Dapper.MySQL.Scheduling;
 /// Integration tests for <see cref="ScheduledMessageStoreDapper"/>.
 /// Tests against real MySQL database via Testcontainers with proper cleanup.
 /// </summary>
+[Collection("Dapper-MySQL")]
 [Trait("Category", "Integration")]
-public sealed class ScheduledMessageStoreDapperTests : IClassFixture<MySqlFixture>
+public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
 {
     private readonly MySqlFixture _database;
-    private readonly ScheduledMessageStoreDapper _store;
+    private ScheduledMessageStoreDapper _store = null!;
 
     public ScheduledMessageStoreDapperTests(MySqlFixture database)
     {
         _database = database;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _database.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _database.ClearAllDataAsync();
         _store = new ScheduledMessageStoreDapper(_database.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidMessage_ShouldPersist()

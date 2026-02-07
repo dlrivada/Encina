@@ -18,10 +18,10 @@ public sealed class SagaStoreDapper : ISagaStore
     /// Initializes a new instance of the <see cref="SagaStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
-    /// <param name="tableName">The saga state table name (default: SagaStates).</param>
+    /// <param name="tableName">The saga state table name (default: sagastates).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> or <paramref name="tableName"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is empty or whitespace.</exception>
-    public SagaStoreDapper(IDbConnection connection, string tableName = "SagaStates")
+    public SagaStoreDapper(IDbConnection connection, string tableName = "sagastates")
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
@@ -35,9 +35,9 @@ public sealed class SagaStoreDapper : ISagaStore
             throw new ArgumentException(StoreValidationMessages.SagaIdCannotBeEmpty, nameof(sagaId));
 
         var sql = $@"
-            SELECT *
+            SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc
             FROM {_tableName}
-            WHERE SagaId = @SagaId";
+            WHERE sagaid = @SagaId";
 
         return await _connection.QuerySingleOrDefaultAsync<SagaState>(sql, new { SagaId = sagaId });
     }
@@ -49,7 +49,7 @@ public sealed class SagaStoreDapper : ISagaStore
 
         var sql = $@"
             INSERT INTO {_tableName}
-            (SagaId, SagaType, Data, Status, StartedAtUtc, LastUpdatedAtUtc, CompletedAtUtc, ErrorMessage, CurrentStep, TimeoutAtUtc)
+            (sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc)
             VALUES
             (@SagaId, @SagaType, @Data, @Status, @StartedAtUtc, @LastUpdatedAtUtc, @CompletedAtUtc, @ErrorMessage, @CurrentStep, @TimeoutAtUtc)";
 
@@ -63,15 +63,15 @@ public sealed class SagaStoreDapper : ISagaStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET SagaType = @SagaType,
-                Data = @Data,
-                Status = @Status,
-                LastUpdatedAtUtc = NOW() AT TIME ZONE 'UTC',
-                CompletedAtUtc = @CompletedAtUtc,
-                ErrorMessage = @ErrorMessage,
-                CurrentStep = @CurrentStep,
-                TimeoutAtUtc = @TimeoutAtUtc
-            WHERE SagaId = @SagaId";
+            SET sagatype = @SagaType,
+                data = @Data,
+                status = @Status,
+                lastupdatedatutc = NOW() AT TIME ZONE 'UTC',
+                completedatutc = @CompletedAtUtc,
+                errormessage = @ErrorMessage,
+                currentstep = @CurrentStep,
+                timeoutatutc = @TimeoutAtUtc
+            WHERE sagaid = @SagaId";
 
         await _connection.ExecuteAsync(sql, sagaState);
     }
@@ -90,11 +90,12 @@ public sealed class SagaStoreDapper : ISagaStore
         var thresholdUtc = DateTime.UtcNow.Subtract(olderThan);
 
         var sql = $@"
-            SELECT TOP (@BatchSize) *
+            SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc
             FROM {_tableName}
-            WHERE (Status = @Running OR Status = @Compensating)
-              AND LastUpdatedAtUtc < @ThresholdUtc
-            ORDER BY LastUpdatedAtUtc";
+            WHERE (status = @Running OR status = @Compensating)
+              AND lastupdatedatutc < @ThresholdUtc
+            ORDER BY lastupdatedatutc
+            LIMIT @BatchSize";
 
         var sagas = await _connection.QueryAsync<SagaState>(
             sql,
@@ -118,12 +119,12 @@ public sealed class SagaStoreDapper : ISagaStore
             throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
 
         var sql = $@"
-            SELECT *
+            SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc
             FROM {_tableName}
-            WHERE (Status = @Running OR Status = @Compensating)
-              AND TimeoutAtUtc IS NOT NULL
-              AND TimeoutAtUtc <= NOW() AT TIME ZONE 'UTC'
-            ORDER BY TimeoutAtUtc
+            WHERE (status = @Running OR status = @Compensating)
+              AND timeoutatutc IS NOT NULL
+              AND timeoutatutc <= NOW() AT TIME ZONE 'UTC'
+            ORDER BY timeoutatutc
             LIMIT @BatchSize";
 
         var sagas = await _connection.QueryAsync<SagaState>(

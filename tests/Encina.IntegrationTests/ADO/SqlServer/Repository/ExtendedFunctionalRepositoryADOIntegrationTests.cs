@@ -15,17 +15,21 @@ namespace Encina.IntegrationTests.ADO.SqlServer.Repository;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
+[Collection("ADO-SqlServer")]
 public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 {
-    private readonly SqlServerFixture _fixture = new();
+    private readonly SqlServerFixture _fixture;
     private IDbConnection _connection = null!;
     private FunctionalRepositoryADO<ExtendedTestItem, Guid> _repository = null!;
     private IEntityMapping<ExtendedTestItem, Guid> _mapping = null!;
 
+    public ExtendedFunctionalRepositoryADOIntegrationTests(SqlServerFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         using var schemaConnection = _fixture.CreateConnection() as SqlConnection;
         if (schemaConnection != null)
         {
@@ -51,7 +55,7 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private static async Task CreateExtendedTestItemsSchemaAsync(SqlConnection connection)

@@ -41,7 +41,7 @@ public sealed class GuardsIntegrationTests
         // Arrange
         var services = new ServiceCollection();
         services.AddEncina();
-        services.AddTransient<ICommandHandler<ValidateUserCommand, Guid>, ValidateUserHandler>();
+        services.AddTransient<IRequestHandler<ValidateUserCommand, Guid>, ValidateUserHandler>();
 
         var provider = services.BuildServiceProvider();
         var Encina = provider.GetRequiredService<IEncina>();
@@ -60,7 +60,7 @@ public sealed class GuardsIntegrationTests
         // Arrange
         var services = new ServiceCollection();
         services.AddEncina();
-        services.AddTransient<ICommandHandler<ValidateUserCommand, Guid>, ValidateUserHandler>();
+        services.AddTransient<IRequestHandler<ValidateUserCommand, Guid>, ValidateUserHandler>();
 
         var provider = services.BuildServiceProvider();
         var Encina = provider.GetRequiredService<IEncina>();
@@ -80,7 +80,7 @@ public sealed class GuardsIntegrationTests
         // Arrange
         var services = new ServiceCollection();
         services.AddEncina();
-        services.AddTransient<ICommandHandler<ValidateUserCommand, Guid>, ValidateUserHandler>();
+        services.AddTransient<IRequestHandler<ValidateUserCommand, Guid>, ValidateUserHandler>();
 
         var provider = services.BuildServiceProvider();
         var Encina = provider.GetRequiredService<IEncina>();

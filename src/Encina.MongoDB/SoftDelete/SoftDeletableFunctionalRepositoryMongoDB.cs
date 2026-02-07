@@ -305,6 +305,110 @@ public sealed class SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        PaginationOptions pagination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(pagination);
+
+        try
+        {
+            var filter = _filterBuilder.BuildSoftDeleteFilter();
+
+            // Get total count with soft delete filter
+            var totalCount = (int)await _collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            if (totalCount == 0)
+            {
+                return Right<EncinaError, PagedResult<TEntity>>(
+                    PagedResult<TEntity>.Empty(pagination.PageNumber, pagination.PageSize));
+            }
+
+            // Get paged data
+            var entities = await _collection.Find(filter)
+                .Skip(pagination.Skip)
+                .Limit(pagination.PageSize)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            return Right<EncinaError, PagedResult<TEntity>>(
+                new PagedResult<TEntity>(entities, pagination.PageNumber, pagination.PageSize, totalCount));
+        }
+        catch (MongoException ex)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(MapMongoException(ex, "GetPaged"));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        Specification<TEntity> specification,
+        PaginationOptions pagination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(pagination);
+
+        try
+        {
+            var filter = _filterBuilder.BuildFilter(specification);
+
+            // Get total count with specification filter (includes soft delete)
+            var totalCount = (int)await _collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            if (totalCount == 0)
+            {
+                return Right<EncinaError, PagedResult<TEntity>>(
+                    PagedResult<TEntity>.Empty(pagination.PageNumber, pagination.PageSize));
+            }
+
+            // Get paged data with specification filter
+            var entities = await _collection.Find(filter)
+                .Skip(pagination.Skip)
+                .Limit(pagination.PageSize)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            return Right<EncinaError, PagedResult<TEntity>>(
+                new PagedResult<TEntity>(entities, pagination.PageNumber, pagination.PageSize, totalCount));
+        }
+        catch (NotSupportedException ex)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(
+                RepositoryErrors.InvalidOperation<TEntity>("GetPaged", $"Specification not supported: {ex.Message}"));
+        }
+        catch (MongoException ex)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(MapMongoException(ex, "GetPaged"));
+        }
+    }
+
+    /// <inheritdoc/>
+    public Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        IPagedSpecification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+
+        // Convert IPagedSpecification to Specification and PaginationOptions
+        if (specification is not Specification<TEntity> baseSpecification)
+        {
+            return Task.FromResult<Either<EncinaError, PagedResult<TEntity>>>(
+                RepositoryErrors.InvalidOperation<TEntity>(
+                    "GetPaged",
+                    $"IPagedSpecification must inherit from Specification<{typeof(TEntity).Name}> for MongoDB providers"));
+        }
+
+        var pagination = new PaginationOptions(
+            specification.Pagination.PageNumber,
+            specification.Pagination.PageSize);
+
+        return GetPagedAsync(baseSpecification, pagination, cancellationToken);
+    }
+
     #endregion
 
     #region Write Operations

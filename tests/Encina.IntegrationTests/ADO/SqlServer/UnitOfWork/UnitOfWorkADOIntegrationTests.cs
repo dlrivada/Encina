@@ -16,19 +16,23 @@ namespace Encina.IntegrationTests.ADO.SqlServer.UnitOfWork;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
+[Collection("ADO-SqlServer")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable", Justification = "Disposal handled by IAsyncLifetime.DisposeAsync")]
 public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
 {
-    private readonly SqlServerFixture _fixture = new();
+    private readonly SqlServerFixture _fixture;
     private IDbConnection _connection = null!;
     private UnitOfWorkADO _unitOfWork = null!;
     private IServiceProvider _serviceProvider = null!;
     private IEntityMapping<TestADOProduct, Guid> _mapping = null!;
 
+    public UnitOfWorkADOIntegrationTests(SqlServerFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         // Create the test schema
         using var schemaConnection = _fixture.CreateConnection() as SqlConnection;
         if (schemaConnection != null)
@@ -50,7 +54,7 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
     {
         await _unitOfWork.DisposeAsync();
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private static async Task CreateTestProductsSchemaAsync(SqlConnection connection)
@@ -356,9 +360,10 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
         getResult.IsRight.ShouldBeTrue();
 
         // From a separate connection, data should NOT be visible (uncommitted)
+        // Use READPAST hint to skip locked rows instead of blocking
         using var separateConnection = _fixture.CreateConnection();
         var outsideCount = await separateConnection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM TestADOProducts WHERE Id = @Id",
+            "SELECT COUNT(*) FROM TestADOProducts WITH (READPAST) WHERE Id = @Id",
             new { entity.Id });
         outsideCount.ShouldBe(0);
 

@@ -36,10 +36,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
 
     #region Default Configuration Tests
 
-    [SkippableFact]
+    [Fact]
     public void MongoReadWriteSeparationOptions_DefaultValues_ShouldBeCorrect()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange & Act
         var options = new MongoReadWriteSeparationOptions();
@@ -52,10 +51,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         options.MaxStaleness.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public void EncinaMongoDbOptions_DefaultValues_ShouldBeCorrect()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange & Act
         var options = new EncinaMongoDbOptions();
@@ -70,10 +68,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
 
     #region Read Preference Configuration Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithPrimaryReadPreference_ShouldApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -88,10 +85,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadPreference.ReadPreferenceMode.ShouldBe(ReadPreferenceMode.Primary);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithPrimaryPreferredReadPreference_ShouldApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -106,10 +102,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadPreference.ReadPreferenceMode.ShouldBe(ReadPreferenceMode.PrimaryPreferred);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithSecondaryReadPreference_ShouldApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -124,10 +119,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadPreference.ReadPreferenceMode.ShouldBe(ReadPreferenceMode.Secondary);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithSecondaryPreferredReadPreference_ShouldApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -142,10 +136,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadPreference.ReadPreferenceMode.ShouldBe(ReadPreferenceMode.SecondaryPreferred);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithNearestReadPreference_ShouldApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -164,10 +157,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
 
     #region Read Concern Configuration Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithDefaultReadConcern_ShouldApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -182,10 +174,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadConcern.ShouldBe(ReadConcern.Default);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithLocalReadConcern_ShouldApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -200,10 +191,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadConcern.ShouldBe(ReadConcern.Local);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithMajorityReadConcern_ShouldApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -218,10 +208,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadConcern.ShouldBe(ReadConcern.Majority);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithLinearizableReadConcern_ShouldApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -236,10 +225,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadConcern.ShouldBe(ReadConcern.Linearizable);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithAvailableReadConcern_ShouldApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -254,10 +242,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadConcern.ShouldBe(ReadConcern.Available);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithSnapshotReadConcern_ShouldApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -276,10 +263,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
 
     #region MaxStaleness Configuration Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithMaxStaleness_ShouldApplyToNonPrimaryPreferences()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange - MongoDB requires minimum 90 seconds for maxStaleness
         var maxStaleness = TimeSpan.FromSeconds(120);
@@ -296,10 +282,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadPreference.MaxStaleness.ShouldBe(maxStaleness);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithMaxStaleness_AndPrimaryPreference_ShouldNotApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange - MaxStaleness is not valid with Primary read preference
         var maxStaleness = TimeSpan.FromSeconds(120);
@@ -316,10 +301,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadPreference.MaxStaleness.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithNullMaxStaleness_ShouldNotSetMaxStaleness()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -335,10 +319,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadPreference.MaxStaleness.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WithMaxStalenessOnNearest_ShouldApply()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var maxStaleness = TimeSpan.FromSeconds(180);
@@ -359,10 +342,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
 
     #region Combined Configuration Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_CombinedReadPreferenceAndConcern_ShouldApplyBoth()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateFactory(options =>
@@ -379,10 +361,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         collection.Settings.ReadConcern.ShouldBe(ReadConcern.Local);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_AllOptionsSet_ShouldApplyAll()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var maxStaleness = TimeSpan.FromSeconds(150);
@@ -408,10 +389,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
 
     #region Write Collection Configuration Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_WriteCollection_ShouldAlwaysUsePrimary_RegardlessOfOptions()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange - Configure with non-primary read preference
         var factory = CreateFactory(options =>
@@ -431,10 +411,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
 
     #region Enum Coverage Tests
 
-    [SkippableFact]
+    [Fact]
     public void MongoReadPreference_AllEnumValues_ShouldBeValid()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Assert - All enum values are defined
         var values = Enum.GetValues<MongoReadPreference>();
@@ -446,10 +425,9 @@ public sealed class ConfigurationValidationMongoDBIntegrationTests
         values.Length.ShouldBe(5);
     }
 
-    [SkippableFact]
+    [Fact]
     public void MongoReadConcern_AllEnumValues_ShouldBeValid()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Assert - All enum values are defined
         var values = Enum.GetValues<MongoReadConcern>();

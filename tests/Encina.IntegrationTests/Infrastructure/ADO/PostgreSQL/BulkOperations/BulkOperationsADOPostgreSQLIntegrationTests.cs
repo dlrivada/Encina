@@ -8,8 +8,6 @@ using Npgsql;
 using Shouldly;
 using Xunit;
 
-using HashSet = System.Collections.Generic.HashSet<string>;
-
 namespace Encina.IntegrationTests.Infrastructure.ADO.PostgreSQL.BulkOperations;
 
 /// <summary>
@@ -23,66 +21,88 @@ namespace Encina.IntegrationTests.Infrastructure.ADO.PostgreSQL.BulkOperations;
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.PostgreSQL")]
 [Trait("Feature", "BulkOperations")]
-public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IClassFixture<PostgreSqlFixture>, IAsyncLifetime
+[Collection("ADO-PostgreSQL")]
+public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IAsyncLifetime
 {
     private readonly PostgreSqlFixture _fixture;
-    private IDbConnection _connection = null!;
+    private readonly string _tableName;
+    private NpgsqlConnection _connection = null!;
     private BulkOperationsPostgreSQL<BulkTestOrder, Guid> _bulkOps = null!;
 
     public BulkOperationsADOPostgreSQLIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        _tableName = $"BulkTestOrders_{Guid.NewGuid():N}";
     }
 
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-        _connection = _fixture.CreateConnection();
+        _connection = _fixture.CreateConnection() as NpgsqlConnection
+            ?? throw new InvalidOperationException("Expected NpgsqlConnection");
+
+        if (_connection.State != ConnectionState.Open)
+        {
+            await _connection.OpenAsync();
+        }
 
         // Create test table
         await CreateBulkTestTableAsync();
 
-        // Create entity mapping
-        var mapping = new BulkTestOrderMapping();
+        // Ensure clean state for each test
+        await TruncateTableAsync();
+
+        // Create entity mapping and bulk operations
+        var mapping = new BulkTestOrderMapping(_tableName);
         _bulkOps = new BulkOperationsPostgreSQL<BulkTestOrder, Guid>(_connection, mapping);
     }
 
     public async Task DisposeAsync()
     {
         await DropBulkTestTableAsync();
-        _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        if (_connection is not null)
+        {
+            await _connection.DisposeAsync();
+        }
+    }
+
+    private string GetQuotedTableName()
+    {
+        return $"\"{_tableName}\"";
     }
 
     private async Task CreateBulkTestTableAsync()
     {
-        const string sql = """
-            DROP TABLE IF EXISTS "BulkTestOrders";
-
-            CREATE TABLE "BulkTestOrders" (
-                "Id" UUID PRIMARY KEY,
-                "CustomerName" TEXT NOT NULL,
-                "Amount" NUMERIC(18,2) NOT NULL,
-                "IsActive" BOOLEAN NOT NULL,
-                "CreatedAtUtc" TIMESTAMP NOT NULL
+        var sql = $"""
+            CREATE TABLE IF NOT EXISTS {GetQuotedTableName()} (
+                "Id" uuid PRIMARY KEY,
+                "CustomerName" text NOT NULL,
+                "Amount" numeric(18,2) NOT NULL,
+                "IsActive" boolean NOT NULL,
+                "CreatedAtUtc" timestamptz NOT NULL
             );
             """;
 
-        if (_connection is NpgsqlConnection npgsqlConnection)
-        {
-            await using var command = npgsqlConnection.CreateCommand();
-            command.CommandText = sql;
-            await command.ExecuteNonQueryAsync();
-        }
+        await using var command = _connection.CreateCommand();
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private async Task TruncateTableAsync()
+    {
+        var sql = $"""TRUNCATE TABLE {GetQuotedTableName()};""";
+
+        await using var command = _connection.CreateCommand();
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync();
     }
 
     private async Task DropBulkTestTableAsync()
     {
-        const string sql = """DROP TABLE IF EXISTS "BulkTestOrders";""";
+        var sql = $"""DROP TABLE IF EXISTS {GetQuotedTableName()};""";
 
-        if (_connection.State == ConnectionState.Open && _connection is NpgsqlConnection npgsqlConnection)
+        if (_connection.State == ConnectionState.Open)
         {
-            await using var command = npgsqlConnection.CreateCommand();
+            await using var command = _connection.CreateCommand();
             command.CommandText = sql;
             await command.ExecuteNonQueryAsync();
         }
@@ -90,14 +110,10 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IClassFixture<
 
     private async Task<int> GetRowCountAsync()
     {
-        if (_connection is NpgsqlConnection npgsqlConnection)
-        {
-            await using var command = npgsqlConnection.CreateCommand();
-            command.CommandText = """SELECT COUNT(*) FROM "BulkTestOrders" """;
-            var result = await command.ExecuteScalarAsync();
-            return Convert.ToInt32(result, CultureInfo.InvariantCulture);
-        }
-        return 0;
+        await using var command = _connection.CreateCommand();
+        command.CommandText = $"""SELECT COUNT(*) FROM {GetQuotedTableName()} """;
+        var result = await command.ExecuteScalarAsync();
+        return Convert.ToInt32(result, CultureInfo.InvariantCulture);
     }
 
     private static List<BulkTestOrder> CreateOrders(int count)
@@ -193,7 +209,7 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IClassFixture<
     {
         // Arrange
         var orders = CreateOrders(250);
-        var config = BulkConfig.Default with { BatchSize = 50 };
+        var config = new BulkConfig { BatchSize = 50 };
 
         // Act
         var result = await _bulkOps.BulkInsertAsync(orders, config);
@@ -201,6 +217,54 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IClassFixture<
         // Assert
         result.IsRight.ShouldBeTrue();
         result.IfRight(count => count.ShouldBe(250));
+    }
+
+    [Fact]
+    public async Task BulkInsertAsync_ConcurrentTasks_InsertsAllSuccessfully()
+    {
+        // Arrange
+        var batchA = CreateOrders(50);
+        var batchB = CreateOrders(50);
+
+        await using var connectionA = _fixture.CreateConnection() as NpgsqlConnection
+            ?? throw new InvalidOperationException("Expected NpgsqlConnection");
+        await using var connectionB = _fixture.CreateConnection() as NpgsqlConnection
+            ?? throw new InvalidOperationException("Expected NpgsqlConnection");
+
+        if (connectionA.State != ConnectionState.Open)
+        {
+            await connectionA.OpenAsync();
+        }
+
+        if (connectionB.State != ConnectionState.Open)
+        {
+            await connectionB.OpenAsync();
+        }
+
+        var mapping = new BulkTestOrderMapping(_tableName);
+        var bulkOpsA = new BulkOperationsPostgreSQL<BulkTestOrder, Guid>(connectionA, mapping);
+        var bulkOpsB = new BulkOperationsPostgreSQL<BulkTestOrder, Guid>(connectionB, mapping);
+
+        // Act
+        var results = await Task.WhenAll(
+            bulkOpsA.BulkInsertAsync(batchA),
+            bulkOpsB.BulkInsertAsync(batchB)
+        );
+
+        // Assert
+        results.Length.ShouldBe(2);
+        results.All(r => r.IsRight).ShouldBeTrue();
+
+        var total = 0;
+        foreach (var result in results)
+        {
+            result.IfRight(count => total += count);
+        }
+
+        total.ShouldBe(100);
+
+        var rowCount = await GetRowCountAsync();
+        rowCount.ShouldBe(100);
     }
 
     #endregion
@@ -250,8 +314,8 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IClassFixture<
         await _bulkOps.BulkInsertAsync(orders);
 
         var idsToRead = orders.Take(3).Select(o => (object)o.Id).ToList();
-        idsToRead.Add(Guid.NewGuid()); // Non-existing ID
-        idsToRead.Add(Guid.NewGuid()); // Another non-existing ID
+        idsToRead.Add(Guid.NewGuid());
+        idsToRead.Add(Guid.NewGuid());
 
         // Act
         var result = await _bulkOps.BulkReadAsync(idsToRead);
@@ -286,7 +350,6 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IClassFixture<
         var orders = CreateOrders(10);
         await _bulkOps.BulkInsertAsync(orders);
 
-        // Modify entities
         foreach (var order in orders)
         {
             order.CustomerName = $"Updated_{order.CustomerName}";
@@ -303,7 +366,6 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IClassFixture<
         );
         updateCount.ShouldBe(10);
 
-        // Verify updates persisted
         var readResult = await _bulkOps.BulkReadAsync(orders.Select(o => (object)o.Id).ToList());
         readResult.IfRight(entities =>
         {
@@ -394,13 +456,11 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IClassFixture<
         var existingOrders = CreateOrders(5);
         await _bulkOps.BulkInsertAsync(existingOrders);
 
-        // Modify existing orders
         foreach (var order in existingOrders)
         {
             order.CustomerName = $"Merged_{order.CustomerName}";
         }
 
-        // Add new orders
         var newOrders = CreateOrders(5);
         var allOrders = existingOrders.Concat(newOrders).ToList();
 
@@ -412,7 +472,7 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IClassFixture<
             Right: count => count,
             Left: error => throw new InvalidOperationException($"BulkMerge failed: {error.Message}")
         );
-        mergeCount.ShouldBe(10); // 5 updates + 5 inserts
+        mergeCount.ShouldBe(10);
 
         var rowCount = await GetRowCountAsync();
         rowCount.ShouldBe(10);
@@ -437,10 +497,9 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IClassFixture<
 
         await _bulkOps.BulkInsertAsync([order]);
 
-        // Try to insert the same order again
         var duplicateOrder = new BulkTestOrder
         {
-            Id = order.Id, // Same ID
+            Id = order.Id,
             CustomerName = "Duplicate",
             Amount = 200m,
             IsActive = false,
@@ -462,7 +521,7 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IClassFixture<
 /// <summary>
 /// Test entity for bulk operations integration tests.
 /// </summary>
-public class BulkTestOrder
+public sealed class BulkTestOrder
 {
     public Guid Id { get; set; }
     public string CustomerName { get; set; } = string.Empty;
@@ -474,10 +533,21 @@ public class BulkTestOrder
 /// <summary>
 /// Entity mapping for BulkTestOrder.
 /// </summary>
-public class BulkTestOrderMapping : IEntityMapping<BulkTestOrder, Guid>
+public sealed class BulkTestOrderMapping : IEntityMapping<BulkTestOrder, Guid>
 {
-    public string TableName => "\"BulkTestOrders\"";
+    private readonly string _tableName;
+
+    public BulkTestOrderMapping(string tableName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        _tableName = tableName;
+    }
+
+    public string TableName => _tableName;
     public string IdColumnName => "Id";
+#pragma warning disable CA1822 // Mark members as static - Interface implementation cannot be static
+    public string SchemaName => "public";
+#pragma warning restore CA1822
 
     public IReadOnlyDictionary<string, string> ColumnMappings { get; } = new Dictionary<string, string>
     {
@@ -490,8 +560,41 @@ public class BulkTestOrderMapping : IEntityMapping<BulkTestOrder, Guid>
 
     public Guid GetId(BulkTestOrder entity) => entity.Id;
 
-    public IReadOnlySet<string> InsertExcludedProperties { get; } = new HashSet();
-    public IReadOnlySet<string> UpdateExcludedProperties { get; } = new HashSet { "Id", "CreatedAtUtc" };
+#pragma warning disable CA1822 // Mark members as static - Interface implementation cannot be static
+    public void SetId(BulkTestOrder entity, Guid id) => entity.Id = id;
+#pragma warning restore CA1822
+
+    public IReadOnlySet<string> InsertExcludedProperties { get; } = new System.Collections.Generic.HashSet<string>();
+    public IReadOnlySet<string> UpdateExcludedProperties { get; } = new System.Collections.Generic.HashSet<string> { "Id", "CreatedAtUtc" };
+
+#pragma warning disable CA1822 // Mark members as static - Interface implementation cannot be static
+    public object? GetPropertyValue(BulkTestOrder entity, string propertyName)
+    {
+        return propertyName switch
+        {
+            "Id" => entity.Id,
+            "CustomerName" => entity.CustomerName,
+            "Amount" => entity.Amount,
+            "IsActive" => entity.IsActive,
+            "CreatedAtUtc" => entity.CreatedAtUtc,
+            _ => throw new ArgumentException($"Unknown property: {propertyName}", nameof(propertyName))
+        };
+    }
+#pragma warning restore CA1822
+
+#pragma warning disable CA1822 // Mark members as static - Interface implementation cannot be static
+    public BulkTestOrder CreateEntity(IReadOnlyDictionary<string, object?> values)
+    {
+        return new BulkTestOrder
+        {
+            Id = (Guid)values["Id"]!,
+            CustomerName = (string)values["CustomerName"]!,
+            Amount = (decimal)values["Amount"]!,
+            IsActive = (bool)values["IsActive"]!,
+            CreatedAtUtc = (DateTime)values["CreatedAtUtc"]!
+        };
+    }
+#pragma warning restore CA1822
 }
 
 #endregion

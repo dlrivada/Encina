@@ -1,6 +1,5 @@
 using Encina.DistributedLock;
 using Encina.DistributedLock.InMemory;
-using Encina.Testing.Time;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -46,9 +45,10 @@ public class InMemoryDistributedLockProviderTests
     [Fact]
     public async Task TryAcquireAsync_WhenResourceAlreadyLocked_ShouldReturnNull()
     {
-        // Arrange
-        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var provider = CreateProvider(fakeTime);
+        // Arrange - use real TimeProvider so the wait deadline actually elapses
+        // (FakeTimeProvider would cause an infinite loop since GetUtcNow() never advances
+        // but Task.Delay uses real time)
+        var provider = CreateProvider();
         var resource = "test-resource";
 
         await using var firstLock = await provider.TryAcquireAsync(
@@ -59,7 +59,6 @@ public class InMemoryDistributedLockProviderTests
             CancellationToken.None);
 
         // Act - second attempt will fail because resource is already locked
-        // Use very short timeouts since Task.Delay still uses real time
         var secondLock = await provider.TryAcquireAsync(
             resource,
             TimeSpan.FromMinutes(1),

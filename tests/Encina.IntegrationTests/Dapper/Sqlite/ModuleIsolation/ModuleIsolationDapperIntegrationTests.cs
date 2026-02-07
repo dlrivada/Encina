@@ -22,9 +22,10 @@ namespace Encina.IntegrationTests.Dapper.Sqlite.ModuleIsolation;
 /// validation logic, and SQL pattern validation for Dapper operations.
 /// </para>
 /// </remarks>
+[Collection("Dapper-Sqlite")]
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-public class ModuleIsolationDapperIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
+public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private SqliteConnection _connection = null!;
@@ -118,15 +119,26 @@ public class ModuleIsolationDapperIntegrationTests : IClassFixture<SqliteFixture
     private SchemaValidatingConnection CreateSchemaValidatingConnection(string moduleName)
     {
         _moduleContext.SetCurrentModule(moduleName);
-        var innerConnection = (_fixture.CreateConnection() as SqliteConnection)!;
+        // Create a NEW independent connection to the same shared in-memory DB.
+        // SchemaValidatingConnection will dispose the inner connection on Dispose(),
+        // so we must NOT give it the fixture's shared connection.
+        var innerConnection = new SqliteConnection(_fixture.ConnectionString);
+        innerConnection.Open();
         return new SchemaValidatingConnection(innerConnection, _moduleContext, _schemaRegistry, _isolationOptions);
     }
 
     private ModuleAwareConnectionFactory CreateModuleAwareConnectionFactory(string moduleName)
     {
         _moduleContext.SetCurrentModule(moduleName);
+        // Create NEW independent connections - the factory/wrapper may dispose them,
+        // so we must NOT give it the fixture's shared connection.
         return new ModuleAwareConnectionFactory(
-            () => (_fixture.CreateConnection() as SqliteConnection)!,
+            () =>
+            {
+                var conn = new SqliteConnection(_fixture.ConnectionString);
+                conn.Open();
+                return conn;
+            },
             _moduleContext,
             _schemaRegistry,
             _isolationOptions);

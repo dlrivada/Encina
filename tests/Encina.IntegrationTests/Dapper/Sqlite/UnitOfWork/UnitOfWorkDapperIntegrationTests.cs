@@ -13,10 +13,11 @@ namespace Encina.IntegrationTests.Dapper.Sqlite.UnitOfWork;
 /// <summary>
 /// Integration tests for <see cref="UnitOfWorkDapper"/> using real SQLite.
 /// </summary>
+[Collection("Dapper-Sqlite")]
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable", Justification = "Disposal handled by test cleanup")]
-public class UnitOfWorkDapperIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
+public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;

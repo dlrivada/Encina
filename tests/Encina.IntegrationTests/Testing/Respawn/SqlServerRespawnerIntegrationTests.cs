@@ -11,7 +11,8 @@ namespace Encina.IntegrationTests.Testing.Respawn;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "SqlServer")]
-public sealed class SqlServerRespawnerIntegrationTests : IClassFixture<SqlServerFixture>, IAsyncLifetime, IDisposable
+[Collection("ADO-SqlServer")]
+public sealed class SqlServerRespawnerIntegrationTests : IAsyncLifetime, IDisposable
 {
     private readonly SqlServerFixture _fixture;
     private SqlServerRespawner _respawner = null!;
@@ -215,7 +216,7 @@ public sealed class SqlServerRespawnerIntegrationTests : IClassFixture<SqlServer
             {
                 SagaId = Guid.NewGuid(),
                 SagaType = "TestSaga",
-                CurrentStep = "Step1",
+                CurrentStep = 1,
                 Status = "InProgress",
                 Data = "{}",
                 StartedAtUtc = DateTime.UtcNow,
@@ -224,8 +225,8 @@ public sealed class SqlServerRespawnerIntegrationTests : IClassFixture<SqlServer
 
         // Insert ScheduledMessage
         await connection.ExecuteAsync("""
-            INSERT INTO ScheduledMessages (Id, RequestType, Content, ScheduledAtUtc, RetryCount)
-            VALUES (@Id, @RequestType, @Content, @ScheduledAtUtc, @RetryCount)
+            INSERT INTO ScheduledMessages (Id, RequestType, Content, ScheduledAtUtc, RetryCount, CreatedAtUtc)
+            VALUES (@Id, @RequestType, @Content, @ScheduledAtUtc, @RetryCount, @CreatedAtUtc)
             """,
             new
             {
@@ -233,7 +234,8 @@ public sealed class SqlServerRespawnerIntegrationTests : IClassFixture<SqlServer
                 RequestType = "TestScheduledRequest",
                 Content = "{}",
                 ScheduledAtUtc = DateTime.UtcNow.AddHours(1),
-                RetryCount = 0
+                RetryCount = 0,
+                CreatedAtUtc = DateTime.UtcNow
             });
     }
 

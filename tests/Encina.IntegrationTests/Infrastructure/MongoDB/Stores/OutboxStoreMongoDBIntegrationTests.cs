@@ -41,10 +41,9 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var store = CreateStore();
@@ -69,10 +68,9 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         stored.RetryCount.ShouldBe(0);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_MultipleMessages_ShouldPersistAll()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var store = CreateStore();
@@ -97,10 +95,9 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         count.ShouldBe(5);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetPendingMessagesAsync_ShouldReturnUnprocessedOnly()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -148,10 +145,9 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         messageList.ShouldNotContain(m => m.Id == processed.Id);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetPendingMessagesAsync_ShouldRespectBatchSize()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -175,10 +171,9 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         pending.Count().ShouldBe(5);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetPendingMessagesAsync_ShouldExcludeMaxRetriedMessages()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -203,10 +198,9 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         messages.ShouldBeEmpty();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetPendingMessagesAsync_ShouldOrderByCreatedAtUtc()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -242,10 +236,9 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         messages[1].Id.ShouldBe(newer.Id);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetPendingMessagesAsync_WithNextRetryInFuture_ShouldExcludeMessage()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -271,10 +264,9 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         messages.ShouldBeEmpty();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetPendingMessagesAsync_WithNextRetryInPast_ShouldIncludeMessage()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -301,10 +293,9 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         messages.First().Id.ShouldBe(pastRetry.Id);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MarkAsProcessedAsync_ShouldUpdateTimestamp()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -331,10 +322,9 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         updated!.ProcessedAtUtc.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MarkAsFailedAsync_ShouldUpdateErrorAndRetryInfo()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -364,10 +354,9 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         updated.NextRetryAtUtc!.Value.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConcurrentWrites_ShouldNotCorruptData()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange & Act
         var tasks = Enumerable.Range(0, 10).Select(async i =>

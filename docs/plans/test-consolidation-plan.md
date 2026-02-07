@@ -12,11 +12,11 @@ Consolidar ~210 proyectos de test individuales en 7 proyectos consolidados + Tes
 
 ```text
 tests/
-├── Encina.UnitTests/           # 65 → 1 (~4,600 tests)
-├── Encina.IntegrationTests/    # 31 → 1 (~710 tests)
-├── Encina.PropertyTests/       # 30 → 1 (~485 tests)
-├── Encina.ContractTests/       # 28 → 1 (~400 tests)
-├── Encina.GuardTests/          # 20 → 1 (~300 tests)
+├── Encina.UnitTests/           # 65 → 1 (9,164 tests as of v0.12.0-dev, Feb 2026)
+├── Encina.IntegrationTests/    # 31 → 1 (2,251 tests as of v0.12.0-dev, Feb 2026)
+├── Encina.PropertyTests/       # 30 → 1 (352 tests as of v0.12.0-dev, Feb 2026)
+├── Encina.ContractTests/       # 28 → 1 (247 tests as of v0.12.0-dev, Feb 2026)
+├── Encina.GuardTests/          # 20 → 1 (1,037 tests as of v0.12.0-dev, Feb 2026)
 ├── Encina.LoadTests/           # Consolidado en tests/
 ├── Encina.NBomber/             # Consolidado en tests/
 ├── Encina.BenchmarkTests/      # Consolidado en tests/

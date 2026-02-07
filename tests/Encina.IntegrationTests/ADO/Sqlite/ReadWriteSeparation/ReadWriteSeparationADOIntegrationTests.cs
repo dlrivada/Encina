@@ -34,7 +34,8 @@ namespace Encina.IntegrationTests.ADO.Sqlite.ReadWriteSeparation;
 /// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-public class ReadWriteSeparationADOIntegrationTests : ReadWriteSeparationTestsBase<SqliteFixture>, IClassFixture<SqliteFixture>
+[Collection("ADO-Sqlite")]
+public class ReadWriteSeparationADOIntegrationTests : ReadWriteSeparationTestsBase<SqliteFixture>
 {
     private readonly SqliteFixture _fixture;
     private ReadWriteConnectionFactory _connectionFactory = null!;
@@ -247,7 +248,8 @@ public class ReadWriteSeparationADOIntegrationTests : ReadWriteSeparationTestsBa
     {
         try
         {
-            using var connection = (SqliteConnection)_fixture.CreateConnection();
+            // Don't use 'using' - SqliteFixture returns its shared connection
+            var connection = (SqliteConnection)_fixture.CreateConnection();
             await TenancySchema.ClearTenancyDataAsync(connection);
         }
         catch

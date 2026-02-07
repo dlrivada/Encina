@@ -14,20 +14,24 @@ namespace Encina.IntegrationTests.ADO.MySQL.Outbox;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.MySQL")]
-public sealed class OutboxStoreADOTests : IClassFixture<MySqlFixture>
+[Collection("ADO-MySQL")]
+public sealed class OutboxStoreADOTests : IAsyncLifetime
 {
     private readonly MySqlFixture _fixture;
-    private readonly OutboxStoreADO _store;
+    private OutboxStoreADO _store = null!;
 
     public OutboxStoreADOTests(MySqlFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new OutboxStoreADO(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 

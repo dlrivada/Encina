@@ -84,10 +84,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
 
     #region DatabaseRoutingScope Tests
 
-    [SkippableFact]
+    [Fact]
     public void DatabaseRoutingScope_WithReadIntent_ShouldSetCorrectIntent()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         DatabaseRoutingContext.Clear();
@@ -105,10 +104,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         DatabaseRoutingContext.IsEnabled.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public void DatabaseRoutingScope_WithWriteIntent_ShouldSetCorrectIntent()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         DatabaseRoutingContext.Clear();
@@ -125,10 +123,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         DatabaseRoutingContext.CurrentIntent.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public void DatabaseRoutingScope_WithForceWriteIntent_ShouldSetCorrectIntent()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         DatabaseRoutingContext.Clear();
@@ -145,10 +142,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         DatabaseRoutingContext.CurrentIntent.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public void DatabaseRoutingScope_NestedScopes_ShouldRestorePreviousIntent()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         DatabaseRoutingContext.Clear();
@@ -172,10 +168,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         DatabaseRoutingContext.CurrentIntent.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public void DatabaseRoutingScope_ForRead_ShouldCreateReadScope()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         DatabaseRoutingContext.Clear();
@@ -188,10 +183,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         DatabaseRoutingContext.CurrentIntent.ShouldBe(DatabaseIntent.Read);
     }
 
-    [SkippableFact]
+    [Fact]
     public void DatabaseRoutingScope_ForWrite_ShouldCreateWriteScope()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         DatabaseRoutingContext.Clear();
@@ -204,10 +198,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         DatabaseRoutingContext.CurrentIntent.ShouldBe(DatabaseIntent.Write);
     }
 
-    [SkippableFact]
+    [Fact]
     public void DatabaseRoutingScope_ForForceWrite_ShouldCreateForceWriteScope()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         DatabaseRoutingContext.Clear();
@@ -224,10 +217,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
 
     #region DatabaseRoutingContext Tests
 
-    [SkippableFact]
+    [Fact]
     public void DatabaseRoutingContext_IsReadIntent_ShouldReturnTrueOnlyForRead()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Test Read
         DatabaseRoutingContext.CurrentIntent = DatabaseIntent.Read;
@@ -246,10 +238,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         DatabaseRoutingContext.IsReadIntent.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public void DatabaseRoutingContext_IsWriteIntent_ShouldReturnTrueForWriteOrForceWriteOrNull()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Test Write
         DatabaseRoutingContext.CurrentIntent = DatabaseIntent.Write;
@@ -268,10 +259,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         DatabaseRoutingContext.IsWriteIntent.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public void DatabaseRoutingContext_EffectiveIntent_ShouldDefaultToWrite()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Test null defaults to Write
         DatabaseRoutingContext.CurrentIntent = null;
@@ -285,10 +275,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         DatabaseRoutingContext.EffectiveIntent.ShouldBe(DatabaseIntent.ForceWrite);
     }
 
-    [SkippableFact]
+    [Fact]
     public void DatabaseRoutingContext_HasIntent_ShouldReturnTrueWhenSet()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Test with no intent
         DatabaseRoutingContext.CurrentIntent = null;
@@ -299,10 +288,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         DatabaseRoutingContext.HasIntent.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void DatabaseRoutingContext_Clear_ShouldResetAllState()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange - Set state
         DatabaseRoutingContext.CurrentIntent = DatabaseIntent.Read;
@@ -320,10 +308,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
 
     #region Pipeline Behavior Intent Determination Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task PipelineBehavior_WithCommand_ShouldSetWriteIntent()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -348,10 +335,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         capturedIntent.ShouldBe(DatabaseIntent.Write);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task PipelineBehavior_WithQuery_ShouldSetReadIntent()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -376,10 +362,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         capturedIntent.ShouldBe(DatabaseIntent.Read);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task PipelineBehavior_WithForceWriteQuery_ShouldSetForceWriteIntent()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -404,10 +389,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         capturedIntent.ShouldBe(DatabaseIntent.ForceWrite);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task PipelineBehavior_ShouldRestoreContextAfterExecution()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -430,10 +414,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         DatabaseRoutingContext.CurrentIntent.ShouldBe(initialIntent);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task PipelineBehavior_ShouldRestoreContextEvenOnException()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -467,10 +450,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
 
     #region Collection Factory Integration with Routing Context Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task CollectionFactory_WithReadContext_ShouldUseConfiguredReadPreference()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateCollectionFactory();
@@ -484,10 +466,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
             .ShouldBe(ReadPreferenceMode.SecondaryPreferred);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CollectionFactory_WithWriteContext_ShouldUsePrimaryReadPreference()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateCollectionFactory();
@@ -500,10 +481,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         collection.Settings.ReadPreference.ShouldBe(ReadPreference.Primary);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CollectionFactory_WithForceWriteContext_ShouldUsePrimaryReadPreference()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var factory = CreateCollectionFactory();
@@ -520,10 +500,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
 
     #region Async Context Flow Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task DatabaseRoutingContext_ShouldFlowAcrossAsyncBoundaries()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         DatabaseRoutingContext.Clear();
@@ -540,10 +519,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         capturedIntent.ShouldBe(DatabaseIntent.Read);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DatabaseRoutingContext_ShouldIsolateAcrossTasks()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         DatabaseRoutingContext.Clear();
@@ -576,10 +554,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
 
     #region ForceWriteDatabaseAttribute Tests
 
-    [SkippableFact]
+    [Fact]
     public void ForceWriteDatabaseAttribute_ShouldBeDetectedOnQueryClass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var queryType = typeof(TestForceWriteQuery);
@@ -593,10 +570,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         hasAttribute.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void ForceWriteDatabaseAttribute_ShouldNotBeOnRegularQuery()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var queryType = typeof(TestQuery);
@@ -610,10 +586,9 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         hasAttribute.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public void ForceWriteDatabaseAttribute_Reason_ShouldBeAccessible()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var queryType = typeof(TestForceWriteQuery);

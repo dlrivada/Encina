@@ -41,10 +41,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var store = CreateStore();
@@ -69,10 +68,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         stored.Content.ShouldBe("{\"userId\":123}");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetDueMessagesAsync_ShouldReturnOnlyDueMessages()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -110,10 +108,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         messageList.First().Id.ShouldBe(dueMessage.Id);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetDueMessagesAsync_ShouldExcludeProcessedMessages()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -140,10 +137,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         messages.ShouldBeEmpty();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetDueMessagesAsync_ShouldRespectBatchSize()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -168,10 +164,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         dueMessages.Count().ShouldBe(5);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetDueMessagesAsync_ShouldRespectMaxRetries()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -197,10 +192,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         messages.ShouldBeEmpty();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MarkAsProcessedAsync_ShouldUpdateTimestamps()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -228,10 +222,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         updated.LastExecutedAtUtc.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MarkAsFailedAsync_ShouldUpdateErrorAndRetryInfo()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -262,10 +255,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         updated.NextRetryAtUtc!.Value.ShouldBe(nextRetry, TimeSpan.FromSeconds(1));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task RescheduleRecurringMessageAsync_ShouldResetForNextExecution()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -301,10 +293,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         updated.NextRetryAtUtc.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CancelAsync_ShouldDeleteMessage()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -331,10 +322,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         cancelled.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task RecurringMessage_IsRecurringFlag_ShouldBePersisted()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var store = CreateStore();
@@ -360,10 +350,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         stored.CronExpression.ShouldBe("0 9 * * *");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetDueMessagesAsync_WithNextRetryInFuture_ShouldExcludeMessage()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -390,10 +379,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         messages.ShouldBeEmpty();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetDueMessagesAsync_WithNextRetryInPast_ShouldIncludeMessage()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -421,10 +409,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         messages.First().Id.ShouldBe(pastRetry.Id);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetDueMessagesAsync_ShouldOrderByScheduledAtUtc()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -462,10 +449,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         messages[1].Id.ShouldBe(newer.Id);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConcurrentScheduledMessageCreation_ShouldNotCorruptData()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange & Act
         var tasks = Enumerable.Range(0, 10).Select(async i =>
@@ -498,10 +484,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task TimeBoundaryCondition_ExactlyDueMessage_ShouldBeIncluded()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();

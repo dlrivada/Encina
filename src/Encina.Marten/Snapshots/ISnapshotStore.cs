@@ -16,10 +16,11 @@ public interface ISnapshotStore<TAggregate>
     /// <param name="aggregateId">The aggregate identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
-    /// Either an error or the snapshot if found.
-    /// Returns Right(null) if no snapshot exists (not an error condition).
+    /// Either an error or an optional snapshot.
+    /// Returns Right(None) if no snapshot exists (not an error condition).
+    /// Returns Right(Some(snapshot)) if a snapshot is found.
     /// </returns>
-    Task<Either<EncinaError, Snapshot<TAggregate>?>> GetLatestAsync(
+    Task<Either<EncinaError, Option<Snapshot<TAggregate>>>> GetLatestAsync(
         Guid aggregateId,
         CancellationToken cancellationToken = default);
 
@@ -30,10 +31,11 @@ public interface ISnapshotStore<TAggregate>
     /// <param name="maxVersion">The maximum version to retrieve.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
-    /// Either an error or the snapshot if found.
-    /// Returns Right(null) if no snapshot exists at or before the specified version.
+    /// Either an error or an optional snapshot.
+    /// Returns Right(None) if no snapshot exists at or before the specified version.
+    /// Returns Right(Some(snapshot)) if a snapshot is found.
     /// </returns>
-    Task<Either<EncinaError, Snapshot<TAggregate>?>> GetAtVersionAsync(
+    Task<Either<EncinaError, Option<Snapshot<TAggregate>>>> GetAtVersionAsync(
         Guid aggregateId,
         int maxVersion,
         CancellationToken cancellationToken = default);

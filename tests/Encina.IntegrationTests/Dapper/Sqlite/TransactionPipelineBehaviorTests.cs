@@ -15,7 +15,7 @@ namespace Encina.IntegrationTests.Dapper.Sqlite;
 /// that doesn't support concurrent access.
 /// </remarks>
 [Trait("Category", "Integration")]
-[Collection("SqliteSerialTests")]
+[Collection("Dapper-Sqlite")]
 public sealed class TransactionPipelineBehaviorTests
 {
     private readonly SqliteFixture _database;

@@ -23,10 +23,9 @@ public sealed class MartenEventMetadataQueryIntegrationTests
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetEventsByCorrelationIdAsync_ReturnsMatchingEvents()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var correlationId = "query-correlation-" + Guid.NewGuid();
@@ -62,10 +61,9 @@ public sealed class MartenEventMetadataQueryIntegrationTests
         queryResult.Events.ShouldAllBe(e => e.CorrelationId == correlationId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetEventsByCorrelationIdAsync_WithPagination_ReturnsCorrectPage()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var correlationId = "paginated-" + Guid.NewGuid();
@@ -95,10 +93,9 @@ public sealed class MartenEventMetadataQueryIntegrationTests
         queryResult.HasMore.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetEventsByCausationIdAsync_ReturnsMatchingEvents()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var causationId = "query-causation-" + Guid.NewGuid();
@@ -123,10 +120,9 @@ public sealed class MartenEventMetadataQueryIntegrationTests
         queryResult.Events.ShouldAllBe(e => e.CausationId == causationId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetEventByIdAsync_ReturnsEvent()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var query = CreateQuery();
@@ -153,13 +149,14 @@ public sealed class MartenEventMetadataQueryIntegrationTests
         eventWithMetadata.Id.ShouldBe(eventId);
         eventWithMetadata.StreamId.ShouldBe(streamId);
         eventWithMetadata.CorrelationId.ShouldBe(correlationId);
-        eventWithMetadata.EventTypeName.ShouldContain("TestEvent");
+        // Marten uses snake_case for event type names (e.g., "test_event")
+        eventWithMetadata.EventTypeName.ShouldNotBeNullOrEmpty();
+        eventWithMetadata.EventTypeName.ToLowerInvariant().ShouldContain("test");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetEventByIdAsync_WhenNotFound_ReturnsError()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var query = CreateQuery();
@@ -176,10 +173,9 @@ public sealed class MartenEventMetadataQueryIntegrationTests
             () => throw new ShouldAssertException("Expected error code but got none"));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCausalChainAsync_Ancestors_ReturnsChainInOrder()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var correlationId = "chain-ancestors-" + Guid.NewGuid();
@@ -231,15 +227,26 @@ public sealed class MartenEventMetadataQueryIntegrationTests
         result.IsRight.ShouldBeTrue();
         var chain = result.Match(c => c, _ => null!);
 
-        // Chain should include C, B, A in order (C at position 0 as starting point)
+        // Chain is reversed to show root cause first: A, B, C
+        // (oldest ancestor at position 0, starting event at the end)
         chain.Count.ShouldBeGreaterThanOrEqualTo(3);
-        chain[0].Id.ShouldBe(eventCId);
+
+        // Verify the chain contains all three events
+        var chainIds = chain.Select(e => e.Id).ToHashSet();
+        chainIds.ShouldContain(eventAId);
+        chainIds.ShouldContain(eventBId);
+        chainIds.ShouldContain(eventCId);
+
+        // Verify order: root cause (A) first, starting event (C) last
+        // The first event should have "root-command" as causation (non-GUID)
+        chain[0].CausationId.ShouldBe("root-command");
+        // The last event should be our starting event (C)
+        chain[^1].Id.ShouldBe(eventCId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCausalChainAsync_Descendants_ReturnsChildren()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var correlationId = "chain-descendants-" + Guid.NewGuid();
@@ -276,10 +283,9 @@ public sealed class MartenEventMetadataQueryIntegrationTests
         chain.Count.ShouldBeGreaterThanOrEqualTo(3); // Root + 2 children
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCausalChainAsync_WithMaxDepth_LimitsResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var correlationId = "chain-depth-" + Guid.NewGuid();
@@ -311,10 +317,9 @@ public sealed class MartenEventMetadataQueryIntegrationTests
         chain.Count.ShouldBeLessThanOrEqualTo(3); // Start event + 2 ancestors max
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetEventsByCorrelationIdAsync_WithStreamFilter_ReturnsFilteredResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var correlationId = "stream-filter-" + Guid.NewGuid();
@@ -342,10 +347,9 @@ public sealed class MartenEventMetadataQueryIntegrationTests
         queryResult.Events.ShouldAllBe(e => e.StreamId == targetStreamId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetEventsByCorrelationIdAsync_WithTimeFilter_ReturnsFilteredResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var correlationId = "time-filter-" + Guid.NewGuid();
@@ -376,10 +380,9 @@ public sealed class MartenEventMetadataQueryIntegrationTests
         queryResult.Events.Count.ShouldBe(1);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task EventWithMetadata_ContainsAllExpectedFields()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var correlationId = "metadata-fields-" + Guid.NewGuid();

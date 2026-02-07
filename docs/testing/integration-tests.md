@@ -120,18 +120,174 @@ Connection strings are defined in `tests/appsettings.Testing.json`:
 
 > **Note**: Oracle XE requires accepting the Oracle license agreement and has significantly longer startup time.
 
+## Collection Fixture Strategy
+
+### Problem: Docker Container Explosion
+
+Without shared fixtures, each test class creates its own Docker container instance. With ~84 database integration test classes running in parallel, this means ~71 simultaneous containers, causing:
+
+- Docker resource exhaustion (`io_setup() failed with EAGAIN`)
+- `TimeoutException` during container startup
+- SQL Server login failures under heavy parallel load
+- Intermittent test failures that pass when run in isolation
+
+### Solution: Shared xUnit Collection Fixtures
+
+xUnit `[CollectionDefinition]` + `ICollectionFixture<T>` shares ONE fixture instance (and thus one Docker container) across ALL test classes in the same collection. This reduces containers from ~71 to ~23 (68% reduction).
+
+### Collection Definitions
+
+Collections are defined in `Collections.cs` files at the root of each provider directory:
+
+| File | Collections Defined |
+| ---- | ------------------- |
+| `tests/Encina.IntegrationTests/ADO/Collections.cs` | `ADO-SqlServer`, `ADO-PostgreSQL`, `ADO-MySQL`, `ADO-Sqlite` |
+| `tests/Encina.IntegrationTests/Dapper/Collections.cs` | `Dapper-SqlServer`, `Dapper-PostgreSQL`, `Dapper-MySQL`, `Dapper-Sqlite` |
+| `tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCore/Collections.cs` | `EFCore-SqlServer`, `EFCore-PostgreSQL`, `EFCore-MySQL`, `EFCore-Sqlite` |
+
+### Expected Container Count
+
+| Database | ADO | Dapper | EFCore | Other | Total |
+| -------- | --- | ------ | ------ | ----- | ----- |
+| SqlServer | 1 | 1 | 1 | 2 (Concurrency) | 5 |
+| PostgreSQL | 1 | 1 | 1 | 1 (Marten) | 4 |
+| MySQL | 1 | 1 | 1 | - | 3 |
+| SQLite | 0 | 0 | 0 | - | 0 (in-memory) |
+| MongoDB | - | - | - | 2 | 2 |
+| Redis | - | - | - | 1 | 1 |
+| Messaging | - | - | - | ~5 | ~5 |
+| **Total** | **3** | **3** | **3** | **~11** | **~20-23** |
+
+### How to Write a New Integration Test Class
+
+**Step 1**: Choose the correct collection for your provider + database combination.
+
+**Step 2**: Add `[Collection("...")]` and inject the fixture via constructor.
+
+**Step 3**: Use `IAsyncLifetime` for per-test setup/teardown.
+
+```csharp
+[Collection("ADO-PostgreSQL")]  // Shares the PostgreSQL container with all other ADO PostgreSQL tests
+[Trait("Category", "Integration")]
+[Trait("Database", "PostgreSQL")]
+public class MyNewStoreTests : IAsyncLifetime
+{
+    private readonly PostgreSqlFixture _fixture;
+    private MyStore _store = null!;
+
+    public MyNewStoreTests(PostgreSqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Clean data from previous test class (shared fixture = shared DB)
+        await _fixture.ClearAllDataAsync();
+
+        // Create your store using the fixture's connection
+        _store = new MyStore(_fixture.CreateConnection());
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    [Fact]
+    public async Task MyTest()
+    {
+        // Use _store...
+    }
+}
+```
+
+### Rules (Mandatory)
+
+1. **Always use `[Collection]`**: Never use `IClassFixture<T>` or `new()` for database fixtures. The collection manages the fixture lifecycle.
+
+2. **Never dispose the fixture**: Do not call `_fixture.DisposeAsync()` from tests. The xUnit collection runner calls it once after ALL test classes in the collection have finished.
+
+3. **Clean data, not schema**: Use `_fixture.ClearAllDataAsync()` in `InitializeAsync()` to remove data from previous tests. The schema (tables) persists for the lifetime of the collection.
+
+4. **Use the correct traits**: Always include both `[Trait("Category", "Integration")]` and `[Trait("Database", "...")]` for filtering.
+
+### SQLite Special Rules
+
+SQLite uses `Mode=Memory;Cache=Shared` with a unique database name per fixture instance. The fixture's `CreateConnection()` returns the **same shared connection object** (not a new one). Disposing this connection destroys the in-memory database for ALL test classes in the collection.
+
+**Critical rules:**
+
+- ❌ **NEVER** dispose a connection obtained from `_fixture.CreateConnection()`
+- ❌ **NEVER** wrap it in `using` or `await using`
+- ❌ **NEVER** pass it to wrappers that call `Dispose()` on the inner connection (e.g., `SchemaValidatingConnection`, `ModuleAwareConnectionFactory`, `DatabaseHealthCheck` with `using var connection = ...`)
+- ✅ Store it in a field and use it without disposing
+- ✅ When you need a **disposable** connection (for wrappers, health checks, etc.), create a new independent one:
+
+```csharp
+// WRONG - this disposes the shared connection, destroying the in-memory DB
+await using var connection = _fixture.CreateConnection();  // ❌
+
+// WRONG - the wrapper will dispose the shared connection
+var inner = _fixture.CreateConnection();
+await using var wrapper = new SchemaValidatingConnection(inner, ...);  // ❌
+
+// CORRECT - store without disposing
+_connection = _fixture.CreateConnection();  // ✅
+
+// CORRECT - create independent connection for disposable scenarios
+var independent = new SqliteConnection(_fixture.ConnectionString);
+independent.Open();
+await using var wrapper = new SchemaValidatingConnection(independent, ...);  // ✅
+```
+
+**Why `DisableParallelization = true`?** SQLite collections disable parallel execution because all test classes share a single in-memory database. Parallel writes from different classes would cause data corruption and non-deterministic test results.
+
+### Adding a New Collection
+
+If you need a new collection (e.g., for a new database provider or a specialized fixture):
+
+1. Add the `[CollectionDefinition]` class to the appropriate `Collections.cs` file
+2. Use a descriptive name following the pattern: `{Provider}-{Database}` (e.g., `ADO-Oracle`)
+3. For in-memory databases, add `DisableParallelization = true`
+4. Update this document's container count table
+
+```csharp
+// In the appropriate Collections.cs file
+[CollectionDefinition("ADO-Oracle")]
+[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
+    Justification = "xUnit requires collection types to end with 'Collection'")]
+public class ADOOracleCollection : ICollectionFixture<OracleFixture>
+{
+}
+```
+
+### Running Tests by Database Group
+
+For clean results without Docker contention, run tests by database group:
+
+```bash
+# These groups run independently with zero failures
+dotnet test tests/Encina.IntegrationTests --filter "Database=Sqlite|Provider=ADO.Sqlite|Provider=Dapper.Sqlite"
+dotnet test tests/Encina.IntegrationTests --filter "Database=PostgreSQL"
+dotnet test tests/Encina.IntegrationTests --filter "Database=MySQL"
+dotnet test tests/Encina.IntegrationTests --filter "Database=SqlServer"
+```
+
+> **Note**: Running ALL groups simultaneously may cause intermittent SqlServer fixture initialization failures due to Docker container startup contention. This is a known Docker limitation, not a code issue. All tests pass when run by database group.
+
+---
+
 ## Test Organization
 
 ### Test Categories
 
-Integration tests use xUnit traits for categorization:
+Integration tests use xUnit traits and collections for categorization:
 
 ```csharp
+[Collection("ADO-SqlServer")]
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
-public class OutboxStoreSqlServerIntegrationTests
+public class OutboxStoreSqlServerIntegrationTests : IAsyncLifetime
 {
-    // Tests run against real SQL Server in Docker
+    // Tests share a single SQL Server Docker container via the collection fixture
 }
 ```
 

@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <ProjectCapability Remove="TestContainer" />
+  </ItemGroup>
+
   <PropertyGroup>
     <PackageId>Encina.Testing.TUnit</PackageId>
     <VersionPrefix>0.1.0</VersionPrefix>
@@ -12,8 +16,11 @@
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <IncludeSymbols>false</IncludeSymbols>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- Disable VSTest SDK - TUnit uses Microsoft.Testing.Platform -->
+    <!-- This is a library, not a test application -->
+    <OutputType>Library</OutputType>
     <IsTestProject>false</IsTestProject>
+    <!-- Disable MTP test discovery capabilities that TUnit injects -->
+    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
     <!-- Enable NativeAOT compatibility -->
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>

@@ -33,8 +33,7 @@ public sealed class InboxStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new InboxStoreEF(context);
 
         var message = new InboxMessage
@@ -51,7 +50,7 @@ public sealed class InboxStoreEFPostgreSqlTests : IAsyncLifetime
         await store.SaveChangesAsync();
 
         // Assert
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var stored = await verifyContext.Set<InboxMessage>().FindAsync(message.MessageId);
         stored.ShouldNotBeNull();
         stored!.RequestType.ShouldBe("TestRequest");
@@ -61,8 +60,7 @@ public sealed class InboxStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task GetMessageAsync_ExistingMessage_ShouldReturnMessage()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new InboxStoreEF(context);
 
         var messageId = Guid.NewGuid().ToString();
@@ -90,8 +88,7 @@ public sealed class InboxStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task MarkAsProcessedAsync_ShouldUpdateTimestamp()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new InboxStoreEF(context);
 
         var messageId = Guid.NewGuid().ToString();
@@ -112,7 +109,7 @@ public sealed class InboxStoreEFPostgreSqlTests : IAsyncLifetime
         await store.SaveChangesAsync();
 
         // Assert
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var updated = await verifyContext.Set<InboxMessage>().FindAsync(messageId);
         updated!.ProcessedAtUtc.ShouldNotBeNull();
         updated.Response.ShouldBe("{\"result\":\"success\"}");

@@ -35,8 +35,7 @@ public sealed class EntityFrameworkCoreHealthCheckPostgreSqlTests : IAsyncLifeti
     public async Task CheckHealthAsync_WhenDatabaseIsRunning_ReturnsHealthy()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
 
         using var serviceProvider = CreateServiceProvider(context);
         var healthCheck = new EntityFrameworkCoreHealthCheck(serviceProvider, null);
@@ -53,8 +52,7 @@ public sealed class EntityFrameworkCoreHealthCheckPostgreSqlTests : IAsyncLifeti
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
 
         var options = new ProviderHealthCheckOptions { Name = "my-custom-efcore-postgresql" };
         using var serviceProvider = CreateServiceProvider(context);
@@ -72,8 +70,7 @@ public sealed class EntityFrameworkCoreHealthCheckPostgreSqlTests : IAsyncLifeti
     public async Task Tags_ContainsExpectedValues()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
 
         using var serviceProvider = CreateServiceProvider(context);
         var healthCheck = new EntityFrameworkCoreHealthCheck(serviceProvider, null);

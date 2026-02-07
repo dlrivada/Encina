@@ -39,10 +39,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
 
     #region Service Registration Tests
 
-    [SkippableFact]
+    [Fact]
     public void AddEncinaMongoDB_WithReadWriteSeparationEnabled_ShouldRegisterCollectionFactory()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -63,10 +62,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
         factory.ShouldBeOfType<ReadWriteMongoCollectionFactory>();
     }
 
-    [SkippableFact]
+    [Fact]
     public void AddEncinaMongoDB_WithReadWriteSeparationEnabled_ShouldRegisterHealthCheck()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -86,10 +84,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
         healthChecks.ShouldContain(h => h is ReadWriteMongoHealthCheck);
     }
 
-    [SkippableFact]
+    [Fact]
     public void AddEncinaMongoDB_WithReadWriteSeparationEnabled_ShouldRegisterPipelineBehavior()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -115,10 +112,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
         descriptor.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public void AddEncinaMongoDB_WithReadWriteSeparationEnabled_ShouldRegisterOptions()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -146,10 +142,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
         rwOptions.Value.ReadConcern.ShouldBe(MongoReadConcern.Local);
     }
 
-    [SkippableFact]
+    [Fact]
     public void AddEncinaMongoDB_WithReadWriteSeparationDisabled_ShouldNotRegisterCollectionFactory()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -169,10 +164,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
         factory.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public void AddEncinaMongoDB_WithReadWriteSeparationDisabled_ShouldNotRegisterRWHealthCheck()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -196,10 +190,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
 
     #region Service Resolution Tests
 
-    [SkippableFact]
+    [Fact]
     public void CollectionFactory_ShouldBeResolvableFromServiceProvider()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -220,10 +213,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
         factory.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CollectionFactory_ResolvedFromDI_ShouldWorkCorrectly()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -248,10 +240,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
             .ShouldBe(ReadPreferenceMode.SecondaryPreferred);
     }
 
-    [SkippableFact]
+    [Fact]
     public void HealthCheck_ShouldBeDiscoverableThroughDI()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -274,10 +265,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
         rwHealthCheck.Tags.ShouldContain("read-write-separation");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task HealthCheck_ResolvedFromDI_ShouldExecuteSuccessfully()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -306,10 +296,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
 
     #region MongoClient Registration Tests
 
-    [SkippableFact]
+    [Fact]
     public void AddEncinaMongoDB_ShouldRegisterMongoClient()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -328,10 +317,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
         client.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public void AddEncinaMongoDB_WithExistingClient_ShouldUseProvidedClient()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -355,10 +343,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
 
     #region Scoped Lifetime Tests
 
-    [SkippableFact]
+    [Fact]
     public void CollectionFactory_ShouldHaveScopedLifetime()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -391,10 +378,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
         // Note: Can't compare references as they're disposed, but this verifies scoped resolution works
     }
 
-    [SkippableFact]
+    [Fact]
     public void CollectionFactory_WithinSameScope_ShouldReturnSameInstance()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -420,10 +406,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
 
     #region Configuration Propagation Tests
 
-    [SkippableFact]
+    [Fact]
     public void Configuration_ShouldPropagateToAllServices()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var maxStaleness = TimeSpan.FromSeconds(120);
@@ -453,10 +438,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
         rwOptions.FallbackToPrimaryOnNoSecondaries.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Configuration_ShouldAffectCollectionBehavior()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -485,10 +469,9 @@ public sealed class ServiceRegistrationMongoDBIntegrationTests
 
     #region Multiple Feature Registration Tests
 
-    [SkippableFact]
+    [Fact]
     public void AddEncinaMongoDB_WithMultipleFeaturesEnabled_ShouldRegisterAll()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var services = new ServiceCollection();

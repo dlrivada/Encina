@@ -79,7 +79,9 @@ public static class SqlServerSchema
                     LastUpdatedAtUtc DATETIME2 NOT NULL,
                     CompletedAtUtc DATETIME2 NULL,
                     ErrorMessage NVARCHAR(MAX) NULL,
-                    TimeoutAtUtc DATETIME2 NULL
+                    TimeoutAtUtc DATETIME2 NULL,
+                    CorrelationId NVARCHAR(256) NULL,
+                    Metadata NVARCHAR(MAX) NULL
                 );
 
             CREATE INDEX IX_SagaStates_Status_LastUpdatedAtUtc
@@ -139,6 +141,7 @@ public static class SqlServerSchema
 
     /// <summary>
     /// Creates the TestRepositoryEntities table schema for repository integration tests.
+    /// Also creates Table-Valued Parameter (TVP) types for SQL Server bulk operations.
     /// </summary>
     public static async Task CreateRepositoryTestSchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
@@ -154,6 +157,109 @@ public static class SqlServerSchema
 
             CREATE INDEX IX_TestRepositoryEntities_IsActive
                 ON TestRepositoryEntities(IsActive);
+
+            -- TVP types for BulkOperations (drop existing types first)
+            IF TYPE_ID('dbo.TestRepositoryEntitiesType_Ids') IS NOT NULL
+                DROP TYPE dbo.TestRepositoryEntitiesType_Ids;
+            IF TYPE_ID('dbo.TestRepositoryEntitiesType_Update') IS NOT NULL
+                DROP TYPE dbo.TestRepositoryEntitiesType_Update;
+            IF TYPE_ID('dbo.TestRepositoryEntitiesType_Merge') IS NOT NULL
+                DROP TYPE dbo.TestRepositoryEntitiesType_Merge;
+
+            -- TVP type for BulkDelete and BulkRead (just Id column)
+            CREATE TYPE dbo.TestRepositoryEntitiesType_Ids AS TABLE (
+                Id UNIQUEIDENTIFIER NOT NULL
+            );
+
+            -- TVP type for BulkUpdate (PK first, then remaining columns alphabetically to match EF Core)
+            CREATE TYPE dbo.TestRepositoryEntitiesType_Update AS TABLE (
+                Id UNIQUEIDENTIFIER NOT NULL,
+                Amount DECIMAL(18,2) NOT NULL,
+                CreatedAtUtc DATETIME2 NOT NULL,
+                IsActive BIT NOT NULL,
+                Name NVARCHAR(200) NOT NULL
+            );
+
+            -- TVP type for BulkMerge (PK first, then remaining columns alphabetically to match EF Core)
+            CREATE TYPE dbo.TestRepositoryEntitiesType_Merge AS TABLE (
+                Id UNIQUEIDENTIFIER NOT NULL,
+                Amount DECIMAL(18,2) NOT NULL,
+                CreatedAtUtc DATETIME2 NOT NULL,
+                IsActive BIT NOT NULL,
+                Name NVARCHAR(200) NOT NULL
+            );
+
+            DROP TABLE IF EXISTS TestEntities;
+            CREATE TABLE TestEntities (
+                    Id UNIQUEIDENTIFIER PRIMARY KEY,
+                    Name NVARCHAR(200) NOT NULL,
+                    Amount DECIMAL(18,2) NOT NULL,
+                    IsActive BIT NOT NULL,
+                    CreatedAtUtc DATETIME2 NOT NULL
+                );
+
+            CREATE INDEX IX_TestEntities_IsActive
+                ON TestEntities(IsActive);
+
+            DROP TABLE IF EXISTS ImmutableAggregates;
+            CREATE TABLE ImmutableAggregates (
+                    Id UNIQUEIDENTIFIER PRIMARY KEY,
+                    Name NVARCHAR(200) NOT NULL,
+                    Amount DECIMAL(18,2) NOT NULL
+                );
+            """;
+
+        await ExecuteInTransactionAsync(connection, sql, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Creates the TenantTestEntities table schema for multi-tenancy integration tests.
+    /// </summary>
+    public static async Task CreateTenantTestSchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            DROP TABLE IF EXISTS TenantTestEntities;
+            CREATE TABLE TenantTestEntities (
+                    Id UNIQUEIDENTIFIER PRIMARY KEY,
+                    TenantId NVARCHAR(128) NOT NULL,
+                    Name NVARCHAR(200) NOT NULL,
+                    Description NVARCHAR(1000) NULL,
+                    Amount DECIMAL(18,2) NOT NULL,
+                    IsActive BIT NOT NULL DEFAULT 1,
+                    CreatedAtUtc DATETIME2 NOT NULL,
+                    UpdatedAtUtc DATETIME2 NULL
+                );
+
+            CREATE INDEX IX_TenantTestEntities_TenantId
+                ON TenantTestEntities(TenantId);
+
+            CREATE INDEX IX_TenantTestEntities_TenantId_IsActive
+                ON TenantTestEntities(TenantId, IsActive);
+
+            CREATE INDEX IX_TenantTestEntities_CreatedAtUtc
+                ON TenantTestEntities(CreatedAtUtc);
+            """;
+
+        await ExecuteInTransactionAsync(connection, sql, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Creates the ReadWriteTestEntities table schema for read/write separation tests.
+    /// </summary>
+    public static async Task CreateReadWriteTestSchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            DROP TABLE IF EXISTS ReadWriteTestEntities;
+            CREATE TABLE ReadWriteTestEntities (
+                    Id UNIQUEIDENTIFIER PRIMARY KEY,
+                    Name NVARCHAR(256) NOT NULL,
+                    Value INT NOT NULL,
+                    Timestamp DATETIME2 NOT NULL,
+                    WriteCounter INT NOT NULL DEFAULT 0
+                );
+
+            CREATE INDEX IX_ReadWriteTestEntities_Timestamp
+                ON ReadWriteTestEntities(Timestamp);
             """;
 
         await ExecuteInTransactionAsync(connection, sql, cancellationToken).ConfigureAwait(false);
@@ -165,8 +271,12 @@ public static class SqlServerSchema
     public static async Task DropAllSchemasAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
+            DROP TABLE IF EXISTS TenantTestEntities;
+            DROP TABLE IF EXISTS ReadWriteTestEntities;
             DROP TABLE IF EXISTS Orders;
             DROP TABLE IF EXISTS TestRepositoryEntities;
+            DROP TABLE IF EXISTS TestEntities;
+            DROP TABLE IF EXISTS ImmutableAggregates;
             DROP TABLE IF EXISTS ScheduledMessages;
             DROP TABLE IF EXISTS SagaStates;
             DROP TABLE IF EXISTS InboxMessages;
@@ -183,12 +293,16 @@ public static class SqlServerSchema
     public static async Task ClearAllDataAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
+            IF OBJECT_ID('TenantTestEntities', 'U') IS NOT NULL DELETE FROM TenantTestEntities;
+            IF OBJECT_ID('ReadWriteTestEntities', 'U') IS NOT NULL DELETE FROM ReadWriteTestEntities;
             IF OBJECT_ID('Orders', 'U') IS NOT NULL DELETE FROM Orders;
             IF OBJECT_ID('TestRepositoryEntities', 'U') IS NOT NULL DELETE FROM TestRepositoryEntities;
-            DELETE FROM ScheduledMessages;
-            DELETE FROM SagaStates;
-            DELETE FROM InboxMessages;
-            DELETE FROM OutboxMessages;
+            IF OBJECT_ID('TestEntities', 'U') IS NOT NULL DELETE FROM TestEntities;
+            IF OBJECT_ID('ImmutableAggregates', 'U') IS NOT NULL DELETE FROM ImmutableAggregates;
+            IF OBJECT_ID('ScheduledMessages', 'U') IS NOT NULL DELETE FROM ScheduledMessages;
+            IF OBJECT_ID('SagaStates', 'U') IS NOT NULL DELETE FROM SagaStates;
+            IF OBJECT_ID('InboxMessages', 'U') IS NOT NULL DELETE FROM InboxMessages;
+            IF OBJECT_ID('OutboxMessages', 'U') IS NOT NULL DELETE FROM OutboxMessages;
             """;
 
         await ExecuteInTransactionAsync(connection, sql, cancellationToken).ConfigureAwait(false);

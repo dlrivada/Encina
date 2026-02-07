@@ -18,10 +18,10 @@ public sealed class InboxStoreDapper : IInboxStore
     /// Initializes a new instance of the <see cref="InboxStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
-    /// <param name="tableName">The inbox table name (default: InboxMessages).</param>
+    /// <param name="tableName">The inbox table name (default: inboxmessages).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> or <paramref name="tableName"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is empty or whitespace.</exception>
-    public InboxStoreDapper(IDbConnection connection, string tableName = "InboxMessages")
+    public InboxStoreDapper(IDbConnection connection, string tableName = "inboxmessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
@@ -34,9 +34,9 @@ public sealed class InboxStoreDapper : IInboxStore
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
         var sql = $@"
-            SELECT *
+            SELECT messageid, requesttype, receivedatutc, processedatutc, expiresatutc, response, errormessage, retrycount, nextretryatutc, metadata
             FROM {_tableName}
-            WHERE MessageId = @MessageId";
+            WHERE messageid = @MessageId";
 
         return await _connection.QuerySingleOrDefaultAsync<InboxMessage>(sql, new { MessageId = messageId });
     }
@@ -48,7 +48,7 @@ public sealed class InboxStoreDapper : IInboxStore
 
         var sql = $@"
             INSERT INTO {_tableName}
-            (MessageId, RequestType, ReceivedAtUtc, ProcessedAtUtc, ExpiresAtUtc, Response, ErrorMessage, RetryCount, NextRetryAtUtc, Metadata)
+            (messageid, requesttype, receivedatutc, processedatutc, expiresatutc, response, errormessage, retrycount, nextretryatutc, metadata)
             VALUES
             (@MessageId, @RequestType, @ReceivedAtUtc, @ProcessedAtUtc, @ExpiresAtUtc, @Response, @ErrorMessage, @RetryCount, @NextRetryAtUtc, @Metadata)";
 
@@ -65,10 +65,10 @@ public sealed class InboxStoreDapper : IInboxStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = NOW() AT TIME ZONE 'UTC',
-                Response = @Response,
-                ErrorMessage = NULL
-            WHERE MessageId = @MessageId";
+            SET processedatutc = NOW() AT TIME ZONE 'UTC',
+                response = @Response,
+                errormessage = NULL
+            WHERE messageid = @MessageId";
 
         await _connection.ExecuteAsync(sql, new { MessageId = messageId, Response = response });
     }
@@ -85,10 +85,10 @@ public sealed class InboxStoreDapper : IInboxStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ErrorMessage = @ErrorMessage,
-                RetryCount = RetryCount + 1,
-                NextRetryAtUtc = @NextRetryAtUtc
-            WHERE MessageId = @MessageId";
+            SET errormessage = @ErrorMessage,
+                retrycount = retrycount + 1,
+                nextretryatutc = @NextRetryAtUtc
+            WHERE messageid = @MessageId";
 
         await _connection.ExecuteAsync(
             sql,
@@ -109,11 +109,11 @@ public sealed class InboxStoreDapper : IInboxStore
             throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
 
         var sql = $@"
-            SELECT *
+            SELECT messageid, requesttype, receivedatutc, processedatutc, expiresatutc, response, errormessage, retrycount, nextretryatutc, metadata
             FROM {_tableName}
-            WHERE ExpiresAtUtc < NOW() AT TIME ZONE 'UTC'
-              AND ProcessedAtUtc IS NOT NULL
-            ORDER BY ExpiresAtUtc
+            WHERE expiresatutc < NOW() AT TIME ZONE 'UTC'
+              AND processedatutc IS NOT NULL
+            ORDER BY expiresatutc
             LIMIT @BatchSize";
 
         var messages = await _connection.QueryAsync<InboxMessage>(sql, new { BatchSize = batchSize });
@@ -131,7 +131,7 @@ public sealed class InboxStoreDapper : IInboxStore
 
         var sql = $@"
             DELETE FROM {_tableName}
-            WHERE MessageId IN @MessageIds";
+            WHERE messageid = ANY(@MessageIds)";
 
         await _connection.ExecuteAsync(sql, new { MessageIds = messageIds });
     }
@@ -143,8 +143,8 @@ public sealed class InboxStoreDapper : IInboxStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ""RetryCount"" = ""RetryCount"" + 1
-            WHERE ""MessageId"" = @MessageId";
+            SET retrycount = retrycount + 1
+            WHERE messageid = @MessageId";
 
         await _connection.ExecuteAsync(sql, new { MessageId = messageId });
     }

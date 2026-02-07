@@ -12,22 +12,26 @@ namespace Encina.IntegrationTests.Dapper.MySQL.Outbox;
 /// Tests the Dapper implementation of the Outbox pattern for reliable event publishing.
 /// Uses real MySQL database via Testcontainers for end-to-end verification.
 /// </summary>
+[Collection("Dapper-MySQL")]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.MySQL")]
-public sealed class OutboxStoreDapperTests : IClassFixture<MySqlFixture>
+public sealed class OutboxStoreDapperTests : IAsyncLifetime
 {
     private readonly MySqlFixture _fixture;
-    private readonly OutboxStoreDapper _store;
+    private OutboxStoreDapper _store = null!;
 
     public OutboxStoreDapperTests(MySqlFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new OutboxStoreDapper(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 
@@ -635,18 +639,16 @@ public sealed class OutboxStoreDapperTests : IClassFixture<MySqlFixture>
 
         // Create custom table inline using Dapper
         await connection.ExecuteAsync($@"
-            IF OBJECT_ID('{customTableName}', 'U') IS NULL
-            BEGIN
-                CREATE TABLE {customTableName} (
-                    Id CHAR(36) PRIMARY KEY,
-                    NotificationType VARCHAR(500) NOT NULL,
-                    Content TEXT NOT NULL,
-                    CreatedAtUtc DATETIME(6) NOT NULL,
-                    ProcessedAtUtc DATETIME(6) NULL,
-                    ErrorMessage TEXT NULL,
-                    RetryCount INT NOT NULL DEFAULT 0,
-                    NextRetryAtUtc DATETIME(6) NULL
-                )");
+            CREATE TABLE IF NOT EXISTS {customTableName} (
+                Id CHAR(36) PRIMARY KEY,
+                NotificationType VARCHAR(500) NOT NULL,
+                Content TEXT NOT NULL,
+                CreatedAtUtc DATETIME(6) NOT NULL,
+                ProcessedAtUtc DATETIME(6) NULL,
+                ErrorMessage TEXT NULL,
+                RetryCount INT NOT NULL DEFAULT 0,
+                NextRetryAtUtc DATETIME(6) NULL
+            )");
 
         var customStore = new OutboxStoreDapper(connection, customTableName);
 

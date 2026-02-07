@@ -2,6 +2,7 @@ using System.Data;
 using Encina.ADO.Sqlite.Health;
 using Encina.Messaging.Health;
 using Encina.TestInfrastructure.Fixtures;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.IntegrationTests.ADO.Sqlite.Health;
@@ -11,7 +12,8 @@ namespace Encina.IntegrationTests.ADO.Sqlite.Health;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.Sqlite")]
-public sealed class SqliteHealthCheckIntegrationTests : IClassFixture<SqliteFixture>
+[Collection("ADO-Sqlite")]
+public sealed class SqliteHealthCheckIntegrationTests
 {
     private readonly SqliteFixture _fixture;
 
@@ -84,10 +86,21 @@ public sealed class SqliteHealthCheckIntegrationTests : IClassFixture<SqliteFixt
         Assert.Equal(HealthStatus.Healthy, result3.Status);
     }
 
+    /// <summary>
+    /// Creates a ServiceProvider that provides NEW disposable SQLite connections.
+    /// DatabaseHealthCheck uses "using var connection = ..." which disposes the connection.
+    /// We must NOT give it the fixture's shared in-memory connection, or it will be destroyed.
+    /// </summary>
     private ServiceProvider CreateServiceProvider()
     {
         var services = new ServiceCollection();
-        services.AddScoped<IDbConnection>(_ => _fixture.CreateConnection());
+        services.AddScoped<IDbConnection>(_ =>
+        {
+            // Create a new independent connection each time (using the same shared DB via Cache=Shared)
+            var conn = new SqliteConnection(_fixture.ConnectionString);
+            conn.Open();
+            return conn;
+        });
         return services.BuildServiceProvider();
     }
 }

@@ -302,22 +302,19 @@ public sealed class InboxStoreDapperGuardTests
     }
 
     /// <summary>
-    /// Tests that RemoveExpiredMessagesAsync throws ArgumentException when messageIds is empty.
+    /// Tests that RemoveExpiredMessagesAsync completes without error when messageIds is empty.
+    /// Empty collection is a valid no-op (consistent with all other providers).
     /// </summary>
     [Fact]
-    public async Task RemoveExpiredMessagesAsync_EmptyMessageIds_ShouldThrowArgumentException()
+    public async Task RemoveExpiredMessagesAsync_EmptyMessageIds_ShouldCompleteWithoutError()
     {
         // Arrange
         var connection = Substitute.For<IDbConnection>();
         var store = new InboxStoreDapper(connection);
 
-        // Act
-        var act = () => store.RemoveExpiredMessagesAsync(
+        // Act & Assert - should not throw
+        await store.RemoveExpiredMessagesAsync(
             Array.Empty<string>(),
             CancellationToken.None);
-
-        // Assert
-        var ex = await Should.ThrowAsync<ArgumentException>(act);
-        ex.ParamName.ShouldBe("messageIds");
     }
 }

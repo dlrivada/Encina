@@ -14,11 +14,12 @@ namespace Encina.IntegrationTests.Dapper.PostgreSQL.Tenancy;
 /// Integration tests for multi-tenancy support in Dapper PostgreSQL provider.
 /// Tests automatic tenant filtering, tenant ID assignment, and cross-tenant isolation.
 /// </summary>
+[Collection("Dapper-PostgreSQL")]
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
 public class TenancyDapperIntegrationTests : IAsyncLifetime
 {
-    private readonly PostgreSqlFixture _fixture = new();
+    private readonly PostgreSqlFixture _fixture;
     private IDbConnection _connection = null!;
     private TenantAwareFunctionalRepositoryDapper<TenantTestEntity, Guid> _repository = null!;
     private ITenantEntityMapping<TenantTestEntity, Guid> _mapping = null!;
@@ -28,10 +29,13 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
     private const string Tenant1 = "tenant-001";
     private const string Tenant2 = "tenant-002";
 
+    public TenancyDapperIntegrationTests(PostgreSqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         using var schemaConnection = _fixture.CreateConnection() as NpgsqlConnection;
         if (schemaConnection != null)
         {
@@ -67,7 +71,7 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private async Task ClearDataAsync()
@@ -87,10 +91,9 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
 
     #region Automatic Tenant Filter Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_OnlyReturnsCurrentTenantData()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -117,10 +120,9 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetByIdAsync_OnlyReturnsCurrentTenantEntity()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -138,10 +140,9 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
         result.IfLeft(error => error.Message.ShouldContain("not found"));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithSpecification_AppliesTenantFilterWithSpec()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -172,10 +173,9 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
 
     #region Automatic Tenant ID Assignment Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_AutomaticallyAssignsTenantId()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -195,10 +195,9 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
         retrieved.IfRight(e => e.TenantId.ShouldBe(Tenant1));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AddRangeAsync_AssignsTenantIdToAllEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -235,10 +234,9 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
 
     #region Cross-Tenant Isolation Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateAsync_CanOnlyUpdateOwnTenantEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -262,10 +260,9 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
         retrieved.IfRight(e => e.Name.ShouldBe("Original"));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DeleteAsync_CanOnlyDeleteOwnTenantEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -287,10 +284,9 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
         retrieved.IsRight.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CountAsync_OnlyCountsCurrentTenantEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -319,10 +315,9 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
         result2.IfRight(count => count.ShouldBe(3));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AnyAsync_OnlyChecksCurrentTenantEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -349,10 +344,9 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
 
     #region Tenant Context Switching Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task TenantSwitch_ChangesVisibleData()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -387,10 +381,9 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
 
     #region FirstOrDefaultAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task FirstOrDefaultAsync_OnlyReturnsCurrentTenantEntity()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -419,10 +412,9 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
 
     #region DeleteRangeAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task DeleteRangeAsync_OnlyDeletesCurrentTenantEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();

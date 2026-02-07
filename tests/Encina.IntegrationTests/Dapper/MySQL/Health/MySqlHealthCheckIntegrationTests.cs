@@ -10,9 +10,10 @@ namespace Encina.IntegrationTests.Dapper.MySQL.Health;
 /// <summary>
 /// Integration tests for <see cref="MySqlHealthCheck"/> using a real MySQL database.
 /// </summary>
+[Collection("Dapper-MySQL")]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.MySQL")]
-public sealed class MySqlHealthCheckIntegrationTests : IClassFixture<MySqlFixture>
+public sealed class MySqlHealthCheckIntegrationTests : IAsyncLifetime
 {
     private readonly MySqlFixture _fixture;
 
@@ -21,10 +22,13 @@ public sealed class MySqlHealthCheckIntegrationTests : IClassFixture<MySqlFixtur
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    [Fact]
     public async Task CheckHealthAsync_WhenDatabaseIsRunning_ReturnsHealthy()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -39,10 +43,9 @@ public sealed class MySqlHealthCheckIntegrationTests : IClassFixture<MySqlFixtur
         Assert.Contains("healthy", result.Description, StringComparison.OrdinalIgnoreCase);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-mysql" };
@@ -57,10 +60,9 @@ public sealed class MySqlHealthCheckIntegrationTests : IClassFixture<MySqlFixtur
         Assert.Equal(HealthStatus.Healthy, result.Status);
     }
 
-    [SkippableFact]
+    [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -73,10 +75,9 @@ public sealed class MySqlHealthCheckIntegrationTests : IClassFixture<MySqlFixtur
         Assert.Contains("ready", healthCheck.Tags);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_ExecutesQuerySuccessfully()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();

@@ -38,10 +38,9 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SubscribeAndPublish_MessageReceived()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var channel = $"test-channel-{Guid.NewGuid():N}";
@@ -75,10 +74,9 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
         receivedMessage.ShouldBe(expectedMessage);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultipleSubscribers_AllReceiveMessage()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var channel = $"multi-sub-{Guid.NewGuid():N}";
@@ -128,10 +126,9 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
         receivedCount.ShouldBe(expectedSubscribers);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Unsubscribe_NoMoreMessagesReceived()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var channel = $"unsub-test-{Guid.NewGuid():N}";
@@ -169,10 +166,9 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
         receiveCount.ShouldBe(1, "Should not receive messages after unsubscribe");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DifferentChannels_Independent()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var channel1 = $"channel-1-{Guid.NewGuid():N}";

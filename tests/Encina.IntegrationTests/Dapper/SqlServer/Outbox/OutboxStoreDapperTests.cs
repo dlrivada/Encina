@@ -12,22 +12,26 @@ namespace Encina.IntegrationTests.Dapper.SqlServer.Outbox;
 /// Tests the Dapper implementation of the Outbox pattern for reliable event publishing.
 /// Uses real SQL Server database via Testcontainers for end-to-end verification.
 /// </summary>
+[Collection("Dapper-SqlServer")]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.SqlServer")]
-public sealed class OutboxStoreDapperTests : IClassFixture<SqlServerFixture>
+public sealed class OutboxStoreDapperTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _fixture;
-    private readonly OutboxStoreDapper _store;
+    private OutboxStoreDapper _store = null!;
 
     public OutboxStoreDapperTests(SqlServerFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new OutboxStoreDapper(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 

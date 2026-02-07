@@ -33,8 +33,7 @@ public sealed class SagaStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task AddAsync_WithRealDatabase_ShouldPersistSaga()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new SagaStoreEF(context);
 
         var saga = new SagaState
@@ -53,7 +52,7 @@ public sealed class SagaStoreEFPostgreSqlTests : IAsyncLifetime
         await store.SaveChangesAsync();
 
         // Assert
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var stored = await verifyContext.Set<SagaState>().FindAsync(saga.SagaId);
         stored.ShouldNotBeNull();
         stored!.SagaType.ShouldBe("TestSaga");
@@ -64,8 +63,7 @@ public sealed class SagaStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task GetAsync_ExistingSaga_ShouldReturnSaga()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new SagaStoreEF(context);
 
         var sagaId = Guid.NewGuid();
@@ -95,8 +93,7 @@ public sealed class SagaStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task GetStuckSagasAsync_ShouldReturnOldRunningSagas()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new SagaStoreEF(context);
 
         var stuckSaga = new SagaState
@@ -139,12 +136,9 @@ public sealed class SagaStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task ConcurrentWrites_ShouldNotCorruptData()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
-
         var tasks = Enumerable.Range(0, 10).Select(async i =>
         {
-            await using var ctx = _fixture.CreateDbContext<TestEFDbContext>();
+            await using var ctx = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
             var store = new SagaStoreEF(ctx);
 
             var saga = new SagaState
@@ -167,7 +161,7 @@ public sealed class SagaStoreEFPostgreSqlTests : IAsyncLifetime
         var sagaIds = await Task.WhenAll(tasks);
 
         // Assert
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         foreach (var id in sagaIds)
         {
             var stored = await verifyContext.Set<SagaState>().FindAsync(id);

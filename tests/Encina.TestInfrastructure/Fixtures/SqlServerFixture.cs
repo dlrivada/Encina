@@ -45,6 +45,8 @@ public sealed class SqlServerFixture : DatabaseFixture<MsSqlContainer>
         await SqlServerSchema.CreateSchedulingSchemaAsync(sqlConnection);
         await SqlServerSchema.CreateRepositoryTestSchemaAsync(sqlConnection);
         await SqlServerSchema.CreateOrdersSchemaAsync(sqlConnection);
+        await SqlServerSchema.CreateTenantTestSchemaAsync(sqlConnection);
+        await SqlServerSchema.CreateReadWriteTestSchemaAsync(sqlConnection);
     }
 
     /// <inheritdoc />

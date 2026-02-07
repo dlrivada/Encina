@@ -2,6 +2,7 @@ using System.Data;
 using Encina.Dapper.Sqlite.Health;
 using Encina.Messaging.Health;
 using Encina.TestInfrastructure.Fixtures;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.IntegrationTests.Dapper.Sqlite.Health;
@@ -9,9 +10,10 @@ namespace Encina.IntegrationTests.Dapper.Sqlite.Health;
 /// <summary>
 /// Integration tests for <see cref="SqliteHealthCheck"/> using a real SQLite database.
 /// </summary>
+[Collection("Dapper-Sqlite")]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.Sqlite")]
-public sealed class SqliteHealthCheckIntegrationTests : IClassFixture<SqliteFixture>
+public sealed class SqliteHealthCheckIntegrationTests : IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
 
@@ -19,6 +21,10 @@ public sealed class SqliteHealthCheckIntegrationTests : IClassFixture<SqliteFixt
     {
         _fixture = fixture;
     }
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task CheckHealthAsync_WhenDatabaseIsRunning_ReturnsHealthy()
@@ -84,10 +90,21 @@ public sealed class SqliteHealthCheckIntegrationTests : IClassFixture<SqliteFixt
         Assert.Equal(HealthStatus.Healthy, result3.Status);
     }
 
+    /// <summary>
+    /// Creates a ServiceProvider that provides NEW disposable SQLite connections.
+    /// DatabaseHealthCheck uses "using var connection = ..." which disposes the connection.
+    /// We must NOT give it the fixture's shared in-memory connection, or it will be destroyed.
+    /// </summary>
     private ServiceProvider CreateServiceProvider()
     {
         var services = new ServiceCollection();
-        services.AddScoped<IDbConnection>(_ => _fixture.CreateConnection());
+        services.AddScoped<IDbConnection>(_ =>
+        {
+            // Create a new independent connection each time (using the same shared DB via Cache=Shared)
+            var conn = new SqliteConnection(_fixture.ConnectionString);
+            conn.Open();
+            return conn;
+        });
         return services.BuildServiceProvider();
     }
 }

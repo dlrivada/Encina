@@ -9,20 +9,24 @@ namespace Encina.IntegrationTests.ADO.PostgreSQL.Scheduling;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.PostgreSQL")]
-public sealed class ScheduledMessageStoreADOTests : IClassFixture<PostgreSqlFixture>
+[Collection("ADO-PostgreSQL")]
+public sealed class ScheduledMessageStoreADOTests : IAsyncLifetime
 {
     private readonly PostgreSqlFixture _fixture;
-    private readonly ScheduledMessageStoreADO _store;
+    private ScheduledMessageStoreADO _store = null!;
 
     public ScheduledMessageStoreADOTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new ScheduledMessageStoreADO(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidMessage_ShouldPersist()

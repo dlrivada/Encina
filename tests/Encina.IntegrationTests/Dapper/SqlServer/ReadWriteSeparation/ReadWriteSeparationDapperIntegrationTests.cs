@@ -27,13 +27,19 @@ namespace Encina.IntegrationTests.Dapper.SqlServer.ReadWriteSeparation;
 /// <item><description>Connection factory creates usable connections</description></item>
 /// </list>
 /// </remarks>
+[Collection("Dapper-SqlServer")]
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
 public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTestsBase<SqlServerFixture>
 {
-    private readonly SqlServerFixture _fixture = new();
+    private readonly SqlServerFixture _fixture;
     private ReadWriteConnectionFactory _connectionFactory = null!;
     private ReadWriteSeparationOptions _options = null!;
+
+    public ReadWriteSeparationDapperIntegrationTests(SqlServerFixture fixture)
+    {
+        _fixture = fixture;
+    }
 
     /// <inheritdoc />
     protected override SqlServerFixture Fixture => _fixture;
@@ -54,8 +60,6 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
     /// <inheritdoc />
     public override async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         if (!_fixture.IsAvailable)
             return;
 
@@ -93,7 +97,7 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
             // Ignore cleanup errors
         }
 
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
         await base.DisposeAsync();
     }
 
@@ -235,10 +239,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
 
     #region Additional Dapper SqlServer-Specific Tests
 
-    [SkippableFact]
+    [Fact]
     public void ConnectionFactory_ShouldBeConfiguredCorrectly()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Assert
         _connectionFactory.ShouldNotBeNull();
@@ -246,10 +249,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         _connectionFactory.GetReadConnectionString().ShouldBe(_fixture.ConnectionString);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ReadConnectionAsync_ShouldOpenAndReturnConnection()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Act
         var connection = await _connectionFactory.CreateReadConnectionAsync();
@@ -265,10 +267,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task WriteConnectionAsync_ShouldOpenAndReturnConnection()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Act
         var connection = await _connectionFactory.CreateWriteConnectionAsync();
@@ -284,10 +285,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConnectionAsync_WithReadIntent_ShouldRouteToRead()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         using var scope = new DatabaseRoutingScope(DatabaseIntent.Read);
@@ -306,10 +306,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConnectionAsync_WithWriteIntent_ShouldRouteToPrimary()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         using var scope = new DatabaseRoutingScope(DatabaseIntent.Write);
@@ -328,10 +327,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultipleReadConnections_ShouldAllBeUsable()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange - Insert test data
         var entity = new ReadWriteTestEntity

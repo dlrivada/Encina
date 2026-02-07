@@ -10,21 +10,25 @@ namespace Encina.IntegrationTests.Dapper.MySQL.Sagas;
 /// Integration tests for <see cref="SagaStoreDapper"/>.
 /// Tests against real MySQL database via Testcontainers with proper cleanup.
 /// </summary>
+[Collection("Dapper-MySQL")]
 [Trait("Category", "Integration")]
-public sealed class SagaStoreDapperTests : IClassFixture<MySqlFixture>
+public sealed class SagaStoreDapperTests : IAsyncLifetime
 {
     private readonly MySqlFixture _database;
-    private readonly SagaStoreDapper _store;
+    private SagaStoreDapper _store = null!;
 
     public SagaStoreDapperTests(MySqlFixture database)
     {
         _database = database;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _database.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _database.ClearAllDataAsync();
         _store = new SagaStoreDapper(_database.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidSaga_ShouldPersist()
@@ -359,7 +363,9 @@ public sealed class SagaStoreDapperTests : IClassFixture<MySqlFixture>
         // Assert
         var retrieved = await _store.GetAsync(sagaId);
         Assert.NotNull(retrieved);
-        Assert.Equal(startedTime, retrieved.StartedAtUtc); // Should not change
+        // Compare with tolerance due to database datetime precision differences
+        var timeDifference = Math.Abs((startedTime - retrieved.StartedAtUtc).TotalMilliseconds);
+        Assert.True(timeDifference < 1, $"StartedAtUtc should be preserved. Expected: {startedTime:O}, Actual: {retrieved.StartedAtUtc:O}, Diff: {timeDifference}ms");
     }
 
     [Fact]

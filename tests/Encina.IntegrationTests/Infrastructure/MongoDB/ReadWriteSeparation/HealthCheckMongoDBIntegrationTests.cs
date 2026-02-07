@@ -40,10 +40,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
 
     #region Health Check Name and Tags Tests
 
-    [SkippableFact]
+    [Fact]
     public void HealthCheck_Name_ShouldBeCorrect()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -53,10 +52,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
         healthCheck.Name.ShouldBe("encina-read-write-separation-mongodb");
     }
 
-    [SkippableFact]
+    [Fact]
     public void HealthCheck_Tags_ShouldContainExpectedTags()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -73,10 +71,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
 
     #region Health Status Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_ShouldReturnDegradedOrHealthyStatus()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -90,10 +87,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
         result.Description.ShouldNotBeNullOrEmpty();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_ShouldReturnClusterTypeInData()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -108,10 +104,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
         clusterType.ShouldNotBeNullOrEmpty();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WhenReplicaSet_ShouldReturnMemberInfo()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -129,10 +124,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WhenStandalone_ShouldReturnServerCount()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -153,10 +147,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
 
     #region Health Check Data Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_DataDictionary_ShouldNotBeEmpty()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -169,10 +162,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
         result.Data.ShouldContainKey("cluster_type");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_Description_ShouldProvideUsefulInformation()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -194,10 +186,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
 
     #region Exception Handling Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_ShouldNotThrow()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -209,10 +200,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
         exception.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCancellation_ShouldHandleGracefully()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -233,10 +223,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
 
     #region Argument Validation Tests
 
-    [SkippableFact]
+    [Fact]
     public void HealthCheck_WithNullClient_ShouldThrow()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var options = CreateOptions();
@@ -246,10 +235,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
             new ReadWriteMongoHealthCheck(null!, options));
     }
 
-    [SkippableFact]
+    [Fact]
     public void HealthCheck_WithNullOptions_ShouldThrow()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
@@ -260,10 +248,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
 
     #region Multiple Invocations Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_MultipleInvocations_ShouldReturnConsistentResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -282,10 +269,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
         result2.Data["cluster_type"].ShouldBe(result3.Data["cluster_type"]);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_ConcurrentInvocations_ShouldAllSucceed()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -311,10 +297,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
 
     #region IEncinaHealthCheck Interface Tests
 
-    [SkippableFact]
+    [Fact]
     public void HealthCheck_ShouldImplementIEncinaHealthCheck()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -323,10 +308,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
         healthCheck.ShouldBeAssignableTo<IEncinaHealthCheck>();
     }
 
-    [SkippableFact]
+    [Fact]
     public void HealthCheck_ShouldExtendEncinaHealthCheck()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Arrange
         var healthCheck = CreateHealthCheck();
@@ -339,10 +323,9 @@ public sealed class HealthCheckMongoDBIntegrationTests
 
     #region Read Preference Reflection Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithDifferentReadPreferences_ShouldStillReturnResult()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB replica set container not available");
 
         // Test all read preferences to ensure health check works with any configuration
         var readPreferences = new[]

@@ -472,14 +472,28 @@ public sealed class EncinaPactProviderVerifier : IDisposable
 
         // Call IEncina.Send<TResponse> via reflection using cached MethodInfo
         var sendMethod = s_sendMethod.MakeGenericMethod(responseType);
-        var resultTask = (ValueTask<object?>?)sendMethod.Invoke(_encina, new object[] { request, cancellationToken });
+        var invokeResult = sendMethod.Invoke(_encina, new object[] { request, cancellationToken });
 
-        if (resultTask is null)
+        if (invokeResult is null)
         {
             return (500, new PactErrorResponse(false, EncinaInternalErrorCode, "Handler invocation returned null"));
         }
 
-        var result = await resultTask.Value;
+        // The result is ValueTask<Either<EncinaError, TResponse>> - we need to await it via reflection
+        // because ValueTask<T> is not covariant
+        var valueTaskType = invokeResult.GetType();
+        var asTaskMethod = valueTaskType.GetMethod(nameof(ValueTask<object>.AsTask));
+        if (asTaskMethod is null)
+        {
+            return (500, new PactErrorResponse(false, EncinaInternalErrorCode, "Could not find AsTask method on ValueTask"));
+        }
+
+        var task = (Task)asTaskMethod.Invoke(invokeResult, null)!;
+        await task.ConfigureAwait(false);
+
+        // Get the Result property from the completed task
+        var resultProperty = task.GetType().GetProperty("Result");
+        var result = resultProperty?.GetValue(task);
 
         // Result is Either<EncinaError, TResponse> - we need to extract it
         return ProcessEitherResult(result, responseType);

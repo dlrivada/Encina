@@ -33,8 +33,7 @@ public sealed class ScheduledMessageStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new ScheduledMessageStoreEF(context);
 
         var message = new ScheduledMessage
@@ -51,7 +50,7 @@ public sealed class ScheduledMessageStoreEFPostgreSqlTests : IAsyncLifetime
         await store.SaveChangesAsync();
 
         // Assert
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var stored = await verifyContext.Set<ScheduledMessage>().FindAsync(message.Id);
         stored.ShouldNotBeNull();
         stored!.RequestType.ShouldBe("TestRequest");
@@ -61,8 +60,7 @@ public sealed class ScheduledMessageStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task GetDueMessagesAsync_ShouldReturnScheduledMessages()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new ScheduledMessageStoreEF(context);
 
         var dueNow = new ScheduledMessage
@@ -99,8 +97,7 @@ public sealed class ScheduledMessageStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task MarkAsProcessedAsync_ShouldUpdateMessage()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new ScheduledMessageStoreEF(context);
 
         var message = new ScheduledMessage
@@ -120,7 +117,7 @@ public sealed class ScheduledMessageStoreEFPostgreSqlTests : IAsyncLifetime
         await store.SaveChangesAsync();
 
         // Assert
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var updated = await verifyContext.Set<ScheduledMessage>().FindAsync(message.Id);
         updated!.ProcessedAtUtc.ShouldNotBeNull();
     }
@@ -129,8 +126,7 @@ public sealed class ScheduledMessageStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task MarkAsFailedAsync_ShouldUpdateErrorInfo()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new ScheduledMessageStoreEF(context);
 
         var message = new ScheduledMessage
@@ -152,7 +148,7 @@ public sealed class ScheduledMessageStoreEFPostgreSqlTests : IAsyncLifetime
         await store.SaveChangesAsync();
 
         // Assert
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var updated = await verifyContext.Set<ScheduledMessage>().FindAsync(message.Id);
         updated!.ErrorMessage.ShouldBe("Test error");
         updated.RetryCount.ShouldBe(1);
@@ -162,12 +158,11 @@ public sealed class ScheduledMessageStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task ConcurrentWrites_ShouldNotCorruptData()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
 
         var tasks = Enumerable.Range(0, 10).Select(async i =>
         {
-            await using var ctx = _fixture.CreateDbContext<TestEFDbContext>();
+            await using var ctx = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
             var store = new ScheduledMessageStoreEF(ctx);
 
             var message = new ScheduledMessage
@@ -188,7 +183,7 @@ public sealed class ScheduledMessageStoreEFPostgreSqlTests : IAsyncLifetime
         var messageIds = await Task.WhenAll(tasks);
 
         // Assert
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         foreach (var id in messageIds)
         {
             var stored = await verifyContext.Set<ScheduledMessage>().FindAsync(id);

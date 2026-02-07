@@ -21,20 +21,24 @@ namespace Encina.IntegrationTests.Dapper.PostgreSQL.ModuleIsolation;
 /// validation logic, and SQL pattern validation for Dapper operations.
 /// </para>
 /// </remarks>
+[Collection("Dapper-PostgreSQL")]
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
 public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 {
-    private readonly PostgreSqlFixture _fixture = new();
+    private readonly PostgreSqlFixture _fixture;
     private NpgsqlConnection _connection = null!;
     private ModuleSchemaRegistry _schemaRegistry = null!;
     private ModuleIsolationOptions _isolationOptions = null!;
     private TestModuleExecutionContext _moduleContext = null!;
 
+    public ModuleIsolationDapperIntegrationTests(PostgreSqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         if (!_fixture.IsAvailable)
             return;
 
@@ -59,7 +63,7 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private static async Task CreateSchemasAndTablesAsync(NpgsqlConnection connection)
@@ -83,7 +87,7 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
                 customer_name VARCHAR(200) NOT NULL,
                 total DECIMAL(18,2) NOT NULL,
                 status VARCHAR(50) NOT NULL DEFAULT 'Pending',
-                created_at_utc TIMESTAMP NOT NULL
+                created_at_utc TIMESTAMPTZ NOT NULL
             );
             """;
 
@@ -96,7 +100,7 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
                 product_name VARCHAR(200) NOT NULL,
                 quantity_in_stock INT NOT NULL DEFAULT 0,
                 reorder_threshold INT NOT NULL DEFAULT 10,
-                last_updated_at_utc TIMESTAMP NOT NULL
+                last_updated_at_utc TIMESTAMPTZ NOT NULL
             );
             """;
 
@@ -142,10 +146,9 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region ModuleAwareConnectionFactory Tests
 
-    [SkippableFact]
+    [Fact]
     public void ModuleAwareConnectionFactory_CreatesSchemaValidatingConnection_WhenStrategyIsDevValidation()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var factory = CreateModuleAwareConnectionFactory("Orders");
@@ -157,10 +160,9 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
         connection.ShouldBeOfType<SchemaValidatingConnection>();
     }
 
-    [SkippableFact]
+    [Fact]
     public void ModuleAwareConnectionFactory_CreatesRegularConnection_WhenStrategyIsNotDevValidation()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange - SchemaWithPermissions strategy doesn't wrap connections (DB handles validation)
         var noValidationOptions = new ModuleIsolationOptions
@@ -189,28 +191,25 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region Schema Registry Validation Tests
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldAllowAccessToOwnSchema()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         _schemaRegistry.CanAccessSchema("Orders", "orders").ShouldBeTrue();
         _schemaRegistry.CanAccessSchema("Inventory", "inventory").ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldAllowAccessToSharedSchema()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         _schemaRegistry.CanAccessSchema("Orders", "shared").ShouldBeTrue();
         _schemaRegistry.CanAccessSchema("Inventory", "shared").ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldDenyAccessToOtherModuleSchemas()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         _schemaRegistry.CanAccessSchema("Orders", "inventory").ShouldBeFalse();
         _schemaRegistry.CanAccessSchema("Inventory", "orders").ShouldBeFalse();
@@ -220,28 +219,25 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region SQL Validation Tests (schema.table style for PostgreSQL)
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_ValidQueryToOwnSchema_ShouldPass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         var result = _schemaRegistry.ValidateSqlAccess("Orders", "SELECT * FROM orders.orders WHERE id = @Id");
         result.IsValid.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_QueryToSharedSchema_ShouldPass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         var result = _schemaRegistry.ValidateSqlAccess("Orders", "SELECT * FROM shared.lookups WHERE category = @Category");
         result.IsValid.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_CrossModuleSchemaAccess_ShouldFail()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         var result = _schemaRegistry.ValidateSqlAccess("Orders", "SELECT * FROM inventory.inventory_items WHERE sku = @Sku");
         result.IsValid.ShouldBeFalse();
@@ -252,13 +248,15 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region SchemaValidatingConnection Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task SchemaValidatingConnection_CanExecuteValidQuery()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         await using var connection = CreateSchemaValidatingConnection("Orders");
-        await connection.OpenAsync();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync();
+        }
 
         await using var insertCmd = connection.CreateCommand();
         insertCmd.CommandText = @"
@@ -279,13 +277,15 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
         Convert.ToInt32(count, CultureInfo.InvariantCulture).ShouldBeGreaterThanOrEqualTo(1);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SchemaValidatingConnection_ThrowsOnCrossModuleTableAccess()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         await using var connection = CreateSchemaValidatingConnection("Orders");
-        await connection.OpenAsync();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync();
+        }
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT * FROM inventory.inventory_items";
@@ -296,13 +296,15 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SchemaValidatingConnection_AllowsSharedTableAccess()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         await using var connection = CreateSchemaValidatingConnection("Orders");
-        await connection.OpenAsync();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync();
+        }
 
         await using var insertCmd = connection.CreateCommand();
         insertCmd.CommandText = @"
@@ -327,10 +329,9 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region Module Context Tests
 
-    [SkippableFact]
+    [Fact]
     public void ModuleContext_CanBeSwitched()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         _moduleContext.SetCurrentModule("Orders");
         var orders = _moduleContext.CurrentModule;

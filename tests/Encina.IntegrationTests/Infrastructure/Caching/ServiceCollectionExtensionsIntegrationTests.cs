@@ -23,10 +23,9 @@ public sealed class ServiceCollectionExtensionsIntegrationTests
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     public void AddEncinaRedisCache_WithConnectionString_RegistersAllServices()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -49,10 +48,9 @@ public sealed class ServiceCollectionExtensionsIntegrationTests
         multiplexer.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public void AddEncinaRedisCache_WithConnectionStringAndOptions_RegistersAllServices()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -86,10 +84,9 @@ public sealed class ServiceCollectionExtensionsIntegrationTests
         lockProvider.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AddEncinaRedisCache_WithConnectionString_CanPerformCacheOperations()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var services = new ServiceCollection();
@@ -114,10 +111,9 @@ public sealed class ServiceCollectionExtensionsIntegrationTests
         await cacheProvider.RemoveAsync(key, CancellationToken.None);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AddEncinaRedisCache_WithConnectionStringAndOptions_CanAcquireLock()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var services = new ServiceCollection();

@@ -139,22 +139,14 @@ public sealed class RedisFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
-        try
-        {
-            _container = new RedisBuilder()
-                .WithImage("redis:7-alpine")
-                .WithCleanUp(true)
-                .Build();
+        _container = new RedisBuilder()
+            .WithImage("redis:7-alpine")
+            .WithCleanUp(true)
+            .Build();
 
-            await _container.StartAsync();
+        await _container.StartAsync();
 
-            Connection = await ConnectionMultiplexer.ConnectAsync(ConnectionString);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to start Redis container: {ex.Message}");
-            // Container might not be available in CI without Docker
-        }
+        Connection = await ConnectionMultiplexer.ConnectAsync(ConnectionString);
     }
 
     /// <inheritdoc/>

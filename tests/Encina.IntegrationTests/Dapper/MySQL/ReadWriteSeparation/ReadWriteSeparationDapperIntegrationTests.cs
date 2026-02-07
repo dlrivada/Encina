@@ -31,13 +31,19 @@ namespace Encina.IntegrationTests.Dapper.MySQL.ReadWriteSeparation;
 /// with primary-replica topology.
 /// </para>
 /// </remarks>
+[Collection("Dapper-MySQL")]
 [Trait("Category", "Integration")]
 [Trait("Database", "MySQL")]
 public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTestsBase<MySqlFixture>
 {
-    private readonly MySqlFixture _fixture = new();
+    private readonly MySqlFixture _fixture;
     private ReadWriteConnectionFactory _connectionFactory = null!;
     private ReadWriteSeparationOptions _options = null!;
+
+    public ReadWriteSeparationDapperIntegrationTests(MySqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
 
     /// <inheritdoc />
     protected override MySqlFixture Fixture => _fixture;
@@ -58,8 +64,6 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
     /// <inheritdoc />
     public override async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         if (!_fixture.IsAvailable)
             return;
 
@@ -97,7 +101,7 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
             // Ignore cleanup errors
         }
 
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
         await base.DisposeAsync();
     }
 
@@ -247,10 +251,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
 
     #region Additional Dapper MySQL-Specific Tests
 
-    [SkippableFact]
+    [Fact]
     public void ConnectionFactory_ShouldBeConfiguredCorrectly()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Assert
         _connectionFactory.ShouldNotBeNull();
@@ -258,10 +261,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         _connectionFactory.GetReadConnectionString().ShouldBe(_fixture.ConnectionString);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ReadConnectionAsync_ShouldOpenAndReturnConnection()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Act
         var connection = await _connectionFactory.CreateReadConnectionAsync();
@@ -277,10 +279,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task WriteConnectionAsync_ShouldOpenAndReturnConnection()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Act
         var connection = await _connectionFactory.CreateWriteConnectionAsync();
@@ -296,10 +297,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConnectionAsync_WithReadIntent_ShouldRouteToRead()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         using var scope = new DatabaseRoutingScope(DatabaseIntent.Read);
@@ -318,10 +318,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConnectionAsync_WithWriteIntent_ShouldRouteToPrimary()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         using var scope = new DatabaseRoutingScope(DatabaseIntent.Write);
@@ -340,10 +339,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultipleReadConnections_ShouldAllBeUsable()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange - Insert test data
         var entity = new ReadWriteTestEntity

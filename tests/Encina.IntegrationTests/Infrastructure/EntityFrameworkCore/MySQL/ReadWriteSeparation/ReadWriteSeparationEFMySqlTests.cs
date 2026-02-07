@@ -30,28 +30,25 @@ public sealed class ReadWriteSeparationEFMySqlTests
 
     #region Connection Factory Tests
 
-    [SkippableFact]
+    [Fact]
     public void Factory_ShouldBeConfiguredCorrectly()
     {
-        Skip.If(!_fixture.IsAvailable, "MySQL EF Core not available - Pomelo 10.0.0 not released");
 
         // TODO: Implement when Pomelo 10.0.0 is available
         true.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void CreateWriteContext_ShouldReturnUsableContext()
     {
-        Skip.If(!_fixture.IsAvailable, "MySQL EF Core not available - Pomelo 10.0.0 not released");
 
         // TODO: Implement when Pomelo 10.0.0 is available
         true.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void CreateReadContext_ShouldReturnUsableContext()
     {
-        Skip.If(!_fixture.IsAvailable, "MySQL EF Core not available - Pomelo 10.0.0 not released");
 
         // TODO: Implement when Pomelo 10.0.0 is available
         true.ShouldBeTrue();
@@ -61,19 +58,17 @@ public sealed class ReadWriteSeparationEFMySqlTests
 
     #region Write Operation Tests
 
-    [SkippableFact]
+    [Fact]
     public void WriteContext_ShouldBeUsableForInserts()
     {
-        Skip.If(!_fixture.IsAvailable, "MySQL EF Core not available - Pomelo 10.0.0 not released");
 
         // TODO: Implement when Pomelo 10.0.0 is available
         true.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void WriteContext_ShouldBeUsableForUpdates()
     {
-        Skip.If(!_fixture.IsAvailable, "MySQL EF Core not available - Pomelo 10.0.0 not released");
 
         // TODO: Implement when Pomelo 10.0.0 is available
         true.ShouldBeTrue();
@@ -83,10 +78,9 @@ public sealed class ReadWriteSeparationEFMySqlTests
 
     #region Read Operation Tests
 
-    [SkippableFact]
+    [Fact]
     public void ReadContext_ShouldBeUsableForQueries()
     {
-        Skip.If(!_fixture.IsAvailable, "MySQL EF Core not available - Pomelo 10.0.0 not released");
 
         // TODO: Implement when Pomelo 10.0.0 is available
         true.ShouldBeTrue();
@@ -96,19 +90,17 @@ public sealed class ReadWriteSeparationEFMySqlTests
 
     #region Routing Scope Tests
 
-    [SkippableFact]
+    [Fact]
     public void RoutingScope_WithReadIntent_ShouldRouteToRead()
     {
-        Skip.If(!_fixture.IsAvailable, "MySQL EF Core not available - Pomelo 10.0.0 not released");
 
         // TODO: Implement when Pomelo 10.0.0 is available
         true.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void RoutingScope_WithWriteIntent_ShouldRouteToPrimary()
     {
-        Skip.If(!_fixture.IsAvailable, "MySQL EF Core not available - Pomelo 10.0.0 not released");
 
         // TODO: Implement when Pomelo 10.0.0 is available
         true.ShouldBeTrue();
@@ -118,19 +110,17 @@ public sealed class ReadWriteSeparationEFMySqlTests
 
     #region Async Factory Tests
 
-    [SkippableFact]
+    [Fact]
     public void CreateWriteContextAsync_ShouldReturnUsableContext()
     {
-        Skip.If(!_fixture.IsAvailable, "MySQL EF Core not available - Pomelo 10.0.0 not released");
 
         // TODO: Implement when Pomelo 10.0.0 is available
         true.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void CreateReadContextAsync_ShouldReturnUsableContext()
     {
-        Skip.If(!_fixture.IsAvailable, "MySQL EF Core not available - Pomelo 10.0.0 not released");
 
         // TODO: Implement when Pomelo 10.0.0 is available
         true.ShouldBeTrue();

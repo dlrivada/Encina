@@ -11,7 +11,8 @@ namespace Encina.IntegrationTests.Testing.Respawn;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "MySql")]
-public sealed class MySqlRespawnerIntegrationTests : IClassFixture<MySqlFixture>, IAsyncLifetime, IDisposable
+[Collection("ADO-MySQL")]
+public sealed class MySqlRespawnerIntegrationTests : IAsyncLifetime, IDisposable
 {
     private readonly MySqlFixture _fixture;
     private MySqlRespawner _respawner = null!;
@@ -195,7 +196,7 @@ public sealed class MySqlRespawnerIntegrationTests : IClassFixture<MySqlFixture>
             {
                 SagaId = Guid.NewGuid().ToString(),
                 SagaType = "TestSaga",
-                CurrentStep = "Step1",
+                CurrentStep = 1,
                 Status = "InProgress",
                 Data = "{}",
                 StartedAtUtc = DateTime.UtcNow,
@@ -204,8 +205,8 @@ public sealed class MySqlRespawnerIntegrationTests : IClassFixture<MySqlFixture>
 
         // Insert ScheduledMessage
         await connection.ExecuteAsync("""
-            INSERT INTO ScheduledMessages (Id, RequestType, Content, ScheduledAtUtc, RetryCount)
-            VALUES (@Id, @RequestType, @Content, @ScheduledAtUtc, @RetryCount)
+            INSERT INTO ScheduledMessages (Id, RequestType, Content, ScheduledAtUtc, RetryCount, CreatedAtUtc)
+            VALUES (@Id, @RequestType, @Content, @ScheduledAtUtc, @RetryCount, @CreatedAtUtc)
             """,
             new
             {
@@ -213,7 +214,8 @@ public sealed class MySqlRespawnerIntegrationTests : IClassFixture<MySqlFixture>
                 RequestType = "TestScheduledRequest",
                 Content = "{}",
                 ScheduledAtUtc = DateTime.UtcNow.AddHours(1),
-                RetryCount = 0
+                RetryCount = 0,
+                CreatedAtUtc = DateTime.UtcNow
             });
     }
 

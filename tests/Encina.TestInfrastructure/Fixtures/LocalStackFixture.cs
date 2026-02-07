@@ -111,20 +111,12 @@ public sealed class LocalStackFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
-        try
-        {
-            _container = new LocalStackBuilder()
-                .WithImage("localstack/localstack:3.8")
-                .WithCleanUp(true)
-                .Build();
+        _container = new LocalStackBuilder()
+            .WithImage("localstack/localstack:3.8")
+            .WithCleanUp(true)
+            .Build();
 
-            await _container.StartAsync();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to start LocalStack container: {ex.Message}");
-            // Container might not be available in CI without Docker
-        }
+        await _container.StartAsync();
     }
 
     /// <inheritdoc/>

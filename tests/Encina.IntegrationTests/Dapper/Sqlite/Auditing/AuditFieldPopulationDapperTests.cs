@@ -16,12 +16,12 @@ namespace Encina.IntegrationTests.Dapper.Sqlite.Auditing;
 /// Integration tests for audit field auto-population in Dapper SQLite repository.
 /// Tests verify that IAuditableEntity fields are correctly populated during CRUD operations.
 /// </summary>
+[Collection("Dapper-Sqlite")]
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-[Collection("SqliteSerial")]
 public class AuditFieldPopulationDapperTests : IAsyncLifetime
 {
-    private readonly SqliteFixture _fixture = new();
+    private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;
     private FunctionalRepositoryDapper<AuditableProduct, Guid> _repository = null!;
     private FunctionalRepositoryDapper<AuditableProduct, Guid> _repositoryWithAudit = null!;
@@ -35,8 +35,9 @@ public class AuditFieldPopulationDapperTests : IAsyncLifetime
     private static readonly DateTimeOffset FixedTime = new(2024, 6, 15, 10, 30, 0, TimeSpan.Zero);
     private const string TestUserId = "test-user-123";
 
-    public AuditFieldPopulationDapperTests()
+    public AuditFieldPopulationDapperTests(SqliteFixture fixture)
     {
+        _fixture = fixture;
         _fakeTimeProvider = new FakeTimeProvider(FixedTime);
         _mockRequestContext = Substitute.For<IRequestContext>();
         _mockRequestContext.UserId.Returns(TestUserId);
@@ -44,8 +45,6 @@ public class AuditFieldPopulationDapperTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         // Create test schema
         if (_fixture.CreateConnection() is SqliteConnection schemaConnection)
         {
@@ -107,10 +106,10 @@ public class AuditFieldPopulationDapperTests : IAsyncLifetime
             _fakeTimeProvider);
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
-        _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        // Do NOT dispose _connection - it's the shared SQLite in-memory connection owned by the fixture.
+        return Task.CompletedTask;
     }
 
     private static async Task CreateAuditableProductsSchemaAsync(SqliteConnection connection)

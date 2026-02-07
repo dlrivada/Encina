@@ -5,6 +5,7 @@ using Encina.DomainModeling;
 using Encina.TestInfrastructure.Fixtures;
 using Npgsql;
 using Shouldly;
+using Xunit;
 
 namespace Encina.IntegrationTests.ADO.PostgreSQL.Repository;
 
@@ -13,17 +14,21 @@ namespace Encina.IntegrationTests.ADO.PostgreSQL.Repository;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
+[Collection("ADO-PostgreSQL")]
 public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 {
-    private readonly PostgreSqlFixture _fixture = new();
+    private readonly PostgreSqlFixture _fixture;
     private IDbConnection _connection = null!;
     private FunctionalRepositoryADO<TestItem, Guid> _repository = null!;
     private IEntityMapping<TestItem, Guid> _mapping = null!;
 
+    public FunctionalRepositoryADOIntegrationTests(PostgreSqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         // Create the test schema
         using var schemaConnection = _fixture.CreateConnection() as NpgsqlConnection;
         if (schemaConnection != null)
@@ -47,7 +52,7 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private static async Task CreateTestItemsSchemaAsync(NpgsqlConnection connection)
@@ -59,7 +64,7 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
                 name VARCHAR(200) NOT NULL,
                 value DECIMAL(18,2) NOT NULL,
                 is_enabled BOOLEAN NOT NULL,
-                created_at_utc TIMESTAMP NOT NULL
+                created_at_utc TIMESTAMPTZ NOT NULL
             );
             CREATE INDEX IF NOT EXISTS ix_test_items_is_enabled ON test_items(is_enabled);
             """;
@@ -79,10 +84,9 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region GetByIdAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task GetByIdAsync_ExistingEntity_ReturnsRight()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -101,10 +105,9 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetByIdAsync_NonExistingEntity_ReturnsLeft()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -122,10 +125,9 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region ListAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_EmptyTable_ReturnsEmptyList()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -138,10 +140,9 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         result.IfRight(entities => entities.ShouldBeEmpty());
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithEntities_ReturnsAllEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -160,10 +161,9 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         result.IfRight(list => list.Count.ShouldBe(3));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithSpecification_ReturnsFilteredEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -191,10 +191,9 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region AddAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_ValidEntity_ReturnsRightAndPersists()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -216,10 +215,9 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region UpdateAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateAsync_ExistingEntity_ReturnsRightAndUpdates()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -244,10 +242,9 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region DeleteAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task DeleteAsync_ExistingEntity_ReturnsRightAndRemoves()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -264,10 +261,9 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         stored.IsLeft.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DeleteAsync_NonExistingEntity_ReturnsLeft()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -285,10 +281,9 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region CountAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task CountAsync_WithEntities_ReturnsCorrectCount()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -311,10 +306,9 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region AnyAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task AnyAsync_EmptyTable_ReturnsFalse()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -327,10 +321,9 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         result.IfRight(any => any.ShouldBeFalse());
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AnyAsync_WithEntities_ReturnsTrue()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();

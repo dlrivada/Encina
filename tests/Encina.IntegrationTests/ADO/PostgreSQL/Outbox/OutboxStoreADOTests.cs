@@ -14,20 +14,24 @@ namespace Encina.IntegrationTests.ADO.PostgreSQL.Outbox;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.PostgreSQL")]
-public sealed class OutboxStoreADOTests : IClassFixture<PostgreSqlFixture>
+[Collection("ADO-PostgreSQL")]
+public sealed class OutboxStoreADOTests : IAsyncLifetime
 {
     private readonly PostgreSqlFixture _fixture;
-    private readonly OutboxStoreADO _store;
+    private OutboxStoreADO _store = null!;
 
     public OutboxStoreADOTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new OutboxStoreADO(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 
@@ -641,13 +645,12 @@ public sealed class OutboxStoreADOTests : IClassFixture<PostgreSqlFixture>
                         Id UUID PRIMARY KEY,
                         NotificationType VARCHAR(500) NOT NULL,
                         Content TEXT NOT NULL,
-                        CreatedAtUtc TIMESTAMP NOT NULL,
-                        ProcessedAtUtc TIMESTAMP NULL,
+                        CreatedAtUtc TIMESTAMPTZ NOT NULL,
+                        ProcessedAtUtc TIMESTAMPTZ NULL,
                         ErrorMessage TEXT NULL,
                         RetryCount int NOT NULL DEFAULT 0,
-                        NextRetryAtUtc TIMESTAMP NULL
-                    )
-                END", sqlConn);
+                        NextRetryAtUtc TIMESTAMPTZ NULL
+                    )", sqlConn);
             await command.ExecuteNonQueryAsync();
         }
 

@@ -180,9 +180,9 @@ public class RestApiRequestHandlerIntegrationTests : IClassFixture<EncinaRefitMo
     }
 
     [Fact]
-    public async Task Handle_EmptyResponseBody_ShouldHandleGracefully()
+    public async Task Handle_EmptyResponseBody_ShouldReturnError()
     {
-        // Arrange - Stub returns 204 No Content (empty body is expected)
+        // Arrange - Stub returns 204 No Content (empty body)
         _fixture.Stub("GET", "/posts/1", statusCode: 204);
 
         var request = new GetPostRequest(1);
@@ -190,9 +190,14 @@ public class RestApiRequestHandlerIntegrationTests : IClassFixture<EncinaRefitMo
         // Act
         var result = await _handler.Handle(request, CancellationToken.None);
 
-        // Assert - 204 No Content is a valid success response
-        // The handler should handle empty body gracefully
-        result.ShouldBeSuccess();
+        // Assert - 204 No Content cannot be deserialized to a non-nullable Post object
+        // When the API signature is Task<Post> (not Task<Post?> or Task<IApiResponse<Post>>),
+        // Refit cannot deserialize an empty response body and returns an error
+        result.ShouldBeError();
+        result.IfLeft(error =>
+        {
+            error.Message.ShouldContain("204");
+        });
     }
 
     [Fact]

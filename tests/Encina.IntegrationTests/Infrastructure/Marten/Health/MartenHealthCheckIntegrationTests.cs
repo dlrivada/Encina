@@ -21,10 +21,9 @@ public sealed class MartenHealthCheckIntegrationTests : IClassFixture<MartenFixt
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WhenMartenIsRunning_ReturnsHealthy()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL/Marten container not available");
 
         // Arrange
         using var serviceProvider = CreateServiceProvider();
@@ -38,10 +37,9 @@ public sealed class MartenHealthCheckIntegrationTests : IClassFixture<MartenFixt
         result.Description!.ShouldContain("connected");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL/Marten container not available");
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-marten" };
@@ -56,10 +54,9 @@ public sealed class MartenHealthCheckIntegrationTests : IClassFixture<MartenFixt
         result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
-    [SkippableFact]
+    [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL/Marten container not available");
 
         // Arrange
         using var serviceProvider = CreateServiceProvider();

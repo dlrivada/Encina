@@ -10,9 +10,10 @@ namespace Encina.IntegrationTests.Dapper.SqlServer.Health;
 /// <summary>
 /// Integration tests for <see cref="SqlServerHealthCheck"/> using a real SQL Server database.
 /// </summary>
+[Collection("Dapper-SqlServer")]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.SqlServer")]
-public sealed class SqlServerHealthCheckIntegrationTests : IClassFixture<SqlServerFixture>
+public sealed class SqlServerHealthCheckIntegrationTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _fixture;
 
@@ -21,10 +22,13 @@ public sealed class SqlServerHealthCheckIntegrationTests : IClassFixture<SqlServ
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    [Fact]
     public async Task CheckHealthAsync_WhenDatabaseIsRunning_ReturnsHealthy()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -39,10 +43,9 @@ public sealed class SqlServerHealthCheckIntegrationTests : IClassFixture<SqlServ
         Assert.Contains("healthy", result.Description, StringComparison.OrdinalIgnoreCase);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-sqlserver" };
@@ -57,10 +60,9 @@ public sealed class SqlServerHealthCheckIntegrationTests : IClassFixture<SqlServ
         Assert.Equal(HealthStatus.Healthy, result.Status);
     }
 
-    [SkippableFact]
+    [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -73,10 +75,9 @@ public sealed class SqlServerHealthCheckIntegrationTests : IClassFixture<SqlServ
         Assert.Contains("ready", healthCheck.Tags);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_ExecutesQuerySuccessfully()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();

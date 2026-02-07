@@ -23,20 +23,24 @@ namespace Encina.IntegrationTests.Dapper.MySQL.ModuleIsolation;
 /// validation logic, and SQL pattern validation for Dapper operations.
 /// </para>
 /// </remarks>
+[Collection("Dapper-MySQL")]
 [Trait("Category", "Integration")]
 [Trait("Database", "MySQL")]
 public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 {
-    private readonly MySqlFixture _fixture = new();
+    private readonly MySqlFixture _fixture;
     private MySqlConnection _connection = null!;
     private ModuleSchemaRegistry _schemaRegistry = null!;
     private ModuleIsolationOptions _isolationOptions = null!;
     private TestModuleExecutionContext _moduleContext = null!;
 
+    public ModuleIsolationDapperIntegrationTests(MySqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         if (!_fixture.IsAvailable)
             return;
 
@@ -61,7 +65,7 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private static async Task CreatePrefixedTablesAsync(MySqlConnection connection)
@@ -134,10 +138,9 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region ModuleAwareConnectionFactory Tests
 
-    [SkippableFact]
+    [Fact]
     public void ModuleAwareConnectionFactory_CreatesSchemaValidatingConnection_WhenStrategyIsDevValidation()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         var factory = CreateModuleAwareConnectionFactory("Orders");
@@ -149,10 +152,9 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
         connection.ShouldBeOfType<SchemaValidatingConnection>();
     }
 
-    [SkippableFact]
+    [Fact]
     public void ModuleAwareConnectionFactory_CreatesRegularConnection_WhenStrategyIsNotDevValidation()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange - SchemaWithPermissions strategy doesn't wrap connections (DB handles validation)
         var noValidationOptions = new ModuleIsolationOptions
@@ -181,28 +183,25 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region Schema Registry Validation Tests
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldAllowAccessToOwnSchema()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         _schemaRegistry.CanAccessSchema("Orders", "orders").ShouldBeTrue();
         _schemaRegistry.CanAccessSchema("Inventory", "inventory").ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldAllowAccessToSharedSchema()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         _schemaRegistry.CanAccessSchema("Orders", "shared").ShouldBeTrue();
         _schemaRegistry.CanAccessSchema("Inventory", "shared").ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldDenyAccessToOtherModuleSchemas()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         _schemaRegistry.CanAccessSchema("Orders", "inventory").ShouldBeFalse();
         _schemaRegistry.CanAccessSchema("Inventory", "orders").ShouldBeFalse();
@@ -212,28 +211,25 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region SQL Validation Tests (table prefix style for MySQL)
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_ValidQueryToOwnPrefixedTable_ShouldPass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         var result = _schemaRegistry.ValidateSqlAccess("Orders", "SELECT * FROM orders_Orders WHERE Id = @Id");
         result.IsValid.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_QueryToSharedPrefixedTable_ShouldPass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         var result = _schemaRegistry.ValidateSqlAccess("Orders", "SELECT * FROM shared_Lookups WHERE Category = @Category");
         result.IsValid.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_CrossModulePrefixedTableAccess_ShouldFail()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         var result = _schemaRegistry.ValidateSqlAccess("Orders", "SELECT * FROM inventory_InventoryItems WHERE Sku = @Sku");
         result.IsValid.ShouldBeFalse();
@@ -244,13 +240,15 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region SchemaValidatingConnection Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task SchemaValidatingConnection_CanExecuteValidQuery()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         await using var connection = CreateSchemaValidatingConnection("Orders");
-        await connection.OpenAsync();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync();
+        }
 
         await using var insertCmd = connection.CreateCommand();
         insertCmd.CommandText = @"
@@ -271,13 +269,15 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
         Convert.ToInt32(count, CultureInfo.InvariantCulture).ShouldBeGreaterThanOrEqualTo(1);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SchemaValidatingConnection_ThrowsOnCrossModuleTableAccess()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         await using var connection = CreateSchemaValidatingConnection("Orders");
-        await connection.OpenAsync();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync();
+        }
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT * FROM inventory_InventoryItems";
@@ -288,13 +288,15 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SchemaValidatingConnection_AllowsSharedTableAccess()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         await using var connection = CreateSchemaValidatingConnection("Orders");
-        await connection.OpenAsync();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync();
+        }
 
         await using var insertCmd = connection.CreateCommand();
         insertCmd.CommandText = @"
@@ -319,10 +321,9 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region Module Context Tests
 
-    [SkippableFact]
+    [Fact]
     public void ModuleContext_CanBeSwitched()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         _moduleContext.SetCurrentModule("Orders");
         var orders = _moduleContext.CurrentModule;

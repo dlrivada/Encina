@@ -20,10 +20,11 @@ namespace Encina.IntegrationTests.Infrastructure.Dapper.PostgreSQL.BulkOperation
 /// These tests verify the actual COPY command, UPDATE FROM, DELETE USING, and ON CONFLICT
 /// operations work correctly against a real PostgreSQL database using Dapper.
 /// </remarks>
+[Collection("Dapper-PostgreSQL")]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.PostgreSQL")]
 [Trait("Feature", "BulkOperations")]
-public sealed class BulkOperationsDapperPostgreSQLIntegrationTests : IClassFixture<PostgreSqlFixture>, IAsyncLifetime
+public sealed class BulkOperationsDapperPostgreSQLIntegrationTests : IAsyncLifetime
 {
     private readonly PostgreSqlFixture _fixture;
     private IDbConnection _connection = null!;
@@ -36,7 +37,6 @@ public sealed class BulkOperationsDapperPostgreSQLIntegrationTests : IClassFixtu
 
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
         _connection = _fixture.CreateConnection();
 
         // Create test table
@@ -51,7 +51,7 @@ public sealed class BulkOperationsDapperPostgreSQLIntegrationTests : IClassFixtu
     {
         await DropBulkTestTableAsync();
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private async Task CreateBulkTestTableAsync()
@@ -64,7 +64,7 @@ public sealed class BulkOperationsDapperPostgreSQLIntegrationTests : IClassFixtu
                 "CustomerName" TEXT NOT NULL,
                 "Amount" NUMERIC(18,2) NOT NULL,
                 "IsActive" BOOLEAN NOT NULL,
-                "CreatedAtUtc" TIMESTAMP NOT NULL
+                "CreatedAtUtc" TIMESTAMPTZ NOT NULL
             );
             """;
 

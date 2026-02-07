@@ -96,23 +96,10 @@ public abstract class DatabaseFixture<TContainer> : IAsyncLifetime
             // Best effort cleanup
         }
 
-        // Stop and dispose container
-        if (Container is MsSqlContainer sqlServer)
-        {
-            await sqlServer.StopAsync();
-            await sqlServer.DisposeAsync();
-        }
-        else if (Container is PostgreSqlContainer postgres)
-        {
-            await postgres.StopAsync();
-            await postgres.DisposeAsync();
-        }
-        else if (Container is MySqlContainer mysql)
-        {
-            await mysql.StopAsync();
-            await mysql.DisposeAsync();
-        }
-        else if (Container is IAsyncDisposable disposable)
+        // Dispose container - DisposeAsync handles stopping internally.
+        // Do NOT call StopAsync() before DisposeAsync() as it can cause
+        // ObjectDisposedException when the internal SemaphoreSlim is disposed.
+        if (Container is IAsyncDisposable disposable)
         {
             await disposable.DisposeAsync();
         }

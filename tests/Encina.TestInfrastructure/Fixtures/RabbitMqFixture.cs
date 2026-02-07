@@ -30,25 +30,17 @@ public sealed class RabbitMqFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
-        try
-        {
-            _container = new RabbitMqBuilder()
-                .WithImage("rabbitmq:3-management-alpine")
-                .WithCleanUp(true)
-                .Build();
+        _container = new RabbitMqBuilder()
+            .WithImage("rabbitmq:3-management-alpine")
+            .WithCleanUp(true)
+            .Build();
 
-            await _container.StartAsync();
+        await _container.StartAsync();
 
-            ConnectionFactory = new ConnectionFactory
-            {
-                Uri = new Uri(ConnectionString)
-            };
-        }
-        catch (Exception ex)
+        ConnectionFactory = new ConnectionFactory
         {
-            Console.WriteLine($"Failed to start RabbitMQ container: {ex.Message}");
-            // Container might not be available in CI without Docker
-        }
+            Uri = new Uri(ConnectionString)
+        };
     }
 
     /// <inheritdoc/>

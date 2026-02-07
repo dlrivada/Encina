@@ -12,22 +12,26 @@ namespace Encina.IntegrationTests.Dapper.PostgreSQL.Outbox;
 /// Tests the Dapper implementation of the Outbox pattern for reliable event publishing.
 /// Uses real PostgreSQL database via Testcontainers for end-to-end verification.
 /// </summary>
+[Collection("Dapper-PostgreSQL")]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.PostgreSQL")]
-public sealed class OutboxStoreDapperTests : IClassFixture<PostgreSqlFixture>
+public sealed class OutboxStoreDapperTests : IAsyncLifetime
 {
     private readonly PostgreSqlFixture _fixture;
-    private readonly OutboxStoreDapper _store;
+    private OutboxStoreDapper _store = null!;
 
     public OutboxStoreDapperTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new OutboxStoreDapper(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 
@@ -639,11 +643,11 @@ public sealed class OutboxStoreDapperTests : IClassFixture<PostgreSqlFixture>
                 Id UUID PRIMARY KEY,
                 NotificationType VARCHAR(500) NOT NULL,
                 Content TEXT NOT NULL,
-                CreatedAtUtc TIMESTAMP NOT NULL,
-                ProcessedAtUtc TIMESTAMP NULL,
+                CreatedAtUtc TIMESTAMPTZ NOT NULL,
+                ProcessedAtUtc TIMESTAMPTZ NULL,
                 ErrorMessage TEXT NULL,
                 RetryCount INTEGER NOT NULL DEFAULT 0,
-                NextRetryAtUtc TIMESTAMP NULL
+                NextRetryAtUtc TIMESTAMPTZ NULL
             )");
 
         var customStore = new OutboxStoreDapper(connection, customTableName);

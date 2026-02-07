@@ -13,19 +13,23 @@ namespace Encina.IntegrationTests.Dapper.SqlServer.Repository;
 /// <summary>
 /// Integration tests for <see cref="FunctionalRepositoryDapper{TEntity, TId}"/> using real SQL Server.
 /// </summary>
+[Collection("Dapper-SqlServer")]
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
 public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
 {
-    private readonly SqlServerFixture _fixture = new();
+    private readonly SqlServerFixture _fixture;
     private IDbConnection _connection = null!;
     private FunctionalRepositoryDapper<TestProduct, Guid> _repository = null!;
     private IEntityMapping<TestProduct, Guid> _mapping = null!;
 
+    public FunctionalRepositoryDapperIntegrationTests(SqlServerFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         // Create the test schema
         using var schemaConnection = _fixture.CreateConnection() as SqlConnection;
         if (schemaConnection != null)
@@ -49,7 +53,7 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private static async Task CreateTestProductsSchemaAsync(SqlConnection connection)

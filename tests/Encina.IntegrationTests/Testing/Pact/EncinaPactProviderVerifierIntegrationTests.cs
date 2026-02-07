@@ -1,10 +1,22 @@
 using System.Text.Json;
 
+using LanguageExt;
+
 using Microsoft.Extensions.DependencyInjection;
 
 using NSubstitute;
 
 namespace Encina.IntegrationTests.Testing.Pact;
+
+/// <summary>
+/// Test command for Pact verification tests.
+/// </summary>
+public sealed record TestCommand : IRequest<TestCommandResponse>;
+
+/// <summary>
+/// Test response for Pact verification tests.
+/// </summary>
+public sealed record TestCommandResponse(bool IsSuccess);
 
 /// <summary>
 /// Integration tests for EncinaPactProviderVerifier that require file I/O operations.
@@ -104,6 +116,10 @@ public sealed class EncinaPactProviderVerifierIntegrationTests : IDisposable
     public async Task VerifyAsync_WithInteraction_VerifiesSuccessfully()
     {
         // Arrange
+        var expectedResponse = new TestCommandResponse(IsSuccess: true);
+        _mockEncina.Send<TestCommandResponse>(Arg.Any<IRequest<TestCommandResponse>>(), Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, TestCommandResponse>.Right(expectedResponse));
+
         var pactPath = Path.Combine(_testPactDir, "test-pact.json");
         var pact = new
         {
@@ -114,7 +130,7 @@ public sealed class EncinaPactProviderVerifierIntegrationTests : IDisposable
                 new
                 {
                     Description = "Test interaction",
-                    Request = new { Method = "POST", Path = "/api/commands/TestCommand" },
+                    Request = new { Method = "POST", Path = "/api/commands/TestCommand", Body = new { } },
                     Response = new { Status = 200, Body = new { IsSuccess = true } }
                 }
             }
@@ -125,7 +141,13 @@ public sealed class EncinaPactProviderVerifierIntegrationTests : IDisposable
         var result = await _sut.VerifyAsync(pactPath);
 
         // Assert
-        result.Success.ShouldBeTrue();
+        if (!result.Success)
+        {
+            var errorDetails = string.Join(Environment.NewLine, result.Errors);
+            var interactionErrors = string.Join(Environment.NewLine,
+                result.InteractionResults.Where(r => !r.Success).Select(r => $"{r.Description}: {r.ErrorMessage}"));
+            result.Success.ShouldBeTrue($"Errors: {errorDetails}{Environment.NewLine}Interactions: {interactionErrors}");
+        }
         result.InteractionResults.Count.ShouldBe(1);
     }
 

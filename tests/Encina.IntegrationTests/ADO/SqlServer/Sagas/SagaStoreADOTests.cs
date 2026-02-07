@@ -9,20 +9,24 @@ namespace Encina.IntegrationTests.ADO.SqlServer.Sagas;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.SqlServer")]
-public sealed class SagaStoreADOTests : IClassFixture<SqlServerFixture>
+[Collection("ADO-SqlServer")]
+public sealed class SagaStoreADOTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _fixture;
-    private readonly SagaStoreADO _store;
+    private SagaStoreADO _store = null!;
 
     public SagaStoreADOTests(SqlServerFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new SagaStoreADO(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidSaga_ShouldPersist()

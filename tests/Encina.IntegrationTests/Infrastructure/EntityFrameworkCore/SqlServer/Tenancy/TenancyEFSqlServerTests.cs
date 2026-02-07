@@ -89,10 +89,9 @@ public sealed class TenancyEFSqlServerTests : IAsyncLifetime
 
     #region Query Filter Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task TenantFilter_ShouldOnlyReturnCurrentTenantData()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         const string tenant1 = "tenant-1";
@@ -121,10 +120,9 @@ public sealed class TenancyEFSqlServerTests : IAsyncLifetime
         entities.ShouldAllBe(e => e.TenantId == tenant1);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task IgnoreQueryFilters_ShouldReturnAllTenantData()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         const string tenant1 = "filter-tenant-1";
@@ -155,10 +153,9 @@ public sealed class TenancyEFSqlServerTests : IAsyncLifetime
 
     #region Auto-Assignment Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task NewEntity_ShouldAutoAssignTenantId()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         const string tenantId = "auto-assign-tenant";
@@ -185,10 +182,9 @@ public sealed class TenancyEFSqlServerTests : IAsyncLifetime
 
     #region Tenant Isolation Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task QueryWithDifferentTenant_ShouldReturnEmpty()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         const string tenantId = "existing-tenant";
@@ -207,10 +203,9 @@ public sealed class TenancyEFSqlServerTests : IAsyncLifetime
         entities.ShouldBeEmpty();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CrossTenantDataIsolation_ShouldBeEnforced()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         const string tenant1 = "isolation-tenant-1";
@@ -238,10 +233,9 @@ public sealed class TenancyEFSqlServerTests : IAsyncLifetime
         tenant1Entities.ShouldNotContain(e => e.Name == "Tenant 2 Secret");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultipleTenants_ShouldMaintainSeparateDataSets()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         var tenants = new[] { "tenant-a", "tenant-b", "tenant-c" };
@@ -270,10 +264,9 @@ public sealed class TenancyEFSqlServerTests : IAsyncLifetime
 
     #region Validation Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateEntity_WrongTenant_ShouldThrowException()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         const string tenant1 = "owner-tenant";
@@ -306,10 +299,9 @@ public sealed class TenancyEFSqlServerTests : IAsyncLifetime
 
     #region LINQ Query Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task WhereClause_ShouldWorkWithTenantFilter()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         const string tenantId = "where-tenant";
@@ -333,10 +325,9 @@ public sealed class TenancyEFSqlServerTests : IAsyncLifetime
         activeEntities.ShouldAllBe(e => e.IsActive && e.TenantId == tenantId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Aggregate_ShouldWorkWithTenantFilter()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         const string tenantId = "aggregate-tenant";

@@ -19,13 +19,13 @@ public sealed class SagaStoreADO : ISagaStore
     /// Initializes a new instance of the <see cref="SagaStoreADO"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
-    /// <param name="tableName">The saga state table name (default: SagaStates).</param>
+    /// <param name="tableName">The saga state table name (default: sagastates).</param>
     /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is null or whitespace.</exception>
     public SagaStoreADO(
         IDbConnection connection,
-        string tableName = "SagaStates",
+        string tableName = "sagastates",
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -41,9 +41,9 @@ public sealed class SagaStoreADO : ISagaStore
             throw new ArgumentException(StoreValidationMessages.SagaIdCannotBeEmpty, nameof(sagaId));
 
         var sql = $@"
-            SELECT *
+            SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc
             FROM {_tableName}
-            WHERE SagaId = @SagaId";
+            WHERE sagaid = @SagaId";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
@@ -68,7 +68,7 @@ public sealed class SagaStoreADO : ISagaStore
 
         var sql = $@"
             INSERT INTO {_tableName}
-            (SagaId, SagaType, Data, Status, StartedAtUtc, LastUpdatedAtUtc, CompletedAtUtc, ErrorMessage, CurrentStep, TimeoutAtUtc)
+            (sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc)
             VALUES
             (@SagaId, @SagaType, @Data, @Status, @StartedAtUtc, @LastUpdatedAtUtc, @CompletedAtUtc, @ErrorMessage, @CurrentStep, @TimeoutAtUtc)";
 
@@ -99,15 +99,15 @@ public sealed class SagaStoreADO : ISagaStore
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             UPDATE {_tableName}
-            SET SagaType = @SagaType,
-                Data = @Data,
-                Status = @Status,
-                LastUpdatedAtUtc = @NowUtc,
-                CompletedAtUtc = @CompletedAtUtc,
-                ErrorMessage = @ErrorMessage,
-                CurrentStep = @CurrentStep,
-                TimeoutAtUtc = @TimeoutAtUtc
-            WHERE SagaId = @SagaId";
+            SET sagatype = @SagaType,
+                data = @Data,
+                status = @Status,
+                lastupdatedatutc = @NowUtc,
+                completedatutc = @CompletedAtUtc,
+                errormessage = @ErrorMessage,
+                currentstep = @CurrentStep,
+                timeoutatutc = @TimeoutAtUtc
+            WHERE sagaid = @SagaId";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
@@ -141,11 +141,11 @@ public sealed class SagaStoreADO : ISagaStore
         var thresholdUtc = _timeProvider.GetUtcNow().UtcDateTime.Subtract(olderThan);
 
         var sql = $@"
-            SELECT *
+            SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc
             FROM {_tableName}
-            WHERE (Status = @Running OR Status = @Compensating)
-              AND LastUpdatedAtUtc < @ThresholdUtc
-            ORDER BY LastUpdatedAtUtc
+            WHERE (status = @Running OR status = @Compensating)
+              AND lastupdatedatutc < @ThresholdUtc
+            ORDER BY lastupdatedatutc
             LIMIT @BatchSize";
 
         using var command = _connection.CreateCommand();
@@ -180,12 +180,12 @@ public sealed class SagaStoreADO : ISagaStore
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
         var sql = $@"
-            SELECT *
+            SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc
             FROM {_tableName}
-            WHERE (Status = @Running OR Status = @Compensating)
-              AND TimeoutAtUtc IS NOT NULL
-              AND TimeoutAtUtc <= @NowUtc
-            ORDER BY TimeoutAtUtc
+            WHERE (status = @Running OR status = @Compensating)
+              AND timeoutatutc IS NOT NULL
+              AND timeoutatutc <= @NowUtc
+            ORDER BY timeoutatutc
             LIMIT @BatchSize";
 
         using var command = _connection.CreateCommand();
@@ -220,22 +220,22 @@ public sealed class SagaStoreADO : ISagaStore
     {
         return new SagaState
         {
-            SagaId = reader.GetGuid(reader.GetOrdinal("SagaId")),
-            SagaType = reader.GetString(reader.GetOrdinal("SagaType")),
-            Data = reader.GetString(reader.GetOrdinal("Data")),
-            Status = reader.GetString(reader.GetOrdinal("Status")),
-            StartedAtUtc = reader.GetDateTime(reader.GetOrdinal("StartedAtUtc")),
-            LastUpdatedAtUtc = reader.GetDateTime(reader.GetOrdinal("LastUpdatedAtUtc")),
-            CompletedAtUtc = reader.IsDBNull(reader.GetOrdinal("CompletedAtUtc"))
+            SagaId = reader.GetGuid(reader.GetOrdinal("sagaid")),
+            SagaType = reader.GetString(reader.GetOrdinal("sagatype")),
+            Data = reader.GetString(reader.GetOrdinal("data")),
+            Status = reader.GetString(reader.GetOrdinal("status")),
+            StartedAtUtc = reader.GetDateTime(reader.GetOrdinal("startedatutc")),
+            LastUpdatedAtUtc = reader.GetDateTime(reader.GetOrdinal("lastupdatedatutc")),
+            CompletedAtUtc = reader.IsDBNull(reader.GetOrdinal("completedatutc"))
                 ? null
-                : reader.GetDateTime(reader.GetOrdinal("CompletedAtUtc")),
-            ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
+                : reader.GetDateTime(reader.GetOrdinal("completedatutc")),
+            ErrorMessage = reader.IsDBNull(reader.GetOrdinal("errormessage"))
                 ? null
-                : reader.GetString(reader.GetOrdinal("ErrorMessage")),
-            CurrentStep = reader.GetInt32(reader.GetOrdinal("CurrentStep")),
-            TimeoutAtUtc = reader.IsDBNull(reader.GetOrdinal("TimeoutAtUtc"))
+                : reader.GetString(reader.GetOrdinal("errormessage")),
+            CurrentStep = reader.GetInt32(reader.GetOrdinal("currentstep")),
+            TimeoutAtUtc = reader.IsDBNull(reader.GetOrdinal("timeoutatutc"))
                 ? null
-                : reader.GetDateTime(reader.GetOrdinal("TimeoutAtUtc"))
+                : reader.GetDateTime(reader.GetOrdinal("timeoutatutc"))
         };
     }
 

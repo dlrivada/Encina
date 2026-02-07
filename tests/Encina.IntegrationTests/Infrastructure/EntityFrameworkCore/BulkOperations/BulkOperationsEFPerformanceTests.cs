@@ -16,7 +16,8 @@ namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.BulkOperati
 [Trait("Provider", "EntityFrameworkCore")]
 [Trait("Feature", "BulkOperations")]
 #pragma warning disable CA1001 // IAsyncLifetime handles disposal via DisposeAsync
-public sealed class BulkOperationsEFPerformanceTests : IClassFixture<SqlServerFixture>, IAsyncLifetime
+[Collection("ADO-SqlServer")]
+public sealed class BulkOperationsEFPerformanceTests : IAsyncLifetime
 #pragma warning restore CA1001
 {
     private readonly SqlServerFixture _fixture;

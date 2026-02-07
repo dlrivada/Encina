@@ -15,19 +15,23 @@ namespace Encina.IntegrationTests.ADO.PostgreSQL.UnitOfWork;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
+[Collection("ADO-PostgreSQL")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable", Justification = "Disposal handled by IAsyncLifetime.DisposeAsync")]
 public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
 {
-    private readonly PostgreSqlFixture _fixture = new();
+    private readonly PostgreSqlFixture _fixture;
     private IDbConnection _connection = null!;
     private UnitOfWorkADO _unitOfWork = null!;
     private IServiceProvider _serviceProvider = null!;
     private IEntityMapping<TestADOProduct, Guid> _mapping = null!;
 
+    public UnitOfWorkADOIntegrationTests(PostgreSqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         // Create the test schema
         using var schemaConnection = _fixture.CreateConnection() as NpgsqlConnection;
         if (schemaConnection != null)
@@ -49,7 +53,7 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
     {
         await _unitOfWork.DisposeAsync();
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private static async Task CreateTestProductsSchemaAsync(NpgsqlConnection connection)
@@ -61,7 +65,7 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
                 name VARCHAR(200) NOT NULL,
                 price DECIMAL(18,2) NOT NULL,
                 is_active BOOLEAN NOT NULL,
-                created_at_utc TIMESTAMP NOT NULL
+                created_at_utc TIMESTAMPTZ NOT NULL
             );
             CREATE INDEX IF NOT EXISTS ix_test_ado_products_is_active ON test_ado_products(is_active);
             """;
@@ -93,10 +97,9 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
 
     #region Transaction Commit Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Transaction_CommitMultipleEntities_AllPersisted()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -125,10 +128,9 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
 
     #region Transaction Rollback Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Transaction_Rollback_NoChangesPersisted()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -151,10 +153,9 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
 
     #region Repository Caching Tests
 
-    [SkippableFact]
+    [Fact]
     public void Repository_SameEntityType_ReturnsSameInstance()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Act
         var repository1 = _unitOfWork.Repository<TestADOProduct, Guid>();
@@ -168,10 +169,9 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
 
     #region Transaction State Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task BeginTransaction_SetsHasActiveTransactionTrue()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         _unitOfWork.HasActiveTransaction.ShouldBeFalse();
@@ -187,10 +187,9 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
         await _unitOfWork.RollbackAsync();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Commit_ClearsHasActiveTransaction()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await _unitOfWork.BeginTransactionAsync();
@@ -203,10 +202,9 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
         _unitOfWork.HasActiveTransaction.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Rollback_ClearsHasActiveTransaction()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await _unitOfWork.BeginTransactionAsync();
@@ -219,10 +217,9 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
         _unitOfWork.HasActiveTransaction.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task BeginTransaction_WhenAlreadyActive_ReturnsError()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await _unitOfWork.BeginTransactionAsync();
@@ -237,10 +234,9 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
         await _unitOfWork.RollbackAsync();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Commit_WhenNoTransaction_ReturnsError()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Act
         var result = await _unitOfWork.CommitAsync();

@@ -16,7 +16,8 @@ namespace Encina.IntegrationTests.Infrastructure.ADO.SqlServer.BulkOperations;
 [Trait("Provider", "ADO.SqlServer")]
 [Trait("Feature", "BulkOperations")]
 #pragma warning disable CA1001 // IAsyncLifetime handles disposal via DisposeAsync
-public sealed class BulkOperationsADOPerformanceTests : IClassFixture<SqlServerFixture>, IAsyncLifetime
+[Collection("ADO-SqlServer")]
+public sealed class BulkOperationsADOPerformanceTests : IAsyncLifetime
 #pragma warning restore CA1001
 {
     private readonly SqlServerFixture _fixture;
@@ -33,6 +34,7 @@ public sealed class BulkOperationsADOPerformanceTests : IClassFixture<SqlServerF
     public async Task InitializeAsync()
     {
         _connection = _fixture.CreateConnection();
+        await EnsureConnectionOpenAsync();
 
         // Create table
         using var cmd = ((SqlConnection)_connection).CreateCommand();
@@ -74,6 +76,8 @@ public sealed class BulkOperationsADOPerformanceTests : IClassFixture<SqlServerF
 
     public async Task DisposeAsync()
     {
+        await EnsureConnectionOpenAsync();
+
         if (_connection.State == ConnectionState.Open)
         {
             using var cmd = ((SqlConnection)_connection).CreateCommand();
@@ -85,9 +89,19 @@ public sealed class BulkOperationsADOPerformanceTests : IClassFixture<SqlServerF
 
     private async Task TruncateTableAsync()
     {
+        await EnsureConnectionOpenAsync();
+
         using var cmd = ((SqlConnection)_connection).CreateCommand();
         cmd.CommandText = "IF OBJECT_ID('ADOPerformanceEntities', 'U') IS NOT NULL TRUNCATE TABLE ADOPerformanceEntities";
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    private async Task EnsureConnectionOpenAsync()
+    {
+        if (_connection is SqlConnection sqlConnection && sqlConnection.State != ConnectionState.Open)
+        {
+            await sqlConnection.OpenAsync();
+        }
     }
 
     private static List<ADOPerformanceEntity> CreateEntities(int count)

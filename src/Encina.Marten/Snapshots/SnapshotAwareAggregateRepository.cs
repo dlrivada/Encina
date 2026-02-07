@@ -78,8 +78,13 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
                 .ConfigureAwait(false);
 
             return await snapshotResult.MatchAsync(
-                async snapshot => await LoadWithSnapshotAsync(id, snapshot, null, cancellationToken)
-                    .ConfigureAwait(false),
+                async optSnapshot =>
+                {
+                    // Unwrap Option<Snapshot> to nullable Snapshot
+                    var snapshot = optSnapshot.MatchUnsafe(s => s, () => null);
+                    return await LoadWithSnapshotAsync(id, snapshot, null, cancellationToken)
+                        .ConfigureAwait(false);
+                },
                 error => Task.FromResult(Left<EncinaError, TAggregate>(error)))
                 .ConfigureAwait(false);
         }
@@ -108,8 +113,13 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
                 .ConfigureAwait(false);
 
             return await snapshotResult.MatchAsync(
-                async snapshot => await LoadWithSnapshotAsync(id, snapshot, version, cancellationToken)
-                    .ConfigureAwait(false),
+                async optSnapshot =>
+                {
+                    // Unwrap Option<Snapshot> to nullable Snapshot
+                    var snapshot = optSnapshot.MatchUnsafe(s => s, () => null);
+                    return await LoadWithSnapshotAsync(id, snapshot, version, cancellationToken)
+                        .ConfigureAwait(false);
+                },
                 error => Task.FromResult(Left<EncinaError, TAggregate>(error)))
                 .ConfigureAwait(false);
         }

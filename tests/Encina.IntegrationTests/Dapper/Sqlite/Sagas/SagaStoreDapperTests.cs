@@ -8,22 +8,26 @@ namespace Encina.IntegrationTests.Dapper.Sqlite.Sagas;
 /// Integration tests for <see cref="SagaStoreDapper"/>.
 /// Tests against real SQLite database with proper cleanup.
 /// </summary>
+[Collection("Dapper-Sqlite")]
 [Trait("Category", "Integration")]
-public sealed class SagaStoreDapperTests : IClassFixture<SqliteFixture>
+public sealed class SagaStoreDapperTests : IAsyncLifetime
 {
     private readonly SqliteFixture _database;
-    private readonly SagaStoreDapper _store;
+    private SagaStoreDapper _store = null!;
 
     public SagaStoreDapperTests(SqliteFixture database)
     {
         _database = database;
+    }
+
+    public async Task InitializeAsync()
+    {
         DapperTypeHandlers.RegisterSqliteHandlers();
-
-        // Clear all data before each test to ensure clean state
-        _database.ClearAllDataAsync().GetAwaiter().GetResult();
-
+        await _database.ClearAllDataAsync();
         _store = new SagaStoreDapper(_database.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidSaga_ShouldPersist()

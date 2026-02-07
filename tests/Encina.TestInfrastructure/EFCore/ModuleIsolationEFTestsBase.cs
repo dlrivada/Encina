@@ -365,7 +365,6 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     [Trait("Category", "Integration")]
     public async Task ModuleCanQueryOwnSchema()
     {
-        Skip.IfNot(Fixture.IsAvailable, "Database container not available");
         Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
@@ -397,7 +396,6 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     [Trait("Category", "Integration")]
     public async Task AllModulesCanAccessSharedSchema()
     {
-        Skip.IfNot(Fixture.IsAvailable, "Database container not available");
         Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
@@ -435,7 +433,6 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     [Trait("Category", "Integration")]
     public async Task QueriesWithoutModuleContextExecuteNormally()
     {
-        Skip.IfNot(Fixture.IsAvailable, "Database container not available");
         Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
@@ -457,7 +454,6 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     [Trait("Category", "Integration")]
     public async Task CrossSchemaAccessThrowsModuleIsolationViolationException()
     {
-        Skip.IfNot(Fixture.IsAvailable, "Database container not available");
         Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
@@ -489,7 +485,6 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     [Trait("Category", "Integration")]
     public async Task ViolationExceptionContainsCorrectDetails()
     {
-        Skip.IfNot(Fixture.IsAvailable, "Database container not available");
         Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
@@ -522,7 +517,6 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     [Trait("Category", "Integration")]
     public async Task ContextSwitchingChangesValidationBehavior()
     {
-        Skip.IfNot(Fixture.IsAvailable, "Database container not available");
         Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange

@@ -15,17 +15,21 @@ namespace Encina.IntegrationTests.ADO.PostgreSQL.Repository;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
+[Collection("ADO-PostgreSQL")]
 public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 {
-    private readonly PostgreSqlFixture _fixture = new();
+    private readonly PostgreSqlFixture _fixture;
     private IDbConnection _connection = null!;
     private FunctionalRepositoryADO<ExtendedTestItem, Guid> _repository = null!;
     private IEntityMapping<ExtendedTestItem, Guid> _mapping = null!;
 
+    public ExtendedFunctionalRepositoryADOIntegrationTests(PostgreSqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         using var schemaConnection = _fixture.CreateConnection() as NpgsqlConnection;
         if (schemaConnection != null)
         {
@@ -51,7 +55,7 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private static async Task CreateExtendedTestItemsSchemaAsync(NpgsqlConnection connection)
@@ -65,8 +69,8 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
                 amount DECIMAL(18,4) NOT NULL,
                 is_active BOOLEAN NOT NULL DEFAULT TRUE,
                 category VARCHAR(100) NULL,
-                created_at_utc TIMESTAMP NOT NULL,
-                updated_at_utc TIMESTAMP NULL
+                created_at_utc TIMESTAMPTZ NOT NULL,
+                updated_at_utc TIMESTAMPTZ NULL
             );
             CREATE INDEX ix_extended_test_items_is_active ON extended_test_items(is_active);
             CREATE INDEX ix_extended_test_items_category ON extended_test_items(category);
@@ -89,10 +93,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region Complex Specification Tests (AND/OR/NOT)
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithAndSpecification_ReturnsCorrectResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -121,10 +124,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithOrSpecification_ReturnsCorrectResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -151,10 +153,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithNotSpecification_ReturnsCorrectResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -181,10 +182,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithComplexNestedSpecification_ReturnsCorrectResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -223,10 +223,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region String Operations Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithContainsSpecification_ReturnsCorrectResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -252,10 +251,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithStartsWithSpecification_ReturnsCorrectResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -281,10 +279,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithEndsWithSpecification_ReturnsCorrectResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -314,10 +311,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region Null Handling Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithNullDescriptionSpec_ReturnsEntitiesWithNullDescription()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -342,10 +338,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithNotNullDescriptionSpec_ReturnsEntitiesWithDescription()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -370,10 +365,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithNullableDateTimeComparison_ReturnsCorrectResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -403,10 +397,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region Bulk Operations Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task AddRangeAsync_MultipleBatches_PersistsAllEntities()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -425,10 +418,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         countResult.IfRight(count => count.ShouldBe(100));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DeleteRangeAsync_MultipleEntities_RemovesAllSpecified()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -460,10 +452,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateRangeAsync_MultipleEntities_UpdatesAll()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -501,10 +492,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region Type Mapping Edge Cases
 
-    [SkippableFact]
+    [Fact]
     public async Task TypeMapping_DecimalPrecision_PreservesFourDecimalPlaces()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -519,10 +509,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         result.IfRight(e => e.Amount.ShouldBe(123.4567m));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task TypeMapping_DateTimePrecision_PreservesMicroseconds()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -545,10 +534,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task TypeMapping_GuidStorage_PreservesValue()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -565,10 +553,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         result.IfRight(e => e.Id.ShouldBe(specificGuid));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task TypeMapping_BooleanStorage_PreservesValue()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -594,10 +581,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region Date Range Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithDateRangeSpec_ReturnsCorrectResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();
@@ -628,10 +614,9 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
 
     #region Amount Range Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithAmountRangeSpec_ReturnsCorrectResults()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await ClearDataAsync();

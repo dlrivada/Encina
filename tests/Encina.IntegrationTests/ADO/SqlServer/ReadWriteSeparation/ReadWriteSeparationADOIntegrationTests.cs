@@ -30,11 +30,17 @@ namespace Encina.IntegrationTests.ADO.SqlServer.ReadWriteSeparation;
 /// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
+[Collection("ADO-SqlServer")]
 public class ReadWriteSeparationADOIntegrationTests : ReadWriteSeparationTestsBase<SqlServerFixture>
 {
-    private readonly SqlServerFixture _fixture = new();
+    private readonly SqlServerFixture _fixture;
     private ReadWriteConnectionFactory _connectionFactory = null!;
     private ReadWriteSeparationOptions _options = null!;
+
+    public ReadWriteSeparationADOIntegrationTests(SqlServerFixture fixture)
+    {
+        _fixture = fixture;
+    }
 
     /// <inheritdoc />
     protected override SqlServerFixture Fixture => _fixture;
@@ -55,8 +61,6 @@ public class ReadWriteSeparationADOIntegrationTests : ReadWriteSeparationTestsBa
     /// <inheritdoc />
     public override async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         // Create read/write test entities table
         using var connection = (SqlConnection)_fixture.CreateConnection();
         await TenancySchema.CreateReadWriteTestEntitiesSchemaAsync(connection);
@@ -89,7 +93,7 @@ public class ReadWriteSeparationADOIntegrationTests : ReadWriteSeparationTestsBa
             // Ignore cleanup errors
         }
 
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
         await base.DisposeAsync();
     }
 

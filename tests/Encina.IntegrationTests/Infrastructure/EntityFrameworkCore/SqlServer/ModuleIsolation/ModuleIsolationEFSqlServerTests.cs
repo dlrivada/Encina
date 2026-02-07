@@ -166,30 +166,27 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
 
     #region Schema Registry Validation Tests
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldAllowAccessToOwnSchema()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Assert
         _schemaRegistry.CanAccessSchema("Orders", "orders").ShouldBeTrue();
         _schemaRegistry.CanAccessSchema("Inventory", "inventory").ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldAllowAccessToSharedSchema()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Assert
         _schemaRegistry.CanAccessSchema("Orders", "shared").ShouldBeTrue();
         _schemaRegistry.CanAccessSchema("Inventory", "shared").ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldDenyAccessToOtherModuleSchemas()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Assert
         _schemaRegistry.CanAccessSchema("Orders", "inventory").ShouldBeFalse();
@@ -200,10 +197,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
 
     #region SQL Validation Tests (schema-qualified for SQL Server)
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_ValidQueryToOwnSchemaTable_ShouldPass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // SQL Server uses schema-qualified names: orders.ModuleOrders
         var result = _schemaRegistry.ValidateSqlAccess("Orders", "SELECT * FROM orders.ModuleOrders WHERE Id = @Id");
@@ -212,10 +208,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         result.IsValid.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_QueryToSharedSchemaTable_ShouldPass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // SQL Server uses schema-qualified names: shared.ModuleLookups
         var result = _schemaRegistry.ValidateSqlAccess("Orders", "SELECT * FROM shared.ModuleLookups WHERE Category = @Category");
@@ -224,10 +219,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         result.IsValid.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_CrossModuleSchemaAccess_ShouldFail()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // SQL Server uses schema-qualified names: inventory.ModuleInventoryItems
         var result = _schemaRegistry.ValidateSqlAccess("Orders", "SELECT * FROM inventory.ModuleInventoryItems WHERE Sku = @Sku");
@@ -241,10 +235,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
 
     #region ModuleSchemaValidationInterceptor Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_CanExecuteValidQuery()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor("Orders");
@@ -269,10 +262,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         count.ShouldBeGreaterThanOrEqualTo(1);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_ThrowsOnCrossModuleTableAccess()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor("Orders");
@@ -284,10 +276,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_AllowsSharedTableAccess()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor("Orders");
@@ -316,10 +307,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
 
     #region Module Context Tests
 
-    [SkippableFact]
+    [Fact]
     public void ModuleContext_CanBeSwitched()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange & Act
         _moduleContext.SetCurrentModule("Orders");
@@ -337,10 +327,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         cleared.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public void ModuleContext_CreateScope_SetsAndClearsModule()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange & Act
         string? moduleInScope;
@@ -359,10 +348,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
 
     #region Additional Allowed Schemas Tests
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_WithAdditionalAllowedSchemas_ShouldAllowAccess()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange - Create options with additional allowed schemas
         var options = new ModuleIsolationOptions
@@ -386,10 +374,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         registry.CanAccessSchema("Orders", "reporting").ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_WithAdditionalAllowedSchemas_JoinQuery_ShouldPass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange - Create options with additional allowed schemas
         var options = new ModuleIsolationOptions
@@ -419,10 +406,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
 
     #region Exception Details Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_CrossModuleAccess_ExceptionContainsModuleName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor("Orders");
@@ -437,10 +423,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         exception.UnauthorizedSchemas.ShouldContain("inventory");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_CrossModuleAccess_ExceptionMessageIsDescriptive()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor("Orders");
@@ -459,10 +444,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
 
     #region Cross-Module Query Detection Tests
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_JoinQueryAcrossModules_ShouldFail()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange - Join between orders and inventory
         var sql = """
@@ -479,10 +463,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         result.UnauthorizedSchemas.ShouldContain("inventory");
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_SubqueryAcrossModules_ShouldFail()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange - Subquery referencing inventory from orders
         var sql = """
@@ -498,10 +481,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         result.UnauthorizedSchemas.ShouldContain("inventory");
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_JoinWithSharedTable_ShouldPass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange - Join between own schema and shared (no table aliases to avoid false positives)
         // Note: SqlSchemaExtractor may detect table aliases (e.g., "o.Column") as schema references.
@@ -519,10 +501,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         result.IsValid.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_InsertToOwnSchema_ShouldSucceed()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor("Orders");
@@ -539,10 +520,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         count.ShouldBeGreaterThanOrEqualTo(1);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_UpdateInOwnSchema_ShouldSucceed()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor("Orders");
@@ -568,10 +548,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         updated.Status.ShouldBe("Completed");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_DeleteFromOwnSchema_ShouldSucceed()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor("Orders");
@@ -596,10 +575,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         exists.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_InsertToCrossModuleSchema_ShouldThrow()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor("Orders");
@@ -618,10 +596,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
 
     #region Module Context Switching Behavior Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_SameQueryAllowedOrBlockedByContext()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // The same query should succeed for Inventory but fail for Orders
         const string sql = "SELECT * FROM inventory.ModuleInventoryItems";
@@ -638,10 +615,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_ContextScopeChangesValidation()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         var interceptor = new ModuleSchemaValidationInterceptor(
@@ -673,10 +649,9 @@ public sealed class ModuleIsolationEFSqlServerTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_NoModuleContext_BypassesValidation()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange - Create interceptor but don't set module context
         var noModuleContext = new TestModuleExecutionContext();

@@ -20,10 +20,9 @@ public sealed class NATSHealthCheckIntegrationTests : IClassFixture<NatsFixture>
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WhenNATSIsRunning_ReturnsHealthy()
     {
-        Skip.IfNot(_fixture.IsAvailable, "NATS container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -37,10 +36,9 @@ public sealed class NATSHealthCheckIntegrationTests : IClassFixture<NatsFixture>
         result.Description!.ShouldContain("connected");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "NATS container not available");
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-nats" };
@@ -55,10 +53,9 @@ public sealed class NATSHealthCheckIntegrationTests : IClassFixture<NatsFixture>
         result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
-    [SkippableFact]
+    [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        Skip.IfNot(_fixture.IsAvailable, "NATS container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();

@@ -23,10 +23,9 @@ public sealed class EventMetadataIntegrationTests
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Events_WithCorrelationId_ArePersisted()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
@@ -46,10 +45,9 @@ public sealed class EventMetadataIntegrationTests
         events[0].CorrelationId.ShouldBe(correlationId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Events_WithCausationId_ArePersisted()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
@@ -69,10 +67,9 @@ public sealed class EventMetadataIntegrationTests
         events[0].CausationId.ShouldBe(causationId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Events_WithHeaders_ArePersisted()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
@@ -97,10 +94,9 @@ public sealed class EventMetadataIntegrationTests
         eventHeaders!["Environment"].ShouldBe("Test");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Events_WithAllMetadata_ArePersisted()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
@@ -127,10 +123,9 @@ public sealed class EventMetadataIntegrationTests
         ev.Headers!["CommitSha"].ShouldBe("abc123");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultipleEvents_ShareSameMetadata()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
@@ -153,10 +148,9 @@ public sealed class EventMetadataIntegrationTests
         events.ShouldAllBe(e => e.CorrelationId == correlationId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task QueryEvents_ByCorrelationId_ReturnsMatchingEvents()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange - Create events with different correlation IDs
         var correlationId = "query-test-" + Guid.NewGuid();
@@ -188,10 +182,9 @@ public sealed class EventMetadataIntegrationTests
         matchingEvents.ShouldAllBe(e => e.CorrelationId == correlationId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task QueryEvents_ByCausationId_ReturnsMatchingEvents()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange - Create a chain of causally-related events
         var causationId = "causation-query-" + Guid.NewGuid();
@@ -216,10 +209,9 @@ public sealed class EventMetadataIntegrationTests
         matchingEvents.ShouldAllBe(e => e.CausationId == causationId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CausalChain_CanBeReconstructed()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange - Create a causal chain: Command -> Event A -> Event B -> Event C
         var correlationId = "chain-" + Guid.NewGuid();
@@ -279,10 +271,9 @@ public sealed class EventMetadataIntegrationTests
         allRelatedEvents[2].CausationId.ShouldBe(eventBId.ToString());
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Events_WithPagination_ReturnsCorrectPage()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange - Create multiple events with the same correlation ID
         var correlationId = "pagination-" + Guid.NewGuid();
@@ -331,10 +322,9 @@ public sealed class EventMetadataIntegrationTests
         page1Ids.Intersect(page2Ids).ShouldBeEmpty();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Events_CanBeFilteredByTimestamp()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var correlationId = "timestamp-filter-" + Guid.NewGuid();

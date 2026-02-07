@@ -15,8 +15,9 @@ namespace Encina.IntegrationTests.ADO.Sqlite.UnitOfWork;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
+[Collection("ADO-Sqlite")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable", Justification = "Disposal handled by test cleanup")]
-public class UnitOfWorkADOIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
+public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;

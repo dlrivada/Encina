@@ -8,26 +8,30 @@ namespace Encina.IntegrationTests.Dapper.Sqlite.Inbox;
 /// Integration tests for <see cref="InboxStoreDapper"/>.
 /// Tests all public methods with various scenarios using real SQLite database.
 /// </summary>
+[Collection("Dapper-Sqlite")]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.Sqlite")]
-public sealed class InboxStoreDapperTests : IClassFixture<SqliteFixture>
+public sealed class InboxStoreDapperTests : IAsyncLifetime
 {
     private static readonly string[] s_twoMessageIds = ["msg-1", "msg-2"];
     private static readonly string[] s_oneMessageId = ["msg-1"];
 
     private readonly SqliteFixture _fixture;
-    private readonly InboxStoreDapper _store;
+    private InboxStoreDapper _store = null!;
 
     public InboxStoreDapperTests(SqliteFixture fixture)
     {
         _fixture = fixture;
+    }
+
+    public async Task InitializeAsync()
+    {
         DapperTypeHandlers.RegisterSqliteHandlers();
-
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+        await _fixture.ClearAllDataAsync();
         _store = new InboxStoreDapper(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 

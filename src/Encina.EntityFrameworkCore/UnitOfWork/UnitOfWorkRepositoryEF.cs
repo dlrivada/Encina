@@ -205,6 +205,85 @@ internal sealed class UnitOfWorkRepositoryEF<TEntity, TId> : IFunctionalReposito
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        PaginationOptions pagination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(pagination);
+
+        try
+        {
+            var pagedResult = await _dbSet
+                .AsNoTracking()
+                .ToPagedResultAsync(pagination, cancellationToken)
+                .ConfigureAwait(false);
+
+            return Right<EncinaError, PagedResult<TEntity>>(pagedResult);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(
+                RepositoryErrors.PersistenceError<TEntity>("GetPaged", ex));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        Specification<TEntity> specification,
+        PaginationOptions pagination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(pagination);
+
+        try
+        {
+            var query = SpecificationEvaluator.GetQuery(_dbSet.AsQueryable(), specification);
+            var pagedResult = await query
+                .ToPagedResultAsync(pagination, cancellationToken)
+                .ConfigureAwait(false);
+
+            return Right<EncinaError, PagedResult<TEntity>>(pagedResult);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(
+                RepositoryErrors.PersistenceError<TEntity>("GetPaged", ex));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        IPagedSpecification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+
+        try
+        {
+            // IPagedSpecification implementations should inherit from Specification<T>
+            // through PagedQuerySpecification<T>
+            if (specification is not Specification<TEntity> spec)
+            {
+                throw new InvalidOperationException(
+                    $"The specification {specification.GetType().Name} must inherit from Specification<{typeof(TEntity).Name}> or PagedQuerySpecification<{typeof(TEntity).Name}>.");
+            }
+
+            var query = SpecificationEvaluator.GetQuery(_dbSet.AsQueryable(), spec);
+            var pagedResult = await query
+                .ToPagedResultAsync(specification.Pagination, cancellationToken)
+                .ConfigureAwait(false);
+
+            return Right<EncinaError, PagedResult<TEntity>>(pagedResult);
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(
+                RepositoryErrors.PersistenceError<TEntity>("GetPaged", ex));
+        }
+    }
+
     #endregion
 
     #region Write Operations (No SaveChanges - tracked only)

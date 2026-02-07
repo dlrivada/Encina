@@ -12,7 +12,8 @@ namespace Encina.IntegrationTests.ADO.PostgreSQL.Health;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.PostgreSQL")]
-public sealed class PostgreSqlHealthCheckIntegrationTests : IClassFixture<PostgreSqlFixture>
+[Collection("ADO-PostgreSQL")]
+public sealed class PostgreSqlHealthCheckIntegrationTests : IAsyncLifetime
 {
     private readonly PostgreSqlFixture _fixture;
 
@@ -21,10 +22,13 @@ public sealed class PostgreSqlHealthCheckIntegrationTests : IClassFixture<Postgr
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    [Fact]
     public async Task CheckHealthAsync_WhenDatabaseIsRunning_ReturnsHealthy()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -39,10 +43,9 @@ public sealed class PostgreSqlHealthCheckIntegrationTests : IClassFixture<Postgr
         Assert.Contains("healthy", result.Description, StringComparison.OrdinalIgnoreCase);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-ado-postgres" };
@@ -57,10 +60,9 @@ public sealed class PostgreSqlHealthCheckIntegrationTests : IClassFixture<Postgr
         Assert.Equal(HealthStatus.Healthy, result.Status);
     }
 
-    [SkippableFact]
+    [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -73,10 +75,9 @@ public sealed class PostgreSqlHealthCheckIntegrationTests : IClassFixture<Postgr
         Assert.Contains("ready", healthCheck.Tags);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_ExecutesQuerySuccessfully()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();

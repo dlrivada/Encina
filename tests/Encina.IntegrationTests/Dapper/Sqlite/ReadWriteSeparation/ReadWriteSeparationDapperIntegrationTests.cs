@@ -31,9 +31,10 @@ namespace Encina.IntegrationTests.Dapper.Sqlite.ReadWriteSeparation;
 /// synchronized from the primary database file.
 /// </para>
 /// </remarks>
+[Collection("Dapper-Sqlite")]
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTestsBase<SqliteFixture>, IClassFixture<SqliteFixture>
+public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTestsBase<SqliteFixture>
 {
     private readonly SqliteFixture _fixture;
     private ReadWriteConnectionFactory _connectionFactory = null!;
@@ -67,7 +68,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         if (!_initialized)
         {
             // Create read/write test entities table
-            using var connection = (SqliteConnection)_fixture.CreateConnection();
+            // Note: Don't use 'using' here - SqliteFixture returns its shared connection
+            // and disposing it would destroy the in-memory database
+            var connection = (SqliteConnection)_fixture.CreateConnection();
             await TenancySchema.CreateReadWriteTestEntitiesSchemaAsync(connection);
 
             // Configure read/write separation options
@@ -92,7 +95,8 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
     {
         try
         {
-            using var connection = (SqliteConnection)_fixture.CreateConnection();
+            // Don't use 'using' - SqliteFixture returns its shared connection
+            var connection = (SqliteConnection)_fixture.CreateConnection();
             await TenancySchema.ClearTenancyDataAsync(connection);
         }
         catch
@@ -227,7 +231,8 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
     {
         try
         {
-            using var connection = (SqliteConnection)_fixture.CreateConnection();
+            // Don't use 'using' - SqliteFixture returns its shared connection
+            var connection = (SqliteConnection)_fixture.CreateConnection();
             await TenancySchema.ClearTenancyDataAsync(connection);
         }
         catch

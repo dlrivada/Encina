@@ -89,7 +89,7 @@ public sealed class ReadWriteSeparationEFPostgreSqlTests : IAsyncLifetime
                 "Id" UUID PRIMARY KEY,
                 "Name" VARCHAR(200) NOT NULL,
                 "Value" INT NOT NULL,
-                "Timestamp" TIMESTAMP NOT NULL,
+                "Timestamp" TIMESTAMPTZ NOT NULL,
                 "WriteCounter" INT NOT NULL DEFAULT 0
             );
             """;
@@ -133,10 +133,9 @@ public sealed class ReadWriteSeparationEFPostgreSqlTests : IAsyncLifetime
 
     #region Connection Factory Tests
 
-    [SkippableFact]
+    [Fact]
     public void Factory_ShouldBeConfiguredCorrectly()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -147,10 +146,9 @@ public sealed class ReadWriteSeparationEFPostgreSqlTests : IAsyncLifetime
         _connectionSelector.GetReadConnectionString().ShouldBe(_fixture.ConnectionString);
     }
 
-    [SkippableFact]
+    [Fact]
     public void CreateWriteContext_ShouldReturnUsableContext()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -163,10 +161,9 @@ public sealed class ReadWriteSeparationEFPostgreSqlTests : IAsyncLifetime
         context.ShouldBeOfType<ReadWriteTestDbContext>();
     }
 
-    [SkippableFact]
+    [Fact]
     public void CreateReadContext_ShouldReturnUsableContext()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -183,10 +180,9 @@ public sealed class ReadWriteSeparationEFPostgreSqlTests : IAsyncLifetime
 
     #region Write Operation Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task WriteContext_ShouldBeUsableForInserts()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -213,10 +209,9 @@ public sealed class ReadWriteSeparationEFPostgreSqlTests : IAsyncLifetime
         retrieved!.Name.ShouldBe("Write Test Entity");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task WriteContext_ShouldBeUsableForUpdates()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -258,10 +253,9 @@ public sealed class ReadWriteSeparationEFPostgreSqlTests : IAsyncLifetime
 
     #region Read Operation Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task ReadContext_ShouldBeUsableForQueries()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -293,10 +287,9 @@ public sealed class ReadWriteSeparationEFPostgreSqlTests : IAsyncLifetime
 
     #region Routing Scope Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task RoutingScope_WithReadIntent_ShouldRouteToRead()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -325,10 +318,9 @@ public sealed class ReadWriteSeparationEFPostgreSqlTests : IAsyncLifetime
         _connectionSelector.GetReadConnectionString().ShouldNotBeEmpty();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task RoutingScope_WithWriteIntent_ShouldRouteToPrimary()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -355,10 +347,9 @@ public sealed class ReadWriteSeparationEFPostgreSqlTests : IAsyncLifetime
 
     #region Async Factory Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task CreateWriteContextAsync_ShouldReturnUsableContext()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var factory = CreateFactory();
@@ -371,10 +362,9 @@ public sealed class ReadWriteSeparationEFPostgreSqlTests : IAsyncLifetime
         context.ShouldBeOfType<ReadWriteTestDbContext>();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CreateReadContextAsync_ShouldReturnUsableContext()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         var factory = CreateFactory();

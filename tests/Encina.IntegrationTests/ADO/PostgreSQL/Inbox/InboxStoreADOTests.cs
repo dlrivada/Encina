@@ -11,23 +11,27 @@ namespace Encina.IntegrationTests.ADO.PostgreSQL.Inbox;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.PostgreSQL")]
-public sealed class InboxStoreADOTests : IClassFixture<PostgreSqlFixture>
+[Collection("ADO-PostgreSQL")]
+public sealed class InboxStoreADOTests : IAsyncLifetime
 {
     private static readonly string[] s_twoMessageIds = ["msg-1", "msg-2"];
     private static readonly string[] s_oneMessageId = ["msg-1"];
 
     private readonly PostgreSqlFixture _fixture;
-    private readonly InboxStoreADO _store;
+    private InboxStoreADO _store = null!;
 
     public InboxStoreADOTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new InboxStoreADO(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 

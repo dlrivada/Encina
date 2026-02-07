@@ -20,10 +20,9 @@ public sealed class MongoDbHealthCheckIntegrationTests : IClassFixture<MongoDbFi
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WhenMongoDbIsRunning_ReturnsHealthy()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -37,10 +36,9 @@ public sealed class MongoDbHealthCheckIntegrationTests : IClassFixture<MongoDbFi
         result.Description!.ShouldContain("reachable");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB container not available");
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-mongodb" };
@@ -55,10 +53,9 @@ public sealed class MongoDbHealthCheckIntegrationTests : IClassFixture<MongoDbFi
         result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
-    [SkippableFact]
+    [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MongoDB container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();

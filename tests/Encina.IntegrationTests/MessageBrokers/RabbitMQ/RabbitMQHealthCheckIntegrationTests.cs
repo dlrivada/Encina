@@ -20,10 +20,9 @@ public sealed class RabbitMQHealthCheckIntegrationTests : IClassFixture<RabbitMq
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WhenRabbitMQIsRunning_ReturnsHealthy()
     {
-        Skip.IfNot(_fixture.IsAvailable, "RabbitMQ container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -37,10 +36,9 @@ public sealed class RabbitMQHealthCheckIntegrationTests : IClassFixture<RabbitMq
         result.Description!.ShouldContain("connected");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "RabbitMQ container not available");
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-rabbitmq" };
@@ -55,10 +53,9 @@ public sealed class RabbitMQHealthCheckIntegrationTests : IClassFixture<RabbitMq
         result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
-    [SkippableFact]
+    [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        Skip.IfNot(_fixture.IsAvailable, "RabbitMQ container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();

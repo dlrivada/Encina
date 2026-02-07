@@ -554,10 +554,38 @@ public sealed class BulkOperationsMySQL<TEntity, TId> : IBulkOperations<TEntity>
 
     private static bool IsDuplicateKeyException(Exception ex)
     {
-        var message = ex.Message;
-        return message.Contains("Duplicate entry", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("1062", StringComparison.OrdinalIgnoreCase); // MySQL duplicate entry error code
+        // Recursively search for MySqlException with error code 1062 (ER_DUP_ENTRY)
+        var current = ex;
+        while (current is not null)
+        {
+            if (current is MySqlException mysqlEx && mysqlEx.Number == 1062)
+            {
+                return true;
+            }
+
+            // Check message-based detection at each level
+            if (current.Message.Contains("Duplicate entry", StringComparison.OrdinalIgnoreCase)
+                || current.Message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            current = current.InnerException;
+        }
+
+        // Check AggregateException inner exceptions
+        if (ex is AggregateException aggEx)
+        {
+            foreach (var inner in aggEx.InnerExceptions)
+            {
+                if (IsDuplicateKeyException(inner))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     #endregion

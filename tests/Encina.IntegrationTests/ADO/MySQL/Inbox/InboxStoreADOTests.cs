@@ -11,23 +11,27 @@ namespace Encina.IntegrationTests.ADO.MySQL.Inbox;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.MySQL")]
-public sealed class InboxStoreADOTests : IClassFixture<MySqlFixture>
+[Collection("ADO-MySQL")]
+public sealed class InboxStoreADOTests : IAsyncLifetime
 {
     private static readonly string[] s_twoMessageIds = ["msg-1", "msg-2"];
     private static readonly string[] s_oneMessageId = ["msg-1"];
 
     private readonly MySqlFixture _fixture;
-    private readonly InboxStoreADO _store;
+    private InboxStoreADO _store = null!;
 
     public InboxStoreADOTests(MySqlFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new InboxStoreADO(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 

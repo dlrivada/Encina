@@ -20,10 +20,9 @@ public sealed class MQTTHealthCheckIntegrationTests : IClassFixture<MqttFixture>
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WhenMQTTBrokerIsRunning_ReturnsHealthy()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MQTT container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -37,10 +36,9 @@ public sealed class MQTTHealthCheckIntegrationTests : IClassFixture<MqttFixture>
         result.Description!.ShouldContain("connected");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MQTT container not available");
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-mqtt" };
@@ -55,10 +53,9 @@ public sealed class MQTTHealthCheckIntegrationTests : IClassFixture<MqttFixture>
         result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
-    [SkippableFact]
+    [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MQTT container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -74,10 +71,9 @@ public sealed class MQTTHealthCheckIntegrationTests : IClassFixture<MqttFixture>
         tags.ShouldContain("ready");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WhenClientDisconnected_ReturnsUnhealthy()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MQTT container not available");
 
         // Arrange
         // Create a new disconnected client

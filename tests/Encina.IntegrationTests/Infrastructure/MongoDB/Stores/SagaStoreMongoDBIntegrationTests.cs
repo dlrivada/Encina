@@ -41,10 +41,9 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistSaga()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var store = CreateStore();
@@ -71,10 +70,9 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         stored.Status.ShouldBe("Running");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetAsync_ExistingSagaId_ShouldReturnSaga()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -103,10 +101,9 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         result.SagaType.ShouldBe("TestSaga");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetAsync_NonExistentSagaId_ShouldReturnNull()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var store = CreateStore();
@@ -118,10 +115,9 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         result.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateAsync_ModifyState_ShouldPersistChanges()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -152,10 +148,9 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         updated.CurrentStep.ShouldBe(2);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateAsync_ToCompletedStatus_ShouldSetCompletedAtUtc()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -186,10 +181,9 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         updated.CompletedAtUtc.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateAsync_ToFailedStatus_ShouldSetErrorMessage()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -222,10 +216,9 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         updated.CompletedAtUtc.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetStuckSagasAsync_ShouldReturnOldUncompletedSagas()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -277,10 +270,9 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         sagaList.First().SagaId.ShouldBe(stuckSaga.SagaId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetExpiredSagasAsync_ShouldReturnExpiredActiveSagas()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -334,10 +326,9 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         sagaList.First().SagaId.ShouldBe(expiredSaga.SagaId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task StatusTransition_RunningToCompleted_ShouldWork()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -369,10 +360,9 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         updated.CompletedAtUtc.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task StatusTransition_RunningToCompensatingToCompensated_ShouldWork()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -410,10 +400,9 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         compensated.CompletedAtUtc.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task StatusTransition_RunningToFailed_ShouldWork()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var collection = GetCollection();
@@ -446,10 +435,9 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         failed.CompletedAtUtc.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConcurrentSagaCreation_ShouldNotCorruptData()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange & Act
         var tasks = Enumerable.Range(0, 10).Select(async i =>

@@ -72,10 +72,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Database Routing Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_WithModuleContext_ShouldRouteToModuleDatabase()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -91,10 +90,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_WithDifferentModules_ShouldRouteToDifferentDatabases()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -116,10 +114,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_WithoutModuleContext_ShouldRouteToBaseDatabase()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -132,10 +129,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
             .ShouldBe(BaseDatabaseName);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_WithThrowOnMissingContext_ShouldThrowWhenNoModuleSet()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var isolationOptions = Options.Create(new MongoDbModuleIsolationOptions
@@ -158,10 +154,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         exception.Message.ShouldContain("No module context is available");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionForModuleAsync_ShouldRouteToSpecificModuleDatabase()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -174,10 +169,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
             .ShouldBe($"{BaseDatabaseName}_inventory");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetDatabaseNameAsync_WithModuleContext_ShouldReturnModuleDatabaseName()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -192,10 +186,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public void GetDatabaseNameForModule_ShouldReturnCorrectDatabaseName()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -209,10 +202,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         inventoryDbName.ShouldBe($"{BaseDatabaseName}_inventory");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_WithDatabasePerModuleDisabled_ShouldAlwaysUseBaseDatabase()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var isolationOptions = Options.Create(new MongoDbModuleIsolationOptions
@@ -242,10 +234,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Cross-Module Access Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task WriteAndRead_InSameModule_ShouldSucceed()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -273,10 +264,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task WriteInOneModule_ReadFromAnotherModule_ShouldNotFindDocument()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -303,10 +293,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task EachModule_ShouldHaveIsolatedData()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -354,10 +343,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionForModuleAsync_ShouldBypassCurrentModuleContext()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -382,10 +370,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ModuleDatabaseMappings_ShouldOverridePattern()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange - Configure explicit mapping for Shared module
         var isolationOptions = Options.Create(new MongoDbModuleIsolationOptions
@@ -413,10 +400,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConcurrentModuleOperations_ShouldMaintainIsolation()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -465,10 +451,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Configuration Option Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task CustomDatabaseNamePattern_ModuleNameOnly_ShouldGenerateCorrectDatabaseName()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var isolationOptions = Options.Create(new MongoDbModuleIsolationOptions
@@ -495,10 +480,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CustomDatabaseNamePattern_BaseNameModuleName_ShouldGenerateCorrectDatabaseName()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var isolationOptions = Options.Create(new MongoDbModuleIsolationOptions
@@ -525,10 +509,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ModuleDatabaseMappings_MultipleModules_ShouldOverridePatternForMappedModules()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var isolationOptions = Options.Create(new MongoDbModuleIsolationOptions
@@ -571,10 +554,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task EnableDatabasePerModuleFalse_AllModules_ShouldRouteToDefaultDatabase()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var isolationOptions = Options.Create(new MongoDbModuleIsolationOptions
@@ -601,10 +583,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ModuleDatabaseMappings_CaseInsensitiveLookup_ShouldFindMapping()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange - Add mapping with uppercase key
         var isolationOptions = Options.Create(new MongoDbModuleIsolationOptions
@@ -631,10 +612,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ModuleDatabaseMappings_MixedCaseLookup_ShouldFindMapping()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange - Add mapping with mixed case key
         var isolationOptions = Options.Create(new MongoDbModuleIsolationOptions
@@ -665,10 +645,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Module Context Behavior Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task ThrowOnMissingModuleContextTrue_NoModuleSet_ShouldThrowInvalidOperationException()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var isolationOptions = Options.Create(new MongoDbModuleIsolationOptions
@@ -691,10 +670,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         exception.Message.ShouldContain("No module context is available");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ThrowOnMissingModuleContextFalse_NoModuleSet_ShouldFallbackToDefaultDatabase()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var isolationOptions = Options.Create(new MongoDbModuleIsolationOptions
@@ -718,10 +696,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
             .ShouldBe(BaseDatabaseName);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task LogWarningOnFallbackTrue_NoModuleContext_ShouldLogWarning()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var fakeLogger = new FakeLogger<ModuleAwareMongoCollectionFactory>();
@@ -749,10 +726,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         logEntry.Message.ShouldContain(CollectionName);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task LogWarningOnFallbackFalse_NoModuleContext_ShouldNotLogWarning()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var fakeLogger = new FakeLogger<ModuleAwareMongoCollectionFactory>();
@@ -777,10 +753,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         fakeLogger.Collector.Count.ShouldBe(0);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CreateScope_ScopedContexts_ShouldNotInterfere()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -819,10 +794,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         moduleContext.CurrentModule.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetDatabaseNameAsync_ThrowOnMissingContextTrue_ShouldThrowWhenNoModule()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var isolationOptions = Options.Create(new MongoDbModuleIsolationOptions
@@ -849,10 +823,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Input Validation Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_NullCollectionName_ShouldThrowArgumentException()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -862,10 +835,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
             await factory.GetCollectionAsync<BsonDocument>(null!));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_EmptyCollectionName_ShouldThrowArgumentException()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -875,10 +847,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
             await factory.GetCollectionAsync<BsonDocument>(string.Empty));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionForModuleAsync_NullCollectionName_ShouldThrowArgumentException()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -888,10 +859,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
             await factory.GetCollectionForModuleAsync<BsonDocument>(null!, "Orders"));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionForModuleAsync_EmptyCollectionName_ShouldThrowArgumentException()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -901,10 +871,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
             await factory.GetCollectionForModuleAsync<BsonDocument>(string.Empty, "Orders"));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionForModuleAsync_NullModuleName_ShouldThrowArgumentException()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -914,10 +883,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
             await factory.GetCollectionForModuleAsync<BsonDocument>(CollectionName, null!));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionForModuleAsync_EmptyModuleName_ShouldThrowArgumentException()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -927,10 +895,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
             await factory.GetCollectionForModuleAsync<BsonDocument>(CollectionName, string.Empty));
     }
 
-    [SkippableFact]
+    [Fact]
     public void GetDatabaseNameForModule_NullModuleName_ShouldThrowArgumentException()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -940,10 +907,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
             factory.GetDatabaseNameForModule(null!));
     }
 
-    [SkippableFact]
+    [Fact]
     public void GetDatabaseNameForModule_EmptyModuleName_ShouldThrowArgumentException()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -953,10 +919,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
             factory.GetDatabaseNameForModule(string.Empty));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetCollectionAsync_MissingDatabaseNameConfiguration_ShouldThrowInvalidOperationException()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange - No DatabaseName configured
         var mongoOptions = Options.Create(new EncinaMongoDbOptions
@@ -988,10 +953,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
 
     #region Multi-Module Scenario Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task MultiModule_InsertInModuleA_ShouldNotBeVisibleInModuleB()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -1028,10 +992,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultiModule_InsertInModuleB_ShouldNotBeVisibleInModuleA()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -1068,10 +1031,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultiModule_ContextSwitching_ShouldMaintainIsolation()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange - Use unique module names to avoid conflicts with other tests
         var factory = CreateFactory();
@@ -1153,10 +1115,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultiModule_AfterAllOperations_EachDatabaseContainsOnlyOwnData()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -1207,10 +1168,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultiModule_SameEntityType_RemainsIndependent()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -1265,10 +1225,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultiModule_UpdateInOneModule_ShouldNotAffectOtherModules()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -1320,10 +1279,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultiModule_DeleteInOneModule_ShouldNotAffectOtherModules()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -1369,10 +1327,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultiModule_ConcurrentOperations_ShouldMaintainDataIntegrity()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();
@@ -1415,10 +1372,9 @@ public sealed class ModuleIsolationMongoDBIntegrationTests : IAsyncLifetime
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultiModule_MixedReadWriteOperations_ShouldMaintainIsolation()
     {
-        Skip.IfNot(_fixture.IsAvailable);
 
         // Arrange
         var factory = CreateFactory();

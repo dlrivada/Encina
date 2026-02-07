@@ -31,13 +31,19 @@ namespace Encina.IntegrationTests.Dapper.PostgreSQL.ReadWriteSeparation;
 /// with hot standby servers.
 /// </para>
 /// </remarks>
+[Collection("Dapper-PostgreSQL")]
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
 public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTestsBase<PostgreSqlFixture>
 {
-    private readonly PostgreSqlFixture _fixture = new();
+    private readonly PostgreSqlFixture _fixture;
     private ReadWriteConnectionFactory _connectionFactory = null!;
     private ReadWriteSeparationOptions _options = null!;
+
+    public ReadWriteSeparationDapperIntegrationTests(PostgreSqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
 
     /// <inheritdoc />
     protected override PostgreSqlFixture Fixture => _fixture;
@@ -58,8 +64,6 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
     /// <inheritdoc />
     public override async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         if (!_fixture.IsAvailable)
             return;
 
@@ -97,7 +101,7 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
             // Ignore cleanup errors
         }
 
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
         await base.DisposeAsync();
     }
 
@@ -126,7 +130,7 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
             await ((NpgsqlConnection)connection).OpenAsync();
 
         const string sql = """
-            INSERT INTO "ReadWriteTestEntities" ("Id", "Name", "Value", "Timestamp", "WriteCounter")
+            INSERT INTO readwritetestentities (id, name, value, timestamp, writecounter)
             VALUES (@Id, @Name, @Value, @Timestamp, @WriteCounter)
             """;
 
@@ -145,7 +149,7 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         if (connection.State != ConnectionState.Open)
             await ((NpgsqlConnection)connection).OpenAsync();
 
-        const string sql = """SELECT "Id", "Name", "Value", "Timestamp", "WriteCounter" FROM "ReadWriteTestEntities" """;
+        const string sql = """SELECT id, name, value, timestamp, writecounter FROM readwritetestentities""";
 
         await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
         await using var reader = await command.ExecuteReaderAsync();
@@ -172,7 +176,7 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         if (connection.State != ConnectionState.Open)
             await ((NpgsqlConnection)connection).OpenAsync();
 
-        const string sql = """SELECT "Id", "Name", "Value", "Timestamp", "WriteCounter" FROM "ReadWriteTestEntities" WHERE "Id" = @Id""";
+        const string sql = """SELECT id, name, value, timestamp, writecounter FROM readwritetestentities WHERE id = @Id""";
 
         await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
         command.Parameters.AddWithValue("@Id", id);
@@ -200,9 +204,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
             await ((NpgsqlConnection)connection).OpenAsync();
 
         const string sql = """
-            UPDATE "ReadWriteTestEntities"
-            SET "Name" = @Name, "Value" = @Value, "Timestamp" = @Timestamp, "WriteCounter" = @WriteCounter
-            WHERE "Id" = @Id
+            UPDATE readwritetestentities
+            SET name = @Name, value = @Value, timestamp = @Timestamp, writecounter = @WriteCounter
+            WHERE id = @Id
             """;
 
         await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
@@ -239,10 +243,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
 
     #region Additional Dapper PostgreSQL-Specific Tests
 
-    [SkippableFact]
+    [Fact]
     public void ConnectionFactory_ShouldBeConfiguredCorrectly()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Assert
         _connectionFactory.ShouldNotBeNull();
@@ -250,10 +253,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         _connectionFactory.GetReadConnectionString().ShouldBe(_fixture.ConnectionString);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ReadConnectionAsync_ShouldOpenAndReturnConnection()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Act
         var connection = await _connectionFactory.CreateReadConnectionAsync();
@@ -269,10 +271,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task WriteConnectionAsync_ShouldOpenAndReturnConnection()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Act
         var connection = await _connectionFactory.CreateWriteConnectionAsync();
@@ -288,10 +289,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConnectionAsync_WithReadIntent_ShouldRouteToRead()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         using var scope = new DatabaseRoutingScope(DatabaseIntent.Read);
@@ -310,10 +310,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConnectionAsync_WithWriteIntent_ShouldRouteToPrimary()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         using var scope = new DatabaseRoutingScope(DatabaseIntent.Write);
@@ -332,10 +331,9 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultipleReadConnections_ShouldAllBeUsable()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange - Insert test data
         var entity = new ReadWriteTestEntity

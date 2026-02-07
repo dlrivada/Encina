@@ -18,18 +18,22 @@ namespace Encina.IntegrationTests.ADO.SqlServer.ModuleIsolation;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
+[Collection("ADO-SqlServer")]
 public class ModuleIsolationADOIntegrationTests : IAsyncLifetime
 {
-    private readonly SqlServerFixture _fixture = new();
+    private readonly SqlServerFixture _fixture;
     private SqlConnection _connection = null!;
     private ModuleSchemaRegistry _schemaRegistry = null!;
     private ModuleIsolationOptions _isolationOptions = null!;
     private TestModuleExecutionContext _moduleContext = null!;
 
+    public ModuleIsolationADOIntegrationTests(SqlServerFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         _connection = (_fixture.CreateConnection() as SqlConnection)!;
         await ModuleIsolationSchema.CreateAllModuleSchemasAsync(_connection);
 
@@ -53,7 +57,7 @@ public class ModuleIsolationADOIntegrationTests : IAsyncLifetime
             await ModuleIsolationSchema.ClearModuleIsolationDataAsync(_connection);
         }
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private SchemaValidatingConnection CreateSchemaValidatingConnection(string moduleName)

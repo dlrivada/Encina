@@ -11,23 +11,27 @@ namespace Encina.IntegrationTests.ADO.Sqlite.Inbox;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.Sqlite")]
-public sealed class InboxStoreADOTests : IClassFixture<SqliteFixture>
+[Collection("ADO-Sqlite")]
+public sealed class InboxStoreADOTests : IAsyncLifetime
 {
     private static readonly string[] s_twoMessageIds = ["msg-1", "msg-2"];
     private static readonly string[] s_oneMessageId = ["msg-1"];
 
     private readonly SqliteFixture _fixture;
-    private readonly InboxStoreADO _store;
+    private InboxStoreADO _store = null!;
 
     public InboxStoreADOTests(SqliteFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new InboxStoreADO(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 

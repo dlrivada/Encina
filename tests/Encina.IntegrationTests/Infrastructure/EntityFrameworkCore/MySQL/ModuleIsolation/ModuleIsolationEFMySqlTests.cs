@@ -60,72 +60,63 @@ public sealed class ModuleIsolationEFMySqlTests : IAsyncLifetime
 
     #region Schema Registry Validation Tests
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldAllowAccessToOwnSchema()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         // This test will be skipped until Pomelo 10.0.0 is available
     }
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldAllowAccessToSharedSchema()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
     }
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldDenyAccessToOtherModuleSchemas()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
     }
 
     #endregion
 
     #region SQL Validation Tests
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_ValidQueryToOwnSchemaTable_ShouldPass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_QueryToSharedSchemaTable_ShouldPass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_CrossModuleSchemaAccess_ShouldFail()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
     }
 
     #endregion
 
     #region ModuleSchemaValidationInterceptor Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_CanExecuteValidQuery()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         await Task.CompletedTask;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_ThrowsOnCrossModuleTableAccess()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         await Task.CompletedTask;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Interceptor_AllowsSharedTableAccess()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         await Task.CompletedTask;
     }
@@ -134,16 +125,14 @@ public sealed class ModuleIsolationEFMySqlTests : IAsyncLifetime
 
     #region Module Context Tests
 
-    [SkippableFact]
+    [Fact]
     public void ModuleContext_CanBeSwitched()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
     }
 
-    [SkippableFact]
+    [Fact]
     public void ModuleContext_CreateScope_SetsAndClearsModule()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
     }
 
     #endregion

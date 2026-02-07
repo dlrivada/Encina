@@ -1,3 +1,6 @@
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using Testcontainers.MongoDb;
 using Xunit;
@@ -8,8 +11,17 @@ namespace Encina.TestInfrastructure.Fixtures;
 /// MongoDB fixture using Testcontainers.
 /// Provides a throwaway MongoDB instance for integration tests.
 /// </summary>
+/// <remarks>
+/// Note: This fixture runs MongoDB in standalone mode (no replica set).
+/// Tests that require transactions will be skipped as transactions require
+/// a replica set configuration. See test documentation for instructions
+/// on running MongoDB with replica set for transaction tests.
+/// </remarks>
 public sealed class MongoDbFixture : IAsyncLifetime
 {
+    private static readonly object s_serializerLock = new();
+    private static bool s_serializerRegistered;
+
     private MongoDbContainer? _container;
 
     /// <summary>
@@ -40,22 +52,19 @@ public sealed class MongoDbFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
-        try
-        {
-            _container = new MongoDbBuilder()
-                .WithImage("mongo:7")
-                .WithCleanUp(true)
-                .Build();
+        // Register GUID serializer once (thread-safe)
+        RegisterGuidSerializer();
 
-            await _container.StartAsync();
+        // Start MongoDB (replica set for transactions not supported in standard Testcontainers)
+        // Tests that require transactions will be skipped
+        _container = new MongoDbBuilder()
+            .WithImage("mongo:7")
+            .WithCleanUp(true)
+            .Build();
 
-            Client = new MongoClient(ConnectionString);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to start MongoDB container: {ex.Message}");
-            // Container might not be available in CI without Docker
-        }
+        await _container.StartAsync();
+
+        Client = new MongoClient(ConnectionString);
     }
 
     /// <inheritdoc/>
@@ -65,6 +74,30 @@ public sealed class MongoDbFixture : IAsyncLifetime
         {
             await _container.StopAsync();
             await _container.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Registers the GUID serializer with Standard representation.
+    /// This is necessary for MongoDB driver to serialize Guid properties.
+    /// </summary>
+    private static void RegisterGuidSerializer()
+    {
+        lock (s_serializerLock)
+        {
+            if (!s_serializerRegistered)
+            {
+                try
+                {
+                    BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+                    s_serializerRegistered = true;
+                }
+                catch (BsonSerializationException)
+                {
+                    // Serializer already registered by another fixture
+                    s_serializerRegistered = true;
+                }
+            }
         }
     }
 }

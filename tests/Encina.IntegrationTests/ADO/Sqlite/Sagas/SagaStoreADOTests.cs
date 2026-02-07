@@ -9,20 +9,24 @@ namespace Encina.IntegrationTests.ADO.Sqlite.Sagas;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.Sqlite")]
-public sealed class SagaStoreADOTests : IClassFixture<SqliteFixture>
+[Collection("ADO-Sqlite")]
+public sealed class SagaStoreADOTests : IAsyncLifetime
 {
     private readonly SqliteFixture _database;
-    private readonly SagaStoreADO _store;
+    private SagaStoreADO _store = null!;
 
     public SagaStoreADOTests(SqliteFixture database)
     {
         _database = database;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _database.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _database.ClearAllDataAsync();
         _store = new SagaStoreADO(_database.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidSaga_ShouldPersist()

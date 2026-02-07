@@ -42,46 +42,38 @@ public sealed class MqttFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
-        try
+        _container = new ContainerBuilder()
+            .WithImage("eclipse-mosquitto:2")
+            .WithPortBinding(MqttPort, true)
+            .WithCommand("mosquitto", "-c", "/mosquitto-no-auth.conf")
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("mosquitto"))
+            .WithCleanUp(true)
+            .Build();
+
+        await _container.StartAsync();
+
+        // Create and connect MQTT client with retry logic
+        var factory = new MqttClientFactory();
+        _client = factory.CreateMqttClient();
+
+        var options = new MqttClientOptionsBuilder()
+            .WithTcpServer(Host, Port)
+            .WithClientId($"test-client-{Guid.NewGuid():N}")
+            .Build();
+
+        // Retry connection a few times in case the broker isn't ready
+        const int maxRetries = 5;
+        for (var i = 0; i < maxRetries; i++)
         {
-            _container = new ContainerBuilder()
-                .WithImage("eclipse-mosquitto:2")
-                .WithPortBinding(MqttPort, true)
-                .WithCommand("mosquitto", "-c", "/mosquitto-no-auth.conf")
-                .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("mosquitto"))
-                .WithCleanUp(true)
-                .Build();
-
-            await _container.StartAsync();
-
-            // Create and connect MQTT client with retry logic
-            var factory = new MqttClientFactory();
-            _client = factory.CreateMqttClient();
-
-            var options = new MqttClientOptionsBuilder()
-                .WithTcpServer(Host, Port)
-                .WithClientId($"test-client-{Guid.NewGuid():N}")
-                .Build();
-
-            // Retry connection a few times in case the broker isn't ready
-            const int maxRetries = 5;
-            for (var i = 0; i < maxRetries; i++)
+            try
             {
-                try
-                {
-                    await _client.ConnectAsync(options);
-                    break;
-                }
-                catch when (i < maxRetries - 1)
-                {
-                    await Task.Delay(500);
-                }
+                await _client.ConnectAsync(options);
+                break;
             }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to start MQTT container: {ex.Message}");
-            // Container might not be available in CI without Docker
+            catch when (i < maxRetries - 1)
+            {
+                await Task.Delay(500);
+            }
         }
     }
 

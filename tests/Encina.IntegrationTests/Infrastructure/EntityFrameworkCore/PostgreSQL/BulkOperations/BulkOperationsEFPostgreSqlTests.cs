@@ -20,7 +20,7 @@ public sealed class BulkOperationsEFPostgreSqlTests : IAsyncLifetime
 {
     private readonly EFCorePostgreSqlFixture _fixture;
     private BulkOperationsEF<TestRepositoryEntity> _bulkOps = null!;
-    private TestEFDbContext _dbContext = null!;
+    private TestPostgreSqlDbContext _dbContext = null!;
 
     public BulkOperationsEFPostgreSqlTests(EFCorePostgreSqlFixture fixture)
     {
@@ -29,8 +29,7 @@ public sealed class BulkOperationsEFPostgreSqlTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        _dbContext = _fixture.CreateDbContext<TestEFDbContext>();
-        await _dbContext.Database.EnsureCreatedAsync();
+        _dbContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         _bulkOps = new BulkOperationsEF<TestRepositoryEntity>(_dbContext);
     }
 

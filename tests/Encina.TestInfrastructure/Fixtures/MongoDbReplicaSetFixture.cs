@@ -59,30 +59,22 @@ public sealed class MongoDbReplicaSetFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
-        try
+        _container = new MongoDbBuilder()
+            .WithImage("mongo:7")
+            .WithReplicaSet(ReplicaSetName)
+            .WithCleanUp(true)
+            .Build();
+
+        await _container.StartAsync();
+
+        Client = new MongoClient(ConnectionString);
+
+        // Verify replica set is properly initialized
+        _isReplicaSetInitialized = await VerifyReplicaSetInitializedAsync();
+
+        if (!_isReplicaSetInitialized)
         {
-            _container = new MongoDbBuilder()
-                .WithImage("mongo:7")
-                .WithReplicaSet(ReplicaSetName)
-                .WithCleanUp(true)
-                .Build();
-
-            await _container.StartAsync();
-
-            Client = new MongoClient(ConnectionString);
-
-            // Verify replica set is properly initialized
-            _isReplicaSetInitialized = await VerifyReplicaSetInitializedAsync();
-
-            if (!_isReplicaSetInitialized)
-            {
-                Console.WriteLine("Warning: MongoDB replica set verification failed");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to start MongoDB replica set container: {ex.Message}");
-            // Container might not be available in CI without Docker
+            throw new InvalidOperationException("MongoDB replica set verification failed - no PRIMARY member found");
         }
     }
 

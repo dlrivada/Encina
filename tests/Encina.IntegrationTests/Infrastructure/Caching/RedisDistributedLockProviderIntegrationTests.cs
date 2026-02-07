@@ -44,10 +44,9 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AcquireAsync_SuccessfullyAcquiresLock()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var resource = $"test-resource-{Guid.NewGuid():N}";
@@ -65,10 +64,9 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         isLocked.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AcquireAsync_ReleaseLock_ResourceBecomesUnlocked()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var resource = $"release-test-{Guid.NewGuid():N}";
@@ -90,10 +88,9 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         lockedAfterRelease.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task TryAcquireAsync_WhenResourceLocked_ReturnsNull()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var resource = $"contention-test-{Guid.NewGuid():N}";
@@ -117,10 +114,9 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         secondHandle.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task TryAcquireAsync_AfterLockReleased_Succeeds()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var resource = $"reacquire-test-{Guid.NewGuid():N}";
@@ -144,10 +140,9 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         secondHandle.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ExtendAsync_WhenLockHeld_ExtendsLock()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var resource = $"extend-test-{Guid.NewGuid():N}";
@@ -167,10 +162,9 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         extended.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ExtendAsync_WhenLockNotHeld_ReturnsFalse()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var resource = $"extend-notheld-{Guid.NewGuid():N}";
@@ -185,10 +179,9 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         extended.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task IsLockedAsync_NonExistentResource_ReturnsFalse()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var resource = $"nonexistent-{Guid.NewGuid():N}";
@@ -200,10 +193,9 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         isLocked.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task LockExpires_AfterTimeout()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var resource = $"expire-test-{Guid.NewGuid():N}";
@@ -230,10 +222,9 @@ public class RedisDistributedLockProviderIntegrationTests : IAsyncLifetime
         await handle.DisposeAsync();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DifferentResources_CanBeLocked_Simultaneously()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var resource1 = $"resource-1-{Guid.NewGuid():N}";

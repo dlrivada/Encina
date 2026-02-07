@@ -24,6 +24,8 @@ namespace Encina.Extensions.Resilience;
 public sealed partial class StandardResiliencePipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
+    private const string DefaultPipelineKey = "Encina.StandardResilience";
+
     private readonly ResiliencePipelineProvider<string> _pipelineProvider;
     private readonly ILogger<StandardResiliencePipelineBehavior<TRequest, TResponse>> _logger;
 
@@ -52,7 +54,11 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
         CancellationToken cancellationToken)
     {
         var requestType = typeof(TRequest).Name;
-        var pipeline = _pipelineProvider.GetPipeline(requestType);
+
+        // Try to get a request-specific pipeline first, then fall back to the default pipeline
+        var pipeline = _pipelineProvider.TryGetPipeline(requestType, out var specificPipeline)
+            ? specificPipeline
+            : _pipelineProvider.GetPipeline(DefaultPipelineKey);
 
         try
         {

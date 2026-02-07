@@ -34,7 +34,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
     }
 
     /// <inheritdoc />
-    public async Task<Either<EncinaError, Snapshot<TAggregate>?>> GetLatestAsync(
+    public async Task<Either<EncinaError, Option<Snapshot<TAggregate>>>> GetLatestAsync(
         Guid aggregateId,
         CancellationToken cancellationToken = default)
     {
@@ -42,29 +42,32 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         {
             SnapshotLog.LoadingLatestSnapshot(_logger, typeof(TAggregate).Name, aggregateId);
 
-            var envelope = await _session
+            // Use ToListAsync with Take(1) instead of FirstOrDefaultAsync
+            // to avoid Marten's LINQ compilation issues with generic types
+            var envelopes = await _session
                 .Query<SnapshotEnvelope<TAggregate>>()
                 .Where(s => s.AggregateId == aggregateId)
                 .OrderByDescending(s => s.Version)
-                .FirstOrDefaultAsync(cancellationToken)
+                .Take(1)
+                .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            if (envelope is null)
+            if (envelopes.Count == 0)
             {
                 SnapshotLog.NoSnapshotFound(_logger, typeof(TAggregate).Name, aggregateId);
-                return Right<EncinaError, Snapshot<TAggregate>?>(null); // NOSONAR S6966: LanguageExt Right is a pure function, not an async operation
+                return Right<EncinaError, Option<Snapshot<TAggregate>>>(Option<Snapshot<TAggregate>>.None); // NOSONAR S6966
             }
 
-            var snapshot = envelope.ToSnapshot();
+            var snapshot = envelopes[0].ToSnapshot();
             SnapshotLog.LoadedSnapshot(_logger, typeof(TAggregate).Name, aggregateId, snapshot.Version);
 
-            return Right<EncinaError, Snapshot<TAggregate>?>(snapshot); // NOSONAR S6966: LanguageExt Right is a pure function, not an async operation
+            return Right<EncinaError, Option<Snapshot<TAggregate>>>(Option<Snapshot<TAggregate>>.Some(snapshot)); // NOSONAR S6966
         }
         catch (Exception ex)
         {
             SnapshotLog.ErrorLoadingSnapshot(_logger, ex, typeof(TAggregate).Name, aggregateId);
 
-            return Left<EncinaError, Snapshot<TAggregate>?>( // NOSONAR S6966: LanguageExt Left is a pure function
+            return Left<EncinaError, Option<Snapshot<TAggregate>>>( // NOSONAR S6966
                 EncinaErrors.FromException(
                     SnapshotErrorCodes.LoadFailed,
                     ex,
@@ -73,7 +76,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
     }
 
     /// <inheritdoc />
-    public async Task<Either<EncinaError, Snapshot<TAggregate>?>> GetAtVersionAsync(
+    public async Task<Either<EncinaError, Option<Snapshot<TAggregate>>>> GetAtVersionAsync(
         Guid aggregateId,
         int maxVersion,
         CancellationToken cancellationToken = default)
@@ -82,25 +85,28 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         {
             SnapshotLog.LoadingSnapshotAtVersion(_logger, typeof(TAggregate).Name, aggregateId, maxVersion);
 
-            var envelope = await _session
+            // Use ToListAsync with Take(1) instead of FirstOrDefaultAsync
+            // to avoid Marten's LINQ compilation issues with generic types
+            var envelopes = await _session
                 .Query<SnapshotEnvelope<TAggregate>>()
                 .Where(s => s.AggregateId == aggregateId && s.Version <= maxVersion)
                 .OrderByDescending(s => s.Version)
-                .FirstOrDefaultAsync(cancellationToken)
+                .Take(1)
+                .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            if (envelope is null)
+            if (envelopes.Count == 0)
             {
-                return Right<EncinaError, Snapshot<TAggregate>?>(null); // NOSONAR S6966: LanguageExt Right is a pure function, not an async operation
+                return Right<EncinaError, Option<Snapshot<TAggregate>>>(Option<Snapshot<TAggregate>>.None); // NOSONAR S6966
             }
 
-            return Right<EncinaError, Snapshot<TAggregate>?>(envelope.ToSnapshot()); // NOSONAR S6966: LanguageExt Right is a pure function, not an async operation
+            return Right<EncinaError, Option<Snapshot<TAggregate>>>(Option<Snapshot<TAggregate>>.Some(envelopes[0].ToSnapshot())); // NOSONAR S6966
         }
         catch (Exception ex)
         {
             SnapshotLog.ErrorLoadingSnapshot(_logger, ex, typeof(TAggregate).Name, aggregateId);
 
-            return Left<EncinaError, Snapshot<TAggregate>?>( // NOSONAR S6966: LanguageExt Left is a pure function
+            return Left<EncinaError, Option<Snapshot<TAggregate>>>( // NOSONAR S6966
                 EncinaErrors.FromException(
                     SnapshotErrorCodes.LoadFailed,
                     ex,

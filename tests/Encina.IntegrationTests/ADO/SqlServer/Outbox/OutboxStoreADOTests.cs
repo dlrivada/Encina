@@ -14,20 +14,24 @@ namespace Encina.IntegrationTests.ADO.SqlServer.Outbox;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.SqlServer")]
-public sealed class OutboxStoreADOTests : IClassFixture<SqlServerFixture>
+[Collection("ADO-SqlServer")]
+public sealed class OutboxStoreADOTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _fixture;
-    private readonly OutboxStoreADO _store;
+    private OutboxStoreADO _store = null!;
 
     public OutboxStoreADOTests(SqlServerFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new OutboxStoreADO(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 

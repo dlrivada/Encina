@@ -46,10 +46,9 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SetAsync_And_GetAsync_WorkCorrectly()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var key = $"test-key-{Guid.NewGuid():N}";
@@ -66,10 +65,9 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         retrieved.Value.ShouldBe(value.Value);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetAsync_NonExistentKey_ReturnsNull()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var key = $"nonexistent-{Guid.NewGuid():N}";
@@ -81,10 +79,9 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         result.ShouldBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ExistsAsync_AfterSet_ReturnsTrue()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var key = $"exists-test-{Guid.NewGuid():N}";
@@ -98,10 +95,9 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         exists.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ExistsAsync_NonExistentKey_ReturnsFalse()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var key = $"nonexistent-exists-{Guid.NewGuid():N}";
@@ -113,10 +109,9 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         exists.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task RemoveAsync_RemovesKey()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var key = $"remove-test-{Guid.NewGuid():N}";
@@ -131,10 +126,9 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         exists.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetOrSetAsync_CacheMiss_CallsFactoryAndCaches()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var key = $"getorset-miss-{Guid.NewGuid():N}";
@@ -160,10 +154,9 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         cached.ShouldBe(expectedValue);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetOrSetAsync_CacheHit_DoesNotCallFactory()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var key = $"getorset-hit-{Guid.NewGuid():N}";
@@ -188,10 +181,9 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         result.ShouldBe(cachedValue);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SetAsync_WithExpiration_KeyExpiresAfterTimeout()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var key = $"expiration-test-{Guid.NewGuid():N}";
@@ -211,10 +203,9 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         existsAfterExpiration.ShouldBeFalse();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task RemoveByPatternAsync_RemovesMatchingKeys()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var prefix = $"pattern-{Guid.NewGuid():N}";
@@ -238,10 +229,9 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         (await _provider.ExistsAsync(otherKey, CancellationToken.None)).ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SetWithSlidingExpirationAsync_RefreshesExpiration()
     {
-        Skip.IfNot(_fixture.IsAvailable, "Redis container not available");
 
         // Arrange
         var key = $"sliding-test-{Guid.NewGuid():N}";

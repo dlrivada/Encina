@@ -49,6 +49,8 @@ public sealed class MySqlFixture : DatabaseFixture<MySqlContainer>
         await MySqlSchema.CreateSchedulingSchemaAsync(mysqlConnection);
         await MySqlSchema.CreateTestRepositorySchemaAsync(mysqlConnection);
         await MySqlSchema.CreateOrdersSchemaAsync(mysqlConnection);
+        await MySqlSchema.CreateTenantTestSchemaAsync(mysqlConnection);
+        await MySqlSchema.CreateReadWriteTestSchemaAsync(mysqlConnection);
     }
 
     /// <inheritdoc />

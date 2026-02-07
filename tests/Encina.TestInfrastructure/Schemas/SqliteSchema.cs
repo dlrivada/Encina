@@ -75,7 +75,9 @@ public static class SqliteSchema
                 LastUpdatedAtUtc TEXT NOT NULL,
                 CompletedAtUtc TEXT NULL,
                 ErrorMessage TEXT NULL,
-                TimeoutAtUtc TEXT NULL
+                TimeoutAtUtc TEXT NULL,
+                CorrelationId TEXT NULL,
+                Metadata TEXT NULL
             );
 
             CREATE INDEX IF NOT EXISTS IX_SagaStates_Status_LastUpdatedAtUtc
@@ -104,7 +106,9 @@ public static class SqliteSchema
                 RetryCount INTEGER NOT NULL DEFAULT 0,
                 NextRetryAtUtc TEXT NULL,
                 IsRecurring INTEGER NOT NULL DEFAULT 0,
-                CronExpression TEXT NULL
+                CronExpression TEXT NULL,
+                CorrelationId TEXT NULL,
+                Metadata TEXT NULL
             );
 
             CREATE INDEX IF NOT EXISTS IX_ScheduledMessages_ScheduledAtUtc_ProcessedAtUtc
@@ -133,16 +137,72 @@ public static class SqliteSchema
     }
 
     /// <summary>
+    /// Creates the TenantTestEntities table schema for multi-tenancy integration tests.
+    /// </summary>
+    public static async Task CreateTenantTestSchemaAsync(SqliteConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS TenantTestEntities (
+                Id TEXT PRIMARY KEY,
+                TenantId TEXT NOT NULL,
+                Name TEXT NOT NULL,
+                Description TEXT NULL,
+                Amount REAL NOT NULL,
+                IsActive INTEGER NOT NULL DEFAULT 1,
+                CreatedAtUtc TEXT NOT NULL,
+                UpdatedAtUtc TEXT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS IX_TenantTestEntities_TenantId
+            ON TenantTestEntities(TenantId);
+
+            CREATE INDEX IF NOT EXISTS IX_TenantTestEntities_TenantId_IsActive
+            ON TenantTestEntities(TenantId, IsActive);
+
+            CREATE INDEX IF NOT EXISTS IX_TenantTestEntities_CreatedAtUtc
+            ON TenantTestEntities(CreatedAtUtc);
+            """;
+
+        using var command = new SqliteCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Creates the ReadWriteTestEntities table schema for read/write separation tests.
+    /// </summary>
+    public static async Task CreateReadWriteTestSchemaAsync(SqliteConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS ReadWriteTestEntities (
+                Id TEXT PRIMARY KEY,
+                Name TEXT NOT NULL,
+                Value INTEGER NOT NULL,
+                Timestamp TEXT NOT NULL,
+                WriteCounter INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE INDEX IF NOT EXISTS IX_ReadWriteTestEntities_Timestamp
+            ON ReadWriteTestEntities(Timestamp);
+            """;
+
+        using var command = new SqliteCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(SqliteConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS TenantTestEntities;
+            DROP TABLE IF EXISTS ReadWriteTestEntities;
             DROP TABLE IF EXISTS Orders;
             DROP TABLE IF EXISTS ScheduledMessages;
             DROP TABLE IF EXISTS SagaStates;
             DROP TABLE IF EXISTS InboxMessages;
             DROP TABLE IF EXISTS OutboxMessages;
+            DROP TABLE IF EXISTS TestRepositoryEntities;
             """;
 
         using var command = new SqliteCommand(sql, connection);
@@ -179,7 +239,7 @@ public static class SqliteSchema
     public static async Task ClearAllDataAsync(SqliteConnection connection)
     {
         // Delete from each table individually, ignoring errors for missing tables
-        var tables = new[] { "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
+        var tables = new[] { "TenantTestEntities", "ReadWriteTestEntities", "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
         foreach (var table in tables)
         {
             try

@@ -8,10 +8,11 @@ namespace Encina.IntegrationTests.Infrastructure.Marten.Snapshots;
 /// </summary>
 public sealed class TestSnapshotableAggregate : AggregateBase, ISnapshotable<TestSnapshotableAggregate>
 {
-    public string Name { get; private set; } = string.Empty;
-    public decimal Total { get; private set; }
-    public int ItemCount { get; private set; }
-    public string Status { get; private set; } = "Created";
+    // Use 'set' instead of 'private set' to allow JSON deserialization by Marten
+    public string Name { get; set; } = string.Empty;
+    public decimal Total { get; set; }
+    public int ItemCount { get; set; }
+    public string Status { get; set; } = "Created";
 
     public TestSnapshotableAggregate()
     {

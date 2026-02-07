@@ -10,23 +10,27 @@ namespace Encina.IntegrationTests.Dapper.Sqlite.Outbox;
 /// Tests the Dapper implementation of the Outbox pattern for reliable event publishing.
 /// Uses real SQLite database for end-to-end verification.
 /// </summary>
+[Collection("Dapper-Sqlite")]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.Sqlite")]
-public sealed class OutboxStoreDapperTests : IClassFixture<SqliteFixture>
+public sealed class OutboxStoreDapperTests : IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
-    private readonly OutboxStoreDapper _store;
+    private OutboxStoreDapper _store = null!;
 
     public OutboxStoreDapperTests(SqliteFixture fixture)
     {
         _fixture = fixture;
+    }
+
+    public async Task InitializeAsync()
+    {
         DapperTypeHandlers.RegisterSqliteHandlers();
-
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+        await _fixture.ClearAllDataAsync();
         _store = new OutboxStoreDapper(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 

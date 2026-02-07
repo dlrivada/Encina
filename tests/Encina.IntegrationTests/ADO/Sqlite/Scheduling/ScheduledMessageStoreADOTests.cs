@@ -9,20 +9,24 @@ namespace Encina.IntegrationTests.ADO.Sqlite.Scheduling;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.Sqlite")]
-public sealed class ScheduledMessageStoreADOTests : IClassFixture<SqliteFixture>
+[Collection("ADO-Sqlite")]
+public sealed class ScheduledMessageStoreADOTests : IAsyncLifetime
 {
     private readonly SqliteFixture _database;
-    private readonly ScheduledMessageStoreADO _store;
+    private ScheduledMessageStoreADO _store = null!;
 
     public ScheduledMessageStoreADOTests(SqliteFixture database)
     {
         _database = database;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _database.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _database.ClearAllDataAsync();
         _store = new ScheduledMessageStoreADO(_database.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidMessage_ShouldPersist()

@@ -20,11 +20,10 @@ public sealed class MartenSnapshotStoreIntegrationTests
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     [Trait("Category", "Integration")]
     public async Task SaveAsync_PersistsSnapshotToDatabase()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
@@ -59,11 +58,10 @@ public sealed class MartenSnapshotStoreIntegrationTests
         envelopes[0].State!.Total.ShouldBe(300m);
     }
 
-    [SkippableFact]
+    [Fact]
     [Trait("Category", "Integration")]
     public async Task GetLatestAsync_ReturnsLatestSnapshot()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
@@ -90,19 +88,21 @@ public sealed class MartenSnapshotStoreIntegrationTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        result.IfRight(snapshot =>
+        result.IfRight(optSnapshot =>
         {
-            snapshot.ShouldNotBeNull();
-            snapshot!.Version.ShouldBe(3);
-            snapshot.State.Total.ShouldBe(60m); // 10 + 20 + 30
+            optSnapshot.IsSome.ShouldBeTrue();
+            optSnapshot.IfSome(snapshot =>
+            {
+                snapshot.Version.ShouldBe(3);
+                snapshot.State.Total.ShouldBe(60m); // 10 + 20 + 30
+            });
         });
     }
 
-    [SkippableFact]
+    [Fact]
     [Trait("Category", "Integration")]
-    public async Task GetLatestAsync_NonExistentAggregate_ReturnsNull()
+    public async Task GetLatestAsync_NonExistentAggregate_ReturnsNone()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
@@ -114,14 +114,13 @@ public sealed class MartenSnapshotStoreIntegrationTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        result.IfRight(snapshot => snapshot.ShouldBeNull());
+        result.IfRight(optSnapshot => optSnapshot.IsNone.ShouldBeTrue());
     }
 
-    [SkippableFact]
+    [Fact]
     [Trait("Category", "Integration")]
     public async Task PruneAsync_RemovesOldSnapshots()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
@@ -159,11 +158,10 @@ public sealed class MartenSnapshotStoreIntegrationTests
         envelopes[1].Version.ShouldBe(4);
     }
 
-    [SkippableFact]
+    [Fact]
     [Trait("Category", "Integration")]
     public async Task RoundTrip_PreservesAggregateState()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
@@ -188,23 +186,25 @@ public sealed class MartenSnapshotStoreIntegrationTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        result.IfRight(restored =>
+        result.IfRight(optRestored =>
         {
-            restored.ShouldNotBeNull();
-            restored!.AggregateId.ShouldBe(aggregateId);
-            restored.Version.ShouldBe(3);
-            restored.State.Name.ShouldBe("Round Trip Test");
-            restored.State.Total.ShouldBe(150.50m);
-            restored.State.ItemCount.ShouldBe(2);
-            restored.State.Status.ShouldBe("Completed");
+            optRestored.IsSome.ShouldBeTrue();
+            optRestored.IfSome(restored =>
+            {
+                restored.AggregateId.ShouldBe(aggregateId);
+                restored.Version.ShouldBe(3);
+                restored.State.Name.ShouldBe("Round Trip Test");
+                restored.State.Total.ShouldBe(150.50m);
+                restored.State.ItemCount.ShouldBe(2);
+                restored.State.Status.ShouldBe("Completed");
+            });
         });
     }
 
-    [SkippableFact]
+    [Fact]
     [Trait("Category", "Integration")]
     public async Task MultipleAggregates_AreIsolated()
     {
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
@@ -233,10 +233,10 @@ public sealed class MartenSnapshotStoreIntegrationTests
         result1.IsRight.ShouldBeTrue();
         result2.IsRight.ShouldBeTrue();
 
-        result1.IfRight(s => s!.State.Name.ShouldBe("Aggregate 1"));
-        result1.IfRight(s => s!.State.Total.ShouldBe(100m));
+        result1.IfRight(opt => opt.IfSome(s => s.State.Name.ShouldBe("Aggregate 1")));
+        result1.IfRight(opt => opt.IfSome(s => s.State.Total.ShouldBe(100m)));
 
-        result2.IfRight(s => s!.State.Name.ShouldBe("Aggregate 2"));
-        result2.IfRight(s => s!.State.Total.ShouldBe(200m));
+        result2.IfRight(opt => opt.IfSome(s => s.State.Name.ShouldBe("Aggregate 2")));
+        result2.IfRight(opt => opt.IfSome(s => s.State.Total.ShouldBe(200m)));
     }
 }

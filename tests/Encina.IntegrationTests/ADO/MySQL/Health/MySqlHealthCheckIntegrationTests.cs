@@ -12,7 +12,8 @@ namespace Encina.IntegrationTests.ADO.MySQL.Health;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.MySQL")]
-public sealed class MySqlHealthCheckIntegrationTests : IClassFixture<MySqlFixture>
+[Collection("ADO-MySQL")]
+public sealed class MySqlHealthCheckIntegrationTests
 {
     private readonly MySqlFixture _fixture;
 
@@ -21,10 +22,9 @@ public sealed class MySqlHealthCheckIntegrationTests : IClassFixture<MySqlFixtur
         _fixture = fixture;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WhenDatabaseIsRunning_ReturnsHealthy()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -39,10 +39,9 @@ public sealed class MySqlHealthCheckIntegrationTests : IClassFixture<MySqlFixtur
         Assert.Contains("healthy", result.Description, StringComparison.OrdinalIgnoreCase);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         var options = new ProviderHealthCheckOptions { Name = "my-custom-ado-mysql" };
@@ -57,10 +56,9 @@ public sealed class MySqlHealthCheckIntegrationTests : IClassFixture<MySqlFixtur
         Assert.Equal(HealthStatus.Healthy, result.Status);
     }
 
-    [SkippableFact]
+    [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();
@@ -73,10 +71,9 @@ public sealed class MySqlHealthCheckIntegrationTests : IClassFixture<MySqlFixtur
         Assert.Contains("ready", healthCheck.Tags);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_ExecutesQuerySuccessfully()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL container not available");
 
         // Arrange
         var serviceProvider = CreateServiceProvider();

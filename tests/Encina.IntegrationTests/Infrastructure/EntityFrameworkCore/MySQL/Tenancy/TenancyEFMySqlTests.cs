@@ -58,19 +58,17 @@ public sealed class TenancyEFMySqlTests : IAsyncLifetime
 
     #region Query Filter Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task TenantFilter_ShouldOnlyReturnCurrentTenantData()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         // This test will be skipped until Pomelo 10.0.0 is available
         await Task.CompletedTask;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task IgnoreQueryFilters_ShouldReturnAllTenantData()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         await Task.CompletedTask;
     }
@@ -79,10 +77,9 @@ public sealed class TenancyEFMySqlTests : IAsyncLifetime
 
     #region Auto-Assignment Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task NewEntity_ShouldAutoAssignTenantId()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         await Task.CompletedTask;
     }
@@ -91,26 +88,23 @@ public sealed class TenancyEFMySqlTests : IAsyncLifetime
 
     #region Tenant Isolation Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task QueryWithDifferentTenant_ShouldReturnEmpty()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         await Task.CompletedTask;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CrossTenantDataIsolation_ShouldBeEnforced()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         await Task.CompletedTask;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MultipleTenants_ShouldMaintainSeparateDataSets()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         await Task.CompletedTask;
     }
@@ -119,10 +113,9 @@ public sealed class TenancyEFMySqlTests : IAsyncLifetime
 
     #region Validation Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateEntity_WrongTenant_ShouldThrowException()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         await Task.CompletedTask;
     }
@@ -131,18 +124,16 @@ public sealed class TenancyEFMySqlTests : IAsyncLifetime
 
     #region LINQ Query Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task WhereClause_ShouldWorkWithTenantFilter()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         await Task.CompletedTask;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Aggregate_ShouldWorkWithTenantFilter()
     {
-        Skip.IfNot(_fixture.IsAvailable, "MySQL EF Core requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released");
 
         await Task.CompletedTask;
     }

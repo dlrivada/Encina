@@ -1,11 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- This is a support library (fixtures, schemas), not a test project.
+       xunit packages are needed for types (IAsyncLifetime, [Collection], etc.)
+       but they inject TestContainer which breaks Test Explorer (no testhost).
+       Remove the capability to prevent test discovery errors. -->
+  <ItemGroup>
+    <ProjectCapability Remove="TestContainer" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <IsTestProject>false</IsTestProject>
     <RootNamespace>Encina.TestInfrastructure</RootNamespace>
     <!-- Suppress CS0618 for Testcontainers obsolete constructors until we migrate to new API -->
     <NoWarn>$(NoWarn);CS0618</NoWarn>

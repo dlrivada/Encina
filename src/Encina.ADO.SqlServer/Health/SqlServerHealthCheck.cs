@@ -14,6 +14,8 @@ public sealed class SqlServerHealthCheck : DatabaseHealthCheck
     /// </summary>
     public const string DefaultName = "encina-ado-sqlserver";
 
+    private static readonly string[] ProviderTags = ["sqlserver"];
+
     /// <summary>
     /// Initializes a new instance of the <see cref="SqlServerHealthCheck"/> class.
     /// </summary>
@@ -22,7 +24,7 @@ public sealed class SqlServerHealthCheck : DatabaseHealthCheck
     public SqlServerHealthCheck(
         IServiceProvider serviceProvider,
         ProviderHealthCheckOptions? options)
-        : base(DefaultName, CreateConnectionFactory(serviceProvider), options)
+        : base(DefaultName, CreateConnectionFactory(serviceProvider), options, ProviderTags)
     {
     }
 

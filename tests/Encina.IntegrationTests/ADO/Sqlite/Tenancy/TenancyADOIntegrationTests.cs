@@ -17,7 +17,8 @@ namespace Encina.IntegrationTests.ADO.Sqlite.Tenancy;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-public class TenancyADOIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
+[Collection("ADO-Sqlite")]
+public class TenancyADOIntegrationTests : IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;

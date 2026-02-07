@@ -36,8 +36,7 @@ public sealed class UnitOfWorkEFPostgreSqlTests : IAsyncLifetime
     public async Task Transaction_CommitMultipleEntities_AllPersisted()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
         await using var unitOfWork = new UnitOfWorkEF(context, serviceProvider);
 
@@ -58,7 +57,7 @@ public sealed class UnitOfWorkEFPostgreSqlTests : IAsyncLifetime
         commitResult.IsRight.ShouldBeTrue();
 
         // Assert - Verify with fresh context
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var count = verifyContext.Set<TestRepositoryEntity>().Count();
         count.ShouldBe(2);
     }
@@ -67,8 +66,7 @@ public sealed class UnitOfWorkEFPostgreSqlTests : IAsyncLifetime
     public async Task Transaction_Rollback_NoChangesPersisted()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
         await using var unitOfWork = new UnitOfWorkEF(context, serviceProvider);
 
@@ -85,7 +83,7 @@ public sealed class UnitOfWorkEFPostgreSqlTests : IAsyncLifetime
         await unitOfWork.RollbackAsync();
 
         // Assert - Verify with fresh context
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var count = verifyContext.Set<TestRepositoryEntity>().Count();
         count.ShouldBe(0);
     }
@@ -94,8 +92,7 @@ public sealed class UnitOfWorkEFPostgreSqlTests : IAsyncLifetime
     public async Task SaveChangesAsync_ReturnsAffectedRowCount()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
         await using var unitOfWork = new UnitOfWorkEF(context, serviceProvider);
 
@@ -114,8 +111,7 @@ public sealed class UnitOfWorkEFPostgreSqlTests : IAsyncLifetime
     public async Task BeginTransaction_SetsHasActiveTransactionTrue()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
         await using var unitOfWork = new UnitOfWorkEF(context, serviceProvider);
 
@@ -133,8 +129,7 @@ public sealed class UnitOfWorkEFPostgreSqlTests : IAsyncLifetime
     public async Task Commit_ClearsHasActiveTransaction()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
         await using var unitOfWork = new UnitOfWorkEF(context, serviceProvider);
 

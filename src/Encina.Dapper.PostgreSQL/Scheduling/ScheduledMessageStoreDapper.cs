@@ -18,10 +18,10 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
     /// Initializes a new instance of the <see cref="ScheduledMessageStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
-    /// <param name="tableName">The scheduled messages table name (default: ScheduledMessages).</param>
+    /// <param name="tableName">The scheduled messages table name (default: scheduledmessages).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> or <paramref name="tableName"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is empty or whitespace.</exception>
-    public ScheduledMessageStoreDapper(IDbConnection connection, string tableName = "ScheduledMessages")
+    public ScheduledMessageStoreDapper(IDbConnection connection, string tableName = "scheduledmessages")
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
@@ -35,8 +35,8 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
 
         var sql = $@"
             INSERT INTO {_tableName}
-            (Id, RequestType, Content, ScheduledAtUtc, CreatedAtUtc, ProcessedAtUtc, LastExecutedAtUtc,
-             ErrorMessage, RetryCount, NextRetryAtUtc, IsRecurring, CronExpression)
+            (id, requesttype, content, scheduledatutc, createdatutc, processedatutc, lastexecutedatutc,
+             errormessage, retrycount, nextretryatutc, isrecurring, cronexpression)
             VALUES
             (@Id, @RequestType, @Content, @ScheduledAtUtc, @CreatedAtUtc, @ProcessedAtUtc, @LastExecutedAtUtc,
              @ErrorMessage, @RetryCount, @NextRetryAtUtc, @IsRecurring, @CronExpression)";
@@ -56,15 +56,16 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
             throw new ArgumentException(StoreValidationMessages.MaxRetriesCannotBeNegative, nameof(maxRetries));
 
         var sql = $@"
-            SELECT *
+            SELECT id, requesttype, content, scheduledatutc, createdatutc, processedatutc, lastexecutedatutc,
+                   errormessage, retrycount, nextretryatutc, isrecurring, cronexpression, correlationid, metadata
             FROM {_tableName}
-            WHERE (ProcessedAtUtc IS NULL OR IsRecurring = 1)
-              AND RetryCount < @MaxRetries
+            WHERE (processedatutc IS NULL OR isrecurring = true)
+              AND retrycount < @MaxRetries
               AND (
-                  (NextRetryAtUtc IS NOT NULL AND NextRetryAtUtc <= NOW() AT TIME ZONE 'UTC')
-                  OR (NextRetryAtUtc IS NULL AND ScheduledAtUtc <= NOW() AT TIME ZONE 'UTC')
+                  (nextretryatutc IS NOT NULL AND nextretryatutc <= NOW() AT TIME ZONE 'UTC')
+                  OR (nextretryatutc IS NULL AND scheduledatutc <= NOW() AT TIME ZONE 'UTC')
               )
-            ORDER BY ScheduledAtUtc
+            ORDER BY scheduledatutc
             LIMIT @BatchSize";
 
         var messages = await _connection.QueryAsync<ScheduledMessage>(
@@ -82,10 +83,10 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = NOW() AT TIME ZONE 'UTC',
-                LastExecutedAtUtc = NOW() AT TIME ZONE 'UTC',
-                ErrorMessage = NULL
-            WHERE Id = @MessageId";
+            SET processedatutc = NOW() AT TIME ZONE 'UTC',
+                lastexecutedatutc = NOW() AT TIME ZONE 'UTC',
+                errormessage = NULL
+            WHERE id = @MessageId";
 
         await _connection.ExecuteAsync(sql, new { MessageId = messageId });
     }
@@ -103,11 +104,11 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ErrorMessage = @ErrorMessage,
-                RetryCount = RetryCount + 1,
-                NextRetryAtUtc = @NextRetryAtUtc,
-                LastExecutedAtUtc = NOW() AT TIME ZONE 'UTC'
-            WHERE Id = @MessageId";
+            SET errormessage = @ErrorMessage,
+                retrycount = retrycount + 1,
+                nextretryatutc = @NextRetryAtUtc,
+                lastexecutedatutc = NOW() AT TIME ZONE 'UTC'
+            WHERE id = @MessageId";
 
         await _connection.ExecuteAsync(
             sql,
@@ -132,12 +133,12 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ScheduledAtUtc = @NextScheduledAtUtc,
-                ProcessedAtUtc = NULL,
-                ErrorMessage = NULL,
-                RetryCount = 0,
-                NextRetryAtUtc = NULL
-            WHERE Id = @MessageId";
+            SET scheduledatutc = @NextScheduledAtUtc,
+                processedatutc = NULL,
+                errormessage = NULL,
+                retrycount = 0,
+                nextretryatutc = NULL
+            WHERE id = @MessageId";
 
         await _connection.ExecuteAsync(
             sql,
@@ -156,7 +157,7 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
 
         var sql = $@"
             DELETE FROM {_tableName}
-            WHERE Id = @MessageId";
+            WHERE id = @MessageId";
 
         await _connection.ExecuteAsync(sql, new { MessageId = messageId });
     }

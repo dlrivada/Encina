@@ -17,9 +17,10 @@ namespace Encina.IntegrationTests.ADO.SqlServer.Tenancy;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
+[Collection("ADO-SqlServer")]
 public class TenancyADOIntegrationTests : IAsyncLifetime
 {
-    private readonly SqlServerFixture _fixture = new();
+    private readonly SqlServerFixture _fixture;
     private IDbConnection _connection = null!;
     private TenantAwareFunctionalRepositoryADO<TenantTestEntity, Guid> _repository = null!;
     private ITenantEntityMapping<TenantTestEntity, Guid> _mapping = null!;
@@ -29,10 +30,13 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
     private const string Tenant1 = "tenant-001";
     private const string Tenant2 = "tenant-002";
 
+    public TenancyADOIntegrationTests(SqlServerFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         using var schemaConnection = _fixture.CreateConnection() as SqlConnection;
         if (schemaConnection != null)
         {
@@ -68,7 +72,7 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private async Task ClearDataAsync()

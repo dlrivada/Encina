@@ -346,6 +346,125 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        PaginationOptions pagination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(pagination);
+
+        try
+        {
+            await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
+
+            // Get total count
+            using var countCommand = _connection.CreateCommand();
+            countCommand.CommandText = _countSql;
+            var countResult = await ExecuteScalarAsync(countCommand, cancellationToken).ConfigureAwait(false);
+            var totalCount = Convert.ToInt32(countResult, CultureInfo.InvariantCulture);
+
+            if (totalCount == 0)
+            {
+                return Right<EncinaError, PagedResult<TEntity>>(
+                    PagedResult<TEntity>.Empty(pagination.PageNumber, pagination.PageSize));
+            }
+
+            // Get paginated items
+            var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"`{c}`"));
+            var sql = $"SELECT {columns} FROM `{_mapping.TableName}` LIMIT @PageSize OFFSET @Skip";
+
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@PageSize", pagination.PageSize);
+            AddParameter(command, "@Skip", pagination.Skip);
+
+            var entities = await ReadEntitiesAsync(command, cancellationToken).ConfigureAwait(false);
+
+            return Right<EncinaError, PagedResult<TEntity>>(
+                new PagedResult<TEntity>(entities, pagination.PageNumber, pagination.PageSize, totalCount));
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(
+                RepositoryErrors.PersistenceError<TEntity>("GetPaged", ex));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        Specification<TEntity> specification,
+        PaginationOptions pagination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(pagination);
+
+        try
+        {
+            await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
+
+            // Get total count with specification filter
+            var (whereClause, addParameters) = _sqlBuilder.BuildWhereClause(specification);
+            var countSql = $"SELECT COUNT(*) FROM `{_mapping.TableName}` {whereClause}";
+
+            using var countCommand = _connection.CreateCommand();
+            countCommand.CommandText = countSql;
+            addParameters(countCommand);
+            var countResult = await ExecuteScalarAsync(countCommand, cancellationToken).ConfigureAwait(false);
+            var totalCount = Convert.ToInt32(countResult, CultureInfo.InvariantCulture);
+
+            if (totalCount == 0)
+            {
+                return Right<EncinaError, PagedResult<TEntity>>(
+                    PagedResult<TEntity>.Empty(pagination.PageNumber, pagination.PageSize));
+            }
+
+            // Get paginated items with specification filter
+            var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"`{c}`"));
+            var sql = $"SELECT {columns} FROM `{_mapping.TableName}` {whereClause} LIMIT @PageSize OFFSET @Skip";
+
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            addParameters(command);
+            AddParameter(command, "@PageSize", pagination.PageSize);
+            AddParameter(command, "@Skip", pagination.Skip);
+
+            var entities = await ReadEntitiesAsync(command, cancellationToken).ConfigureAwait(false);
+
+            return Right<EncinaError, PagedResult<TEntity>>(
+                new PagedResult<TEntity>(entities, pagination.PageNumber, pagination.PageSize, totalCount));
+        }
+        catch (NotSupportedException ex)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(
+                RepositoryErrors.InvalidOperation<TEntity>("GetPaged", $"Specification not supported: {ex.Message}"));
+        }
+        catch (Exception ex)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(
+                RepositoryErrors.PersistenceError<TEntity>("GetPaged", ex));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, PagedResult<TEntity>>> GetPagedAsync(
+        IPagedSpecification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+
+        // IPagedSpecification implementations should inherit from Specification<T>
+        if (specification is not Specification<TEntity> spec)
+        {
+            return Left<EncinaError, PagedResult<TEntity>>(
+                RepositoryErrors.InvalidOperation<TEntity>(
+                    "GetPaged",
+                    $"The specification {specification.GetType().Name} must inherit from Specification<{typeof(TEntity).Name}> or PagedQuerySpecification<{typeof(TEntity).Name}>."));
+        }
+
+        return await GetPagedAsync(spec, specification.Pagination, cancellationToken).ConfigureAwait(false);
+    }
+
     #endregion
 
     #region Write Operations

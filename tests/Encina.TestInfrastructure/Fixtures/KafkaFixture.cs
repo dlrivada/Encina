@@ -51,20 +51,12 @@ public sealed class KafkaFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
-        try
-        {
-            _container = new KafkaBuilder()
-                .WithImage("confluentinc/cp-kafka:7.6.0")
-                .WithCleanUp(true)
-                .Build();
+        _container = new KafkaBuilder()
+            .WithImage("confluentinc/cp-kafka:7.6.0")
+            .WithCleanUp(true)
+            .Build();
 
-            await _container.StartAsync();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to start Kafka container: {ex.Message}");
-            // Container might not be available in CI without Docker
-        }
+        await _container.StartAsync();
     }
 
     /// <inheritdoc/>

@@ -1,3 +1,5 @@
+using Encina.IntegrationTests.Infrastructure.Marten.Snapshots;
+using Encina.Marten.Snapshots;
 using Marten;
 using Testcontainers.PostgreSql;
 using Xunit;
@@ -30,24 +32,60 @@ public sealed class MartenFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
-        try
-        {
-            _container = new PostgreSqlBuilder("postgres:17-alpine")
-                .WithDatabase("encina_test")
-                .WithUsername("postgres")
-                .WithPassword("postgres")
-                .WithCleanUp(true)
-                .Build();
+        _container = new PostgreSqlBuilder("postgres:17-alpine")
+            .WithDatabase("encina_test")
+            .WithUsername("postgres")
+            .WithPassword("postgres")
+            .WithCleanUp(true)
+            .Build();
 
-            await _container.StartAsync();
+        await _container.StartAsync();
 
-            Store = DocumentStore.For(ConnectionString);
-        }
-        catch (Exception ex)
+        Store = DocumentStore.For(opts =>
         {
-            Console.WriteLine($"Failed to start PostgreSQL container: {ex.Message}");
-            // Container might not be available in CI without Docker
+            opts.Connection(ConnectionString);
+
+            // Enable event metadata tracking for correlation/causation IDs and headers
+            opts.Events.MetadataConfig.CorrelationIdEnabled = true;
+            opts.Events.MetadataConfig.CausationIdEnabled = true;
+            opts.Events.MetadataConfig.HeadersEnabled = true;
+        });
+
+        // Initialize schema by storing and deleting a test document
+        // This ensures the table exists before running tests that query empty tables
+        await InitializeSnapshotSchemaAsync();
+    }
+
+    /// <summary>
+    /// Initializes the schema for snapshot documents by storing and deleting a test document.
+    /// This ensures the table exists before running tests that query empty tables.
+    /// </summary>
+    private async Task InitializeSnapshotSchemaAsync()
+    {
+        if (Store is null)
+        {
+            return;
         }
+
+        await using var session = Store.LightweightSession();
+
+        // Create a temporary envelope to trigger schema creation
+        var tempEnvelope = new SnapshotEnvelope<TestSnapshotableAggregate>
+        {
+            Id = "init:schema:0",
+            AggregateId = Guid.Empty,
+            Version = 0,
+            State = null,
+            CreatedAtUtc = DateTime.UtcNow,
+            AggregateType = typeof(TestSnapshotableAggregate).FullName ?? typeof(TestSnapshotableAggregate).Name
+        };
+
+        session.Store(tempEnvelope);
+        await session.SaveChangesAsync();
+
+        // Delete the temporary document
+        session.Delete(tempEnvelope);
+        await session.SaveChangesAsync();
     }
 
     /// <inheritdoc/>

@@ -33,8 +33,7 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new OutboxStoreEF(context);
 
         var message = new OutboxMessage
@@ -51,7 +50,7 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
         await store.SaveChangesAsync();
 
         // Assert
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var stored = await verifyContext.Set<OutboxMessage>().FindAsync(message.Id);
         stored.ShouldNotBeNull();
         stored!.NotificationType.ShouldBe("TestNotification");
@@ -62,8 +61,7 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task GetPendingMessagesAsync_WithMultipleMessages_ShouldReturnUnprocessedOnly()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new OutboxStoreEF(context);
 
         var pending1 = new OutboxMessage
@@ -112,8 +110,7 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task MarkAsProcessedAsync_ShouldUpdateTimestampAndClearError()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var store = new OutboxStoreEF(context);
 
         var message = new OutboxMessage
@@ -134,7 +131,7 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
         await store.SaveChangesAsync();
 
         // Assert
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         var updated = await verifyContext.Set<OutboxMessage>().FindAsync(message.Id);
         updated!.ProcessedAtUtc.ShouldNotBeNull();
         updated.ErrorMessage.ShouldBeNull();
@@ -144,12 +141,11 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
     public async Task ConcurrentWrites_ShouldNotCorruptData()
     {
         // Arrange
-        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
-        await context.Database.EnsureCreatedAsync();
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
 
         var tasks = Enumerable.Range(0, 10).Select(async i =>
         {
-            await using var ctx = _fixture.CreateDbContext<TestEFDbContext>();
+            await using var ctx = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
             var store = new OutboxStoreEF(ctx);
 
             var message = new OutboxMessage
@@ -170,7 +166,7 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
         var messageIds = await Task.WhenAll(tasks);
 
         // Assert
-        await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
+        await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         foreach (var id in messageIds)
         {
             var stored = await verifyContext.Set<OutboxMessage>().FindAsync(id);

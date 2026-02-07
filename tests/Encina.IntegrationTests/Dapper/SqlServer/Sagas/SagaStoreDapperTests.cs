@@ -10,21 +10,25 @@ namespace Encina.IntegrationTests.Dapper.SqlServer.Sagas;
 /// Integration tests for <see cref="SagaStoreDapper"/>.
 /// Tests against real SQL Server database via Testcontainers with proper cleanup.
 /// </summary>
+[Collection("Dapper-SqlServer")]
 [Trait("Category", "Integration")]
-public sealed class SagaStoreDapperTests : IClassFixture<SqlServerFixture>
+public sealed class SagaStoreDapperTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _database;
-    private readonly SagaStoreDapper _store;
+    private SagaStoreDapper _store = null!;
 
     public SagaStoreDapperTests(SqlServerFixture database)
     {
         _database = database;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _database.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _database.ClearAllDataAsync();
         _store = new SagaStoreDapper(_database.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidSaga_ShouldPersist()
@@ -359,7 +363,10 @@ public sealed class SagaStoreDapperTests : IClassFixture<SqlServerFixture>
         // Assert
         var retrieved = await _store.GetAsync(sagaId);
         Assert.NotNull(retrieved);
-        Assert.Equal(startedTime, retrieved.StartedAtUtc); // Should not change
+        // Compare with tolerance due to SQL Server DATETIME2 precision differences (~3.33ms for datetime, sub-ms for datetime2)
+        // Using 5ms tolerance to account for any rounding differences in the database or driver
+        var timeDifference = Math.Abs((startedTime - retrieved.StartedAtUtc).TotalMilliseconds);
+        Assert.True(timeDifference < 5, $"StartedAtUtc should be preserved. Expected: {startedTime:O}, Actual: {retrieved.StartedAtUtc:O}, Diff: {timeDifference}ms");
     }
 
     [Fact]

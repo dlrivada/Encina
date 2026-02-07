@@ -23,7 +23,8 @@ namespace Encina.IntegrationTests.Infrastructure.ADO.Sqlite.BulkOperations;
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.Sqlite")]
 [Trait("Feature", "BulkOperations")]
-public sealed class BulkOperationsADOSqliteIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
+[Collection("ADO-Sqlite")]
+public sealed class BulkOperationsADOSqliteIntegrationTests : IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;
@@ -36,7 +37,6 @@ public sealed class BulkOperationsADOSqliteIntegrationTests : IClassFixture<Sqli
 
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
         _connection = _fixture.CreateConnection();
 
         // Create test table
@@ -50,7 +50,6 @@ public sealed class BulkOperationsADOSqliteIntegrationTests : IClassFixture<Sqli
     public async Task DisposeAsync()
     {
         await DropBulkTestTableAsync();
-        await _fixture.DisposeAsync();
     }
 
     private async Task CreateBulkTestTableAsync()

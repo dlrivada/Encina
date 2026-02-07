@@ -9,20 +9,24 @@ namespace Encina.IntegrationTests.ADO.MySQL.Scheduling;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Provider", "ADO.MySQL")]
-public sealed class ScheduledMessageStoreADOTests : IClassFixture<MySqlFixture>
+[Collection("ADO-MySQL")]
+public sealed class ScheduledMessageStoreADOTests : IAsyncLifetime
 {
     private readonly MySqlFixture _fixture;
-    private readonly ScheduledMessageStoreADO _store;
+    private ScheduledMessageStoreADO _store = null!;
 
     public ScheduledMessageStoreADOTests(MySqlFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new ScheduledMessageStoreADO(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidMessage_ShouldPersist()

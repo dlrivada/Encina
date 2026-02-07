@@ -21,20 +21,24 @@ namespace Encina.IntegrationTests.Dapper.SqlServer.ModuleIsolation;
 /// validation logic, and SQL pattern validation for Dapper operations.
 /// </para>
 /// </remarks>
+[Collection("Dapper-SqlServer")]
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
 public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 {
-    private readonly SqlServerFixture _fixture = new();
+    private readonly SqlServerFixture _fixture;
     private SqlConnection _connection = null!;
     private ModuleSchemaRegistry _schemaRegistry = null!;
     private ModuleIsolationOptions _isolationOptions = null!;
     private TestModuleExecutionContext _moduleContext = null!;
 
+    public ModuleIsolationDapperIntegrationTests(SqlServerFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     public async Task InitializeAsync()
     {
-        await _fixture.InitializeAsync();
-
         if (!_fixture.IsAvailable)
             return;
 
@@ -59,7 +63,7 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _connection?.Dispose();
-        await _fixture.DisposeAsync();
+        await _fixture.ClearAllDataAsync();
     }
 
     private static async Task CreateSchemasAndTablesAsync(SqlConnection connection)
@@ -145,10 +149,9 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region ModuleAwareConnectionFactory Tests
 
-    [SkippableFact]
+    [Fact]
     public void ModuleAwareConnectionFactory_CreatesSchemaValidatingConnection_WhenStrategyIsDevValidation()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange
         var factory = CreateModuleAwareConnectionFactory("Orders");
@@ -160,10 +163,9 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
         connection.ShouldBeOfType<SchemaValidatingConnection>();
     }
 
-    [SkippableFact]
+    [Fact]
     public void ModuleAwareConnectionFactory_CreatesRegularConnection_WhenStrategyIsNotDevValidation()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         // Arrange - SchemaWithPermissions strategy doesn't wrap connections (DB handles validation)
         var noValidationOptions = new ModuleIsolationOptions
@@ -192,28 +194,25 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region Schema Registry Validation Tests
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldAllowAccessToOwnSchema()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         _schemaRegistry.CanAccessSchema("Orders", "orders").ShouldBeTrue();
         _schemaRegistry.CanAccessSchema("Inventory", "inventory").ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldAllowAccessToSharedSchema()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         _schemaRegistry.CanAccessSchema("Orders", "shared").ShouldBeTrue();
         _schemaRegistry.CanAccessSchema("Inventory", "shared").ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SchemaRegistry_ShouldDenyAccessToOtherModuleSchemas()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         _schemaRegistry.CanAccessSchema("Orders", "inventory").ShouldBeFalse();
         _schemaRegistry.CanAccessSchema("Inventory", "orders").ShouldBeFalse();
@@ -223,28 +222,25 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region SQL Validation Tests (schema.table style for SQL Server)
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_ValidQueryToOwnSchema_ShouldPass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         var result = _schemaRegistry.ValidateSqlAccess("Orders", "SELECT * FROM orders.Orders WHERE Id = @Id");
         result.IsValid.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_QueryToSharedSchema_ShouldPass()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         var result = _schemaRegistry.ValidateSqlAccess("Orders", "SELECT * FROM shared.Lookups WHERE Category = @Category");
         result.IsValid.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public void SqlValidation_CrossModuleSchemaAccess_ShouldFail()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         var result = _schemaRegistry.ValidateSqlAccess("Orders", "SELECT * FROM inventory.InventoryItems WHERE Sku = @Sku");
         result.IsValid.ShouldBeFalse();
@@ -255,13 +251,15 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region SchemaValidatingConnection Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task SchemaValidatingConnection_CanExecuteValidQuery()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         await using var connection = CreateSchemaValidatingConnection("Orders");
-        await connection.OpenAsync();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync();
+        }
 
         await using var insertCmd = connection.CreateCommand();
         insertCmd.CommandText = @"
@@ -282,13 +280,15 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
         Convert.ToInt32(count, CultureInfo.InvariantCulture).ShouldBeGreaterThanOrEqualTo(1);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SchemaValidatingConnection_ThrowsOnCrossModuleTableAccess()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         await using var connection = CreateSchemaValidatingConnection("Orders");
-        await connection.OpenAsync();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync();
+        }
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT * FROM inventory.InventoryItems";
@@ -299,13 +299,15 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SchemaValidatingConnection_AllowsSharedTableAccess()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         await using var connection = CreateSchemaValidatingConnection("Orders");
-        await connection.OpenAsync();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync();
+        }
 
         await using var insertCmd = connection.CreateCommand();
         insertCmd.CommandText = @"
@@ -330,10 +332,9 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
 
     #region Module Context Tests
 
-    [SkippableFact]
+    [Fact]
     public void ModuleContext_CanBeSwitched()
     {
-        Skip.IfNot(_fixture.IsAvailable, "SQL Server container not available");
 
         _moduleContext.SetCurrentModule("Orders");
         var orders = _moduleContext.CurrentModule;

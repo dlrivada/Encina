@@ -123,11 +123,10 @@ public sealed class EventVersioningIntegrationTests
         upcasters.ShouldContain(u => u is ProductUpdatedV1ToV2Upcaster);
     }
 
-    [SkippableFact]
+    [Fact]
     public void Fixture_IsAvailable_WhenContainerRunning()
     {
         // Skip if Docker/container is not available
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange & Act - verify fixture is configured
         var store = _fixture.Store;
@@ -138,11 +137,10 @@ public sealed class EventVersioningIntegrationTests
         connectionString.ShouldNotBeNullOrEmpty();
     }
 
-    [SkippableFact]
+    [Fact]
     public void Fixture_Store_IsConfiguredForEventVersioning()
     {
         // Skip if Docker/container is not available
-        Skip.IfNot(_fixture.IsAvailable, "PostgreSQL container not available");
 
         // Arrange & Act
         var store = _fixture.Store;

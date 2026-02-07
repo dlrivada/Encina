@@ -72,6 +72,8 @@ public static class MySqlSchema
                 CompletedAtUtc DATETIME(6) NULL,
                 ErrorMessage TEXT NULL,
                 TimeoutAtUtc DATETIME(6) NULL,
+                CorrelationId VARCHAR(256) NULL,
+                Metadata TEXT NULL,
                 INDEX IX_SagaStates_Status_LastUpdatedAtUtc (Status, LastUpdatedAtUtc)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """;
@@ -147,11 +149,57 @@ public static class MySqlSchema
     }
 
     /// <summary>
+    /// Creates the TenantTestEntities table schema for multi-tenancy integration tests.
+    /// </summary>
+    public static async Task CreateTenantTestSchemaAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS `TenantTestEntities` (
+                `Id` CHAR(36) PRIMARY KEY,
+                `TenantId` VARCHAR(128) NOT NULL,
+                `Name` VARCHAR(200) NOT NULL,
+                `Description` VARCHAR(1000) NULL,
+                `Amount` DECIMAL(18,2) NOT NULL,
+                `IsActive` TINYINT(1) NOT NULL,
+                `CreatedAtUtc` DATETIME(6) NOT NULL,
+                `UpdatedAtUtc` DATETIME(6) NULL,
+                INDEX `IX_TenantTestEntities_TenantId` (`TenantId`),
+                INDEX `IX_TenantTestEntities_TenantId_IsActive` (`TenantId`, `IsActive`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Creates the ReadWriteTestEntities table schema for read/write separation tests.
+    /// </summary>
+    public static async Task CreateReadWriteTestSchemaAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS `ReadWriteTestEntities` (
+                `Id` CHAR(36) PRIMARY KEY,
+                `Name` VARCHAR(256) NOT NULL,
+                `Value` INT NOT NULL,
+                `Timestamp` DATETIME(6) NOT NULL,
+                `WriteCounter` INT NOT NULL DEFAULT 0,
+                INDEX `IX_ReadWriteTestEntities_Timestamp` (`Timestamp`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(MySqlConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS `TenantTestEntities`;
+            DROP TABLE IF EXISTS `ReadWriteTestEntities`;
             DROP TABLE IF EXISTS `Orders`;
             DROP TABLE IF EXISTS `TestRepositoryEntities`;
             DROP TABLE IF EXISTS ScheduledMessages;
@@ -171,6 +219,8 @@ public static class MySqlSchema
     public static async Task ClearAllDataAsync(MySqlConnection connection)
     {
         const string sql = """
+            DELETE FROM `TenantTestEntities`;
+            DELETE FROM `ReadWriteTestEntities`;
             DELETE FROM `Orders`;
             DELETE FROM `TestRepositoryEntities`;
             DELETE FROM ScheduledMessages;

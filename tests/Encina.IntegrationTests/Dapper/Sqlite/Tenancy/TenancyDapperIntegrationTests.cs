@@ -14,9 +14,10 @@ namespace Encina.IntegrationTests.Dapper.Sqlite.Tenancy;
 /// Integration tests for multi-tenancy support in Dapper SQLite provider.
 /// Tests automatic tenant filtering, tenant ID assignment, and cross-tenant isolation.
 /// </summary>
+[Collection("Dapper-Sqlite")]
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-public class TenancyDapperIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
+public class TenancyDapperIntegrationTests : IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private IDbConnection _connection = null!;

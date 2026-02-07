@@ -30,27 +30,19 @@ public sealed class NatsFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
-        try
-        {
-            _container = new NatsBuilder()
-                .WithImage("nats:2-alpine")
-                .WithCleanUp(true)
-                .Build();
+        _container = new NatsBuilder()
+            .WithImage("nats:2-alpine")
+            .WithCleanUp(true)
+            .Build();
 
-            await _container.StartAsync();
+        await _container.StartAsync();
 
-            var options = new NatsOpts
-            {
-                Url = ConnectionString
-            };
-            Connection = new NatsConnection(options);
-            await Connection.ConnectAsync();
-        }
-        catch (Exception ex)
+        var options = new NatsOpts
         {
-            Console.WriteLine($"Failed to start NATS container: {ex.Message}");
-            // Container might not be available in CI without Docker
-        }
+            Url = ConnectionString
+        };
+        Connection = new NatsConnection(options);
+        await Connection.ConnectAsync();
     }
 
     /// <inheritdoc/>

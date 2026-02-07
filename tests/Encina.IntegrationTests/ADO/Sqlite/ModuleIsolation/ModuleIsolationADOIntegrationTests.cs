@@ -25,7 +25,8 @@ namespace Encina.IntegrationTests.ADO.Sqlite.ModuleIsolation;
 /// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
-public class ModuleIsolationADOIntegrationTests : IClassFixture<SqliteFixture>, IAsyncLifetime
+[Collection("ADO-Sqlite")]
+public class ModuleIsolationADOIntegrationTests : IAsyncLifetime
 {
     private readonly SqliteFixture _fixture;
     private SqliteConnection _connection = null!;
@@ -119,7 +120,11 @@ public class ModuleIsolationADOIntegrationTests : IClassFixture<SqliteFixture>, 
     private SchemaValidatingConnection CreateSchemaValidatingConnection(string moduleName)
     {
         _moduleContext.SetCurrentModule(moduleName);
-        var innerConnection = (_fixture.CreateConnection() as SqliteConnection)!;
+        // Create a NEW independent connection to the same shared in-memory DB.
+        // SchemaValidatingConnection will dispose the inner connection on Dispose(),
+        // so we must NOT give it the fixture's shared connection.
+        var innerConnection = new SqliteConnection(_fixture.ConnectionString);
+        innerConnection.Open();
         return new SchemaValidatingConnection(innerConnection, _moduleContext, _schemaRegistry, _isolationOptions);
     }
 

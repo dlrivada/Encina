@@ -9,25 +9,29 @@ namespace Encina.IntegrationTests.Dapper.SqlServer.Inbox;
 /// Integration tests for <see cref="InboxStoreDapper"/>.
 /// Tests all public methods with various scenarios using real SQL Server database via Testcontainers.
 /// </summary>
+[Collection("Dapper-SqlServer")]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.SqlServer")]
-public sealed class InboxStoreDapperTests : IClassFixture<SqlServerFixture>
+public sealed class InboxStoreDapperTests : IAsyncLifetime
 {
     private static readonly string[] s_twoMessageIds = ["msg-1", "msg-2"];
     private static readonly string[] s_oneMessageId = ["msg-1"];
 
     private readonly SqlServerFixture _fixture;
-    private readonly InboxStoreDapper _store;
+    private InboxStoreDapper _store = null!;
 
     public InboxStoreDapperTests(SqlServerFixture fixture)
     {
         _fixture = fixture;
+    }
 
-        // Clear all data before each test to ensure clean state
-        _fixture.ClearAllDataAsync().GetAwaiter().GetResult();
-
+    public async Task InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
         _store = new InboxStoreDapper(_fixture.CreateConnection());
     }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     #region AddAsync Tests
 

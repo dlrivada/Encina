@@ -21,10 +21,11 @@ namespace Encina.IntegrationTests.Infrastructure.Dapper.SqlServer.BulkOperations
 /// against a real SQL Server database. Measured performance improvements: ~95x for Insert,
 /// ~315x for Update, ~268x for Delete compared to row-by-row operations.
 /// </remarks>
+[Collection("Dapper-SqlServer")]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Dapper.SqlServer")]
 [Trait("Feature", "BulkOperations")]
-public sealed class BulkOperationsDapperIntegrationTests : IClassFixture<SqlServerFixture>, IAsyncLifetime
+public sealed class BulkOperationsDapperIntegrationTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _fixture;
     private IDbConnection _connection = null!;

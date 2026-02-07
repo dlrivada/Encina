@@ -14,6 +14,8 @@ public sealed class SqliteHealthCheck : DatabaseHealthCheck
     /// </summary>
     public const string DefaultName = "encina-sqlite";
 
+    private static readonly string[] ProviderTags = ["sqlite"];
+
     /// <summary>
     /// Initializes a new instance of the <see cref="SqliteHealthCheck"/> class.
     /// </summary>
@@ -22,7 +24,7 @@ public sealed class SqliteHealthCheck : DatabaseHealthCheck
     public SqliteHealthCheck(
         IServiceProvider serviceProvider,
         ProviderHealthCheckOptions? options)
-        : base(DefaultName, CreateConnectionFactory(serviceProvider), options)
+        : base(DefaultName, CreateConnectionFactory(serviceProvider), options, ProviderTags)
     {
     }
 

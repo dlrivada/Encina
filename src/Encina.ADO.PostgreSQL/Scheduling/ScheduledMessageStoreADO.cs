@@ -19,13 +19,13 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
     /// Initializes a new instance of the <see cref="ScheduledMessageStoreADO"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
-    /// <param name="tableName">The scheduled messages table name (default: ScheduledMessages).</param>
+    /// <param name="tableName">The scheduled messages table name (default: scheduledmessages).</param>
     /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is null or whitespace.</exception>
     public ScheduledMessageStoreADO(
         IDbConnection connection,
-        string tableName = "ScheduledMessages",
+        string tableName = "scheduledmessages",
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -41,8 +41,8 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
 
         var sql = $@"
             INSERT INTO {_tableName}
-            (Id, RequestType, Content, ScheduledAtUtc, CreatedAtUtc, ProcessedAtUtc, LastExecutedAtUtc,
-             ErrorMessage, RetryCount, NextRetryAtUtc, IsRecurring, CronExpression)
+            (id, requesttype, content, scheduledatutc, createdatutc, processedatutc, lastexecutedatutc,
+             errormessage, retrycount, nextretryatutc, isrecurring, cronexpression)
             VALUES
             (@Id, @RequestType, @Content, @ScheduledAtUtc, @CreatedAtUtc, @ProcessedAtUtc, @LastExecutedAtUtc,
              @ErrorMessage, @RetryCount, @NextRetryAtUtc, @IsRecurring, @CronExpression)";
@@ -81,15 +81,16 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
 
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
-            SELECT *
+            SELECT id, requesttype, content, scheduledatutc, createdatutc, processedatutc, lastexecutedatutc,
+                   errormessage, retrycount, nextretryatutc, isrecurring, cronexpression
             FROM {_tableName}
-            WHERE (ProcessedAtUtc IS NULL OR IsRecurring = true)
-              AND RetryCount < @MaxRetries
+            WHERE (processedatutc IS NULL OR isrecurring = true)
+              AND retrycount < @MaxRetries
               AND (
-                  (NextRetryAtUtc IS NOT NULL AND NextRetryAtUtc <= @NowUtc)
-                  OR (NextRetryAtUtc IS NULL AND ScheduledAtUtc <= @NowUtc)
+                  (nextretryatutc IS NOT NULL AND nextretryatutc <= @NowUtc)
+                  OR (nextretryatutc IS NULL AND scheduledatutc <= @NowUtc)
               )
-            ORDER BY ScheduledAtUtc
+            ORDER BY scheduledatutc
             LIMIT @BatchSize";
 
         using var command = _connection.CreateCommand();
@@ -121,10 +122,10 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = @NowUtc,
-                LastExecutedAtUtc = @NowUtc,
-                ErrorMessage = NULL
-            WHERE Id = @MessageId";
+            SET processedatutc = @NowUtc,
+                lastexecutedatutc = @NowUtc,
+                errormessage = NULL
+            WHERE id = @MessageId";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
@@ -151,11 +152,11 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             UPDATE {_tableName}
-            SET ErrorMessage = @ErrorMessage,
-                RetryCount = RetryCount + 1,
-                NextRetryAtUtc = @NextRetryAtUtc,
-                LastExecutedAtUtc = @NowUtc
-            WHERE Id = @MessageId";
+            SET errormessage = @ErrorMessage,
+                retrycount = retrycount + 1,
+                nextretryatutc = @NextRetryAtUtc,
+                lastexecutedatutc = @NowUtc
+            WHERE id = @MessageId";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
@@ -183,12 +184,12 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
 
         var sql = $@"
             UPDATE {_tableName}
-            SET ScheduledAtUtc = @NextScheduledAtUtc,
-                ProcessedAtUtc = NULL,
-                ErrorMessage = NULL,
-                RetryCount = 0,
-                NextRetryAtUtc = NULL
-            WHERE Id = @MessageId";
+            SET scheduledatutc = @NextScheduledAtUtc,
+                processedatutc = NULL,
+                errormessage = NULL,
+                retrycount = 0,
+                nextretryatutc = NULL
+            WHERE id = @MessageId";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
@@ -209,7 +210,7 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
 
         var sql = $@"
             DELETE FROM {_tableName}
-            WHERE Id = @MessageId";
+            WHERE id = @MessageId";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
@@ -232,28 +233,28 @@ public sealed class ScheduledMessageStoreADO : IScheduledMessageStore
     {
         return new ScheduledMessage
         {
-            Id = reader.GetGuid(reader.GetOrdinal("Id")),
-            RequestType = reader.GetString(reader.GetOrdinal("RequestType")),
-            Content = reader.GetString(reader.GetOrdinal("Content")),
-            ScheduledAtUtc = reader.GetDateTime(reader.GetOrdinal("ScheduledAtUtc")),
-            CreatedAtUtc = reader.GetDateTime(reader.GetOrdinal("CreatedAtUtc")),
-            ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("ProcessedAtUtc"))
+            Id = reader.GetGuid(reader.GetOrdinal("id")),
+            RequestType = reader.GetString(reader.GetOrdinal("requesttype")),
+            Content = reader.GetString(reader.GetOrdinal("content")),
+            ScheduledAtUtc = reader.GetDateTime(reader.GetOrdinal("scheduledatutc")),
+            CreatedAtUtc = reader.GetDateTime(reader.GetOrdinal("createdatutc")),
+            ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("processedatutc"))
                 ? null
-                : reader.GetDateTime(reader.GetOrdinal("ProcessedAtUtc")),
-            LastExecutedAtUtc = reader.IsDBNull(reader.GetOrdinal("LastExecutedAtUtc"))
+                : reader.GetDateTime(reader.GetOrdinal("processedatutc")),
+            LastExecutedAtUtc = reader.IsDBNull(reader.GetOrdinal("lastexecutedatutc"))
                 ? null
-                : reader.GetDateTime(reader.GetOrdinal("LastExecutedAtUtc")),
-            ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
+                : reader.GetDateTime(reader.GetOrdinal("lastexecutedatutc")),
+            ErrorMessage = reader.IsDBNull(reader.GetOrdinal("errormessage"))
                 ? null
-                : reader.GetString(reader.GetOrdinal("ErrorMessage")),
-            RetryCount = reader.GetInt32(reader.GetOrdinal("RetryCount")),
-            NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("NextRetryAtUtc"))
+                : reader.GetString(reader.GetOrdinal("errormessage")),
+            RetryCount = reader.GetInt32(reader.GetOrdinal("retrycount")),
+            NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("nextretryatutc"))
                 ? null
-                : reader.GetDateTime(reader.GetOrdinal("NextRetryAtUtc")),
-            IsRecurring = reader.GetBoolean(reader.GetOrdinal("IsRecurring")),
-            CronExpression = reader.IsDBNull(reader.GetOrdinal("CronExpression"))
+                : reader.GetDateTime(reader.GetOrdinal("nextretryatutc")),
+            IsRecurring = reader.GetBoolean(reader.GetOrdinal("isrecurring")),
+            CronExpression = reader.IsDBNull(reader.GetOrdinal("cronexpression"))
                 ? null
-                : reader.GetString(reader.GetOrdinal("CronExpression"))
+                : reader.GetString(reader.GetOrdinal("cronexpression"))
         };
     }
 

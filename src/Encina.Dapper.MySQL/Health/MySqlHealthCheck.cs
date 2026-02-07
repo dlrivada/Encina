@@ -14,6 +14,8 @@ public sealed class MySqlHealthCheck : DatabaseHealthCheck
     /// </summary>
     public const string DefaultName = "encina-mysql";
 
+    private static readonly string[] ProviderTags = ["mysql"];
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MySqlHealthCheck"/> class.
     /// </summary>
@@ -22,7 +24,7 @@ public sealed class MySqlHealthCheck : DatabaseHealthCheck
     public MySqlHealthCheck(
         IServiceProvider serviceProvider,
         ProviderHealthCheckOptions? options)
-        : base(DefaultName, CreateConnectionFactory(serviceProvider), options)
+        : base(DefaultName, CreateConnectionFactory(serviceProvider), options, ProviderTags)
     {
     }
 
