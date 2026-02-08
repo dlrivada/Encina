@@ -1278,11 +1278,22 @@ src/
 │   ├── SortedPaginationOptions          # Extiende con SortBy, SortDescending
 │   ├── PagedResult<T>                   # Record con Items, computed navigation
 │   ├── IPagedSpecification<T>           # Interface para specs paginadas
-│   └── PagedQuerySpecification<T>       # Base class abstracta
+│   ├── PagedQuerySpecification<T>       # Base class abstracta
+│   │
+│   ├── # Cursor Pagination (v0.12.0) ✅ (#336)
+│   ├── CursorDirection                  # Enum: Forward, Backward
+│   ├── CursorPaginationOptions          # Record con Cursor, PageSize, Direction
+│   ├── CursorPaginatedResult<T>         # Record con Items, NextCursor, HasNextPage
+│   ├── ICursorPaginatedQuery<T>         # Interface para queries con cursor
+│   ├── ICursorEncoder                   # Interface para encoding de cursores
+│   ├── Base64JsonCursorEncoder          # Implementación URL-safe Base64+JSON
+│   ├── CursorEncodingException          # Excepción para errores de encoding
+│   └── CursorPaginatedQueryExtensions   # ToPaginationOptions(), IsFirstPage()
 │
 ├── Encina.EntityFrameworkCore/
 │   ├── Extensions/
-│   │   └── QueryablePagedExtensions     # ToPagedResultAsync() (v0.12.0) ✅
+│   │   ├── QueryablePagedExtensions     # ToPagedResultAsync() (v0.12.0) ✅
+│   │   └── QueryableCursorExtensions    # ToCursorPaginatedAsync() (v0.12.0) ✅
 │   └── Repository/
 │       └── FunctionalRepositoryEF       # GetPagedAsync() overloads (v0.12.0) ✅
 ```
@@ -4357,7 +4368,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 | **#333** | Zero-Interface Handlers (Convention-based) | Alta | Alta | `area-cqrs`, `area-source-generators`, `wolverine-inspired`, `aot-compatible` |
 | **#334** | Idempotency Pipeline Behavior | Media | Alta | `area-cqrs`, `area-idempotency`, `masstransit-inspired`, `industry-best-practice` |
 | **#335** | Request Timeout Pipeline Behavior | Baja | Alta | `area-cqrs`, `area-resilience`, `brighter-inspired`, `area-polly` |
-| **#336** | Cursor-Based Pagination Helpers | Media | Alta | `area-cqrs`, `area-pagination`, `graphql-inspired`, `area-scalability` |
+| **#336** ✅ | Cursor-Based Pagination Helpers | Media | Alta | `area-cqrs`, `area-pagination`, `graphql-inspired`, `area-scalability` |
 | **#337** | Request Versioning Support | Media | Media | `area-cqrs`, `pattern-versioning`, `axon-inspired`, `area-microservices` |
 | **#338** | Multi-Tenant Context Middleware | Alta | Media | `area-cqrs`, `area-multitenancy`, `area-security`, `industry-best-practice` |
 | **#339** | Batch Command Processing | Media | Media | `area-cqrs`, `pattern-batch-processing`, `masstransit-inspired`, `area-bulk-operations` |
@@ -4395,13 +4406,19 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Integración con OpenTelemetry para eventos de timeout
 - Labels: `brighter-inspired`, `area-polly`, `area-resilience`
 
-**#336 - Cursor-Based Pagination Helpers** (GraphQL-inspired):
+**#336 - Cursor-Based Pagination Helpers** ✅ **IMPLEMENTADO** (GraphQL-inspired):
 
-- `ICursorPaginatedQuery<T>` interface
-- `CursorPaginatedResult<T>` con NextCursor, HasNextPage
+- `ICursorPaginatedQuery<T>` interface para patrón CQRS
+- `CursorPaginatedResult<T>` con NextCursor, PreviousCursor, HasNextPage, HasPreviousPage
+- `CursorPaginationOptions` record con Cursor, PageSize, Direction
+- `CursorDirection` enum: Forward, Backward (navegación bidireccional)
+- `ICursorEncoder` + `Base64JsonCursorEncoder` para cursores URL-safe
+- `CursorEncodingException` para manejo de errores
 - `ToCursorPaginatedAsync()` extension para EF Core
+- `ToCursorPaginatedDescendingAsync()` para orden descendente
+- `ToCursorPaginatedCompositeAsync()` para claves compuestas
 - Rendimiento O(1) vs O(n) de offset pagination
-- Encodificación Base64 de cursores compuestos
+- Soporte para proyecciones con selector
 - Labels: `graphql-inspired`, `area-pagination`, `area-scalability`
 
 ##### Tier 2: Media Prioridad (Funcionalidad Avanzada)

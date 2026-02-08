@@ -361,7 +361,7 @@ Key areas already completed:
   - Query Cache Interceptor [#291](https://github.com/dlrivada/Encina/issues/291) — EF Core second-level cache
   - Domain Entity Base Classes [#292](https://github.com/dlrivada/Encina/issues/292) — Entity<TId>, AggregateRoot<TId> with domain events
   - Pagination Abstractions [#293](https://github.com/dlrivada/Encina/issues/293) — PagedResult<T>, PaginationOptions, IPagedSpecification<T>
-  - Cursor-based Pagination [#294](https://github.com/dlrivada/Encina/issues/294) — Keyset pagination O(1) vs offset O(n) [RESEARCH]
+  - ✅ Cursor-based Pagination [#294](https://github.com/dlrivada/Encina/issues/294) — Keyset pagination O(1) vs offset O(n) - **COMPLETED** (see #336)
 - **Advanced DDD & Workflow Patterns** (new - based on December 2025 research):
   - Specification Pattern [#295](https://github.com/dlrivada/Encina/issues/295) — `ISpecification<T>` for reusable query composition (Ardalis-inspired)
   - Process Manager Pattern [#296](https://github.com/dlrivada/Encina/issues/296) — Workflow orchestration with dynamic decisions (EIP)
@@ -407,7 +407,7 @@ Key areas already completed:
   - Zero-Interface Handlers [#333](https://github.com/dlrivada/Encina/issues/333) — Convention-based discovery without IRequestHandler (Wolverine-inspired)
   - Idempotency Pipeline Behavior [#334](https://github.com/dlrivada/Encina/issues/334) — Lightweight deduplication at pipeline level
   - Request Timeout Behavior [#335](https://github.com/dlrivada/Encina/issues/335) — Per-request timeouts with fallback strategies (Brighter-inspired)
-  - Cursor-Based Pagination [#336](https://github.com/dlrivada/Encina/issues/336) — O(1) pagination helpers for large datasets (GraphQL-inspired)
+  - ✅ Cursor-Based Pagination [#336](https://github.com/dlrivada/Encina/issues/336) — O(1) pagination helpers for large datasets (GraphQL-inspired) - **COMPLETED** (CursorPaginationOptions, CursorPaginatedResult, ICursorEncoder, ToCursorPaginatedAsync EF Core extensions)
   - Request Versioning [#337](https://github.com/dlrivada/Encina/issues/337) — Command/query upcasting with version chains (Axon-inspired)
   - Multi-Tenant Context Middleware [#338](https://github.com/dlrivada/Encina/issues/338) — Automatic tenant resolution and isolation
   - Batch Command Processing [#339](https://github.com/dlrivada/Encina/issues/339) — Atomic batch operations with strategies (MassTransit-inspired)

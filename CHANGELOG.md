@@ -209,6 +209,220 @@ All methods return `Either<EncinaError, PagedResult<T>>` for ROP integration.
 
 ---
 
+#### Cursor-Based Pagination Helpers (#336)
+
+Added cursor-based (keyset) pagination with O(1) performance, bidirectional navigation, and composite key support.
+
+**Core Types** (`Encina.DomainModeling`):
+
+- **`CursorPaginationOptions`**: Immutable record with `Cursor`, `PageSize`, and `Direction`
+- **`CursorDirection`**: Enum for `Forward` (default) and `Backward` navigation
+- **`CursorPaginatedResult<T>`**: Result with `NextCursor`, `PreviousCursor`, and navigation flags
+- **`ICursorPaginatedQuery<T>`**: CQRS pattern interface for cursor-paginated queries
+- **`ICursorEncoder`**: Interface for cursor encoding/decoding
+- **`Base64JsonCursorEncoder`**: URL-safe Base64+JSON implementation
+- **`CursorEncodingException`**: Dedicated exception for cursor encoding errors
+
+```csharp
+// Basic usage with EF Core
+var query = dbContext.Orders.OrderByDescending(o => o.CreatedAtUtc);
+
+var result = await query.ToCursorPaginatedAsync(
+    cursor: null,          // First page
+    pageSize: 25,
+    keySelector: o => o.CreatedAtUtc,
+    cursorEncoder: encoder);
+
+// result.Items           - Current page items
+// result.NextCursor      - Use for next page
+// result.HasNextPage     - Navigation flag
+// result.PreviousCursor  - Use for previous page
+// result.HasPreviousPage - Navigation flag
+
+// Navigate to next page
+var nextPage = await query.ToCursorPaginatedAsync(
+    cursor: result.NextCursor,
+    pageSize: 25,
+    keySelector: o => o.CreatedAtUtc,
+    cursorEncoder: encoder);
+
+// Bidirectional navigation (go back)
+var options = new CursorPaginationOptions(
+    Cursor: nextPage.PreviousCursor,
+    PageSize: 25,
+    Direction: CursorDirection.Backward);
+
+var previousPage = await query.ToCursorPaginatedAsync(
+    options: options,
+    keySelector: o => o.CreatedAtUtc,
+    cursorEncoder: encoder);
+```
+
+**CursorPaginatedResult Properties**:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Items` | `IReadOnlyList<T>` | Current page items |
+| `NextCursor` | `string?` | Cursor for next page |
+| `PreviousCursor` | `string?` | Cursor for previous page |
+| `HasNextPage` | `bool` | More items available forward |
+| `HasPreviousPage` | `bool` | More items available backward |
+| `IsEmpty` | `bool` | No items returned |
+
+**Performance Comparison**:
+
+| Pagination Type | Page 1 | Page 100 | Page 10,000 |
+|----------------|--------|----------|-------------|
+| Offset-based | O(n) | O(100n) | O(10,000n) |
+| Cursor-based | O(n) | O(n) | O(n) |
+
+*Cursor pagination maintains constant performance regardless of page position.*
+
+**EF Core Extensions** (`Encina.EntityFrameworkCore`):
+
+- `ToCursorPaginatedAsync()` - Ascending sort with simple key
+- `ToCursorPaginatedDescendingAsync()` - Descending sort with simple key
+- `ToCursorPaginatedCompositeAsync()` - Composite keys (e.g., `CreatedAtUtc` + `Id`)
+- All methods support optional projection via `selector` parameter
+
+```csharp
+// With projection (efficient SELECT)
+var dtos = await query.ToCursorPaginatedAsync(
+    selector: o => new OrderDto(o.Id, o.Total),
+    cursor: null,
+    pageSize: 25,
+    keySelector: o => o.CreatedAtUtc,
+    cursorEncoder: encoder);
+
+// Composite key for tie-breaking
+var result = await query.ToCursorPaginatedCompositeAsync(
+    cursor: null,
+    pageSize: 25,
+    keySelector: o => new { o.CreatedAtUtc, o.Id },
+    cursorEncoder: encoder,
+    keyDescending: [true, false]); // CreatedAtUtc DESC, Id ASC
+```
+
+**CQRS Pattern Integration**:
+
+```csharp
+// Query record with cursor parameters
+public record GetOrdersQuery(string? Cursor, int PageSize = 20)
+    : IRequest<CursorPaginatedResult<OrderDto>>,
+      ICursorPaginatedQuery<GetOrdersQuery>
+{
+    public string? GetCursor() => Cursor;
+    public int GetPageSize() => PageSize;
+    public CursorDirection GetDirection() => CursorDirection.Forward;
+}
+
+// Extension methods
+var options = query.ToPaginationOptions();
+var isFirst = query.IsFirstPage();
+```
+
+**Dependency Injection**:
+
+```csharp
+// Register default encoder
+services.AddCursorPagination();
+
+// With custom JSON options
+services.AddCursorPagination(new JsonSerializerOptions { ... });
+
+// With custom encoder
+services.AddCursorPagination<MyCustomEncoder>();
+```
+
+**New Types**:
+
+| Type | Purpose |
+|------|---------|
+| `CursorDirection` | Navigation direction enum |
+| `CursorPaginationOptions` | Cursor pagination parameters |
+| `CursorPaginatedResult<T>` | Pagination result with cursors |
+| `ICursorPaginatedQuery<T>` | CQRS query interface |
+| `ICursorEncoder` | Cursor encoding abstraction |
+| `Base64JsonCursorEncoder` | URL-safe encoder implementation |
+| `CursorEncodingException` | Encoding error exception |
+| `CursorPaginatedQueryExtensions` | Extension methods for queries |
+| `QueryableCursorExtensions` | EF Core IQueryable extensions |
+
+**GraphQL Relay Connection Support** (`Encina.GraphQL`):
+
+| Type | Purpose |
+|------|---------|
+| `Connection<T>` | Relay-compliant connection with edges and page info |
+| `Edge<T>` | Single item with cursor |
+| `RelayPageInfo` | Navigation information (hasNext, hasPrevious, cursors) |
+| `ConnectionExtensions` | Conversion methods (`ToConnection()`, `Map()`) |
+
+```csharp
+// Convert cursor result to GraphQL Connection
+var connection = cursorResult.ToConnection();
+
+// Map to DTOs
+var dtoConnection = connection.Map(order => new OrderDto(order.Id, order.Total));
+```
+
+**ADO.NET Helpers** (`Encina.ADO.*`):
+
+Added `CursorPaginationHelper<TEntity>` for all 4 ADO.NET providers with raw SQL performance:
+
+```csharp
+// Create helper with entity mapper
+var helper = new CursorPaginationHelper<Order>(
+    connection,
+    cursorEncoder,
+    reader => new Order
+    {
+        Id = reader.GetGuid(reader.GetOrdinal("Id")),
+        CreatedAtUtc = reader.GetDateTime(reader.GetOrdinal("CreatedAtUtc")),
+        Total = reader.GetDecimal(reader.GetOrdinal("Total"))
+    });
+
+// Simple key pagination
+var result = await helper.ExecuteAsync<DateTime>(
+    tableName: "Orders",
+    keyColumn: "CreatedAtUtc",
+    cursor: null,
+    pageSize: 25,
+    isDescending: true);
+
+// Composite key for tie-breaking
+var result = await helper.ExecuteCompositeAsync(
+    tableName: "Orders",
+    keyColumns: ["CreatedAtUtc", "Id"],
+    cursor: null,
+    pageSize: 25,
+    keyDescending: [true, false]);
+```
+
+**Provider-Specific SQL**:
+
+| Provider | Column Quoting | Row Limiting |
+|----------|----------------|--------------|
+| SQL Server | `[column]` | `TOP (n)` |
+| PostgreSQL | `"column"` | `LIMIT n` |
+| MySQL | `` `column` `` | `LIMIT n` |
+| SQLite | `"column"` | `LIMIT n` |
+
+**Tests Added**:
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 277 | Domain types, encoder, extensions |
+| Guard Tests | 15 | Null and invalid parameter validation |
+| EF Core Tests | 17 | InMemory database integration |
+| GraphQL Tests | 25 | Connection types and extensions |
+| ADO.NET Tests | 52 | Parameter validation for all 4 providers |
+
+**Documentation**: See `docs/features/cursor-pagination.md` for complete guide.
+
+**Related Issue**: [#336 - Cursor-Based Pagination Helpers](https://github.com/dlrivada/Encina/issues/336)
+
+---
+
 #### Optimistic Concurrency Abstractions (#287)
 
 Added comprehensive optimistic concurrency control using Railway Oriented Programming (ROP) patterns for conflict detection and resolution.

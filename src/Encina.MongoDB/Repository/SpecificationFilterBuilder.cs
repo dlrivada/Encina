@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Linq.Expressions;
 using System.Text.RegularExpressions;
 using Encina.DomainModeling;
+using Encina.DomainModeling.Pagination;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -28,7 +29,7 @@ namespace Encina.MongoDB.Repository;
 /// For <see cref="IQuerySpecification{T}"/>:
 /// - Multiple criteria combined with AND logic
 /// - Sorting with ThenBy chaining via <see cref="BuildSortDefinition"/>
-/// - Keyset (cursor-based) pagination via <see cref="BuildKeysetFilter"/>
+/// - Keyset (cursor-based) pagination via BuildKeysetFilter methods
 /// - AsNoTracking and AsSplitQuery properties are ignored (not applicable to MongoDB)
 /// </para>
 /// </remarks>
@@ -212,6 +213,46 @@ public sealed class SpecificationFilterBuilder<TEntity>
         Expression<Func<TEntity, object>> keysetProperty,
         object lastKeyValue)
     {
+        return BuildKeysetFilter(keysetProperty, lastKeyValue, isDescending: false, CursorDirection.Forward);
+    }
+
+    /// <summary>
+    /// Builds a keyset pagination filter for cursor-based pagination with direction support.
+    /// </summary>
+    /// <param name="keysetProperty">The keyset property expression.</param>
+    /// <param name="lastKeyValue">The last key value from the previous page.</param>
+    /// <param name="isDescending">Whether the sort order is descending.</param>
+    /// <param name="direction">The cursor pagination direction.</param>
+    /// <returns>A filter definition for keyset pagination.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when keysetProperty or lastKeyValue is null.
+    /// </exception>
+    /// <remarks>
+    /// <para>
+    /// Keyset pagination is more efficient than offset-based pagination for large datasets
+    /// as it uses indexed lookups instead of counting and skipping rows.
+    /// </para>
+    /// <para>
+    /// The filter operator is determined by combining sort direction and pagination direction:
+    /// </para>
+    /// <list type="table">
+    /// <listheader>
+    /// <term>Sort</term>
+    /// <term>Direction</term>
+    /// <term>Operator</term>
+    /// </listheader>
+    /// <item><term>Ascending</term><term>Forward</term><term>Greater Than (&gt;)</term></item>
+    /// <item><term>Ascending</term><term>Backward</term><term>Less Than (&lt;)</term></item>
+    /// <item><term>Descending</term><term>Forward</term><term>Less Than (&lt;)</term></item>
+    /// <item><term>Descending</term><term>Backward</term><term>Greater Than (&gt;)</term></item>
+    /// </list>
+    /// </remarks>
+    public FilterDefinition<TEntity> BuildKeysetFilter(
+        Expression<Func<TEntity, object>> keysetProperty,
+        object lastKeyValue,
+        bool isDescending,
+        CursorDirection direction)
+    {
         ArgumentNullException.ThrowIfNull(keysetProperty);
         ArgumentNullException.ThrowIfNull(lastKeyValue);
 
@@ -219,7 +260,92 @@ public sealed class SpecificationFilterBuilder<TEntity>
         var memberType = GetMemberTypeFromExpression(keysetProperty);
         var convertedValue = ConvertValue(lastKeyValue, memberType);
 
-        return Builders<TEntity>.Filter.Gt(fieldName, convertedValue);
+        // Determine comparison operator based on sort direction and pagination direction:
+        // Forward + Ascending = Gt (next items are greater)
+        // Forward + Descending = Lt (next items are less)
+        // Backward + Ascending = Lt (previous items are less)
+        // Backward + Descending = Gt (previous items are greater)
+        var isBackward = direction == CursorDirection.Backward;
+        var useGreaterThan = isDescending == isBackward;
+
+        return useGreaterThan
+            ? Builders<TEntity>.Filter.Gt(fieldName, convertedValue)
+            : Builders<TEntity>.Filter.Lt(fieldName, convertedValue);
+    }
+
+    /// <summary>
+    /// Builds a compound keyset pagination filter for multi-column sorting.
+    /// </summary>
+    /// <param name="keyColumns">
+    /// A list of tuples containing field name, last value, and whether the column is descending.
+    /// </param>
+    /// <param name="direction">The cursor pagination direction.</param>
+    /// <returns>A filter definition for compound keyset pagination.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when keyColumns is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when keyColumns is empty.</exception>
+    /// <remarks>
+    /// <para>
+    /// Compound keyset filters use the following pattern for multi-column sorting:
+    /// <code>
+    /// (col1 > val1) OR (col1 = val1 AND col2 > val2) OR (col1 = val1 AND col2 = val2 AND col3 > val3)
+    /// </code>
+    /// </para>
+    /// <para>
+    /// The comparison operator for each column is determined by its sort direction and the pagination direction.
+    /// </para>
+    /// </remarks>
+    public FilterDefinition<TEntity> BuildCompoundKeysetFilter(
+        IReadOnlyList<(string FieldName, object Value, bool IsDescending)> keyColumns,
+        CursorDirection direction)
+    {
+        ArgumentNullException.ThrowIfNull(keyColumns);
+
+        if (keyColumns.Count == 0)
+        {
+            throw new ArgumentException("At least one key column is required.", nameof(keyColumns));
+        }
+
+        // For single column, use simple filter
+        if (keyColumns.Count == 1)
+        {
+            var (fieldName, value, isDescending) = keyColumns[0];
+            var isBackward = direction == CursorDirection.Backward;
+            var useGreaterThan = isDescending == isBackward;
+
+            return useGreaterThan
+                ? Builders<TEntity>.Filter.Gt(fieldName, value)
+                : Builders<TEntity>.Filter.Lt(fieldName, value);
+        }
+
+        // Compound filter: OR of increasingly specific conditions
+        var orFilters = new List<FilterDefinition<TEntity>>();
+        var isBackwardDirection = direction == CursorDirection.Backward;
+
+        for (var i = 0; i < keyColumns.Count; i++)
+        {
+            var andFilters = new List<FilterDefinition<TEntity>>();
+
+            // Add equality conditions for all preceding columns
+            for (var j = 0; j < i; j++)
+            {
+                var (eqFieldName, eqValue, _) = keyColumns[j];
+                andFilters.Add(Builders<TEntity>.Filter.Eq(eqFieldName, eqValue));
+            }
+
+            // Add comparison condition for current column
+            var (fieldName, value, isDescending) = keyColumns[i];
+            var useGreaterThan = isDescending == isBackwardDirection;
+
+            andFilters.Add(useGreaterThan
+                ? Builders<TEntity>.Filter.Gt(fieldName, value)
+                : Builders<TEntity>.Filter.Lt(fieldName, value));
+
+            orFilters.Add(andFilters.Count == 1
+                ? andFilters[0]
+                : Builders<TEntity>.Filter.And(andFilters));
+        }
+
+        return Builders<TEntity>.Filter.Or(orFilters);
     }
 
     /// <summary>
