@@ -1,7 +1,6 @@
+using Encina.Database;
 using FsCheck;
 using FsCheck.Xunit;
-
-using Encina.Database;
 
 namespace Encina.PropertyTests.Database.Resilience;
 

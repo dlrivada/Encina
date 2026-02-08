@@ -1,13 +1,13 @@
 using System.Data;
 using Encina.Dapper.MySQL.Auditing;
 using Encina.Dapper.MySQL.Health;
-using Encina.Database;
 using Encina.Dapper.MySQL.Inbox;
 using Encina.Dapper.MySQL.Outbox;
 using Encina.Dapper.MySQL.Repository;
 using Encina.Dapper.MySQL.Sagas;
 using Encina.Dapper.MySQL.Scheduling;
 using Encina.Dapper.MySQL.UnitOfWork;
+using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.Messaging;

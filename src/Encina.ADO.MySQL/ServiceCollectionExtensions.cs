@@ -1,12 +1,12 @@
 using System.Data;
 using Encina.ADO.MySQL.Auditing;
 using Encina.ADO.MySQL.Health;
-using Encina.Database;
 using Encina.ADO.MySQL.Inbox;
 using Encina.ADO.MySQL.Outbox;
 using Encina.ADO.MySQL.Repository;
 using Encina.ADO.MySQL.Sagas;
 using Encina.ADO.MySQL.Scheduling;
+using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.Messaging;

@@ -1,13 +1,13 @@
 using System.Data;
 using Encina.Dapper.PostgreSQL.Auditing;
 using Encina.Dapper.PostgreSQL.Health;
-using Encina.Database;
 using Encina.Dapper.PostgreSQL.Inbox;
 using Encina.Dapper.PostgreSQL.Outbox;
 using Encina.Dapper.PostgreSQL.Repository;
 using Encina.Dapper.PostgreSQL.Sagas;
 using Encina.Dapper.PostgreSQL.Scheduling;
 using Encina.Dapper.PostgreSQL.UnitOfWork;
+using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
