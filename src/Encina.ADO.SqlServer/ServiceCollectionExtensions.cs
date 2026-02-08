@@ -2,6 +2,7 @@ using System.Data;
 using Encina.ADO.SqlServer.Auditing;
 using Encina.ADO.SqlServer.BulkOperations;
 using Encina.ADO.SqlServer.Health;
+using Encina.Database;
 using Encina.ADO.SqlServer.Inbox;
 using Encina.ADO.SqlServer.Modules;
 using Encina.ADO.SqlServer.Outbox;
@@ -82,6 +83,10 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(config.ProviderHealthCheck);
             services.AddSingleton<IEncinaHealthCheck, SqlServerHealthCheck>();
         }
+
+        // Register database health monitor for resilience infrastructure
+        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
+            new SqlServerDatabaseHealthMonitor(sp));
 
         // Register module isolation services if enabled
         if (config.UseModuleIsolation)

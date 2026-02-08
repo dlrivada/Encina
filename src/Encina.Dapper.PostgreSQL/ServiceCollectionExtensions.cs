@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.Dapper.PostgreSQL.Auditing;
 using Encina.Dapper.PostgreSQL.Health;
+using Encina.Database;
 using Encina.Dapper.PostgreSQL.Inbox;
 using Encina.Dapper.PostgreSQL.Outbox;
 using Encina.Dapper.PostgreSQL.Repository;
@@ -64,6 +65,11 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(config.ProviderHealthCheck);
             services.AddSingleton<IEncinaHealthCheck, PostgreSqlHealthCheck>();
         }
+
+        // Register database health monitor for resilience infrastructure
+        // Dapper shares the same underlying connection pool as ADO.NET (Npgsql)
+        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
+            new DapperPostgreSqlDatabaseHealthMonitor(sp));
 
         return services;
     }

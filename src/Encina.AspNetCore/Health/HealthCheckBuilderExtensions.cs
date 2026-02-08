@@ -1,4 +1,5 @@
 using Encina.AspNetCore.Modules;
+using Encina.Database;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
@@ -198,6 +199,71 @@ public static class HealthCheckBuilderExtensions
             {
                 var store = sp.GetRequiredService<IScheduledMessageStore>();
                 return new EncinaHealthCheckAdapter(new SchedulingHealthCheck(store, options));
+            },
+            failureStatus,
+            allTags));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the database connection pool health check.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-database-pool".</param>
+    /// <param name="options">Health check options including pool utilization thresholds.</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check monitors the <see cref="IDatabaseHealthMonitor"/> registered by a
+    /// database provider (ADO.NET, Dapper, EF Core, or MongoDB). It reports pool utilization
+    /// against configurable thresholds (80% degraded, 95% unhealthy by default).
+    /// </para>
+    /// <para>
+    /// If no <see cref="IDatabaseHealthMonitor"/> is registered, the health check reports healthy
+    /// with a message indicating that pool monitoring is not configured.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaDatabasePool();
+    ///
+    /// // Or with custom thresholds
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaDatabasePool(options: new DatabasePoolHealthCheckOptions
+    ///     {
+    ///         DegradedThreshold = 0.7,
+    ///         UnhealthyThreshold = 0.9
+    ///     });
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaDatabasePool(
+        this IHealthChecksBuilder builder,
+        string name = DatabasePoolHealthCheck.DefaultName,
+        DatabasePoolHealthCheckOptions? options = null,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "pool", TagDatabase);
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp =>
+            {
+                var monitor = sp.GetService<IDatabaseHealthMonitor>();
+                if (monitor is null)
+                {
+                    return new EmptyHealthCheck();
+                }
+
+                return new EncinaHealthCheckAdapter(new DatabasePoolHealthCheck(monitor, options));
             },
             failureStatus,
             allTags));

@@ -153,3 +153,13 @@ Encina.Polly.BulkheadManager.Dispose() -> void
 Encina.Polly.BulkheadPipelineBehavior<TRequest, TResponse>
 Encina.Polly.BulkheadPipelineBehavior<TRequest, TResponse>.BulkheadPipelineBehavior(Microsoft.Extensions.Logging.ILogger<Encina.Polly.BulkheadPipelineBehavior<TRequest, TResponse>>! logger, Encina.Polly.IBulkheadManager! bulkheadManager) -> void
 Encina.Polly.BulkheadPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Polly.CircuitBreakerAttribute.FailureThreshold.get -> int
+Encina.Polly.CircuitBreakerAttribute.FailureThreshold.init -> void
+Encina.Polly.DatabaseCircuitBreakerPipelineBehavior<TRequest, TResponse>
+Encina.Polly.DatabaseCircuitBreakerPipelineBehavior<TRequest, TResponse>.DatabaseCircuitBreakerPipelineBehavior(Encina.Database.IDatabaseHealthMonitor! healthMonitor, Encina.Database.DatabaseCircuitBreakerOptions! options, Encina.Polly.Predicates.DatabaseTransientErrorPredicate! predicate, Microsoft.Extensions.Logging.ILogger<Encina.Polly.DatabaseCircuitBreakerPipelineBehavior<TRequest, TResponse>>! logger) -> void
+Encina.Polly.DatabaseCircuitBreakerPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Polly.Predicates.DatabaseTransientErrorPredicate
+Encina.Polly.Predicates.DatabaseTransientErrorPredicate.DatabaseTransientErrorPredicate(Encina.Database.DatabaseCircuitBreakerOptions! options) -> void
+Encina.Polly.Predicates.DatabaseTransientErrorPredicate.IsTransient(System.Exception! exception) -> bool
+static Encina.Polly.ServiceCollectionExtensions.AddDatabaseCircuitBreaker(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Polly.ServiceCollectionExtensions.AddDatabaseCircuitBreaker(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Database.DatabaseCircuitBreakerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

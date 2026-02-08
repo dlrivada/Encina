@@ -1,3 +1,4 @@
+using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.EntityFrameworkCore.Auditing;
@@ -9,6 +10,7 @@ using Encina.EntityFrameworkCore.Modules;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.EntityFrameworkCore.ReadWriteSeparation;
 using Encina.EntityFrameworkCore.Repository;
+using Encina.EntityFrameworkCore.Resilience;
 using Encina.EntityFrameworkCore.Sagas;
 using Encina.EntityFrameworkCore.Scheduling;
 using Encina.EntityFrameworkCore.SoftDelete;
@@ -327,6 +329,14 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(config.ProviderHealthCheck);
             services.AddSingleton<IEncinaHealthCheck, EntityFrameworkCoreHealthCheck>();
         }
+
+        // Register database health monitor for resilience infrastructure
+        // EF Core shares the same underlying connection pool as the ADO.NET driver
+        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
+            new EfCoreDatabaseHealthMonitor(sp));
+
+        // Register connection pool monitoring interceptor
+        services.TryAddSingleton<ConnectionPoolMonitoringInterceptor>();
 
         return services;
     }

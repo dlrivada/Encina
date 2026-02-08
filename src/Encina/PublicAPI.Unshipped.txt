@@ -368,3 +368,64 @@ Encina.Modules.Isolation.PostgreSqlPermissionScriptGenerator.PostgreSqlPermissio
 Encina.Modules.Isolation.PostgreSqlPermissionScriptGenerator.ProviderName.get -> string!
 Encina.IIncludeDeleted
 Encina.IIncludeDeleted.IncludeDeleted.get -> bool
+Encina.Database.ConnectionPoolStats
+Encina.Database.ConnectionPoolStats.ActiveConnections.get -> int
+Encina.Database.ConnectionPoolStats.ActiveConnections.init -> void
+Encina.Database.ConnectionPoolStats.ConnectionPoolStats(int ActiveConnections, int IdleConnections, int TotalConnections, int PendingRequests, int MaxPoolSize) -> void
+Encina.Database.ConnectionPoolStats.IdleConnections.get -> int
+Encina.Database.ConnectionPoolStats.IdleConnections.init -> void
+Encina.Database.ConnectionPoolStats.MaxPoolSize.get -> int
+Encina.Database.ConnectionPoolStats.MaxPoolSize.init -> void
+Encina.Database.ConnectionPoolStats.PendingRequests.get -> int
+Encina.Database.ConnectionPoolStats.PendingRequests.init -> void
+Encina.Database.ConnectionPoolStats.PoolUtilization.get -> double
+Encina.Database.ConnectionPoolStats.TotalConnections.get -> int
+Encina.Database.ConnectionPoolStats.TotalConnections.init -> void
+static Encina.Database.ConnectionPoolStats.CreateEmpty() -> Encina.Database.ConnectionPoolStats!
+Encina.Database.DatabaseCircuitBreakerOptions
+Encina.Database.DatabaseCircuitBreakerOptions.DatabaseCircuitBreakerOptions() -> void
+Encina.Database.DatabaseCircuitBreakerOptions.BreakDuration.get -> System.TimeSpan
+Encina.Database.DatabaseCircuitBreakerOptions.BreakDuration.set -> void
+Encina.Database.DatabaseCircuitBreakerOptions.FailureThreshold.get -> double
+Encina.Database.DatabaseCircuitBreakerOptions.FailureThreshold.set -> void
+Encina.Database.DatabaseCircuitBreakerOptions.IncludeConnectionFailures.get -> bool
+Encina.Database.DatabaseCircuitBreakerOptions.IncludeConnectionFailures.set -> void
+Encina.Database.DatabaseCircuitBreakerOptions.IncludeTimeouts.get -> bool
+Encina.Database.DatabaseCircuitBreakerOptions.IncludeTimeouts.set -> void
+Encina.Database.DatabaseCircuitBreakerOptions.MinimumThroughput.get -> int
+Encina.Database.DatabaseCircuitBreakerOptions.MinimumThroughput.set -> void
+Encina.Database.DatabaseCircuitBreakerOptions.SamplingDuration.get -> System.TimeSpan
+Encina.Database.DatabaseCircuitBreakerOptions.SamplingDuration.set -> void
+Encina.Database.DatabaseHealthResult
+Encina.Database.DatabaseHealthResult.Data.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>!
+Encina.Database.DatabaseHealthResult.DatabaseHealthResult() -> void
+Encina.Database.DatabaseHealthResult.DatabaseHealthResult(Encina.Database.DatabaseHealthStatus status, string? description = null, System.Exception? exception = null, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? data = null) -> void
+Encina.Database.DatabaseHealthResult.Description.get -> string?
+Encina.Database.DatabaseHealthResult.Exception.get -> System.Exception?
+Encina.Database.DatabaseHealthResult.Status.get -> Encina.Database.DatabaseHealthStatus
+static Encina.Database.DatabaseHealthResult.Degraded(string? description = null, System.Exception? exception = null, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? data = null) -> Encina.Database.DatabaseHealthResult
+static Encina.Database.DatabaseHealthResult.Healthy(string? description = null, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? data = null) -> Encina.Database.DatabaseHealthResult
+static Encina.Database.DatabaseHealthResult.Unhealthy(string? description = null, System.Exception? exception = null, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? data = null) -> Encina.Database.DatabaseHealthResult
+Encina.Database.DatabaseHealthStatus
+Encina.Database.DatabaseHealthStatus.Degraded = 1 -> Encina.Database.DatabaseHealthStatus
+Encina.Database.DatabaseHealthStatus.Healthy = 2 -> Encina.Database.DatabaseHealthStatus
+Encina.Database.DatabaseHealthStatus.Unhealthy = 0 -> Encina.Database.DatabaseHealthStatus
+Encina.Database.DatabaseResilienceOptions
+Encina.Database.DatabaseResilienceOptions.CircuitBreaker.get -> Encina.Database.DatabaseCircuitBreakerOptions!
+Encina.Database.DatabaseResilienceOptions.DatabaseResilienceOptions() -> void
+Encina.Database.DatabaseResilienceOptions.EnableCircuitBreaker.get -> bool
+Encina.Database.DatabaseResilienceOptions.EnableCircuitBreaker.set -> void
+Encina.Database.DatabaseResilienceOptions.EnablePoolMonitoring.get -> bool
+Encina.Database.DatabaseResilienceOptions.EnablePoolMonitoring.set -> void
+Encina.Database.DatabaseResilienceOptions.HealthCheckInterval.get -> System.TimeSpan
+Encina.Database.DatabaseResilienceOptions.HealthCheckInterval.set -> void
+Encina.Database.DatabaseResilienceOptions.WarmUpConnections.get -> int
+Encina.Database.DatabaseResilienceOptions.WarmUpConnections.set -> void
+Encina.Database.IDatabaseHealthMonitor
+Encina.Database.IDatabaseHealthMonitor.CheckHealthAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Database.DatabaseHealthResult>!
+Encina.Database.IDatabaseHealthMonitor.ClearPoolAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Database.IDatabaseHealthMonitor.GetPoolStatistics() -> Encina.Database.ConnectionPoolStats!
+Encina.Database.IDatabaseHealthMonitor.IsCircuitOpen.get -> bool
+Encina.Database.IDatabaseHealthMonitor.ProviderName.get -> string!
+Encina.Diagnostics.DatabasePoolMetrics
+Encina.Diagnostics.DatabasePoolMetrics.DatabasePoolMetrics(Encina.Database.IDatabaseHealthMonitor! monitor) -> void

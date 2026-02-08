@@ -1,3 +1,4 @@
+using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.Messaging.Health;
@@ -116,6 +117,10 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IEncinaHealthCheck, MongoDbHealthCheck>();
         }
 
+        // Register database health monitor for resilience infrastructure
+        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
+            new MongoDbDatabaseHealthMonitor(sp));
+
         // Register module isolation services if enabled
         if (options.UseModuleIsolation)
         {
@@ -202,6 +207,10 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(options.ProviderHealthCheck);
             services.AddSingleton<IEncinaHealthCheck, MongoDbHealthCheck>();
         }
+
+        // Register database health monitor for resilience infrastructure
+        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
+            new MongoDbDatabaseHealthMonitor(sp));
 
         // Register module isolation services if enabled
         if (options.UseModuleIsolation)

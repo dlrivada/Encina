@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.Dapper.MySQL.Auditing;
 using Encina.Dapper.MySQL.Health;
+using Encina.Database;
 using Encina.Dapper.MySQL.Inbox;
 using Encina.Dapper.MySQL.Outbox;
 using Encina.Dapper.MySQL.Repository;
@@ -62,6 +63,11 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(config.ProviderHealthCheck);
             services.AddSingleton<IEncinaHealthCheck, MySqlHealthCheck>();
         }
+
+        // Register database health monitor for resilience infrastructure
+        // Dapper shares the same underlying connection pool as ADO.NET (MySqlConnector)
+        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
+            new DapperMySqlDatabaseHealthMonitor(sp));
 
         return services;
     }

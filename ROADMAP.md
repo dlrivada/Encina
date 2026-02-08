@@ -357,7 +357,7 @@ Key areas already completed:
   - Optimistic Concurrency [#287](https://github.com/dlrivada/Encina/issues/287) — IConcurrencyAware with conflict resolution
   - CDC Integration [#288](https://github.com/dlrivada/Encina/issues/288) — Change Data Capture with Debezium/Kafka
   - Database Sharding [#289](https://github.com/dlrivada/Encina/issues/289) — Horizontal partitioning with shard routing
-  - Connection Pool Resilience [#290](https://github.com/dlrivada/Encina/issues/290) — Pool monitoring, circuit breaker, warm-up
+  - ✅ Connection Pool Resilience [#290](https://github.com/dlrivada/Encina/issues/290) — Pool monitoring, circuit breaker, warm-up - **COMPLETED** (IDatabaseHealthMonitor across all 13 providers, ConnectionPoolStats, DatabaseCircuitBreakerPipelineBehavior, DatabaseTransientErrorPredicate, ConnectionWarmupHostedService)
   - Query Cache Interceptor [#291](https://github.com/dlrivada/Encina/issues/291) — EF Core second-level cache
   - Domain Entity Base Classes [#292](https://github.com/dlrivada/Encina/issues/292) — Entity<TId>, AggregateRoot<TId> with domain events
   - Pagination Abstractions [#293](https://github.com/dlrivada/Encina/issues/293) — PagedResult<T>, PaginationOptions, IPagedSpecification<T>

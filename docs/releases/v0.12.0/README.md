@@ -25,12 +25,102 @@ v0.12.0 focuses on database and repository patterns, completing the data access 
 | #287 | Optimistic Concurrency | Completado |
 | #288 | CDC Integration | Pendiente |
 | #289 | Sharding | Pendiente |
-| #290 | Connection Pool | Pendiente |
+| #290 | Connection Pool Resilience | **Completado** |
 | #291 | Query Cache | Pendiente |
 | #292 | Domain Entity Base | Completado |
 | #293 | Pagination Abstractions | **Completado** |
 | #294 | Cursor Pagination | Pendiente |
 | #534 | Module Isolation | Completado |
+
+---
+
+## Week of February 8, 2026
+
+### February 8 - Connection Pool Resilience (#290)
+
+**Issue**: [#290 - Connection Pool Resilience](https://github.com/dlrivada/Encina/issues/290)
+
+Implemented connection pool monitoring, database-aware circuit breakers, transient error detection, and connection warm-up across all 13 database providers.
+
+#### Phase 1-5: Core Implementation
+
+**Files Created**:
+
+**Encina** (core abstractions):
+
+- `src/Encina/Database/IDatabaseHealthMonitor.cs` - Core interface
+- `src/Encina/Database/ConnectionPoolStats.cs` - Pool statistics record
+- `src/Encina/Database/DatabaseHealthResult.cs` - Health check result + DatabaseHealthStatus enum
+- `src/Encina/Database/DatabaseResilienceOptions.cs` - Resilience configuration
+- `src/Encina/Database/DatabaseCircuitBreakerOptions.cs` - Circuit breaker settings
+
+**Encina.Messaging** (base class):
+
+- `src/Encina.Messaging/Health/DatabaseHealthMonitorBase.cs` - Abstract base for relational providers
+
+**Encina.Polly** (circuit breaker):
+
+- `src/Encina.Polly/Behaviors/DatabaseCircuitBreakerPipelineBehavior.cs` - Pipeline behavior
+- `src/Encina.Polly/Predicates/DatabaseTransientErrorPredicate.cs` - Transient error detection
+
+**ADO.NET Providers** (4 health monitors):
+
+- `src/Encina.ADO.Sqlite/Health/SqliteDatabaseHealthMonitor.cs`
+- `src/Encina.ADO.SqlServer/Health/SqlServerDatabaseHealthMonitor.cs`
+- `src/Encina.ADO.PostgreSQL/Health/PostgreSqlDatabaseHealthMonitor.cs`
+- `src/Encina.ADO.MySQL/Health/MySqlDatabaseHealthMonitor.cs`
+
+**Dapper Providers** (4 health monitors):
+
+- `src/Encina.Dapper.Sqlite/Health/DapperSqliteDatabaseHealthMonitor.cs`
+- `src/Encina.Dapper.SqlServer/Health/DapperSqlServerDatabaseHealthMonitor.cs`
+- `src/Encina.Dapper.PostgreSQL/Health/DapperPostgreSqlDatabaseHealthMonitor.cs`
+- `src/Encina.Dapper.MySQL/Health/DapperMySqlDatabaseHealthMonitor.cs`
+
+**EF Core**:
+
+- `src/Encina.EntityFrameworkCore/Resilience/EfCoreDatabaseHealthMonitor.cs`
+- `src/Encina.EntityFrameworkCore/Resilience/ConnectionPoolMonitoringInterceptor.cs`
+
+**MongoDB**:
+
+- `src/Encina.MongoDB/Health/MongoDbDatabaseHealthMonitor.cs`
+
+**Files Modified** (service registration):
+
+- `src/Encina.ADO.Sqlite/ServiceCollectionExtensions.cs` - Register `SqliteDatabaseHealthMonitor`
+- `src/Encina.ADO.SqlServer/ServiceCollectionExtensions.cs` - Register `SqlServerDatabaseHealthMonitor`
+- `src/Encina.ADO.PostgreSQL/ServiceCollectionExtensions.cs` - Register `PostgreSqlDatabaseHealthMonitor`
+- `src/Encina.ADO.MySQL/ServiceCollectionExtensions.cs` - Register `MySqlDatabaseHealthMonitor`
+- `src/Encina.Dapper.Sqlite/ServiceCollectionExtensions.cs` - Register `DapperSqliteDatabaseHealthMonitor`
+- `src/Encina.Dapper.SqlServer/ServiceCollectionExtensions.cs` - Register `DapperSqlServerDatabaseHealthMonitor`
+- `src/Encina.Dapper.PostgreSQL/ServiceCollectionExtensions.cs` - Register `DapperPostgreSqlDatabaseHealthMonitor`
+- `src/Encina.Dapper.MySQL/ServiceCollectionExtensions.cs` - Register `DapperMySqlDatabaseHealthMonitor`
+- `src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs` - Register `EfCoreDatabaseHealthMonitor`
+- `src/Encina.MongoDB/ServiceCollectionExtensions.cs` - Register `MongoDbDatabaseHealthMonitor`
+- `src/Encina.Polly/ServiceCollectionExtensions.cs` - Register `DatabaseCircuitBreakerPipelineBehavior`
+
+#### Phase 6: Testing
+
+| Test Type | Count | Location |
+|-----------|-------|----------|
+| Unit Tests | 113 | `tests/Encina.UnitTests/Database/` |
+| Guard Tests | 22 | `tests/Encina.GuardTests/Database/` |
+| Contract Tests | 20 | `tests/Encina.ContractTests/Database/Resilience/` |
+| Property Tests | 19 | `tests/Encina.PropertyTests/Database/Resilience/` |
+| Integration Tests | 15 | `tests/Encina.IntegrationTests/ADO/Sqlite/Resilience/` + `Dapper/Sqlite/Resilience/` |
+| Load Tests | Justified | `tests/Encina.LoadTests/Database/Resilience/Resilience.md` |
+| Benchmark Tests | Justified | `tests/Encina.BenchmarkTests/Resilience.md` |
+| **Total** | **189** | |
+
+#### Phase 7: Documentation
+
+- Updated `README.md` with database resilience feature
+- Updated `ROADMAP.md` to mark #290 as completed
+- Updated `CHANGELOG.md` with detailed entry
+- Created `docs/features/database-resilience.md` comprehensive guide
+- Updated `docs/INVENTORY.md` with applicability matrix entry
+- Updated `PublicAPI.Unshipped.txt` for all affected packages
 
 ---
 
@@ -140,6 +230,7 @@ Implemented comprehensive pagination abstractions for data access, including pag
   - ToPagedResultAsync() with projection null validations
 
 **Bug Fix**: Fixed double-pagination bug in `FunctionalRepositoryEF.GetPagedAsync(IPagedSpecification)`:
+
 - SpecificationEvaluator was applying Skip/Take, then ToPagedResultAsync applied them again
 - Solution: Build base query with filtering only, let ToPagedResultAsync handle pagination
 - Added `ApplyOrderingForPaging()` helper method for correct ordering

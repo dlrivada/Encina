@@ -37,6 +37,12 @@ public static class ServiceCollectionExtensions
             services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(MessagingEnricherPipelineBehavior<,>));
         }
 
+        // Register database pool metrics initialization as a hosted service.
+        // DatabasePoolMetrics creates ObservableGauge instruments on the static "Encina"
+        // meter during construction. Registration is conditional on IDatabaseHealthMonitor
+        // being available.
+        services.AddHostedService<DatabasePoolMetricsInitializer>();
+
         return services;
     }
 

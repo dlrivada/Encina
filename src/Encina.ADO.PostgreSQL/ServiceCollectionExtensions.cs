@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.ADO.PostgreSQL.Auditing;
 using Encina.ADO.PostgreSQL.Health;
+using Encina.Database;
 using Encina.ADO.PostgreSQL.Inbox;
 using Encina.ADO.PostgreSQL.Outbox;
 using Encina.ADO.PostgreSQL.Repository;
@@ -61,6 +62,10 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(config.ProviderHealthCheck);
             services.AddSingleton<IEncinaHealthCheck, PostgreSqlHealthCheck>();
         }
+
+        // Register database health monitor for resilience infrastructure
+        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
+            new PostgreSqlDatabaseHealthMonitor(sp));
 
         return services;
     }

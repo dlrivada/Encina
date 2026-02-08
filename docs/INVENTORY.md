@@ -99,6 +99,7 @@ Los patrones de mensajería (Outbox, Inbox, Saga, Scheduling) DEBEN implementars
 | Event Publishing | ❌ | ❌ | ✅ | ❌ |
 | Request Validation | ❌ | ❌ | ❌ | ✅ |
 | Multi-Tenancy | ✅ | ✅ | ✅ | ❌ |
+| **Database Resilience** | ✅ | ❌ | ❌ | ❌ |
 | **Optimistic Concurrency** | ✅ | ❌ | ❌ | ❌ |
 
 > **Regla**: Si una feature toca código específico de proveedor, DEBE implementarse consistentemente en TODOS los proveedores de esa categoría.

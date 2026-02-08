@@ -2,6 +2,7 @@ using System.Data;
 using Encina.Dapper.SqlServer.Auditing;
 using Encina.Dapper.SqlServer.BulkOperations;
 using Encina.Dapper.SqlServer.Health;
+using Encina.Database;
 using Encina.Dapper.SqlServer.Inbox;
 using Encina.Dapper.SqlServer.Modules;
 using Encina.Dapper.SqlServer.Outbox;
@@ -82,6 +83,11 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(config.ProviderHealthCheck);
             services.AddSingleton<IEncinaHealthCheck, SqlServerHealthCheck>();
         }
+
+        // Register database health monitor for resilience infrastructure
+        // Dapper shares the same underlying connection pool as ADO.NET (Microsoft.Data.SqlClient)
+        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
+            new DapperSqlServerDatabaseHealthMonitor(sp));
 
         // Register module isolation services if enabled
         if (config.UseModuleIsolation)

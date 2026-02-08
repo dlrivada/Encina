@@ -423,6 +423,114 @@ var result = await helper.ExecuteCompositeAsync(
 
 ---
 
+#### Database Resilience (#290)
+
+Added connection pool monitoring, database-aware circuit breakers, transient error detection, and connection warm-up across all 13 database providers.
+
+**Core Abstractions** (`Encina`):
+
+- **`IDatabaseHealthMonitor`**: Core interface for pool monitoring, health checks, and circuit breaker state
+- **`ConnectionPoolStats`**: Immutable record with pool utilization (clamped 0-1), active/idle/total connections
+- **`DatabaseHealthResult`**: Health check result with `Healthy`/`Degraded`/`Unhealthy` status and factory methods
+- **`DatabaseResilienceOptions`**: Opt-in configuration for pool monitoring, circuit breaker, warm-up, and health check intervals
+- **`DatabaseCircuitBreakerOptions`**: Failure threshold, sampling duration, break duration, minimum throughput
+
+```csharp
+// All resilience features are opt-in
+services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+{
+    config.UseResilience(options =>
+    {
+        options.EnablePoolMonitoring = true;
+        options.EnableCircuitBreaker = true;
+        options.CircuitBreaker.FailureThreshold = 0.3;
+        options.CircuitBreaker.BreakDuration = TimeSpan.FromMinutes(1);
+        options.WarmUpConnections = 5;
+        options.HealthCheckInterval = TimeSpan.FromSeconds(30);
+    });
+});
+
+// Monitor pool health
+var stats = monitor.GetPoolStatistics();
+if (stats.PoolUtilization > 0.9)
+    logger.LogWarning("Pool nearing capacity: {Util:P0}", stats.PoolUtilization);
+
+// Health check with circuit breaker awareness
+var health = await monitor.CheckHealthAsync(ct);
+if (health.Status == DatabaseHealthStatus.Unhealthy)
+    logger.LogError("Database unreachable: {Desc}", health.Description);
+```
+
+**Polly Integration** (`Encina.Polly`):
+
+- **`DatabaseCircuitBreakerPipelineBehavior<TRequest, TResponse>`**: Pipeline behavior with fast-path circuit check and Polly `ResiliencePipeline` per provider
+- **`DatabaseTransientErrorPredicate`**: Identifies transient errors by exception type name (no hard assembly references) across SQL Server, PostgreSQL, MySQL, MongoDB, and SQLite
+
+```csharp
+// Register circuit breaker as pipeline behavior
+services.AddDatabaseCircuitBreaker(options =>
+{
+    options.FailureThreshold = 0.3;
+    options.MinimumThroughput = 20;
+    options.IncludeTimeouts = true;
+    options.IncludeConnectionFailures = true;
+});
+```
+
+**Provider Support**:
+
+| Provider | Pool Stats | Health Check | Pool Clear | Circuit Breaker |
+|----------|:----------:|:------------:|:----------:|:---------------:|
+| ADO.NET SqlServer | ✅ Full | ✅ | ✅ | ✅ |
+| ADO.NET PostgreSQL | ✅ MaxPool | ✅ | ✅ | ✅ |
+| ADO.NET MySQL | ✅ MaxPool | ✅ | ✅ | ✅ |
+| ADO.NET SQLite | Empty | ✅ | No-op | ✅ |
+| Dapper (4 DBs) | Same as ADO | ✅ | Same as ADO | ✅ |
+| EF Core (4 DBs) | Empty | ✅ | No-op | ✅ |
+| MongoDB | Topology | ✅ Ping | No-op | ✅ |
+
+**New Types**:
+
+| Type | Package | Purpose |
+|------|---------|---------|
+| `IDatabaseHealthMonitor` | Encina | Core monitoring interface |
+| `ConnectionPoolStats` | Encina | Pool statistics snapshot |
+| `DatabaseHealthResult` | Encina | Health check result |
+| `DatabaseHealthStatus` | Encina | Health status enum |
+| `DatabaseResilienceOptions` | Encina | Resilience configuration |
+| `DatabaseCircuitBreakerOptions` | Encina | Circuit breaker settings |
+| `DatabasePoolMetrics` | Encina | OpenTelemetry metrics |
+| `DatabaseHealthMonitorBase` | Encina.Messaging | Abstract base for relational providers |
+| `DatabaseCircuitBreakerPipelineBehavior<,>` | Encina.Polly | Pipeline behavior |
+| `DatabaseTransientErrorPredicate` | Encina.Polly | Transient error detection |
+| `SqliteDatabaseHealthMonitor` | Encina.ADO.Sqlite | SQLite monitor |
+| `SqlServerDatabaseHealthMonitor` | Encina.ADO.SqlServer | SQL Server monitor |
+| `PostgreSqlDatabaseHealthMonitor` | Encina.ADO.PostgreSQL | PostgreSQL monitor |
+| `MySqlDatabaseHealthMonitor` | Encina.ADO.MySQL | MySQL monitor |
+| `DapperSqliteDatabaseHealthMonitor` | Encina.Dapper.Sqlite | Dapper SQLite monitor |
+| `DapperSqlServerDatabaseHealthMonitor` | Encina.Dapper.SqlServer | Dapper SQL Server monitor |
+| `DapperPostgreSqlDatabaseHealthMonitor` | Encina.Dapper.PostgreSQL | Dapper PostgreSQL monitor |
+| `DapperMySqlDatabaseHealthMonitor` | Encina.Dapper.MySQL | Dapper MySQL monitor |
+| `EfCoreDatabaseHealthMonitor` | Encina.EntityFrameworkCore | EF Core monitor |
+| `ConnectionPoolMonitoringInterceptor` | Encina.EntityFrameworkCore | EF Core connection interceptor |
+| `MongoDbDatabaseHealthMonitor` | Encina.MongoDB | MongoDB monitor |
+
+**Tests Added**:
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 113 | Circuit breaker state, pipeline behavior, cache invalidation |
+| Guard Tests | 22 | Null validation for all 10 monitors + supporting types |
+| Contract Tests | 20 | API consistency across all providers |
+| Property Tests | 19 | ConnectionPoolStats invariants (FsCheck) |
+| Integration Tests | 15 | Real SQLite health checks |
+
+**Documentation**: See `docs/features/database-resilience.md` for complete guide.
+
+**Related Issue**: [#290 - Connection Pool Resilience](https://github.com/dlrivada/Encina/issues/290)
+
+---
+
 #### Optimistic Concurrency Abstractions (#287)
 
 Added comprehensive optimistic concurrency control using Railway Oriented Programming (ROP) patterns for conflict detection and resolution.

@@ -2,6 +2,7 @@ using System.Data;
 using Encina.ADO.Sqlite.Auditing;
 using Encina.ADO.Sqlite.BulkOperations;
 using Encina.ADO.Sqlite.Health;
+using Encina.Database;
 using Encina.ADO.Sqlite.Inbox;
 using Encina.ADO.Sqlite.Outbox;
 using Encina.ADO.Sqlite.Repository;
@@ -62,6 +63,10 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(config.ProviderHealthCheck);
             services.AddSingleton<IEncinaHealthCheck, SqliteHealthCheck>();
         }
+
+        // Register database health monitor for resilience infrastructure
+        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
+            new SqliteDatabaseHealthMonitor(sp));
 
         return services;
     }

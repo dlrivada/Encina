@@ -682,3 +682,31 @@ Encina.Messaging.SoftDelete.SoftDeleteFilterContext.Reset() -> void
 Encina.Messaging.SoftDelete.SoftDeleteQueryFilterBehavior<TRequest, TResponse>
 Encina.Messaging.SoftDelete.SoftDeleteQueryFilterBehavior<TRequest, TResponse>.SoftDeleteQueryFilterBehavior(Encina.Messaging.SoftDelete.ISoftDeleteFilterContext! filterContext, Encina.Messaging.SoftDelete.SoftDeleteOptions! options) -> void
 Encina.Messaging.SoftDelete.SoftDeleteQueryFilterBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError!, TResponse>>
+Encina.Messaging.Health.DatabaseHealthMonitorBase
+Encina.Messaging.Health.DatabaseHealthMonitorBase.CheckHealthAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Database.DatabaseHealthResult>!
+Encina.Messaging.Health.DatabaseHealthMonitorBase.ClearPoolAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Messaging.Health.DatabaseHealthMonitorBase.DatabaseHealthMonitorBase(string! providerName, System.Func<System.Data.IDbConnection!>! connectionFactory, Encina.Database.DatabaseResilienceOptions? options = null) -> void
+Encina.Messaging.Health.DatabaseHealthMonitorBase.GetPoolStatistics() -> Encina.Database.ConnectionPoolStats
+Encina.Messaging.Health.DatabaseHealthMonitorBase.IsCircuitOpen.get -> bool
+Encina.Messaging.Health.DatabaseHealthMonitorBase.ProviderName.get -> string!
+Encina.Messaging.Health.DatabaseHealthMonitorBase.SetCircuitState(bool isOpen) -> void
+abstract Encina.Messaging.Health.DatabaseHealthMonitorBase.ClearPoolCoreAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+abstract Encina.Messaging.Health.DatabaseHealthMonitorBase.GetPoolStatisticsCore() -> Encina.Database.ConnectionPoolStats
+virtual Encina.Messaging.Health.DatabaseHealthMonitorBase.GetHealthCheckQuery() -> string!
+Encina.Messaging.Health.DatabasePoolHealthCheck
+Encina.Messaging.Health.DatabasePoolHealthCheck.DatabasePoolHealthCheck(Encina.Database.IDatabaseHealthMonitor! monitor, Encina.Messaging.Health.DatabasePoolHealthCheckOptions? options = null) -> void
+const Encina.Messaging.Health.DatabasePoolHealthCheck.DefaultName = "encina-database-pool" -> string!
+Encina.Messaging.Health.DatabasePoolHealthCheckOptions
+Encina.Messaging.Health.DatabasePoolHealthCheckOptions.DatabasePoolHealthCheckOptions() -> void
+Encina.Messaging.Health.DatabasePoolHealthCheckOptions.DegradedThreshold.get -> double
+Encina.Messaging.Health.DatabasePoolHealthCheckOptions.DegradedThreshold.set -> void
+Encina.Messaging.Health.DatabasePoolHealthCheckOptions.Name.get -> string?
+Encina.Messaging.Health.DatabasePoolHealthCheckOptions.Name.set -> void
+Encina.Messaging.Health.DatabasePoolHealthCheckOptions.Tags.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
+Encina.Messaging.Health.DatabasePoolHealthCheckOptions.Tags.set -> void
+Encina.Messaging.Health.DatabasePoolHealthCheckOptions.UnhealthyThreshold.get -> double
+Encina.Messaging.Health.DatabasePoolHealthCheckOptions.UnhealthyThreshold.set -> void
+Encina.Messaging.Services.ConnectionWarmupHostedService
+Encina.Messaging.Services.ConnectionWarmupHostedService.ConnectionWarmupHostedService(System.Func<System.Data.IDbConnection!>! connectionFactory, int warmUpCount, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Services.ConnectionWarmupHostedService!>! logger) -> void
+Encina.Messaging.Services.ConnectionWarmupHostedService.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Messaging.Services.ConnectionWarmupHostedService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

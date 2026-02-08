@@ -1,3 +1,5 @@
+using Encina.Database;
+using Encina.Polly.Predicates;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -61,6 +63,87 @@ public static class ServiceCollectionExtensions
 
         // Register Circuit Breaker behavior
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(CircuitBreakerPipelineBehavior<,>));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds database-aware circuit breaker behavior to the Encina pipeline.
+    /// </summary>
+    /// <param name="services">Service collection.</param>
+    /// <returns>Service collection for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers the <see cref="DatabaseCircuitBreakerPipelineBehavior{TRequest, TResponse}"/>
+    /// with default <see cref="DatabaseCircuitBreakerOptions"/> (50% failure threshold,
+    /// 30-second break duration, 10 minimum throughput).
+    /// </para>
+    /// <para>
+    /// This method requires an <see cref="IDatabaseHealthMonitor"/> implementation to be
+    /// registered by one of the database provider packages (ADO.NET, Dapper, EF Core, or MongoDB).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaPolly();
+    /// services.AddDatabaseCircuitBreaker();
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddDatabaseCircuitBreaker(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        return AddDatabaseCircuitBreaker(services, _ => { });
+    }
+
+    /// <summary>
+    /// Adds database-aware circuit breaker behavior to the Encina pipeline with custom configuration.
+    /// </summary>
+    /// <param name="services">Service collection.</param>
+    /// <param name="configure">Action to configure <see cref="DatabaseCircuitBreakerOptions"/>.</param>
+    /// <returns>Service collection for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers the <see cref="DatabaseCircuitBreakerPipelineBehavior{TRequest, TResponse}"/>
+    /// along with the <see cref="DatabaseTransientErrorPredicate"/> and configured
+    /// <see cref="DatabaseCircuitBreakerOptions"/>.
+    /// </para>
+    /// <para>
+    /// This method requires an <see cref="IDatabaseHealthMonitor"/> implementation to be
+    /// registered by one of the database provider packages (ADO.NET, Dapper, EF Core, or MongoDB).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaPolly();
+    /// services.AddDatabaseCircuitBreaker(options =>
+    /// {
+    ///     options.FailureThreshold = 0.3;
+    ///     options.BreakDuration = TimeSpan.FromMinutes(1);
+    ///     options.MinimumThroughput = 20;
+    ///     options.IncludeTimeouts = true;
+    ///     options.IncludeConnectionFailures = true;
+    /// });
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddDatabaseCircuitBreaker(
+        this IServiceCollection services,
+        Action<DatabaseCircuitBreakerOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var options = new DatabaseCircuitBreakerOptions();
+        configure(options);
+
+        // Register options and predicate as singletons
+        services.TryAddSingleton(options);
+        services.TryAddSingleton(new DatabaseTransientErrorPredicate(options));
+
+        // Register the database-aware circuit breaker behavior
+        services.AddTransient(
+            typeof(IPipelineBehavior<,>),
+            typeof(DatabaseCircuitBreakerPipelineBehavior<,>));
 
         return services;
     }

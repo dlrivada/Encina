@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.ADO.MySQL.Auditing;
 using Encina.ADO.MySQL.Health;
+using Encina.Database;
 using Encina.ADO.MySQL.Inbox;
 using Encina.ADO.MySQL.Outbox;
 using Encina.ADO.MySQL.Repository;
@@ -60,6 +61,10 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(config.ProviderHealthCheck);
             services.AddSingleton<IEncinaHealthCheck, MySqlHealthCheck>();
         }
+
+        // Register database health monitor for resilience infrastructure
+        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
+            new MySqlDatabaseHealthMonitor(sp));
 
         return services;
     }

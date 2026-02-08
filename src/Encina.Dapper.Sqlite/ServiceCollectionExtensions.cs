@@ -8,6 +8,7 @@ using Encina.Dapper.Sqlite.Repository;
 using Encina.Dapper.Sqlite.Sagas;
 using Encina.Dapper.Sqlite.Scheduling;
 using Encina.Dapper.Sqlite.UnitOfWork;
+using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
@@ -64,6 +65,11 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(config.ProviderHealthCheck);
             services.AddSingleton<IEncinaHealthCheck, SqliteHealthCheck>();
         }
+
+        // Register database health monitor for resilience infrastructure
+        // Dapper shares the same underlying connection pool as ADO.NET (Microsoft.Data.Sqlite)
+        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
+            new DapperSqliteDatabaseHealthMonitor(sp));
 
         return services;
     }
