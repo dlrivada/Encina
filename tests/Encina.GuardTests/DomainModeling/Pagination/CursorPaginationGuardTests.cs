@@ -1,6 +1,8 @@
-using Encina.DomainModeling.Pagination;
-using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
+
+using Encina.DomainModeling.Pagination;
+
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.GuardTests.DomainModeling.Pagination;
 
