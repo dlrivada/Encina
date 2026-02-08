@@ -305,7 +305,7 @@ builder.Services.AddEncinaDapper(config =>
 ## Caching
 
 ```csharp
-// Configure caching
+// Configure handler-level caching (pipeline behavior)
 builder.Services.AddEncinaCaching(options =>
 {
     options.EnableQueryCaching = true;
@@ -319,6 +319,16 @@ builder.Services.AddEncinaRedisCache("localhost:6379");
 // Mark queries as cacheable
 [Cache(Duration = 300)]
 public sealed record GetProductById(Guid Id) : IQuery<Product>;
+
+// EF Core second-level query cache (automatic, transparent)
+builder.Services.AddQueryCaching(options =>
+{
+    options.Enabled = true;
+    options.DefaultExpiration = TimeSpan.FromMinutes(5);
+    options.ExcludeType<AuditLog>(); // Skip high-churn tables
+});
+// Then in DbContext configuration:
+optionsBuilder.UseQueryCaching(serviceProvider);
 ```
 
 ## Resilience

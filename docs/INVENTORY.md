@@ -1595,8 +1595,8 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | **#283** | Read/Write Separation | CQRS físico con read replicas | Alta | Media | `area-cqrs`, `area-scalability`, `cloud-azure` |
 | **#284** | Bulk Operations | BulkInsert, BulkUpdate, BulkDelete, BulkMerge | Crítica | Media | `area-bulk-operations`, `area-scalability`, `aot-compatible` | ✅ Completo |
 | **#289** | Database Sharding | Particionamiento horizontal con shard routing | Baja | Muy Alta | `area-sharding`, `area-scalability`, `area-cloud-native` |
-| **#290** | Connection Pool Resilience | Monitoreo de pool, circuit breaker, warm-up | Media | Media | `area-connection-pool`, `area-health-checks`, `area-polly` |
-| **#291** | Query Cache Interceptor | Second-level cache para EF Core queries | Media | Media | `area-caching`, `area-pipeline` |
+| **#290** ✅ | Connection Pool Resilience | Monitoreo de pool, circuit breaker, warm-up | Media | Media | `area-connection-pool`, `area-health-checks`, `area-polly` |
+| **#291** ✅ | Query Cache Interceptor | Second-level cache para EF Core queries | Media | Media | `area-caching`, `area-pipeline` |
 | **#294** | Cursor-based Pagination | Keyset pagination O(1) vs offset O(n) | Alta | Media | `area-pagination`, `area-graphql`, `area-scalability` |
 
 **#283 - Read/Write Separation**:
@@ -1631,20 +1631,37 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - Scatter-Gather para queries cross-shard
 - Consideración: Muy alta complejidad, usar solo cuando realmente necesario
 
-**#290 - Connection Pool & Resilience**:
+**#290 - Connection Pool & Resilience** ✅ **COMPLETADO (08-feb-2026)**:
 
-- `IDatabaseHealthMonitor` con `ConnectionPoolStats`
-- Database-aware circuit breaker
-- `IConnectionWarmup` para pre-crear conexiones al startup
-- Health probing periódico
-- Integración con `Encina.Extensions.Resilience` existente
+- `IDatabaseHealthMonitor` interface con `GetHealthAsync()`, `GetPoolStatsAsync()`
+- `ConnectionPoolStats` record: ActiveConnections, IdleConnections, TotalConnections, MaxPoolSize
+- `DatabaseHealthResult` record + `DatabaseHealthStatus` enum (Healthy, Degraded, Unhealthy)
+- `DatabaseResilienceOptions` configuration class
+- `DatabaseCircuitBreakerOptions` for circuit breaker settings
+- `DatabaseHealthMonitorBase` abstract base class for relational providers
+- `DatabaseCircuitBreakerPipelineBehavior` (Encina.Polly)
+- `DatabaseTransientErrorPredicate` for transient error detection
+- Health monitors for all 13 database providers (ADO.NET, Dapper, EF Core, MongoDB)
+- `ConnectionPoolMonitoringInterceptor` for EF Core
+- Test coverage: 189 tests (113 unit + 22 guard + 20 contract + 19 property + 15 integration)
 
-**#291 - Query Cache Interceptor**:
+**#291 - Query Cache Interceptor** ✅ **COMPLETADO (08-feb-2026)**:
 
-- EF Core `IDbCommandInterceptor` para cachear resultados de queries
-- Invalidación automática en SaveChanges
-- Integración con `ICacheProvider` existente
-- Inspirado en [EFCoreSecondLevelCacheInterceptor](https://github.com/VahidN/EFCoreSecondLevelCacheInterceptor)
+- `IQueryCacheKeyGenerator` interface + `QueryCacheKey` record (Encina.Caching)
+- `QueryCacheInterceptor` - EF Core `DbCommandInterceptor` + `ISaveChangesInterceptor`
+- `DefaultQueryCacheKeyGenerator` - SHA256-based deterministic key generation with entity type resolution
+- `CachedDataReader` - Full `DbDataReader` implementation for serving cached results
+- `CachedQueryResult` + `CachedColumnSchema` - Serializable cached result models
+- `SqlTableExtractor` - Compiled regex SQL table extraction (FROM/JOIN clauses)
+- `QueryCacheOptions` - Configuration: Enabled, DefaultExpiration, KeyPrefix, ThrowOnCacheErrors, ExcludedEntityTypes
+- `QueryCachingExtensions` - Two-step DI: `AddQueryCaching()` + `UseQueryCaching()`
+- Cache key format: `{prefix}:{entity}:{hash}` or `{prefix}:{tenant}:{entity}:{hash}`
+- Automatic invalidation on `SaveChanges` (entity-type-aware)
+- Multi-tenant support via `IRequestContext.TenantId`
+- Works with all 8 cache providers (Memory, Hybrid, Redis, Valkey, KeyDB, Dragonfly, Garnet, Memcached)
+- Error resilience: cache failures fall through to database by default
+- Test coverage: 256 tests (184 unit + 19 guard + 29 contract + 16 property + 8 integration + 7 benchmarks)
+- Docs: [docs/features/query-caching.md](../features/query-caching.md)
 
 **#294 - Cursor-based Pagination (RESEARCH)**:
 
@@ -1873,6 +1890,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - `ICacheProvider` - GetAsync, SetAsync, RemoveAsync, GetOrSetAsync, RefreshAsync
 - `ICacheKeyGenerator` - GenerateKey, GeneratePattern, GeneratePatternFromTemplate
 - `IPubSubProvider` - PublishAsync, SubscribeAsync, UnsubscribeAsync
+- `IQueryCacheKeyGenerator` - Generate(DbCommand, DbContext, IRequestContext?) → `QueryCacheKey`
 
 #### Atributos
 
@@ -1882,9 +1900,19 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 
 #### Behaviors
 
-- `QueryCachingPipelineBehavior` - Cache de queries
+- `QueryCachingPipelineBehavior` - Cache de queries (handler-level, attribute-based)
 - `CacheInvalidationPipelineBehavior` - Invalidación de cache
 - `DistributedIdempotencyPipelineBehavior` - Idempotencia vía cache
+
+#### EF Core Query Caching (Second-Level Cache) - #291 ✅
+
+- `QueryCacheInterceptor` - `DbCommandInterceptor` + `ISaveChangesInterceptor` for transparent query caching
+- `DefaultQueryCacheKeyGenerator` - SHA256-based deterministic key generator with entity type resolution
+- `CachedDataReader` - Full `DbDataReader` implementation serving cached results to EF Core materializer
+- `CachedQueryResult` + `CachedColumnSchema` - Serializable cached result models
+- `SqlTableExtractor` - Compiled regex SQL table name extraction (FROM/JOIN, all quoting styles)
+- `QueryCacheOptions` - Configuration record (Enabled, DefaultExpiration, KeyPrefix, ThrowOnCacheErrors, ExcludedEntityTypes)
+- `QueryCachingExtensions` - DI: `AddQueryCaching()` + `UseQueryCaching(sp)`
 
 #### Mejoras Planificadas de Caching (Phase 2) - Diciembre 2025
 
@@ -4182,6 +4210,49 @@ dotnet run -c Release -- --filter "*DapperVsAdo*"
 | **#51** | Switch-based dispatch - No dictionary lookup | Alta | Media |
 
 ### Issues Completados Recientemente
+
+#### ✅ #291 - Query Cache Interceptor (Completado 08-feb-2026)
+
+EF Core second-level query caching via `DbCommandInterceptor` + `ISaveChangesInterceptor`.
+
+**Componentes implementados**:
+
+- `IQueryCacheKeyGenerator` + `QueryCacheKey` record (Encina.Caching)
+- `QueryCacheInterceptor` - Intercepta queries EF Core, cachea resultados, invalida en SaveChanges
+- `DefaultQueryCacheKeyGenerator` - SHA256 hash, entity-type resolution, tenant-aware keys
+- `CachedDataReader` - `DbDataReader` implementation para resultados cacheados
+- `CachedQueryResult` + `CachedColumnSchema` - Modelos serializables
+- `SqlTableExtractor` - Regex compilada para extracción de tablas SQL
+- `QueryCacheOptions` + `QueryCachingExtensions` (AddQueryCaching + UseQueryCaching)
+
+**Test coverage**: 256 tests (184 unit + 19 guard + 29 contract + 16 property + 8 integration + 7 benchmarks)
+
+#### ✅ #290 - Connection Pool Resilience (Completado 08-feb-2026)
+
+Connection pool monitoring, circuit breakers, transient error detection across all 13 database providers.
+
+**Componentes implementados**:
+
+- `IDatabaseHealthMonitor`, `ConnectionPoolStats`, `DatabaseHealthResult`
+- `DatabaseResilienceOptions`, `DatabaseCircuitBreakerOptions`
+- Health monitors for ADO.NET (4), Dapper (4), EF Core (1), MongoDB (1)
+- `DatabaseCircuitBreakerPipelineBehavior` + `DatabaseTransientErrorPredicate`
+
+**Test coverage**: 189 tests (113 unit + 22 guard + 20 contract + 19 property + 15 integration)
+
+#### ✅ #293 - Pagination Abstractions (Completado 05-feb-2026)
+
+Comprehensive pagination abstractions for data access.
+
+**Componentes implementados**:
+
+- `PaginationOptions`, `SortedPaginationOptions` - Fluent builder pattern
+- `PagedResult<T>` - Computed navigation properties, Map() projection
+- `IPagedSpecification<T>`, `PagedQuerySpecification<T>` - Specification-based pagination
+- `QueryablePagedExtensions` - `ToPagedResultAsync()` for EF Core
+- `FunctionalRepositoryEF.GetPagedAsync()` - 3 overloads
+
+**Test coverage**: 246 tests (221 unit + 25 guard)
 
 #### ✅ #47 - Encina.Cli (Completado 27-dic-2025)
 

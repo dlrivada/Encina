@@ -1,8 +1,10 @@
+using Encina.Caching;
 using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.EntityFrameworkCore.Auditing;
 using Encina.EntityFrameworkCore.BulkOperations;
+using Encina.EntityFrameworkCore.Caching;
 using Encina.EntityFrameworkCore.DomainEvents;
 using Encina.EntityFrameworkCore.Health;
 using Encina.EntityFrameworkCore.Inbox;
@@ -61,6 +63,7 @@ public static class ServiceCollectionExtensions
     /// <item><description><b>Scheduling</b>: Delayed/recurring command execution</description></item>
     /// <item><description><b>Tenancy</b>: Multi-tenant data isolation and automatic tenant assignment</description></item>
     /// <item><description><b>ReadWriteSeparation</b>: Route queries to read replicas and commands to primary</description></item>
+    /// <item><description><b>QueryCache</b>: Second-level query caching with automatic invalidation</description></item>
     /// </list>
     /// </para>
     /// <para>
@@ -321,6 +324,18 @@ public static class ServiceCollectionExtensions
         {
             // Register temporal table options for point-in-time queries
             services.TryAddSingleton(config.TemporalTableOptions);
+        }
+
+        if (config.UseQueryCache)
+        {
+            // Register query caching services, mapping messaging-level options to provider-specific options
+            services.AddQueryCaching(options =>
+            {
+                options.Enabled = config.QueryCacheOptions.Enabled;
+                options.DefaultExpiration = config.QueryCacheOptions.DefaultExpiration;
+                options.KeyPrefix = config.QueryCacheOptions.KeyPrefix;
+                options.ThrowOnCacheErrors = config.QueryCacheOptions.ThrowOnCacheErrors;
+            });
         }
 
         // Register provider health check if enabled

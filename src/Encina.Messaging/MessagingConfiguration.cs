@@ -1,4 +1,5 @@
 using Encina.Messaging.Auditing;
+using Encina.Messaging.Caching;
 using Encina.Messaging.ContentRouter;
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.DomainEvents;
@@ -531,6 +532,43 @@ public sealed class MessagingConfiguration
     public bool UseTemporalTables { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable EF Core second-level query caching.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, database query results are automatically cached using the configured
+    /// <c>ICacheProvider</c> and invalidated when related entities are modified via <c>SaveChanges</c>.
+    /// </para>
+    /// <para>
+    /// <b>Requires</b>: An <c>ICacheProvider</c> must be registered in the service collection.
+    /// Use one of the Encina caching packages (e.g., <c>Encina.Caching.Memory</c>,
+    /// <c>Encina.Caching.Redis</c>) to register a cache provider.
+    /// </para>
+    /// <para>
+    /// Features include:
+    /// <list type="bullet">
+    /// <item><description>Automatic query result caching with configurable expiration</description></item>
+    /// <item><description>Entity-type-aware cache invalidation on <c>SaveChanges</c></description></item>
+    /// <item><description>Multi-tenant cache key isolation</description></item>
+    /// <item><description>Resilient degradation when cache backend is unavailable</description></item>
+    /// <item><description>Entity type exclusion for high-write or real-time data</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseQueryCache = true;
+    ///     config.QueryCacheOptions.DefaultExpiration = TimeSpan.FromMinutes(10);
+    ///     config.QueryCacheOptions.ThrowOnCacheErrors = false;
+    /// });
+    /// </code>
+    /// </example>
+    public bool UseQueryCache { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -757,6 +795,35 @@ public sealed class MessagingConfiguration
     public TemporalTableOptions TemporalTableOptions { get; } = new();
 
     /// <summary>
+    /// Gets the configuration options for EF Core query caching.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use this to configure:
+    /// <list type="bullet">
+    /// <item><description>Cache entry expiration (<c>DefaultExpiration</c>)</description></item>
+    /// <item><description>Cache key prefix for namespace isolation (<c>KeyPrefix</c>)</description></item>
+    /// <item><description>Error handling policy (<c>ThrowOnCacheErrors</c>)</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// For advanced configuration (e.g., entity type exclusions), use the provider-specific
+    /// <c>QueryCacheOptions</c> via <c>services.Configure&lt;QueryCacheOptions&gt;()</c>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseQueryCache = true;
+    ///     config.QueryCacheOptions.DefaultExpiration = TimeSpan.FromMinutes(10);
+    ///     config.QueryCacheOptions.KeyPrefix = "myapp:qc";
+    /// });
+    /// </code>
+    /// </example>
+    public QueryCacheMessagingOptions QueryCacheOptions { get; } = new();
+
+    /// <summary>
     /// Gets the configuration options for provider-specific health checks.
     /// </summary>
     /// <remarks>
@@ -775,5 +842,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache;
 }

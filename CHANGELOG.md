@@ -2,6 +2,62 @@
 
 ### Added
 
+#### Query Cache Interceptor - EF Core Second-Level Cache (#291)
+
+Added an EF Core query caching interceptor that acts as a transparent second-level cache, caching query results at the database command level and automatically invalidating them on `SaveChanges`.
+
+**Core Components**:
+
+- **`QueryCacheInterceptor`**: `DbCommandInterceptor` + `ISaveChangesInterceptor` that intercepts EF Core queries, serves cached results via `CachedDataReader`, and invalidates affected cache entries when entities are saved
+- **`DefaultQueryCacheKeyGenerator`**: SHA256-based key generator that extracts table names from SQL, maps them to entity types via `DbContext.Model`, and produces deterministic cache keys with format `{prefix}:{entity}:{hash}` or `{prefix}:{tenant}:{entity}:{hash}`
+- **`CachedDataReader`**: Full `DbDataReader` implementation that serves cached `CachedQueryResult` data with `JsonElement` conversion support for all CLR types
+- **`SqlTableExtractor`**: Compiled `[GeneratedRegex]` for provider-agnostic SQL table extraction from FROM/JOIN clauses (bracket, double-quote, backtick quoting)
+
+**Configuration**:
+
+```csharp
+// Step 1: Register query caching services
+services.AddQueryCaching(options =>
+{
+    options.Enabled = true;
+    options.DefaultExpiration = TimeSpan.FromMinutes(5);
+    options.KeyPrefix = "sm:qc";
+    options.ExcludeType<AuditLog>(); // Skip caching for specific entities
+});
+
+// Step 2: Add interceptor to DbContext
+optionsBuilder.UseQueryCaching(serviceProvider);
+```
+
+**Features**:
+
+- Automatic cache invalidation on `SaveChanges` based on entity types
+- Multi-tenant cache isolation via `IRequestContext.TenantId`
+- Entity type exclusion for high-churn tables
+- Configurable error handling (`ThrowOnCacheErrors`)
+- Works with any `ICacheProvider` (Memory, Redis, Hybrid, etc.)
+
+**New Types**:
+
+| Type | Package | Purpose |
+|------|---------|---------|
+| `IQueryCacheKeyGenerator` | `Encina.Caching` | Interface for SQL command key generation |
+| `QueryCacheKey` | `Encina.Caching` | Cache key record with entity type metadata |
+| `QueryCacheInterceptor` | `Encina.EntityFrameworkCore` | EF Core interceptor for query caching |
+| `DefaultQueryCacheKeyGenerator` | `Encina.EntityFrameworkCore` | Default key generator implementation |
+| `QueryCacheOptions` | `Encina.EntityFrameworkCore` | Configuration options |
+| `CachedDataReader` | `Encina.EntityFrameworkCore` | DbDataReader for cached results |
+| `CachedQueryResult` | `Encina.EntityFrameworkCore` | Serializable cached result model |
+| `CachedColumnSchema` | `Encina.EntityFrameworkCore` | Column metadata record |
+| `QueryCachingExtensions` | `Encina.EntityFrameworkCore` | DI registration extensions |
+
+**Test Coverage** (256 tests):
+
+- 184 unit tests, 19 guard tests, 29 contract tests, 16 property tests, 8 integration tests
+- 7 BenchmarkDotNet benchmarks (key generation, cache lookup, CachedDataReader)
+
+---
+
 #### Soft Delete & Temporal Tables Support (#285)
 
 Added comprehensive soft delete pattern and SQL Server temporal tables support across all database providers.

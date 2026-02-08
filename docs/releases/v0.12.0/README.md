@@ -26,7 +26,7 @@ v0.12.0 focuses on database and repository patterns, completing the data access 
 | #288 | CDC Integration | Pendiente |
 | #289 | Sharding | Pendiente |
 | #290 | Connection Pool Resilience | **Completado** |
-| #291 | Query Cache | Pendiente |
+| #291 | Query Cache | **Completado** |
 | #292 | Domain Entity Base | Completado |
 | #293 | Pagination Abstractions | **Completado** |
 | #294 | Cursor Pagination | Pendiente |
@@ -35,6 +35,55 @@ v0.12.0 focuses on database and repository patterns, completing the data access 
 ---
 
 ## Week of February 8, 2026
+
+### February 8 - Query Cache Interceptor (#291)
+
+**Issue**: [#291 - Query Cache Interceptor](https://github.com/dlrivada/Encina/issues/291)
+
+Implemented EF Core second-level query caching via `DbCommandInterceptor` + `ISaveChangesInterceptor`. The interceptor transparently caches query results and invalidates them on `SaveChanges`.
+
+#### Phases 1-5: Core Implementation
+
+**Files Created**:
+
+**Encina.Caching** (abstractions):
+
+- `src/Encina.Caching/Abstractions/IQueryCacheKeyGenerator.cs` - Interface for SQL command key generation
+- `QueryCacheKey` record with `Key` and `EntityTypes` properties
+
+**Encina.EntityFrameworkCore** (implementation):
+
+- `src/Encina.EntityFrameworkCore/Caching/QueryCacheInterceptor.cs` - EF Core interceptor (658 lines)
+- `src/Encina.EntityFrameworkCore/Caching/DefaultQueryCacheKeyGenerator.cs` - SHA256-based key generator
+- `src/Encina.EntityFrameworkCore/Caching/CachedDataReader.cs` - DbDataReader for cached results (522 lines)
+- `src/Encina.EntityFrameworkCore/Caching/CachedQueryResult.cs` - Serializable cached result model
+- `src/Encina.EntityFrameworkCore/Caching/SqlTableExtractor.cs` - Compiled regex SQL table extraction
+- `src/Encina.EntityFrameworkCore/Caching/QueryCacheOptions.cs` - Configuration options
+- `src/Encina.EntityFrameworkCore/Extensions/QueryCachingExtensions.cs` - DI registration
+
+**Encina.Messaging** (configuration bridge):
+
+- `src/Encina.Messaging/Configuration/QueryCacheMessagingOptions.cs` - Messaging-level options
+
+#### Phase 6: Testing (256 tests)
+
+- 184 unit tests (`Encina.UnitTests/EntityFrameworkCore/Caching/` - 7 files)
+- 19 guard tests (`Encina.GuardTests/EntityFrameworkCore/Caching/`)
+- 29 contract tests (`Encina.ContractTests/Database/Caching/`)
+- 16 property tests (`Encina.PropertyTests/Infrastructure/EntityFrameworkCore/Caching/`)
+- 8 integration tests (`Encina.IntegrationTests/Infrastructure/EntityFrameworkCore/Caching/`)
+- 7 BenchmarkDotNet benchmarks (`Encina.Benchmarks/EntityFrameworkCore/`)
+- Load test justification document (`Encina.LoadTests/EntityFrameworkCore/Caching/`)
+
+#### Key Design Decisions
+
+- **Two-step DI pattern**: `AddQueryCaching()` + `UseQueryCaching()` for explicit cache provider validation
+- **Cache key format**: `{prefix}:{primaryEntity}:{hash}` or `{prefix}:{tenant}:{primaryEntity}:{hash}`
+- **Entity-aware invalidation**: Cache entries track which entity types they involve for targeted invalidation
+- **Error resilience**: `ThrowOnCacheErrors = false` by default — cache failures fall through to database
+- **Works with all 8 cache providers**: Memory, Hybrid, Redis, Valkey, KeyDB, Dragonfly, Garnet, Memcached
+
+---
 
 ### February 8 - Connection Pool Resilience (#290)
 
