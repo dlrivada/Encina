@@ -2,16 +2,14 @@ using Encina.Caching;
 using Encina.Caching.Memory;
 using Encina.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Caching;
-
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
+using EncinaMemoryCacheOptions = Encina.Caching.Memory.MemoryCacheOptions;
 using MsMemoryCache = Microsoft.Extensions.Caching.Memory.MemoryCache;
 using MsMemoryCacheOptions = Microsoft.Extensions.Caching.Memory.MemoryCacheOptions;
-using EncinaMemoryCacheOptions = Encina.Caching.Memory.MemoryCacheOptions;
 
 namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.Caching;
 

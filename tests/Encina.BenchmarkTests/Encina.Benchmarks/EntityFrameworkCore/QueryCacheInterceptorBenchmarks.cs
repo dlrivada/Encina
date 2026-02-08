@@ -1,23 +1,18 @@
 using System.Collections;
 using System.Data;
 using System.Data.Common;
-
 using BenchmarkDotNet.Attributes;
-
 using Encina.Caching;
 using Encina.Caching.Memory;
 using Encina.EntityFrameworkCore.Caching;
-
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
-
+using EncinaMemoryCacheOptions = Encina.Caching.Memory.MemoryCacheOptions;
 using MsMemoryCache = Microsoft.Extensions.Caching.Memory.MemoryCache;
 using MsMemoryCacheOptions = Microsoft.Extensions.Caching.Memory.MemoryCacheOptions;
-using EncinaMemoryCacheOptions = Encina.Caching.Memory.MemoryCacheOptions;
 
 namespace Encina.Benchmarks.EntityFrameworkCore;
 
