@@ -1,0 +1,71 @@
+using Encina.Cdc.Abstractions;
+
+namespace Encina.Cdc.Errors;
+
+/// <summary>
+/// Factory methods for creating CDC-specific <see cref="EncinaError"/> instances.
+/// Follows the same pattern as <see cref="EncinaErrorCodes"/> in the core package.
+/// </summary>
+public static class CdcErrors
+{
+    /// <summary>
+    /// Creates an error indicating a connection failure to the CDC source.
+    /// </summary>
+    /// <param name="reason">Description of why the connection failed.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.ConnectionFailed"/>.</returns>
+    public static EncinaError ConnectionFailed(string reason)
+        => EncinaError.New($"[{CdcErrorCodes.ConnectionFailed}] CDC connection failed: {reason}");
+
+    /// <summary>
+    /// Creates an error indicating a connection failure with an associated exception.
+    /// </summary>
+    /// <param name="reason">Description of why the connection failed.</param>
+    /// <param name="exception">The underlying exception.</param>
+    /// <returns>An <see cref="EncinaError"/> with the exception attached.</returns>
+    public static EncinaError ConnectionFailed(string reason, Exception exception)
+        => EncinaError.New(exception, $"[{CdcErrorCodes.ConnectionFailed}] CDC connection failed: {reason}");
+
+    /// <summary>
+    /// Creates an error indicating an invalid or corrupted CDC position.
+    /// </summary>
+    /// <param name="position">The invalid position.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.PositionInvalid"/>.</returns>
+    public static EncinaError PositionInvalid(CdcPosition position)
+        => EncinaError.New($"[{CdcErrorCodes.PositionInvalid}] CDC position is invalid: {position}");
+
+    /// <summary>
+    /// Creates an error indicating the change stream was interrupted.
+    /// </summary>
+    /// <param name="exception">The exception that caused the interruption.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.StreamInterrupted"/>.</returns>
+    public static EncinaError StreamInterrupted(Exception exception)
+        => EncinaError.New(exception, $"[{CdcErrorCodes.StreamInterrupted}] CDC stream interrupted");
+
+    /// <summary>
+    /// Creates an error indicating a handler failed to process a change event.
+    /// </summary>
+    /// <param name="tableName">The table name associated with the failed event.</param>
+    /// <param name="exception">The exception thrown by the handler.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.HandlerFailed"/>.</returns>
+    public static EncinaError HandlerFailed(string tableName, Exception exception)
+        => EncinaError.New(exception, $"[{CdcErrorCodes.HandlerFailed}] CDC handler failed for table '{tableName}'");
+
+    /// <summary>
+    /// Creates an error indicating deserialization of a change event payload failed.
+    /// </summary>
+    /// <param name="tableName">The table name associated with the event.</param>
+    /// <param name="targetType">The target type for deserialization.</param>
+    /// <param name="exception">The deserialization exception.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.DeserializationFailed"/>.</returns>
+    public static EncinaError DeserializationFailed(string tableName, Type targetType, Exception exception)
+        => EncinaError.New(exception, $"[{CdcErrorCodes.DeserializationFailed}] Failed to deserialize change event for table '{tableName}' to type '{targetType.Name}'");
+
+    /// <summary>
+    /// Creates an error indicating a failure in the position store.
+    /// </summary>
+    /// <param name="connectorId">The connector whose position operation failed.</param>
+    /// <param name="exception">The underlying exception.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.PositionStoreFailed"/>.</returns>
+    public static EncinaError PositionStoreFailed(string connectorId, Exception exception)
+        => EncinaError.New(exception, $"[{CdcErrorCodes.PositionStoreFailed}] Position store operation failed for connector '{connectorId}'");
+}

@@ -1,0 +1,27 @@
+#nullable enable
+const Encina.Cdc.PostgreSql.Health.PostgresCdcHealthCheck.DefaultName = "encina-cdc-postgres" -> string!
+Encina.Cdc.PostgreSql.Health.PostgresCdcHealthCheck
+Encina.Cdc.PostgreSql.Health.PostgresCdcHealthCheck.PostgresCdcHealthCheck(Encina.Cdc.Abstractions.ICdcConnector! connector, Encina.Cdc.Abstractions.ICdcPositionStore! positionStore) -> void
+Encina.Cdc.PostgreSql.PostgresCdcOptions
+Encina.Cdc.PostgreSql.PostgresCdcOptions.ConnectionString.get -> string!
+Encina.Cdc.PostgreSql.PostgresCdcOptions.ConnectionString.set -> void
+Encina.Cdc.PostgreSql.PostgresCdcOptions.CreatePublicationIfNotExists.get -> bool
+Encina.Cdc.PostgreSql.PostgresCdcOptions.CreatePublicationIfNotExists.set -> void
+Encina.Cdc.PostgreSql.PostgresCdcOptions.CreateSlotIfNotExists.get -> bool
+Encina.Cdc.PostgreSql.PostgresCdcOptions.CreateSlotIfNotExists.set -> void
+Encina.Cdc.PostgreSql.PostgresCdcOptions.PostgresCdcOptions() -> void
+Encina.Cdc.PostgreSql.PostgresCdcOptions.PublicationName.get -> string!
+Encina.Cdc.PostgreSql.PostgresCdcOptions.PublicationName.set -> void
+Encina.Cdc.PostgreSql.PostgresCdcOptions.PublicationTables.get -> string![]!
+Encina.Cdc.PostgreSql.PostgresCdcOptions.PublicationTables.set -> void
+Encina.Cdc.PostgreSql.PostgresCdcOptions.ReplicationSlotName.get -> string!
+Encina.Cdc.PostgreSql.PostgresCdcOptions.ReplicationSlotName.set -> void
+Encina.Cdc.PostgreSql.PostgresCdcPosition
+Encina.Cdc.PostgreSql.PostgresCdcPosition.Lsn.get -> NpgsqlTypes.NpgsqlLogSequenceNumber
+Encina.Cdc.PostgreSql.PostgresCdcPosition.PostgresCdcPosition(NpgsqlTypes.NpgsqlLogSequenceNumber lsn) -> void
+Encina.Cdc.PostgreSql.ServiceCollectionExtensions
+override Encina.Cdc.PostgreSql.PostgresCdcPosition.CompareTo(Encina.Cdc.Abstractions.CdcPosition? other) -> int
+override Encina.Cdc.PostgreSql.PostgresCdcPosition.ToBytes() -> byte[]!
+override Encina.Cdc.PostgreSql.PostgresCdcPosition.ToString() -> string!
+static Encina.Cdc.PostgreSql.PostgresCdcPosition.FromBytes(byte[]! bytes) -> Encina.Cdc.PostgreSql.PostgresCdcPosition!
+static Encina.Cdc.PostgreSql.ServiceCollectionExtensions.AddEncinaCdcPostgreSql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Cdc.PostgreSql.PostgresCdcOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

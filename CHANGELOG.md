@@ -2,6 +2,66 @@
 
 ### Added
 
+#### Change Data Capture (CDC) Pattern (#308)
+
+Added a provider-agnostic Change Data Capture infrastructure that streams database changes as typed events through a handler pipeline, with support for 5 database providers and messaging integration.
+
+**Core Components**:
+
+- **`ICdcConnector`**: Provider abstraction for streaming `ChangeEvent` instances via `IAsyncEnumerable<Either<EncinaError, ChangeEvent>>`
+- **`IChangeEventHandler<TEntity>`**: Typed handler interface for reacting to Insert, Update, and Delete operations
+- **`ICdcDispatcher`**: Routes change events to handlers based on table-to-entity type mappings
+- **`ICdcPositionStore`**: Persists stream position for resume after restart
+- **`ICdcEventInterceptor`**: Cross-cutting concern invoked after successful dispatch
+- **`CdcProcessor`**: `BackgroundService` with poll-dispatch-save loop, exponential backoff retry
+
+**Configuration**:
+
+```csharp
+services.AddEncinaCdc(config =>
+{
+    config.UseCdc()
+          .AddHandler<Order, OrderChangeHandler>()
+          .WithTableMapping<Order>("dbo.Orders")
+          .WithMessagingBridge(opts =>
+          {
+              opts.TopicPattern = "cdc.{tableName}.{operation}";
+              opts.IncludeTables = ["Orders"];
+          })
+          .UseOutboxCdc("OutboxMessages");
+});
+
+services.AddEncinaCdcSqlServer(opts =>
+{
+    opts.ConnectionString = connectionString;
+    opts.TrackedTables = ["dbo.Orders"];
+});
+```
+
+**Provider Packages**:
+
+| Package | CDC Mechanism | Position Type |
+|---------|---------------|---------------|
+| `Encina.Cdc` | Core abstractions + processing | `CdcPosition` (abstract) |
+| `Encina.Cdc.SqlServer` | Change Tracking | `SqlServerCdcPosition` (version) |
+| `Encina.Cdc.PostgreSql` | Logical Replication (WAL) | `PostgresCdcPosition` (LSN) |
+| `Encina.Cdc.MySql` | Binary Log Replication | `MySqlCdcPosition` (GTID/binlog) |
+| `Encina.Cdc.MongoDb` | Change Streams | `MongoCdcPosition` (resume token) |
+| `Encina.Cdc.Debezium` | HTTP Consumer | `DebeziumCdcPosition` (offset JSON) |
+
+**Messaging Integration**:
+
+- **`CdcMessagingBridge`**: `ICdcEventInterceptor` that publishes `CdcChangeNotification` via `IEncina.Publish()`
+- **`OutboxCdcHandler`**: CDC-driven outbox processing replacing polling-based `OutboxProcessor`
+- **`CdcChangeNotification`**: `INotification` wrapper with topic name from configurable pattern
+- **`CdcMessagingOptions`**: Table/operation filtering and topic pattern configuration
+
+**Test Coverage** (355+ tests):
+
+- ~156 unit tests, ~55 integration tests, ~50 guard tests, ~47 contract tests, ~47 property tests
+
+---
+
 #### Query Cache Interceptor - EF Core Second-Level Cache (#291)
 
 Added an EF Core query caching interceptor that acts as a transparent second-level cache, caching query results at the database command level and automatically invalidating them on `SaveChanges`.

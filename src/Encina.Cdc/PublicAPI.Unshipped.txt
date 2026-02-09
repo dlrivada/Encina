@@ -1,0 +1,132 @@
+#nullable enable
+abstract Encina.Cdc.Abstractions.CdcPosition.CompareTo(Encina.Cdc.Abstractions.CdcPosition? other) -> int
+abstract Encina.Cdc.Abstractions.CdcPosition.ToBytes() -> byte[]!
+const Encina.Cdc.Errors.CdcErrorCodes.ConnectionFailed = "encina.cdc.connection_failed" -> string!
+const Encina.Cdc.Errors.CdcErrorCodes.DeserializationFailed = "encina.cdc.deserialization_failed" -> string!
+const Encina.Cdc.Errors.CdcErrorCodes.HandlerFailed = "encina.cdc.handler_failed" -> string!
+const Encina.Cdc.Errors.CdcErrorCodes.PositionInvalid = "encina.cdc.position_invalid" -> string!
+const Encina.Cdc.Errors.CdcErrorCodes.PositionStoreFailed = "encina.cdc.position_store_failed" -> string!
+const Encina.Cdc.Errors.CdcErrorCodes.StreamInterrupted = "encina.cdc.stream_interrupted" -> string!
+Encina.Cdc.Abstractions.CdcPosition
+Encina.Cdc.Abstractions.CdcPosition.CdcPosition() -> void
+Encina.Cdc.Abstractions.ICdcConnector
+Encina.Cdc.Abstractions.ICdcConnector.ConnectorId.get -> string!
+Encina.Cdc.Abstractions.ICdcConnector.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Cdc.Abstractions.CdcPosition!>>!
+Encina.Cdc.Abstractions.ICdcConnector.StreamChangesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<Encina.EncinaError, Encina.Cdc.ChangeEvent!>>!
+Encina.Cdc.Abstractions.ICdcDispatcher
+Encina.Cdc.Abstractions.ICdcDispatcher.DispatchAsync(Encina.Cdc.ChangeEvent! changeEvent, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Cdc.Abstractions.ICdcPositionStore
+Encina.Cdc.Abstractions.ICdcPositionStore.DeletePositionAsync(string! connectorId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Cdc.Abstractions.ICdcPositionStore.GetPositionAsync(string! connectorId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Cdc.Abstractions.CdcPosition!>>>!
+Encina.Cdc.Abstractions.ICdcPositionStore.SavePositionAsync(string! connectorId, Encina.Cdc.Abstractions.CdcPosition! position, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Cdc.Abstractions.IChangeEventHandler<TEntity>
+Encina.Cdc.Abstractions.IChangeEventHandler<TEntity>.HandleDeleteAsync(TEntity entity, Encina.Cdc.ChangeContext! context) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Cdc.Abstractions.IChangeEventHandler<TEntity>.HandleInsertAsync(TEntity entity, Encina.Cdc.ChangeContext! context) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Cdc.Abstractions.IChangeEventHandler<TEntity>.HandleUpdateAsync(TEntity before, TEntity after, Encina.Cdc.ChangeContext! context) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Cdc.CdcConfiguration
+Encina.Cdc.CdcConfiguration.AddHandler<TEntity, THandler>() -> Encina.Cdc.CdcConfiguration!
+Encina.Cdc.CdcConfiguration.CdcConfiguration() -> void
+Encina.Cdc.CdcConfiguration.UseCdc() -> Encina.Cdc.CdcConfiguration!
+Encina.Cdc.CdcConfiguration.WithOptions(System.Action<Encina.Cdc.CdcOptions!>! configure) -> Encina.Cdc.CdcConfiguration!
+Encina.Cdc.CdcConfiguration.WithTableMapping<TEntity>(string! tableName) -> Encina.Cdc.CdcConfiguration!
+Encina.Cdc.CdcOptions
+Encina.Cdc.CdcOptions.BaseRetryDelay.get -> System.TimeSpan
+Encina.Cdc.CdcOptions.BaseRetryDelay.set -> void
+Encina.Cdc.CdcOptions.BatchSize.get -> int
+Encina.Cdc.CdcOptions.BatchSize.set -> void
+Encina.Cdc.CdcOptions.CdcOptions() -> void
+Encina.Cdc.CdcOptions.Enabled.get -> bool
+Encina.Cdc.CdcOptions.Enabled.set -> void
+Encina.Cdc.CdcOptions.EnablePositionTracking.get -> bool
+Encina.Cdc.CdcOptions.EnablePositionTracking.set -> void
+Encina.Cdc.CdcOptions.MaxRetries.get -> int
+Encina.Cdc.CdcOptions.MaxRetries.set -> void
+Encina.Cdc.CdcOptions.PollingInterval.get -> System.TimeSpan
+Encina.Cdc.CdcOptions.PollingInterval.set -> void
+Encina.Cdc.CdcOptions.TableFilters.get -> string![]!
+Encina.Cdc.CdcOptions.TableFilters.set -> void
+Encina.Cdc.ChangeContext
+Encina.Cdc.ChangeContext.CancellationToken.get -> System.Threading.CancellationToken
+Encina.Cdc.ChangeContext.CancellationToken.init -> void
+Encina.Cdc.ChangeContext.ChangeContext(string! TableName, Encina.Cdc.ChangeMetadata! Metadata, System.Threading.CancellationToken CancellationToken) -> void
+Encina.Cdc.ChangeContext.TableName.get -> string!
+Encina.Cdc.ChangeContext.TableName.init -> void
+Encina.Cdc.ChangeContext.Metadata.get -> Encina.Cdc.ChangeMetadata!
+Encina.Cdc.ChangeContext.Metadata.init -> void
+Encina.Cdc.ChangeEvent
+Encina.Cdc.ChangeEvent.After.get -> object?
+Encina.Cdc.ChangeEvent.After.init -> void
+Encina.Cdc.ChangeEvent.Before.get -> object?
+Encina.Cdc.ChangeEvent.Before.init -> void
+Encina.Cdc.ChangeEvent.ChangeEvent(string! TableName, Encina.Cdc.ChangeOperation Operation, object? Before, object? After, Encina.Cdc.ChangeMetadata! Metadata) -> void
+Encina.Cdc.ChangeEvent.Metadata.get -> Encina.Cdc.ChangeMetadata!
+Encina.Cdc.ChangeEvent.Metadata.init -> void
+Encina.Cdc.ChangeEvent.Operation.get -> Encina.Cdc.ChangeOperation
+Encina.Cdc.ChangeEvent.Operation.init -> void
+Encina.Cdc.ChangeEvent.TableName.get -> string!
+Encina.Cdc.ChangeEvent.TableName.init -> void
+Encina.Cdc.ChangeMetadata
+Encina.Cdc.ChangeMetadata.CapturedAtUtc.get -> System.DateTime
+Encina.Cdc.ChangeMetadata.CapturedAtUtc.init -> void
+Encina.Cdc.ChangeMetadata.ChangeMetadata(Encina.Cdc.Abstractions.CdcPosition! Position, System.DateTime CapturedAtUtc, string? TransactionId, string? SourceDatabase, string? SourceSchema) -> void
+Encina.Cdc.ChangeMetadata.Position.get -> Encina.Cdc.Abstractions.CdcPosition!
+Encina.Cdc.ChangeMetadata.Position.init -> void
+Encina.Cdc.ChangeMetadata.SourceDatabase.get -> string?
+Encina.Cdc.ChangeMetadata.SourceDatabase.init -> void
+Encina.Cdc.ChangeMetadata.SourceSchema.get -> string?
+Encina.Cdc.ChangeMetadata.SourceSchema.init -> void
+Encina.Cdc.ChangeMetadata.TransactionId.get -> string?
+Encina.Cdc.ChangeMetadata.TransactionId.init -> void
+Encina.Cdc.ChangeOperation
+Encina.Cdc.ChangeOperation.Delete = 2 -> Encina.Cdc.ChangeOperation
+Encina.Cdc.ChangeOperation.Insert = 0 -> Encina.Cdc.ChangeOperation
+Encina.Cdc.ChangeOperation.Snapshot = 3 -> Encina.Cdc.ChangeOperation
+Encina.Cdc.ChangeOperation.Update = 1 -> Encina.Cdc.ChangeOperation
+Encina.Cdc.Errors.CdcErrorCodes
+Encina.Cdc.Errors.CdcErrors
+Encina.Cdc.Health.CdcHealthCheck
+Encina.Cdc.Health.CdcHealthCheck.CdcHealthCheck(string! name, Encina.Cdc.Abstractions.ICdcConnector! connector, Encina.Cdc.Abstractions.ICdcPositionStore! positionStore, System.Collections.Generic.IReadOnlyCollection<string!>? providerTags = null) -> void
+Encina.Cdc.ServiceCollectionExtensions
+override abstract Encina.Cdc.Abstractions.CdcPosition.ToString() -> string!
+override Encina.Cdc.Health.CdcHealthCheck.CheckHealthCoreAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Encina.Messaging.Health.HealthCheckResult>!
+static Encina.Cdc.Errors.CdcErrors.ConnectionFailed(string! reason) -> Encina.EncinaError
+static Encina.Cdc.Errors.CdcErrors.ConnectionFailed(string! reason, System.Exception! exception) -> Encina.EncinaError
+static Encina.Cdc.Errors.CdcErrors.DeserializationFailed(string! tableName, System.Type! targetType, System.Exception! exception) -> Encina.EncinaError
+static Encina.Cdc.Errors.CdcErrors.HandlerFailed(string! tableName, System.Exception! exception) -> Encina.EncinaError
+static Encina.Cdc.Errors.CdcErrors.PositionInvalid(Encina.Cdc.Abstractions.CdcPosition! position) -> Encina.EncinaError
+static Encina.Cdc.Errors.CdcErrors.PositionStoreFailed(string! connectorId, System.Exception! exception) -> Encina.EncinaError
+static Encina.Cdc.Errors.CdcErrors.StreamInterrupted(System.Exception! exception) -> Encina.EncinaError
+static Encina.Cdc.Messaging.CdcChangeNotification.FromChangeEvent(Encina.Cdc.ChangeEvent! changeEvent, string! topicPattern = "{tableName}.{operation}") -> Encina.Cdc.Messaging.CdcChangeNotification!
+static Encina.Cdc.ServiceCollectionExtensions.AddEncinaCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Cdc.CdcConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Cdc.CdcConfiguration.UseOutboxCdc(string! outboxTableName = "OutboxMessages") -> Encina.Cdc.CdcConfiguration!
+Encina.Cdc.CdcConfiguration.WithMessagingBridge(System.Action<Encina.Cdc.Messaging.CdcMessagingOptions!>? configure = null) -> Encina.Cdc.CdcConfiguration!
+Encina.Cdc.CdcOptions.UseMessagingBridge.get -> bool
+Encina.Cdc.CdcOptions.UseMessagingBridge.set -> void
+Encina.Cdc.CdcOptions.UseOutboxCdc.get -> bool
+Encina.Cdc.CdcOptions.UseOutboxCdc.set -> void
+Encina.Cdc.Messaging.CdcChangeNotification
+Encina.Cdc.Messaging.CdcChangeNotification.After.get -> object?
+Encina.Cdc.Messaging.CdcChangeNotification.After.init -> void
+Encina.Cdc.Messaging.CdcChangeNotification.Before.get -> object?
+Encina.Cdc.Messaging.CdcChangeNotification.Before.init -> void
+Encina.Cdc.Messaging.CdcChangeNotification.CdcChangeNotification(string! TableName, Encina.Cdc.ChangeOperation Operation, object? Before, object? After, Encina.Cdc.ChangeMetadata! Metadata, string! TopicName) -> void
+Encina.Cdc.Messaging.CdcChangeNotification.Metadata.get -> Encina.Cdc.ChangeMetadata!
+Encina.Cdc.Messaging.CdcChangeNotification.Metadata.init -> void
+Encina.Cdc.Messaging.CdcChangeNotification.Operation.get -> Encina.Cdc.ChangeOperation
+Encina.Cdc.Messaging.CdcChangeNotification.Operation.init -> void
+Encina.Cdc.Messaging.CdcChangeNotification.TableName.get -> string!
+Encina.Cdc.Messaging.CdcChangeNotification.TableName.init -> void
+Encina.Cdc.Messaging.CdcChangeNotification.TopicName.get -> string!
+Encina.Cdc.Messaging.CdcChangeNotification.TopicName.init -> void
+Encina.Cdc.Messaging.CdcMessagingOptions
+Encina.Cdc.Messaging.CdcMessagingOptions.CdcMessagingOptions() -> void
+Encina.Cdc.Messaging.CdcMessagingOptions.ExcludeTables.get -> string![]!
+Encina.Cdc.Messaging.CdcMessagingOptions.ExcludeTables.set -> void
+Encina.Cdc.Messaging.CdcMessagingOptions.IncludeOperations.get -> Encina.Cdc.ChangeOperation[]!
+Encina.Cdc.Messaging.CdcMessagingOptions.IncludeOperations.set -> void
+Encina.Cdc.Messaging.CdcMessagingOptions.IncludeTables.get -> string![]!
+Encina.Cdc.Messaging.CdcMessagingOptions.IncludeTables.set -> void
+Encina.Cdc.Messaging.CdcMessagingOptions.TopicPattern.get -> string!
+Encina.Cdc.Messaging.CdcMessagingOptions.TopicPattern.set -> void
+Encina.Cdc.Messaging.ICdcEventInterceptor
+Encina.Cdc.Messaging.ICdcEventInterceptor.OnEventDispatchedAsync(Encina.Cdc.ChangeEvent! changeEvent, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>

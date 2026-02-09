@@ -23,7 +23,7 @@ v0.12.0 focuses on database and repository patterns, completing the data access 
 | #285 | Soft Delete | Pendiente |
 | #286 | Audit Trail | Pendiente |
 | #287 | Optimistic Concurrency | Completado |
-| #288 | CDC Integration | Pendiente |
+| #288 | CDC Integration | **Completado** |
 | #289 | Sharding | Pendiente |
 | #290 | Connection Pool Resilience | **Completado** |
 | #291 | Query Cache | **Completado** |
@@ -31,6 +31,66 @@ v0.12.0 focuses on database and repository patterns, completing the data access 
 | #293 | Pagination Abstractions | **Completado** |
 | #294 | Cursor Pagination | Pendiente |
 | #534 | Module Isolation | Completado |
+
+---
+
+## Week of February 9, 2026
+
+### February 9 - Change Data Capture (#288/#308)
+
+**Issues**: [#288 - CDC Integration](https://github.com/dlrivada/Encina/issues/288), [#308 - CDC Pattern](https://github.com/dlrivada/Encina/issues/308)
+
+Implemented provider-agnostic Change Data Capture (CDC) with support for 5 database platforms plus Debezium. Includes messaging integration (CdcMessagingBridge, OutboxCdcHandler) and comprehensive documentation.
+
+#### Phases 1-5: Core Implementation
+
+**Files Created**:
+
+**Encina.Cdc** (core abstractions + processing):
+
+- `src/Encina.Cdc/Abstractions/ICdcConnector.cs` - Provider abstraction
+- `src/Encina.Cdc/Abstractions/IChangeEventHandler.cs` - Typed entity handler
+- `src/Encina.Cdc/Abstractions/ICdcDispatcher.cs` - Event routing
+- `src/Encina.Cdc/Abstractions/ICdcPositionStore.cs` - Position persistence
+- `src/Encina.Cdc/Abstractions/CdcPosition.cs` - Abstract position
+- `src/Encina.Cdc/ChangeEvent.cs`, `ChangeContext.cs`, `ChangeMetadata.cs`, `ChangeOperation.cs`
+- `src/Encina.Cdc/CdcOptions.cs`, `CdcConfiguration.cs` - Fluent builder API
+- `src/Encina.Cdc/Processing/CdcProcessor.cs` - BackgroundService
+- `src/Encina.Cdc/Processing/CdcDispatcher.cs` - Handler routing
+- `src/Encina.Cdc/Messaging/CdcMessagingBridge.cs` - Publishes CdcChangeNotification
+- `src/Encina.Cdc/Messaging/OutboxCdcHandler.cs` - CDC-driven outbox processing
+- `src/Encina.Cdc/Messaging/CdcChangeNotification.cs` - INotification record
+- `src/Encina.Cdc/Health/CdcHealthCheck.cs` - Health check
+
+**Provider Packages** (5 connectors):
+
+- `src/Encina.Cdc.SqlServer/` - SQL Server Change Tracking
+- `src/Encina.Cdc.PostgreSql/` - PostgreSQL Logical Replication (WAL)
+- `src/Encina.Cdc.MySql/` - MySQL Binary Log (GTID + binlog position)
+- `src/Encina.Cdc.MongoDb/` - MongoDB Change Streams (resume token)
+- `src/Encina.Cdc.Debezium/` - Debezium HTTP Consumer (CloudEvents/Flat)
+
+#### Phase 5: Testing (355+ tests)
+
+- ~156 unit tests
+- ~55 integration tests
+- ~50 guard tests
+- ~47 contract tests
+- ~47 property tests
+
+#### Phase 6: Documentation (10 docs)
+
+- `docs/features/cdc.md` - Main feature guide
+- `docs/features/cdc-sqlserver.md`, `cdc-postgresql.md`, `cdc-mysql.md`, `cdc-mongodb.md`, `cdc-debezium.md` - Provider docs
+- `docs/examples/cdc-basic-setup.md`, `cdc-outbox-integration.md`, `cdc-messaging-bridge.md`, `cdc-position-tracking.md`
+
+#### Key Design Decisions
+
+- **Provider-agnostic**: `ICdcConnector` abstraction allows swapping database CDC mechanisms
+- **Position tracking**: `ICdcPositionStore` enables resume from last position on restart
+- **Messaging bridge**: `CdcMessagingBridge` publishes changes as `INotification` via `IEncina.Publish()`
+- **Outbox replacement**: `OutboxCdcHandler` provides near-real-time alternative to polling
+- **Fluent configuration**: `AddEncinaCdc()` with builder pattern for handlers, mappings, and options
 
 ---
 

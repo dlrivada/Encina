@@ -24,7 +24,7 @@
 
 | Métrica | Valor |
 |---------|-------|
-| **Total de Paquetes** | 53 (+ 6 transportes planificados + 3 caching planificados + 5 tenancy planificados + 10 EDA planificados + 1 GDPR planificado + 16 microservices planificados + 8 security planificados + 14 compliance planificados + 9 TDD testing planificados) |
+| **Total de Paquetes** | 59 (53 previos + 6 CDC) (+ 6 transportes planificados + 3 caching planificados + 5 tenancy planificados + 10 EDA planificados + 1 GDPR planificado + 16 microservices planificados + 8 security planificados + 14 compliance planificados + 9 TDD testing planificados) |
 | **Patrones de Messaging** | 10 (+ 18 planificados) |
 | **Patrones EDA Avanzados** | 0 (+ 12 planificados) |
 | **Patrones DDD & Workflow** | 0 (+ 10 planificados) |
@@ -504,7 +504,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 
 | Issue | Patrón | Descripción | Prioridad | Complejidad |
 |-------|--------|-------------|-----------|-------------|
-| **#308** | CDC (Change Data Capture) | Captura de cambios en base de datos como eventos | Alta | Alta |
+| **#308** | CDC (Change Data Capture) | Captura de cambios en base de datos como eventos | Alta | Alta | ✅ **COMPLETADO** (feb 2026) |
 | **#309** | Schema Registry Integration | Governance de esquemas de eventos | Alta | Media |
 | **#310** | Event Mesh / Event Gateway | Distribución empresarial de eventos | Alta | Alta |
 | **#311** | Claim Check Pattern | Almacenamiento externo para payloads grandes | Media | Media |
@@ -521,13 +521,15 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 
 ##### Infrastructure Patterns
 
-**#308 - CDC (Change Data Capture) Pattern** (Alta Prioridad):
+**#308 - CDC (Change Data Capture) Pattern** ✅ **COMPLETADO** (febrero 2026):
 
 - `ICdcConnector` para streaming de cambios de base de datos
 - `IChangeEventHandler<TEntity>` para HandleInsert/Update/Delete
 - `ChangeEvent` con Operation, Before, After, Metadata
-- **Nuevos paquetes planificados**: `Encina.CDC`, `Encina.CDC.Debezium`, `Encina.CDC.SqlServer`, `Encina.CDC.PostgreSQL`
-- **Use case**: Migración con Strangler Fig, sincronización sin modificar aplicaciones
+- **6 paquetes implementados**: `Encina.Cdc`, `Encina.Cdc.SqlServer`, `Encina.Cdc.PostgreSql`, `Encina.Cdc.MySql`, `Encina.Cdc.MongoDb`, `Encina.Cdc.Debezium`
+- **Messaging Integration**: `CdcMessagingBridge`, `OutboxCdcHandler`, `CdcChangeNotification`
+- **355+ tests**: ~156 unit, ~55 integration, ~50 guard, ~47 contract, ~47 property
+- Documentación: [CDC Feature Guide](features/cdc.md)
 - Labels: `area-cdc`, `area-microservices`, `industry-best-practice`, `aot-compatible`
 - Referencias: [Debezium](https://debezium.io/), [CDC CQRS Pattern](https://debezium.io/blog/2025/11/28/cqrs/)
 
@@ -666,7 +668,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
    - #319 (Idempotency Keys) - Base para exactly-once
 
 2. **High Value (Alta Prioridad - Media/Alta Complejidad)**:
-   - #308 (CDC) - Integración enterprise
+   - ~~#308 (CDC) - Integración enterprise~~ ✅ Completado (febrero 2026)
    - #309 (Schema Registry) - Governance de eventos
    - #311 (Claim Check) - Large payloads
 
@@ -1791,19 +1793,22 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 
 | Issue | Feature | Descripción | Prioridad | Complejidad | Labels |
 |-------|---------|-------------|-----------|-------------|--------|
-| **#288** | CDC Integration | Change Data Capture como alternativa/complemento a Outbox | Media | Alta | `area-cdc`, `area-event-sourcing`, `transport-kafka`, `new-package` |
+| **#288** | CDC Integration | Change Data Capture como alternativa/complemento a Outbox | Media | Alta | `area-cdc`, `area-event-sourcing`, `transport-kafka`, `new-package` | ✅ **COMPLETADO** (feb 2026) |
 
-**#288 - Change Data Capture (CDC)**:
+**#288 - Change Data Capture (CDC)** ✅ **COMPLETADO** (febrero 2026):
 
-- `ChangeEvent<T>` con Operation (Insert/Update/Delete), Before, After, Metadata
-- `ICDCConsumer<T>`, `ICDCSubscriptionManager`
-- **Nuevos paquetes planificados**:
-  - `Encina.CDC` - Core abstractions
-  - `Encina.CDC.Debezium` - Debezium/Kafka integration
-  - `Encina.CDC.SqlServer` - SQL Server native CDC
-  - `Encina.CDC.PostgreSQL` - PostgreSQL logical replication
-- Complementa Outbox pattern para sistemas legacy
-- Inspirado en [Debezium](https://debezium.io/)
+- `ChangeEvent` con Operation (Insert/Update/Delete/Snapshot), Before, After, Metadata
+- `ICdcConnector`, `IChangeEventHandler<T>`, `ICdcDispatcher`, `ICdcPositionStore`
+- **6 paquetes implementados**:
+  - `Encina.Cdc` - Core abstractions + processing
+  - `Encina.Cdc.SqlServer` - SQL Server Change Tracking
+  - `Encina.Cdc.PostgreSql` - PostgreSQL Logical Replication
+  - `Encina.Cdc.MySql` - MySQL Binary Log
+  - `Encina.Cdc.MongoDb` - MongoDB Change Streams
+  - `Encina.Cdc.Debezium` - Debezium HTTP Consumer
+- Integración con Outbox: `OutboxCdcHandler` reemplaza polling
+- Integración con Messaging: `CdcMessagingBridge` publica `CdcChangeNotification`
+- Documentación: [CDC Feature Guide](features/cdc.md)
 
 ##### Labels Nuevas Creadas (10)
 
@@ -1844,7 +1849,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
    - #294 (Cursor Pagination) - Research y decisión
 
 5. **Largo plazo (Escenarios avanzados)**:
-   - #288 (CDC) - Integración con sistemas legacy
+   - ~~#288 (CDC) - Integración con sistemas legacy~~ ✅ Completado (febrero 2026)
    - #289 (Sharding) - Solo si realmente necesario
 
 ##### Referencias de Investigación
@@ -4069,7 +4074,7 @@ dotnet run -c Release -- --filter "*DapperVsAdo*"
 | Event Enrichment | 📋 | Issue #316 |
 | Event Streaming | 📋 | Issue #318 |
 | Idempotency Key Generation | 📋 | Issue #319 |
-| CDC (Change Data Capture) | 📋 | Issue #308 |
+| CDC (Change Data Capture) | ✅ | Encina.Cdc (#308) |
 | Schema Registry | 📋 | Issue #309 |
 | Event Mesh/Gateway | 📋 | Issue #310 |
 | Claim Check Pattern | 📋 | Issue #311 |
@@ -4140,7 +4145,7 @@ dotnet run -c Release -- --filter "*DapperVsAdo*"
 | **Health Checks (K8s probes)** | 🔄 Planned | Encina.HealthChecks (#454) |
 | **Graceful Shutdown** | 🔄 Planned | Encina.GracefulShutdown (#455) |
 | **Multi-Tenancy (SaaS)** | 🔄 Planned | Encina.MultiTenancy (#456) |
-| **Change Data Capture (CDC)** | 🔄 Planned | Encina.CDC (#457) |
+| **Change Data Capture (CDC)** | ✅ Implemented | Encina.Cdc (#308/#457) |
 | **API Versioning** | 🔄 Planned | Encina.ApiVersioning (#458) |
 | **Orleans Integration** | 🔄 Planned | Encina.Orleans (#459) |
 
@@ -4621,7 +4626,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 | **#350** | Domain Events vs Integration Events Separation | Media | Alta | `area-domain-events`, `area-ddd`, `area-messaging`, `area-microservices`, `industry-best-practice` |
 | **#351** | Audit Trail Pipeline Behavior | Baja | Media | `area-auditing`, `area-compliance`, `area-gdpr`, `area-security`, `area-pipeline`, `new-package` |
 | **#352** | Modular Monolith Support | Alta | Alta | `area-modular-monolith`, `area-ddd`, `area-microservices`, `area-architecture-testing`, `saas-essential`, `industry-best-practice`, `new-package` |
-| **#353** | Change Data Capture (CDC) Integration | Alta | Baja | `area-cdc`, `area-database`, `area-event-sourcing`, `area-realtime`, `area-scalability`, `new-package` |
+| **#353** | Change Data Capture (CDC) Integration | Alta | Baja | `area-cdc`, `area-database`, `area-event-sourcing`, `area-realtime`, `area-scalability`, `new-package` | ✅ **COMPLETADO** |
 | **#354** | Enhanced Streaming Support (IAsyncEnumerable) | Media | Baja | `area-streaming`, `area-pipeline`, `area-realtime`, `area-performance`, `aot-compatible` |
 | **#355** | Request Deduplication / Enhanced Idempotency | Baja | Media | `area-idempotency`, `area-resilience`, `area-caching`, `industry-best-practice` |
 | **#356** | Policy-Based Authorization Enhancement | Media | Media | `area-authorization`, `area-security`, `area-pipeline`, `saas-essential` |
@@ -4748,14 +4753,14 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 
 ##### Tier 3: Baja Prioridad (Advanced/Specialized)
 
-**#353 - Change Data Capture (CDC) Integration**:
+**#353 - Change Data Capture (CDC) Integration** ✅ **COMPLETADO** (febrero 2026):
 
-- `ChangeDataEvent<T>` con Operation (Insert/Update/Delete), Before, After
-- `IChangeDataHandler<T>` interface
-- `ICDCNotificationMapper<TEntity, TNotification>` para mapeo a notifications
-- Providers: SQL Server (CDC/CT), PostgreSQL (Logical Replication), Debezium/Kafka
-- EF Core `EfCoreCDCInterceptor` para escenarios simples
-- Nuevo paquete planificado: `Encina.CDC`, `Encina.CDC.SqlServer`, `Encina.CDC.Debezium`
+- `ChangeEvent` con Operation (Insert/Update/Delete/Snapshot), Before, After, Metadata
+- `IChangeEventHandler<T>` interface con HandleInsert/Update/DeleteAsync
+- `CdcMessagingBridge` (ICdcEventInterceptor) para publicar como INotification
+- Providers implementados: SQL Server (Change Tracking), PostgreSQL (Logical Replication), MySQL (Binlog), MongoDB (Change Streams), Debezium (HTTP)
+- **6 paquetes**: `Encina.Cdc`, `Encina.Cdc.SqlServer`, `Encina.Cdc.PostgreSql`, `Encina.Cdc.MySql`, `Encina.Cdc.MongoDb`, `Encina.Cdc.Debezium`
+- 355+ tests
 - Labels: `area-event-sourcing`, `area-realtime`, `area-scalability`
 - Fuentes: [CDC Pattern](https://www.confluent.io/blog/how-change-data-capture-works-patterns-solutions-implementation/), [Debezium](https://debezium.io/)
 
@@ -4798,9 +4803,12 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 | `Encina.Auditing` | #351 | Audit trail abstractions |
 | `Encina.Auditing.EntityFrameworkCore` | #351 | EF Core audit store |
 | `Encina.Modules` | #352 | Modular monolith support |
-| `Encina.CDC` | #353 | CDC abstractions |
-| `Encina.CDC.SqlServer` | #353 | SQL Server CDC provider |
-| `Encina.CDC.Debezium` | #353 | Debezium/Kafka CDC provider |
+| `Encina.Cdc` | #308/#353 | CDC core abstractions + processing ✅ |
+| `Encina.Cdc.SqlServer` | #308/#353 | SQL Server Change Tracking provider ✅ |
+| `Encina.Cdc.PostgreSql` | #308/#353 | PostgreSQL Logical Replication provider ✅ |
+| `Encina.Cdc.MySql` | #308/#353 | MySQL Binary Log provider ✅ |
+| `Encina.Cdc.MongoDb` | #308/#353 | MongoDB Change Streams provider ✅ |
+| `Encina.Cdc.Debezium` | #308/#353 | Debezium HTTP Consumer provider ✅ |
 
 #### Fuentes de Investigación
 
@@ -4831,7 +4839,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
    - #349 (Batching) - Enterprise scenarios
 
 4. **Largo Plazo (Specialized)**:
-   - #353 (CDC) - Alta complejidad, casos específicos
+   - ~~#353 (CDC) - Alta complejidad, casos específicos~~ ✅ Completado (febrero 2026)
    - #354 (Enhanced Streaming) - Performance optimization
 
 ### Resilience Patterns - Nuevas Issues (Diciembre 2025)
@@ -4996,9 +5004,12 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 | **`Encina.Auditing`** | **#351** | **Audit trail abstractions** |
 | **`Encina.Auditing.EntityFrameworkCore`** | **#351** | **EF Core audit store** |
 | **`Encina.Modules`** | **#352** | **Modular monolith support** |
-| **`Encina.CDC`** | **#353** | **CDC abstractions** |
-| **`Encina.CDC.SqlServer`** | **#353** | **SQL Server CDC provider** |
-| **`Encina.CDC.Debezium`** | **#353** | **Debezium/Kafka CDC provider** |
+| **`Encina.Cdc`** | **#308/#353** | **CDC core abstractions + processing** ✅ |
+| **`Encina.Cdc.SqlServer`** | **#308/#353** | **SQL Server Change Tracking provider** ✅ |
+| **`Encina.Cdc.PostgreSql`** | **#308/#353** | **PostgreSQL Logical Replication provider** ✅ |
+| **`Encina.Cdc.MySql`** | **#308/#353** | **MySQL Binary Log provider** ✅ |
+| **`Encina.Cdc.MongoDb`** | **#308/#353** | **MongoDB Change Streams provider** ✅ |
+| **`Encina.Cdc.Debezium`** | **#308/#353** | **Debezium HTTP Consumer provider** ✅ |
 
 ### Modular Monolith Architecture Patterns - Nuevas Issues (29 Diciembre 2025)
 
@@ -6430,7 +6441,7 @@ Cloud-Native patterns son esenciales para aplicaciones modernas desplegadas en K
 | **#454** | Encina.HealthChecks | Kubernetes health probes (liveness, readiness, startup) para Outbox, Inbox, Sagas | Media | Baja | `area-health-checks`, `kubernetes-native`, `foundational` |
 | **#455** | Encina.GracefulShutdown | SIGTERM handling, in-flight request draining, Outbox flush | Media | Baja | `kubernetes-native`, `pattern-sidecar`, `foundational` |
 | **#456** | Encina.MultiTenancy | Multi-tenancy para SaaS (tenant resolution, data isolation, tenant-aware messaging) | Media | Alta | `saas-essential`, `saas-enabler`, `area-gdpr`, `foundational` |
-| **#457** | Encina.CDC | Change Data Capture para Outbox (SQL Server CDC, PostgreSQL Logical, Debezium) | Baja | Alta | `area-cdc`, `area-event-streaming`, `industry-best-practice` |
+| **#457** | Encina.CDC | Change Data Capture para Outbox (SQL Server CDC, PostgreSQL Logical, Debezium) | Baja | Alta | `area-cdc`, `area-event-streaming`, `industry-best-practice` | ✅ **COMPLETADO** |
 | **#458** | Encina.ApiVersioning | Handler versioning con `[ApiVersion]`, deprecation, version discovery | Baja | Media | `area-versioning`, `pattern-versioning`, `area-openapi` |
 | **#459** | Encina.Orleans | Orleans virtual actors integration para handlers y sagas | Baja | Alta | `orleans-integration`, `area-actors`, `aspire-integration`, `area-scalability` |
 
@@ -6556,13 +6567,14 @@ public class PaymentHandler : ICommandHandler<ProcessPayment, Receipt>
 - GDPR data residency support
 - Labels: `saas-essential`, `saas-enabler`, `area-gdpr`, `area-data-isolation`, `foundational`, `area-caching`, `area-messaging`, `area-saga`, `area-multi-tenancy`, `area-multitenancy`
 
-**#457 - Encina.CDC** (Baja Prioridad):
+**#457 - Encina.CDC** ✅ **COMPLETADO** (febrero 2026):
 
-- `ICdcProvider` abstraction para streaming de cambios
-- CDC Orchestrator hosted service
-- Position tracking para resume after restart
-- Providers: SQL Server CDC, PostgreSQL Logical Replication, Debezium
-- Fallback a polling cuando CDC no disponible
+- `ICdcConnector` abstraction para streaming de cambios
+- `CdcProcessor` BackgroundService (hosted service)
+- Position tracking via `ICdcPositionStore` para resume after restart
+- 5 Providers implementados: SQL Server (Change Tracking), PostgreSQL (Logical Replication), MySQL (Binlog), MongoDB (Change Streams), Debezium (HTTP)
+- `OutboxCdcHandler` como alternativa a polling del Outbox
+- 6 paquetes NuGet, 355+ tests
 - Labels: `area-cdc`, `area-event-streaming`, `industry-best-practice`, `area-database`, `area-messaging`, `area-messaging-patterns`, `area-scalability`
 
 **#458 - Encina.ApiVersioning** (Baja Prioridad):
@@ -6605,9 +6617,12 @@ public class PaymentHandler : ICommandHandler<ProcessPayment, Receipt>
 | `Encina.HealthChecks` | #454 | Kubernetes health probes | Media |
 | `Encina.GracefulShutdown` | #455 | Graceful termination | Media |
 | `Encina.MultiTenancy` | #456 | Multi-tenancy support | Media |
-| `Encina.CDC` | #457 | Change Data Capture | Baja |
-| `Encina.CDC.SqlServer` | #457 | SQL Server CDC | Baja |
-| `Encina.CDC.PostgreSQL` | #457 | PostgreSQL Logical | Baja |
+| `Encina.Cdc` | #457 | Change Data Capture | ✅ Completado |
+| `Encina.Cdc.SqlServer` | #457 | SQL Server Change Tracking | ✅ Completado |
+| `Encina.Cdc.PostgreSql` | #457 | PostgreSQL Logical Replication | ✅ Completado |
+| `Encina.Cdc.MySql` | #457 | MySQL Binary Log | ✅ Completado |
+| `Encina.Cdc.MongoDb` | #457 | MongoDB Change Streams | ✅ Completado |
+| `Encina.Cdc.Debezium` | #457 | Debezium HTTP Consumer | ✅ Completado |
 | `Encina.ApiVersioning` | #458 | Handler versioning | Baja |
 | `Encina.Orleans` | #459 | Orleans integration | Baja |
 
@@ -6628,7 +6643,7 @@ public class PaymentHandler : ICommandHandler<ProcessPayment, Receipt>
    - #456 (MultiTenancy) - Mercado SaaS creciente
 
 4. **Largo Plazo (Baja Prioridad)**:
-   - #457 (CDC) - Alternativa a polling, alta complejidad
+   - ~~#457 (CDC) - Alternativa a polling, alta complejidad~~ ✅ Completado (febrero 2026)
    - #458 (ApiVersioning) - Necesario para API evolution
    - #459 (Orleans) - Nicho pero creciente para high-concurrency
 
@@ -7032,9 +7047,12 @@ src/
 ├── Encina.HealthChecks/             # (Planned #454) Kubernetes health probes
 ├── Encina.GracefulShutdown/         # (Planned #455) Graceful termination
 ├── Encina.MultiTenancy/             # (Planned #456) Multi-tenancy support
-├── Encina.CDC/                      # (Planned #457) Change Data Capture
-├── Encina.CDC.SqlServer/            # (Planned #457) SQL Server CDC
-├── Encina.CDC.PostgreSQL/           # (Planned #457) PostgreSQL Logical Replication
+├── Encina.Cdc/                      # ✅ (#308/#457) CDC core abstractions + processing
+├── Encina.Cdc.SqlServer/            # ✅ (#308/#457) SQL Server Change Tracking
+├── Encina.Cdc.PostgreSql/           # ✅ (#308/#457) PostgreSQL Logical Replication
+├── Encina.Cdc.MySql/                # ✅ (#308/#457) MySQL Binary Log
+├── Encina.Cdc.MongoDb/              # ✅ (#308/#457) MongoDB Change Streams
+├── Encina.Cdc.Debezium/             # ✅ (#308/#457) Debezium HTTP Consumer
 ├── Encina.ApiVersioning/            # (Planned #458) Handler versioning
 ├── Encina.Orleans/                  # (Planned #459) Orleans integration
 ├── Encina.MCP/                      # (Planned #481) Model Context Protocol server/client

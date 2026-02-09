@@ -167,7 +167,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 **Remaining:**
 
 - Optimistic Concurrency
-- CDC Integration
+- ✅ CDC Integration — **COMPLETED** (ICdcConnector, IChangeEventHandler<T>, CdcProcessor, 5 providers: SqlServer/PostgreSql/MySql/MongoDb/Debezium, messaging bridge, outbox CDC)
 - Pagination abstractions
 
 → [View v0.12.0 Issues](https://github.com/dlrivada/Encina/milestone/9)
@@ -355,7 +355,7 @@ Key areas already completed:
   - ✅ Soft Delete & Temporal Tables [#285](https://github.com/dlrivada/Encina/issues/285) — Logical delete + SQL Server temporal tables - **COMPLETED** (ISoftDeletable interfaces, SoftDeleteInterceptor, SoftDeleteRepository, global query filters across EF Core, Dapper, ADO.NET, MongoDB; SQL Server temporal tables with point-in-time queries)
   - Audit Trail Pattern [#286](https://github.com/dlrivada/Encina/issues/286) — IAuditableEntity with CreatedAt/By, ModifiedAt/By
   - Optimistic Concurrency [#287](https://github.com/dlrivada/Encina/issues/287) — IConcurrencyAware with conflict resolution
-  - CDC Integration [#288](https://github.com/dlrivada/Encina/issues/288) — Change Data Capture with Debezium/Kafka
+  - ✅ CDC Integration [#288](https://github.com/dlrivada/Encina/issues/288) — Change Data Capture with Debezium/Kafka - **COMPLETED** (ICdcConnector, IChangeEventHandler<T>, CdcProcessor, 5 providers, messaging bridge, outbox CDC, 355+ tests)
   - Database Sharding [#289](https://github.com/dlrivada/Encina/issues/289) — Horizontal partitioning with shard routing
   - ✅ Connection Pool Resilience [#290](https://github.com/dlrivada/Encina/issues/290) — Pool monitoring, circuit breaker, warm-up - **COMPLETED** (IDatabaseHealthMonitor across all 13 providers, ConnectionPoolStats, DatabaseCircuitBreakerPipelineBehavior, DatabaseTransientErrorPredicate, ConnectionWarmupHostedService)
   - ✅ Query Cache Interceptor [#291](https://github.com/dlrivada/Encina/issues/291) — EF Core second-level cache - **COMPLETED** (QueryCacheInterceptor with automatic invalidation on SaveChanges, DefaultQueryCacheKeyGenerator with SHA256 hashing, CachedDataReader, SqlTableExtractor, multi-tenant support, entity type exclusions, works with all 8 cache providers)
@@ -377,7 +377,7 @@ Key areas already completed:
   - Integration Events [#306](https://github.com/dlrivada/Encina/issues/306) — Typed inter-module events for Modular Monolith
   - Request Versioning [#307](https://github.com/dlrivada/Encina/issues/307) — Request upcasting and deprecation (Marten-inspired)
 - **Advanced EDA Patterns** (new - based on December 2025 research):
-  - CDC (Change Data Capture) [#308](https://github.com/dlrivada/Encina/issues/308) — Database change streaming with Debezium integration
+  - ✅ CDC (Change Data Capture) [#308](https://github.com/dlrivada/Encina/issues/308) — Database change streaming with Debezium integration - **COMPLETED**
   - Schema Registry Integration [#309](https://github.com/dlrivada/Encina/issues/309) — Event schema governance (Confluent/Azure Schema Registry)
   - Event Mesh / Event Gateway [#310](https://github.com/dlrivada/Encina/issues/310) — Enterprise event distribution across bounded contexts
   - Claim Check Pattern [#311](https://github.com/dlrivada/Encina/issues/311) — Large payload external storage for events
@@ -425,7 +425,7 @@ Key areas already completed:
   - Domain vs Integration Events [#350](https://github.com/dlrivada/Encina/issues/350) — IDomainEvent, IIntegrationEvent, DomainEventDispatcher (DDD best practice)
   - Audit Trail Behavior [#351](https://github.com/dlrivada/Encina/issues/351) — `[Auditable]` attribute, IAuditStore, sensitive data redaction (GDPR/compliance)
   - Modular Monolith [#352](https://github.com/dlrivada/Encina/issues/352) — EncinaModule, IModuleEventBus, module isolation (architecture 2025)
-  - CDC Integration [#353](https://github.com/dlrivada/Encina/issues/353) — Change Data Capture with SQL Server, Debezium/Kafka providers
+  - ✅ CDC Integration [#353](https://github.com/dlrivada/Encina/issues/353) — Change Data Capture with SQL Server, Debezium/Kafka providers - **COMPLETED**
   - Enhanced Streaming [#354](https://github.com/dlrivada/Encina/issues/354) — Stream pipeline behaviors, backpressure, parallel processing
   - Enhanced Idempotency [#355](https://github.com/dlrivada/Encina/issues/355) — Stripe-style idempotency keys, X-Idempotency-Key header
   - Policy-Based Authorization [#356](https://github.com/dlrivada/Encina/issues/356) — Resource-based auth, CQRS-aware policies
@@ -587,7 +587,7 @@ Key areas already completed:
   - Encina.HealthChecks [#454](https://github.com/dlrivada/Encina/issues/454) — Kubernetes health probes (liveness, readiness, startup)
   - Encina.GracefulShutdown [#455](https://github.com/dlrivada/Encina/issues/455) — SIGTERM handling, in-flight request draining, Outbox flush
   - Encina.MultiTenancy [#456](https://github.com/dlrivada/Encina/issues/456) — Multi-tenancy for SaaS (tenant resolution, data isolation)
-  - Encina.CDC [#457](https://github.com/dlrivada/Encina/issues/457) — Change Data Capture for Outbox (SQL Server, PostgreSQL, Debezium)
+  - ✅ Encina.CDC [#457](https://github.com/dlrivada/Encina/issues/457) — Change Data Capture for Outbox (SQL Server, PostgreSQL, Debezium) - **COMPLETED**
   - Encina.ApiVersioning [#458](https://github.com/dlrivada/Encina/issues/458) — Handler versioning with `[ApiVersion]`, deprecation
   - Encina.Orleans [#459](https://github.com/dlrivada/Encina/issues/459) — Orleans virtual actors integration for handlers and sagas
 - **Developer Tooling & DX** (new - based on December 29, 2025 research):
