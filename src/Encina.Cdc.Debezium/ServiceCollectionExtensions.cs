@@ -2,13 +2,14 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Debezium.Health;
+using Encina.Cdc.Debezium.Kafka;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Encina.Cdc.Debezium;
 
 /// <summary>
-/// Extension methods for configuring Debezium HTTP Consumer CDC services.
+/// Extension methods for configuring Debezium CDC services (HTTP and Kafka modes).
 /// </summary>
 public static class ServiceCollectionExtensions
 {
@@ -40,11 +41,13 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(options);
 
-        // Register the channel for passing events from HTTP listener to connector
-        var channel = Channel.CreateUnbounded<JsonElement>(new UnboundedChannelOptions
+        // Register a bounded channel for passing events from HTTP listener to connector.
+        // When the channel is full, the HTTP listener returns 503 to apply backpressure.
+        var channel = Channel.CreateBounded<JsonElement>(new BoundedChannelOptions(options.ChannelCapacity)
         {
             SingleReader = true,
-            SingleWriter = false
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait
         });
         services.AddSingleton(channel);
 
@@ -54,6 +57,47 @@ public static class ServiceCollectionExtensions
         // Register the connector
         services.TryAddSingleton<ICdcConnector, DebeziumCdcConnector>();
         services.TryAddSingleton<DebeziumCdcHealthCheck>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds Debezium Kafka Consumer CDC connector services.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Configuration action for Debezium Kafka CDC options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method is mutually exclusive with <see cref="AddEncinaCdcDebezium"/>. Both register
+    /// <see cref="ICdcConnector"/> via <c>TryAddSingleton</c>, so the first one registered wins.
+    /// Use <see cref="AddEncinaCdcDebezium"/> for Debezium Server HTTP mode, or this method for
+    /// Debezium Connect with Kafka.
+    /// </para>
+    /// <para>
+    /// Registers the following services:
+    /// <list type="bullet">
+    ///   <item><description><see cref="DebeziumKafkaOptions"/> as configuration</description></item>
+    ///   <item><description><see cref="ICdcConnector"/> as the Debezium Kafka connector</description></item>
+    ///   <item><description><see cref="DebeziumKafkaHealthCheck"/> for Kubernetes health probes</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddEncinaCdcDebeziumKafka(
+        this IServiceCollection services,
+        Action<DebeziumKafkaOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var options = new DebeziumKafkaOptions();
+        configure(options);
+
+        services.AddSingleton(options);
+
+        // Register the Kafka connector (mutually exclusive with HTTP via TryAddSingleton)
+        services.TryAddSingleton<ICdcConnector, DebeziumKafkaConnector>();
+        services.TryAddSingleton<DebeziumKafkaHealthCheck>();
 
         return services;
     }

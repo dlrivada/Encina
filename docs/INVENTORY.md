@@ -527,8 +527,9 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - `IChangeEventHandler<TEntity>` para HandleInsert/Update/Delete
 - `ChangeEvent` con Operation, Before, After, Metadata
 - **6 paquetes implementados**: `Encina.Cdc`, `Encina.Cdc.SqlServer`, `Encina.Cdc.PostgreSql`, `Encina.Cdc.MySql`, `Encina.Cdc.MongoDb`, `Encina.Cdc.Debezium`
+- **Debezium dual-mode**: HTTP Consumer (Debezium Server) + Kafka Consumer (Debezium Connect)
 - **Messaging Integration**: `CdcMessagingBridge`, `OutboxCdcHandler`, `CdcChangeNotification`
-- **355+ tests**: ~156 unit, ~55 integration, ~50 guard, ~47 contract, ~47 property
+- **498+ tests**: ~232 unit, ~60 integration, ~69 guard, ~71 contract, ~66 property
 - Documentación: [CDC Feature Guide](features/cdc.md)
 - Labels: `area-cdc`, `area-microservices`, `industry-best-practice`, `aot-compatible`
 - Referencias: [Debezium](https://debezium.io/), [CDC CQRS Pattern](https://debezium.io/blog/2025/11/28/cqrs/)
@@ -1805,7 +1806,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
   - `Encina.Cdc.PostgreSql` - PostgreSQL Logical Replication
   - `Encina.Cdc.MySql` - MySQL Binary Log
   - `Encina.Cdc.MongoDb` - MongoDB Change Streams
-  - `Encina.Cdc.Debezium` - Debezium HTTP Consumer
+  - `Encina.Cdc.Debezium` - Debezium HTTP Consumer + Kafka Consumer
 - Integración con Outbox: `OutboxCdcHandler` reemplaza polling
 - Integración con Messaging: `CdcMessagingBridge` publica `CdcChangeNotification`
 - Documentación: [CDC Feature Guide](features/cdc.md)
@@ -4758,9 +4759,9 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - `ChangeEvent` con Operation (Insert/Update/Delete/Snapshot), Before, After, Metadata
 - `IChangeEventHandler<T>` interface con HandleInsert/Update/DeleteAsync
 - `CdcMessagingBridge` (ICdcEventInterceptor) para publicar como INotification
-- Providers implementados: SQL Server (Change Tracking), PostgreSQL (Logical Replication), MySQL (Binlog), MongoDB (Change Streams), Debezium (HTTP)
+- Providers implementados: SQL Server (Change Tracking), PostgreSQL (Logical Replication), MySQL (Binlog), MongoDB (Change Streams), Debezium (HTTP + Kafka)
 - **6 paquetes**: `Encina.Cdc`, `Encina.Cdc.SqlServer`, `Encina.Cdc.PostgreSql`, `Encina.Cdc.MySql`, `Encina.Cdc.MongoDb`, `Encina.Cdc.Debezium`
-- 355+ tests
+- 498+ tests
 - Labels: `area-event-sourcing`, `area-realtime`, `area-scalability`
 - Fuentes: [CDC Pattern](https://www.confluent.io/blog/how-change-data-capture-works-patterns-solutions-implementation/), [Debezium](https://debezium.io/)
 
@@ -4808,7 +4809,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 | `Encina.Cdc.PostgreSql` | #308/#353 | PostgreSQL Logical Replication provider ✅ |
 | `Encina.Cdc.MySql` | #308/#353 | MySQL Binary Log provider ✅ |
 | `Encina.Cdc.MongoDb` | #308/#353 | MongoDB Change Streams provider ✅ |
-| `Encina.Cdc.Debezium` | #308/#353 | Debezium HTTP Consumer provider ✅ |
+| `Encina.Cdc.Debezium` | #308/#353 | Debezium HTTP + Kafka Consumer provider ✅ |
 
 #### Fuentes de Investigación
 
@@ -5009,7 +5010,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 | **`Encina.Cdc.PostgreSql`** | **#308/#353** | **PostgreSQL Logical Replication provider** ✅ |
 | **`Encina.Cdc.MySql`** | **#308/#353** | **MySQL Binary Log provider** ✅ |
 | **`Encina.Cdc.MongoDb`** | **#308/#353** | **MongoDB Change Streams provider** ✅ |
-| **`Encina.Cdc.Debezium`** | **#308/#353** | **Debezium HTTP Consumer provider** ✅ |
+| **`Encina.Cdc.Debezium`** | **#308/#353** | **Debezium HTTP + Kafka Consumer provider** ✅ |
 
 ### Modular Monolith Architecture Patterns - Nuevas Issues (29 Diciembre 2025)
 
@@ -6622,7 +6623,7 @@ public class PaymentHandler : ICommandHandler<ProcessPayment, Receipt>
 | `Encina.Cdc.PostgreSql` | #457 | PostgreSQL Logical Replication | ✅ Completado |
 | `Encina.Cdc.MySql` | #457 | MySQL Binary Log | ✅ Completado |
 | `Encina.Cdc.MongoDb` | #457 | MongoDB Change Streams | ✅ Completado |
-| `Encina.Cdc.Debezium` | #457 | Debezium HTTP Consumer | ✅ Completado |
+| `Encina.Cdc.Debezium` | #457 | Debezium HTTP + Kafka Consumer | ✅ Completado |
 | `Encina.ApiVersioning` | #458 | Handler versioning | Baja |
 | `Encina.Orleans` | #459 | Orleans integration | Baja |
 
@@ -7052,7 +7053,7 @@ src/
 ├── Encina.Cdc.PostgreSql/           # ✅ (#308/#457) PostgreSQL Logical Replication
 ├── Encina.Cdc.MySql/                # ✅ (#308/#457) MySQL Binary Log
 ├── Encina.Cdc.MongoDb/              # ✅ (#308/#457) MongoDB Change Streams
-├── Encina.Cdc.Debezium/             # ✅ (#308/#457) Debezium HTTP Consumer
+├── Encina.Cdc.Debezium/             # ✅ (#308/#457) Debezium HTTP + Kafka Consumer
 ├── Encina.ApiVersioning/            # (Planned #458) Handler versioning
 ├── Encina.Orleans/                  # (Planned #459) Orleans integration
 ├── Encina.MCP/                      # (Planned #481) Model Context Protocol server/client

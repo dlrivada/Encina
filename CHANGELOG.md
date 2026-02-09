@@ -47,7 +47,15 @@ services.AddEncinaCdcSqlServer(opts =>
 | `Encina.Cdc.PostgreSql` | Logical Replication (WAL) | `PostgresCdcPosition` (LSN) |
 | `Encina.Cdc.MySql` | Binary Log Replication | `MySqlCdcPosition` (GTID/binlog) |
 | `Encina.Cdc.MongoDb` | Change Streams | `MongoCdcPosition` (resume token) |
-| `Encina.Cdc.Debezium` | HTTP Consumer | `DebeziumCdcPosition` (offset JSON) |
+| `Encina.Cdc.Debezium` | HTTP Consumer + Kafka Consumer | `DebeziumCdcPosition` / `DebeziumKafkaPosition` |
+
+**Debezium Dual-Mode Support**:
+
+- **HTTP Mode** (`AddEncinaCdcDebezium`): Receives events from Debezium Server via HTTP POST with bounded channel backpressure
+- **Kafka Mode** (`AddEncinaCdcDebeziumKafka`): Consumes Debezium change events from Kafka topics with consumer group scaling
+- Shared `DebeziumEventMapper` for consistent CloudEvents/Flat format parsing across both modes
+- SASL/SSL security configuration for Kafka connections
+- Mutual exclusivity via `TryAddSingleton` — first registered mode wins
 
 **Messaging Integration**:
 
@@ -56,9 +64,9 @@ services.AddEncinaCdcSqlServer(opts =>
 - **`CdcChangeNotification`**: `INotification` wrapper with topic name from configurable pattern
 - **`CdcMessagingOptions`**: Table/operation filtering and topic pattern configuration
 
-**Test Coverage** (355+ tests):
+**Test Coverage** (498+ tests):
 
-- ~156 unit tests, ~55 integration tests, ~50 guard tests, ~47 contract tests, ~47 property tests
+- ~232 unit tests, ~60 integration tests, ~69 guard tests, ~71 contract tests, ~66 property tests
 
 ---
 

@@ -167,7 +167,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 **Remaining:**
 
 - Optimistic Concurrency
-- ✅ CDC Integration — **COMPLETED** (ICdcConnector, IChangeEventHandler<T>, CdcProcessor, 5 providers: SqlServer/PostgreSql/MySql/MongoDb/Debezium, messaging bridge, outbox CDC)
+- ✅ CDC Integration — **COMPLETED** (ICdcConnector, IChangeEventHandler<T>, CdcProcessor, 5 providers: SqlServer/PostgreSql/MySql/MongoDb/Debezium HTTP+Kafka, messaging bridge, outbox CDC, 498+ tests)
 - Pagination abstractions
 
 → [View v0.12.0 Issues](https://github.com/dlrivada/Encina/milestone/9)
@@ -355,7 +355,7 @@ Key areas already completed:
   - ✅ Soft Delete & Temporal Tables [#285](https://github.com/dlrivada/Encina/issues/285) — Logical delete + SQL Server temporal tables - **COMPLETED** (ISoftDeletable interfaces, SoftDeleteInterceptor, SoftDeleteRepository, global query filters across EF Core, Dapper, ADO.NET, MongoDB; SQL Server temporal tables with point-in-time queries)
   - Audit Trail Pattern [#286](https://github.com/dlrivada/Encina/issues/286) — IAuditableEntity with CreatedAt/By, ModifiedAt/By
   - Optimistic Concurrency [#287](https://github.com/dlrivada/Encina/issues/287) — IConcurrencyAware with conflict resolution
-  - ✅ CDC Integration [#288](https://github.com/dlrivada/Encina/issues/288) — Change Data Capture with Debezium/Kafka - **COMPLETED** (ICdcConnector, IChangeEventHandler<T>, CdcProcessor, 5 providers, messaging bridge, outbox CDC, 355+ tests)
+  - ✅ CDC Integration [#288](https://github.com/dlrivada/Encina/issues/288) — Change Data Capture with Debezium/Kafka - **COMPLETED** (ICdcConnector, IChangeEventHandler<T>, CdcProcessor, 5 providers + Debezium HTTP/Kafka dual-mode, messaging bridge, outbox CDC, 498+ tests)
   - Database Sharding [#289](https://github.com/dlrivada/Encina/issues/289) — Horizontal partitioning with shard routing
   - ✅ Connection Pool Resilience [#290](https://github.com/dlrivada/Encina/issues/290) — Pool monitoring, circuit breaker, warm-up - **COMPLETED** (IDatabaseHealthMonitor across all 13 providers, ConnectionPoolStats, DatabaseCircuitBreakerPipelineBehavior, DatabaseTransientErrorPredicate, ConnectionWarmupHostedService)
   - ✅ Query Cache Interceptor [#291](https://github.com/dlrivada/Encina/issues/291) — EF Core second-level cache - **COMPLETED** (QueryCacheInterceptor with automatic invalidation on SaveChanges, DefaultQueryCacheKeyGenerator with SHA256 hashing, CachedDataReader, SqlTableExtractor, multi-tenant support, entity type exclusions, works with all 8 cache providers)

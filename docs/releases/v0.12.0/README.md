@@ -68,15 +68,19 @@ Implemented provider-agnostic Change Data Capture (CDC) with support for 5 datab
 - `src/Encina.Cdc.PostgreSql/` - PostgreSQL Logical Replication (WAL)
 - `src/Encina.Cdc.MySql/` - MySQL Binary Log (GTID + binlog position)
 - `src/Encina.Cdc.MongoDb/` - MongoDB Change Streams (resume token)
-- `src/Encina.Cdc.Debezium/` - Debezium HTTP Consumer (CloudEvents/Flat)
+- `src/Encina.Cdc.Debezium/` - Debezium HTTP Consumer + Kafka Consumer (CloudEvents/Flat)
 
-#### Phase 5: Testing (355+ tests)
+**Debezium Kafka Consumer Integration** (Phase 2):
 
-- ~156 unit tests
-- ~55 integration tests
-- ~50 guard tests
-- ~47 contract tests
-- ~47 property tests
+- `src/Encina.Cdc.Debezium/Kafka/DebeziumKafkaConnector.cs` - Kafka consumer connector
+- `src/Encina.Cdc.Debezium/Kafka/DebeziumKafkaOptions.cs` - Kafka configuration (12 properties)
+- `src/Encina.Cdc.Debezium/Kafka/DebeziumKafkaPosition.cs` - Topic/partition/offset position
+- `src/Encina.Cdc.Debezium/Kafka/DebeziumKafkaHealthCheck.cs` - Kafka health check
+
+#### Phase 5: Testing (498+ tests)
+
+- ~232 unit tests, ~60 integration tests, ~69 guard tests, ~71 contract tests, ~66 property tests
+- Debezium-specific: ~143 tests (76 unit + 19 guard + 24 contract + 19 property + 5 integration)
 
 #### Phase 6: Documentation (10 docs)
 
