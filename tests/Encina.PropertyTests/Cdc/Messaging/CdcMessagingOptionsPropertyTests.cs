@@ -1,7 +1,7 @@
-using FsCheck;
-using FsCheck.Xunit;
 using Encina.Cdc;
 using Encina.Cdc.Messaging;
+using FsCheck;
+using FsCheck.Xunit;
 
 namespace Encina.PropertyTests.Cdc.Messaging;
 

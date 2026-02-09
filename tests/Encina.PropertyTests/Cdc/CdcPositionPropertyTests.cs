@@ -1,6 +1,6 @@
+using Encina.Cdc.Abstractions;
 using FsCheck;
 using FsCheck.Xunit;
-using Encina.Cdc.Abstractions;
 
 namespace Encina.PropertyTests.Cdc;
 

@@ -1,7 +1,7 @@
-using FsCheck;
-using FsCheck.Xunit;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Processing;
+using FsCheck;
+using FsCheck.Xunit;
 using static LanguageExt.Prelude;
 
 namespace Encina.PropertyTests.Cdc;

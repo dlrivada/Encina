@@ -2,9 +2,9 @@ using System.Runtime.CompilerServices;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Errors;
 using LanguageExt;
+using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
 
 namespace Encina.Cdc.MongoDb;
