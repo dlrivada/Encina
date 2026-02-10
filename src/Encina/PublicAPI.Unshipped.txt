@@ -429,3 +429,251 @@ Encina.Database.IDatabaseHealthMonitor.IsCircuitOpen.get -> bool
 Encina.Database.IDatabaseHealthMonitor.ProviderName.get -> string!
 Encina.Diagnostics.DatabasePoolMetrics
 Encina.Diagnostics.DatabasePoolMetrics.DatabasePoolMetrics(Encina.Database.IDatabaseHealthMonitor! monitor) -> void
+const Encina.Sharding.ShardingErrorCodes.KeyOutsideRange = "encina.sharding.key_outside_range" -> string!
+const Encina.Sharding.ShardingErrorCodes.MissingConnectionString = "encina.sharding.missing_connection_string" -> string!
+const Encina.Sharding.ShardingErrorCodes.NoActiveShards = "encina.sharding.no_active_shards" -> string!
+const Encina.Sharding.ShardingErrorCodes.OverlappingRanges = "encina.sharding.overlapping_ranges" -> string!
+const Encina.Sharding.ShardingErrorCodes.RegionNotFound = "encina.sharding.region_not_found" -> string!
+const Encina.Sharding.ShardingErrorCodes.RouterNotConfigured = "encina.sharding.router_not_configured" -> string!
+const Encina.Sharding.ShardingErrorCodes.ScatterGatherPartialFailure = "encina.sharding.scatter_gather_partial_failure" -> string!
+const Encina.Sharding.ShardingErrorCodes.ScatterGatherTimeout = "encina.sharding.scatter_gather_timeout" -> string!
+const Encina.Sharding.ShardingErrorCodes.ShardKeyEmpty = "encina.sharding.shard_key_empty" -> string!
+const Encina.Sharding.ShardingErrorCodes.ShardKeyNotConfigured = "encina.sharding.shard_key_not_configured" -> string!
+const Encina.Sharding.ShardingErrorCodes.ShardNotFound = "encina.sharding.shard_not_found" -> string!
+Encina.Sharding.Configuration.ScatterGatherOptions
+Encina.Sharding.Configuration.ScatterGatherOptions.AllowPartialResults.get -> bool
+Encina.Sharding.Configuration.ScatterGatherOptions.AllowPartialResults.set -> void
+Encina.Sharding.Configuration.ScatterGatherOptions.MaxParallelism.get -> int
+Encina.Sharding.Configuration.ScatterGatherOptions.MaxParallelism.set -> void
+Encina.Sharding.Configuration.ScatterGatherOptions.ScatterGatherOptions() -> void
+Encina.Sharding.Configuration.ScatterGatherOptions.Timeout.get -> System.TimeSpan
+Encina.Sharding.Configuration.ScatterGatherOptions.Timeout.set -> void
+Encina.Sharding.Configuration.ShardingOptions<TEntity>
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.AddShard(string! shardId, string! connectionString, int weight = 1, bool isActive = true) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.ScatterGather.get -> Encina.Sharding.Configuration.ScatterGatherOptions!
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.ShardingOptions() -> void
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseCustomRouting(System.Func<Encina.Sharding.ShardTopology!, Encina.Sharding.IShardRouter!>! routerFactory) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseDirectoryRouting(Encina.Sharding.Routing.IShardDirectoryStore! store, string? defaultShardId = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseGeoRouting(System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.GeoRegion!>! regions, System.Func<string!, string!>! regionResolver, System.Action<Encina.Sharding.Routing.GeoShardRouterOptions!>? configureOptions = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseHashRouting(System.Action<Encina.Sharding.Routing.HashShardRouterOptions!>? configureOptions = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseRangeRouting(System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.ShardRange!>! ranges, System.StringComparer? comparer = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
+Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>
+Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.AddAsync(TEntity! entity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TEntity!>>!
+Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.DeleteAsync(TId id, string! shardKey, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.GetByIdAsync(TId id, string! shardKey, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TEntity!>>!
+Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.GetShardIdForEntity(TEntity! entity) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.QueryAllShardsAsync(System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<TEntity!>!>>!>! queryFactory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardedQueryResult<TEntity!>!>>!
+Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.QueryShardsAsync(System.Collections.Generic.IEnumerable<string!>! shardIds, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<TEntity!>!>>!>! queryFactory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardedQueryResult<TEntity!>!>>!
+Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.UpdateAsync(TEntity! entity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TEntity!>>!
+Encina.Sharding.IShardable
+Encina.Sharding.IShardable.GetShardKey() -> string!
+Encina.Sharding.IShardRouter
+Encina.Sharding.IShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.IShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.IShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.IShardRouter<TEntity>
+Encina.Sharding.IShardRouter<TEntity>.GetShardId(TEntity entity) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.AffectedKeyRange
+Encina.Sharding.Routing.AffectedKeyRange.AffectedKeyRange(ulong RingStart, ulong RingEnd, string! PreviousShardId, string! NewShardId) -> void
+Encina.Sharding.Routing.AffectedKeyRange.NewShardId.get -> string!
+Encina.Sharding.Routing.AffectedKeyRange.NewShardId.init -> void
+Encina.Sharding.Routing.AffectedKeyRange.PreviousShardId.get -> string!
+Encina.Sharding.Routing.AffectedKeyRange.PreviousShardId.init -> void
+Encina.Sharding.Routing.AffectedKeyRange.RingEnd.get -> ulong
+Encina.Sharding.Routing.AffectedKeyRange.RingEnd.init -> void
+Encina.Sharding.Routing.AffectedKeyRange.RingStart.get -> ulong
+Encina.Sharding.Routing.AffectedKeyRange.RingStart.init -> void
+Encina.Sharding.Routing.DirectoryShardRouter
+Encina.Sharding.Routing.DirectoryShardRouter.AddMapping(string! key, string! shardId) -> void
+Encina.Sharding.Routing.DirectoryShardRouter.DefaultShardId.get -> string?
+Encina.Sharding.Routing.DirectoryShardRouter.DirectoryShardRouter(Encina.Sharding.ShardTopology! topology, Encina.Sharding.Routing.IShardDirectoryStore! store, string? defaultShardId = null) -> void
+Encina.Sharding.Routing.DirectoryShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.Routing.DirectoryShardRouter.GetMapping(string! key) -> string?
+Encina.Sharding.Routing.DirectoryShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.DirectoryShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.DirectoryShardRouter.RemoveMapping(string! key) -> bool
+Encina.Sharding.Routing.GeoRegion
+Encina.Sharding.Routing.GeoRegion.FallbackRegionCode.get -> string?
+Encina.Sharding.Routing.GeoRegion.FallbackRegionCode.init -> void
+Encina.Sharding.Routing.GeoRegion.GeoRegion(string! RegionCode, string! ShardId, string? FallbackRegionCode = null) -> void
+Encina.Sharding.Routing.GeoRegion.RegionCode.get -> string!
+Encina.Sharding.Routing.GeoRegion.ShardId.get -> string!
+Encina.Sharding.Routing.GeoShardRouter
+Encina.Sharding.Routing.GeoShardRouter.GeoShardRouter(Encina.Sharding.ShardTopology! topology, System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.GeoRegion!>! regions, System.Func<string!, string!>! regionResolver, Encina.Sharding.Routing.GeoShardRouterOptions? options = null) -> void
+Encina.Sharding.Routing.GeoShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.Routing.GeoShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.GeoShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.GeoShardRouterOptions
+Encina.Sharding.Routing.GeoShardRouterOptions.DefaultRegion.get -> string?
+Encina.Sharding.Routing.GeoShardRouterOptions.DefaultRegion.set -> void
+Encina.Sharding.Routing.GeoShardRouterOptions.GeoShardRouterOptions() -> void
+Encina.Sharding.Routing.GeoShardRouterOptions.RequireExactMatch.get -> bool
+Encina.Sharding.Routing.GeoShardRouterOptions.RequireExactMatch.set -> void
+Encina.Sharding.Routing.HashShardRouter
+Encina.Sharding.Routing.HashShardRouter.CalculateAffectedKeyRanges(Encina.Sharding.ShardTopology! oldTopology, Encina.Sharding.ShardTopology! newTopology) -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.Routing.AffectedKeyRange!>!
+Encina.Sharding.Routing.HashShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.Routing.HashShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.HashShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.HashShardRouter.HashShardRouter(Encina.Sharding.ShardTopology! topology, Encina.Sharding.Routing.HashShardRouterOptions? options = null) -> void
+Encina.Sharding.Routing.HashShardRouterOptions
+Encina.Sharding.Routing.HashShardRouterOptions.HashShardRouterOptions() -> void
+Encina.Sharding.Routing.HashShardRouterOptions.VirtualNodesPerShard.get -> int
+Encina.Sharding.Routing.HashShardRouterOptions.VirtualNodesPerShard.set -> void
+Encina.Sharding.Routing.IShardDirectoryStore
+Encina.Sharding.Routing.IShardDirectoryStore.AddMapping(string! key, string! shardId) -> void
+Encina.Sharding.Routing.IShardDirectoryStore.GetAllMappings() -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+Encina.Sharding.Routing.IShardDirectoryStore.GetMapping(string! key) -> string?
+Encina.Sharding.Routing.IShardDirectoryStore.RemoveMapping(string! key) -> bool
+Encina.Sharding.Routing.IShardRebalancer
+Encina.Sharding.Routing.IShardRebalancer.CalculateAffectedKeyRanges(Encina.Sharding.ShardTopology! oldTopology, Encina.Sharding.ShardTopology! newTopology) -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.Routing.AffectedKeyRange!>!
+Encina.Sharding.Routing.InMemoryShardDirectoryStore
+Encina.Sharding.Routing.InMemoryShardDirectoryStore.AddMapping(string! key, string! shardId) -> void
+Encina.Sharding.Routing.InMemoryShardDirectoryStore.GetAllMappings() -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+Encina.Sharding.Routing.InMemoryShardDirectoryStore.GetMapping(string! key) -> string?
+Encina.Sharding.Routing.InMemoryShardDirectoryStore.InMemoryShardDirectoryStore() -> void
+Encina.Sharding.Routing.InMemoryShardDirectoryStore.InMemoryShardDirectoryStore(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, string!>>! initialMappings) -> void
+Encina.Sharding.Routing.InMemoryShardDirectoryStore.RemoveMapping(string! key) -> bool
+Encina.Sharding.Routing.RangeShardRouter
+Encina.Sharding.Routing.RangeShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.Routing.RangeShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.RangeShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.RangeShardRouter.RangeShardRouter(Encina.Sharding.ShardTopology! topology, System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.ShardRange!>! ranges, System.StringComparer? comparer = null) -> void
+Encina.Sharding.Routing.ShardRange
+Encina.Sharding.Routing.ShardRange.EndKey.get -> string?
+Encina.Sharding.Routing.ShardRange.EndKey.init -> void
+Encina.Sharding.Routing.ShardRange.ShardId.get -> string!
+Encina.Sharding.Routing.ShardRange.ShardRange(string! StartKey, string? EndKey, string! ShardId) -> void
+Encina.Sharding.Routing.ShardRange.StartKey.get -> string!
+Encina.Sharding.ShardedQueryResult<T>
+Encina.Sharding.ShardedQueryResult<T>.FailedShards.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardFailure!>!
+Encina.Sharding.ShardedQueryResult<T>.FailedShards.init -> void
+Encina.Sharding.ShardedQueryResult<T>.IsComplete.get -> bool
+Encina.Sharding.ShardedQueryResult<T>.IsPartial.get -> bool
+Encina.Sharding.ShardedQueryResult<T>.Results.get -> System.Collections.Generic.IReadOnlyList<T>!
+Encina.Sharding.ShardedQueryResult<T>.Results.init -> void
+Encina.Sharding.ShardedQueryResult<T>.ShardedQueryResult(System.Collections.Generic.IReadOnlyList<T>! Results, System.Collections.Generic.IReadOnlyList<string!>! SuccessfulShards, System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardFailure!>! FailedShards) -> void
+Encina.Sharding.ShardedQueryResult<T>.SuccessfulShards.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.ShardedQueryResult<T>.SuccessfulShards.init -> void
+Encina.Sharding.ShardedQueryResult<T>.TotalShardsQueried.get -> int
+Encina.Sharding.ShardFailure
+Encina.Sharding.ShardFailure.Error.get -> Encina.EncinaError
+Encina.Sharding.ShardFailure.Error.init -> void
+Encina.Sharding.ShardFailure.ShardFailure(string! ShardId, Encina.EncinaError Error) -> void
+Encina.Sharding.ShardFailure.ShardId.get -> string!
+Encina.Sharding.ShardFailure.ShardId.init -> void
+Encina.Sharding.ShardInfo
+Encina.Sharding.ShardInfo.ConnectionString.get -> string!
+Encina.Sharding.ShardInfo.IsActive.get -> bool
+Encina.Sharding.ShardInfo.IsActive.init -> void
+Encina.Sharding.ShardInfo.ShardId.get -> string!
+Encina.Sharding.ShardInfo.ShardInfo(string! ShardId, string! ConnectionString, int Weight = 1, bool IsActive = true) -> void
+Encina.Sharding.ShardInfo.Weight.get -> int
+Encina.Sharding.ShardInfo.Weight.init -> void
+Encina.Sharding.ShardingErrorCodes
+Encina.Sharding.ShardingServiceCollectionExtensions
+Encina.Sharding.ShardKeyAttribute
+Encina.Sharding.ShardKeyAttribute.ShardKeyAttribute() -> void
+Encina.Sharding.ShardKeyExtractor
+Encina.Sharding.ShardTopology
+Encina.Sharding.ShardTopology.ActiveShardIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.ShardTopology.AllShardIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.ShardTopology.ContainsShard(string! shardId) -> bool
+Encina.Sharding.ShardTopology.Count.get -> int
+Encina.Sharding.ShardTopology.GetActiveShards() -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardInfo!>!
+Encina.Sharding.ShardTopology.GetAllShards() -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardInfo!>!
+Encina.Sharding.ShardTopology.GetConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.ShardTopology.GetShard(string! shardId) -> LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardInfo!>
+Encina.Sharding.ShardTopology.ShardTopology(System.Collections.Generic.IEnumerable<Encina.Sharding.ShardInfo!>! shards) -> void
+static Encina.Sharding.ShardingServiceCollectionExtensions.AddEncinaSharding<TEntity>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Sharding.Configuration.ShardingOptions<TEntity>!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Sharding.ShardKeyExtractor.Extract<TEntity>(TEntity entity) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Data.IShardedConnectionFactory
+Encina.Sharding.Data.IShardedConnectionFactory.GetAllConnectionsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyDictionary<string!, System.Data.IDbConnection!>!>>!
+Encina.Sharding.Data.IShardedConnectionFactory.GetConnectionAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Data.IDbConnection!>>!
+Encina.Sharding.Data.IShardedConnectionFactory.GetConnectionForEntityAsync<TEntity>(TEntity entity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Data.IDbConnection!>>!
+Encina.Sharding.Data.IShardedConnectionFactory<TConnection>
+Encina.Sharding.Data.IShardedConnectionFactory<TConnection>.GetAllConnectionsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyDictionary<string!, TConnection!>!>>!
+Encina.Sharding.Data.IShardedConnectionFactory<TConnection>.GetConnectionAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TConnection!>>!
+Encina.Sharding.Data.IShardedConnectionFactory<TConnection>.GetConnectionForEntityAsync<TEntity>(TEntity entity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TConnection!>>!
+Encina.Sharding.Data.IShardedDbContextFactory<TContext>
+Encina.Sharding.Data.IShardedDbContextFactory<TContext>.CreateAllContexts() -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyDictionary<string!, TContext!>!>
+Encina.Sharding.Data.IShardedDbContextFactory<TContext>.CreateAllContextsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyDictionary<string!, TContext!>!>>
+Encina.Sharding.Data.IShardedDbContextFactory<TContext>.CreateContextForEntity<TEntity>(TEntity entity) -> LanguageExt.Either<Encina.EncinaError, TContext!>
+Encina.Sharding.Data.IShardedDbContextFactory<TContext>.CreateContextForEntityAsync<TEntity>(TEntity entity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TContext!>>
+Encina.Sharding.Data.IShardedDbContextFactory<TContext>.CreateContextForShard(string! shardId) -> LanguageExt.Either<Encina.EncinaError, TContext!>
+Encina.Sharding.Data.IShardedDbContextFactory<TContext>.CreateContextForShardAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TContext!>>
+Encina.Sharding.Execution.ShardedQueryExecutor
+Encina.Sharding.Execution.ShardedQueryExecutor.ExecuteAllAsync<T>(System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<T>!>>!>! queryFactory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardedQueryResult<T>!>>!
+Encina.Sharding.Execution.ShardedQueryExecutor.ExecuteAsync<T>(System.Collections.Generic.IEnumerable<string!>! shardIds, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<T>!>>!>! queryFactory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardedQueryResult<T>!>>!
+Encina.Sharding.Execution.ShardedQueryExecutor.ShardedQueryExecutor(Encina.Sharding.ShardTopology! topology, Encina.Sharding.Configuration.ScatterGatherOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Sharding.Execution.ShardedQueryExecutor!>! logger, Encina.Sharding.Diagnostics.ShardRoutingMetrics? metrics = null) -> void
+Encina.Sharding.Health.IShardedDatabaseHealthMonitor
+Encina.Sharding.Health.IShardedDatabaseHealthMonitor.CheckAllShardsHealthAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Sharding.Health.ShardedHealthSummary!>!
+Encina.Sharding.Health.IShardedDatabaseHealthMonitor.CheckShardHealthAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Sharding.Health.ShardHealthResult!>!
+Encina.Sharding.Health.IShardedDatabaseHealthMonitor.GetAllShardPoolStatistics() -> System.Collections.Generic.IReadOnlyDictionary<string!, Encina.Database.ConnectionPoolStats!>!
+Encina.Sharding.Health.IShardedDatabaseHealthMonitor.GetShardPoolStatistics(string! shardId) -> Encina.Database.ConnectionPoolStats!
+Encina.Sharding.Health.ShardedHealthSummary
+Encina.Sharding.Health.ShardedHealthSummary.AllHealthy.get -> bool
+Encina.Sharding.Health.ShardedHealthSummary.DegradedCount.get -> int
+Encina.Sharding.Health.ShardedHealthSummary.Description.get -> string?
+Encina.Sharding.Health.ShardedHealthSummary.HealthyCount.get -> int
+Encina.Sharding.Health.ShardedHealthSummary.OverallStatus.get -> Encina.Database.DatabaseHealthStatus
+Encina.Sharding.Health.ShardedHealthSummary.OverallStatus.init -> void
+Encina.Sharding.Health.ShardedHealthSummary.ShardedHealthSummary(Encina.Database.DatabaseHealthStatus OverallStatus, System.Collections.Generic.IReadOnlyList<Encina.Sharding.Health.ShardHealthResult!>! ShardResults, string? Description = null) -> void
+Encina.Sharding.Health.ShardedHealthSummary.ShardResults.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.Health.ShardHealthResult!>!
+Encina.Sharding.Health.ShardedHealthSummary.ShardResults.init -> void
+Encina.Sharding.Health.ShardedHealthSummary.Description.init -> void
+Encina.Sharding.Health.ShardedHealthSummary.TotalShards.get -> int
+Encina.Sharding.Health.ShardedHealthSummary.UnhealthyCount.get -> int
+static Encina.Sharding.Health.ShardedHealthSummary.CalculateOverallStatus(System.Collections.Generic.IReadOnlyList<Encina.Sharding.Health.ShardHealthResult!>! shardResults) -> Encina.Database.DatabaseHealthStatus
+Encina.Sharding.Health.ShardHealthResult
+Encina.Sharding.Health.ShardHealthResult.Description.get -> string?
+Encina.Sharding.Health.ShardHealthResult.Exception.get -> System.Exception?
+Encina.Sharding.Health.ShardHealthResult.IsDegraded.get -> bool
+Encina.Sharding.Health.ShardHealthResult.IsHealthy.get -> bool
+Encina.Sharding.Health.ShardHealthResult.IsUnhealthy.get -> bool
+Encina.Sharding.Health.ShardHealthResult.PoolStats.get -> Encina.Database.ConnectionPoolStats!
+Encina.Sharding.Health.ShardHealthResult.ShardHealthResult(string! ShardId, Encina.Database.DatabaseHealthStatus Status, Encina.Database.ConnectionPoolStats! PoolStats, string? Description = null, System.Exception? Exception = null) -> void
+Encina.Sharding.Health.ShardHealthResult.ShardId.get -> string!
+Encina.Sharding.Health.ShardHealthResult.Status.get -> Encina.Database.DatabaseHealthStatus
+Encina.Sharding.Health.ShardHealthResult.Status.init -> void
+Encina.Sharding.Health.ShardHealthResult.PoolStats.init -> void
+Encina.Sharding.Health.ShardHealthResult.Description.init -> void
+Encina.Sharding.Health.ShardHealthResult.Exception.init -> void
+static Encina.Sharding.Health.ShardHealthResult.Degraded(string! shardId, string? description = null, Encina.Database.ConnectionPoolStats? poolStats = null, System.Exception? exception = null) -> Encina.Sharding.Health.ShardHealthResult!
+static Encina.Sharding.Health.ShardHealthResult.Healthy(string! shardId, Encina.Database.ConnectionPoolStats? poolStats = null, string? description = null) -> Encina.Sharding.Health.ShardHealthResult!
+static Encina.Sharding.Health.ShardHealthResult.Unhealthy(string! shardId, string? description = null, System.Exception? exception = null) -> Encina.Sharding.Health.ShardHealthResult!
+Encina.Sharding.DefaultShardTopologyProvider
+Encina.Sharding.DefaultShardTopologyProvider.DefaultShardTopologyProvider(Encina.Sharding.ShardTopology! topology) -> void
+Encina.Sharding.DefaultShardTopologyProvider.GetTopology() -> Encina.Sharding.ShardTopology!
+Encina.Sharding.IShardTopologyProvider
+Encina.Sharding.IShardTopologyProvider.GetTopology() -> Encina.Sharding.ShardTopology!
+Encina.Sharding.Execution.IShardedQueryExecutor
+Encina.Sharding.Execution.IShardedQueryExecutor.ExecuteAsync<T>(System.Collections.Generic.IEnumerable<string!>! shardIds, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<T>!>>!>! queryFactory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardedQueryResult<T>!>>!
+Encina.Sharding.Execution.IShardedQueryExecutor.ExecuteAllAsync<T>(System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<T>!>>!>! queryFactory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardedQueryResult<T>!>>!
+const Encina.Sharding.ShardingErrorCodes.CacheOperationFailed = "encina.sharding.cache_operation_failed" -> string!
+const Encina.Sharding.ShardingErrorCodes.TopologyRefreshFailed = "encina.sharding.topology_refresh_failed" -> string!
+Encina.Sharding.Diagnostics.ShardRoutingMetrics
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.ShardRoutingMetrics(Encina.Sharding.ShardTopology! topology) -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordRouteDecision(string! shardId, string! routerType, double durationNs) -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordScatterGatherDuration(int shardCount, int resultCount, double durationMs) -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordShardQueryDuration(string! shardId, double durationMs) -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordPartialFailure(int failedCount, int totalCount) -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.IncrementActiveQueries() -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.DecrementActiveQueries() -> void
+Encina.Sharding.Diagnostics.ShardedDatabasePoolMetrics
+Encina.Sharding.Diagnostics.ShardedDatabasePoolMetrics.ShardedDatabasePoolMetrics(Encina.Sharding.Health.IShardedDatabaseHealthMonitor! monitor) -> void
+Encina.Sharding.Diagnostics.ShardedDatabasePoolMetrics.UpdateHealthSnapshot(System.Collections.Generic.IReadOnlyList<Encina.Sharding.Health.ShardHealthResult!>! healthResults) -> void
+Encina.Sharding.Diagnostics.ShardingMetricsOptions
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.ShardingMetricsOptions() -> void
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.HealthCheckInterval.get -> System.TimeSpan
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.HealthCheckInterval.set -> void
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableRoutingMetrics.get -> bool
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableRoutingMetrics.set -> void
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableScatterGatherMetrics.get -> bool
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableScatterGatherMetrics.set -> void
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableHealthMetrics.get -> bool
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableHealthMetrics.set -> void
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableTracing.get -> bool
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableTracing.set -> void
+Encina.Sharding.Diagnostics.ShardingDiagnosticsServiceCollectionExtensions
+static Encina.Sharding.Diagnostics.ShardingDiagnosticsServiceCollectionExtensions.AddEncinaShardingMetrics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Sharding.Diagnostics.ShardingMetricsOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Sharding.Diagnostics.ShardingDiagnosticsServiceCollectionExtensions.AddEncinaShardingHealthMetrics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -100,6 +100,7 @@ Los patrones de mensajería (Outbox, Inbox, Saga, Scheduling) DEBEN implementars
 | Request Validation | ❌ | ❌ | ❌ | ✅ |
 | Multi-Tenancy | ✅ | ✅ | ✅ | ❌ |
 | **Database Resilience** | ✅ | ❌ | ❌ | ❌ |
+| **Database Sharding** | ✅ | ❌ | ❌ | ❌ |
 | **Optimistic Concurrency** | ✅ | ❌ | ❌ | ❌ |
 
 > **Regla**: Si una feature toca código específico de proveedor, DEBE implementarse consistentemente en TODOS los proveedores de esa categoría.
@@ -1597,7 +1598,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 |-------|---------|-------------|-----------|-------------|--------|
 | **#283** | Read/Write Separation | CQRS físico con read replicas | Alta | Media | `area-cqrs`, `area-scalability`, `cloud-azure` |
 | **#284** | Bulk Operations | BulkInsert, BulkUpdate, BulkDelete, BulkMerge | Crítica | Media | `area-bulk-operations`, `area-scalability`, `aot-compatible` | ✅ Completo |
-| **#289** | Database Sharding | Particionamiento horizontal con shard routing | Baja | Muy Alta | `area-sharding`, `area-scalability`, `area-cloud-native` |
+| **#289** ✅ | Database Sharding | Particionamiento horizontal con shard routing | Baja | Muy Alta | `area-sharding`, `area-scalability`, `area-cloud-native` |
 | **#290** ✅ | Connection Pool Resilience | Monitoreo de pool, circuit breaker, warm-up | Media | Media | `area-connection-pool`, `area-health-checks`, `area-polly` |
 | **#291** ✅ | Query Cache Interceptor | Second-level cache para EF Core queries | Media | Media | `area-caching`, `area-pipeline` |
 | **#294** | Cursor-based Pagination | Keyset pagination O(1) vs offset O(n) | Alta | Media | `area-pagination`, `area-graphql`, `area-scalability` |
@@ -1627,12 +1628,22 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - Test coverage: 65 unit tests + 11 integration tests + benchmarks (as of v0.11.0, Jan 2026)
 - Inspirado en [EFCore.BulkExtensions](https://github.com/borisdj/EFCore.BulkExtensions)
 
-**#289 - Database Sharding**:
+**#289 - Database Sharding** ✅ **COMPLETADO (10-feb-2026)**:
 
-- `IShardable`, `IShardRouter<TEntity>`, `IShardedRepository<TEntity, TId>`
-- Estrategias: Hash (consistent hashing), Range, Directory, Geo
-- Scatter-Gather para queries cross-shard
-- Consideración: Muy alta complejidad, usar solo cuando realmente necesario
+- **Core abstractions**: `IShardable`, `IShardRouter`, `ShardTopology`, `ShardKeyExtractor`, `EntityShardRouter<TEntity>`
+- **4 routing strategies**:
+  - `HashShardRouter`: xxHash64 + consistent hashing, 150 virtual nodes/shard, `IShardRebalancer`
+  - `RangeShardRouter`: Sorted boundary binary search, overlap detection
+  - `DirectoryShardRouter`: `IShardDirectoryStore` (pluggable), `InMemoryShardDirectoryStore` built-in
+  - `GeoShardRouter`: Region-based with fallback chains, cycle detection
+- **Scatter-Gather**: `IShardedQueryExecutor` con `ScatterGatherOptions` (MaxParallelism, Timeout, AllowPartialResults)
+- **13 providers**: ADO×4 (`IShardedConnectionFactory`), Dapper×4 (reutiliza ADO), EF Core×4 (`IShardedDbContextFactory`), MongoDB (`IShardedMongoCollectionFactory`)
+- **MongoDB dual-mode**: `UseNativeSharding` — native mongos (production) vs app-level routing (dev/test)
+- **Observability**: 7 métricas ("Encina" meter), 3 traces ("Encina.Sharding" ActivitySource), 13 error codes `encina.sharding.*`
+- **Health**: `ShardHealthResult` (Healthy/Degraded/Unhealthy), `ShardedHealthSummary`
+- **Documentation**: ADR-010, 4 guides (configuration, scaling, MongoDB, cross-shard operations)
+- **Test coverage**: ~680+ tests (unit, integration, guard, contract, property) + 13 benchmarks
+- Inspirado en consistent hashing (xxHash64) y MongoDB sharded cluster architecture
 
 **#290 - Connection Pool & Resilience** ✅ **COMPLETADO (08-feb-2026)**:
 

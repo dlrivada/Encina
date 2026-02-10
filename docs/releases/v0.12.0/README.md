@@ -24,13 +24,97 @@ v0.12.0 focuses on database and repository patterns, completing the data access 
 | #286 | Audit Trail | Pendiente |
 | #287 | Optimistic Concurrency | Completado |
 | #288 | CDC Integration | **Completado** |
-| #289 | Sharding | Pendiente |
+| #289 | Sharding | **Completado** |
 | #290 | Connection Pool Resilience | **Completado** |
 | #291 | Query Cache | **Completado** |
 | #292 | Domain Entity Base | Completado |
 | #293 | Pagination Abstractions | **Completado** |
 | #294 | Cursor Pagination | Pendiente |
 | #534 | Module Isolation | Completado |
+
+---
+
+## Week of February 10, 2026
+
+### February 10 - Database Sharding (#289)
+
+**Issue**: [#289 - Database Sharding](https://github.com/dlrivada/Encina/issues/289)
+
+Implemented comprehensive database sharding with four routing strategies, scatter-gather query execution, and MongoDB dual-mode support across all 13 database providers.
+
+#### Phases 1-9: Core Implementation & Testing
+
+**Files Created**:
+
+**Encina** (core abstractions):
+
+- `src/Encina/Sharding/IShardable.cs` - Entity shard key interface
+- `src/Encina/Sharding/ShardKeyAttribute.cs` - Attribute-based shard key extraction
+- `src/Encina/Sharding/ShardKeyExtractor.cs` - Cached reflection extraction
+- `src/Encina/Sharding/EntityShardRouter.cs` - Combined extraction + routing
+- `src/Encina/Sharding/ShardTopology.cs` - Immutable shard configuration
+- `src/Encina/Sharding/ShardInfo.cs` - Shard connection metadata
+- `src/Encina/Sharding/Routing/IShardRouter.cs` - Core routing abstraction
+- `src/Encina/Sharding/Routing/HashShardRouter.cs` - xxHash64 + consistent hashing (150 virtual nodes)
+- `src/Encina/Sharding/Routing/RangeShardRouter.cs` - Sorted boundary binary search
+- `src/Encina/Sharding/Routing/DirectoryShardRouter.cs` - Key-to-shard lookup
+- `src/Encina/Sharding/Routing/GeoShardRouter.cs` - Region-based with fallback chains
+- `src/Encina/Sharding/Routing/IShardRebalancer.cs` - Topology change planning
+- `src/Encina/Sharding/Routing/IShardDirectoryStore.cs` - Pluggable directory backend
+- `src/Encina/Sharding/Query/IShardedQueryExecutor.cs` - Scatter-gather engine
+- `src/Encina/Sharding/Query/ScatterGatherOptions.cs` - Query configuration
+- `src/Encina/Sharding/Query/ShardedQueryResult.cs` - Results with partial failure tracking
+- `src/Encina/Sharding/Health/ShardHealthResult.cs` - Three-state health model
+- `src/Encina/Sharding/Health/ShardedHealthSummary.cs` - Aggregate health
+- `src/Encina/Sharding/Diagnostics/ShardingMetrics.cs` - 7 OpenTelemetry instruments
+- `src/Encina/Sharding/Diagnostics/ShardingTracing.cs` - 3 trace activities
+- `src/Encina/Sharding/ShardingErrorCodes.cs` - 13 stable error codes
+
+**Provider Factories** (13 providers):
+
+- `src/Encina.ADO.Sqlite/Sharding/` - SQLite sharded connection factory
+- `src/Encina.ADO.SqlServer/Sharding/` - SQL Server sharded connection factory
+- `src/Encina.ADO.PostgreSQL/Sharding/` - PostgreSQL sharded connection factory
+- `src/Encina.ADO.MySQL/Sharding/` - MySQL sharded connection factory
+- `src/Encina.Dapper.Sqlite/Sharding/` - Reuses ADO factory
+- `src/Encina.Dapper.SqlServer/Sharding/` - Reuses ADO factory
+- `src/Encina.Dapper.PostgreSQL/Sharding/` - Reuses ADO factory
+- `src/Encina.Dapper.MySQL/Sharding/` - Reuses ADO factory
+- `src/Encina.EntityFrameworkCore.Sqlite/Sharding/` - Sharded DbContext factory
+- `src/Encina.EntityFrameworkCore.SqlServer/Sharding/` - Sharded DbContext factory
+- `src/Encina.EntityFrameworkCore.PostgreSQL/Sharding/` - Sharded DbContext factory
+- `src/Encina.EntityFrameworkCore.MySQL/Sharding/` - Sharded DbContext factory
+- `src/Encina.MongoDB/Sharding/` - Dual-mode (native mongos + app-level)
+
+#### Phase 9: Testing (~680+ tests)
+
+| Test Type | Count | Location |
+|-----------|-------|----------|
+| Unit Tests | ~300 | `tests/Encina.UnitTests/Sharding/` |
+| Guard Tests | ~120 | `tests/Encina.GuardTests/Sharding/` |
+| Contract Tests | ~80 | `tests/Encina.ContractTests/Sharding/` |
+| Property Tests | ~100 | `tests/Encina.PropertyTests/Sharding/` |
+| Integration Tests | ~80 | `tests/Encina.IntegrationTests/Sharding/` |
+| Benchmarks | 13 | `tests/Encina.BenchmarkTests/Sharding/` |
+| **Total** | **~680+** | |
+
+#### Phase 10: Documentation (5 guides + 1 ADR)
+
+- `docs/architecture/adr/010-database-sharding.md` — Architecture Decision Record
+- `docs/sharding/configuration.md` — Complete configuration reference (~25KB)
+- `docs/sharding/scaling-guidance.md` — Shard key selection, capacity planning, rebalancing (~16KB)
+- `docs/sharding/mongodb.md` — MongoDB dual-mode (native vs app-level) (~15KB)
+- `docs/sharding/cross-shard-operations.md` — Scatter-gather, Saga pattern, partial failures (~20KB)
+- Enhanced XML documentation in 8 source files with `<remarks>` and `<example>` tags
+
+#### Key Design Decisions
+
+- **Provider-agnostic**: Same `IShardRouter` + `ShardTopology` abstraction across all 13 providers
+- **Dapper reuses ADO**: Zero extra factory classes — Dapper sharding requires ADO registration first
+- **MongoDB dual-mode**: `UseNativeSharding` flag for native mongos (production) vs app-level routing (dev/test)
+- **No cross-shard 2PC**: Use Saga pattern from Encina.Messaging for distributed workflows
+- **Sub-microsecond routing**: Pre-computed ring (Hash), sorted arrays (Range), O(1) dictionary (Directory)
+- **Observable**: Full OpenTelemetry integration with `HasListeners()` guards for zero-cost when disabled
 
 ---
 

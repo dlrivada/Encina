@@ -1,0 +1,115 @@
+using LanguageExt;
+
+namespace Encina.Sharding.Routing;
+
+/// <summary>
+/// Routes shard keys using an explicit key-to-shard directory lookup.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Uses an <see cref="IShardDirectoryStore"/> for thread-safe key-to-shard mappings.
+/// When a key is not found in the directory, falls back to <see cref="DefaultShardId"/>
+/// if configured.
+/// </para>
+/// <para>
+/// This strategy is ideal when shard placement is explicitly managed (e.g., tenant-to-shard
+/// assignments) rather than algorithmically determined.
+/// </para>
+/// </remarks>
+public sealed class DirectoryShardRouter : IShardRouter
+{
+    private readonly ShardTopology _topology;
+    private readonly IShardDirectoryStore _store;
+
+    /// <summary>
+    /// Gets the default shard ID for keys not found in the directory.
+    /// Null means no default (missing keys return an error).
+    /// </summary>
+    public string? DefaultShardId { get; }
+
+    /// <summary>
+    /// Initializes a new <see cref="DirectoryShardRouter"/>.
+    /// </summary>
+    /// <param name="topology">The shard topology.</param>
+    /// <param name="store">The directory store for key-to-shard mappings.</param>
+    /// <param name="defaultShardId">Optional default shard ID for unmapped keys.</param>
+    public DirectoryShardRouter(
+        ShardTopology topology,
+        IShardDirectoryStore store,
+        string? defaultShardId = null)
+    {
+        ArgumentNullException.ThrowIfNull(topology);
+        ArgumentNullException.ThrowIfNull(store);
+
+        _topology = topology;
+        _store = store;
+        DefaultShardId = defaultShardId;
+    }
+
+    /// <inheritdoc />
+    public Either<EncinaError, string> GetShardId(string shardKey)
+    {
+        ArgumentNullException.ThrowIfNull(shardKey);
+
+        var mapped = _store.GetMapping(shardKey);
+
+        if (mapped is not null)
+        {
+            return Either<EncinaError, string>.Right(mapped);
+        }
+
+        if (DefaultShardId is not null)
+        {
+            return Either<EncinaError, string>.Right(DefaultShardId);
+        }
+
+        return Either<EncinaError, string>.Left(
+            EncinaErrors.Create(
+                ShardingErrorCodes.ShardNotFound,
+                $"Shard key '{shardKey}' has no mapping in the directory and no default shard is configured."));
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> GetAllShardIds() => _topology.AllShardIds;
+
+    /// <inheritdoc />
+    public Either<EncinaError, string> GetShardConnectionString(string shardId)
+    {
+        ArgumentNullException.ThrowIfNull(shardId);
+        return _topology.GetConnectionString(shardId);
+    }
+
+    /// <summary>
+    /// Adds a key-to-shard mapping to the directory.
+    /// </summary>
+    /// <param name="key">The shard key.</param>
+    /// <param name="shardId">The shard ID.</param>
+    public void AddMapping(string key, string shardId)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(shardId);
+        _store.AddMapping(key, shardId);
+    }
+
+    /// <summary>
+    /// Removes a key-to-shard mapping from the directory.
+    /// </summary>
+    /// <param name="key">The shard key to remove.</param>
+    /// <returns>True if the mapping was removed; false if it did not exist.</returns>
+    public bool RemoveMapping(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return _store.RemoveMapping(key);
+    }
+
+    /// <summary>
+    /// Gets the shard ID for a specific key from the directory.
+    /// </summary>
+    /// <param name="key">The shard key.</param>
+    /// <returns>The shard ID if found; null otherwise.</returns>
+    public string? GetMapping(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return _store.GetMapping(key);
+    }
+}

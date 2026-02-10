@@ -41,4 +41,11 @@ internal static class ActivityTagNames
     internal const string ItemType = "Encina.item_type";
     internal const string ItemName = "Encina.item_name";
     internal const string StreamItemCount = "Encina.stream_item_count";
+
+    // Sharding tags
+    internal const string ShardId = "db.shard.id";
+    internal const string ShardKey = "db.shard.key";
+    internal const string ShardCount = "encina.sharding.shard.count";
+    internal const string RouterType = "encina.sharding.router.type";
+    internal const string ScatterGatherStrategy = "encina.sharding.scatter.strategy";
 }

@@ -2,6 +2,54 @@
 
 ### Added
 
+#### Database Sharding (#289)
+
+Added comprehensive database sharding with four routing strategies, support for all 13 database providers, and full observability integration.
+
+**Core Architecture**:
+
+- **`IShardRouter`**: Abstraction for shard key → shard ID mapping with four implementations
+- **`ShardTopology`**: Immutable shard configuration with connection metadata per shard
+- **`ShardKeyExtractor`**: Extracts shard keys via `IShardable` interface or `[ShardKey]` attribute (cached reflection)
+- **`EntityShardRouter<TEntity>`**: Combines extraction and routing into a single pipeline step
+- **`IShardedQueryExecutor`**: Scatter-gather engine for cross-shard queries with partial failure handling
+
+**Four Routing Strategies**:
+
+- **Hash** (`HashShardRouter`): xxHash64 + consistent hashing with 150 virtual nodes per shard, ~1/N data movement on rebalance via `IShardRebalancer`
+- **Range** (`RangeShardRouter`): Sorted boundary binary search, overlap detection at construction time
+- **Directory** (`DirectoryShardRouter`): Explicit key-to-shard mapping via `IShardDirectoryStore` (pluggable backends)
+- **Geo** (`GeoShardRouter`): Region-based routing with fallback chains and cycle detection
+
+**Provider Support** (13 providers):
+
+- ADO.NET: `AddEncinaADOSharding<TEntity, TId>()` — SQLite, SqlServer, PostgreSQL, MySQL
+- Dapper: `AddEncinaDapperSharding<TEntity, TId>()` — reuses ADO's `IShardedConnectionFactory`
+- EF Core: `AddEncinaEFCoreSharding{Provider}<TContext, TEntity, TId>()` — SQLite, SqlServer, PostgreSQL, MySQL
+- MongoDB: `AddEncinaMongoDBSharding<TEntity, TId>()` — dual-mode (native mongos + app-level routing)
+
+**Observability**:
+
+- 7 metric instruments under "Encina" meter (route decisions, route latency, scatter duration, partial failures, active queries, per-shard duration, active shards gauge)
+- 3 trace activities under "Encina.Sharding" ActivitySource (Routing, ScatterGather, ShardQuery)
+- 13 stable error codes prefixed `encina.sharding.*`
+
+**Health Monitoring**:
+
+- `ShardHealthResult` with three-state model (Healthy/Degraded/Unhealthy)
+- `ShardedHealthSummary` with aggregate status calculation
+- Configurable health check interval via `ShardingMetricsOptions`
+
+**Documentation** (5 guides + 1 ADR):
+
+- `docs/architecture/adr/010-database-sharding.md` — Architecture Decision Record
+- `docs/sharding/configuration.md` — Complete configuration reference
+- `docs/sharding/scaling-guidance.md` — Shard key selection, capacity planning, rebalancing
+- `docs/sharding/mongodb.md` — MongoDB dual-mode (native vs app-level)
+- `docs/sharding/cross-shard-operations.md` — Scatter-gather, Saga pattern, partial failures
+
+**Testing**: ~680+ tests across unit, integration, guard, contract, property tests; 13 BenchmarkDotNet benchmarks
+
 #### Change Data Capture (CDC) Pattern (#308)
 
 Added a provider-agnostic Change Data Capture infrastructure that streams database changes as typed events through a handler pipeline, with support for 5 database providers and messaging integration.

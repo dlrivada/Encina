@@ -155,3 +155,92 @@ Encina.Caching.ServiceCollectionExtensions
 static Encina.Caching.ServiceCollectionExtensions.AddCacheConfiguration<TRequest>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Caching.CacheConfiguration<TRequest>!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Caching.ServiceCollectionExtensions.AddCacheKeyGenerator<TGenerator>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Caching.ServiceCollectionExtensions.AddEncinaCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Caching.CachingOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Caching.Sharding.CachedShardDirectoryStore
+Encina.Caching.Sharding.CachedShardDirectoryStore.CachedShardDirectoryStore(Encina.Sharding.Routing.IShardDirectoryStore! inner, Encina.Caching.ICacheProvider! cache, Microsoft.Extensions.Options.IOptions<Encina.Caching.Sharding.Configuration.DirectoryCacheOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Caching.Sharding.CachedShardDirectoryStore!>! logger, Encina.Caching.IPubSubProvider? pubSub = null) -> void
+Encina.Caching.Sharding.CachedShardDirectoryStore.AddMapping(string! key, string! shardId) -> void
+Encina.Caching.Sharding.CachedShardDirectoryStore.GetAllMappings() -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+Encina.Caching.Sharding.CachedShardDirectoryStore.GetMapping(string! key) -> string?
+Encina.Caching.Sharding.CachedShardDirectoryStore.RemoveMapping(string! key) -> bool
+Encina.Caching.Sharding.CachedShardedQueryExecutor
+Encina.Caching.Sharding.CachedShardedQueryExecutor.CachedShardedQueryExecutor(Encina.Sharding.Execution.IShardedQueryExecutor! inner, Encina.Caching.ICacheProvider! cache, Microsoft.Extensions.Options.IOptions<Encina.Caching.Sharding.Configuration.ScatterGatherCacheOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Caching.Sharding.CachedShardedQueryExecutor!>! logger, Encina.Caching.IPubSubProvider? pubSub = null) -> void
+Encina.Caching.Sharding.CachedShardedQueryExecutor.ExecuteAllAsync<T>(System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<T>!>>!>! queryFactory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardedQueryResult<T>!>>!
+Encina.Caching.Sharding.CachedShardedQueryExecutor.ExecuteAllCachedAsync<T>(string! cacheKey, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<T>!>>!>! queryFactory, System.TimeSpan? cacheDuration = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardedQueryResult<T>!>>!
+Encina.Caching.Sharding.CachedShardedQueryExecutor.ExecuteAsync<T>(System.Collections.Generic.IEnumerable<string!>! shardIds, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<T>!>>!>! queryFactory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardedQueryResult<T>!>>!
+Encina.Caching.Sharding.CachedShardedQueryExecutor.ExecuteCachedAsync<T>(System.Collections.Generic.IEnumerable<string!>! shardIds, string! cacheKey, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<T>!>>!>! queryFactory, System.TimeSpan? cacheDuration = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardedQueryResult<T>!>>!
+Encina.Caching.Sharding.CachedShardedQueryExecutor.InvalidateAsync(string! cacheKeyPattern, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Caching.Sharding.CachedShardedQueryExecutor.InvalidateShardAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Caching.Sharding.CachedShardTopologyProvider
+Encina.Caching.Sharding.CachedShardTopologyProvider.CachedShardTopologyProvider(Encina.Sharding.ShardTopology! initial, Encina.Caching.Sharding.IShardTopologySource! source, Encina.Caching.ICacheProvider! cache, Microsoft.Extensions.Options.IOptions<Encina.Caching.Sharding.Configuration.ShardingCacheOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Caching.Sharding.CachedShardTopologyProvider!>! logger, Encina.Caching.Sharding.IShardTopologyChangeNotifier? notifier = null) -> void
+Encina.Caching.Sharding.CachedShardTopologyProvider.Dispose() -> void
+Encina.Caching.Sharding.CachedShardTopologyProvider.GetTopology() -> Encina.Sharding.ShardTopology!
+Encina.Caching.Sharding.Configuration.CacheInvalidationStrategy
+Encina.Caching.Sharding.Configuration.CacheInvalidationStrategy.Immediate = 0 -> Encina.Caching.Sharding.Configuration.CacheInvalidationStrategy
+Encina.Caching.Sharding.Configuration.CacheInvalidationStrategy.Lazy = 2 -> Encina.Caching.Sharding.Configuration.CacheInvalidationStrategy
+Encina.Caching.Sharding.Configuration.CacheInvalidationStrategy.WriteThrough = 1 -> Encina.Caching.Sharding.Configuration.CacheInvalidationStrategy
+Encina.Caching.Sharding.Configuration.DirectoryCacheOptions
+Encina.Caching.Sharding.Configuration.DirectoryCacheOptions.CacheDuration.get -> System.TimeSpan
+Encina.Caching.Sharding.Configuration.DirectoryCacheOptions.CacheDuration.set -> void
+Encina.Caching.Sharding.Configuration.DirectoryCacheOptions.DirectoryCacheOptions() -> void
+Encina.Caching.Sharding.Configuration.DirectoryCacheOptions.EnableDistributedInvalidation.get -> bool
+Encina.Caching.Sharding.Configuration.DirectoryCacheOptions.EnableDistributedInvalidation.set -> void
+Encina.Caching.Sharding.Configuration.DirectoryCacheOptions.InvalidationChannel.get -> string!
+Encina.Caching.Sharding.Configuration.DirectoryCacheOptions.InvalidationChannel.set -> void
+Encina.Caching.Sharding.Configuration.DirectoryCacheOptions.InvalidationStrategy.get -> Encina.Caching.Sharding.Configuration.CacheInvalidationStrategy
+Encina.Caching.Sharding.Configuration.DirectoryCacheOptions.InvalidationStrategy.set -> void
+Encina.Caching.Sharding.Configuration.DirectoryCacheOptions.KeyPrefix.get -> string!
+Encina.Caching.Sharding.Configuration.DirectoryCacheOptions.KeyPrefix.set -> void
+Encina.Caching.Sharding.Configuration.ScatterGatherCacheOptions
+Encina.Caching.Sharding.Configuration.ScatterGatherCacheOptions.DefaultCacheDuration.get -> System.TimeSpan
+Encina.Caching.Sharding.Configuration.ScatterGatherCacheOptions.DefaultCacheDuration.set -> void
+Encina.Caching.Sharding.Configuration.ScatterGatherCacheOptions.EnableResultCaching.get -> bool
+Encina.Caching.Sharding.Configuration.ScatterGatherCacheOptions.EnableResultCaching.set -> void
+Encina.Caching.Sharding.Configuration.ScatterGatherCacheOptions.InvalidationChannel.get -> string!
+Encina.Caching.Sharding.Configuration.ScatterGatherCacheOptions.InvalidationChannel.set -> void
+Encina.Caching.Sharding.Configuration.ScatterGatherCacheOptions.MaxCachedResultSize.get -> int
+Encina.Caching.Sharding.Configuration.ScatterGatherCacheOptions.MaxCachedResultSize.set -> void
+Encina.Caching.Sharding.Configuration.ScatterGatherCacheOptions.ScatterGatherCacheOptions() -> void
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.DirectoryCache.get -> Encina.Caching.Sharding.Configuration.DirectoryCacheOptions!
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.DirectoryCache.set -> void
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.EnableBackgroundRefresh.get -> bool
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.EnableBackgroundRefresh.set -> void
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.EnableDirectoryCaching.get -> bool
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.EnableDirectoryCaching.set -> void
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.EnableScatterGatherCaching.get -> bool
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.EnableScatterGatherCaching.set -> void
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.ScatterGatherCache.get -> Encina.Caching.Sharding.Configuration.ScatterGatherCacheOptions!
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.ScatterGatherCache.set -> void
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.ShardingCacheOptions() -> void
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.TopologyCacheDuration.get -> System.TimeSpan
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.TopologyCacheDuration.set -> void
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.TopologyRefreshInterval.get -> System.TimeSpan
+Encina.Caching.Sharding.Configuration.ShardingCacheOptions.TopologyRefreshInterval.set -> void
+Encina.Caching.Sharding.DirectoryCacheInvalidationMessage
+Encina.Caching.Sharding.DirectoryCacheInvalidationMessage.DirectoryCacheInvalidationMessage(string! Key, string? ShardId, bool IsRemoval) -> void
+Encina.Caching.Sharding.DirectoryCacheInvalidationMessage.IsRemoval.get -> bool
+Encina.Caching.Sharding.DirectoryCacheInvalidationMessage.IsRemoval.init -> void
+Encina.Caching.Sharding.DirectoryCacheInvalidationMessage.Key.get -> string!
+Encina.Caching.Sharding.DirectoryCacheInvalidationMessage.Key.init -> void
+Encina.Caching.Sharding.DirectoryCacheInvalidationMessage.ShardId.get -> string?
+Encina.Caching.Sharding.DirectoryCacheInvalidationMessage.ShardId.init -> void
+Encina.Caching.Sharding.IShardTopologyChangeNotifier
+Encina.Caching.Sharding.IShardTopologyChangeNotifier.TopologyChanged -> System.EventHandler?
+Encina.Caching.Sharding.IShardTopologySource
+Encina.Caching.Sharding.IShardTopologySource.LoadShardsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Sharding.ShardInfo!>!>!
+Encina.Caching.Sharding.Services.TopologyRefreshHostedService
+Encina.Caching.Sharding.Services.TopologyRefreshHostedService.Dispose() -> void
+Encina.Caching.Sharding.Services.TopologyRefreshHostedService.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Caching.Sharding.Services.TopologyRefreshHostedService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Caching.Sharding.Services.TopologyRefreshHostedService.TopologyRefreshHostedService(Encina.Caching.Sharding.CachedShardTopologyProvider! topologyProvider, Microsoft.Extensions.Options.IOptions<Encina.Caching.Sharding.Configuration.ShardingCacheOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Caching.Sharding.Services.TopologyRefreshHostedService!>! logger, Encina.Caching.Sharding.CachedShardDirectoryStore? directoryStore = null) -> void
+Encina.Caching.Sharding.ShardCacheKeyGenerator
+Encina.Caching.Sharding.ShardingCacheServiceCollectionExtensions
+Encina.Caching.Sharding.StaticShardTopologySource
+Encina.Caching.Sharding.StaticShardTopologySource.LoadShardsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Encina.Sharding.ShardInfo!>!>!
+Encina.Caching.Sharding.StaticShardTopologySource.StaticShardTopologySource(Encina.Sharding.ShardTopology! topology) -> void
+static Encina.Caching.Sharding.ShardCacheKeyGenerator.ForDirectory(string! prefix, string! key) -> string!
+static Encina.Caching.Sharding.ShardCacheKeyGenerator.ForDirectoryAll(string! prefix) -> string!
+static Encina.Caching.Sharding.ShardCacheKeyGenerator.ForScatterGather(string! prefix, string! cacheKey) -> string!
+static Encina.Caching.Sharding.ShardCacheKeyGenerator.ForScatterGatherShard(string! prefix, string! shardId, string! cacheKey) -> string!
+static Encina.Caching.Sharding.ShardCacheKeyGenerator.ForTopology(string! prefix) -> string!
+static Encina.Caching.Sharding.ShardCacheKeyGenerator.InvalidationPattern(string! prefix, string! shardId) -> string!
+static Encina.Caching.Sharding.ShardingCacheServiceCollectionExtensions.AddEncinaShardingCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Caching.Sharding.Configuration.ShardingCacheOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
