@@ -1,14 +1,11 @@
 using System.Data;
 using System.Reflection;
-
 using Encina.Sharding.Data;
-
 using Shouldly;
-
+using ADOMySQLSharding = Encina.ADO.MySQL.Sharding;
+using ADOPostgreSQLSharding = Encina.ADO.PostgreSQL.Sharding;
 using ADOSqliteSharding = Encina.ADO.Sqlite.Sharding;
 using ADOSqlServerSharding = Encina.ADO.SqlServer.Sharding;
-using ADOPostgreSQLSharding = Encina.ADO.PostgreSQL.Sharding;
-using ADOMySQLSharding = Encina.ADO.MySQL.Sharding;
 
 namespace Encina.ContractTests.Database.Sharding;
 
