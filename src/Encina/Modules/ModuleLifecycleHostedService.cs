@@ -117,7 +117,6 @@ internal sealed class ModuleLifecycleHostedService : IHostedService
     }
 
 #pragma warning disable CA1848 // Use the LoggerMessage delegates
-#pragma warning disable CA1873 // Logging parameter evaluation
 
     private static void LogStartingModules(ILogger logger, int count)
         => logger.LogInformation("Starting {Count} module(s) with lifecycle hooks", count);
@@ -155,6 +154,5 @@ internal sealed class ModuleLifecycleHostedService : IHostedService
     private static void LogAllModulesStopped(ILogger logger, int count)
         => logger.LogInformation("All {Count} module(s) stopped", count);
 
-#pragma warning restore CA1873
 #pragma warning restore CA1848
 }
