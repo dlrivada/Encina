@@ -142,7 +142,7 @@ public abstract class DatabaseIntegrationTestBase<TFixture> : IAsyncLifetime
     /// It creates the respawner and resets the database to a clean state.
     /// </remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public virtual async Task InitializeAsync()
+    public virtual async ValueTask InitializeAsync()
     {
         _respawner = CreateRespawner();
         await _respawner.InitializeAsync();
@@ -156,8 +156,10 @@ public abstract class DatabaseIntegrationTestBase<TFixture> : IAsyncLifetime
     /// This method is called by xUnit after each test method completes.
     /// </remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public virtual async Task DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
+        GC.SuppressFinalize(this);
+
         if (_respawner is not null)
         {
             await _respawner.DisposeAsync();

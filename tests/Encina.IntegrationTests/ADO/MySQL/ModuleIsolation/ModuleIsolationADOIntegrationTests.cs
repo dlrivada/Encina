@@ -36,7 +36,7 @@ public class ModuleIsolationADOIntegrationTests : IAsyncLifetime
     private ModuleIsolationOptions _isolationOptions = null!;
     private TestModuleExecutionContext _moduleContext = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _connection = (_fixture.CreateConnection() as MySqlConnection)!;
         await ModuleIsolationSchema.CreateAllModuleSchemasAsync(_connection);
@@ -54,7 +54,7 @@ public class ModuleIsolationADOIntegrationTests : IAsyncLifetime
         _moduleContext = new TestModuleExecutionContext();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_connection is not null)
         {

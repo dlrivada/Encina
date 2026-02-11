@@ -35,14 +35,15 @@ public abstract class EFCoreTestBase<TFixture> : IAsyncLifetime
     protected string ProviderName => Fixture.ProviderName;
 
     /// <inheritdoc />
-    public virtual async Task InitializeAsync()
+    public virtual async ValueTask InitializeAsync()
     {
         await Fixture.ClearAllDataAsync();
     }
 
     /// <inheritdoc />
-    public virtual Task DisposeAsync()
+    public virtual ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        GC.SuppressFinalize(this);
+        return ValueTask.CompletedTask;
     }
 }

@@ -28,7 +28,7 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Create the test schema
         using var schemaConnection = _fixture.CreateConnection() as SqlConnection;
@@ -50,7 +50,7 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
         _repository = new FunctionalRepositoryDapper<TestProduct, Guid>(_connection, _mapping);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _connection?.Dispose();
         await _fixture.ClearAllDataAsync();

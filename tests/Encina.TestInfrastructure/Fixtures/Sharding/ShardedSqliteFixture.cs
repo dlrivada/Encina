@@ -72,7 +72,7 @@ public sealed class ShardedSqliteFixture : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         Directory.CreateDirectory(_tempDir);
 
@@ -83,7 +83,7 @@ public sealed class ShardedSqliteFixture : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         // Clean up temp directory with shard databases
         try
@@ -98,7 +98,7 @@ public sealed class ShardedSqliteFixture : IAsyncLifetime
             // Best effort cleanup
         }
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>

@@ -36,7 +36,7 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
     private const string Tenant1 = "tenant-001";
     private const string Tenant2 = "tenant-002";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         using var schemaConnection = _fixture.CreateConnection() as MySqlConnection;
         if (schemaConnection != null)
@@ -70,7 +70,7 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
             _connection, _mapping, _tenantProvider, _tenancyOptions);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _connection?.Dispose();
         await _fixture.ClearAllDataAsync();

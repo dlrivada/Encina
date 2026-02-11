@@ -24,12 +24,12 @@ public class DapperConcurrencyIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ClearDataAsync();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     #region Versioned Update Tests
 
@@ -305,7 +305,7 @@ public sealed class ConcurrencyDapperFixture : IAsyncLifetime
         return connection;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _sqlServerFixture.InitializeAsync();
 
@@ -313,7 +313,7 @@ public sealed class ConcurrencyDapperFixture : IAsyncLifetime
         await CreateDapperConcurrencyTestSchemaAsync(connection);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sqlServerFixture.DisposeAsync();
     }

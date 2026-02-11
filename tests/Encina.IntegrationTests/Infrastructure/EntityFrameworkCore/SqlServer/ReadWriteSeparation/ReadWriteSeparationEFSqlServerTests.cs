@@ -39,7 +39,7 @@ public sealed class ReadWriteSeparationEFSqlServerTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (!_fixture.IsAvailable)
             return;
@@ -70,7 +70,7 @@ public sealed class ReadWriteSeparationEFSqlServerTests : IAsyncLifetime
         _serviceProvider = services.BuildServiceProvider();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (!_fixture.IsAvailable)
             return;

@@ -23,17 +23,17 @@ public sealed class InboxStoreEFMySqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _fixture.ClearAllDataAsync();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -60,10 +60,10 @@ public sealed class InboxStoreEFMySqlTests : IAsyncLifetime
         stored!.RequestType.ShouldBe("TestRequest");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetMessageAsync_ExistingMessage_ShouldReturnMessage()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -91,10 +91,10 @@ public sealed class InboxStoreEFMySqlTests : IAsyncLifetime
         result!.MessageId.ShouldBe(messageId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MarkAsProcessedAsync_ShouldUpdateTimestamp()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();

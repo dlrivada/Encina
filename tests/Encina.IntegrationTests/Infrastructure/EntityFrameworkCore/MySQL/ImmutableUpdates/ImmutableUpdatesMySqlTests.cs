@@ -29,14 +29,14 @@ public sealed class ImmutableUpdatesMySqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateImmutable_ModifiedEntity_PersistsChangesToDatabase()
     {
-        Skip.If(true, SkipReason);
+        Assert.SkipWhen(true, SkipReason);
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -63,10 +63,10 @@ public sealed class ImmutableUpdatesMySqlTests : IAsyncLifetime
         stored!.Status.ShouldBe("Shipped");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateImmutable_PreservesDomainEvents()
     {
-        Skip.If(true, SkipReason);
+        Assert.SkipWhen(true, SkipReason);
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -90,10 +90,10 @@ public sealed class ImmutableUpdatesMySqlTests : IAsyncLifetime
         modifiedOrder.DomainEvents.Count.ShouldBe(2);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateImmutable_UntrackedEntity_ReturnsError()
     {
-        Skip.If(true, SkipReason);
+        Assert.SkipWhen(true, SkipReason);
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -113,10 +113,10 @@ public sealed class ImmutableUpdatesMySqlTests : IAsyncLifetime
         });
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task UpdateImmutable_DetachesOriginalAndAttachesModified()
     {
-        Skip.If(true, SkipReason);
+        Assert.SkipWhen(true, SkipReason);
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();

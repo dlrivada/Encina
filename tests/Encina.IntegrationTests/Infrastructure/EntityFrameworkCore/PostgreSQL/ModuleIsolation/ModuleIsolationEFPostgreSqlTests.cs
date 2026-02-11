@@ -42,7 +42,7 @@ public sealed class ModuleIsolationEFPostgreSqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (!_fixture.IsAvailable)
             return;
@@ -62,7 +62,7 @@ public sealed class ModuleIsolationEFPostgreSqlTests : IAsyncLifetime
         _moduleContext = new TestModuleExecutionContext();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (!_fixture.IsAvailable)
             return;

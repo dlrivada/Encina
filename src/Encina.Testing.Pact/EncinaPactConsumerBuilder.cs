@@ -73,7 +73,7 @@ public sealed class EncinaPactConsumerBuilder : IDisposable
         string consumerName,
         string providerName,
         string pactDirectory = "./pacts",
-        Xunit.Abstractions.ITestOutputHelper? outputWriter = null)
+        Xunit.ITestOutputHelper? outputWriter = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(consumerName);
         ArgumentException.ThrowIfNullOrWhiteSpace(providerName);

@@ -25,7 +25,7 @@ public class RestApiRequestHandlerIntegrationTests : IClassFixture<EncinaRefitMo
         _fixture = fixture;
     }
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         _fixture.Reset();
 
@@ -41,10 +41,10 @@ public class RestApiRequestHandlerIntegrationTests : IClassFixture<EncinaRefitMo
         _serviceProvider = services.BuildServiceProvider();
         _handler = _serviceProvider.GetRequiredService<RestApiRequestHandler<GetPostRequest, ITestPostApi, Post>>();
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_serviceProvider is IAsyncDisposable asyncDisposable)
         {

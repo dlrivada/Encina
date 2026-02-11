@@ -59,7 +59,7 @@ public class ReadWriteSeparationADOIntegrationTests : ReadWriteSeparationTestsBa
         _options?.ReadConnectionStrings.FirstOrDefault() ?? PrimaryConnectionString;
 
     /// <inheritdoc />
-    public override async Task InitializeAsync()
+    public override async ValueTask InitializeAsync()
     {
         // Create read/write test entities table
         using var connection = (SqlConnection)_fixture.CreateConnection();
@@ -81,7 +81,7 @@ public class ReadWriteSeparationADOIntegrationTests : ReadWriteSeparationTestsBa
     }
 
     /// <inheritdoc />
-    public override async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         try
         {

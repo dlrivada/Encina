@@ -44,7 +44,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (!_fixture.IsAvailable)
         {
@@ -69,7 +69,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
         _unitOfWork = new UnitOfWorkMongoDB(_fixture.Client!, mongoOptions, _serviceProvider);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_unitOfWork != null)
         {
@@ -94,7 +94,7 @@ public class UnitOfWorkMongoDBIntegrationTests : IAsyncLifetime
     {
         if (!isAvailable || unitOfWork == null)
         {
-            throw new Xunit.SkipException("MongoDB container is not available");
+            Assert.Skip("MongoDB container is not available");
         }
     }
 

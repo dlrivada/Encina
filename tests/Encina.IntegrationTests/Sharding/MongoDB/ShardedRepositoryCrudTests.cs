@@ -28,7 +28,7 @@ public sealed class ShardedRepositoryCrudTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ClearAllDataAsync();
 
@@ -59,10 +59,10 @@ public sealed class ShardedRepositoryCrudTests : IAsyncLifetime
         _serviceProvider = services.BuildServiceProvider();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _serviceProvider?.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

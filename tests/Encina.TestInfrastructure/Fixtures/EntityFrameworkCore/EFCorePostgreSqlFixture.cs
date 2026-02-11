@@ -44,13 +44,13 @@ public sealed class EFCorePostgreSqlFixture : IEFCoreFixture
     }
 
     /// <inheritdoc />
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _postgreSqlFixture.InitializeAsync();
     }
 
     /// <inheritdoc />
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _postgreSqlFixture.DisposeAsync();
     }

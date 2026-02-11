@@ -35,7 +35,7 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IAsyncLifetime
         _tableName = $"BulkTestOrders_{Guid.NewGuid():N}";
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _connection = _fixture.CreateConnection() as NpgsqlConnection
             ?? throw new InvalidOperationException("Expected NpgsqlConnection");
@@ -56,7 +56,7 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IAsyncLifetime
         _bulkOps = new BulkOperationsPostgreSQL<BulkTestOrder, Guid>(_connection, mapping);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await DropBulkTestTableAsync();
         if (_connection is not null)

@@ -28,7 +28,7 @@ public sealed class NatsFixture : IAsyncLifetime
     public bool IsAvailable => _container is not null && Connection is not null;
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new NatsBuilder()
             .WithImage("nats:2-alpine")
@@ -46,7 +46,7 @@ public sealed class NatsFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (Connection is not null)
         {

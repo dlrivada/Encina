@@ -30,7 +30,7 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Create the test schema
         using var schemaConnection = _fixture.CreateConnection() as MySqlConnection;
@@ -49,7 +49,7 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
         _unitOfWork = new UnitOfWorkDapper(_connection, _serviceProvider);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _unitOfWork.DisposeAsync();
         _connection?.Dispose();

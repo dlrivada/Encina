@@ -1,4 +1,4 @@
-﻿using Encina.ADO.SqlServer.Outbox;
+using Encina.ADO.SqlServer.Outbox;
 using Encina.Messaging.Outbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
@@ -25,13 +25,13 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ClearAllDataAsync();
         _store = new OutboxStoreADO(_fixture.CreateConnection());
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     #region AddAsync Tests
 

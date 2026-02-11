@@ -28,13 +28,13 @@ public sealed class BulkOperationsEFMySqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         // Skip initialization until MySQL EF Core support is available
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_dbContext is not null)
         {
@@ -59,10 +59,10 @@ public sealed class BulkOperationsEFMySqlTests : IAsyncLifetime
 
     #region BulkInsertAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task BulkInsertAsync_EmptyCollection_ReturnsRightWithZero()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         _dbContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -79,10 +79,10 @@ public sealed class BulkOperationsEFMySqlTests : IAsyncLifetime
         result.IfRight(count => count.ShouldBe(0));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task BulkInsertAsync_SingleEntity_InsertsSuccessfully()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         _dbContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -106,10 +106,10 @@ public sealed class BulkOperationsEFMySqlTests : IAsyncLifetime
         result.IfRight(count => count.ShouldBe(1));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task BulkInsertAsync_100Entities_InsertsAllSuccessfully()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         _dbContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -130,10 +130,10 @@ public sealed class BulkOperationsEFMySqlTests : IAsyncLifetime
 
     #region BulkReadAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task BulkReadAsync_EmptyIds_ReturnsEmptyCollection()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         _dbContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -150,10 +150,10 @@ public sealed class BulkOperationsEFMySqlTests : IAsyncLifetime
         result.IfRight(entities => entities.ShouldBeEmpty());
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task BulkReadAsync_ExistingIds_ReturnsEntities()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         _dbContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -177,10 +177,10 @@ public sealed class BulkOperationsEFMySqlTests : IAsyncLifetime
 
     #region BulkUpdateAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task BulkUpdateAsync_EmptyCollection_ReturnsRightWithZero()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         _dbContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -197,10 +197,10 @@ public sealed class BulkOperationsEFMySqlTests : IAsyncLifetime
         result.IfRight(count => count.ShouldBe(0));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task BulkUpdateAsync_ExistingEntities_UpdatesSuccessfully()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         _dbContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -230,10 +230,10 @@ public sealed class BulkOperationsEFMySqlTests : IAsyncLifetime
 
     #region BulkDeleteAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task BulkDeleteAsync_EmptyCollection_ReturnsRightWithZero()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         _dbContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -250,10 +250,10 @@ public sealed class BulkOperationsEFMySqlTests : IAsyncLifetime
         result.IfRight(count => count.ShouldBe(0));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task BulkDeleteAsync_ExistingEntities_DeletesSuccessfully()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         _dbContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -280,10 +280,10 @@ public sealed class BulkOperationsEFMySqlTests : IAsyncLifetime
 
     #region BulkMergeAsync Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task BulkMergeAsync_EmptyCollection_ReturnsRightWithZero()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         _dbContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -300,10 +300,10 @@ public sealed class BulkOperationsEFMySqlTests : IAsyncLifetime
         result.IfRight(count => count.ShouldBe(0));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task BulkMergeAsync_NewEntities_InsertsSuccessfully()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         _dbContext = _fixture.CreateDbContext<TestEFDbContext>();

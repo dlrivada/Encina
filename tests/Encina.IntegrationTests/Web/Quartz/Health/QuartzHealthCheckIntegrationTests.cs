@@ -19,7 +19,7 @@ public sealed class QuartzHealthCheckIntegrationTests : IAsyncLifetime
     private ServiceProvider? _serviceProvider;
     private static readonly string SchedulerName = $"HealthCheckTests_{Guid.NewGuid():N}";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Create and start a real Quartz scheduler with unique name
         var properties = new NameValueCollection
@@ -37,7 +37,7 @@ public sealed class QuartzHealthCheckIntegrationTests : IAsyncLifetime
         _serviceProvider = services.BuildServiceProvider();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_scheduler != null)
         {

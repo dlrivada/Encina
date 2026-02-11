@@ -20,11 +20,11 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         if (!_fixture.IsAvailable)
         {
-            return Task.CompletedTask;
+            return ValueTask.CompletedTask;
         }
 
         var options = Options.Create(new RedisCacheOptions
@@ -38,12 +38,12 @@ public class RedisCacheProviderIntegrationTests : IAsyncLifetime
             options,
             NullLogger<RedisCacheProvider>.Instance);
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

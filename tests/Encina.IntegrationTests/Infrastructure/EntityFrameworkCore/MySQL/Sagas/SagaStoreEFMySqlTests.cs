@@ -23,17 +23,17 @@ public sealed class SagaStoreEFMySqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _fixture.ClearAllDataAsync();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistSaga()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -63,10 +63,10 @@ public sealed class SagaStoreEFMySqlTests : IAsyncLifetime
         stored.Status.ShouldBe(SagaStatus.Running);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetAsync_ExistingSaga_ShouldReturnSaga()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -96,10 +96,10 @@ public sealed class SagaStoreEFMySqlTests : IAsyncLifetime
         result!.SagaId.ShouldBe(sagaId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetStuckSagasAsync_ShouldReturnOldRunningSagas()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -142,10 +142,10 @@ public sealed class SagaStoreEFMySqlTests : IAsyncLifetime
         sagaList.ShouldContain(s => s.SagaId == stuckSaga.SagaId);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ConcurrentWrites_ShouldNotCorruptData()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();

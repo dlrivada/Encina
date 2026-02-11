@@ -26,11 +26,11 @@ public class FunctionalRepositoryMongoDBIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         if (!_fixture.IsAvailable)
         {
-            return Task.CompletedTask;
+            return ValueTask.CompletedTask;
         }
 
         _collection = _fixture.Database!.GetCollection<TestDocument>("test_documents");
@@ -38,10 +38,10 @@ public class FunctionalRepositoryMongoDBIntegrationTests : IAsyncLifetime
             _collection,
             d => d.Id);
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_collection != null)
         {

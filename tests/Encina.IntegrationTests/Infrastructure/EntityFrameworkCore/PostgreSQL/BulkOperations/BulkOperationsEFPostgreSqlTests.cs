@@ -27,13 +27,13 @@ public sealed class BulkOperationsEFPostgreSqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _dbContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         _bulkOps = new BulkOperationsEF<TestRepositoryEntity>(_dbContext);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _dbContext.DisposeAsync();
         await _fixture.ClearAllDataAsync();

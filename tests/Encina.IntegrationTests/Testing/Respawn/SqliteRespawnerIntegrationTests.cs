@@ -22,7 +22,7 @@ public sealed class SqliteRespawnerIntegrationTests : IAsyncLifetime
         _connectionString = $"Data Source={_dbPath}";
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
@@ -66,7 +66,7 @@ public sealed class SqliteRespawnerIntegrationTests : IAsyncLifetime
             """);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         // Force SQLite to release the file by clearing the connection pool
         SqliteConnection.ClearAllPools();

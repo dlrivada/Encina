@@ -72,22 +72,22 @@ public sealed class EncinaWireMockFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         _server = WireMockServer.Start(new WireMockServerSettings
         {
             UseSSL = false,
             StartAdminInterface = false
         });
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc/>
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _server?.Stop();
         _server?.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>

@@ -17,14 +17,14 @@ public sealed class SoftDeleteRepositoryEFIntegrationTests : IAsyncLifetime
     private SoftDeleteTestDbContext _context = null!;
     private SoftDeleteRepositoryEF<SoftDeleteTestEntity, Guid> _repository = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.InitializeAsync();
         _context = _fixture.CreateDbContext();
         _repository = new SoftDeleteRepositoryEF<SoftDeleteTestEntity, Guid>(_context);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _context.DisposeAsync();
         await _fixture.ClearAllDataAsync();

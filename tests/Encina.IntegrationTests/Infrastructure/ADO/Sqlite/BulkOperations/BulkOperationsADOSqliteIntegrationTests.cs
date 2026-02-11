@@ -35,7 +35,7 @@ public sealed class BulkOperationsADOSqliteIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _connection = _fixture.CreateConnection();
 
@@ -47,7 +47,7 @@ public sealed class BulkOperationsADOSqliteIntegrationTests : IAsyncLifetime
         _bulkOps = new BulkOperationsSqlite<BulkTestOrder, Guid>(_connection, mapping);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await DropBulkTestTableAsync();
     }

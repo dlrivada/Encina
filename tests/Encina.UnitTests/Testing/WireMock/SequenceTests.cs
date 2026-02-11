@@ -11,8 +11,8 @@ public sealed class SequenceTests : IAsyncLifetime
 {
     private readonly EncinaWireMockFixture _fixture = new();
 
-    public Task InitializeAsync() => _fixture.InitializeAsync();
-    public Task DisposeAsync() => _fixture.DisposeAsync();
+    public ValueTask InitializeAsync() => _fixture.InitializeAsync();
+    public ValueTask DisposeAsync() => _fixture.DisposeAsync();
 
     [Fact]
     public async Task GetReceivedRequests_ShouldMaintainOrder()

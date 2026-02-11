@@ -109,7 +109,7 @@ public sealed class LocalStackFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new LocalStackBuilder()
             .WithImage("localstack/localstack:3.8")
@@ -120,7 +120,7 @@ public sealed class LocalStackFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_container is not null)
         {

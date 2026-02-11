@@ -25,17 +25,17 @@ public sealed class EntityFrameworkCoreHealthCheckMySqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _fixture.ClearAllDataAsync();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WhenDatabaseIsRunning_ReturnsHealthy()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -52,10 +52,10 @@ public sealed class EntityFrameworkCoreHealthCheckMySqlTests : IAsyncLifetime
         result.Description!.ShouldContain("reachable");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CheckHealthAsync_WithCustomName_UsesCustomName()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -73,10 +73,10 @@ public sealed class EntityFrameworkCoreHealthCheckMySqlTests : IAsyncLifetime
         result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Tags_ContainsExpectedValues()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();

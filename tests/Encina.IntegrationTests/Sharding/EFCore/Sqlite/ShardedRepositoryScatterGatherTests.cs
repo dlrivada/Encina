@@ -30,7 +30,7 @@ public sealed class ShardedRepositoryScatterGatherTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ClearAllDataAsync();
 
@@ -52,10 +52,10 @@ public sealed class ShardedRepositoryScatterGatherTests : IAsyncLifetime
         await SeedTestDataAsync();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _serviceProvider?.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

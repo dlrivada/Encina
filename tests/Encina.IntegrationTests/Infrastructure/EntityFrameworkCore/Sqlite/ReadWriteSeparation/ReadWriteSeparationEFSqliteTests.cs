@@ -51,7 +51,7 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Use a unique database name for each test run to avoid conflicts
         var dbName = $"RWTest_{Guid.NewGuid():N}";
@@ -87,7 +87,7 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
         _serviceProvider = services.BuildServiceProvider();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await ClearDataAsync();
         if (_keepAliveConnection is not null)

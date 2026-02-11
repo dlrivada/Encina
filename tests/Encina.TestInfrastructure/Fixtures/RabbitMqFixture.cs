@@ -28,7 +28,7 @@ public sealed class RabbitMqFixture : IAsyncLifetime
     public bool IsAvailable => _container is not null && ConnectionFactory is not null;
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new RabbitMqBuilder()
             .WithImage("rabbitmq:3-management-alpine")
@@ -44,7 +44,7 @@ public sealed class RabbitMqFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_container is not null)
         {

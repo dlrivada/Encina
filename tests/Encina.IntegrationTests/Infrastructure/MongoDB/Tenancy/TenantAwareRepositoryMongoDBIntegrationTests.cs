@@ -45,11 +45,11 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
         _fixture = fixture;
     }
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         if (!_fixture.IsAvailable)
         {
-            return Task.CompletedTask;
+            return ValueTask.CompletedTask;
         }
 
         _collection = _fixture.Database!.GetCollection<TenantTestDocument>(CollectionName);
@@ -76,10 +76,10 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
             ThrowOnMissingTenantContext = true
         };
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_collection != null)
         {
@@ -99,7 +99,7 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
     {
         if (!_fixture.IsAvailable || _collection == null)
         {
-            throw new Xunit.SkipException("MongoDB container is not available");
+            Assert.Skip("MongoDB container is not available");
         }
     }
 

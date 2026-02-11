@@ -82,7 +82,7 @@ public sealed class ShardedPostgreSqlFixture : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new PostgreSqlBuilder()
             .WithImage("postgres:17-alpine")
@@ -109,7 +109,7 @@ public sealed class ShardedPostgreSqlFixture : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_container is not null)
         {

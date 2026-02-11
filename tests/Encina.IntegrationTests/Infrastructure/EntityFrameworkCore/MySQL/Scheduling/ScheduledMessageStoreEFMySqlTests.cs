@@ -23,17 +23,17 @@ public sealed class ScheduledMessageStoreEFMySqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _fixture.ClearAllDataAsync();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -60,10 +60,10 @@ public sealed class ScheduledMessageStoreEFMySqlTests : IAsyncLifetime
         stored!.RequestType.ShouldBe("TestRequest");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetDueMessagesAsync_ShouldReturnScheduledMessages()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -100,10 +100,10 @@ public sealed class ScheduledMessageStoreEFMySqlTests : IAsyncLifetime
         messageList.ShouldNotContain(m => m.Id == futureMessage.Id);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MarkAsProcessedAsync_ShouldUpdateMessage()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -132,10 +132,10 @@ public sealed class ScheduledMessageStoreEFMySqlTests : IAsyncLifetime
         updated!.ProcessedAtUtc.ShouldNotBeNull();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MarkAsFailedAsync_ShouldUpdateErrorInfo()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();

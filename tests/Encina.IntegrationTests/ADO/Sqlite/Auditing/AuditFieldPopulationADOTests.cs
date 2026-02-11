@@ -40,7 +40,7 @@ public class AuditFieldPopulationADOTests : IAsyncLifetime
         _mockRequestContext.UserId.Returns(TestUserId);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Create test schema
         if (_fixture.CreateConnection() is SqliteConnection schemaConnection)
@@ -88,10 +88,10 @@ public class AuditFieldPopulationADOTests : IAsyncLifetime
             _fakeTimeProvider);
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         // Do NOT dispose _connection - it's the shared SQLite in-memory connection owned by the fixture.
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     private static async Task CreateAuditableProductsSchemaAsync(SqliteConnection connection)

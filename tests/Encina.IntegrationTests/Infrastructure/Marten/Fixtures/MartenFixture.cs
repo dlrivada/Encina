@@ -30,7 +30,7 @@ public sealed class MartenFixture : IAsyncLifetime
     public bool IsAvailable => _container is not null && Store is not null;
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new PostgreSqlBuilder("postgres:17-alpine")
             .WithDatabase("encina_test")
@@ -89,7 +89,7 @@ public sealed class MartenFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (Store is not null)
         {

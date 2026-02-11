@@ -56,7 +56,7 @@ public sealed class ModuleIsolationEFSqliteTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Create a shared connection for SQLite in-memory
         _sharedConnection = new SqliteConnection(_fixture.ConnectionString);
@@ -78,7 +78,7 @@ public sealed class ModuleIsolationEFSqliteTests : IAsyncLifetime
         _moduleContext = new TestModuleExecutionContext();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_sharedConnection is not null)
         {

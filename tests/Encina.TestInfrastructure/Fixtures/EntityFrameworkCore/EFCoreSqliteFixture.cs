@@ -54,13 +54,13 @@ public sealed class EFCoreSqliteFixture : IEFCoreFixture
     }
 
     /// <inheritdoc />
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _sqliteFixture.InitializeAsync();
     }
 
     /// <inheritdoc />
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         return _sqliteFixture.DisposeAsync();
     }

@@ -25,13 +25,13 @@ public sealed class OutboxStoreDapperTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ClearAllDataAsync();
         _store = new OutboxStoreDapper(_fixture.CreateConnection());
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     #region AddAsync Tests
 

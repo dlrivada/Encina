@@ -74,13 +74,13 @@ public sealed class EncinaPactFixture : IAsyncLifetime, IAsyncDisposable, IDispo
     /// <summary>
     /// Gets the xUnit test output helper for logging.
     /// </summary>
-    public Xunit.Abstractions.ITestOutputHelper? OutputHelper { get; set; }
+    public Xunit.ITestOutputHelper? OutputHelper { get; set; }
 
     /// <summary>
     /// Initializes the fixture.
     /// </summary>
-    /// <returns>A task representing the async initialization.</returns>
-    public Task InitializeAsync()
+    /// <returns>A value task representing the async initialization.</returns>
+    public ValueTask InitializeAsync()
     {
         // Ensure pact directory exists
         if (!Directory.Exists(PactDirectory))
@@ -88,17 +88,17 @@ public sealed class EncinaPactFixture : IAsyncLifetime, IAsyncDisposable, IDispo
             Directory.CreateDirectory(PactDirectory);
         }
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
     /// Cleans up resources when the fixture is disposed.
     /// </summary>
-    /// <returns>A task representing the async cleanup.</returns>
+    /// <returns>A value task representing the async cleanup.</returns>
     /// <remarks>
     /// This method is required by <see cref="IAsyncLifetime"/> for xUnit integration.
     /// </remarks>
-    public Task DisposeAsync() => DisposeAsyncCore().AsTask();
+    public ValueTask DisposeAsync() => DisposeAsyncCore();
 
     /// <inheritdoc />
     ValueTask IAsyncDisposable.DisposeAsync() => DisposeAsyncCore();

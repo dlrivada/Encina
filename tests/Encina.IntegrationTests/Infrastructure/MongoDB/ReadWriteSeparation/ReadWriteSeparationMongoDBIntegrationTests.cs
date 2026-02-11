@@ -36,9 +36,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         _testCollectionName = $"test_rw_{Guid.NewGuid():N}";
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_fixture.IsAvailable && _fixture.Database is not null)
         {

@@ -82,7 +82,7 @@ public sealed class ShardedMySqlFixture : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new MySqlBuilder()
             .WithImage("mysql:9.1")
@@ -109,7 +109,7 @@ public sealed class ShardedMySqlFixture : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_container is not null)
         {

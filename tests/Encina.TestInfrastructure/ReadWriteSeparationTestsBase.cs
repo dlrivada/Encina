@@ -110,16 +110,17 @@ public abstract class ReadWriteSeparationTestsBase<TFixture> : IAsyncLifetime
     #region IAsyncLifetime
 
     /// <inheritdoc />
-    public virtual async Task InitializeAsync()
+    public virtual async ValueTask InitializeAsync()
     {
         RoutingDecisions.Clear();
         await ClearTestDataAsync();
     }
 
     /// <inheritdoc />
-    public virtual Task DisposeAsync()
+    public virtual ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        GC.SuppressFinalize(this);
+        return ValueTask.CompletedTask;
     }
 
     #endregion
@@ -149,10 +150,10 @@ public abstract class ReadWriteSeparationTestsBase<TFixture> : IAsyncLifetime
         entities.ShouldNotBeEmpty($"[{ProviderName}] Read connection should return data");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ReadConnection_ShouldRouteToReadEndpoint()
     {
-        Skip.IfNot(HasSeparateReadWriteEndpoints, "Fixture not configured with separate read/write endpoints");
+        Assert.SkipUnless(HasSeparateReadWriteEndpoints, "Fixture not configured with separate read/write endpoints");
 
         // Act
         using var readConn = CreateReadConnection();
@@ -210,10 +211,10 @@ public abstract class ReadWriteSeparationTestsBase<TFixture> : IAsyncLifetime
         retrieved.ShouldNotBeNull($"[{ProviderName}] Write connection should persist data");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task WriteConnection_ShouldRouteToPrimaryEndpoint()
     {
-        Skip.IfNot(HasSeparateReadWriteEndpoints, "Fixture not configured with separate read/write endpoints");
+        Assert.SkipUnless(HasSeparateReadWriteEndpoints, "Fixture not configured with separate read/write endpoints");
 
         // Act
         using var writeConn = CreateWriteConnection();
@@ -282,10 +283,10 @@ public abstract class ReadWriteSeparationTestsBase<TFixture> : IAsyncLifetime
         retrieved.ShouldNotBeNull($"[{ProviderName}] Forced write connection should see recently written data");
     }
 
-    [SkippableFact]
+    [Fact]
     public void ForcedWriteConnection_ShouldRouteToPrimary()
     {
-        Skip.IfNot(HasSeparateReadWriteEndpoints, "Fixture not configured with separate read/write endpoints");
+        Assert.SkipUnless(HasSeparateReadWriteEndpoints, "Fixture not configured with separate read/write endpoints");
 
         // Act
         using var forcedConn = CreateForcedWriteConnection();
@@ -350,10 +351,10 @@ public abstract class ReadWriteSeparationTestsBase<TFixture> : IAsyncLifetime
             $"[{ProviderName}] Read and write connections should be different instances");
     }
 
-    [SkippableFact]
+    [Fact]
     public void ConnectionFactory_ReadAndWriteConnectionStrings_ShouldDiffer()
     {
-        Skip.IfNot(HasSeparateReadWriteEndpoints, "Fixture not configured with separate read/write endpoints");
+        Assert.SkipUnless(HasSeparateReadWriteEndpoints, "Fixture not configured with separate read/write endpoints");
 
         // Act
         using var readConn = CreateReadConnection();

@@ -150,7 +150,7 @@ public class ConfiguredContainerFixture<TContainer> : IAsyncLifetime
     /// Starts the container.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await InitializeAsync(CancellationToken.None);
     }
@@ -178,8 +178,10 @@ public class ConfiguredContainerFixture<TContainer> : IAsyncLifetime
     /// </para>
     /// </remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+        GC.SuppressFinalize(this);
+
         if (_container is null)
         {
             return;

@@ -75,15 +75,16 @@ public abstract class TenancyTestsBase<TFixture> : IAsyncLifetime
     #region IAsyncLifetime
 
     /// <inheritdoc />
-    public virtual async Task InitializeAsync()
+    public virtual async ValueTask InitializeAsync()
     {
         await ClearTestDataAsync();
     }
 
     /// <inheritdoc />
-    public virtual Task DisposeAsync()
+    public virtual ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        GC.SuppressFinalize(this);
+        return ValueTask.CompletedTask;
     }
 
     #endregion

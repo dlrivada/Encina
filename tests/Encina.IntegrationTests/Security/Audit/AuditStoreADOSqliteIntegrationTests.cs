@@ -24,7 +24,7 @@ public class AuditStoreADOSqliteIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Create test schema
         if (_fixture.CreateConnection() is SqliteConnection schemaConnection)
@@ -41,7 +41,7 @@ public class AuditStoreADOSqliteIntegrationTests : IAsyncLifetime
         _store = new AuditStoreADO(_connection);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         // Do NOT dispose _connection - it's the shared SQLite in-memory connection owned by the fixture.
         await _fixture.ClearAllDataAsync();

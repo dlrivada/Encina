@@ -23,17 +23,17 @@ public sealed class UnitOfWorkEFMySqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _fixture.ClearAllDataAsync();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Transaction_CommitMultipleEntities_AllPersisted()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -63,10 +63,10 @@ public sealed class UnitOfWorkEFMySqlTests : IAsyncLifetime
         count.ShouldBe(2);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Transaction_Rollback_NoChangesPersisted()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -92,10 +92,10 @@ public sealed class UnitOfWorkEFMySqlTests : IAsyncLifetime
         count.ShouldBe(0);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SaveChangesAsync_ReturnsAffectedRowCount()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -114,10 +114,10 @@ public sealed class UnitOfWorkEFMySqlTests : IAsyncLifetime
         result.IfRight(count => count.ShouldBe(2));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task BeginTransaction_SetsHasActiveTransactionTrue()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -135,10 +135,10 @@ public sealed class UnitOfWorkEFMySqlTests : IAsyncLifetime
         unitOfWork.HasActiveTransaction.ShouldBeTrue();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Commit_ClearsHasActiveTransaction()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
