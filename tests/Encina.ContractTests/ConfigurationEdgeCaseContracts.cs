@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;

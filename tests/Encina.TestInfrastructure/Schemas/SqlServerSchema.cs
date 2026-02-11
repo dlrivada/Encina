@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Runtime.ExceptionServices;
 
 using Microsoft.Data.SqlClient;

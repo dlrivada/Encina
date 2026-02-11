@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using FsCheck;
 using FsCheck.Xunit;
 using LanguageExt;

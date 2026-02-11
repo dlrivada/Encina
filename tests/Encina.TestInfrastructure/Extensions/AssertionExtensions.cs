@@ -1,4 +1,4 @@
-﻿using Encina.Dapper.Sqlite.Inbox;
+using Encina.Dapper.Sqlite.Inbox;
 using Encina.Dapper.Sqlite.Outbox;
 using Encina.Dapper.Sqlite.Sagas;
 using Encina.Dapper.Sqlite.Scheduling;
