@@ -91,6 +91,7 @@ public static class ShardingServiceCollectionExtensions
             var connectionFactory = sp.GetRequiredService<IShardedConnectionFactory>();
             var entityMapping = sp.GetRequiredService<IEntityMapping<TEntity, TId>>();
             var queryExecutor = sp.GetRequiredService<IShardedQueryExecutor>();
+            var logger = sp.GetRequiredService<ILogger<FunctionalShardedRepositoryDapper<TEntity, TId>>>();
             var requestContext = sp.GetService<IRequestContext>();
             var timeProvider = sp.GetService<TimeProvider>();
 
@@ -99,6 +100,7 @@ public static class ShardingServiceCollectionExtensions
                 connectionFactory,
                 entityMapping,
                 queryExecutor,
+                logger,
                 requestContext,
                 timeProvider);
         });

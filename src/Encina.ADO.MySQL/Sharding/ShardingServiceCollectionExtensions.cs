@@ -94,12 +94,14 @@ public static class ShardingServiceCollectionExtensions
             var queryExecutor = sp.GetRequiredService<IShardedQueryExecutor>();
             var requestContext = sp.GetService<IRequestContext>();
             var timeProvider = sp.GetService<TimeProvider>();
+            var logger = sp.GetRequiredService<ILogger<FunctionalShardedRepositoryADO<TEntity, TId>>>();
 
             return new FunctionalShardedRepositoryADO<TEntity, TId>(
                 router,
                 connectionFactory,
                 entityMapping,
                 queryExecutor,
+                logger,
                 requestContext,
                 timeProvider);
         });

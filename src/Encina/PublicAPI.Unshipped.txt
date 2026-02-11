@@ -444,6 +444,49 @@ const Encina.Sharding.ShardingErrorCodes.ScatterGatherTimeout = "encina.sharding
 const Encina.Sharding.ShardingErrorCodes.ShardKeyEmpty = "encina.sharding.shard_key_empty" -> string!
 const Encina.Sharding.ShardingErrorCodes.ShardKeyNotConfigured = "encina.sharding.shard_key_not_configured" -> string!
 const Encina.Sharding.ShardingErrorCodes.ShardNotFound = "encina.sharding.shard_not_found" -> string!
+const Encina.Sharding.ShardingErrorCodes.AggregationFailed = "encina.sharding.aggregation_failed" -> string!
+const Encina.Sharding.ShardingErrorCodes.AggregationPartialFailure = "encina.sharding.aggregation_partial_failure" -> string!
+Encina.Sharding.AggregationResult<T>
+Encina.Sharding.AggregationResult<T>.AggregationResult(T Value, int ShardsQueried, System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardFailure!>! FailedShards, System.TimeSpan Duration) -> void
+Encina.Sharding.AggregationResult<T>.Duration.get -> System.TimeSpan
+Encina.Sharding.AggregationResult<T>.Duration.init -> void
+Encina.Sharding.AggregationResult<T>.FailedShards.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardFailure!>!
+Encina.Sharding.AggregationResult<T>.FailedShards.init -> void
+Encina.Sharding.AggregationResult<T>.IsPartial.get -> bool
+Encina.Sharding.AggregationResult<T>.ShardsQueried.get -> int
+Encina.Sharding.AggregationResult<T>.ShardsQueried.init -> void
+Encina.Sharding.AggregationResult<T>.Value.get -> T
+Encina.Sharding.AggregationResult<T>.Value.init -> void
+Encina.Sharding.Extensions.ShardedAggregationExtensions
+static Encina.Sharding.Extensions.ShardedAggregationExtensions.CountAcrossShardsAsync<TEntity, TId>(this Encina.Sharding.IFunctionalShardedRepository<TEntity!, TId>! repository, System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>! predicate, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.AggregationResult<long>!>>!
+static Encina.Sharding.Extensions.ShardedAggregationExtensions.SumAcrossShardsAsync<TEntity, TId, TValue>(this Encina.Sharding.IFunctionalShardedRepository<TEntity!, TId>! repository, System.Linq.Expressions.Expression<System.Func<TEntity!, TValue>!>! selector, System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>? predicate = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.AggregationResult<TValue>!>>!
+static Encina.Sharding.Extensions.ShardedAggregationExtensions.AvgAcrossShardsAsync<TEntity, TId, TValue>(this Encina.Sharding.IFunctionalShardedRepository<TEntity!, TId>! repository, System.Linq.Expressions.Expression<System.Func<TEntity!, TValue>!>! selector, System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>? predicate = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.AggregationResult<TValue>!>>!
+static Encina.Sharding.Extensions.ShardedAggregationExtensions.MinAcrossShardsAsync<TEntity, TId, TValue>(this Encina.Sharding.IFunctionalShardedRepository<TEntity!, TId>! repository, System.Linq.Expressions.Expression<System.Func<TEntity!, TValue>!>! selector, System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>? predicate = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.AggregationResult<TValue?>!>>!
+static Encina.Sharding.Extensions.ShardedAggregationExtensions.MaxAcrossShardsAsync<TEntity, TId, TValue>(this Encina.Sharding.IFunctionalShardedRepository<TEntity!, TId>! repository, System.Linq.Expressions.Expression<System.Func<TEntity!, TValue>!>! selector, System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>? predicate = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.AggregationResult<TValue?>!>>!
+Encina.Sharding.IShardedAggregationSupport<TEntity, TId>
+Encina.Sharding.IShardedAggregationSupport<TEntity, TId>.CountAcrossShardsAsync(System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>! predicate, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.AggregationResult<long>!>>!
+Encina.Sharding.IShardedAggregationSupport<TEntity, TId>.SumAcrossShardsAsync<TValue>(System.Linq.Expressions.Expression<System.Func<TEntity!, TValue>!>! selector, System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>? predicate = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.AggregationResult<TValue>!>>!
+Encina.Sharding.IShardedAggregationSupport<TEntity, TId>.AvgAcrossShardsAsync<TValue>(System.Linq.Expressions.Expression<System.Func<TEntity!, TValue>!>! selector, System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>? predicate = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.AggregationResult<TValue>!>>!
+Encina.Sharding.IShardedAggregationSupport<TEntity, TId>.MinAcrossShardsAsync<TValue>(System.Linq.Expressions.Expression<System.Func<TEntity!, TValue>!>! selector, System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>? predicate = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.AggregationResult<TValue?>!>>!
+Encina.Sharding.IShardedAggregationSupport<TEntity, TId>.MaxAcrossShardsAsync<TValue>(System.Linq.Expressions.Expression<System.Func<TEntity!, TValue>!>! selector, System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>? predicate = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.AggregationResult<TValue?>!>>!
+Encina.Sharding.ShardAggregatePartial<TValue>
+Encina.Sharding.ShardAggregatePartial<TValue>.ShardAggregatePartial(string! ShardId, TValue Sum, long Count, TValue? Min, TValue? Max) -> void
+Encina.Sharding.ShardAggregatePartial<TValue>.ShardId.get -> string!
+Encina.Sharding.ShardAggregatePartial<TValue>.ShardId.init -> void
+Encina.Sharding.ShardAggregatePartial<TValue>.Sum.get -> TValue
+Encina.Sharding.ShardAggregatePartial<TValue>.Sum.init -> void
+Encina.Sharding.ShardAggregatePartial<TValue>.Count.get -> long
+Encina.Sharding.ShardAggregatePartial<TValue>.Count.init -> void
+Encina.Sharding.ShardAggregatePartial<TValue>.Min.get -> TValue?
+Encina.Sharding.ShardAggregatePartial<TValue>.Min.init -> void
+Encina.Sharding.ShardAggregatePartial<TValue>.Max.get -> TValue?
+Encina.Sharding.ShardAggregatePartial<TValue>.Max.init -> void
+Encina.Sharding.Aggregation.AggregationCombiner
+static Encina.Sharding.Aggregation.AggregationCombiner.CombineCount<TValue>(System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardAggregatePartial<TValue>!>! partials) -> long
+static Encina.Sharding.Aggregation.AggregationCombiner.CombineSum<TValue>(System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardAggregatePartial<TValue>!>! partials) -> TValue
+static Encina.Sharding.Aggregation.AggregationCombiner.CombineAvg<TValue>(System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardAggregatePartial<TValue>!>! partials) -> TValue
+static Encina.Sharding.Aggregation.AggregationCombiner.CombineMin<TValue>(System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardAggregatePartial<TValue>!>! partials) -> TValue?
+static Encina.Sharding.Aggregation.AggregationCombiner.CombineMax<TValue>(System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardAggregatePartial<TValue>!>! partials) -> TValue?
 Encina.Sharding.CompoundShardKey
 Encina.Sharding.CompoundShardKey.CompoundShardKey(params string![]! components) -> void
 Encina.Sharding.CompoundShardKey.CompoundShardKey(System.Collections.Generic.IReadOnlyList<string!>! components) -> void
@@ -717,6 +760,8 @@ Encina.Sharding.Diagnostics.ShardRoutingMetrics.IncrementActiveQueries() -> void
 Encina.Sharding.Diagnostics.ShardRoutingMetrics.DecrementActiveQueries() -> void
 Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordCompoundKeyExtraction(int componentCount, string! routerType) -> void
 Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordPartialKeyRouting(int componentsProvided, int componentsExpected, string! routerType) -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordAggregationDuration(string! operationType, int shardsQueried, double durationMs) -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordAggregationPartialResult(string! operationType, int failedCount, int totalCount) -> void
 Encina.Sharding.Diagnostics.ShardedDatabasePoolMetrics
 Encina.Sharding.Diagnostics.ShardedDatabasePoolMetrics.ShardedDatabasePoolMetrics(Encina.Sharding.Health.IShardedDatabaseHealthMonitor! monitor) -> void
 Encina.Sharding.Diagnostics.ShardedDatabasePoolMetrics.UpdateHealthSnapshot(System.Collections.Generic.IReadOnlyList<Encina.Sharding.Health.ShardHealthResult!>! healthResults) -> void
@@ -730,6 +775,8 @@ Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableScatterGatherMetrics.ge
 Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableScatterGatherMetrics.set -> void
 Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableHealthMetrics.get -> bool
 Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableHealthMetrics.set -> void
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableAggregationMetrics.get -> bool
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableAggregationMetrics.set -> void
 Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableTracing.get -> bool
 Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableTracing.set -> void
 Encina.Sharding.Diagnostics.ShardingDiagnosticsServiceCollectionExtensions

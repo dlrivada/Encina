@@ -43,6 +43,13 @@ public sealed class ShardingMetricsOptionsTests
     }
 
     [Fact]
+    public void EnableAggregationMetrics_DefaultIsTrue()
+    {
+        var options = new ShardingMetricsOptions();
+        options.EnableAggregationMetrics.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Properties_CanBeModified()
     {
         var options = new ShardingMetricsOptions
@@ -51,6 +58,7 @@ public sealed class ShardingMetricsOptionsTests
             EnableRoutingMetrics = false,
             EnableScatterGatherMetrics = false,
             EnableHealthMetrics = false,
+            EnableAggregationMetrics = false,
             EnableTracing = false
         };
 
@@ -58,6 +66,7 @@ public sealed class ShardingMetricsOptionsTests
         options.EnableRoutingMetrics.ShouldBeFalse();
         options.EnableScatterGatherMetrics.ShouldBeFalse();
         options.EnableHealthMetrics.ShouldBeFalse();
+        options.EnableAggregationMetrics.ShouldBeFalse();
         options.EnableTracing.ShouldBeFalse();
     }
 }

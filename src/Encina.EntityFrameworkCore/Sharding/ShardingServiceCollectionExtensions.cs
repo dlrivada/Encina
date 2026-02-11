@@ -238,11 +238,13 @@ public static class ShardingServiceCollectionExtensions
             var router = sp.GetRequiredService<IShardRouter<TEntity>>();
             var contextFactory = sp.GetRequiredService<IShardedDbContextFactory<TContext>>();
             var queryExecutor = sp.GetRequiredService<IShardedQueryExecutor>();
+            var repoLogger = sp.GetRequiredService<ILogger<FunctionalShardedRepositoryEF<TContext, TEntity, TId>>>();
 
             return new FunctionalShardedRepositoryEF<TContext, TEntity, TId>(
                 router,
                 contextFactory,
-                queryExecutor);
+                queryExecutor,
+                repoLogger);
         });
 
         return services;

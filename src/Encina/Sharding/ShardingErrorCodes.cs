@@ -85,4 +85,10 @@ public static class ShardingErrorCodes
 
     /// <summary>A partial key routing operation failed because the router does not support prefix routing.</summary>
     public const string PartialKeyRoutingFailed = "encina.sharding.partial_key_routing_failed";
+
+    /// <summary>A distributed aggregation operation failed entirely (all shards failed).</summary>
+    public const string AggregationFailed = "encina.sharding.aggregation_failed";
+
+    /// <summary>Partial failures occurred during a distributed aggregation.</summary>
+    public const string AggregationPartialFailure = "encina.sharding.aggregation_partial_failure";
 }

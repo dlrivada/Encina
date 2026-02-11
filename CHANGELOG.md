@@ -82,6 +82,38 @@ Added multi-field shard key support, enabling routing decisions based on combina
 
 - `ShardRoutingMetrics.RecordCompoundKeyExtraction()` for tracking compound key extraction with component count and router type
 
+#### Distributed Aggregation Helpers for Sharding (#640)
+
+Added two-phase distributed aggregation operations (Count, Sum, Avg, Min, Max) across sharded repositories with mathematically correct combine logic.
+
+**Core Abstractions** (`Encina` package):
+
+- **`IShardedAggregationSupport<TEntity, TId>`**: Interface for providers implementing distributed aggregation
+- **`ShardAggregatePartial<TValue>`**: Immutable record for per-shard intermediate results (Sum, Count, Min, Max)
+- **`AggregationResult<T>`**: Final result record with `Value`, `ShardsQueried`, `FailedShards`, `Duration`, and `IsPartial`
+- **`AggregationCombiner`**: Static class with five combine methods using mathematically correct two-phase aggregation
+- **`ShardedAggregationExtensions`**: Extension methods on `IFunctionalShardedRepository<TEntity, TId>` for Count, Sum, Avg, Min, Max
+
+**Key Design Decision**: Average uses `totalSum / totalCount` (not average-of-averages) to prevent incorrect results when shards have unequal row counts.
+
+**Provider Support** (13 providers):
+
+- ADO.NET (4): `BuildAggregationSql` + `GetColumnNameFromSelector` on `SpecificationSqlBuilder`, 5 aggregation methods on `FunctionalShardedRepositoryADO`
+- Dapper (4): Same pattern with `IDictionary<string, object?>` parameters and `QuerySingleAsync` execution
+- EF Core (4): LINQ-based aggregation via `DbContext.Set<T>()` with `CountAsync`, `SumAsync`, etc.
+- MongoDB (1): `AggregationPipelineBuilder<TEntity>` with `$match`, `$group`, `$count` stages
+
+**Observability**:
+
+- 2 new metric instruments: `encina.sharding.aggregation.duration` (histogram), `encina.sharding.aggregation.partial_results` (counter)
+- 2 new trace activities: `Encina.Sharding.Aggregation` (parent), `Encina.Sharding.ShardAggregation` (per-shard)
+- `ShardingMetricsOptions.EnableAggregationMetrics` (default: `true`)
+- 2 new error codes: `AggregationFailed`, `AggregationPartialFailure`
+
+**Testing**: 105+ new unit tests covering AggregationCombiner, AggregationResult, ShardedAggregationExtensions, and diagnostics
+
+**Documentation**: `docs/features/distributed-aggregations.md` — comprehensive guide with architecture, edge cases, and provider-specific details
+
 #### Change Data Capture (CDC) Pattern (#308)
 
 Added a provider-agnostic Change Data Capture infrastructure that streams database changes as typed events through a handler pipeline, with support for 5 database providers and messaging integration.

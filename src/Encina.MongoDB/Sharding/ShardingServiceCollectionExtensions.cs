@@ -145,6 +145,7 @@ public static class ShardingServiceCollectionExtensions
         services.TryAddScoped<IFunctionalShardedRepository<TEntity, TId>>(sp =>
         {
             var collectionFactory = sp.GetRequiredService<IShardedMongoCollectionFactory>();
+            var logger = sp.GetRequiredService<ILogger<FunctionalShardedRepositoryMongoDB<TEntity, TId>>>();
             var requestContext = sp.GetService<IRequestContext>();
             var timeProvider = sp.GetService<TimeProvider>();
 
@@ -152,6 +153,7 @@ public static class ShardingServiceCollectionExtensions
                 collectionFactory,
                 idSelector,
                 collectionName,
+                logger,
                 requestContext,
                 timeProvider);
         });
@@ -212,6 +214,7 @@ public static class ShardingServiceCollectionExtensions
             var router = sp.GetRequiredService<IShardRouter<TEntity>>();
             var collectionFactory = sp.GetRequiredService<IShardedMongoCollectionFactory>();
             var queryExecutor = sp.GetRequiredService<IShardedQueryExecutor>();
+            var logger = sp.GetRequiredService<ILogger<FunctionalShardedRepositoryMongoDB<TEntity, TId>>>();
             var requestContext = sp.GetService<IRequestContext>();
             var timeProvider = sp.GetService<TimeProvider>();
 
@@ -221,6 +224,7 @@ public static class ShardingServiceCollectionExtensions
                 queryExecutor,
                 idSelector,
                 collectionName,
+                logger,
                 requestContext,
                 timeProvider);
         });

@@ -194,4 +194,80 @@ internal static class ShardingActivitySource
         activity.SetStatus(isSuccess ? ActivityStatusCode.Ok : ActivityStatusCode.Error, errorMessage);
         activity.Dispose();
     }
+
+    /// <summary>
+    /// Starts a distributed aggregation activity spanning multiple shards.
+    /// </summary>
+    /// <param name="operationType">The aggregation type (e.g., "Count", "Sum", "Avg", "Min", "Max").</param>
+    /// <param name="shardCount">The number of shards that will be queried.</param>
+    /// <returns>The started activity, or <c>null</c> if no listener is active.</returns>
+    internal static Activity? StartAggregation(string operationType, int shardCount)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity("Encina.Sharding.Aggregation", ActivityKind.Internal);
+        activity?.SetTag(ActivityTagNames.AggregationOperationType, operationType);
+        activity?.SetTag(ActivityTagNames.AggregationShardsQueried, shardCount);
+        return activity;
+    }
+
+    /// <summary>
+    /// Starts a child activity for a single shard's aggregation query within a distributed aggregation.
+    /// </summary>
+    /// <param name="shardId">The shard identifier being queried.</param>
+    /// <param name="operationType">The aggregation type (e.g., "Count", "Sum", "Avg", "Min", "Max").</param>
+    /// <returns>The started activity, or <c>null</c> if no listener is active.</returns>
+    internal static Activity? StartShardAggregation(string shardId, string operationType)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity("Encina.Sharding.ShardAggregation", ActivityKind.Client);
+        activity?.SetTag(ActivityTagNames.ShardId, shardId);
+        activity?.SetTag(ActivityTagNames.AggregationOperationType, operationType);
+        return activity;
+    }
+
+    /// <summary>
+    /// Completes a distributed aggregation activity with result information.
+    /// </summary>
+    /// <param name="activity">The aggregation activity to complete.</param>
+    /// <param name="successCount">Number of shards that returned results successfully.</param>
+    /// <param name="failedCount">Number of shards that failed during aggregation.</param>
+    /// <param name="resultValue">The final aggregated result value.</param>
+    internal static void CompleteAggregation(
+        Activity? activity,
+        int successCount,
+        int failedCount,
+        object? resultValue)
+    {
+        if (activity is null)
+        {
+            return;
+        }
+
+        activity.SetTag(ActivityTagNames.AggregationShardsSucceeded, successCount);
+        activity.SetTag(ActivityTagNames.AggregationShardsFailed, failedCount);
+        activity.SetTag(ActivityTagNames.AggregationIsPartial, failedCount > 0);
+
+        if (resultValue is not null)
+        {
+            activity.SetTag(ActivityTagNames.AggregationResultValue, resultValue.ToString());
+        }
+
+        var status = failedCount == 0
+            ? ActivityStatusCode.Ok
+            : ActivityStatusCode.Error;
+
+        activity.SetStatus(status, failedCount > 0
+            ? $"{failedCount} shard(s) failed during aggregation"
+            : null);
+
+        activity.Dispose();
+    }
 }

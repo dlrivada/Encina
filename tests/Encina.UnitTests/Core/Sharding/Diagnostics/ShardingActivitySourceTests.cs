@@ -196,4 +196,111 @@ public sealed class ShardingActivitySourceTests : IDisposable
     {
         Should.NotThrow(() => ShardingActivitySource.CompleteShardQuery(null, true));
     }
+
+    // ────────────────────────────────────────────────────────────
+    //  StartAggregation
+    // ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void StartAggregation_WithListener_ReturnsActivity()
+    {
+        var activity = ShardingActivitySource.StartAggregation("Count", 3);
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe("Encina.Sharding.Aggregation");
+        activity.Dispose();
+    }
+
+    [Fact]
+    public void StartAggregation_SetsOperationTypeTag()
+    {
+        var activity = ShardingActivitySource.StartAggregation("Sum", 5);
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ActivityTagNames.AggregationOperationType).ShouldBe("Sum");
+        activity.Dispose();
+    }
+
+    [Fact]
+    public void StartAggregation_SetsShardsQueriedTag()
+    {
+        var activity = ShardingActivitySource.StartAggregation("Avg", 4);
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ActivityTagNames.AggregationShardsQueried).ShouldBe(4);
+        activity.Dispose();
+    }
+
+    // ────────────────────────────────────────────────────────────
+    //  StartShardAggregation
+    // ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void StartShardAggregation_WithListener_ReturnsActivity()
+    {
+        var activity = ShardingActivitySource.StartShardAggregation("shard-1", "Min");
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe("Encina.Sharding.ShardAggregation");
+        activity.Dispose();
+    }
+
+    [Fact]
+    public void StartShardAggregation_SetsShardIdTag()
+    {
+        var activity = ShardingActivitySource.StartShardAggregation("shard-2", "Max");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ActivityTagNames.ShardId).ShouldBe("shard-2");
+        activity.Dispose();
+    }
+
+    [Fact]
+    public void StartShardAggregation_SetsOperationTypeTag()
+    {
+        var activity = ShardingActivitySource.StartShardAggregation("shard-1", "Count");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ActivityTagNames.AggregationOperationType).ShouldBe("Count");
+        activity.Dispose();
+    }
+
+    // ────────────────────────────────────────────────────────────
+    //  CompleteAggregation
+    // ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void CompleteAggregation_AllSuccess_SetsOkStatus()
+    {
+        var activity = ShardingActivitySource.StartAggregation("Count", 3);
+        ShardingActivitySource.CompleteAggregation(activity, successCount: 3, failedCount: 0, resultValue: 42L);
+
+        activity.ShouldNotBeNull();
+        activity!.Status.ShouldBe(ActivityStatusCode.Ok);
+        activity.GetTagItem(ActivityTagNames.AggregationShardsSucceeded).ShouldBe(3);
+        activity.GetTagItem(ActivityTagNames.AggregationShardsFailed).ShouldBe(0);
+        activity.GetTagItem(ActivityTagNames.AggregationIsPartial).ShouldBe(false);
+        activity.GetTagItem(ActivityTagNames.AggregationResultValue).ShouldBe("42");
+    }
+
+    [Fact]
+    public void CompleteAggregation_WithFailures_SetsErrorStatus()
+    {
+        var activity = ShardingActivitySource.StartAggregation("Sum", 3);
+        ShardingActivitySource.CompleteAggregation(activity, successCount: 2, failedCount: 1, resultValue: 100m);
+
+        activity.ShouldNotBeNull();
+        activity!.Status.ShouldBe(ActivityStatusCode.Error);
+        activity.GetTagItem(ActivityTagNames.AggregationIsPartial).ShouldBe(true);
+    }
+
+    [Fact]
+    public void CompleteAggregation_NullResultValue_DoesNotSetResultTag()
+    {
+        var activity = ShardingActivitySource.StartAggregation("Min", 2);
+        ShardingActivitySource.CompleteAggregation(activity, successCount: 2, failedCount: 0, resultValue: null);
+
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ActivityTagNames.AggregationResultValue).ShouldBeNull();
+    }
+
+    [Fact]
+    public void CompleteAggregation_NullActivity_DoesNotThrow()
+    {
+        Should.NotThrow(() => ShardingActivitySource.CompleteAggregation(null, 1, 0, 42L));
+    }
 }

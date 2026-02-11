@@ -1639,11 +1639,12 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - **Scatter-Gather**: `IShardedQueryExecutor` con `ScatterGatherOptions` (MaxParallelism, Timeout, AllowPartialResults)
 - **13 providers**: ADO×4 (`IShardedConnectionFactory`), Dapper×4 (reutiliza ADO), EF Core×4 (`IShardedDbContextFactory`), MongoDB (`IShardedMongoCollectionFactory`)
 - **MongoDB dual-mode**: `UseNativeSharding` — native mongos (production) vs app-level routing (dev/test)
-- **Observability**: 7 métricas ("Encina" meter), 3 traces ("Encina.Sharding" ActivitySource), 13 error codes `encina.sharding.*`
+- **Observability**: 9 métricas ("Encina" meter), 5 traces ("Encina.Sharding" ActivitySource), 15 error codes `encina.sharding.*`
 - **Health**: `ShardHealthResult` (Healthy/Degraded/Unhealthy), `ShardedHealthSummary`
-- **Documentation**: ADR-010, 4 guides (configuration, scaling, MongoDB, cross-shard operations)
+- **Documentation**: ADR-010, 5 guides (configuration, scaling, MongoDB, cross-shard operations, [distributed aggregations](./features/distributed-aggregations.md))
 - **Compound Shard Keys** (#641): `CompoundShardKey`, `ICompoundShardable`, `CompoundShardKeyExtractor`, `CompoundShardRouter`, `CompoundRoutingBuilder`, `ShardKeyAttribute.Order`, partial key routing (scatter-gather), 4 new error codes
-- **Test coverage**: ~680+ tests (unit, integration, guard, contract, property) + 13 benchmarks
+- **Distributed Aggregation** (#640): `IShardedAggregationSupport<TEntity, TId>`, `ShardAggregatePartial<TValue>`, `AggregationResult<T>`, `AggregationCombiner` (Count/Sum/Avg/Min/Max), `ShardedAggregationExtensions`, two-phase aggregation (correct average), 13 providers (ADO×4 `BuildAggregationSql`, Dapper×4, EF Core×4 LINQ-based, MongoDB `AggregationPipelineBuilder`), 2 new error codes, 2 new metrics, 2 new traces
+- **Test coverage**: ~780+ tests (unit, integration, guard, contract, property) + 13 benchmarks
 - Inspirado en consistent hashing (xxHash64) y MongoDB sharded cluster architecture
 
 **#290 - Connection Pool & Resilience** ✅ **COMPLETADO (08-feb-2026)**:

@@ -317,6 +317,69 @@ public sealed class SpecificationSqlBuilder<TEntity>
         return $"`{columnName}` > {paramName}";
     }
 
+    /// <summary>
+    /// Extracts the database column name from a selector expression (e.g., <c>e =&gt; e.Amount</c>).
+    /// </summary>
+    /// <typeparam name="TValue">The type of the selected property.</typeparam>
+    /// <param name="selector">The selector expression.</param>
+    /// <returns>The mapped database column name.</returns>
+    /// <exception cref="NotSupportedException">
+    /// Thrown when the column name cannot be extracted from the expression.
+    /// </exception>
+    public string GetColumnNameFromSelector<TValue>(Expression<Func<TEntity, TValue>> selector)
+    {
+        ArgumentNullException.ThrowIfNull(selector);
+
+        var body = selector.Body;
+
+        if (body is UnaryExpression { NodeType: ExpressionType.Convert, Operand: var selectorOperand })
+        {
+            body = selectorOperand;
+        }
+
+        if (body is MemberExpression selectorMember)
+        {
+            var propertyName = selectorMember.Member.Name;
+            if (_columnMappings.TryGetValue(propertyName, out var columnName))
+            {
+                return columnName;
+            }
+
+            return SqlIdentifierValidator.ValidateTableName(propertyName, "propertyName");
+        }
+
+        throw new NotSupportedException($"Cannot extract column name from selector expression {selector}.");
+    }
+
+    /// <summary>
+    /// Builds a SQL aggregation query (e.g., <c>SELECT COUNT(*) FROM table WHERE ...</c>).
+    /// </summary>
+    /// <param name="tableName">The validated table name.</param>
+    /// <param name="aggregateExpression">The aggregate expression (e.g., <c>"COUNT(*)"</c>, <c>"SUM(`Amount`)"</c>).</param>
+    /// <param name="predicate">An optional filter predicate.</param>
+    /// <returns>A tuple containing the SQL statement and an action to add parameters to a command.</returns>
+    public (string Sql, Action<IDbCommand> AddParameters) BuildAggregationSql(
+        string tableName,
+        string aggregateExpression,
+        Expression<Func<TEntity, bool>>? predicate)
+    {
+        var validatedTableName = SqlIdentifierValidator.ValidateTableName(tableName);
+
+        if (predicate is null)
+        {
+            return ($"SELECT {aggregateExpression} FROM {validatedTableName}", _ => { });
+        }
+
+        _parameterIndex = 0;
+        var parameters = new List<(string Name, object? Value)>();
+        var sql = TranslateExpression(predicate.Body, parameters);
+        var whereClause = string.IsNullOrWhiteSpace(sql) ? "" : $"WHERE {sql}";
+
+        var fullSql = $"SELECT {aggregateExpression} FROM {validatedTableName} {whereClause}".Trim();
+
+        return (fullSql, command => AddParametersToCommand(command, parameters));
+    }
+
     private string GetColumnNameFromExpression(Expression<Func<TEntity, object>> expression)
     {
         var body = expression.Body;

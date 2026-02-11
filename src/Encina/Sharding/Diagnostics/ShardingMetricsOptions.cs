@@ -60,6 +60,16 @@ public sealed class ShardingMetricsOptions
     public bool EnableHealthMetrics { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets whether aggregation metrics are enabled.
+    /// </summary>
+    /// <value>Defaults to <c>true</c>.</value>
+    /// <remarks>
+    /// When enabled, distributed aggregation operations (Count, Sum, Avg, Min, Max)
+    /// are tracked with duration histograms, shard fan-out counts, and partial result counters.
+    /// </remarks>
+    public bool EnableAggregationMetrics { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets whether distributed tracing is enabled for sharding operations.
     /// </summary>
     /// <value>Defaults to <c>true</c>.</value>

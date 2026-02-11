@@ -17,6 +17,9 @@ namespace Encina.Sharding.Diagnostics;
 ///   <item><description><c>encina.sharding.scatter.shard.duration_ms</c> (Histogram) — Per-shard query time</description></item>
 ///   <item><description><c>encina.sharding.scatter.partial_failures</c> (Counter) — Partial failure count</description></item>
 ///   <item><description><c>encina.sharding.scatter.queries.active</c> (UpDownCounter) — Concurrent shard queries in flight</description></item>
+///   <item><description><c>encina.sharding.aggregation.duration_ms</c> (Histogram) — Aggregation execution duration</description></item>
+///   <item><description><c>encina.sharding.aggregation.shards_queried</c> (Histogram) — Shard fan-out count per aggregation</description></item>
+///   <item><description><c>encina.sharding.aggregation.partial_results</c> (Counter) — Partial results due to shard failures</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -51,6 +54,11 @@ public sealed class ShardRoutingMetrics
     private readonly Histogram<double> _shardQueryDuration;
     private readonly Counter<long> _partialFailures;
     private readonly UpDownCounter<int> _activeQueries;
+
+    // Aggregation metrics
+    private readonly Histogram<double> _aggregationDuration;
+    private readonly Histogram<int> _aggregationShardsQueried;
+    private readonly Counter<long> _aggregationPartialResults;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ShardRoutingMetrics"/> class,
@@ -102,6 +110,20 @@ public sealed class ShardRoutingMetrics
             () => new Measurement<int>(topology.ActiveShardIds.Count),
             unit: "{shards}",
             description: "Current number of active shards in the topology.");
+
+        _aggregationDuration = Meter.CreateHistogram<double>(
+            "encina.sharding.aggregation.duration_ms",
+            unit: "ms",
+            description: "Duration of distributed aggregation operations in milliseconds.");
+
+        _aggregationShardsQueried = Meter.CreateHistogram<int>(
+            "encina.sharding.aggregation.shards_queried",
+            unit: "{shards}",
+            description: "Number of shards queried per aggregation operation.");
+
+        _aggregationPartialResults = Meter.CreateCounter<long>(
+            "encina.sharding.aggregation.partial_results",
+            description: "Number of aggregation operations that returned partial results due to shard failures.");
     }
 
     /// <summary>
@@ -215,6 +237,43 @@ public sealed class ShardRoutingMetrics
     public void DecrementActiveQueries()
     {
         _activeQueries.Add(-1);
+    }
+
+    /// <summary>
+    /// Records the duration and shard fan-out of a distributed aggregation operation.
+    /// </summary>
+    /// <param name="operationType">The aggregation type (e.g., "Count", "Sum", "Avg", "Min", "Max").</param>
+    /// <param name="shardsQueried">The number of shards queried.</param>
+    /// <param name="durationMs">The aggregation duration in milliseconds.</param>
+    public void RecordAggregationDuration(string operationType, int shardsQueried, double durationMs)
+    {
+        var tags = new TagList
+        {
+            { ActivityTagNames.AggregationOperationType, operationType },
+            { ActivityTagNames.AggregationShardsQueried, shardsQueried }
+        };
+
+        _aggregationDuration.Record(durationMs, tags);
+        _aggregationShardsQueried.Record(shardsQueried,
+            new KeyValuePair<string, object?>(ActivityTagNames.AggregationOperationType, operationType));
+    }
+
+    /// <summary>
+    /// Records an aggregation operation that returned partial results due to shard failures.
+    /// </summary>
+    /// <param name="operationType">The aggregation type (e.g., "Count", "Sum", "Avg", "Min", "Max").</param>
+    /// <param name="failedCount">The number of shards that failed.</param>
+    /// <param name="totalCount">The total number of shards queried.</param>
+    public void RecordAggregationPartialResult(string operationType, int failedCount, int totalCount)
+    {
+        var tags = new TagList
+        {
+            { ActivityTagNames.AggregationOperationType, operationType },
+            { ActivityTagNames.AggregationShardsFailed, failedCount },
+            { ActivityTagNames.AggregationShardsQueried, totalCount }
+        };
+
+        _aggregationPartialResults.Add(1, tags);
     }
 }
 #pragma warning restore CA1848

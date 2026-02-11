@@ -53,4 +53,12 @@ internal static class ActivityTagNames
     internal const string CompoundKeyComponents = "encina.sharding.compound_key.components";
     internal const string CompoundKeyPartial = "encina.sharding.compound_key.partial";
     internal const string CompoundKeyStrategyPerComponent = "encina.sharding.compound_key.strategy_per_component";
+
+    // Aggregation tags
+    internal const string AggregationOperationType = "encina.sharding.aggregation.operation";
+    internal const string AggregationShardsQueried = "encina.sharding.aggregation.shards_queried";
+    internal const string AggregationShardsFailed = "encina.sharding.aggregation.shards_failed";
+    internal const string AggregationShardsSucceeded = "encina.sharding.aggregation.shards_succeeded";
+    internal const string AggregationResultValue = "encina.sharding.aggregation.result_value";
+    internal const string AggregationIsPartial = "encina.sharding.aggregation.is_partial";
 }
