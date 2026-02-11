@@ -79,6 +79,37 @@ internal static class ShardingActivitySource
     }
 
     /// <summary>
+    /// Starts a compound key routing activity.
+    /// </summary>
+    /// <param name="key">The compound shard key being routed.</param>
+    /// <param name="routerType">The router strategy name (e.g., "compound").</param>
+    /// <returns>The started activity, or <c>null</c> if no listener is active.</returns>
+    internal static Activity? StartCompoundRouting(CompoundShardKey key, string routerType)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity("Encina.Sharding.CompoundRoute", ActivityKind.Internal);
+        activity?.SetTag(ActivityTagNames.ShardKey, key.ToString());
+        activity?.SetTag(ActivityTagNames.RouterType, routerType);
+        activity?.SetTag(ActivityTagNames.CompoundKeyComponents, key.ComponentCount);
+        activity?.SetTag(ActivityTagNames.CompoundKeyPartial, key.ComponentCount < 2);
+        return activity;
+    }
+
+    /// <summary>
+    /// Adds per-component strategy information to a compound routing activity.
+    /// </summary>
+    /// <param name="activity">The compound routing activity.</param>
+    /// <param name="strategyPerComponent">A description of strategies per component (e.g., "0:hash,1:range").</param>
+    internal static void SetCompoundRoutingStrategies(Activity? activity, string strategyPerComponent)
+    {
+        activity?.SetTag(ActivityTagNames.CompoundKeyStrategyPerComponent, strategyPerComponent);
+    }
+
+    /// <summary>
     /// Starts a scatter-gather activity for a multi-shard query.
     /// </summary>
     /// <param name="shardCount">The number of shards to query.</param>

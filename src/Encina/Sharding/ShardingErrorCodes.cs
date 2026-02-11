@@ -73,4 +73,16 @@ public static class ShardingErrorCodes
 
     /// <summary>A topology refresh operation failed.</summary>
     public const string TopologyRefreshFailed = "encina.sharding.topology_refresh_failed";
+
+    /// <summary>A compound shard key has no components.</summary>
+    public const string CompoundShardKeyEmpty = "encina.sharding.compound_shard_key_empty";
+
+    /// <summary>A component within a compound shard key is null or empty.</summary>
+    public const string CompoundShardKeyComponentEmpty = "encina.sharding.compound_shard_key_component_empty";
+
+    /// <summary>Multiple properties share the same <see cref="ShardKeyAttribute.Order"/> value.</summary>
+    public const string DuplicateShardKeyOrder = "encina.sharding.duplicate_shard_key_order";
+
+    /// <summary>A partial key routing operation failed because the router does not support prefix routing.</summary>
+    public const string PartialKeyRoutingFailed = "encina.sharding.partial_key_routing_failed";
 }

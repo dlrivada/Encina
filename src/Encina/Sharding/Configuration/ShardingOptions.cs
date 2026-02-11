@@ -132,6 +132,38 @@ public sealed class ShardingOptions<TEntity>
     }
 
     /// <summary>
+    /// Configures compound routing where each key component is routed by a dedicated strategy.
+    /// </summary>
+    /// <param name="configure">A builder configuration action for per-component routers.</param>
+    /// <returns>This instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Use compound routing when entities have multi-field shard keys (e.g., region + customer ID)
+    /// and each field requires a different routing strategy.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// options.UseCompoundRouting(compound =>
+    /// {
+    ///     compound
+    ///         .RangeComponent(0, regionRanges)    // Region via range routing
+    ///         .HashComponent(1);                   // Customer via hash routing
+    /// });
+    /// </code>
+    /// </example>
+    public ShardingOptions<TEntity> UseCompoundRouting(Action<CompoundRoutingBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var builder = new CompoundRoutingBuilder();
+        configure(builder);
+
+        _routerFactory = topology => builder.Build(topology);
+        return this;
+    }
+
+    /// <summary>
     /// Configures a custom router.
     /// </summary>
     /// <param name="routerFactory">A factory that creates the router from the topology.</param>
@@ -157,7 +189,7 @@ public sealed class ShardingOptions<TEntity>
         {
             throw new InvalidOperationException(
                 "No routing strategy has been configured. " +
-                "Call UseHashRouting(), UseRangeRouting(), UseDirectoryRouting(), UseGeoRouting(), or UseCustomRouting() before building.");
+                "Call UseHashRouting(), UseRangeRouting(), UseDirectoryRouting(), UseGeoRouting(), UseCompoundRouting(), or UseCustomRouting() before building.");
         }
 
         return _routerFactory(topology);

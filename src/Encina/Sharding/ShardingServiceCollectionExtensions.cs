@@ -108,7 +108,7 @@ public static class ShardingServiceCollectionExtensions
         {
             throw new InvalidOperationException(
                 $"No routing strategy configured for entity type '{typeof(TEntity).Name}'. " +
-                "Call UseHashRouting(), UseRangeRouting(), UseDirectoryRouting(), UseGeoRouting(), or UseCustomRouting().");
+                "Call UseHashRouting(), UseRangeRouting(), UseDirectoryRouting(), UseGeoRouting(), UseCompoundRouting(), or UseCustomRouting().");
         }
 
         foreach (var shard in options.Shards.Values)

@@ -8,7 +8,7 @@ namespace Encina.Sharding.Diagnostics;
 /// </summary>
 /// <remarks>
 /// Records routing decisions, latency, and tracing activities for each call to
-/// <see cref="GetShardId"/>. Delegates all other operations to the inner router.
+/// <see cref="GetShardId(string)"/>. Delegates all other operations to the inner router.
 /// </remarks>
 internal sealed class InstrumentedShardRouter : IShardRouter
 {
@@ -61,6 +61,64 @@ internal sealed class InstrumentedShardRouter : IShardRouter
         return result;
     }
 
+    /// <summary>
+    /// Routes a compound shard key with instrumentation.
+    /// </summary>
+    public Either<EncinaError, string> GetShardId(CompoundShardKey key)
+    {
+        var activity = ShardingActivitySource.StartCompoundRouting(key, _routerType);
+        var start = Stopwatch.GetTimestamp();
+
+        _metrics.RecordCompoundKeyExtraction(key.ComponentCount, _routerType);
+
+        var result = _inner.GetShardId(key);
+
+        var elapsed = Stopwatch.GetElapsedTime(start);
+
+        _ = result.Match(
+            Right: shardId =>
+            {
+                ShardingActivitySource.RoutingCompleted(activity, shardId);
+                _metrics.RecordRouteDecision(shardId, _routerType, elapsed.TotalNanoseconds);
+                return shardId;
+            },
+            Left: error =>
+            {
+                ShardingActivitySource.RoutingFailed(activity, error.GetCode().IfNone(string.Empty), error.Message);
+                return string.Empty;
+            });
+
+        return result;
+    }
+
+    /// <summary>
+    /// Routes a partial compound key for scatter-gather with instrumentation.
+    /// </summary>
+    public Either<EncinaError, IReadOnlyList<string>> GetShardIds(CompoundShardKey partialKey)
+    {
+        var activity = ShardingActivitySource.StartCompoundRouting(partialKey, _routerType);
+
+        _metrics.RecordPartialKeyRouting(partialKey.ComponentCount, _inner.GetAllShardIds().Count, _routerType);
+
+        var result = _inner.GetShardIds(partialKey);
+
+        _ = result.Match(
+            Right: shardIds =>
+            {
+                activity?.SetTag(ActivityTagNames.ShardCount, shardIds.Count);
+                activity?.SetStatus(ActivityStatusCode.Ok);
+                activity?.Dispose();
+                return shardIds;
+            },
+            Left: error =>
+            {
+                ShardingActivitySource.RoutingFailed(activity, error.GetCode().IfNone(string.Empty), error.Message);
+                return (IReadOnlyList<string>)[];
+            });
+
+        return result;
+    }
+
     /// <inheritdoc />
     public IReadOnlyList<string> GetAllShardIds() => _inner.GetAllShardIds();
 
@@ -104,6 +162,12 @@ internal sealed class InstrumentedShardRouter<TEntity> : IShardRouter<TEntity>
         // Entity routing extracts the key and calls GetShardId(string), which
         // is already instrumented via _instrumentedBase. Delegate directly.
         return _inner.GetShardId(entity);
+    }
+
+    /// <inheritdoc />
+    public Either<EncinaError, IReadOnlyList<string>> GetShardIds(TEntity entity)
+    {
+        return _inner.GetShardIds(entity);
     }
 
     /// <inheritdoc />

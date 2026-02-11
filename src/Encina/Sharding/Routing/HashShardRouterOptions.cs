@@ -14,4 +14,15 @@ public sealed class HashShardRouterOptions
     /// Values between 100 and 200 are recommended for most workloads.
     /// </remarks>
     public int VirtualNodesPerShard { get; set; } = 150;
+
+    /// <summary>
+    /// Gets or sets the delimiter used to join compound key components before hashing.
+    /// </summary>
+    /// <value>The default is <c>"|"</c>.</value>
+    /// <remarks>
+    /// When routing a <see cref="CompoundShardKey"/>, the components are joined with
+    /// this delimiter into a single string that is then hashed. A single-component
+    /// compound key produces the same hash as the equivalent plain string.
+    /// </remarks>
+    public string ComponentDelimiter { get; set; } = "|";
 }

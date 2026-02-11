@@ -42,6 +42,10 @@ public sealed class ShardRoutingMetrics
     private readonly Counter<long> _routeDecisions;
     private readonly Histogram<long> _routeDuration;
 
+    // Compound key metrics
+    private readonly Counter<long> _compoundKeyExtractions;
+    private readonly Counter<long> _partialKeyRoutings;
+
     // Scatter-gather metrics
     private readonly Histogram<double> _scatterDuration;
     private readonly Histogram<double> _shardQueryDuration;
@@ -65,6 +69,14 @@ public sealed class ShardRoutingMetrics
             "encina.sharding.route.duration_ns",
             unit: "ns",
             description: "Duration of shard routing decisions in nanoseconds.");
+
+        _compoundKeyExtractions = Meter.CreateCounter<long>(
+            "encina.sharding.compound_key_extractions_total",
+            description: "Number of compound shard key extractions performed.");
+
+        _partialKeyRoutings = Meter.CreateCounter<long>(
+            "encina.sharding.partial_key_routing_total",
+            description: "Number of partial key routing operations performed.");
 
         _scatterDuration = Meter.CreateHistogram<double>(
             "encina.sharding.scatter.duration_ms",
@@ -108,6 +120,40 @@ public sealed class ShardRoutingMetrics
 
         _routeDecisions.Add(1, tags);
         _routeDuration.Record((long)durationNs, tags);
+    }
+
+    /// <summary>
+    /// Records a compound shard key extraction.
+    /// </summary>
+    /// <param name="componentCount">The number of components in the extracted compound key.</param>
+    /// <param name="routerType">The routing strategy (e.g., "hash", "range", "compound").</param>
+    public void RecordCompoundKeyExtraction(int componentCount, string routerType)
+    {
+        var tags = new TagList
+        {
+            { ActivityTagNames.CompoundKeyComponents, componentCount },
+            { ActivityTagNames.RouterType, routerType }
+        };
+
+        _compoundKeyExtractions.Add(1, tags);
+    }
+
+    /// <summary>
+    /// Records a partial key routing operation where fewer components than expected were provided.
+    /// </summary>
+    /// <param name="componentsProvided">The number of key components provided.</param>
+    /// <param name="componentsExpected">The total number of expected key components.</param>
+    /// <param name="routerType">The routing strategy (e.g., "compound").</param>
+    public void RecordPartialKeyRouting(int componentsProvided, int componentsExpected, string routerType)
+    {
+        var tags = new TagList
+        {
+            { "components.provided", componentsProvided },
+            { "components.expected", componentsExpected },
+            { ActivityTagNames.RouterType, routerType }
+        };
+
+        _partialKeyRoutings.Add(1, tags);
     }
 
     /// <summary>

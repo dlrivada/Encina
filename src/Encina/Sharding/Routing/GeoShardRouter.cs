@@ -112,6 +112,97 @@ public sealed class GeoShardRouter : IShardRouter
         return _topology.GetConnectionString(shardId);
     }
 
+    /// <summary>
+    /// Gets the shard ID for a compound key by resolving the region from the key.
+    /// </summary>
+    /// <remarks>
+    /// If <see cref="GeoShardRouterOptions.CompoundRegionResolver"/> is configured,
+    /// it receives the full compound key. Otherwise, the primary component is passed
+    /// to the standard region resolver.
+    /// </remarks>
+    public Either<EncinaError, string> GetShardId(CompoundShardKey key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+
+        if (_options.CompoundRegionResolver is not null)
+        {
+            var regionCode = _options.CompoundRegionResolver(key);
+            return ResolveRegion(regionCode);
+        }
+
+        return GetShardId(key.PrimaryComponent);
+    }
+
+    /// <summary>
+    /// Gets all shard IDs in the region resolved from the partial key.
+    /// </summary>
+    public Either<EncinaError, IReadOnlyList<string>> GetShardIds(CompoundShardKey partialKey)
+    {
+        ArgumentNullException.ThrowIfNull(partialKey);
+
+        string regionCode;
+
+        if (_options.CompoundRegionResolver is not null)
+        {
+            regionCode = _options.CompoundRegionResolver(partialKey);
+        }
+        else
+        {
+            regionCode = _regionResolver(partialKey.PrimaryComponent);
+        }
+
+        if (string.IsNullOrEmpty(regionCode))
+        {
+            return Either<EncinaError, IReadOnlyList<string>>.Right(_topology.AllShardIds);
+        }
+
+        // Find all shards in the resolved region and its fallback chain
+        var shardIds = new List<string>();
+        var visited = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string? current = regionCode;
+
+        while (current is not null && visited.Add(current))
+        {
+            if (_regions.TryGetValue(current, out var region))
+            {
+                shardIds.Add(region.ShardId);
+                current = region.FallbackRegionCode;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        if (shardIds.Count == 0)
+        {
+            if (_options.DefaultRegion is not null && _regions.TryGetValue(_options.DefaultRegion, out var defaultRegion))
+            {
+                return Either<EncinaError, IReadOnlyList<string>>.Right(new List<string> { defaultRegion.ShardId });
+            }
+
+            return Either<EncinaError, IReadOnlyList<string>>.Right(_topology.AllShardIds);
+        }
+
+        return Either<EncinaError, IReadOnlyList<string>>.Right(shardIds.Distinct(StringComparer.Ordinal).ToList());
+    }
+
+    private Either<EncinaError, string> ResolveRegion(string regionCode)
+    {
+        if (string.IsNullOrEmpty(regionCode))
+        {
+            return TryDefaultRegion();
+        }
+
+        if (_regions.TryGetValue(regionCode, out var region))
+        {
+            return Either<EncinaError, string>.Right(region.ShardId);
+        }
+
+        // Delegate to the standard string-based path for fallback chain resolution
+        return GetShardId(regionCode);
+    }
+
     private Either<EncinaError, string> TryDefaultRegion(string? requestedRegion = null)
     {
         if (_options.DefaultRegion is not null && _regions.TryGetValue(_options.DefaultRegion, out var defaultRegion))

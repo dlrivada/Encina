@@ -80,6 +80,46 @@ public sealed class DirectoryShardRouter : IShardRouter
     }
 
     /// <summary>
+    /// Gets the shard ID for a compound key by serializing components for directory lookup.
+    /// </summary>
+    public Either<EncinaError, string> GetShardId(CompoundShardKey key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return GetShardId(key.ToString());
+    }
+
+    /// <summary>
+    /// Gets shard IDs matching the partial key prefix by scanning the directory store.
+    /// </summary>
+    public Either<EncinaError, IReadOnlyList<string>> GetShardIds(CompoundShardKey partialKey)
+    {
+        ArgumentNullException.ThrowIfNull(partialKey);
+
+        var prefix = partialKey.ToString();
+        var allMappings = _store.GetAllMappings();
+        var matchingShards = allMappings
+            .Where(kvp => kvp.Key.StartsWith(prefix, StringComparison.Ordinal))
+            .Select(kvp => kvp.Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (matchingShards.Count == 0)
+        {
+            if (DefaultShardId is not null)
+            {
+                return Either<EncinaError, IReadOnlyList<string>>.Right(new List<string> { DefaultShardId });
+            }
+
+            return Either<EncinaError, IReadOnlyList<string>>.Left(
+                EncinaErrors.Create(
+                    ShardingErrorCodes.PartialKeyRoutingFailed,
+                    $"No directory mappings match the partial key prefix '{prefix}' and no default shard is configured."));
+        }
+
+        return Either<EncinaError, IReadOnlyList<string>>.Right(matchingShards);
+    }
+
+    /// <summary>
     /// Adds a key-to-shard mapping to the directory.
     /// </summary>
     /// <param name="key">The shard key.</param>

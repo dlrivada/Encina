@@ -163,7 +163,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ Bulk Operations (Insert/Update/Delete) [#284](https://github.com/dlrivada/Encina/issues/284) - High-performance bulk operations up to 459x faster
 - ✅ Audit Trail Pattern (IAuditableEntity) [#286](https://github.com/dlrivada/Encina/issues/286), [#623](https://github.com/dlrivada/Encina/issues/623) - Granular interfaces, auto-population in Repository for all 13 providers (EF Core, Dapper, ADO.NET, MongoDB)
 - ✅ Soft Delete & Temporal Tables [#285](https://github.com/dlrivada/Encina/issues/285) - ISoftDeletable/ISoftDeletableEntity interfaces, SoftDeleteInterceptor, SoftDeleteRepository, global query filters, SQL Server temporal tables with point-in-time queries
-- ✅ Database Sharding [#289](https://github.com/dlrivada/Encina/issues/289) - 4 routing strategies (Hash/Range/Directory/Geo), 13 providers, MongoDB dual-mode, scatter-gather, IShardRebalancer, 7 metric instruments, 3 trace activities, ~680+ tests
+- ✅ Database Sharding [#289](https://github.com/dlrivada/Encina/issues/289) - 4 routing strategies (Hash/Range/Directory/Geo), compound shard keys (#641), 13 providers, MongoDB dual-mode, scatter-gather, IShardRebalancer, 7 metric instruments, 3 trace activities, ~680+ tests
 
 **Remaining:**
 

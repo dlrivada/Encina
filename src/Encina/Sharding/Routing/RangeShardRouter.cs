@@ -99,6 +99,57 @@ public sealed class RangeShardRouter : IShardRouter
         return _topology.GetConnectionString(shardId);
     }
 
+    /// <summary>
+    /// Gets the shard ID for a compound key by serializing components for lexicographic range comparison.
+    /// </summary>
+    public Either<EncinaError, string> GetShardId(CompoundShardKey key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return GetShardId(key.ToString());
+    }
+
+    /// <summary>
+    /// Gets all shard IDs whose ranges overlap with the partial key prefix.
+    /// </summary>
+    /// <remarks>
+    /// For range routing, a partial key (e.g., just the primary component) matches
+    /// all ranges whose start key begins with the partial key prefix.
+    /// </remarks>
+    public Either<EncinaError, IReadOnlyList<string>> GetShardIds(CompoundShardKey partialKey)
+    {
+        ArgumentNullException.ThrowIfNull(partialKey);
+
+        var prefix = partialKey.PrimaryComponent;
+        var matchingShards = new List<string>();
+
+        foreach (var range in _sortedRanges)
+        {
+            // A range overlaps with the prefix if:
+            // - The range's start key begins with the prefix, OR
+            // - The prefix falls within the range [StartKey, EndKey)
+            var startsWithPrefix = range.StartKey.StartsWith(prefix, StringComparison.Ordinal);
+            var prefixInRange = _comparer.Compare(prefix, range.StartKey) >= 0
+                && (range.EndKey is null || _comparer.Compare(prefix, range.EndKey) < 0);
+            var endOverlaps = range.EndKey is not null
+                && range.EndKey.StartsWith(prefix, StringComparison.Ordinal);
+
+            if (startsWithPrefix || prefixInRange || endOverlaps)
+            {
+                matchingShards.Add(range.ShardId);
+            }
+        }
+
+        if (matchingShards.Count == 0)
+        {
+            return Either<EncinaError, IReadOnlyList<string>>.Left(
+                EncinaErrors.Create(
+                    ShardingErrorCodes.PartialKeyRoutingFailed,
+                    $"No ranges match the partial key prefix '{prefix}'."));
+        }
+
+        return Either<EncinaError, IReadOnlyList<string>>.Right(matchingShards);
+    }
+
     private static void ValidateNoOverlaps(List<ShardRange> ranges, StringComparer comparer)
     {
         var sorted = ranges.OrderBy(r => r.StartKey, comparer).ToList();

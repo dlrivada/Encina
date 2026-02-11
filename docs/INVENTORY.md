@@ -1642,6 +1642,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - **Observability**: 7 métricas ("Encina" meter), 3 traces ("Encina.Sharding" ActivitySource), 13 error codes `encina.sharding.*`
 - **Health**: `ShardHealthResult` (Healthy/Degraded/Unhealthy), `ShardedHealthSummary`
 - **Documentation**: ADR-010, 4 guides (configuration, scaling, MongoDB, cross-shard operations)
+- **Compound Shard Keys** (#641): `CompoundShardKey`, `ICompoundShardable`, `CompoundShardKeyExtractor`, `CompoundShardRouter`, `CompoundRoutingBuilder`, `ShardKeyAttribute.Order`, partial key routing (scatter-gather), 4 new error codes
 - **Test coverage**: ~680+ tests (unit, integration, guard, contract, property) + 13 benchmarks
 - Inspirado en consistent hashing (xxHash64) y MongoDB sharded cluster architecture
 

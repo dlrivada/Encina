@@ -429,10 +429,14 @@ Encina.Database.IDatabaseHealthMonitor.IsCircuitOpen.get -> bool
 Encina.Database.IDatabaseHealthMonitor.ProviderName.get -> string!
 Encina.Diagnostics.DatabasePoolMetrics
 Encina.Diagnostics.DatabasePoolMetrics.DatabasePoolMetrics(Encina.Database.IDatabaseHealthMonitor! monitor) -> void
+const Encina.Sharding.ShardingErrorCodes.CompoundShardKeyComponentEmpty = "encina.sharding.compound_shard_key_component_empty" -> string!
+const Encina.Sharding.ShardingErrorCodes.CompoundShardKeyEmpty = "encina.sharding.compound_shard_key_empty" -> string!
+const Encina.Sharding.ShardingErrorCodes.DuplicateShardKeyOrder = "encina.sharding.duplicate_shard_key_order" -> string!
 const Encina.Sharding.ShardingErrorCodes.KeyOutsideRange = "encina.sharding.key_outside_range" -> string!
 const Encina.Sharding.ShardingErrorCodes.MissingConnectionString = "encina.sharding.missing_connection_string" -> string!
 const Encina.Sharding.ShardingErrorCodes.NoActiveShards = "encina.sharding.no_active_shards" -> string!
 const Encina.Sharding.ShardingErrorCodes.OverlappingRanges = "encina.sharding.overlapping_ranges" -> string!
+const Encina.Sharding.ShardingErrorCodes.PartialKeyRoutingFailed = "encina.sharding.partial_key_routing_failed" -> string!
 const Encina.Sharding.ShardingErrorCodes.RegionNotFound = "encina.sharding.region_not_found" -> string!
 const Encina.Sharding.ShardingErrorCodes.RouterNotConfigured = "encina.sharding.router_not_configured" -> string!
 const Encina.Sharding.ShardingErrorCodes.ScatterGatherPartialFailure = "encina.sharding.scatter_gather_partial_failure" -> string!
@@ -440,6 +444,17 @@ const Encina.Sharding.ShardingErrorCodes.ScatterGatherTimeout = "encina.sharding
 const Encina.Sharding.ShardingErrorCodes.ShardKeyEmpty = "encina.sharding.shard_key_empty" -> string!
 const Encina.Sharding.ShardingErrorCodes.ShardKeyNotConfigured = "encina.sharding.shard_key_not_configured" -> string!
 const Encina.Sharding.ShardingErrorCodes.ShardNotFound = "encina.sharding.shard_not_found" -> string!
+Encina.Sharding.CompoundShardKey
+Encina.Sharding.CompoundShardKey.CompoundShardKey(params string![]! components) -> void
+Encina.Sharding.CompoundShardKey.CompoundShardKey(System.Collections.Generic.IReadOnlyList<string!>! components) -> void
+Encina.Sharding.CompoundShardKey.ComponentCount.get -> int
+Encina.Sharding.CompoundShardKey.Components.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.CompoundShardKey.HasSecondaryComponents.get -> bool
+Encina.Sharding.CompoundShardKey.PrimaryComponent.get -> string!
+override Encina.Sharding.CompoundShardKey.ToString() -> string!
+static Encina.Sharding.CompoundShardKey.implicit operator Encina.Sharding.CompoundShardKey!(string! singleComponent) -> Encina.Sharding.CompoundShardKey!
+Encina.Sharding.CompoundShardKeyExtractor
+static Encina.Sharding.CompoundShardKeyExtractor.Extract<TEntity>(TEntity entity) -> LanguageExt.Either<Encina.EncinaError, Encina.Sharding.CompoundShardKey!>
 Encina.Sharding.Configuration.ScatterGatherOptions
 Encina.Sharding.Configuration.ScatterGatherOptions.AllowPartialResults.get -> bool
 Encina.Sharding.Configuration.ScatterGatherOptions.AllowPartialResults.set -> void
@@ -448,10 +463,20 @@ Encina.Sharding.Configuration.ScatterGatherOptions.MaxParallelism.set -> void
 Encina.Sharding.Configuration.ScatterGatherOptions.ScatterGatherOptions() -> void
 Encina.Sharding.Configuration.ScatterGatherOptions.Timeout.get -> System.TimeSpan
 Encina.Sharding.Configuration.ScatterGatherOptions.Timeout.set -> void
+Encina.Sharding.Configuration.CompoundRoutingBuilder
+Encina.Sharding.Configuration.CompoundRoutingBuilder.CombineWith(System.Func<System.Collections.Generic.IEnumerable<string!>!, string!>! combiner) -> Encina.Sharding.Configuration.CompoundRoutingBuilder!
+Encina.Sharding.Configuration.CompoundRoutingBuilder.Component(int index, Encina.Sharding.IShardRouter! router) -> Encina.Sharding.Configuration.CompoundRoutingBuilder!
+Encina.Sharding.Configuration.CompoundRoutingBuilder.Component(int index, System.Func<Encina.Sharding.ShardTopology!, Encina.Sharding.IShardRouter!>! routerFactory) -> Encina.Sharding.Configuration.CompoundRoutingBuilder!
+Encina.Sharding.Configuration.CompoundRoutingBuilder.CompoundRoutingBuilder() -> void
+Encina.Sharding.Configuration.CompoundRoutingBuilder.DirectoryComponent(int index, Encina.Sharding.Routing.IShardDirectoryStore! store, string? defaultShardId = null) -> Encina.Sharding.Configuration.CompoundRoutingBuilder!
+Encina.Sharding.Configuration.CompoundRoutingBuilder.GeoComponent(int index, System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.GeoRegion!>! regions, System.Func<string!, string!>! regionResolver, System.Action<Encina.Sharding.Routing.GeoShardRouterOptions!>? configureOptions = null) -> Encina.Sharding.Configuration.CompoundRoutingBuilder!
+Encina.Sharding.Configuration.CompoundRoutingBuilder.HashComponent(int index, System.Action<Encina.Sharding.Routing.HashShardRouterOptions!>? configureOptions = null) -> Encina.Sharding.Configuration.CompoundRoutingBuilder!
+Encina.Sharding.Configuration.CompoundRoutingBuilder.RangeComponent(int index, System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.ShardRange!>! ranges, System.StringComparer? comparer = null) -> Encina.Sharding.Configuration.CompoundRoutingBuilder!
 Encina.Sharding.Configuration.ShardingOptions<TEntity>
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.AddShard(string! shardId, string! connectionString, int weight = 1, bool isActive = true) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.ScatterGather.get -> Encina.Sharding.Configuration.ScatterGatherOptions!
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.ShardingOptions() -> void
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseCompoundRouting(System.Action<Encina.Sharding.Configuration.CompoundRoutingBuilder!>! configure) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseCustomRouting(System.Func<Encina.Sharding.ShardTopology!, Encina.Sharding.IShardRouter!>! routerFactory) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseDirectoryRouting(Encina.Sharding.Routing.IShardDirectoryStore! store, string? defaultShardId = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseGeoRouting(System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.GeoRegion!>! regions, System.Func<string!, string!>! regionResolver, System.Action<Encina.Sharding.Routing.GeoShardRouterOptions!>? configureOptions = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
@@ -465,14 +490,19 @@ Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.GetShardIdForEntity(T
 Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.QueryAllShardsAsync(System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<TEntity!>!>>!>! queryFactory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardedQueryResult<TEntity!>!>>!
 Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.QueryShardsAsync(System.Collections.Generic.IEnumerable<string!>! shardIds, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<TEntity!>!>>!>! queryFactory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardedQueryResult<TEntity!>!>>!
 Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.UpdateAsync(TEntity! entity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TEntity!>>!
+Encina.Sharding.ICompoundShardable
+Encina.Sharding.ICompoundShardable.GetCompoundShardKey() -> Encina.Sharding.CompoundShardKey!
 Encina.Sharding.IShardable
 Encina.Sharding.IShardable.GetShardKey() -> string!
 Encina.Sharding.IShardRouter
 Encina.Sharding.IShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
 Encina.Sharding.IShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.IShardRouter.GetShardId(Encina.Sharding.CompoundShardKey! key) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.IShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.IShardRouter.GetShardIds(Encina.Sharding.CompoundShardKey! partialKey) -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>
 Encina.Sharding.IShardRouter<TEntity>
 Encina.Sharding.IShardRouter<TEntity>.GetShardId(TEntity entity) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.IShardRouter<TEntity>.GetShardIds(TEntity entity) -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>
 Encina.Sharding.Routing.AffectedKeyRange
 Encina.Sharding.Routing.AffectedKeyRange.AffectedKeyRange(ulong RingStart, ulong RingEnd, string! PreviousShardId, string! NewShardId) -> void
 Encina.Sharding.Routing.AffectedKeyRange.NewShardId.get -> string!
@@ -483,6 +513,18 @@ Encina.Sharding.Routing.AffectedKeyRange.RingEnd.get -> ulong
 Encina.Sharding.Routing.AffectedKeyRange.RingEnd.init -> void
 Encina.Sharding.Routing.AffectedKeyRange.RingStart.get -> ulong
 Encina.Sharding.Routing.AffectedKeyRange.RingStart.init -> void
+Encina.Sharding.Routing.CompoundShardRouter
+Encina.Sharding.Routing.CompoundShardRouter.CompoundShardRouter(Encina.Sharding.ShardTopology! topology, Encina.Sharding.Routing.CompoundShardRouterOptions! options) -> void
+Encina.Sharding.Routing.CompoundShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.Routing.CompoundShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.CompoundShardRouter.GetShardId(Encina.Sharding.CompoundShardKey! key) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.CompoundShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.CompoundShardRouter.GetShardIds(Encina.Sharding.CompoundShardKey! partialKey) -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>
+Encina.Sharding.Routing.CompoundShardRouterOptions
+Encina.Sharding.Routing.CompoundShardRouterOptions.ComponentRouters.get -> System.Collections.Generic.Dictionary<int, Encina.Sharding.IShardRouter!>!
+Encina.Sharding.Routing.CompoundShardRouterOptions.CompoundShardRouterOptions() -> void
+Encina.Sharding.Routing.CompoundShardRouterOptions.ShardIdCombiner.get -> System.Func<System.Collections.Generic.IEnumerable<string!>!, string!>!
+Encina.Sharding.Routing.CompoundShardRouterOptions.ShardIdCombiner.set -> void
 Encina.Sharding.Routing.DirectoryShardRouter
 Encina.Sharding.Routing.DirectoryShardRouter.AddMapping(string! key, string! shardId) -> void
 Encina.Sharding.Routing.DirectoryShardRouter.DefaultShardId.get -> string?
@@ -490,7 +532,9 @@ Encina.Sharding.Routing.DirectoryShardRouter.DirectoryShardRouter(Encina.Shardin
 Encina.Sharding.Routing.DirectoryShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
 Encina.Sharding.Routing.DirectoryShardRouter.GetMapping(string! key) -> string?
 Encina.Sharding.Routing.DirectoryShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.DirectoryShardRouter.GetShardId(Encina.Sharding.CompoundShardKey! key) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.Routing.DirectoryShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.DirectoryShardRouter.GetShardIds(Encina.Sharding.CompoundShardKey! partialKey) -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>
 Encina.Sharding.Routing.DirectoryShardRouter.RemoveMapping(string! key) -> bool
 Encina.Sharding.Routing.GeoRegion
 Encina.Sharding.Routing.GeoRegion.FallbackRegionCode.get -> string?
@@ -502,8 +546,12 @@ Encina.Sharding.Routing.GeoShardRouter
 Encina.Sharding.Routing.GeoShardRouter.GeoShardRouter(Encina.Sharding.ShardTopology! topology, System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.GeoRegion!>! regions, System.Func<string!, string!>! regionResolver, Encina.Sharding.Routing.GeoShardRouterOptions? options = null) -> void
 Encina.Sharding.Routing.GeoShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
 Encina.Sharding.Routing.GeoShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.GeoShardRouter.GetShardId(Encina.Sharding.CompoundShardKey! key) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.Routing.GeoShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.GeoShardRouter.GetShardIds(Encina.Sharding.CompoundShardKey! partialKey) -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>
 Encina.Sharding.Routing.GeoShardRouterOptions
+Encina.Sharding.Routing.GeoShardRouterOptions.CompoundRegionResolver.get -> System.Func<Encina.Sharding.CompoundShardKey!, string!>?
+Encina.Sharding.Routing.GeoShardRouterOptions.CompoundRegionResolver.set -> void
 Encina.Sharding.Routing.GeoShardRouterOptions.DefaultRegion.get -> string?
 Encina.Sharding.Routing.GeoShardRouterOptions.DefaultRegion.set -> void
 Encina.Sharding.Routing.GeoShardRouterOptions.GeoShardRouterOptions() -> void
@@ -513,9 +561,13 @@ Encina.Sharding.Routing.HashShardRouter
 Encina.Sharding.Routing.HashShardRouter.CalculateAffectedKeyRanges(Encina.Sharding.ShardTopology! oldTopology, Encina.Sharding.ShardTopology! newTopology) -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.Routing.AffectedKeyRange!>!
 Encina.Sharding.Routing.HashShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
 Encina.Sharding.Routing.HashShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.HashShardRouter.GetShardId(Encina.Sharding.CompoundShardKey! key) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.Routing.HashShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.HashShardRouter.GetShardIds(Encina.Sharding.CompoundShardKey! partialKey) -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>
 Encina.Sharding.Routing.HashShardRouter.HashShardRouter(Encina.Sharding.ShardTopology! topology, Encina.Sharding.Routing.HashShardRouterOptions? options = null) -> void
 Encina.Sharding.Routing.HashShardRouterOptions
+Encina.Sharding.Routing.HashShardRouterOptions.ComponentDelimiter.get -> string!
+Encina.Sharding.Routing.HashShardRouterOptions.ComponentDelimiter.set -> void
 Encina.Sharding.Routing.HashShardRouterOptions.HashShardRouterOptions() -> void
 Encina.Sharding.Routing.HashShardRouterOptions.VirtualNodesPerShard.get -> int
 Encina.Sharding.Routing.HashShardRouterOptions.VirtualNodesPerShard.set -> void
@@ -536,7 +588,9 @@ Encina.Sharding.Routing.InMemoryShardDirectoryStore.RemoveMapping(string! key) -
 Encina.Sharding.Routing.RangeShardRouter
 Encina.Sharding.Routing.RangeShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
 Encina.Sharding.Routing.RangeShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.RangeShardRouter.GetShardId(Encina.Sharding.CompoundShardKey! key) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.Routing.RangeShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.Routing.RangeShardRouter.GetShardIds(Encina.Sharding.CompoundShardKey! partialKey) -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>
 Encina.Sharding.Routing.RangeShardRouter.RangeShardRouter(Encina.Sharding.ShardTopology! topology, System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.ShardRange!>! ranges, System.StringComparer? comparer = null) -> void
 Encina.Sharding.Routing.ShardRange
 Encina.Sharding.Routing.ShardRange.EndKey.get -> string?
@@ -572,6 +626,8 @@ Encina.Sharding.ShardInfo.Weight.init -> void
 Encina.Sharding.ShardingErrorCodes
 Encina.Sharding.ShardingServiceCollectionExtensions
 Encina.Sharding.ShardKeyAttribute
+Encina.Sharding.ShardKeyAttribute.Order.get -> int
+Encina.Sharding.ShardKeyAttribute.Order.set -> void
 Encina.Sharding.ShardKeyAttribute.ShardKeyAttribute() -> void
 Encina.Sharding.ShardKeyExtractor
 Encina.Sharding.ShardTopology
@@ -659,6 +715,8 @@ Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordShardQueryDuration(string!
 Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordPartialFailure(int failedCount, int totalCount) -> void
 Encina.Sharding.Diagnostics.ShardRoutingMetrics.IncrementActiveQueries() -> void
 Encina.Sharding.Diagnostics.ShardRoutingMetrics.DecrementActiveQueries() -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordCompoundKeyExtraction(int componentCount, string! routerType) -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordPartialKeyRouting(int componentsProvided, int componentsExpected, string! routerType) -> void
 Encina.Sharding.Diagnostics.ShardedDatabasePoolMetrics
 Encina.Sharding.Diagnostics.ShardedDatabasePoolMetrics.ShardedDatabasePoolMetrics(Encina.Sharding.Health.IShardedDatabaseHealthMonitor! monitor) -> void
 Encina.Sharding.Diagnostics.ShardedDatabasePoolMetrics.UpdateHealthSnapshot(System.Collections.Generic.IReadOnlyList<Encina.Sharding.Health.ShardHealthResult!>! healthResults) -> void

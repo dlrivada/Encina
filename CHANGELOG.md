@@ -50,6 +50,38 @@ Added comprehensive database sharding with four routing strategies, support for 
 
 **Testing**: ~680+ tests across unit, integration, guard, contract, property tests; 13 BenchmarkDotNet benchmarks
 
+#### Compound Shard Keys (#641)
+
+Added multi-field shard key support, enabling routing decisions based on combinations of entity properties (e.g., tenant + region, country + category).
+
+**Core Abstractions**:
+
+- **`CompoundShardKey`**: Immutable record holding ordered components with implicit conversion from `string` and pipe-delimited `ToString()`
+- **`ICompoundShardable`**: Interface for entities that expose a compound shard key via `GetCompoundShardKey()`
+- **`CompoundShardKeyExtractor`**: Static extractor with priority resolution: `ICompoundShardable` → multiple `[ShardKey]` attributes → `IShardable` → single `[ShardKey]`
+- **`ShardKeyAttribute.Order`**: New property for specifying component order in compound keys (0-based)
+
+**Routing Infrastructure**:
+
+- **`CompoundShardRouter`**: Routes each key component through a dedicated strategy (hash, range, directory, geo) and combines results via configurable `ShardIdCombiner`
+- **`CompoundShardRouterOptions`**: Configuration with per-component router dictionary and combiner function (default: hyphen-join)
+- **`IShardRouter.GetShardId(CompoundShardKey)`**: New default interface method for compound routing (falls back to `ToString()` + single-key routing)
+- **`IShardRouter.GetShardIds(CompoundShardKey)`**: Partial key routing for scatter-gather queries with prefix keys
+- All four existing routers (Hash, Range, Directory, Geo) extended with compound key overloads
+
+**Configuration**:
+
+- **`CompoundRoutingBuilder`**: Fluent builder with `Component()`, `HashComponent()`, `RangeComponent()`, `DirectoryComponent()`, `GeoComponent()`, and `CombineWith()`
+- **`ShardingOptions<TEntity>.UseCompoundRouting()`**: Entry point for configuring compound routing per entity type
+
+**Error Codes** (4 new):
+
+- `CompoundShardKeyEmpty`, `CompoundShardKeyComponentEmpty`, `DuplicateShardKeyOrder`, `PartialKeyRoutingFailed`
+
+**Observability**:
+
+- `ShardRoutingMetrics.RecordCompoundKeyExtraction()` for tracking compound key extraction with component count and router type
+
 #### Change Data Capture (CDC) Pattern (#308)
 
 Added a provider-agnostic Change Data Capture infrastructure that streams database changes as typed events through a handler pipeline, with support for 5 database providers and messaging integration.

@@ -24,6 +24,7 @@ public sealed class HashShardRouter : IShardRouter, IShardRebalancer
     private readonly SortedDictionary<ulong, string> _ring;
     private readonly ulong[] _ringKeys;
     private readonly int _virtualNodesPerShard;
+    private readonly string _componentDelimiter;
 
     /// <summary>
     /// Initializes a new <see cref="HashShardRouter"/> with the given topology and options.
@@ -36,6 +37,7 @@ public sealed class HashShardRouter : IShardRouter, IShardRebalancer
 
         _topology = topology;
         _virtualNodesPerShard = options?.VirtualNodesPerShard ?? 150;
+        _componentDelimiter = options?.ComponentDelimiter ?? "|";
         _ring = BuildRing(topology, _virtualNodesPerShard);
         _ringKeys = [.. _ring.Keys];
     }
@@ -66,6 +68,30 @@ public sealed class HashShardRouter : IShardRouter, IShardRebalancer
     {
         ArgumentNullException.ThrowIfNull(shardId);
         return _topology.GetConnectionString(shardId);
+    }
+
+    /// <summary>
+    /// Gets the shard ID for a compound key by joining components with
+    /// <see cref="HashShardRouterOptions.ComponentDelimiter"/> and hashing the result.
+    /// </summary>
+    /// <remarks>
+    /// A single-component compound key produces the same hash as the equivalent plain string,
+    /// ensuring backward compatibility with existing routing.
+    /// </remarks>
+    public Either<EncinaError, string> GetShardId(CompoundShardKey key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        var serialized = string.Join(_componentDelimiter, key.Components);
+        return GetShardId(serialized);
+    }
+
+    /// <summary>
+    /// Returns all shard IDs because hash routing cannot narrow results without the full key.
+    /// </summary>
+    public Either<EncinaError, IReadOnlyList<string>> GetShardIds(CompoundShardKey partialKey)
+    {
+        ArgumentNullException.ThrowIfNull(partialKey);
+        return Either<EncinaError, IReadOnlyList<string>>.Right(_topology.AllShardIds);
     }
 
     /// <inheritdoc />

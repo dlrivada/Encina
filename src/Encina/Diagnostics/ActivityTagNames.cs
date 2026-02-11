@@ -48,4 +48,9 @@ internal static class ActivityTagNames
     internal const string ShardCount = "encina.sharding.shard.count";
     internal const string RouterType = "encina.sharding.router.type";
     internal const string ScatterGatherStrategy = "encina.sharding.scatter.strategy";
+
+    // Compound shard key tags
+    internal const string CompoundKeyComponents = "encina.sharding.compound_key.components";
+    internal const string CompoundKeyPartial = "encina.sharding.compound_key.partial";
+    internal const string CompoundKeyStrategyPerComponent = "encina.sharding.compound_key.strategy_per_component";
 }

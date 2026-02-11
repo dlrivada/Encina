@@ -4,20 +4,30 @@ namespace Encina.Sharding;
 
 /// <summary>
 /// Default implementation of <see cref="IShardRouter{TEntity}"/> that extracts shard keys
-/// from entities using <see cref="ShardKeyExtractor"/> and delegates routing to an <see cref="IShardRouter"/>.
+/// from entities using <see cref="CompoundShardKeyExtractor"/> and delegates routing to an <see cref="IShardRouter"/>.
 /// </summary>
 /// <typeparam name="TEntity">The entity type.</typeparam>
 /// <remarks>
 /// <para>
-/// Shard key extraction follows a two-step priority:
+/// Shard key extraction follows a four-step priority:
 /// <list type="number">
+///   <item><description>If <typeparamref name="TEntity"/> implements <see cref="ICompoundShardable"/>,
+///   the <see cref="ICompoundShardable.GetCompoundShardKey"/> method is used directly.</description></item>
+///   <item><description>If <typeparamref name="TEntity"/> has multiple properties decorated with
+///   <see cref="ShardKeyAttribute"/>, they are combined by <see cref="ShardKeyAttribute.Order"/>
+///   into a <see cref="CompoundShardKey"/>.</description></item>
 ///   <item><description>If <typeparamref name="TEntity"/> implements <see cref="IShardable"/>,
-///   the <see cref="IShardable.GetShardKey"/> method is used directly.</description></item>
-///   <item><description>Otherwise, <see cref="ShardKeyExtractor"/> scans for a property decorated
-///   with <see cref="ShardKeyAttribute"/> and extracts its value via reflection (cached).</description></item>
+///   the <see cref="IShardable.GetShardKey"/> method is used (wrapped in a single-component key).</description></item>
+///   <item><description>Otherwise, a single <see cref="ShardKeyAttribute"/> property is extracted
+///   via reflection (cached) and wrapped in a single-component key.</description></item>
 /// </list>
-/// If neither mechanism produces a shard key, the result is <c>Left</c> with error code
+/// If none of these mechanisms produces a shard key, the result is <c>Left</c> with error code
 /// <see cref="ShardingErrorCodes.ShardKeyNotConfigured"/>.
+/// </para>
+/// <para>
+/// Single-component compound keys route identically to simple string keys, ensuring
+/// backward compatibility with existing entities that use <see cref="IShardable"/> or
+/// a single <see cref="ShardKeyAttribute"/>.
 /// </para>
 /// <para>
 /// This class is registered internally by the sharding DI extensions and is not intended
@@ -26,23 +36,31 @@ namespace Encina.Sharding;
 /// </remarks>
 /// <example>
 /// <code>
-/// // IShardable approach (preferred — no reflection)
-/// public class Order : IShardable
+/// // ICompoundShardable approach (multi-field keys)
+/// public class Order : ICompoundShardable
 /// {
-///     public string Id { get; set; }
+///     public string Region { get; set; }
+///     public string CustomerId { get; set; }
+///     public CompoundShardKey GetCompoundShardKey() => new(Region, CustomerId);
+/// }
+///
+/// // Multiple [ShardKey] attributes (simpler compound keys)
+/// public class Invoice
+/// {
+///     [ShardKey(Order = 0)]
+///     public string TenantId { get; set; }
+///     [ShardKey(Order = 1)]
+///     public string Region { get; set; }
+/// }
+///
+/// // IShardable approach (single key — backward compatible)
+/// public class Payment : IShardable
+/// {
 ///     public string CustomerId { get; set; }
 ///     public string GetShardKey() => CustomerId;
 /// }
 ///
-/// // Attribute approach (simpler, uses cached reflection)
-/// public class Invoice
-/// {
-///     public string Id { get; set; }
-///     [ShardKey]
-///     public string TenantId { get; set; }
-/// }
-///
-/// // Both work identically with the router:
+/// // All work identically with the router:
 /// Either&lt;EncinaError, string&gt; shardId = router.GetShardId(order);
 /// </code>
 /// </example>
@@ -62,8 +80,17 @@ internal sealed class EntityShardRouter<TEntity> : IShardRouter<TEntity>
     {
         ArgumentNullException.ThrowIfNull(entity);
 
-        return ShardKeyExtractor.Extract(entity)
+        return CompoundShardKeyExtractor.Extract(entity)
             .Bind(key => _inner.GetShardId(key));
+    }
+
+    /// <inheritdoc />
+    public Either<EncinaError, IReadOnlyList<string>> GetShardIds(TEntity entity)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+
+        return CompoundShardKeyExtractor.Extract(entity)
+            .Bind(key => _inner.GetShardIds(key));
     }
 
     /// <inheritdoc />
