@@ -20,13 +20,13 @@ public sealed class FakeInboxMessage : IInboxMessage
     public string? ErrorMessage { get; set; }
 
     /// <inheritdoc />
-    public DateTime ReceivedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime ReceivedAtUtc { get; set; } = TimeProvider.System.GetUtcNow().UtcDateTime;
 
     /// <inheritdoc />
     public DateTime? ProcessedAtUtc { get; set; }
 
     /// <inheritdoc />
-    public DateTime ExpiresAtUtc { get; set; } = DateTime.UtcNow.AddDays(7);
+    public DateTime ExpiresAtUtc { get; set; } = TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(7);
 
     /// <inheritdoc />
     public int RetryCount { get; set; }
@@ -38,7 +38,7 @@ public sealed class FakeInboxMessage : IInboxMessage
     public bool IsProcessed => ProcessedAtUtc.HasValue && ErrorMessage == null;
 
     /// <inheritdoc />
-    public bool IsExpired() => DateTime.UtcNow > ExpiresAtUtc;
+    public bool IsExpired() => TimeProvider.System.GetUtcNow().UtcDateTime > ExpiresAtUtc;
 
     /// <summary>
     /// Creates a deep copy of this message.

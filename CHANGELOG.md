@@ -1221,6 +1221,54 @@ await context.SaveChangesAsync(); // Events dispatched automatically
 
 ---
 
+### Changed
+
+#### Replace DateTime.UtcNow with TimeProvider Injection (#543)
+
+Replaced all ~205 occurrences of `DateTime.UtcNow` across ~112 source files with `TimeProvider` injection, enabling deterministic time control in tests. This is a **breaking change** for classes with public constructors that now accept an optional `TimeProvider?` parameter.
+
+**Pattern Applied**:
+
+```csharp
+// Before
+var now = DateTime.UtcNow;
+
+// After (constructor injection)
+public SomeClass(..., TimeProvider? timeProvider = null)
+{
+    _timeProvider = timeProvider ?? TimeProvider.System;
+}
+var now = _timeProvider.GetUtcNow().UtcDateTime;
+```
+
+**Packages Affected** (all source packages):
+
+| Category | Packages |
+|----------|----------|
+| **Encina.Messaging** | SagaOrchestrator, SchedulerOrchestrator, RecoverabilityPipelineBehavior, RecoverabilityContext, DeadLetterOrchestrator, InboxOrchestrator, OutboxOrchestrator, ContentRouter, OutboxPostProcessor, DelayedRetryScheduler, RoutingSlipRunner, health checks |
+| **Encina.EntityFrameworkCore** | OutboxProcessor, SagaStoreEF, ScheduledMessageStoreEF, QueryCacheInterceptor, InboxStoreEF, OutboxStoreEF, TemporalRepositoryEF |
+| **Encina.MongoDB** | SagaStoreMongoDB, ScheduledMessageStoreMongoDB, InboxStoreMongoDB, OutboxStoreMongoDB |
+| **ADO.NET (4 providers)** | OutboxProcessor (retry time calculation) |
+| **Dapper (4 providers)** | OutboxProcessor, SagaStoreDapper, ScheduledMessageStoreDapper |
+| **Encina.Caching** | DistributedIdempotencyPipelineBehavior, QueryCachingPipelineBehavior |
+| **Encina.Caching.Redis** | RedisCacheProvider, RedisDistributedLockProvider |
+| **Encina.DistributedLock** | RedisDistributedLockProvider, SqlServerDistributedLockProvider, InMemoryDistributedLockProvider |
+| **Encina.Cdc** | All 5 CDC connectors + DebeziumEventMapper |
+| **Encina.DomainModeling** | DomainEventEnvelope, IDomainEvent, IIntegrationEvent, AuditLogEntry, InMemoryAuditLogStore, pagination cursors |
+| **Encina.Marten** | MartenProjectionManager, SnapshotAwareAggregateRepository |
+| **Encina.Redis.PubSub** | RedisPubSubMessagePublisher |
+| **Encina.Security.Audit** | IAuditStore, AuditQuery |
+| **Encina.Aspire.Testing** | FailureSimulationExtensions |
+| **Encina.Testing.*** | Fakes (stores, models, providers), Bogus, FsCheck |
+
+**DI Registration**: Added `services.TryAddSingleton(TimeProvider.System)` to all `ServiceCollectionExtensions` entry points.
+
+**Model Classes**: ADO, Dapper, EF Core, and MongoDB model classes (`InboxMessage`, `ScheduledMessage`) use `TimeProvider.System` directly in `IsExpired()`/`IsDue()` methods (parameterless interface contract).
+
+**Related Issue**: [#543 - Replace DateTime.UtcNow with TimeProvider injection](https://github.com/dlrivada/Encina/issues/543)
+
+---
+
 ### Fixed
 
 #### PostgreSQL EF Core Integration Tests Case-Sensitivity (#570)

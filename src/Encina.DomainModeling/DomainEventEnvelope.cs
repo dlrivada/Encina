@@ -113,7 +113,7 @@ public sealed record DomainEventEnvelope<TEvent> where TEvent : IDomainEvent
     /// <summary>
     /// Gets the timestamp when this envelope was created (UTC).
     /// </summary>
-    public DateTime EnvelopeCreatedAtUtc { get; init; } = DateTime.UtcNow;
+    public DateTime EnvelopeCreatedAtUtc { get; init; } = TimeProvider.System.GetUtcNow().UtcDateTime;
 
     /// <summary>
     /// Gets a unique identifier for this envelope instance.

@@ -67,7 +67,7 @@ public abstract record IntegrationEvent : IIntegrationEvent
     public Guid EventId { get; init; } = Guid.NewGuid();
 
     /// <inheritdoc />
-    public DateTime OccurredAtUtc { get; init; } = DateTime.UtcNow;
+    public DateTime OccurredAtUtc { get; init; } = TimeProvider.System.GetUtcNow().UtcDateTime;
 
     /// <inheritdoc />
     public virtual int EventVersion => 1;

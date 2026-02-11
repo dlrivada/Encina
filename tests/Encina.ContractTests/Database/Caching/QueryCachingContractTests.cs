@@ -328,7 +328,7 @@ public sealed class QueryCachingContractTests
     [Fact]
     public void Contract_QueryCacheInterceptor_HasFiveParameterConstructor()
     {
-        // Contract: QueryCacheInterceptor constructor requires all 5 dependencies
+        // Contract: QueryCacheInterceptor constructor requires all 6 dependencies (5 required + 1 optional TimeProvider)
         var constructors = typeof(QueryCacheInterceptor)
             .GetConstructors(BindingFlags.Public | BindingFlags.Instance);
 
@@ -336,8 +336,8 @@ public sealed class QueryCachingContractTests
             "QueryCacheInterceptor should have exactly one public constructor");
 
         var parameters = constructors[0].GetParameters();
-        parameters.Length.ShouldBe(5,
-            "Constructor should take exactly 5 parameters");
+        parameters.Length.ShouldBe(6,
+            "Constructor should take exactly 6 parameters (5 required + TimeProvider)");
 
         // Verify parameter types
         parameters[0].ParameterType.ShouldBe(typeof(ICacheProvider),

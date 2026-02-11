@@ -131,6 +131,9 @@ public static class ServiceCollectionExtensions
         var config = new MessagingConfiguration();
         configure(config);
 
+        // Register TimeProvider for consistent timestamps across all EF Core components
+        services.TryAddSingleton(TimeProvider.System);
+
         // Register the DbContext as DbContext (non-generic) for behaviors
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TDbContext>());
 

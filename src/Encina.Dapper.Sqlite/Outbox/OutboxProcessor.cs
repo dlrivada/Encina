@@ -16,6 +16,7 @@ public sealed class OutboxProcessor : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<OutboxProcessor> _logger;
     private readonly OutboxOptions _options;
+    private readonly TimeProvider _timeProvider;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -27,11 +28,13 @@ public sealed class OutboxProcessor : BackgroundService
     /// <param name="serviceProvider">Service provider for creating scopes.</param>
     /// <param name="logger">Logger for diagnostic information.</param>
     /// <param name="options">Configuration options for outbox processing.</param>
+    /// <param name="timeProvider">Optional time provider for testability. Defaults to <see cref="TimeProvider.System"/>.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceProvider"/>, <paramref name="logger"/>, or <paramref name="options"/> is null.</exception>
     public OutboxProcessor(
         IServiceProvider serviceProvider,
         ILogger<OutboxProcessor> logger,
-        OutboxOptions options)
+        OutboxOptions options,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
         ArgumentNullException.ThrowIfNull(logger);
@@ -40,6 +43,7 @@ public sealed class OutboxProcessor : BackgroundService
         _serviceProvider = serviceProvider;
         _logger = logger;
         _options = options;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -214,6 +218,6 @@ public sealed class OutboxProcessor : BackgroundService
     private DateTime CalculateNextRetry(int retryCount)
     {
         var delay = _options.BaseRetryDelay * Math.Pow(2, retryCount - 1);
-        return DateTime.UtcNow.Add(delay);
+        return _timeProvider.GetUtcNow().UtcDateTime.Add(delay);
     }
 }

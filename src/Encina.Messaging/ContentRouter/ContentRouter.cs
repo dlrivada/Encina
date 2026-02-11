@@ -33,19 +33,22 @@ public sealed class ContentRouter : IContentRouter
 {
     private readonly ContentRouterOptions _options;
     private readonly ILogger<ContentRouter> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContentRouter"/> class.
     /// </summary>
     /// <param name="options">The router options.</param>
     /// <param name="logger">The logger.</param>
-    public ContentRouter(ContentRouterOptions options, ILogger<ContentRouter> logger)
+    /// <param name="timeProvider">Optional time provider for testability.</param>
+    public ContentRouter(ContentRouterOptions options, ILogger<ContentRouter> logger, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
         _options = options;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -193,7 +196,7 @@ public sealed class ContentRouter : IContentRouter
         where TMessage : class
     {
         var stepStopwatch = Stopwatch.StartNew();
-        var executedAt = DateTime.UtcNow;
+        var executedAt = _timeProvider.GetUtcNow().UtcDateTime;
 
         try
         {
@@ -310,7 +313,7 @@ public sealed class ContentRouter : IContentRouter
         where TMessage : class
     {
         var stopwatch = Stopwatch.StartNew();
-        var executedAt = DateTime.UtcNow;
+        var executedAt = _timeProvider.GetUtcNow().UtcDateTime;
 
         ContentRouterLog.RouteExecuting(_logger, routingId, route.Name);
 

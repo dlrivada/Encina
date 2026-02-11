@@ -69,7 +69,7 @@ public sealed partial class InMemoryDistributedLockProvider : IDistributedLockPr
             if (_locks.TryAdd(lockKey, entry))
             {
                 LogLockAcquired(_logger, resource, lockValue);
-                return new LockHandle(this, lockKey, lockValue, resource, now.DateTime, entry.ExpiresAtUtc.DateTime, _logger);
+                return new LockHandle(this, lockKey, lockValue, resource, now.DateTime, entry.ExpiresAtUtc.DateTime, _logger, _timeProvider);
             }
 
             await Task.Delay(retry, cancellationToken).ConfigureAwait(false);
@@ -105,7 +105,7 @@ public sealed partial class InMemoryDistributedLockProvider : IDistributedLockPr
             if (_locks.TryAdd(lockKey, entry))
             {
                 LogLockAcquired(_logger, resource, lockValue);
-                return new LockHandle(this, lockKey, lockValue, resource, now.DateTime, entry.ExpiresAtUtc.DateTime, _logger);
+                return new LockHandle(this, lockKey, lockValue, resource, now.DateTime, entry.ExpiresAtUtc.DateTime, _logger, _timeProvider);
             }
 
             await Task.Delay(retryInterval, cancellationToken).ConfigureAwait(false);
@@ -223,6 +223,7 @@ public sealed partial class InMemoryDistributedLockProvider : IDistributedLockPr
         private readonly InMemoryDistributedLockProvider _provider;
         private readonly string _lockKey;
         private readonly ILogger _logger;
+        private readonly TimeProvider _timeProvider;
         private bool _disposed;
 
         public LockHandle(
@@ -232,7 +233,8 @@ public sealed partial class InMemoryDistributedLockProvider : IDistributedLockPr
             string resource,
             DateTime acquiredAtUtc,
             DateTime expiresAtUtc,
-            ILogger logger)
+            ILogger logger,
+            TimeProvider timeProvider)
         {
             _provider = provider;
             _lockKey = lockKey;
@@ -241,6 +243,7 @@ public sealed partial class InMemoryDistributedLockProvider : IDistributedLockPr
             AcquiredAtUtc = acquiredAtUtc;
             ExpiresAtUtc = expiresAtUtc;
             _logger = logger;
+            _timeProvider = timeProvider;
         }
 
         public string Resource { get; }
@@ -259,7 +262,7 @@ public sealed partial class InMemoryDistributedLockProvider : IDistributedLockPr
             var result = _provider.TryExtendLock(_lockKey, LockId, extension);
             if (result)
             {
-                ExpiresAtUtc = DateTime.UtcNow.Add(extension);
+                ExpiresAtUtc = _timeProvider.GetUtcNow().UtcDateTime.Add(extension);
             }
 
             return Task.FromResult(result);

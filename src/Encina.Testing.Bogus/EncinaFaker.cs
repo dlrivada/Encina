@@ -590,7 +590,7 @@ public static class EncinaFakerExtensions
         ArgumentOutOfRangeException.ThrowIfNegative(daysInPast);
         ArgumentOutOfRangeException.ThrowIfNegative(daysSpan);
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetUtcNow().UtcDateTime);
         var startOffset = date.Random.Int(0, daysInPast);
         var spanDays = date.Random.Int(1, Math.Max(1, daysSpan));
 

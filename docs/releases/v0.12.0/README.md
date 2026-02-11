@@ -511,6 +511,74 @@ var pagedDtos = await dbContext.Orders
 
 ---
 
+## February 11 - TimeProvider Injection (#543)
+
+**Issue**: [#543 - Replace DateTime.UtcNow with TimeProvider injection](https://github.com/dlrivada/Encina/issues/543)
+
+Replaced all ~205 occurrences of `DateTime.UtcNow` across ~112 source files with `TimeProvider` injection for deterministic time control in tests.
+
+### Pattern Applied
+
+```csharp
+// Constructor injection (optional parameter, defaults to system clock)
+public SomeClass(..., TimeProvider? timeProvider = null)
+{
+    _timeProvider = timeProvider ?? TimeProvider.System;
+}
+
+// Usage
+var now = _timeProvider.GetUtcNow().UtcDateTime;
+```
+
+### Scope
+
+| Category | Files Modified | Occurrences |
+|----------|---------------|-------------|
+| Encina.Messaging | 13 | 34 |
+| Encina.EntityFrameworkCore | 9 | 15 |
+| Encina.MongoDB | 6 | 11 |
+| ADO.NET (4 providers) | 12 | 12 |
+| Dapper (4 providers) | 18 | 20+ |
+| Caching + Distributed Lock | 7 | 18 |
+| CDC Connectors | 5 | 9 |
+| DomainModeling | 8 | 7 |
+| Marten | 2 | 6 |
+| Testing.* | 15 | 25 |
+| Other (Redis PubSub, Security, Aspire) | ~10 | ~15 |
+| **Total** | **~112** | **~205** |
+
+### DI Registration
+
+Added `services.TryAddSingleton(TimeProvider.System)` to all `ServiceCollectionExtensions`:
+
+- `Encina.Messaging` (MessagingServiceCollectionExtensions)
+- `Encina.EntityFrameworkCore` (ServiceCollectionExtensions)
+- `Encina.MongoDB` (ServiceCollectionExtensions)
+- `Encina.Caching.Redis` (ServiceCollectionExtensions)
+- `Encina.DistributedLock.Redis` (ServiceCollectionExtensions)
+- `Encina.DistributedLock.SqlServer` (ServiceCollectionExtensions)
+- All 5 CDC provider `ServiceCollectionExtensions`
+
+### Model Classes (Interface Contract)
+
+ADO, Dapper, EF Core, and MongoDB `InboxMessage.IsExpired()` and `ScheduledMessage.IsDue()` use `TimeProvider.System.GetUtcNow().UtcDateTime` directly (parameterless interface contract from `IInboxMessage`/`IScheduledMessage`).
+
+### PublicAPI Updates
+
+Updated `PublicAPI.Unshipped.txt` for packages with changed public constructor signatures:
+
+- `Encina.Caching` (2 constructors)
+- `Encina.Caching.Redis` (2 constructors)
+- `Encina.DistributedLock.Redis` (1 constructor)
+- `Encina.DistributedLock.SqlServer` (1 constructor)
+
+### Test Impact
+
+- Contract test `QueryCachingContractTests` updated: expected 6 constructor parameters (was 5)
+- All tests pass: Unit (10,373), Guard (1,191), Contract (422), Property (530)
+
+---
+
 ## Next Steps
 
 1. **Integration Tests**: Add real database tests for pagination (Docker/Testcontainers)

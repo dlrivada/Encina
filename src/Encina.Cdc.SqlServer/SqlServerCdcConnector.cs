@@ -31,6 +31,7 @@ internal sealed class SqlServerCdcConnector : ICdcConnector
     private readonly SqlServerCdcOptions _options;
     private readonly ICdcPositionStore _positionStore;
     private readonly ILogger<SqlServerCdcConnector> _logger;
+    private readonly TimeProvider _timeProvider;
     private long _lastVersion;
 
     /// <summary>
@@ -39,10 +40,12 @@ internal sealed class SqlServerCdcConnector : ICdcConnector
     /// <param name="options">SQL Server CDC options.</param>
     /// <param name="positionStore">Position store for tracking progress.</param>
     /// <param name="logger">Logger for diagnostics.</param>
+    /// <param name="timeProvider">The time provider for testing.</param>
     public SqlServerCdcConnector(
         SqlServerCdcOptions options,
         ICdcPositionStore positionStore,
-        ILogger<SqlServerCdcConnector> logger)
+        ILogger<SqlServerCdcConnector> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(positionStore);
@@ -51,6 +54,7 @@ internal sealed class SqlServerCdcConnector : ICdcConnector
         _options = options;
         _positionStore = positionStore;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -254,7 +258,7 @@ internal sealed class SqlServerCdcConnector : ICdcConnector
             var position = new SqlServerCdcPosition(version);
             var metadata = new ChangeMetadata(
                 position,
-                DateTime.UtcNow,
+                _timeProvider.GetUtcNow().UtcDateTime,
                 TransactionId: null,
                 SourceDatabase: null,
                 SourceSchema: schema);

@@ -24,6 +24,7 @@ public sealed partial class RedisCacheProvider : ICacheProvider
     private readonly RedisCacheOptions _options;
     private readonly ILogger<RedisCacheProvider> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RedisCacheProvider"/> class.
@@ -31,10 +32,12 @@ public sealed partial class RedisCacheProvider : ICacheProvider
     /// <param name="connection">The Redis connection multiplexer.</param>
     /// <param name="options">The caching options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The time provider for testing.</param>
     public RedisCacheProvider(
         IConnectionMultiplexer connection,
         IOptions<RedisCacheOptions> options,
-        ILogger<RedisCacheProvider> logger)
+        ILogger<RedisCacheProvider> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(options);
@@ -43,6 +46,7 @@ public sealed partial class RedisCacheProvider : ICacheProvider
         _connection = connection;
         _options = options.Value;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -212,7 +216,7 @@ public sealed partial class RedisCacheProvider : ICacheProvider
             var metadata = new SlidingMetadata
             {
                 SlidingExpiration = slidingExpiration,
-                AbsoluteExpirationUtc = DateTime.UtcNow.Add(absoluteExpiration.Value)
+                AbsoluteExpirationUtc = _timeProvider.GetUtcNow().UtcDateTime.Add(absoluteExpiration.Value)
             };
             var metadataJson = JsonSerializer.Serialize(metadata, _jsonOptions);
             await Database.StringSetAsync(metadataKey, metadataJson, absoluteExpiration.Value).ConfigureAwait(false);
@@ -239,7 +243,7 @@ public sealed partial class RedisCacheProvider : ICacheProvider
         }
 
         var metadata = JsonSerializer.Deserialize<SlidingMetadata>(metadataJson.ToString(), _jsonOptions);
-        if (metadata is null || DateTime.UtcNow >= metadata.AbsoluteExpirationUtc)
+        if (metadata is null || _timeProvider.GetUtcNow().UtcDateTime >= metadata.AbsoluteExpirationUtc)
         {
             // Absolute expiration reached
             return false;

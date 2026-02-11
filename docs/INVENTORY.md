@@ -3321,7 +3321,7 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - Soporte xUnit
 - **Paquete**: `Encina.Testing.Architecture`
 
-**#433 - FakeTimeProvider** (Media Prioridad):
+**#433 - FakeTimeProvider** ✅ **COMPLETADO**:
 
 - `FakeTimeProvider : TimeProvider` (.NET 8+ compatible)
 - `SetUtcNow()`, `Advance()`, `AdvanceToNextDay()`, `AdvanceToNextHour()`
@@ -3329,7 +3329,7 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - Timer support via `FakeTimer` para scheduled operations
 - `Freeze()` scope para tests de tiempo aislados
 - Integración con `EncinaFixture` (auto-inject)
-- Uso de `TimeProvider` en todo código time-dependent de Encina
+- Uso de `TimeProvider` en todo código time-dependent de Encina — **completado via #543**: ~205 ocurrencias de `DateTime.UtcNow` reemplazadas en ~112 archivos con inyección de `TimeProvider`
 - **Ubicación**: `Encina.Testing` (core package)
 - **Inspiración**: [.NET 8 TimeProvider](https://learn.microsoft.com/en-us/dotnet/api/system.timeprovider)
 

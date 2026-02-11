@@ -20,16 +20,19 @@ namespace Encina.EntityFrameworkCore.Outbox;
 public sealed class OutboxStoreEF : IOutboxStore
 {
     private readonly DbContext _dbContext;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxStoreEF"/> class.
     /// </summary>
     /// <param name="dbContext">The database context.</param>
+    /// <param name="timeProvider">The time provider for obtaining current UTC time. Defaults to <see cref="TimeProvider.System"/>.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="dbContext"/> is null.</exception>
-    public OutboxStoreEF(DbContext dbContext)
+    public OutboxStoreEF(DbContext dbContext, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         _dbContext = dbContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -54,7 +57,7 @@ public sealed class OutboxStoreEF : IOutboxStore
         int maxRetries,
         CancellationToken cancellationToken = default)
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         var messages = await _dbContext.Set<OutboxMessage>()
             .Where(m =>
@@ -77,7 +80,7 @@ public sealed class OutboxStoreEF : IOutboxStore
         if (message == null)
             return;
 
-        message.ProcessedAtUtc = DateTime.UtcNow;
+        message.ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
         message.ErrorMessage = null;
     }
 

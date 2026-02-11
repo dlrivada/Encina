@@ -119,11 +119,9 @@ public sealed class ScheduledMessage : IScheduledMessage
     /// </summary>
     public bool IsProcessed => ProcessedAtUtc.HasValue && ErrorMessage == null;
 
-    /// <summary>
-    /// Gets a value indicating whether the message is due for execution.
-    /// </summary>
-    /// <returns>True if the scheduled time has been reached.</returns>
-    public bool IsDue() => ScheduledAtUtc <= DateTime.UtcNow && !IsProcessed;
+    /// <inheritdoc />
+    public bool IsDue() =>
+        ScheduledAtUtc <= TimeProvider.System.GetUtcNow().UtcDateTime && !IsProcessed;
 
     /// <summary>
     /// Gets a value indicating whether the message should be dead lettered.

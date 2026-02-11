@@ -13,19 +13,22 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScheduledMessageStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The scheduled messages table name (default: scheduledmessages).</param>
+    /// <param name="timeProvider">Optional time provider for testability. Defaults to <see cref="TimeProvider.System"/>.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> or <paramref name="tableName"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is empty or whitespace.</exception>
-    public ScheduledMessageStoreDapper(IDbConnection connection, string tableName = "scheduledmessages")
+    public ScheduledMessageStoreDapper(IDbConnection connection, string tableName = "scheduledmessages", TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -128,7 +131,7 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
     {
         if (messageId == Guid.Empty)
             throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmptyGuid, nameof(messageId));
-        if (nextScheduledAtUtc < DateTime.UtcNow)
+        if (nextScheduledAtUtc < _timeProvider.GetUtcNow().UtcDateTime)
             throw new ArgumentException(StoreValidationMessages.NextScheduledDateCannotBeInPast, nameof(nextScheduledAtUtc));
 
         var sql = $@"

@@ -17,6 +17,7 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
     private readonly IConnectionMultiplexer _connection;
     private readonly RedisLockOptions _options;
     private readonly ILogger<RedisDistributedLockProvider> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RedisDistributedLockProvider"/> class.
@@ -24,10 +25,12 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
     /// <param name="connection">The Redis connection multiplexer.</param>
     /// <param name="options">The lock options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The time provider for testing.</param>
     public RedisDistributedLockProvider(
         IConnectionMultiplexer connection,
         IOptions<RedisLockOptions> options,
-        ILogger<RedisDistributedLockProvider> logger)
+        ILogger<RedisDistributedLockProvider> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(options);
@@ -36,6 +39,7 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
         _connection = connection;
         _options = options.Value;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     private IDatabase Database => _connection.GetDatabase(_options.Database);
@@ -53,9 +57,9 @@ public sealed partial class RedisDistributedLockProvider : IDistributedLockProvi
 
         var lockKey = GetLockKey(resource);
         var lockValue = Guid.NewGuid().ToString();
-        var deadline = DateTime.UtcNow.Add(wait);
+        var deadline = _timeProvider.GetUtcNow().UtcDateTime.Add(wait);
 
-        while (DateTime.UtcNow < deadline)
+        while (_timeProvider.GetUtcNow().UtcDateTime < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
 

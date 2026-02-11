@@ -37,6 +37,7 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
     private readonly DebeziumKafkaOptions _options;
     private readonly ICdcPositionStore _positionStore;
     private readonly ILogger<DebeziumKafkaConnector> _logger;
+    private readonly TimeProvider _timeProvider;
     private readonly IConsumer<string, string> _consumer;
     private bool _disposed;
 
@@ -46,10 +47,12 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
     /// <param name="options">Kafka-specific CDC options.</param>
     /// <param name="positionStore">Position store for tracking progress.</param>
     /// <param name="logger">Logger for diagnostics.</param>
+    /// <param name="timeProvider">The time provider for testing.</param>
     public DebeziumKafkaConnector(
         DebeziumKafkaOptions options,
         ICdcPositionStore positionStore,
-        ILogger<DebeziumKafkaConnector> logger)
+        ILogger<DebeziumKafkaConnector> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(positionStore);
@@ -58,6 +61,7 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
         _options = options;
         _positionStore = positionStore;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _consumer = BuildConsumer();
         SubscribeToTopics();
     }
@@ -142,7 +146,7 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
             {
                 using var doc = JsonDocument.Parse(consumeResult.Message.Value);
                 var eventJson = doc.RootElement.Clone();
-                result = DebeziumEventMapper.MapEvent(eventJson, _options.EventFormat, _logger);
+                result = DebeziumEventMapper.MapEvent(eventJson, _options.EventFormat, _logger, _timeProvider);
             }
             catch (JsonException ex)
             {

@@ -221,11 +221,11 @@ public sealed class FakeScheduledMessage : IScheduledMessage
 
     /// <inheritdoc/>
     /// <remarks>
-    /// This implementation uses <see cref="DateTime.UtcNow"/> which is non-deterministic.
+    /// This implementation uses <see cref="TimeProvider.System"/> which is non-deterministic.
     /// For deterministic testing, assert against <see cref="ScheduledAtUtc"/> directly
     /// using a captured timestamp instead of calling this method.
     /// </remarks>
-    public bool IsDue() => DateTime.UtcNow >= ScheduledAtUtc && !IsProcessed;
+    public bool IsDue() => TimeProvider.System.GetUtcNow().UtcDateTime >= ScheduledAtUtc && !IsProcessed;
 
     /// <summary>
     /// Determines whether the message is due for execution at a specific point in time.

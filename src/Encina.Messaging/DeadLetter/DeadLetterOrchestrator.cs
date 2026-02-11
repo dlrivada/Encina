@@ -40,6 +40,7 @@ public sealed class DeadLetterOrchestrator
     private readonly IDeadLetterMessageFactory _messageFactory;
     private readonly DeadLetterOptions _options;
     private readonly ILogger<DeadLetterOrchestrator> _logger;
+    private readonly TimeProvider _timeProvider;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -54,11 +55,13 @@ public sealed class DeadLetterOrchestrator
     /// <param name="messageFactory">The message factory.</param>
     /// <param name="options">The DLQ options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">Optional time provider for testability.</param>
     public DeadLetterOrchestrator(
         IDeadLetterStore store,
         IDeadLetterMessageFactory messageFactory,
         DeadLetterOptions options,
-        ILogger<DeadLetterOrchestrator> logger)
+        ILogger<DeadLetterOrchestrator> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(messageFactory);
@@ -69,6 +72,7 @@ public sealed class DeadLetterOrchestrator
         _messageFactory = messageFactory;
         _options = options;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -91,7 +95,7 @@ public sealed class DeadLetterOrchestrator
 
         var requestType = typeof(TRequest).AssemblyQualifiedName ?? typeof(TRequest).FullName ?? typeof(TRequest).Name;
         var requestContent = JsonSerializer.Serialize(request, JsonOptions);
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         var expiresAt = _options.RetentionPeriod.HasValue
             ? now.Add(_options.RetentionPeriod.Value)
             : (DateTime?)null;
@@ -156,7 +160,7 @@ public sealed class DeadLetterOrchestrator
         ArgumentNullException.ThrowIfNull(failedMessage);
         ArgumentException.ThrowIfNullOrEmpty(sourcePattern);
 
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         var expiresAt = _options.RetentionPeriod.HasValue
             ? now.Add(_options.RetentionPeriod.Value)
             : (DateTime?)null;

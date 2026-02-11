@@ -56,6 +56,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     private readonly QueryCacheOptions _options;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<QueryCacheInterceptor> _logger;
+    private readonly TimeProvider _timeProvider;
 
     // Thread-safe storage for the pending cache key generated during ReaderExecuting,
     // consumed by ReaderExecuted to store the result in cache.
@@ -73,13 +74,15 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     /// <param name="options">The query cache configuration options.</param>
     /// <param name="serviceProvider">The service provider for resolving optional dependencies like <c>IRequestContext</c>.</param>
     /// <param name="logger">The logger for diagnostic messages.</param>
+    /// <param name="timeProvider">The time provider for obtaining current UTC time. Defaults to <see cref="TimeProvider.System"/>.</param>
     /// <exception cref="ArgumentNullException">Thrown when any required parameter is <c>null</c>.</exception>
     public QueryCacheInterceptor(
         ICacheProvider cacheProvider,
         IQueryCacheKeyGenerator keyGenerator,
         IOptions<QueryCacheOptions> options,
         IServiceProvider serviceProvider,
-        ILogger<QueryCacheInterceptor> logger)
+        ILogger<QueryCacheInterceptor> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(cacheProvider);
         ArgumentNullException.ThrowIfNull(keyGenerator);
@@ -92,6 +95,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
         _options = options.Value;
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     // ──────────────────────────────────────────────
@@ -409,7 +413,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     /// Materializes a <see cref="DbDataReader"/> into a <see cref="CachedQueryResult"/>
     /// by reading all rows synchronously and capturing column schema.
     /// </summary>
-    private static CachedQueryResult MaterializeReader(DbDataReader reader)
+    private CachedQueryResult MaterializeReader(DbDataReader reader)
     {
         var columns = CaptureColumnSchema(reader);
         var rows = new List<object?[]>();
@@ -429,7 +433,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
         {
             Columns = columns,
             Rows = rows,
-            CachedAtUtc = DateTime.UtcNow
+            CachedAtUtc = _timeProvider.GetUtcNow().UtcDateTime
         };
     }
 
@@ -437,7 +441,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     /// Materializes a <see cref="DbDataReader"/> into a <see cref="CachedQueryResult"/>
     /// by reading all rows asynchronously and capturing column schema.
     /// </summary>
-    private static async Task<CachedQueryResult> MaterializeReaderAsync(
+    private async Task<CachedQueryResult> MaterializeReaderAsync(
         DbDataReader reader,
         CancellationToken cancellationToken)
     {
@@ -461,7 +465,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
         {
             Columns = columns,
             Rows = rows,
-            CachedAtUtc = DateTime.UtcNow
+            CachedAtUtc = _timeProvider.GetUtcNow().UtcDateTime
         };
     }
 

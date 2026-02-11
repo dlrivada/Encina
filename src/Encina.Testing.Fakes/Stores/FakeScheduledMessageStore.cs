@@ -23,6 +23,16 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
     private readonly ConcurrentBag<Guid> _cancelledMessageIds = new();
     private readonly ConcurrentBag<Guid> _rescheduledMessageIds = new();
     private readonly object _lock = new();
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FakeScheduledMessageStore"/> class.
+    /// </summary>
+    /// <param name="timeProvider">Optional time provider for controlling time in tests. Defaults to <see cref="TimeProvider.System"/>.</param>
+    public FakeScheduledMessageStore(TimeProvider? timeProvider = null)
+    {
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     /// <summary>
     /// Gets a snapshot of all messages currently in the store.
@@ -107,7 +117,7 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
         int maxRetries,
         CancellationToken cancellationToken = default)
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         var dueMessages = _messages.Values
             .Where(m => !m.IsProcessed &&
@@ -130,8 +140,8 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
         {
             if (_messages.TryGetValue(messageId, out var message))
             {
-                message.ProcessedAtUtc = DateTime.UtcNow;
-                message.LastExecutedAtUtc = DateTime.UtcNow;
+                message.ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+                message.LastExecutedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
                 message.ErrorMessage = null;
                 _processedMessageIds.Add(messageId);
             }

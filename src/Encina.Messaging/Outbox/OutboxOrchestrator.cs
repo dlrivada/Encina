@@ -30,6 +30,7 @@ public sealed class OutboxOrchestrator
     private readonly OutboxOptions _options;
     private readonly ILogger<OutboxOrchestrator> _logger;
     private readonly IOutboxMessageFactory _messageFactory;
+    private readonly TimeProvider _timeProvider;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -43,11 +44,13 @@ public sealed class OutboxOrchestrator
     /// <param name="options">The outbox options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="messageFactory">Factory to create outbox messages.</param>
+    /// <param name="timeProvider">Optional time provider for testability.</param>
     public OutboxOrchestrator(
         IOutboxStore store,
         OutboxOptions options,
         ILogger<OutboxOrchestrator> logger,
-        IOutboxMessageFactory messageFactory)
+        IOutboxMessageFactory messageFactory,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
@@ -58,6 +61,7 @@ public sealed class OutboxOrchestrator
         _options = options;
         _logger = logger;
         _messageFactory = messageFactory;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -82,7 +86,7 @@ public sealed class OutboxOrchestrator
             Guid.NewGuid(),
             notificationType,
             content,
-            DateTime.UtcNow);
+            _timeProvider.GetUtcNow().UtcDateTime);
 
         await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
 
@@ -173,7 +177,7 @@ public sealed class OutboxOrchestrator
     {
         // Exponential backoff: BaseRetryDelay * 2^retryCount
         // Since we don't have the current retry count here, use base delay
-        return DateTime.UtcNow.Add(_options.BaseRetryDelay);
+        return _timeProvider.GetUtcNow().UtcDateTime.Add(_options.BaseRetryDelay);
     }
 }
 

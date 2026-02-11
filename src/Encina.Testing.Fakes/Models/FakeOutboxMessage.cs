@@ -17,7 +17,7 @@ public sealed class FakeOutboxMessage : IOutboxMessage
     public string Content { get; set; } = string.Empty;
 
     /// <inheritdoc />
-    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAtUtc { get; set; } = TimeProvider.System.GetUtcNow().UtcDateTime;
 
     /// <inheritdoc />
     public DateTime? ProcessedAtUtc { get; set; }

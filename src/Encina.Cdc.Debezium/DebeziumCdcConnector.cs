@@ -36,6 +36,7 @@ internal sealed class DebeziumCdcConnector : ICdcConnector
     private readonly ChannelReader<JsonElement> _channelReader;
     private readonly ICdcPositionStore _positionStore;
     private readonly ILogger<DebeziumCdcConnector> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DebeziumCdcConnector"/> class.
@@ -44,11 +45,13 @@ internal sealed class DebeziumCdcConnector : ICdcConnector
     /// <param name="channel">The channel providing Debezium events.</param>
     /// <param name="positionStore">Position store for tracking progress.</param>
     /// <param name="logger">Logger for diagnostics.</param>
+    /// <param name="timeProvider">The time provider for testing.</param>
     public DebeziumCdcConnector(
         DebeziumCdcOptions options,
         Channel<JsonElement> channel,
         ICdcPositionStore positionStore,
-        ILogger<DebeziumCdcConnector> logger)
+        ILogger<DebeziumCdcConnector> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(channel);
@@ -59,6 +62,7 @@ internal sealed class DebeziumCdcConnector : ICdcConnector
         _channelReader = channel.Reader;
         _positionStore = positionStore;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -106,7 +110,7 @@ internal sealed class DebeziumCdcConnector : ICdcConnector
                 yield break;
             }
 
-            var result = DebeziumEventMapper.MapEvent(eventJson, _options.EventFormat, _logger);
+            var result = DebeziumEventMapper.MapEvent(eventJson, _options.EventFormat, _logger, _timeProvider);
 
             // Skip events that were already processed before restart
             if (!passedResumePoint && result.IsRight)

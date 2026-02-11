@@ -23,6 +23,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
     private readonly IRequestContext _requestContext;
     private readonly RoutingSlipOptions _options;
     private readonly ILogger<RoutingSlipRunner> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RoutingSlipRunner"/> class.
@@ -30,10 +31,12 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
     /// <param name="requestContext">The request context.</param>
     /// <param name="options">The routing slip options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">Optional time provider for testability.</param>
     public RoutingSlipRunner(
         IRequestContext requestContext,
         RoutingSlipOptions options,
-        ILogger<RoutingSlipRunner> logger)
+        ILogger<RoutingSlipRunner> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(requestContext);
         ArgumentNullException.ThrowIfNull(options);
@@ -42,6 +45,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
         _requestContext = requestContext;
         _options = options;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -135,7 +139,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
                     step.Name,
                     currentData,
                     step.Compensate,
-                    DateTime.UtcNow,
+                    _timeProvider.GetUtcNow().UtcDateTime,
                     step.Metadata));
 
                 stepsExecuted++;

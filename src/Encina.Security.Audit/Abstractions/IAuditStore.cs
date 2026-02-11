@@ -26,7 +26,7 @@ namespace Encina.Security.Audit;
 /// );
 ///
 /// // Querying audit entries
-/// var entries = await auditStore.GetByUserAsync("user-123", DateTime.UtcNow.AddDays(-7), null, cancellationToken);
+/// var entries = await auditStore.GetByUserAsync("user-123", TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(-7), null, cancellationToken);
 /// </code>
 /// </example>
 public interface IAuditStore
@@ -123,7 +123,7 @@ public interface IAuditStore
     /// var query = AuditQuery.Builder()
     ///     .ForUser("user-123")
     ///     .WithOutcome(AuditOutcome.Failure)
-    ///     .InDateRange(DateTime.UtcNow.AddDays(-7), null)
+    ///     .InDateRange(TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(-7), null)
     ///     .WithPageSize(100)
     ///     .Build();
     ///
@@ -156,7 +156,7 @@ public interface IAuditStore
     /// <example>
     /// <code>
     /// // Purge entries older than 7 years (2555 days)
-    /// var retentionDate = DateTime.UtcNow.AddDays(-options.Value.RetentionDays);
+    /// var retentionDate = TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(-options.Value.RetentionDays);
     /// var result = await auditStore.PurgeEntriesAsync(retentionDate, cancellationToken);
     ///
     /// result.Match(

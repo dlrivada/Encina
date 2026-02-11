@@ -29,6 +29,7 @@ internal sealed class MongoCdcConnector : ICdcConnector
     private readonly MongoCdcOptions _options;
     private readonly ICdcPositionStore _positionStore;
     private readonly ILogger<MongoCdcConnector> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MongoCdcConnector"/> class.
@@ -36,10 +37,12 @@ internal sealed class MongoCdcConnector : ICdcConnector
     /// <param name="options">MongoDB CDC options.</param>
     /// <param name="positionStore">Position store for tracking progress.</param>
     /// <param name="logger">Logger for diagnostics.</param>
+    /// <param name="timeProvider">The time provider for testing.</param>
     public MongoCdcConnector(
         MongoCdcOptions options,
         ICdcPositionStore positionStore,
-        ILogger<MongoCdcConnector> logger)
+        ILogger<MongoCdcConnector> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(positionStore);
@@ -48,6 +51,7 @@ internal sealed class MongoCdcConnector : ICdcConnector
         _options = options;
         _positionStore = positionStore;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -220,7 +224,7 @@ internal sealed class MongoCdcConnector : ICdcConnector
         return options;
     }
 
-    private static Either<EncinaError, ChangeEvent> MapChangeEvent(
+    private Either<EncinaError, ChangeEvent> MapChangeEvent(
         ChangeStreamDocument<BsonDocument> change)
     {
         try
@@ -232,7 +236,7 @@ internal sealed class MongoCdcConnector : ICdcConnector
             var position = new MongoCdcPosition(change.ResumeToken);
             var metadata = new ChangeMetadata(
                 position,
-                DateTime.UtcNow,
+                _timeProvider.GetUtcNow().UtcDateTime,
                 TransactionId: null,
                 SourceDatabase: databaseName,
                 SourceSchema: null);

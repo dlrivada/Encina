@@ -17,10 +17,10 @@ public sealed class FakeScheduledMessage : IScheduledMessage
     public string Content { get; set; } = string.Empty;
 
     /// <inheritdoc />
-    public DateTime ScheduledAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime ScheduledAtUtc { get; set; } = TimeProvider.System.GetUtcNow().UtcDateTime;
 
     /// <inheritdoc />
-    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAtUtc { get; set; } = TimeProvider.System.GetUtcNow().UtcDateTime;
 
     /// <inheritdoc />
     public DateTime? ProcessedAtUtc { get; set; }
@@ -52,7 +52,7 @@ public sealed class FakeScheduledMessage : IScheduledMessage
     public bool IsCancelled { get; set; }
 
     /// <inheritdoc />
-    public bool IsDue() => DateTime.UtcNow >= ScheduledAtUtc && !IsProcessed && !IsCancelled;
+    public bool IsDue() => TimeProvider.System.GetUtcNow().UtcDateTime >= ScheduledAtUtc && !IsProcessed && !IsCancelled;
 
     /// <inheritdoc />
     public bool IsDeadLettered(int maxRetries) => RetryCount >= maxRetries && !IsProcessed;

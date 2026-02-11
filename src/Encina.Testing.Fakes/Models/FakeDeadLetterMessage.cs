@@ -38,10 +38,10 @@ public sealed class FakeDeadLetterMessage : IDeadLetterMessage
     public int TotalRetryAttempts { get; set; }
 
     /// <inheritdoc />
-    public DateTime FirstFailedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime FirstFailedAtUtc { get; set; } = TimeProvider.System.GetUtcNow().UtcDateTime;
 
     /// <inheritdoc />
-    public DateTime DeadLetteredAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime DeadLetteredAtUtc { get; set; } = TimeProvider.System.GetUtcNow().UtcDateTime;
 
     /// <inheritdoc />
     public DateTime? ExpiresAtUtc { get; set; }
@@ -56,7 +56,7 @@ public sealed class FakeDeadLetterMessage : IDeadLetterMessage
     public bool IsReplayed => ReplayedAtUtc.HasValue;
 
     /// <inheritdoc />
-    public bool IsExpired => ExpiresAtUtc.HasValue && DateTime.UtcNow > ExpiresAtUtc.Value;
+    public bool IsExpired => ExpiresAtUtc.HasValue && TimeProvider.System.GetUtcNow().UtcDateTime > ExpiresAtUtc.Value;
 
     /// <summary>
     /// Creates a deep copy of this message.

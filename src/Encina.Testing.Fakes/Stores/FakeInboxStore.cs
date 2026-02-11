@@ -22,6 +22,16 @@ public sealed class FakeInboxStore : IInboxStore
     private readonly ConcurrentBag<string> _failedMessageIds = new();
     private readonly ConcurrentBag<string> _removedMessageIds = new();
     private readonly object _lock = new();
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FakeInboxStore"/> class.
+    /// </summary>
+    /// <param name="timeProvider">Optional time provider for controlling time in tests. Defaults to <see cref="TimeProvider.System"/>.</param>
+    public FakeInboxStore(TimeProvider? timeProvider = null)
+    {
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     /// <summary>
     /// Gets a snapshot of all messages currently in the store.
@@ -98,7 +108,7 @@ public sealed class FakeInboxStore : IInboxStore
     {
         if (_messages.TryGetValue(messageId, out var message))
         {
-            message.ProcessedAtUtc = DateTime.UtcNow;
+            message.ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
             message.Response = response;
             message.ErrorMessage = null;
 

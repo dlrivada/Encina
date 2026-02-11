@@ -33,23 +33,27 @@ internal static class DebeziumEventMapper
     /// <param name="eventJson">The raw JSON element received from Debezium.</param>
     /// <param name="format">The expected event format (CloudEvents or Flat).</param>
     /// <param name="logger">Logger for diagnostic messages.</param>
+    /// <param name="timeProvider">The time provider for testing. Defaults to <see cref="TimeProvider.System"/>.</param>
     /// <returns>Either an error or a mapped change event.</returns>
     public static Either<EncinaError, ChangeEvent> MapEvent(
         JsonElement eventJson,
         DebeziumEventFormat format,
-        ILogger logger)
+        ILogger logger,
+        TimeProvider? timeProvider = null)
     {
+        var tp = timeProvider ?? TimeProvider.System;
         return format switch
         {
-            DebeziumEventFormat.CloudEvents => ParseCloudEvent(eventJson, logger),
-            DebeziumEventFormat.Flat => ParseFlatEvent(eventJson, logger),
-            _ => ParseCloudEvent(eventJson, logger)
+            DebeziumEventFormat.CloudEvents => ParseCloudEvent(eventJson, logger, tp),
+            DebeziumEventFormat.Flat => ParseFlatEvent(eventJson, logger, tp),
+            _ => ParseCloudEvent(eventJson, logger, tp)
         };
     }
 
     private static Either<EncinaError, ChangeEvent> ParseCloudEvent(
         JsonElement eventJson,
-        ILogger logger)
+        ILogger logger,
+        TimeProvider timeProvider)
     {
         try
         {
@@ -58,7 +62,7 @@ internal static class DebeziumEventMapper
                 ? dataElement
                 : eventJson;
 
-            return ParseDebeziumPayload(data, logger);
+            return ParseDebeziumPayload(data, logger, timeProvider);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -68,11 +72,12 @@ internal static class DebeziumEventMapper
 
     private static Either<EncinaError, ChangeEvent> ParseFlatEvent(
         JsonElement eventJson,
-        ILogger logger)
+        ILogger logger,
+        TimeProvider timeProvider)
     {
         try
         {
-            return ParseDebeziumPayload(eventJson, logger);
+            return ParseDebeziumPayload(eventJson, logger, timeProvider);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -82,7 +87,8 @@ internal static class DebeziumEventMapper
 
     private static Either<EncinaError, ChangeEvent> ParseDebeziumPayload(
         JsonElement payload,
-        ILogger logger)
+        ILogger logger,
+        TimeProvider timeProvider)
     {
         // Check if 'op' field exists — missing op indicates a schema change / DDL event
         if (!payload.TryGetProperty("op", out var opElement) ||
@@ -141,7 +147,7 @@ internal static class DebeziumEventMapper
         var position = new DebeziumCdcPosition(offsetJson ?? "{\"op\":\"" + opCode + "\"}");
         var metadata = new ChangeMetadata(
             position,
-            DateTime.UtcNow,
+            timeProvider.GetUtcNow().UtcDateTime,
             TransactionId: null,
             SourceDatabase: database,
             SourceSchema: schema);

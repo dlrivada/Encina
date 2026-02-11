@@ -14,6 +14,17 @@ public sealed class RecoverabilityContext
 {
     private readonly List<RetryAttempt> _retryHistory = [];
     private readonly object _lock = new();
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RecoverabilityContext"/> class.
+    /// </summary>
+    /// <param name="timeProvider">Optional time provider for testability.</param>
+    public RecoverabilityContext(TimeProvider? timeProvider = null)
+    {
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        StartedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+    }
 
     /// <summary>
     /// Gets the unique identifier for this processing attempt.
@@ -23,7 +34,7 @@ public sealed class RecoverabilityContext
     /// <summary>
     /// Gets the timestamp when processing first started (UTC).
     /// </summary>
-    public DateTime StartedAtUtc { get; } = DateTime.UtcNow;
+    public DateTime StartedAtUtc { get; }
 
     /// <summary>
     /// Gets or sets the current immediate retry attempt count (0-based).
@@ -112,7 +123,7 @@ public sealed class RecoverabilityContext
             {
                 AttemptNumber = TotalAttempts,
                 IsImmediate = !IsInDelayedRetryPhase,
-                AttemptedAtUtc = DateTime.UtcNow,
+                AttemptedAtUtc = _timeProvider.GetUtcNow().UtcDateTime,
                 Error = error,
                 Exception = exception,
                 Classification = classification,
@@ -168,7 +179,7 @@ public sealed class RecoverabilityContext
             ImmediateRetryAttempts = ImmediateRetryCount,
             DelayedRetryAttempts = DelayedRetryCount,
             FirstAttemptAtUtc = StartedAtUtc,
-            FailedAtUtc = DateTime.UtcNow,
+            FailedAtUtc = _timeProvider.GetUtcNow().UtcDateTime,
             RetryHistory = RetryHistory
         };
     }

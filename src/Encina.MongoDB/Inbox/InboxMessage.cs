@@ -55,5 +55,6 @@ public sealed class InboxMessage : IInboxMessage
     public bool IsProcessed => ProcessedAtUtc.HasValue && Response is not null;
 
     /// <inheritdoc />
-    public bool IsExpired() => DateTime.UtcNow > ExpiresAtUtc;
+    public bool IsExpired() =>
+        TimeProvider.System.GetUtcNow().UtcDateTime > ExpiresAtUtc;
 }

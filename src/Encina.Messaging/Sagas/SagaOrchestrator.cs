@@ -31,6 +31,7 @@ public sealed class SagaOrchestrator
     private readonly SagaOptions _options;
     private readonly ILogger<SagaOrchestrator> _logger;
     private readonly ISagaStateFactory _stateFactory;
+    private readonly TimeProvider _timeProvider;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -44,11 +45,13 @@ public sealed class SagaOrchestrator
     /// <param name="options">The saga options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="stateFactory">Factory to create saga state.</param>
+    /// <param name="timeProvider">Optional time provider for testability.</param>
     public SagaOrchestrator(
         ISagaStore store,
         SagaOptions options,
         ILogger<SagaOrchestrator> logger,
-        ISagaStateFactory stateFactory)
+        ISagaStateFactory stateFactory,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
@@ -59,6 +62,7 @@ public sealed class SagaOrchestrator
         _options = options;
         _logger = logger;
         _stateFactory = stateFactory;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -96,7 +100,7 @@ public sealed class SagaOrchestrator
         ArgumentNullException.ThrowIfNull(data);
 
         var sagaId = Guid.NewGuid();
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         var serializedData = JsonSerializer.Serialize(data, JsonOptions);
 
         var effectiveTimeout = timeout ?? _options.DefaultSagaTimeout;
@@ -166,7 +170,7 @@ public sealed class SagaOrchestrator
         }
 
         state.CurrentStep++;
-        state.LastUpdatedAtUtc = DateTime.UtcNow;
+        state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
         await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
 
@@ -198,8 +202,8 @@ public sealed class SagaOrchestrator
         }
 
         state.Status = SagaStatus.Completed;
-        state.CompletedAtUtc = DateTime.UtcNow;
-        state.LastUpdatedAtUtc = DateTime.UtcNow;
+        state.CompletedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
         await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
 
@@ -236,7 +240,7 @@ public sealed class SagaOrchestrator
 
         state.Status = SagaStatus.Compensating;
         state.ErrorMessage = errorMessage;
-        state.LastUpdatedAtUtc = DateTime.UtcNow;
+        state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
         await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
 
@@ -268,12 +272,12 @@ public sealed class SagaOrchestrator
         }
 
         state.CurrentStep--;
-        state.LastUpdatedAtUtc = DateTime.UtcNow;
+        state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
         if (state.CurrentStep <= 0)
         {
             state.Status = SagaStatus.Compensated;
-            state.CompletedAtUtc = DateTime.UtcNow;
+            state.CompletedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
             Log.SagaCompensated(_logger, sagaId);
         }
         else
@@ -307,8 +311,8 @@ public sealed class SagaOrchestrator
 
         state.Status = SagaStatus.Failed;
         state.ErrorMessage = errorMessage;
-        state.CompletedAtUtc = DateTime.UtcNow;
-        state.LastUpdatedAtUtc = DateTime.UtcNow;
+        state.CompletedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
         await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
 
@@ -392,7 +396,7 @@ public sealed class SagaOrchestrator
 
         state.Status = SagaStatus.TimedOut;
         state.ErrorMessage = "Saga exceeded its configured timeout";
-        state.LastUpdatedAtUtc = DateTime.UtcNow;
+        state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
         await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
 

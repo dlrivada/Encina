@@ -39,6 +39,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     private readonly IErrorClassifier _errorClassifier;
     private readonly ILogger<RecoverabilityPipelineBehavior<TRequest, TResponse>> _logger;
     private readonly IDelayedRetryScheduler? _delayedRetryScheduler;
+    private readonly TimeProvider _timeProvider;
     private static readonly Random Jitter = new();
 
     /// <summary>
@@ -47,10 +48,12 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     /// <param name="options">The recoverability options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="delayedRetryScheduler">Optional scheduler for delayed retries.</param>
+    /// <param name="timeProvider">Optional time provider for testability.</param>
     public RecoverabilityPipelineBehavior(
         RecoverabilityOptions options,
         ILogger<RecoverabilityPipelineBehavior<TRequest, TResponse>> logger,
-        IDelayedRetryScheduler? delayedRetryScheduler = null)
+        IDelayedRetryScheduler? delayedRetryScheduler = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -59,6 +62,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         _errorClassifier = options.ErrorClassifier ?? new DefaultErrorClassifier();
         _logger = logger;
         _delayedRetryScheduler = delayedRetryScheduler;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -180,7 +184,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         RequestHandlerCallback<TResponse> nextStep,
         int attempt)
     {
-        var startTime = DateTime.UtcNow;
+        var startTime = _timeProvider.GetUtcNow().UtcDateTime;
 
         try
         {
@@ -222,7 +226,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             Right: _ => throw new InvalidOperationException("Unexpected Right value"),
             Left: e => e);
 
-        var duration = DateTime.UtcNow - startTime;
+        var duration = _timeProvider.GetUtcNow().UtcDateTime - startTime;
         var errorException = error.Exception.MatchUnsafe(ex => ex, () => null);
         var classification = _errorClassifier.Classify(error, errorException);
 
@@ -256,7 +260,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         DateTime startTime,
         int attempt)
     {
-        var duration = DateTime.UtcNow - startTime;
+        var duration = _timeProvider.GetUtcNow().UtcDateTime - startTime;
         var error = EncinaError.New(ex, $"[{RecoverabilityErrorCodes.ExceptionThrown}] {ex.Message}");
         var classification = _errorClassifier.Classify(error, ex);
 

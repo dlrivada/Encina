@@ -20,6 +20,16 @@ public sealed class FakeSagaStore : ISagaStore
     private readonly ConcurrentBag<ISagaState> _addedSagas = new();
     private readonly ConcurrentBag<ISagaState> _updatedSagas = new();
     private readonly object _lock = new();
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FakeSagaStore"/> class.
+    /// </summary>
+    /// <param name="timeProvider">Optional time provider for controlling time in tests. Defaults to <see cref="TimeProvider.System"/>.</param>
+    public FakeSagaStore(TimeProvider? timeProvider = null)
+    {
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     /// <summary>
     /// Gets a snapshot of all sagas currently in the store.
@@ -89,7 +99,7 @@ public sealed class FakeSagaStore : ISagaStore
             existing.CurrentStep = sagaState.CurrentStep;
             existing.CompletedAtUtc = sagaState.CompletedAtUtc;
             existing.ErrorMessage = sagaState.ErrorMessage;
-            existing.LastUpdatedAtUtc = DateTime.UtcNow;
+            existing.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
             existing.TimeoutAtUtc = sagaState.TimeoutAtUtc;
 
             _updatedSagas.Add(existing.Clone());
@@ -104,7 +114,7 @@ public sealed class FakeSagaStore : ISagaStore
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var cutoff = DateTime.UtcNow - olderThan;
+        var cutoff = _timeProvider.GetUtcNow().UtcDateTime - olderThan;
 
         var stuckSagas = _sagas.Values
             .Where(s => s.Status == "Running" && s.LastUpdatedAtUtc < cutoff)
@@ -120,7 +130,7 @@ public sealed class FakeSagaStore : ISagaStore
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         var expiredSagas = _sagas.Values
             .Where(s => s.TimeoutAtUtc.HasValue &&

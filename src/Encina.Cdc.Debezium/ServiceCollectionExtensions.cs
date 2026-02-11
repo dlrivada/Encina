@@ -36,6 +36,8 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
 
+        services.TryAddSingleton(TimeProvider.System);
+
         var options = new DebeziumCdcOptions();
         configure(options);
 
@@ -89,6 +91,8 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
+
+        services.TryAddSingleton(TimeProvider.System);
 
         var options = new DebeziumKafkaOptions();
         configure(options);

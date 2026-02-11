@@ -62,7 +62,7 @@ public abstract record DomainEvent : IDomainEvent
     public Guid EventId { get; init; } = Guid.NewGuid();
 
     /// <inheritdoc />
-    public DateTime OccurredAtUtc { get; init; } = DateTime.UtcNow;
+    public DateTime OccurredAtUtc { get; init; } = TimeProvider.System.GetUtcNow().UtcDateTime;
 }
 
 /// <summary>
