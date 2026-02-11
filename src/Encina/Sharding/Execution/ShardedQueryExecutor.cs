@@ -45,6 +45,7 @@ namespace Encina.Sharding.Execution;
 /// </code>
 /// </example>
 #pragma warning disable CA1848 // Use the LoggerMessage delegates
+#pragma warning disable CA1873 // Logging parameter evaluation
 public sealed class ShardedQueryExecutor : IShardedQueryExecutor
 {
     private readonly ShardTopology _topology;
@@ -303,4 +304,5 @@ public sealed class ShardedQueryExecutor : IShardedQueryExecutor
             => new() { ShardId = shardId, IsSuccess = false, Error = error };
     }
 }
+#pragma warning restore CA1873
 #pragma warning restore CA1848
