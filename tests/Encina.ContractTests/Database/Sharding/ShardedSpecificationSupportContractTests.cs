@@ -1,14 +1,14 @@
 using System.Reflection;
 using Encina.DomainModeling.Sharding;
 using Shouldly;
+using ADOMySQLSharding = Encina.ADO.MySQL.Sharding;
+using ADOPostgreSQLSharding = Encina.ADO.PostgreSQL.Sharding;
 using ADOSqliteSharding = Encina.ADO.Sqlite.Sharding;
 using ADOSqlServerSharding = Encina.ADO.SqlServer.Sharding;
-using ADOPostgreSQLSharding = Encina.ADO.PostgreSQL.Sharding;
-using ADOMySQLSharding = Encina.ADO.MySQL.Sharding;
+using DapperMySQLSharding = Encina.Dapper.MySQL.Sharding;
+using DapperPostgreSQLSharding = Encina.Dapper.PostgreSQL.Sharding;
 using DapperSqliteSharding = Encina.Dapper.Sqlite.Sharding;
 using DapperSqlServerSharding = Encina.Dapper.SqlServer.Sharding;
-using DapperPostgreSQLSharding = Encina.Dapper.PostgreSQL.Sharding;
-using DapperMySQLSharding = Encina.Dapper.MySQL.Sharding;
 using EFCoreSharding = Encina.EntityFrameworkCore.Sharding;
 using MongoDBSharding = Encina.MongoDB.Sharding;
 
