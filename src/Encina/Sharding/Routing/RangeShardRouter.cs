@@ -1,3 +1,4 @@
+using Encina.Sharding.Colocation;
 using LanguageExt;
 
 namespace Encina.Sharding.Routing;
@@ -17,6 +18,7 @@ namespace Encina.Sharding.Routing;
 public sealed class RangeShardRouter : IShardRouter
 {
     private readonly ShardTopology _topology;
+    private readonly ColocationGroupRegistry? _colocationRegistry;
     private readonly ShardRange[] _sortedRanges;
     private readonly StringComparer _comparer;
 
@@ -26,15 +28,21 @@ public sealed class RangeShardRouter : IShardRouter
     /// <param name="topology">The shard topology.</param>
     /// <param name="ranges">The key ranges. Must not overlap.</param>
     /// <param name="comparer">Optional string comparer for key comparisons. Defaults to <see cref="StringComparer.Ordinal"/>.</param>
+    /// <param name="colocationRegistry">
+    /// Optional co-location group registry for co-location metadata lookups.
+    /// When provided, <see cref="GetColocationGroup"/> returns group information.
+    /// </param>
     public RangeShardRouter(
         ShardTopology topology,
         IEnumerable<ShardRange> ranges,
-        StringComparer? comparer = null)
+        StringComparer? comparer = null,
+        ColocationGroupRegistry? colocationRegistry = null)
     {
         ArgumentNullException.ThrowIfNull(topology);
         ArgumentNullException.ThrowIfNull(ranges);
 
         _topology = topology;
+        _colocationRegistry = colocationRegistry;
         _comparer = comparer ?? StringComparer.Ordinal;
 
         var rangeList = ranges.ToList();
@@ -148,6 +156,23 @@ public sealed class RangeShardRouter : IShardRouter
         }
 
         return Either<EncinaError, IReadOnlyList<string>>.Right(matchingShards);
+    }
+
+    /// <summary>
+    /// Gets the co-location group for a given entity type, if it belongs to one.
+    /// </summary>
+    /// <param name="entityType">The entity type to look up.</param>
+    /// <returns>The co-location group if found; otherwise, <c>null</c>.</returns>
+    public IColocationGroup? GetColocationGroup(Type entityType)
+    {
+        ArgumentNullException.ThrowIfNull(entityType);
+
+        if (_colocationRegistry is not null && _colocationRegistry.TryGetGroup(entityType, out var group))
+        {
+            return group;
+        }
+
+        return null;
     }
 
     private static void ValidateNoOverlaps(List<ShardRange> ranges, StringComparer comparer)

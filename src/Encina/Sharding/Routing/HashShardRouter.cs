@@ -1,5 +1,6 @@
 using System.IO.Hashing;
 using System.Text;
+using Encina.Sharding.Colocation;
 using LanguageExt;
 
 namespace Encina.Sharding.Routing;
@@ -21,6 +22,7 @@ namespace Encina.Sharding.Routing;
 public sealed class HashShardRouter : IShardRouter, IShardRebalancer
 {
     private readonly ShardTopology _topology;
+    private readonly ColocationGroupRegistry? _colocationRegistry;
     private readonly SortedDictionary<ulong, string> _ring;
     private readonly ulong[] _ringKeys;
     private readonly int _virtualNodesPerShard;
@@ -31,11 +33,19 @@ public sealed class HashShardRouter : IShardRouter, IShardRebalancer
     /// </summary>
     /// <param name="topology">The shard topology.</param>
     /// <param name="options">Optional hash router configuration.</param>
-    public HashShardRouter(ShardTopology topology, HashShardRouterOptions? options = null)
+    /// <param name="colocationRegistry">
+    /// Optional co-location group registry for co-location metadata lookups.
+    /// When provided, <see cref="GetColocationGroup"/> returns group information.
+    /// </param>
+    public HashShardRouter(
+        ShardTopology topology,
+        HashShardRouterOptions? options = null,
+        ColocationGroupRegistry? colocationRegistry = null)
     {
         ArgumentNullException.ThrowIfNull(topology);
 
         _topology = topology;
+        _colocationRegistry = colocationRegistry;
         _virtualNodesPerShard = options?.VirtualNodesPerShard ?? 150;
         _componentDelimiter = options?.ComponentDelimiter ?? "|";
         _ring = BuildRing(topology, _virtualNodesPerShard);
@@ -92,6 +102,23 @@ public sealed class HashShardRouter : IShardRouter, IShardRebalancer
     {
         ArgumentNullException.ThrowIfNull(partialKey);
         return Either<EncinaError, IReadOnlyList<string>>.Right(_topology.AllShardIds);
+    }
+
+    /// <summary>
+    /// Gets the co-location group for a given entity type, if it belongs to one.
+    /// </summary>
+    /// <param name="entityType">The entity type to look up.</param>
+    /// <returns>The co-location group if found; otherwise, <c>null</c>.</returns>
+    public IColocationGroup? GetColocationGroup(Type entityType)
+    {
+        ArgumentNullException.ThrowIfNull(entityType);
+
+        if (_colocationRegistry is not null && _colocationRegistry.TryGetGroup(entityType, out var group))
+        {
+            return group;
+        }
+
+        return null;
     }
 
     /// <inheritdoc />

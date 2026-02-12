@@ -23,6 +23,7 @@ public sealed class ShardingOptions<TEntity>
     where TEntity : notnull
 {
     private readonly Dictionary<string, ShardInfo> _shards = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<Type> _colocatedEntityTypes = [];
     private Func<ShardTopology, IShardRouter>? _routerFactory;
 
     /// <summary>
@@ -39,6 +40,57 @@ public sealed class ShardingOptions<TEntity>
     /// Gets the router factory, or null if no routing strategy has been configured.
     /// </summary>
     internal Func<ShardTopology, IShardRouter>? RouterFactory => _routerFactory;
+
+    /// <summary>
+    /// Gets the co-located entity types registered for this entity.
+    /// </summary>
+    internal IReadOnlyList<Type> ColocatedEntityTypes => _colocatedEntityTypes;
+
+    /// <summary>
+    /// Declares that <typeparamref name="TColocated"/> should be co-located with
+    /// <typeparamref name="TEntity"/> on the same shard.
+    /// </summary>
+    /// <typeparam name="TColocated">The entity type to co-locate.</typeparam>
+    /// <returns>This instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Co-located entities share the same shard key and are guaranteed to reside on the same
+    /// physical shard. This enables efficient local JOINs and shard-local transactions.
+    /// </para>
+    /// <para>
+    /// Validation is performed at startup to ensure:
+    /// <list type="bullet">
+    /// <item>The co-located entity is shardable (implements <see cref="IShardable"/>,
+    /// <see cref="ICompoundShardable"/>, or has <see cref="ShardKeyAttribute"/>).</item>
+    /// <item>Shard key types are compatible between root and co-located entity.</item>
+    /// <item>The entity is not already part of a different co-location group.</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaSharding&lt;Order&gt;(options =>
+    /// {
+    ///     options.UseHashRouting()
+    ///         .AddShard("shard-0", "Server=shard0;...")
+    ///         .AddShard("shard-1", "Server=shard1;...")
+    ///         .AddColocatedEntity&lt;OrderItem&gt;()
+    ///         .AddColocatedEntity&lt;OrderPayment&gt;();
+    /// });
+    /// </code>
+    /// </example>
+    public ShardingOptions<TEntity> AddColocatedEntity<TColocated>()
+        where TColocated : notnull
+    {
+        var entityType = typeof(TColocated);
+
+        if (!_colocatedEntityTypes.Contains(entityType))
+        {
+            _colocatedEntityTypes.Add(entityType);
+        }
+
+        return this;
+    }
 
     /// <summary>
     /// Adds a shard to the configuration.

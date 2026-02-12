@@ -1,3 +1,4 @@
+using Encina.Sharding.Colocation;
 using LanguageExt;
 
 namespace Encina.Sharding;
@@ -74,6 +75,30 @@ public interface IShardRouter
     /// <param name="shardId">The shard identifier.</param>
     /// <returns>Right with the connection string; Left with an error if the shard is not found.</returns>
     Either<EncinaError, string> GetShardConnectionString(string shardId);
+
+    /// <summary>
+    /// Gets the co-location group for a given entity type, if it belongs to one.
+    /// </summary>
+    /// <param name="entityType">The entity type to look up (can be root or co-located).</param>
+    /// <returns>
+    /// The <see cref="IColocationGroup"/> if the entity type belongs to a co-location group;
+    /// otherwise, <c>null</c>.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// The default implementation returns <c>null</c>, indicating that the router has no
+    /// co-location awareness. Built-in routers that are constructed with a
+    /// <see cref="ColocationGroupRegistry"/> override this to provide co-location metadata.
+    /// </para>
+    /// <para>
+    /// This method enables the routing layer and query planner to determine whether two
+    /// entity types are co-located and can be joined locally on the same shard.
+    /// </para>
+    /// </remarks>
+    IColocationGroup? GetColocationGroup(Type entityType)
+    {
+        return null;
+    }
 }
 
 /// <summary>

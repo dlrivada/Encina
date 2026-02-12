@@ -1,4 +1,5 @@
 using Encina.OpenTelemetry.Behaviors;
+using Encina.OpenTelemetry.Sharding;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenTelemetry;
@@ -43,6 +44,12 @@ public static class ServiceCollectionExtensions
         // being available.
         services.AddHostedService<DatabasePoolMetricsInitializer>();
 
+        // Register co-location metrics initialization as a hosted service.
+        // ColocationMetrics creates ObservableGauge instruments on the static "Encina"
+        // meter during construction. Registration is conditional on ColocationGroupRegistry
+        // being available.
+        services.AddHostedService<ColocationMetricsInitializer>();
+
         return services;
     }
 
@@ -69,6 +76,7 @@ public static class ServiceCollectionExtensions
         builder.WithTracing(tracing =>
         {
             tracing.AddSource("Encina");
+            tracing.AddSource("Encina.Sharding");
         });
 
         builder.WithMetrics(metrics =>

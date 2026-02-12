@@ -1644,7 +1644,8 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - **Documentation**: ADR-010, 5 guides (configuration, scaling, MongoDB, cross-shard operations, [distributed aggregations](./features/distributed-aggregations.md))
 - **Compound Shard Keys** (#641): `CompoundShardKey`, `ICompoundShardable`, `CompoundShardKeyExtractor`, `CompoundShardRouter`, `CompoundRoutingBuilder`, `ShardKeyAttribute.Order`, partial key routing (scatter-gather), 4 new error codes
 - **Distributed Aggregation** (#640): `IShardedAggregationSupport<TEntity, TId>`, `ShardAggregatePartial<TValue>`, `AggregationResult<T>`, `AggregationCombiner` (Count/Sum/Avg/Min/Max), `ShardedAggregationExtensions`, two-phase aggregation (correct average), 13 providers (ADO×4 `BuildAggregationSql`, Dapper×4, EF Core×4 LINQ-based, MongoDB `AggregationPipelineBuilder`), 2 new error codes, 2 new metrics, 2 new traces
-- **Test coverage**: ~780+ tests (unit, integration, guard, contract, property) + 13 benchmarks
+- **Entity Co-Location** (#647): `IColocationGroup`, `ColocationGroup`, `ColocationGroupBuilder`, `ColocationGroupRegistry`, `[ColocatedWith]` attribute, `ColocationViolationException`, all 5 routers extended with `GetColocationGroup(Type)`, `ColocationMetrics` (3 instruments), `ColocationLog` (5 source-generated events), 3 trace attributes, 4 new error codes (`ColocationEntityNotShardable`, `ColocationShardKeyMismatch`, `ColocationDuplicateRegistration`, `ColocationSelfReference`)
+- **Test coverage**: ~880+ tests (unit, integration, guard, contract, property) + 13 benchmarks
 - Inspirado en consistent hashing (xxHash64) y MongoDB sharded cluster architecture
 
 **#290 - Connection Pool & Resilience** ✅ **COMPLETADO (08-feb-2026)**:

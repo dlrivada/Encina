@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using Encina.Sharding.Colocation;
 using LanguageExt;
 
 namespace Encina.Sharding;
@@ -11,10 +12,15 @@ namespace Encina.Sharding;
 /// ShardTopology is immutable after construction. To modify the topology,
 /// create a new instance with the updated shard collection.
 /// </para>
+/// <para>
+/// Optionally, a <see cref="ColocationGroupRegistry"/> can be associated with the topology
+/// to enable co-location metadata lookups via <see cref="GetColocationGroup"/>.
+/// </para>
 /// </remarks>
 public sealed class ShardTopology
 {
     private readonly FrozenDictionary<string, ShardInfo> _shards;
+    private readonly ColocationGroupRegistry? _colocationRegistry;
 
     /// <summary>
     /// Initializes a new instance of <see cref="ShardTopology"/> with the given shards.
@@ -23,8 +29,26 @@ public sealed class ShardTopology
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="shards"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when duplicate shard IDs are detected.</exception>
     public ShardTopology(IEnumerable<ShardInfo> shards)
+        : this(shards, colocationRegistry: null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="ShardTopology"/> with the given shards
+    /// and an optional co-location group registry.
+    /// </summary>
+    /// <param name="shards">The collection of shard definitions.</param>
+    /// <param name="colocationRegistry">
+    /// Optional co-location group registry for co-location metadata lookups.
+    /// When provided, <see cref="GetColocationGroup"/> returns group information.
+    /// </param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="shards"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when duplicate shard IDs are detected.</exception>
+    public ShardTopology(IEnumerable<ShardInfo> shards, ColocationGroupRegistry? colocationRegistry)
     {
         ArgumentNullException.ThrowIfNull(shards);
+
+        _colocationRegistry = colocationRegistry;
 
         var shardList = shards.ToList();
 
@@ -119,5 +143,31 @@ public sealed class ShardTopology
     {
         ArgumentNullException.ThrowIfNull(shardId);
         return _shards.ContainsKey(shardId);
+    }
+
+    /// <summary>
+    /// Gets the co-location group for a given entity type, if it belongs to one.
+    /// </summary>
+    /// <param name="entityType">The entity type to look up (can be root or co-located).</param>
+    /// <returns>
+    /// The <see cref="IColocationGroup"/> if the entity type belongs to a co-location group;
+    /// otherwise, <c>null</c>.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// Returns <c>null</c> if no <see cref="ColocationGroupRegistry"/> was provided during
+    /// construction or if the entity type does not belong to any co-location group.
+    /// </para>
+    /// </remarks>
+    public IColocationGroup? GetColocationGroup(Type entityType)
+    {
+        ArgumentNullException.ThrowIfNull(entityType);
+
+        if (_colocationRegistry is not null && _colocationRegistry.TryGetGroup(entityType, out var group))
+        {
+            return group;
+        }
+
+        return null;
     }
 }

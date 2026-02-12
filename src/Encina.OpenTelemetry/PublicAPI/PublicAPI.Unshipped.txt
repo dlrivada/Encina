@@ -61,3 +61,11 @@ Encina.OpenTelemetry.Enrichers.EventMetadataActivityEnricher
 static Encina.OpenTelemetry.Enrichers.EventMetadataActivityEnricher.EnrichWithEvent(System.Diagnostics.Activity? activity, System.Guid eventId, System.Guid streamId, string! eventTypeName, long version, long sequence, System.DateTimeOffset timestamp, string? correlationId = null, string? causationId = null) -> void
 static Encina.OpenTelemetry.Enrichers.EventMetadataActivityEnricher.EnrichWithCorrelationIds(System.Diagnostics.Activity? activity, string? correlationId, string? causationId = null) -> void
 static Encina.OpenTelemetry.Enrichers.EventMetadataActivityEnricher.EnrichWithQueryResult(System.Diagnostics.Activity? activity, int totalCount, int returnedCount, bool hasMore, string? correlationId = null) -> void
+Encina.OpenTelemetry.ActivityTagNames.Colocation
+const Encina.OpenTelemetry.ActivityTagNames.Colocation.Group = "encina.sharding.colocation.group" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Colocation.IsColocated = "encina.sharding.colocation.is_colocated" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Colocation.RootEntity = "encina.sharding.colocation.root_entity" -> string!
+Encina.OpenTelemetry.Sharding.ColocationMetrics
+Encina.OpenTelemetry.Sharding.ColocationMetrics.ColocationMetrics(Encina.Sharding.Colocation.ColocationGroupRegistry! registry) -> void
+Encina.OpenTelemetry.Sharding.ColocationMetrics.RecordValidationFailure(string! rootEntityName, string! failedEntityName) -> void
+Encina.OpenTelemetry.Sharding.ColocationMetrics.RecordLocalJoin(string! groupName) -> void

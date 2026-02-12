@@ -71,4 +71,9 @@ internal static class ActivityTagNames
     internal const string SpecificationTotalItems = "encina.sharding.specification.total_items";
     internal const string SpecificationShardFanOut = "encina.sharding.specification.shard_fan_out";
     internal const string SpecificationMergeDurationMs = "encina.sharding.specification.merge.duration_ms";
+
+    // Co-location tags
+    internal const string ColocationGroup = "encina.sharding.colocation.group";
+    internal const string ColocationIsColocated = "encina.sharding.colocation.is_colocated";
+    internal const string ColocationRootEntity = "encina.sharding.colocation.root_entity";
 }

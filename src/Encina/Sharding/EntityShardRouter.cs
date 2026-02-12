@@ -1,3 +1,4 @@
+using Encina.Sharding.Colocation;
 using LanguageExt;
 
 namespace Encina.Sharding;
@@ -102,4 +103,12 @@ internal sealed class EntityShardRouter<TEntity> : IShardRouter<TEntity>
     /// <inheritdoc />
     public Either<EncinaError, string> GetShardConnectionString(string shardId) =>
         _inner.GetShardConnectionString(shardId);
+
+    /// <summary>
+    /// Gets the co-location group for a given entity type by delegating to the inner router.
+    /// </summary>
+    /// <param name="entityType">The entity type to look up.</param>
+    /// <returns>The co-location group if found; otherwise, <c>null</c>.</returns>
+    public IColocationGroup? GetColocationGroup(Type entityType) =>
+        _inner.GetColocationGroup(entityType);
 }

@@ -135,4 +135,24 @@ public static class ActivityTagNames
         /// <summary>Tag name for the saga error message.</summary>
         public const string Error = "saga.error";
     }
+
+    /// <summary>
+    /// Co-location group tags for sharding observability.
+    /// </summary>
+    /// <remarks>
+    /// These tags track co-location group membership and routing decisions,
+    /// enabling visibility into whether related entities are being correctly
+    /// placed on the same shard.
+    /// </remarks>
+    public static class Colocation
+    {
+        /// <summary>Tag name for the co-location group name (root entity type name).</summary>
+        public const string Group = "encina.sharding.colocation.group";
+
+        /// <summary>Tag name indicating whether the routed entity belongs to a co-location group.</summary>
+        public const string IsColocated = "encina.sharding.colocation.is_colocated";
+
+        /// <summary>Tag name for the root entity type of the co-location group.</summary>
+        public const string RootEntity = "encina.sharding.colocation.root_entity";
+    }
 }

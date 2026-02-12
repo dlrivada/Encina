@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using Encina.Sharding.Colocation;
 using LanguageExt;
 
 namespace Encina.Sharding.Routing;
@@ -16,6 +17,7 @@ namespace Encina.Sharding.Routing;
 public sealed class GeoShardRouter : IShardRouter
 {
     private readonly ShardTopology _topology;
+    private readonly ColocationGroupRegistry? _colocationRegistry;
     private readonly FrozenDictionary<string, GeoRegion> _regions;
     private readonly Func<string, string> _regionResolver;
     private readonly GeoShardRouterOptions _options;
@@ -27,17 +29,23 @@ public sealed class GeoShardRouter : IShardRouter
     /// <param name="regions">The geo region definitions.</param>
     /// <param name="regionResolver">A function that extracts a region code from a shard key.</param>
     /// <param name="options">Optional configuration.</param>
+    /// <param name="colocationRegistry">
+    /// Optional co-location group registry for co-location metadata lookups.
+    /// When provided, <see cref="GetColocationGroup"/> returns group information.
+    /// </param>
     public GeoShardRouter(
         ShardTopology topology,
         IEnumerable<GeoRegion> regions,
         Func<string, string> regionResolver,
-        GeoShardRouterOptions? options = null)
+        GeoShardRouterOptions? options = null,
+        ColocationGroupRegistry? colocationRegistry = null)
     {
         ArgumentNullException.ThrowIfNull(topology);
         ArgumentNullException.ThrowIfNull(regions);
         ArgumentNullException.ThrowIfNull(regionResolver);
 
         _topology = topology;
+        _colocationRegistry = colocationRegistry;
         _regionResolver = regionResolver;
         _options = options ?? new GeoShardRouterOptions();
 
@@ -185,6 +193,23 @@ public sealed class GeoShardRouter : IShardRouter
         }
 
         return Either<EncinaError, IReadOnlyList<string>>.Right(shardIds.Distinct(StringComparer.Ordinal).ToList());
+    }
+
+    /// <summary>
+    /// Gets the co-location group for a given entity type, if it belongs to one.
+    /// </summary>
+    /// <param name="entityType">The entity type to look up.</param>
+    /// <returns>The co-location group if found; otherwise, <c>null</c>.</returns>
+    public IColocationGroup? GetColocationGroup(Type entityType)
+    {
+        ArgumentNullException.ThrowIfNull(entityType);
+
+        if (_colocationRegistry is not null && _colocationRegistry.TryGetGroup(entityType, out var group))
+        {
+            return group;
+        }
+
+        return null;
     }
 
     private Either<EncinaError, string> ResolveRegion(string regionCode)

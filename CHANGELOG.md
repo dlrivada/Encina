@@ -150,6 +150,39 @@ Added specification-based scatter-gather queries across shards, enabling reuse o
 
 **Documentation**: `docs/features/specification-scatter-gather.md` — comprehensive guide with architecture, pagination strategies, and provider examples
 
+#### Entity Co-Location Groups for Sharding (#647)
+
+Added co-location group support for sharded entities, ensuring related entities (e.g., Order + OrderItem) are always stored on the same shard for efficient local JOINs and shard-local transactions.
+
+**Core Abstractions** (`Encina` package):
+
+- **`IColocationGroup`**: Interface exposing `RootEntity`, `ColocatedEntities`, and `SharedShardKeyProperty`
+- **`ColocationGroup`**: Immutable sealed record implementing `IColocationGroup`
+- **`ColocationGroupBuilder`**: Fluent builder with `WithRootEntity<T>()`, `AddColocatedEntity<T>()`, `WithSharedShardKeyProperty()`, `Build()`
+- **`ColocationGroupRegistry`**: Thread-safe singleton registry with O(1) bidirectional lookups (entity → group, root → group)
+- **`[ColocatedWith(typeof(Root))]`**: Declarative attribute for child entities (`AllowMultiple = false`, `Inherited = false`)
+- **`ColocationViolationException`**: Startup validation exception with `RootEntityType`, `FailedEntityType`, `Reason`, and `ToEncinaError()`
+
+**Router Integration** (all 5 routers):
+
+- `HashShardRouter`, `RangeShardRouter`, `DirectoryShardRouter`, `GeoShardRouter`, `CompoundShardRouter`: all accept optional `ColocationGroupRegistry` in constructor
+- `IShardRouter.GetColocationGroup(Type)`: new default interface method returning `IColocationGroup?` (default: `null`)
+- `ShardTopology`: extended with `ColocationGroupRegistry` support
+
+**Error Codes** (4 new):
+
+- `ColocationEntityNotShardable`, `ColocationShardKeyMismatch`, `ColocationDuplicateRegistration`, `ColocationSelfReference`
+
+**Observability** (`Encina.OpenTelemetry` package):
+
+- `ColocationMetrics`: 3 metric instruments — `encina.sharding.colocation.groups_registered` (gauge), `encina.sharding.colocation.validation_failures_total` (counter), `encina.sharding.colocation.local_joins_total` (counter)
+- 3 trace attribute constants: `encina.sharding.colocation.group`, `encina.sharding.colocation.is_colocated`, `encina.sharding.colocation.root_entity`
+- `ColocationLog`: 5 source-generated log events (EventIds 620-624)
+
+**Testing**: 97 new tests across unit (44), guard (8), contract (28), property (18)
+
+**Documentation**: `docs/features/sharding-colocation.md` — comprehensive guide with configuration, validation rules, and observability
+
 #### Change Data Capture (CDC) Pattern (#308)
 
 Added a provider-agnostic Change Data Capture infrastructure that streams database changes as typed events through a handler pipeline, with support for 5 database providers and messaging integration.

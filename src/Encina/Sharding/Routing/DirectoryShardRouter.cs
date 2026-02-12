@@ -1,3 +1,4 @@
+using Encina.Sharding.Colocation;
 using LanguageExt;
 
 namespace Encina.Sharding.Routing;
@@ -20,6 +21,7 @@ public sealed class DirectoryShardRouter : IShardRouter
 {
     private readonly ShardTopology _topology;
     private readonly IShardDirectoryStore _store;
+    private readonly ColocationGroupRegistry? _colocationRegistry;
 
     /// <summary>
     /// Gets the default shard ID for keys not found in the directory.
@@ -33,16 +35,22 @@ public sealed class DirectoryShardRouter : IShardRouter
     /// <param name="topology">The shard topology.</param>
     /// <param name="store">The directory store for key-to-shard mappings.</param>
     /// <param name="defaultShardId">Optional default shard ID for unmapped keys.</param>
+    /// <param name="colocationRegistry">
+    /// Optional co-location group registry for co-location metadata lookups.
+    /// When provided, <see cref="GetColocationGroup"/> returns group information.
+    /// </param>
     public DirectoryShardRouter(
         ShardTopology topology,
         IShardDirectoryStore store,
-        string? defaultShardId = null)
+        string? defaultShardId = null,
+        ColocationGroupRegistry? colocationRegistry = null)
     {
         ArgumentNullException.ThrowIfNull(topology);
         ArgumentNullException.ThrowIfNull(store);
 
         _topology = topology;
         _store = store;
+        _colocationRegistry = colocationRegistry;
         DefaultShardId = defaultShardId;
     }
 
@@ -151,5 +159,22 @@ public sealed class DirectoryShardRouter : IShardRouter
     {
         ArgumentNullException.ThrowIfNull(key);
         return _store.GetMapping(key);
+    }
+
+    /// <summary>
+    /// Gets the co-location group for a given entity type, if it belongs to one.
+    /// </summary>
+    /// <param name="entityType">The entity type to look up.</param>
+    /// <returns>The co-location group if found; otherwise, <c>null</c>.</returns>
+    public IColocationGroup? GetColocationGroup(Type entityType)
+    {
+        ArgumentNullException.ThrowIfNull(entityType);
+
+        if (_colocationRegistry is not null && _colocationRegistry.TryGetGroup(entityType, out var group))
+        {
+            return group;
+        }
+
+        return null;
     }
 }

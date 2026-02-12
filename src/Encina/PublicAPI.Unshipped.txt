@@ -542,6 +542,7 @@ Encina.Sharding.IShardRouter.GetAllShardIds() -> System.Collections.Generic.IRea
 Encina.Sharding.IShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.IShardRouter.GetShardId(Encina.Sharding.CompoundShardKey! key) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.IShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.IShardRouter.GetColocationGroup(System.Type! entityType) -> Encina.Sharding.Colocation.IColocationGroup?
 Encina.Sharding.IShardRouter.GetShardIds(Encina.Sharding.CompoundShardKey! partialKey) -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>
 Encina.Sharding.IShardRouter<TEntity>
 Encina.Sharding.IShardRouter<TEntity>.GetShardId(TEntity entity) -> LanguageExt.Either<Encina.EncinaError, string!>
@@ -557,7 +558,8 @@ Encina.Sharding.Routing.AffectedKeyRange.RingEnd.init -> void
 Encina.Sharding.Routing.AffectedKeyRange.RingStart.get -> ulong
 Encina.Sharding.Routing.AffectedKeyRange.RingStart.init -> void
 Encina.Sharding.Routing.CompoundShardRouter
-Encina.Sharding.Routing.CompoundShardRouter.CompoundShardRouter(Encina.Sharding.ShardTopology! topology, Encina.Sharding.Routing.CompoundShardRouterOptions! options) -> void
+Encina.Sharding.Routing.CompoundShardRouter.CompoundShardRouter(Encina.Sharding.ShardTopology! topology, Encina.Sharding.Routing.CompoundShardRouterOptions! options, Encina.Sharding.Colocation.ColocationGroupRegistry? colocationRegistry = null) -> void
+Encina.Sharding.Routing.CompoundShardRouter.GetColocationGroup(System.Type! entityType) -> Encina.Sharding.Colocation.IColocationGroup?
 Encina.Sharding.Routing.CompoundShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
 Encina.Sharding.Routing.CompoundShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.Routing.CompoundShardRouter.GetShardId(Encina.Sharding.CompoundShardKey! key) -> LanguageExt.Either<Encina.EncinaError, string!>
@@ -571,7 +573,8 @@ Encina.Sharding.Routing.CompoundShardRouterOptions.ShardIdCombiner.set -> void
 Encina.Sharding.Routing.DirectoryShardRouter
 Encina.Sharding.Routing.DirectoryShardRouter.AddMapping(string! key, string! shardId) -> void
 Encina.Sharding.Routing.DirectoryShardRouter.DefaultShardId.get -> string?
-Encina.Sharding.Routing.DirectoryShardRouter.DirectoryShardRouter(Encina.Sharding.ShardTopology! topology, Encina.Sharding.Routing.IShardDirectoryStore! store, string? defaultShardId = null) -> void
+Encina.Sharding.Routing.DirectoryShardRouter.DirectoryShardRouter(Encina.Sharding.ShardTopology! topology, Encina.Sharding.Routing.IShardDirectoryStore! store, string? defaultShardId = null, Encina.Sharding.Colocation.ColocationGroupRegistry? colocationRegistry = null) -> void
+Encina.Sharding.Routing.DirectoryShardRouter.GetColocationGroup(System.Type! entityType) -> Encina.Sharding.Colocation.IColocationGroup?
 Encina.Sharding.Routing.DirectoryShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
 Encina.Sharding.Routing.DirectoryShardRouter.GetMapping(string! key) -> string?
 Encina.Sharding.Routing.DirectoryShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
@@ -586,7 +589,8 @@ Encina.Sharding.Routing.GeoRegion.GeoRegion(string! RegionCode, string! ShardId,
 Encina.Sharding.Routing.GeoRegion.RegionCode.get -> string!
 Encina.Sharding.Routing.GeoRegion.ShardId.get -> string!
 Encina.Sharding.Routing.GeoShardRouter
-Encina.Sharding.Routing.GeoShardRouter.GeoShardRouter(Encina.Sharding.ShardTopology! topology, System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.GeoRegion!>! regions, System.Func<string!, string!>! regionResolver, Encina.Sharding.Routing.GeoShardRouterOptions? options = null) -> void
+Encina.Sharding.Routing.GeoShardRouter.GeoShardRouter(Encina.Sharding.ShardTopology! topology, System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.GeoRegion!>! regions, System.Func<string!, string!>! regionResolver, Encina.Sharding.Routing.GeoShardRouterOptions? options = null, Encina.Sharding.Colocation.ColocationGroupRegistry? colocationRegistry = null) -> void
+Encina.Sharding.Routing.GeoShardRouter.GetColocationGroup(System.Type! entityType) -> Encina.Sharding.Colocation.IColocationGroup?
 Encina.Sharding.Routing.GeoShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
 Encina.Sharding.Routing.GeoShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.Routing.GeoShardRouter.GetShardId(Encina.Sharding.CompoundShardKey! key) -> LanguageExt.Either<Encina.EncinaError, string!>
@@ -607,7 +611,8 @@ Encina.Sharding.Routing.HashShardRouter.GetShardConnectionString(string! shardId
 Encina.Sharding.Routing.HashShardRouter.GetShardId(Encina.Sharding.CompoundShardKey! key) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.Routing.HashShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.Routing.HashShardRouter.GetShardIds(Encina.Sharding.CompoundShardKey! partialKey) -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>
-Encina.Sharding.Routing.HashShardRouter.HashShardRouter(Encina.Sharding.ShardTopology! topology, Encina.Sharding.Routing.HashShardRouterOptions? options = null) -> void
+Encina.Sharding.Routing.HashShardRouter.GetColocationGroup(System.Type! entityType) -> Encina.Sharding.Colocation.IColocationGroup?
+Encina.Sharding.Routing.HashShardRouter.HashShardRouter(Encina.Sharding.ShardTopology! topology, Encina.Sharding.Routing.HashShardRouterOptions? options = null, Encina.Sharding.Colocation.ColocationGroupRegistry? colocationRegistry = null) -> void
 Encina.Sharding.Routing.HashShardRouterOptions
 Encina.Sharding.Routing.HashShardRouterOptions.ComponentDelimiter.get -> string!
 Encina.Sharding.Routing.HashShardRouterOptions.ComponentDelimiter.set -> void
@@ -634,7 +639,8 @@ Encina.Sharding.Routing.RangeShardRouter.GetShardConnectionString(string! shardI
 Encina.Sharding.Routing.RangeShardRouter.GetShardId(Encina.Sharding.CompoundShardKey! key) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.Routing.RangeShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.Routing.RangeShardRouter.GetShardIds(Encina.Sharding.CompoundShardKey! partialKey) -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>
-Encina.Sharding.Routing.RangeShardRouter.RangeShardRouter(Encina.Sharding.ShardTopology! topology, System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.ShardRange!>! ranges, System.StringComparer? comparer = null) -> void
+Encina.Sharding.Routing.RangeShardRouter.GetColocationGroup(System.Type! entityType) -> Encina.Sharding.Colocation.IColocationGroup?
+Encina.Sharding.Routing.RangeShardRouter.RangeShardRouter(Encina.Sharding.ShardTopology! topology, System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.ShardRange!>! ranges, System.StringComparer? comparer = null, Encina.Sharding.Colocation.ColocationGroupRegistry? colocationRegistry = null) -> void
 Encina.Sharding.Routing.ShardRange
 Encina.Sharding.Routing.ShardRange.EndKey.get -> string?
 Encina.Sharding.Routing.ShardRange.EndKey.init -> void
@@ -682,7 +688,9 @@ Encina.Sharding.ShardTopology.GetActiveShards() -> System.Collections.Generic.IR
 Encina.Sharding.ShardTopology.GetAllShards() -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardInfo!>!
 Encina.Sharding.ShardTopology.GetConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.ShardTopology.GetShard(string! shardId) -> LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ShardInfo!>
+Encina.Sharding.ShardTopology.GetColocationGroup(System.Type! entityType) -> Encina.Sharding.Colocation.IColocationGroup?
 Encina.Sharding.ShardTopology.ShardTopology(System.Collections.Generic.IEnumerable<Encina.Sharding.ShardInfo!>! shards) -> void
+Encina.Sharding.ShardTopology.ShardTopology(System.Collections.Generic.IEnumerable<Encina.Sharding.ShardInfo!>! shards, Encina.Sharding.Colocation.ColocationGroupRegistry? colocationRegistry) -> void
 static Encina.Sharding.ShardingServiceCollectionExtensions.AddEncinaSharding<TEntity>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Sharding.Configuration.ShardingOptions<TEntity>!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Sharding.ShardKeyExtractor.Extract<TEntity>(TEntity entity) -> LanguageExt.Either<Encina.EncinaError, string!>
 Encina.Sharding.Data.IShardedConnectionFactory
@@ -847,3 +855,44 @@ Encina.Sharding.ShardedCountResult.FailedShards.init -> void
 Encina.Sharding.ShardedCountResult.IsComplete.get -> bool
 Encina.Sharding.ShardedCountResult.IsPartial.get -> bool
 Encina.Sharding.ShardedCountResult.ShardsQueried.get -> int
+Encina.Sharding.Colocation.ColocatedWithAttribute
+Encina.Sharding.Colocation.ColocatedWithAttribute.ColocatedWithAttribute(System.Type! rootEntityType) -> void
+Encina.Sharding.Colocation.ColocatedWithAttribute.RootEntityType.get -> System.Type!
+Encina.Sharding.Colocation.ColocationGroup
+Encina.Sharding.Colocation.ColocationGroup.ColocationGroup(System.Type! RootEntity, System.Collections.Generic.IReadOnlyList<System.Type!>! ColocatedEntities, string! SharedShardKeyProperty) -> void
+Encina.Sharding.Colocation.ColocationGroup.RootEntity.get -> System.Type!
+Encina.Sharding.Colocation.ColocationGroup.RootEntity.init -> void
+Encina.Sharding.Colocation.ColocationGroup.ColocatedEntities.get -> System.Collections.Generic.IReadOnlyList<System.Type!>!
+Encina.Sharding.Colocation.ColocationGroup.ColocatedEntities.init -> void
+Encina.Sharding.Colocation.ColocationGroup.SharedShardKeyProperty.get -> string!
+Encina.Sharding.Colocation.ColocationGroup.SharedShardKeyProperty.init -> void
+Encina.Sharding.Colocation.ColocationGroupBuilder
+Encina.Sharding.Colocation.ColocationGroupBuilder.ColocationGroupBuilder() -> void
+Encina.Sharding.Colocation.ColocationGroupBuilder.WithRootEntity<T>() -> Encina.Sharding.Colocation.ColocationGroupBuilder!
+Encina.Sharding.Colocation.ColocationGroupBuilder.AddColocatedEntity<T>() -> Encina.Sharding.Colocation.ColocationGroupBuilder!
+Encina.Sharding.Colocation.ColocationGroupBuilder.WithSharedShardKeyProperty(string! propertyName) -> Encina.Sharding.Colocation.ColocationGroupBuilder!
+Encina.Sharding.Colocation.ColocationGroupBuilder.Build() -> Encina.Sharding.Colocation.IColocationGroup!
+Encina.Sharding.Colocation.ColocationGroupRegistry
+Encina.Sharding.Colocation.ColocationGroupRegistry.ColocationGroupRegistry() -> void
+Encina.Sharding.Colocation.ColocationGroupRegistry.RegisterGroup(Encina.Sharding.Colocation.IColocationGroup! group) -> void
+Encina.Sharding.Colocation.ColocationGroupRegistry.RegisterColocatedEntity(System.Type! rootEntity, System.Type! colocatedEntity) -> void
+Encina.Sharding.Colocation.ColocationGroupRegistry.TryGetGroup(System.Type! entityType, out Encina.Sharding.Colocation.IColocationGroup? group) -> bool
+Encina.Sharding.Colocation.ColocationGroupRegistry.GetAllGroups() -> System.Collections.Generic.IReadOnlyCollection<Encina.Sharding.Colocation.IColocationGroup!>!
+Encina.Sharding.Colocation.ColocationViolationException
+Encina.Sharding.Colocation.ColocationViolationException.ColocationViolationException(System.Type? rootEntityType, System.Type? failedEntityType, string! reason, string? expectedShardKeyType = null, string? actualShardKeyType = null) -> void
+Encina.Sharding.Colocation.ColocationViolationException.RootEntityType.get -> System.Type?
+Encina.Sharding.Colocation.ColocationViolationException.FailedEntityType.get -> System.Type?
+Encina.Sharding.Colocation.ColocationViolationException.ExpectedShardKeyType.get -> string?
+Encina.Sharding.Colocation.ColocationViolationException.ActualShardKeyType.get -> string?
+Encina.Sharding.Colocation.ColocationViolationException.Reason.get -> string!
+Encina.Sharding.Colocation.ColocationViolationException.ToEncinaError() -> Encina.EncinaError
+const Encina.Sharding.Colocation.ColocationViolationException.ErrorCode = "Encina.ColocationViolation" -> string!
+Encina.Sharding.Colocation.IColocationGroup
+Encina.Sharding.Colocation.IColocationGroup.RootEntity.get -> System.Type!
+Encina.Sharding.Colocation.IColocationGroup.ColocatedEntities.get -> System.Collections.Generic.IReadOnlyList<System.Type!>!
+Encina.Sharding.Colocation.IColocationGroup.SharedShardKeyProperty.get -> string!
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.AddColocatedEntity<TColocated>() -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
+const Encina.Sharding.ShardingErrorCodes.ColocationEntityNotShardable = "encina.sharding.colocation_entity_not_shardable" -> string!
+const Encina.Sharding.ShardingErrorCodes.ColocationShardKeyMismatch = "encina.sharding.colocation_shard_key_mismatch" -> string!
+const Encina.Sharding.ShardingErrorCodes.ColocationDuplicateRegistration = "encina.sharding.colocation_duplicate_registration" -> string!
+const Encina.Sharding.ShardingErrorCodes.ColocationSelfReference = "encina.sharding.colocation_self_reference" -> string!

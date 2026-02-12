@@ -100,4 +100,16 @@ public static class ShardingErrorCodes
 
     /// <summary>The pagination merge phase failed during a cross-shard paginated query.</summary>
     public const string PaginationMergeFailed = "encina.sharding.pagination_merge_failed";
+
+    /// <summary>A co-located entity is not shardable (does not implement IShardable, ICompoundShardable, or have [ShardKey]).</summary>
+    public const string ColocationEntityNotShardable = "encina.sharding.colocation_entity_not_shardable";
+
+    /// <summary>Shard key types are incompatible between root and co-located entity.</summary>
+    public const string ColocationShardKeyMismatch = "encina.sharding.colocation_shard_key_mismatch";
+
+    /// <summary>An entity is already registered in a different co-location group.</summary>
+    public const string ColocationDuplicateRegistration = "encina.sharding.colocation_duplicate_registration";
+
+    /// <summary>An entity cannot be co-located with itself.</summary>
+    public const string ColocationSelfReference = "encina.sharding.colocation_self_reference";
 }
