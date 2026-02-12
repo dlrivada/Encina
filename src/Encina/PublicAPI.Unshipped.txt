@@ -762,6 +762,9 @@ Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordCompoundKeyExtraction(int 
 Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordPartialKeyRouting(int componentsProvided, int componentsExpected, string! routerType) -> void
 Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordAggregationDuration(string! operationType, int shardsQueried, double durationMs) -> void
 Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordAggregationPartialResult(string! operationType, int failedCount, int totalCount) -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordSpecificationQuery(string! specificationType, string! operationKind, int shardCount, int totalItems) -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordSpecificationMergeDuration(string! operationKind, int totalItems, double durationMs) -> void
+Encina.Sharding.Diagnostics.ShardRoutingMetrics.RecordSpecificationItemsPerShard(string! shardId, int itemCount) -> void
 Encina.Sharding.Diagnostics.ShardedDatabasePoolMetrics
 Encina.Sharding.Diagnostics.ShardedDatabasePoolMetrics.ShardedDatabasePoolMetrics(Encina.Sharding.Health.IShardedDatabaseHealthMonitor! monitor) -> void
 Encina.Sharding.Diagnostics.ShardedDatabasePoolMetrics.UpdateHealthSnapshot(System.Collections.Generic.IReadOnlyList<Encina.Sharding.Health.ShardHealthResult!>! healthResults) -> void
@@ -777,8 +780,70 @@ Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableHealthMetrics.get -> bo
 Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableHealthMetrics.set -> void
 Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableAggregationMetrics.get -> bool
 Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableAggregationMetrics.set -> void
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableSpecificationMetrics.get -> bool
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableSpecificationMetrics.set -> void
 Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableTracing.get -> bool
 Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableTracing.set -> void
 Encina.Sharding.Diagnostics.ShardingDiagnosticsServiceCollectionExtensions
 static Encina.Sharding.Diagnostics.ShardingDiagnosticsServiceCollectionExtensions.AddEncinaShardingMetrics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Sharding.Diagnostics.ShardingMetricsOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Sharding.Diagnostics.ShardingDiagnosticsServiceCollectionExtensions.AddEncinaShardingHealthMetrics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+const Encina.Sharding.ShardingErrorCodes.SpecificationScatterGatherFailed = "encina.sharding.specification_scatter_gather_failed" -> string!
+const Encina.Sharding.ShardingErrorCodes.SpecificationScatterGatherPartialFailure = "encina.sharding.specification_scatter_gather_partial_failure" -> string!
+const Encina.Sharding.ShardingErrorCodes.PaginationMergeFailed = "encina.sharding.pagination_merge_failed" -> string!
+Encina.Sharding.ShardedPaginationStrategy
+Encina.Sharding.ShardedPaginationStrategy.OverfetchAndMerge = 0 -> Encina.Sharding.ShardedPaginationStrategy
+Encina.Sharding.ShardedPaginationStrategy.EstimateAndDistribute = 1 -> Encina.Sharding.ShardedPaginationStrategy
+Encina.Sharding.ShardedPaginationOptions
+Encina.Sharding.ShardedPaginationOptions.ShardedPaginationOptions() -> void
+Encina.Sharding.ShardedPaginationOptions.Page.get -> int
+Encina.Sharding.ShardedPaginationOptions.Page.set -> void
+Encina.Sharding.ShardedPaginationOptions.PageSize.get -> int
+Encina.Sharding.ShardedPaginationOptions.PageSize.set -> void
+Encina.Sharding.ShardedPaginationOptions.Strategy.get -> Encina.Sharding.ShardedPaginationStrategy
+Encina.Sharding.ShardedPaginationOptions.Strategy.set -> void
+Encina.Sharding.ShardedSpecificationResult<T>
+Encina.Sharding.ShardedSpecificationResult<T>.ShardedSpecificationResult(System.Collections.Generic.IReadOnlyList<T>! Items, System.Collections.Generic.IReadOnlyDictionary<string!, int>! ItemsPerShard, System.TimeSpan TotalDuration, System.Collections.Generic.IReadOnlyDictionary<string!, System.TimeSpan>! DurationPerShard, System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardFailure!>! FailedShards) -> void
+Encina.Sharding.ShardedSpecificationResult<T>.Items.get -> System.Collections.Generic.IReadOnlyList<T>!
+Encina.Sharding.ShardedSpecificationResult<T>.Items.init -> void
+Encina.Sharding.ShardedSpecificationResult<T>.ItemsPerShard.get -> System.Collections.Generic.IReadOnlyDictionary<string!, int>!
+Encina.Sharding.ShardedSpecificationResult<T>.ItemsPerShard.init -> void
+Encina.Sharding.ShardedSpecificationResult<T>.TotalDuration.get -> System.TimeSpan
+Encina.Sharding.ShardedSpecificationResult<T>.TotalDuration.init -> void
+Encina.Sharding.ShardedSpecificationResult<T>.DurationPerShard.get -> System.Collections.Generic.IReadOnlyDictionary<string!, System.TimeSpan>!
+Encina.Sharding.ShardedSpecificationResult<T>.DurationPerShard.init -> void
+Encina.Sharding.ShardedSpecificationResult<T>.FailedShards.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardFailure!>!
+Encina.Sharding.ShardedSpecificationResult<T>.FailedShards.init -> void
+Encina.Sharding.ShardedSpecificationResult<T>.IsComplete.get -> bool
+Encina.Sharding.ShardedSpecificationResult<T>.IsPartial.get -> bool
+Encina.Sharding.ShardedSpecificationResult<T>.ShardsQueried.get -> int
+Encina.Sharding.ShardedPagedResult<T>
+Encina.Sharding.ShardedPagedResult<T>.ShardedPagedResult(System.Collections.Generic.IReadOnlyList<T>! Items, long TotalCount, int Page, int PageSize, System.Collections.Generic.IReadOnlyDictionary<string!, long>! CountPerShard, System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardFailure!>! FailedShards) -> void
+Encina.Sharding.ShardedPagedResult<T>.Items.get -> System.Collections.Generic.IReadOnlyList<T>!
+Encina.Sharding.ShardedPagedResult<T>.Items.init -> void
+Encina.Sharding.ShardedPagedResult<T>.TotalCount.get -> long
+Encina.Sharding.ShardedPagedResult<T>.TotalCount.init -> void
+Encina.Sharding.ShardedPagedResult<T>.Page.get -> int
+Encina.Sharding.ShardedPagedResult<T>.Page.init -> void
+Encina.Sharding.ShardedPagedResult<T>.PageSize.get -> int
+Encina.Sharding.ShardedPagedResult<T>.PageSize.init -> void
+Encina.Sharding.ShardedPagedResult<T>.CountPerShard.get -> System.Collections.Generic.IReadOnlyDictionary<string!, long>!
+Encina.Sharding.ShardedPagedResult<T>.CountPerShard.init -> void
+Encina.Sharding.ShardedPagedResult<T>.FailedShards.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardFailure!>!
+Encina.Sharding.ShardedPagedResult<T>.FailedShards.init -> void
+Encina.Sharding.ShardedPagedResult<T>.TotalPages.get -> int
+Encina.Sharding.ShardedPagedResult<T>.HasNextPage.get -> bool
+Encina.Sharding.ShardedPagedResult<T>.HasPreviousPage.get -> bool
+Encina.Sharding.ShardedPagedResult<T>.IsComplete.get -> bool
+Encina.Sharding.ShardedPagedResult<T>.IsPartial.get -> bool
+Encina.Sharding.ShardedPagedResult<T>.ShardsQueried.get -> int
+Encina.Sharding.ShardedCountResult
+Encina.Sharding.ShardedCountResult.ShardedCountResult(long TotalCount, System.Collections.Generic.IReadOnlyDictionary<string!, long>! CountPerShard, System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardFailure!>! FailedShards) -> void
+Encina.Sharding.ShardedCountResult.TotalCount.get -> long
+Encina.Sharding.ShardedCountResult.TotalCount.init -> void
+Encina.Sharding.ShardedCountResult.CountPerShard.get -> System.Collections.Generic.IReadOnlyDictionary<string!, long>!
+Encina.Sharding.ShardedCountResult.CountPerShard.init -> void
+Encina.Sharding.ShardedCountResult.FailedShards.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardFailure!>!
+Encina.Sharding.ShardedCountResult.FailedShards.init -> void
+Encina.Sharding.ShardedCountResult.IsComplete.get -> bool
+Encina.Sharding.ShardedCountResult.IsPartial.get -> bool
+Encina.Sharding.ShardedCountResult.ShardsQueried.get -> int

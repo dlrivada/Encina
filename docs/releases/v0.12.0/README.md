@@ -579,6 +579,59 @@ Updated `PublicAPI.Unshipped.txt` for packages with changed public constructor s
 
 ---
 
+### 2026-02-12 - Specification-Based Scatter-Gather (#652)
+
+#### Phase 1: Core Abstractions
+
+**New files created in `Encina` package:**
+
+- `src/Encina/Sharding/ShardedSpecificationResult.cs` — Merged results with per-shard metadata
+- `src/Encina/Sharding/ShardedPagedResult.cs` — Cross-shard paginated results
+- `src/Encina/Sharding/ShardedCountResult.cs` — Lightweight count-only result
+- `src/Encina/Sharding/ShardedPaginationOptions.cs` — Pagination configuration
+- `src/Encina/Sharding/ShardedPaginationStrategy.cs` — Two merge strategies
+
+**New files created in `Encina.DomainModeling` package:**
+
+- `src/Encina.DomainModeling/Sharding/IShardedSpecificationSupport.cs` — Interface (4 methods)
+- `src/Encina.DomainModeling/Sharding/ShardedSpecificationExtensions.cs` — Extension methods
+- `src/Encina.DomainModeling/Sharding/ScatterGatherResultMerger.cs` — Result merge/order/paginate
+
+#### Phase 2: Provider Implementations (13 providers)
+
+All 10 provider repositories implement `IShardedSpecificationSupport<TEntity, TId>`:
+
+- ADO.NET: SqlServer, Sqlite, PostgreSQL, MySQL
+- Dapper: SqlServer, Sqlite, PostgreSQL, MySQL
+- EF Core: Generic implementation covering SqlServer, Sqlite, PostgreSQL, MySQL
+- MongoDB: Single implementation
+
+#### Phase 3: Observability
+
+- 4 new specification metrics on `ShardRoutingMetrics` (queries counter, merge duration histogram, items-per-shard histogram, fan-out histogram)
+- 3 new activity methods on `ShardingActivitySource` (internal tracing)
+- `EnableSpecificationMetrics` option on `ShardingMetricsOptions`
+- Structured logging with specification type, operation kind, and merge timing in all 10 providers
+
+#### Phase 4: Testing (109+ new tests)
+
+| Test Type | Count | File |
+|-----------|-------|------|
+| UnitTests (result types) | 36 | `tests/Encina.UnitTests/Core/Sharding/Specification/` |
+| UnitTests (merger + extensions) | 31 | `tests/Encina.UnitTests/DomainModeling/Sharding/` |
+| GuardTests | 15 | `tests/Encina.GuardTests/Database/Sharding/` |
+| ContractTests | 14 | `tests/Encina.ContractTests/Database/Sharding/` |
+| PropertyTests | 13 | `tests/Encina.PropertyTests/Database/Sharding/` |
+| BenchmarkTests | 5 | `tests/Encina.BenchmarkTests/Encina.Benchmarks/Sharding/` |
+
+#### Phase 5: Documentation
+
+- `docs/features/specification-scatter-gather.md` — Comprehensive feature guide
+- Updated `docs/sharding/cross-shard-operations.md` with specification section
+- Updated `CHANGELOG.md` with feature entry
+
+---
+
 ## Next Steps
 
 1. **Integration Tests**: Add real database tests for pagination (Docker/Testcontainers)

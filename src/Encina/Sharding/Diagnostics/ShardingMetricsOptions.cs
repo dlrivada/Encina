@@ -70,6 +70,17 @@ public sealed class ShardingMetricsOptions
     public bool EnableAggregationMetrics { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets whether specification scatter-gather metrics are enabled.
+    /// </summary>
+    /// <value>Defaults to <c>true</c>.</value>
+    /// <remarks>
+    /// When enabled, specification-based scatter-gather operations are tracked with
+    /// query counters, merge duration histograms, items-per-shard distributions,
+    /// and shard fan-out counts.
+    /// </remarks>
+    public bool EnableSpecificationMetrics { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets whether distributed tracing is enabled for sharding operations.
     /// </summary>
     /// <value>Defaults to <c>true</c>.</value>

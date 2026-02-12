@@ -91,4 +91,13 @@ public static class ShardingErrorCodes
 
     /// <summary>Partial failures occurred during a distributed aggregation.</summary>
     public const string AggregationPartialFailure = "encina.sharding.aggregation_partial_failure";
+
+    /// <summary>A specification-based scatter-gather query failed entirely (all shards failed).</summary>
+    public const string SpecificationScatterGatherFailed = "encina.sharding.specification_scatter_gather_failed";
+
+    /// <summary>Partial failures occurred during a specification-based scatter-gather query.</summary>
+    public const string SpecificationScatterGatherPartialFailure = "encina.sharding.specification_scatter_gather_partial_failure";
+
+    /// <summary>The pagination merge phase failed during a cross-shard paginated query.</summary>
+    public const string PaginationMergeFailed = "encina.sharding.pagination_merge_failed";
 }

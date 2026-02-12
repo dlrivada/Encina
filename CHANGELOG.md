@@ -114,6 +114,42 @@ Added two-phase distributed aggregation operations (Count, Sum, Avg, Min, Max) a
 
 **Documentation**: `docs/features/distributed-aggregations.md` — comprehensive guide with architecture, edge cases, and provider-specific details
 
+#### Specification-Based Scatter-Gather for Sharding (#652)
+
+Added specification-based scatter-gather queries across shards, enabling reuse of domain specifications for cross-shard operations with per-shard metadata, pagination, and observability.
+
+**Core Abstractions** (`Encina.DomainModeling` package):
+
+- **`IShardedSpecificationSupport<TEntity, TId>`**: Interface for providers implementing specification-based scatter-gather (4 methods)
+- **`ShardedSpecificationExtensions`**: Extension methods on `IFunctionalShardedRepository` for `QueryAllShardsAsync`, `QueryAllShardsPagedAsync`, `CountAllShardsAsync`, `QueryShardsAsync`
+- **`ScatterGatherResultMerger`**: Static class for merging per-shard results with ordering from specifications
+
+**Result Types** (`Encina` package):
+
+- **`ShardedSpecificationResult<T>`**: Merged results with `ItemsPerShard`, `DurationPerShard`, `FailedShards`, `IsComplete`, `IsPartial`
+- **`ShardedPagedResult<T>`**: Cross-shard paginated results with `TotalCount`, `TotalPages`, `HasNextPage`, `HasPreviousPage`, `CountPerShard`
+- **`ShardedCountResult`**: Lightweight count-only result with per-shard breakdown
+- **`ShardedPaginationOptions`**: Configuration with `Page`, `PageSize`, and `Strategy`
+- **`ShardedPaginationStrategy`**: Two strategies — `OverfetchAndMerge` (simple, correct) and `EstimateAndDistribute` (efficient, approximate)
+
+**Provider Support** (13 providers via 10 implementations):
+
+- ADO.NET (4): `FunctionalShardedRepositoryADO` implements `IShardedSpecificationSupport` — SQLite, SqlServer, PostgreSQL, MySQL
+- Dapper (4): `FunctionalShardedRepositoryDapper` implements `IShardedSpecificationSupport` — SQLite, SqlServer, PostgreSQL, MySQL
+- EF Core (4 via 1 generic): `FunctionalShardedRepositoryEF` implements `IShardedSpecificationSupport` — SQLite, SqlServer, PostgreSQL, MySQL
+- MongoDB (1): `FunctionalShardedRepositoryMongoDB` implements `IShardedSpecificationSupport`
+
+**Observability**:
+
+- 4 new metric instruments: `encina.sharding.specification.queries_total` (counter), `encina.sharding.specification.merge.duration_ms` (histogram), `encina.sharding.specification.items_per_shard` (histogram), `encina.sharding.specification.shard_fan_out` (histogram)
+- 3 new activity methods on `ShardingActivitySource`: `StartSpecificationScatterGather`, `SetPaginationContext`, `CompleteSpecificationScatterGather`
+- `ShardingMetricsOptions.EnableSpecificationMetrics` (default: `true`)
+- Structured logging with specification type, operation kind, and merge duration in all providers
+
+**Testing**: 109+ tests across unit (67), guard (15), contract (14), property (13); 5 BenchmarkDotNet benchmarks for merge/pagination overhead
+
+**Documentation**: `docs/features/specification-scatter-gather.md` — comprehensive guide with architecture, pagination strategies, and provider examples
+
 #### Change Data Capture (CDC) Pattern (#308)
 
 Added a provider-agnostic Change Data Capture infrastructure that streams database changes as typed events through a handler pipeline, with support for 5 database providers and messaging integration.

@@ -20,6 +20,10 @@ namespace Encina.Sharding.Diagnostics;
 ///   <item><description><c>encina.sharding.aggregation.duration_ms</c> (Histogram) — Aggregation execution duration</description></item>
 ///   <item><description><c>encina.sharding.aggregation.shards_queried</c> (Histogram) — Shard fan-out count per aggregation</description></item>
 ///   <item><description><c>encina.sharding.aggregation.partial_results</c> (Counter) — Partial results due to shard failures</description></item>
+///   <item><description><c>encina.sharding.specification.queries_total</c> (Counter) — Specification-based scatter-gather queries</description></item>
+///   <item><description><c>encina.sharding.specification.merge.duration_ms</c> (Histogram) — Specification result merge/pagination duration</description></item>
+///   <item><description><c>encina.sharding.specification.items_per_shard</c> (Histogram) — Items returned per shard in specification queries</description></item>
+///   <item><description><c>encina.sharding.specification.shard_fan_out</c> (Histogram) — Shard fan-out count per specification query</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -59,6 +63,12 @@ public sealed class ShardRoutingMetrics
     private readonly Histogram<double> _aggregationDuration;
     private readonly Histogram<int> _aggregationShardsQueried;
     private readonly Counter<long> _aggregationPartialResults;
+
+    // Specification scatter-gather metrics
+    private readonly Counter<long> _specificationQueries;
+    private readonly Histogram<double> _specificationMergeDuration;
+    private readonly Histogram<int> _specificationItemsPerShard;
+    private readonly Histogram<int> _specificationShardFanOut;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ShardRoutingMetrics"/> class,
@@ -124,6 +134,25 @@ public sealed class ShardRoutingMetrics
         _aggregationPartialResults = Meter.CreateCounter<long>(
             "encina.sharding.aggregation.partial_results",
             description: "Number of aggregation operations that returned partial results due to shard failures.");
+
+        _specificationQueries = Meter.CreateCounter<long>(
+            "encina.sharding.specification.queries_total",
+            description: "Number of specification-based scatter-gather queries executed.");
+
+        _specificationMergeDuration = Meter.CreateHistogram<double>(
+            "encina.sharding.specification.merge.duration_ms",
+            unit: "ms",
+            description: "Duration of specification result merge and pagination operations in milliseconds.");
+
+        _specificationItemsPerShard = Meter.CreateHistogram<int>(
+            "encina.sharding.specification.items_per_shard",
+            unit: "{items}",
+            description: "Number of items returned per shard in specification scatter-gather queries.");
+
+        _specificationShardFanOut = Meter.CreateHistogram<int>(
+            "encina.sharding.specification.shard_fan_out",
+            unit: "{shards}",
+            description: "Number of shards queried per specification scatter-gather operation.");
     }
 
     /// <summary>
@@ -274,6 +303,55 @@ public sealed class ShardRoutingMetrics
         };
 
         _aggregationPartialResults.Add(1, tags);
+    }
+
+    /// <summary>
+    /// Records a specification-based scatter-gather query execution.
+    /// </summary>
+    /// <param name="specificationType">The specification type name (e.g., "QuerySpecification", "Specification").</param>
+    /// <param name="operationKind">The operation kind (e.g., "query", "paged_query", "count").</param>
+    /// <param name="shardCount">The number of shards queried.</param>
+    /// <param name="totalItems">The total number of items returned across all shards.</param>
+    public void RecordSpecificationQuery(string specificationType, string operationKind, int shardCount, int totalItems)
+    {
+        var tags = new TagList
+        {
+            { ActivityTagNames.SpecificationType, specificationType },
+            { ActivityTagNames.SpecificationOperationKind, operationKind },
+            { ActivityTagNames.ShardCount, shardCount }
+        };
+
+        _specificationQueries.Add(1, tags);
+        _specificationShardFanOut.Record(shardCount, tags);
+    }
+
+    /// <summary>
+    /// Records the duration of a specification result merge and pagination operation.
+    /// </summary>
+    /// <param name="operationKind">The operation kind (e.g., "query", "paged_query").</param>
+    /// <param name="totalItems">The total number of items merged.</param>
+    /// <param name="durationMs">The merge duration in milliseconds.</param>
+    public void RecordSpecificationMergeDuration(string operationKind, int totalItems, double durationMs)
+    {
+        var tags = new TagList
+        {
+            { ActivityTagNames.SpecificationOperationKind, operationKind },
+            { ActivityTagNames.SpecificationTotalItems, totalItems }
+        };
+
+        _specificationMergeDuration.Record(durationMs, tags);
+    }
+
+    /// <summary>
+    /// Records the number of items returned from a single shard in a specification scatter-gather query.
+    /// </summary>
+    /// <param name="shardId">The shard identifier.</param>
+    /// <param name="itemCount">The number of items returned from the shard.</param>
+    public void RecordSpecificationItemsPerShard(string shardId, int itemCount)
+    {
+        _specificationItemsPerShard.Record(
+            itemCount,
+            new KeyValuePair<string, object?>(ActivityTagNames.ShardId, shardId));
     }
 }
 #pragma warning restore CA1848

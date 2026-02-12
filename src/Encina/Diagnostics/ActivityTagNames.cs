@@ -61,4 +61,14 @@ internal static class ActivityTagNames
     internal const string AggregationShardsSucceeded = "encina.sharding.aggregation.shards_succeeded";
     internal const string AggregationResultValue = "encina.sharding.aggregation.result_value";
     internal const string AggregationIsPartial = "encina.sharding.aggregation.is_partial";
+
+    // Specification scatter-gather tags
+    internal const string SpecificationType = "encina.sharding.specification.type";
+    internal const string SpecificationOperationKind = "encina.sharding.specification.operation";
+    internal const string PaginationStrategy = "encina.sharding.specification.pagination.strategy";
+    internal const string PaginationPage = "encina.sharding.specification.pagination.page";
+    internal const string PaginationPageSize = "encina.sharding.specification.pagination.page_size";
+    internal const string SpecificationTotalItems = "encina.sharding.specification.total_items";
+    internal const string SpecificationShardFanOut = "encina.sharding.specification.shard_fan_out";
+    internal const string SpecificationMergeDurationMs = "encina.sharding.specification.merge.duration_ms";
 }

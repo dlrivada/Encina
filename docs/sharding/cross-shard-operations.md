@@ -7,11 +7,12 @@ This guide covers how to work with data that spans multiple shards, including sc
 1. [Transaction Limitations](#transaction-limitations)
 2. [Saga Pattern for Cross-Shard Workflows](#saga-pattern-for-cross-shard-workflows)
 3. [Scatter-Gather Queries](#scatter-gather-queries)
-4. [Partial Failure Handling](#partial-failure-handling)
-5. [Aggregation Strategies](#aggregation-strategies)
-6. [JOIN Alternative Patterns](#join-alternative-patterns)
-7. [Observability](#observability)
-8. [FAQ](#faq)
+4. [Specification-Based Scatter-Gather](#specification-based-scatter-gather)
+5. [Partial Failure Handling](#partial-failure-handling)
+6. [Aggregation Strategies](#aggregation-strategies)
+7. [JOIN Alternative Patterns](#join-alternative-patterns)
+8. [Observability](#observability)
+9. [FAQ](#faq)
 
 ---
 
@@ -217,6 +218,78 @@ services.AddEncinaSharding<Order>(options =>
 | **Timeout** | Set to 2x the P95 single-shard query time |
 | **Result size** | Apply filtering and pagination within each shard query, not after aggregation |
 | **Memory** | Large scatter-gather results are held in memory; stream or paginate if possible |
+
+---
+
+## Specification-Based Scatter-Gather
+
+> **Added in v0.12.0** — [Feature Guide](../features/specification-scatter-gather.md) | [Issue #652](https://github.com/dlrivada/Encina/issues/652)
+
+Instead of writing lambda expressions for each shard query, reuse existing domain specifications:
+
+### Basic Usage
+
+```csharp
+// Define a reusable specification
+public class ActiveOrdersSpec : QuerySpecification<Order>
+{
+    public ActiveOrdersSpec()
+    {
+        AddCriteria(o => o.Status == OrderStatus.Active);
+        ApplyOrderByDescending(o => o.CreatedAtUtc);
+    }
+}
+
+// Query all shards using the specification
+var spec = new ActiveOrdersSpec();
+var result = await shardedRepo.QueryAllShardsAsync(spec, ct);
+
+result.Match(
+    Right: r => Console.WriteLine($"Found {r.Items.Count} items across {r.ShardsQueried} shards"),
+    Left: error => Console.WriteLine($"Error: {error.Message}"));
+```
+
+### Cross-Shard Pagination
+
+```csharp
+var pagination = new ShardedPaginationOptions
+{
+    Page = 2,
+    PageSize = 20,
+    Strategy = ShardedPaginationStrategy.OverfetchAndMerge
+};
+
+var result = await shardedRepo.QueryAllShardsPagedAsync(spec, pagination, ct);
+
+result.Match(
+    Right: r => Console.WriteLine($"Page {r.Page}/{r.TotalPages} ({r.TotalCount} total)"),
+    Left: error => Console.WriteLine($"Error: {error.Message}"));
+```
+
+### Count Across Shards
+
+```csharp
+var countResult = await shardedRepo.CountAllShardsAsync(spec, ct);
+
+countResult.Match(
+    Right: r =>
+    {
+        Console.WriteLine($"Total: {r.TotalCount}");
+        foreach (var (shardId, count) in r.CountPerShard)
+            Console.WriteLine($"  Shard {shardId}: {count}");
+    },
+    Left: error => Console.WriteLine($"Error: {error.Message}"));
+```
+
+### Targeted Scatter-Gather
+
+```csharp
+// Query only specific shards
+var europeShards = new[] { "shard-eu-west", "shard-eu-east" };
+var result = await shardedRepo.QueryShardsAsync(spec, europeShards, ct);
+```
+
+> For detailed documentation including pagination strategies, result types, and provider-specific notes, see the [Specification-Based Scatter-Gather Guide](../features/specification-scatter-gather.md).
 
 ---
 

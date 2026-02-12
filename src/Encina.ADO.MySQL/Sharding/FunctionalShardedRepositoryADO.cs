@@ -3,10 +3,14 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq.Expressions;
 using System.Numerics;
+using System.Reflection;
 using Encina.ADO.MySQL.Repository;
+using Encina.DomainModeling;
+using Encina.DomainModeling.Sharding;
 using Encina.Sharding;
 using Encina.Sharding.Aggregation;
 using Encina.Sharding.Data;
+using Encina.Sharding.Diagnostics;
 using Encina.Sharding.Execution;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -50,7 +54,8 @@ namespace Encina.ADO.MySQL.Sharding;
 /// </example>
 public sealed class FunctionalShardedRepositoryADO<TEntity, TId>
     : IFunctionalShardedRepository<TEntity, TId>,
-      IShardedAggregationSupport<TEntity, TId>
+      IShardedAggregationSupport<TEntity, TId>,
+      IShardedSpecificationSupport<TEntity, TId>
     where TEntity : class, new()
     where TId : notnull
 {
@@ -61,6 +66,8 @@ public sealed class FunctionalShardedRepositoryADO<TEntity, TId>
     private readonly IRequestContext? _requestContext;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
+    private readonly ShardRoutingMetrics? _metrics;
+    private readonly Dictionary<string, PropertyInfo> _propertyCache;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FunctionalShardedRepositoryADO{TEntity, TId}"/> class.
@@ -69,9 +76,10 @@ public sealed class FunctionalShardedRepositoryADO<TEntity, TId>
     /// <param name="connectionFactory">The sharded connection factory.</param>
     /// <param name="mapping">The entity mapping configuration.</param>
     /// <param name="queryExecutor">The scatter-gather query executor.</param>
+    /// <param name="logger">The logger for distributed aggregation diagnostics.</param>
     /// <param name="requestContext">Optional request context for audit fields.</param>
     /// <param name="timeProvider">Optional time provider for audit timestamps.</param>
-    /// <param name="logger">The logger for distributed aggregation diagnostics.</param>
+    /// <param name="metrics">Optional metrics recorder for specification scatter-gather observability.</param>
     public FunctionalShardedRepositoryADO(
         IShardRouter<TEntity> router,
         IShardedConnectionFactory<MySqlConnection> connectionFactory,
@@ -79,7 +87,8 @@ public sealed class FunctionalShardedRepositoryADO<TEntity, TId>
         IShardedQueryExecutor queryExecutor,
         ILogger<FunctionalShardedRepositoryADO<TEntity, TId>> logger,
         IRequestContext? requestContext = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ShardRoutingMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(router);
         ArgumentNullException.ThrowIfNull(connectionFactory);
@@ -94,6 +103,10 @@ public sealed class FunctionalShardedRepositoryADO<TEntity, TId>
         _requestContext = requestContext;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _logger = logger;
+        _metrics = metrics;
+        _propertyCache = typeof(TEntity).GetProperties()
+            .Where(p => mapping.ColumnMappings.ContainsKey(p.Name))
+            .ToDictionary(p => p.Name);
     }
 
     /// <inheritdoc />
@@ -567,6 +580,393 @@ public sealed class FunctionalShardedRepositoryADO<TEntity, TId>
                 queryResult.FailedShards,
                 elapsed);
         });
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, ShardedSpecificationResult<TEntity>>> QueryAllShardsAsync(
+        Specification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+
+        var specTypeName = specification.GetType().Name;
+        _logger.LogDebug(
+            "Starting specification scatter-gather query for {EntityType} (Specification={SpecificationType}) across all shards",
+            typeof(TEntity).Name, specTypeName);
+        var sw = Stopwatch.GetTimestamp();
+
+        var scatterResult = await _queryExecutor.ExecuteAllAsync<IReadOnlyList<TEntity>>(
+            async (shardId, ct) =>
+            {
+                var connResult = await _connectionFactory.GetConnectionAsync(shardId, ct).ConfigureAwait(false);
+                return await connResult.MapAsync(async connection =>
+                {
+                    await using var _ = connection.ConfigureAwait(false);
+                    var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
+                    var (sql, addParams) = BuildSpecificationSelectSql(sqlBuilder, specification);
+
+                    using var cmd = connection.CreateCommand();
+                    cmd.CommandText = sql;
+                    addParams(cmd);
+
+                    var items = (IReadOnlyList<TEntity>)await ReadEntitiesAsync(cmd, ct).ConfigureAwait(false);
+                    return (IReadOnlyList<IReadOnlyList<TEntity>>)[items];
+                }).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return scatterResult.Map(queryResult =>
+            BuildSpecificationResult(queryResult, specification, sw, "query"));
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, ShardedPagedResult<TEntity>>> QueryAllShardsPagedAsync(
+        Specification<TEntity> specification,
+        ShardedPaginationOptions pagination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(pagination);
+
+        var specTypeName = specification.GetType().Name;
+        _logger.LogDebug(
+            "Starting paged specification scatter-gather query for {EntityType} (Specification={SpecificationType}) across all shards (Page={Page}, PageSize={PageSize})",
+            typeof(TEntity).Name, specTypeName, pagination.Page, pagination.PageSize);
+        var sw = Stopwatch.GetTimestamp();
+
+        var scatterResult = await _queryExecutor.ExecuteAllAsync<IReadOnlyList<TEntity>>(
+            async (shardId, ct) =>
+            {
+                var connResult = await _connectionFactory.GetConnectionAsync(shardId, ct).ConfigureAwait(false);
+                return await connResult.MapAsync(async connection =>
+                {
+                    await using var _ = connection.ConfigureAwait(false);
+                    var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
+                    var (sql, addParams) = BuildSpecificationSelectSql(sqlBuilder, specification);
+
+                    using var cmd = connection.CreateCommand();
+                    cmd.CommandText = sql;
+                    addParams(cmd);
+
+                    var items = (IReadOnlyList<TEntity>)await ReadEntitiesAsync(cmd, ct).ConfigureAwait(false);
+                    return (IReadOnlyList<IReadOnlyList<TEntity>>)[items];
+                }).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        var countResult = await _queryExecutor.ExecuteAllAsync<ShardAggregatePartial<long>>(
+            async (shardId, ct) =>
+            {
+                var connResult = await _connectionFactory.GetConnectionAsync(shardId, ct).ConfigureAwait(false);
+                return await connResult.MapAsync(async connection =>
+                {
+                    await using var _ = connection.ConfigureAwait(false);
+                    var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
+                    var (sql, addParams) = sqlBuilder.BuildAggregationSql(
+                        _mapping.TableName, "COUNT(*)", specification.ToExpression());
+
+                    using var cmd = connection.CreateCommand();
+                    cmd.CommandText = sql;
+                    addParams(cmd);
+
+                    var result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+                    var count = Convert.ToInt64(result, CultureInfo.InvariantCulture);
+
+                    return (IReadOnlyList<ShardAggregatePartial<long>>)
+                        [new ShardAggregatePartial<long>(shardId, count, count, null, null)];
+                }).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return scatterResult.Bind((ShardedQueryResult<IReadOnlyList<TEntity>> queryResult) =>
+            countResult.Map((ShardedQueryResult<ShardAggregatePartial<long>> countQueryResult) =>
+            {
+                var elapsed = Stopwatch.GetElapsedTime(sw);
+                var mergeStart = Stopwatch.GetTimestamp();
+                var perShardItems = BuildPerShardItemsDictionary(queryResult);
+                var pagedItems = ScatterGatherResultMerger.MergeOrderAndPaginate(
+                    perShardItems, specification, pagination.Page, pagination.PageSize);
+                var mergeElapsed = Stopwatch.GetElapsedTime(mergeStart);
+
+                var countPerShard = new Dictionary<string, long>();
+                foreach (var partial in countQueryResult.Results)
+                {
+                    countPerShard[partial.ShardId] = partial.Count;
+                }
+
+                var totalCount = countPerShard.Values.Sum();
+                var totalShards = queryResult.SuccessfulShards.Count + queryResult.FailedShards.Count;
+
+                LogSpecificationResult(totalShards, queryResult.FailedShards.Count, elapsed, "paged query");
+
+                RecordSpecificationMetrics(
+                    specTypeName, "paged_query", totalShards,
+                    queryResult.FailedShards.Count, pagedItems.Count,
+                    mergeElapsed.TotalMilliseconds, perShardItems);
+
+                _logger.LogDebug(
+                    "Specification paged query pagination merge for {EntityType}: MergeDuration={MergeDurationMs:F1}ms, PageItems={PageItems}",
+                    typeof(TEntity).Name, mergeElapsed.TotalMilliseconds, pagedItems.Count);
+
+                return new ShardedPagedResult<TEntity>(
+                    pagedItems,
+                    totalCount,
+                    pagination.Page,
+                    pagination.PageSize,
+                    countPerShard,
+                    queryResult.FailedShards);
+            }));
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, ShardedCountResult>> CountAllShardsAsync(
+        Specification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+
+        var specTypeName = specification.GetType().Name;
+        _logger.LogDebug(
+            "Starting specification count across all shards for {EntityType} (Specification={SpecificationType})",
+            typeof(TEntity).Name, specTypeName);
+        var sw = Stopwatch.GetTimestamp();
+
+        var scatterResult = await _queryExecutor.ExecuteAllAsync<ShardAggregatePartial<long>>(
+            async (shardId, ct) =>
+            {
+                var connResult = await _connectionFactory.GetConnectionAsync(shardId, ct).ConfigureAwait(false);
+                return await connResult.MapAsync(async connection =>
+                {
+                    await using var _ = connection.ConfigureAwait(false);
+                    var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
+                    var (sql, addParams) = sqlBuilder.BuildAggregationSql(
+                        _mapping.TableName, "COUNT(*)", specification.ToExpression());
+
+                    using var cmd = connection.CreateCommand();
+                    cmd.CommandText = sql;
+                    addParams(cmd);
+
+                    var result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+                    var count = Convert.ToInt64(result, CultureInfo.InvariantCulture);
+
+                    return (IReadOnlyList<ShardAggregatePartial<long>>)
+                        [new ShardAggregatePartial<long>(shardId, count, count, null, null)];
+                }).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return scatterResult.Map((ShardedQueryResult<ShardAggregatePartial<long>> queryResult) =>
+        {
+            var elapsed = Stopwatch.GetElapsedTime(sw);
+            var countPerShard = new Dictionary<string, long>();
+
+            foreach (var partial in queryResult.Results)
+            {
+                countPerShard[partial.ShardId] = partial.Count;
+            }
+
+            var totalCount = countPerShard.Values.Sum();
+            var totalShards = queryResult.SuccessfulShards.Count + queryResult.FailedShards.Count;
+
+            LogSpecificationResult(totalShards, queryResult.FailedShards.Count, elapsed, "count");
+
+            _metrics?.RecordSpecificationQuery(specTypeName, "count", totalShards, (int)totalCount);
+
+            return new ShardedCountResult(totalCount, countPerShard, queryResult.FailedShards);
+        });
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, ShardedSpecificationResult<TEntity>>> QueryShardsAsync(
+        Specification<TEntity> specification,
+        IReadOnlyList<string> shardIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(shardIds);
+
+        var specTypeName = specification.GetType().Name;
+        _logger.LogDebug(
+            "Starting specification scatter-gather query for {EntityType} (Specification={SpecificationType}) across {ShardCount} specific shards",
+            typeof(TEntity).Name, specTypeName, shardIds.Count);
+        var sw = Stopwatch.GetTimestamp();
+
+        var scatterResult = await _queryExecutor.ExecuteAsync<IReadOnlyList<TEntity>>(
+            shardIds,
+            async (shardId, ct) =>
+            {
+                var connResult = await _connectionFactory.GetConnectionAsync(shardId, ct).ConfigureAwait(false);
+                return await connResult.MapAsync(async connection =>
+                {
+                    await using var _ = connection.ConfigureAwait(false);
+                    var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
+                    var (sql, addParams) = BuildSpecificationSelectSql(sqlBuilder, specification);
+
+                    using var cmd = connection.CreateCommand();
+                    cmd.CommandText = sql;
+                    addParams(cmd);
+
+                    var items = (IReadOnlyList<TEntity>)await ReadEntitiesAsync(cmd, ct).ConfigureAwait(false);
+                    return (IReadOnlyList<IReadOnlyList<TEntity>>)[items];
+                }).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return scatterResult.Map(queryResult =>
+            BuildSpecificationResult(queryResult, specification, sw, "query"));
+    }
+
+    private (string Sql, Action<IDbCommand> AddParameters) BuildSpecificationSelectSql(
+        SpecificationSqlBuilder<TEntity> sqlBuilder,
+        Specification<TEntity> specification)
+    {
+        if (specification is QuerySpecification<TEntity> querySpec)
+        {
+            return sqlBuilder.BuildSelectStatement(_mapping.TableName, querySpec);
+        }
+
+        return sqlBuilder.BuildSelectStatement(_mapping.TableName, specification);
+    }
+
+    private ShardedSpecificationResult<TEntity> BuildSpecificationResult(
+        ShardedQueryResult<IReadOnlyList<TEntity>> queryResult,
+        Specification<TEntity> specification,
+        long startTimestamp,
+        string operationKind)
+    {
+        var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
+        var mergeStart = Stopwatch.GetTimestamp();
+        var perShardItems = BuildPerShardItemsDictionary(queryResult);
+        var mergedItems = ScatterGatherResultMerger.MergeAndOrder(perShardItems, specification);
+        var mergeElapsed = Stopwatch.GetElapsedTime(mergeStart);
+
+        var itemsPerShard = new Dictionary<string, int>();
+        foreach (var (shardId, items) in perShardItems)
+        {
+            itemsPerShard[shardId] = items.Count;
+        }
+
+        var totalShards = queryResult.SuccessfulShards.Count + queryResult.FailedShards.Count;
+        LogSpecificationResult(totalShards, queryResult.FailedShards.Count, elapsed, operationKind);
+
+        RecordSpecificationMetrics(
+            specification.GetType().Name, operationKind, totalShards,
+            queryResult.FailedShards.Count, mergedItems.Count,
+            mergeElapsed.TotalMilliseconds, perShardItems);
+
+        var durationPerShard = new Dictionary<string, TimeSpan>();
+        foreach (var shardId in queryResult.SuccessfulShards)
+        {
+            durationPerShard[shardId] = elapsed;
+        }
+
+        return new ShardedSpecificationResult<TEntity>(
+            mergedItems,
+            itemsPerShard,
+            elapsed,
+            durationPerShard,
+            queryResult.FailedShards);
+    }
+
+    private static Dictionary<string, IReadOnlyList<TEntity>> BuildPerShardItemsDictionary(
+        ShardedQueryResult<IReadOnlyList<TEntity>> queryResult)
+    {
+        var perShardItems = new Dictionary<string, IReadOnlyList<TEntity>>();
+        for (var i = 0; i < queryResult.SuccessfulShards.Count; i++)
+        {
+            perShardItems[queryResult.SuccessfulShards[i]] = queryResult.Results[i];
+        }
+
+        return perShardItems;
+    }
+
+    private void RecordSpecificationMetrics(
+        string specTypeName,
+        string operationKind,
+        int totalShards,
+        int failedShardCount,
+        int totalItems,
+        double mergeDurationMs,
+        Dictionary<string, IReadOnlyList<TEntity>> perShardItems)
+    {
+        _metrics?.RecordSpecificationQuery(specTypeName, operationKind, totalShards, totalItems);
+        _metrics?.RecordSpecificationMergeDuration(operationKind, totalItems, mergeDurationMs);
+
+        foreach (var (shardId, items) in perShardItems)
+        {
+            _metrics?.RecordSpecificationItemsPerShard(shardId, items.Count);
+        }
+
+        if (failedShardCount > 0)
+        {
+            _metrics?.RecordPartialFailure(failedShardCount, totalShards);
+        }
+    }
+
+    private void LogSpecificationResult(int totalShards, int failedShardCount, TimeSpan elapsed, string operation)
+    {
+        if (failedShardCount > 0)
+        {
+            _logger.LogWarning(
+                "Specification {Operation} for {EntityType} completed with partial results: {FailedShards}/{TotalShards} shards failed in {DurationMs:F1}ms",
+                operation, typeof(TEntity).Name, failedShardCount, totalShards, elapsed.TotalMilliseconds);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Specification {Operation} for {EntityType} completed: Shards={TotalShards}, Duration={DurationMs:F1}ms",
+                operation, typeof(TEntity).Name, totalShards, elapsed.TotalMilliseconds);
+        }
+    }
+
+    private async Task<List<TEntity>> ReadEntitiesAsync(IDbCommand command, CancellationToken cancellationToken)
+    {
+        var entities = new List<TEntity>();
+
+        await using var reader = await ((MySqlCommand)command).ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            entities.Add(MapReaderToEntity(reader));
+        }
+
+        return entities;
+    }
+
+    private TEntity MapReaderToEntity(MySqlDataReader reader)
+    {
+        var entity = new TEntity();
+
+        foreach (var (propertyName, columnName) in _mapping.ColumnMappings)
+        {
+            if (!_propertyCache.TryGetValue(propertyName, out var property))
+                continue;
+
+            var ordinal = reader.GetOrdinal(columnName);
+            if (reader.IsDBNull(ordinal))
+                continue;
+
+            var value = reader.GetValue(ordinal);
+            var convertedValue = ConvertValue(value, property.PropertyType);
+            property.SetValue(entity, convertedValue);
+        }
+
+        return entity;
+    }
+
+    private static object? ConvertValue(object value, Type targetType)
+    {
+        if (value is DBNull)
+            return null;
+
+        var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+        if (underlyingType == value.GetType())
+            return value;
+
+        if (underlyingType.IsEnum)
+            return Enum.ToObject(underlyingType, value);
+
+        return Convert.ChangeType(value, underlyingType, CultureInfo.InvariantCulture);
     }
 
     private FunctionalRepositoryADO<TEntity, TId> CreateRepository(IDbConnection connection)

@@ -2,10 +2,13 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq.Expressions;
 using System.Numerics;
+using Encina.DomainModeling;
+using Encina.DomainModeling.Sharding;
 using Encina.MongoDB.Aggregation;
 using Encina.MongoDB.Repository;
 using Encina.Sharding;
 using Encina.Sharding.Aggregation;
+using Encina.Sharding.Diagnostics;
 using Encina.Sharding.Execution;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -51,7 +54,8 @@ namespace Encina.MongoDB.Sharding;
 /// </example>
 public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
     IFunctionalShardedRepository<TEntity, TId>,
-    IShardedAggregationSupport<TEntity, TId>
+    IShardedAggregationSupport<TEntity, TId>,
+    IShardedSpecificationSupport<TEntity, TId>
     where TEntity : class
     where TId : notnull
 {
@@ -64,6 +68,7 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
     private readonly IRequestContext? _requestContext;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
+    private readonly ShardRoutingMetrics? _metrics;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FunctionalShardedRepositoryMongoDB{TEntity, TId}"/> class
@@ -75,13 +80,15 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
     /// <param name="logger">The logger instance for structured logging.</param>
     /// <param name="requestContext">Optional request context for audit field population.</param>
     /// <param name="timeProvider">Optional time provider for audit timestamps.</param>
+    /// <param name="metrics">Optional shard routing metrics for specification query observability.</param>
     public FunctionalShardedRepositoryMongoDB(
         IShardedMongoCollectionFactory collectionFactory,
         Expression<Func<TEntity, TId>> idSelector,
         string collectionName,
         ILogger<FunctionalShardedRepositoryMongoDB<TEntity, TId>> logger,
         IRequestContext? requestContext = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ShardRoutingMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(collectionFactory);
         ArgumentNullException.ThrowIfNull(idSelector);
@@ -95,6 +102,7 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
         _requestContext = requestContext;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _logger = logger;
+        _metrics = metrics;
     }
 
     /// <summary>
@@ -109,6 +117,7 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
     /// <param name="logger">The logger instance for structured logging.</param>
     /// <param name="requestContext">Optional request context for audit field population.</param>
     /// <param name="timeProvider">Optional time provider for audit timestamps.</param>
+    /// <param name="metrics">Optional shard routing metrics for specification query observability.</param>
     public FunctionalShardedRepositoryMongoDB(
         IShardRouter<TEntity> router,
         IShardedMongoCollectionFactory collectionFactory,
@@ -117,7 +126,8 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
         string collectionName,
         ILogger<FunctionalShardedRepositoryMongoDB<TEntity, TId>> logger,
         IRequestContext? requestContext = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ShardRoutingMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(router);
         ArgumentNullException.ThrowIfNull(collectionFactory);
@@ -135,6 +145,7 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
         _requestContext = requestContext;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _logger = logger;
+        _metrics = metrics;
     }
 
     /// <inheritdoc />
@@ -717,6 +728,426 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
                 queryResult.FailedShards,
                 elapsed);
         });
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, ShardedSpecificationResult<TEntity>>> QueryAllShardsAsync(
+        Specification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+
+        var specTypeName = specification.GetType().Name;
+        _logger.LogDebug(
+            "Starting specification scatter-gather query for {EntityType} across all shards (Specification={SpecificationType})",
+            typeof(TEntity).Name, specTypeName);
+        var sw = Stopwatch.GetTimestamp();
+
+        if (_useNativeSharding)
+        {
+            var collectionResult = _collectionFactory.GetDefaultCollection<TEntity>(_collectionName);
+            return await collectionResult.MapAsync(async collection =>
+            {
+                var items = await EvaluateSpecificationAsync(collection, specification, cancellationToken)
+                    .ConfigureAwait(false);
+
+                var elapsed = Stopwatch.GetElapsedTime(sw);
+                LogSpecificationResult(1, 0, elapsed, "query");
+
+                return new ShardedSpecificationResult<TEntity>(
+                    items,
+                    new Dictionary<string, int> { ["mongos"] = items.Count },
+                    elapsed,
+                    new Dictionary<string, TimeSpan> { ["mongos"] = elapsed },
+                    []);
+            }).ConfigureAwait(false);
+        }
+
+        var scatterResult = await _queryExecutor!.ExecuteAllAsync<IReadOnlyList<TEntity>>(
+            async (shardId, ct) =>
+            {
+                var collectionResult = _collectionFactory.GetCollectionForShard<TEntity>(shardId, _collectionName);
+                return await collectionResult.MapAsync(async collection =>
+                {
+                    IReadOnlyList<TEntity> items = await EvaluateSpecificationAsync(collection, specification, ct)
+                        .ConfigureAwait(false);
+                    return (IReadOnlyList<IReadOnlyList<TEntity>>)[items];
+                }).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return scatterResult.Map(queryResult =>
+            BuildSpecificationResult(queryResult, specification, sw, "query"));
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, ShardedPagedResult<TEntity>>> QueryAllShardsPagedAsync(
+        Specification<TEntity> specification,
+        ShardedPaginationOptions pagination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(pagination);
+
+        var specTypeName = specification.GetType().Name;
+        _logger.LogDebug(
+            "Starting paged specification scatter-gather query for {EntityType} across all shards (Specification={SpecificationType}, Page={Page}, PageSize={PageSize})",
+            typeof(TEntity).Name, specTypeName, pagination.Page, pagination.PageSize);
+        var sw = Stopwatch.GetTimestamp();
+
+        if (_useNativeSharding)
+        {
+            var collectionResult = _collectionFactory.GetDefaultCollection<TEntity>(_collectionName);
+            return await collectionResult.MapAsync(async collection =>
+            {
+                var items = await EvaluateSpecificationAsync(collection, specification, cancellationToken)
+                    .ConfigureAwait(false);
+
+                var filterBuilder = new SpecificationFilterBuilder<TEntity>();
+                var filter = BuildSpecificationFilter(filterBuilder, specification);
+                var totalCount = await collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+
+                var perShardItems = new Dictionary<string, IReadOnlyList<TEntity>> { ["mongos"] = items };
+                var pagedItems = ScatterGatherResultMerger.MergeOrderAndPaginate(
+                    perShardItems, specification, pagination.Page, pagination.PageSize);
+
+                var elapsed = Stopwatch.GetElapsedTime(sw);
+                LogSpecificationResult(1, 0, elapsed, "paged query");
+
+                return new ShardedPagedResult<TEntity>(
+                    pagedItems,
+                    totalCount,
+                    pagination.Page,
+                    pagination.PageSize,
+                    new Dictionary<string, long> { ["mongos"] = totalCount },
+                    []);
+            }).ConfigureAwait(false);
+        }
+
+        var scatterResult = await _queryExecutor!.ExecuteAllAsync<IReadOnlyList<TEntity>>(
+            async (shardId, ct) =>
+            {
+                var collectionResult = _collectionFactory.GetCollectionForShard<TEntity>(shardId, _collectionName);
+                return await collectionResult.MapAsync(async collection =>
+                {
+                    IReadOnlyList<TEntity> items = await EvaluateSpecificationAsync(collection, specification, ct)
+                        .ConfigureAwait(false);
+                    return (IReadOnlyList<IReadOnlyList<TEntity>>)[items];
+                }).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        var countResult = await _queryExecutor!.ExecuteAllAsync<ShardAggregatePartial<long>>(
+            async (shardId, ct) =>
+            {
+                var collectionResult = _collectionFactory.GetCollectionForShard<TEntity>(shardId, _collectionName);
+                return await collectionResult.MapAsync(async collection =>
+                {
+                    var filterBuilder = new SpecificationFilterBuilder<TEntity>();
+                    var filter = BuildSpecificationFilter(filterBuilder, specification);
+                    var count = await collection.CountDocumentsAsync(filter, cancellationToken: ct)
+                        .ConfigureAwait(false);
+
+                    return (IReadOnlyList<ShardAggregatePartial<long>>)
+                        [new ShardAggregatePartial<long>(shardId, count, count, null, null)];
+                }).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return scatterResult.Bind(queryResult =>
+            countResult.Map(countQueryResult =>
+            {
+                var elapsed = Stopwatch.GetElapsedTime(sw);
+
+                // Merge and paginate items
+                var mergeStart = Stopwatch.GetTimestamp();
+                var perShardItems = BuildPerShardItemsDictionary(queryResult);
+                var pagedItems = ScatterGatherResultMerger.MergeOrderAndPaginate(
+                    perShardItems, specification, pagination.Page, pagination.PageSize);
+                var mergeElapsed = Stopwatch.GetElapsedTime(mergeStart);
+
+                // Aggregate counts per shard
+                var countPerShard = new Dictionary<string, long>();
+                foreach (var partial in countQueryResult.Results)
+                {
+                    countPerShard[partial.ShardId] = partial.Count;
+                }
+
+                var totalCount = countPerShard.Values.Sum();
+                var totalShards = queryResult.SuccessfulShards.Count + queryResult.FailedShards.Count;
+
+                LogSpecificationResult(totalShards, queryResult.FailedShards.Count, elapsed, "paged query");
+                RecordSpecificationMetrics(
+                    specTypeName, "paged_query", totalShards,
+                    queryResult.FailedShards.Count, pagedItems.Count,
+                    mergeElapsed.TotalMilliseconds, perShardItems);
+
+                _logger.LogDebug(
+                    "Specification paged query pagination merge for {EntityType}: MergeDuration={MergeDurationMs:F1}ms, PageItems={PageItems}",
+                    typeof(TEntity).Name, mergeElapsed.TotalMilliseconds, pagedItems.Count);
+
+                return new ShardedPagedResult<TEntity>(
+                    pagedItems,
+                    totalCount,
+                    pagination.Page,
+                    pagination.PageSize,
+                    countPerShard,
+                    queryResult.FailedShards);
+            }));
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, ShardedCountResult>> CountAllShardsAsync(
+        Specification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+
+        var specTypeName = specification.GetType().Name;
+        _logger.LogDebug(
+            "Starting specification count across all shards for {EntityType} (Specification={SpecificationType})",
+            typeof(TEntity).Name, specTypeName);
+        var sw = Stopwatch.GetTimestamp();
+
+        if (_useNativeSharding)
+        {
+            var collectionResult = _collectionFactory.GetDefaultCollection<TEntity>(_collectionName);
+            return await collectionResult.MapAsync(async collection =>
+            {
+                var filterBuilder = new SpecificationFilterBuilder<TEntity>();
+                var filter = BuildSpecificationFilter(filterBuilder, specification);
+                var count = await collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+
+                var elapsed = Stopwatch.GetElapsedTime(sw);
+                LogSpecificationResult(1, 0, elapsed, "count");
+
+                return new ShardedCountResult(
+                    count,
+                    new Dictionary<string, long> { ["mongos"] = count },
+                    []);
+            }).ConfigureAwait(false);
+        }
+
+        var scatterResult = await _queryExecutor!.ExecuteAllAsync<ShardAggregatePartial<long>>(
+            async (shardId, ct) =>
+            {
+                var collectionResult = _collectionFactory.GetCollectionForShard<TEntity>(shardId, _collectionName);
+                return await collectionResult.MapAsync(async collection =>
+                {
+                    var filterBuilder = new SpecificationFilterBuilder<TEntity>();
+                    var filter = BuildSpecificationFilter(filterBuilder, specification);
+                    var count = await collection.CountDocumentsAsync(filter, cancellationToken: ct)
+                        .ConfigureAwait(false);
+
+                    return (IReadOnlyList<ShardAggregatePartial<long>>)
+                        [new ShardAggregatePartial<long>(shardId, count, count, null, null)];
+                }).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return scatterResult.Map(queryResult =>
+        {
+            var elapsed = Stopwatch.GetElapsedTime(sw);
+            var countPerShard = new Dictionary<string, long>();
+
+            foreach (var partial in queryResult.Results)
+            {
+                countPerShard[partial.ShardId] = partial.Count;
+            }
+
+            var totalCount = countPerShard.Values.Sum();
+            var totalShards = queryResult.SuccessfulShards.Count + queryResult.FailedShards.Count;
+
+            LogSpecificationResult(totalShards, queryResult.FailedShards.Count, elapsed, "count");
+            _metrics?.RecordSpecificationQuery(specTypeName, "count", totalShards, (int)totalCount);
+
+            return new ShardedCountResult(totalCount, countPerShard, queryResult.FailedShards);
+        });
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, ShardedSpecificationResult<TEntity>>> QueryShardsAsync(
+        Specification<TEntity> specification,
+        IReadOnlyList<string> shardIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(shardIds);
+
+        var specTypeName = specification.GetType().Name;
+        _logger.LogDebug(
+            "Starting specification scatter-gather query for {EntityType} across {ShardCount} specific shards (Specification={SpecificationType})",
+            typeof(TEntity).Name, shardIds.Count, specTypeName);
+        var sw = Stopwatch.GetTimestamp();
+
+        if (_useNativeSharding)
+        {
+            // In native mode, mongos handles routing — shard IDs are ignored.
+            var collectionResult = _collectionFactory.GetDefaultCollection<TEntity>(_collectionName);
+            return await collectionResult.MapAsync(async collection =>
+            {
+                var items = await EvaluateSpecificationAsync(collection, specification, cancellationToken)
+                    .ConfigureAwait(false);
+
+                var elapsed = Stopwatch.GetElapsedTime(sw);
+                LogSpecificationResult(1, 0, elapsed, "query");
+
+                return new ShardedSpecificationResult<TEntity>(
+                    items,
+                    new Dictionary<string, int> { ["mongos"] = items.Count },
+                    elapsed,
+                    new Dictionary<string, TimeSpan> { ["mongos"] = elapsed },
+                    []);
+            }).ConfigureAwait(false);
+        }
+
+        var scatterResult = await _queryExecutor!.ExecuteAsync<IReadOnlyList<TEntity>>(
+            shardIds,
+            async (shardId, ct) =>
+            {
+                var collectionResult = _collectionFactory.GetCollectionForShard<TEntity>(shardId, _collectionName);
+                return await collectionResult.MapAsync(async collection =>
+                {
+                    IReadOnlyList<TEntity> items = await EvaluateSpecificationAsync(collection, specification, ct)
+                        .ConfigureAwait(false);
+                    return (IReadOnlyList<IReadOnlyList<TEntity>>)[items];
+                }).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return scatterResult.Map(queryResult =>
+            BuildSpecificationResult(queryResult, specification, sw, "query"));
+    }
+
+    private static async Task<IReadOnlyList<TEntity>> EvaluateSpecificationAsync(
+        IMongoCollection<TEntity> collection,
+        Specification<TEntity> specification,
+        CancellationToken cancellationToken)
+    {
+        if (specification is IQuerySpecification<TEntity> querySpec)
+        {
+            var evaluator = new SpecificationEvaluatorMongoDB<TEntity>(collection);
+            return await evaluator.ToListAsync(querySpec, cancellationToken).ConfigureAwait(false);
+        }
+
+        // Base Specification — filter only, no ordering/pagination
+        var filterBuilder = new SpecificationFilterBuilder<TEntity>();
+        var filter = filterBuilder.BuildFilter(specification);
+        return await collection.Find(filter).ToListAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static FilterDefinition<TEntity> BuildSpecificationFilter(
+        SpecificationFilterBuilder<TEntity> filterBuilder,
+        Specification<TEntity> specification)
+    {
+        if (specification is QuerySpecification<TEntity> querySpec)
+        {
+            return filterBuilder.BuildFilter(querySpec);
+        }
+
+        return filterBuilder.BuildFilter(specification);
+    }
+
+    private ShardedSpecificationResult<TEntity> BuildSpecificationResult(
+        ShardedQueryResult<IReadOnlyList<TEntity>> queryResult,
+        Specification<TEntity> specification,
+        long startTimestamp,
+        string operationKind)
+    {
+        var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
+
+        // Build per-shard items dictionary and merge
+        var mergeStart = Stopwatch.GetTimestamp();
+        var perShardItems = BuildPerShardItemsDictionary(queryResult);
+        var mergedItems = ScatterGatherResultMerger.MergeAndOrder(perShardItems, specification);
+        var mergeElapsed = Stopwatch.GetElapsedTime(mergeStart);
+
+        // Build per-shard counts
+        var itemsPerShard = new Dictionary<string, int>();
+        foreach (var (shardId, items) in perShardItems)
+        {
+            itemsPerShard[shardId] = items.Count;
+        }
+
+        var totalShards = queryResult.SuccessfulShards.Count + queryResult.FailedShards.Count;
+        LogSpecificationResult(totalShards, queryResult.FailedShards.Count, elapsed, operationKind);
+
+        // Record specification-level metrics
+        RecordSpecificationMetrics(
+            specification.GetType().Name, operationKind, totalShards,
+            queryResult.FailedShards.Count, mergedItems.Count,
+            mergeElapsed.TotalMilliseconds, perShardItems);
+
+        // Duration per shard is not tracked individually at the executor level,
+        // so we report the total duration for all shards
+        var durationPerShard = new Dictionary<string, TimeSpan>();
+        foreach (var shardId in queryResult.SuccessfulShards)
+        {
+            durationPerShard[shardId] = elapsed;
+        }
+
+        return new ShardedSpecificationResult<TEntity>(
+            mergedItems,
+            itemsPerShard,
+            elapsed,
+            durationPerShard,
+            queryResult.FailedShards);
+    }
+
+    private static Dictionary<string, IReadOnlyList<TEntity>> BuildPerShardItemsDictionary(
+        ShardedQueryResult<IReadOnlyList<TEntity>> queryResult)
+    {
+        var perShardItems = new Dictionary<string, IReadOnlyList<TEntity>>();
+
+        // Each shard returns a single IReadOnlyList<TEntity> wrapped in a list.
+        // The executor flattens these, so Results[i] is the items from the i-th successful shard.
+        for (var i = 0; i < queryResult.SuccessfulShards.Count; i++)
+        {
+            perShardItems[queryResult.SuccessfulShards[i]] = queryResult.Results[i];
+        }
+
+        return perShardItems;
+    }
+
+    private void RecordSpecificationMetrics(
+        string specTypeName,
+        string operationKind,
+        int totalShards,
+        int failedShardCount,
+        int totalItems,
+        double mergeDurationMs,
+        Dictionary<string, IReadOnlyList<TEntity>> perShardItems)
+    {
+        _metrics?.RecordSpecificationQuery(specTypeName, operationKind, totalShards, totalItems);
+        _metrics?.RecordSpecificationMergeDuration(operationKind, totalItems, mergeDurationMs);
+
+        foreach (var (shardId, items) in perShardItems)
+        {
+            _metrics?.RecordSpecificationItemsPerShard(shardId, items.Count);
+        }
+
+        if (failedShardCount > 0)
+        {
+            _metrics?.RecordPartialFailure(failedShardCount, totalShards);
+        }
+    }
+
+    private void LogSpecificationResult(int totalShards, int failedShardCount, TimeSpan elapsed, string operation)
+    {
+        if (failedShardCount > 0)
+        {
+            _logger.LogWarning(
+                "Specification {Operation} for {EntityType} completed with partial results: {FailedShards}/{TotalShards} shards failed in {DurationMs:F1}ms",
+                operation, typeof(TEntity).Name, failedShardCount, totalShards, elapsed.TotalMilliseconds);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Specification {Operation} for {EntityType} completed: Shards={TotalShards}, Duration={DurationMs:F1}ms",
+                operation, typeof(TEntity).Name, totalShards, elapsed.TotalMilliseconds);
+        }
     }
 
     private Either<EncinaError, IMongoCollection<TEntity>> ResolveCollection(string shardKey)

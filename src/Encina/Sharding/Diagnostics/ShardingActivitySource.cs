@@ -234,6 +234,90 @@ internal static class ShardingActivitySource
     }
 
     /// <summary>
+    /// Starts a specification-based scatter-gather activity.
+    /// </summary>
+    /// <param name="specificationType">The specification type name.</param>
+    /// <param name="operationKind">The operation kind (e.g., "query", "paged_query", "count").</param>
+    /// <param name="shardCount">The number of shards that will be queried.</param>
+    /// <returns>The started activity, or <c>null</c> if no listener is active.</returns>
+    internal static Activity? StartSpecificationScatterGather(
+        string specificationType,
+        string operationKind,
+        int shardCount)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity(
+            "Encina.Sharding.SpecificationScatterGather", ActivityKind.Internal);
+        activity?.SetTag(ActivityTagNames.SpecificationType, specificationType);
+        activity?.SetTag(ActivityTagNames.SpecificationOperationKind, operationKind);
+        activity?.SetTag(ActivityTagNames.ShardCount, shardCount);
+        return activity;
+    }
+
+    /// <summary>
+    /// Adds pagination context to a specification scatter-gather activity.
+    /// </summary>
+    /// <param name="activity">The specification scatter-gather activity.</param>
+    /// <param name="strategy">The pagination strategy name.</param>
+    /// <param name="page">The requested page number.</param>
+    /// <param name="pageSize">The requested page size.</param>
+    internal static void SetPaginationContext(
+        Activity? activity,
+        string strategy,
+        int page,
+        int pageSize)
+    {
+        if (activity is null)
+        {
+            return;
+        }
+
+        activity.SetTag(ActivityTagNames.PaginationStrategy, strategy);
+        activity.SetTag(ActivityTagNames.PaginationPage, page);
+        activity.SetTag(ActivityTagNames.PaginationPageSize, pageSize);
+    }
+
+    /// <summary>
+    /// Completes a specification scatter-gather activity with result information.
+    /// </summary>
+    /// <param name="activity">The activity to complete.</param>
+    /// <param name="successCount">Number of successful shard queries.</param>
+    /// <param name="failedCount">Number of failed shard queries.</param>
+    /// <param name="totalItems">Total number of items in the result.</param>
+    /// <param name="mergeDurationMs">Duration of the merge/pagination step in milliseconds.</param>
+    internal static void CompleteSpecificationScatterGather(
+        Activity? activity,
+        int successCount,
+        int failedCount,
+        int totalItems,
+        double mergeDurationMs)
+    {
+        if (activity is null)
+        {
+            return;
+        }
+
+        activity.SetTag("encina.sharding.scatter.success_count", successCount);
+        activity.SetTag("encina.sharding.scatter.failed_count", failedCount);
+        activity.SetTag(ActivityTagNames.SpecificationTotalItems, totalItems);
+        activity.SetTag(ActivityTagNames.SpecificationMergeDurationMs, mergeDurationMs);
+
+        var status = failedCount == 0
+            ? ActivityStatusCode.Ok
+            : ActivityStatusCode.Error;
+
+        activity.SetStatus(status, failedCount > 0
+            ? $"{failedCount} shard(s) failed during specification scatter-gather"
+            : null);
+
+        activity.Dispose();
+    }
+
+    /// <summary>
     /// Completes a distributed aggregation activity with result information.
     /// </summary>
     /// <param name="activity">The aggregation activity to complete.</param>
