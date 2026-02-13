@@ -664,6 +664,5 @@ services.AddCursorPagination<EncryptedCursorEncoder>();
 
 ## Related Documentation
 
-- [Offset-Based Pagination](./offset-pagination.md)
 - [Multi-Tenancy](./multi-tenancy.md)
 - [Query Caching](./query-caching.md)

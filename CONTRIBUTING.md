@@ -23,7 +23,7 @@ Gracias por contribuir. Este proyecto prioriza código limpio, rail funcional (s
 
 ## Flujo de CI
 
-- `dotnet-ci.yml` aplica formato, analizadores en `-warnaserror`, tests con cobertura y gate 90%.
+- `ci.yml` aplica formato, analizadores en `-warnaserror`, tests con cobertura y gate 90%.
 - `conventional-commits.yml` valida títulos de PR.
 - `codeql.yml`, `sbom.yml`, `benchmarks.yml` cubren seguridad, cadena de suministro y performance.
 

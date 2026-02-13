@@ -309,5 +309,5 @@ The generator returns `SequenceExhausted` error. With default 12 sequence bits, 
 - [Configuration Guide](../guides/id-generation-configuration.md) — When to use each strategy
 - [Scaling Guide](../guides/id-generation-scaling.md) — Machine ID allocation and cluster operations
 - [ADR-011](../architecture/adr/011-id-generation-multi-strategy.md) — Architecture decision rationale
-- [Database Sharding](./database-sharding.md) — Integration with `IShardRouter`
+- [Database Sharding](../architecture/adr/010-database-sharding.md) — Integration with `IShardRouter`
 - [Issue #638](https://github.com/dlrivada/Encina/issues/638) — Feature implementation

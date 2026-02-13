@@ -1704,7 +1704,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - Works with all 8 cache providers (Memory, Hybrid, Redis, Valkey, KeyDB, Dragonfly, Garnet, Memcached)
 - Error resilience: cache failures fall through to database by default
 - Test coverage: 256 tests (184 unit + 19 guard + 29 contract + 16 property + 8 integration + 7 benchmarks)
-- Docs: [docs/features/query-caching.md](../features/query-caching.md)
+- Docs: [docs/features/query-caching.md](./features/query-caching.md)
 
 **#294 - Cursor-based Pagination (RESEARCH)**:
 
