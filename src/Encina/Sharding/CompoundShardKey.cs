@@ -27,7 +27,7 @@ namespace Encina.Sharding;
 /// key.ToString(); // "us-east|customer-123"
 /// </code>
 /// </example>
-public sealed record CompoundShardKey
+public sealed class CompoundShardKey : IEquatable<CompoundShardKey>
 {
     private const char Delimiter = '|';
 
@@ -124,4 +124,57 @@ public sealed record CompoundShardKey
     /// </returns>
     public override string ToString()
         => string.Join(Delimiter, Components);
+
+    /// <inheritdoc />
+    public bool Equals(CompoundShardKey? other)
+    {
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
+
+        if (other is null || Components.Count != other.Components.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < Components.Count; index++)
+        {
+            if (!string.Equals(Components[index], other.Components[index], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj)
+        => obj is CompoundShardKey other && Equals(other);
+
+    /// <summary>
+    /// Compares two compound shard keys for value equality.
+    /// </summary>
+    public static bool operator ==(CompoundShardKey? left, CompoundShardKey? right)
+        => Equals(left, right);
+
+    /// <summary>
+    /// Compares two compound shard keys for value inequality.
+    /// </summary>
+    public static bool operator !=(CompoundShardKey? left, CompoundShardKey? right)
+        => !Equals(left, right);
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+
+        foreach (var component in Components)
+        {
+            hash.Add(component, StringComparer.Ordinal);
+        }
+
+        return hash.ToHashCode();
+    }
 }

@@ -28,7 +28,7 @@ public sealed class ShardedMySqlFixture : IAsyncLifetime
             `ShardKey` VARCHAR(200) NOT NULL,
             `Name` VARCHAR(500) NOT NULL,
             `Value` TEXT NULL,
-            `CreatedAtUtc` DATETIME NOT NULL DEFAULT UTC_TIMESTAMP()
+            `CreatedAtUtc` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         """;
 

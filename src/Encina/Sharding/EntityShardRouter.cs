@@ -82,7 +82,9 @@ internal sealed class EntityShardRouter<TEntity> : IShardRouter<TEntity>
         ArgumentNullException.ThrowIfNull(entity);
 
         return CompoundShardKeyExtractor.Extract(entity)
-            .Bind(key => _inner.GetShardId(key));
+            .Bind(key => key.ComponentCount == 1
+                ? _inner.GetShardId(key.PrimaryComponent)
+                : _inner.GetShardId(key));
     }
 
     /// <inheritdoc />

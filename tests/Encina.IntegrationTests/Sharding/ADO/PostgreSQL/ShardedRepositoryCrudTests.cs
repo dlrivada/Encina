@@ -44,7 +44,7 @@ public sealed class ShardedRepositoryCrudTests : IAsyncLifetime
         services.AddEncinaADOSharding<ShardedTestEntity, string>(mapping =>
         {
             mapping.ToTable("sharded_entities")
-                .HasId(e => e.Id)
+                .HasId(e => e.Id, "id")
                 .MapProperty(e => e.ShardKey, "shard_key")
                 .MapProperty(e => e.Name, "name")
                 .MapProperty(e => e.Value, "value")

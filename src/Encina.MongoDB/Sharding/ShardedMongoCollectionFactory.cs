@@ -27,6 +27,7 @@ public sealed class ShardedMongoCollectionFactory : IShardedMongoCollectionFacto
     private readonly bool _useNativeSharding;
     private readonly ShardTopology? _topology;
     private readonly ConcurrentDictionary<string, IMongoClient> _shardClients = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, string> _shardDatabaseNames = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
 
     /// <summary>
@@ -89,7 +90,14 @@ public sealed class ShardedMongoCollectionFactory : IShardedMongoCollectionFacto
 
         // Application-level mode: get or create a client for this shard
         return GetOrCreateShardClient(shardId)
-            .Map(client => client.GetDatabase(_databaseName).GetCollection<TEntity>(collectionName));
+            .Map(client =>
+            {
+                var databaseName = _shardDatabaseNames.TryGetValue(shardId, out var shardDatabaseName)
+                    ? shardDatabaseName
+                    : _databaseName;
+
+                return client.GetDatabase(databaseName).GetCollection<TEntity>(collectionName);
+            });
     }
 
     /// <inheritdoc />
@@ -141,7 +149,11 @@ public sealed class ShardedMongoCollectionFactory : IShardedMongoCollectionFacto
 
             clientResult.IfRight(client =>
             {
-                collections[shardId] = client.GetDatabase(_databaseName).GetCollection<TEntity>(collectionName);
+                var databaseName = _shardDatabaseNames.TryGetValue(shardId, out var shardDatabaseName)
+                    ? shardDatabaseName
+                    : _databaseName;
+
+                collections[shardId] = client.GetDatabase(databaseName).GetCollection<TEntity>(collectionName);
             });
         }
 
@@ -164,6 +176,7 @@ public sealed class ShardedMongoCollectionFactory : IShardedMongoCollectionFacto
         }
 
         _shardClients.Clear();
+        _shardDatabaseNames.Clear();
         _disposed = true;
     }
 
@@ -177,8 +190,48 @@ public sealed class ShardedMongoCollectionFactory : IShardedMongoCollectionFacto
         return _topology!.GetConnectionString(shardId)
             .Map(connectionString =>
             {
+                var databaseName = ExtractDatabaseName(connectionString) ?? _databaseName;
+
+                _shardDatabaseNames[shardId] = databaseName;
+
                 var client = _shardClients.GetOrAdd(shardId, _ => new MongoClient(connectionString));
                 return client;
             });
+    }
+
+    private static string? ExtractDatabaseName(string connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return null;
+        }
+
+        try
+        {
+            var schemeSeparatorIndex = connectionString.IndexOf("://", StringComparison.Ordinal);
+            var authorityStart = schemeSeparatorIndex >= 0 ? schemeSeparatorIndex + 3 : 0;
+            var pathStart = connectionString.IndexOf('/', authorityStart);
+
+            if (pathStart < 0 || pathStart + 1 >= connectionString.Length)
+            {
+                return null;
+            }
+
+            var queryStart = connectionString.IndexOf('?', pathStart);
+            var rawDatabaseName = queryStart >= 0
+                ? connectionString[(pathStart + 1)..queryStart]
+                : connectionString[(pathStart + 1)..];
+
+            if (string.IsNullOrWhiteSpace(rawDatabaseName))
+            {
+                return null;
+            }
+
+            return Uri.UnescapeDataString(rawDatabaseName);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

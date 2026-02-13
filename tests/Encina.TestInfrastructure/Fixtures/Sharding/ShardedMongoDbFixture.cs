@@ -41,17 +41,17 @@ public sealed class ShardedMongoDbFixture : IAsyncLifetime
     /// <summary>
     /// Gets the connection string for shard 1.
     /// </summary>
-    public string Shard1ConnectionString => $"{ConnectionString}/{Shard1DbName}";
+    public string Shard1ConnectionString => BuildShardConnectionString(Shard1DbName);
 
     /// <summary>
     /// Gets the connection string for shard 2.
     /// </summary>
-    public string Shard2ConnectionString => $"{ConnectionString}/{Shard2DbName}";
+    public string Shard2ConnectionString => BuildShardConnectionString(Shard2DbName);
 
     /// <summary>
     /// Gets the connection string for shard 3.
     /// </summary>
-    public string Shard3ConnectionString => $"{ConnectionString}/{Shard3DbName}";
+    public string Shard3ConnectionString => BuildShardConnectionString(Shard3DbName);
 
     /// <summary>
     /// Gets the database for the specified shard.
@@ -139,6 +139,56 @@ public sealed class ShardedMongoDbFixture : IAsyncLifetime
         var database = Client!.GetDatabase(databaseName);
         var collection = database.GetCollection<BsonDocument>(CollectionName);
         await collection.DeleteManyAsync(FilterDefinition<BsonDocument>.Empty);
+    }
+
+    private string BuildShardConnectionString(string databaseName)
+    {
+        if (_container is null)
+        {
+            return string.Empty;
+        }
+
+        var baseConnectionString = ConnectionString;
+        var queryIndex = baseConnectionString.IndexOf('?', StringComparison.Ordinal);
+        var connectionWithoutQuery = queryIndex >= 0
+            ? baseConnectionString[..queryIndex]
+            : baseConnectionString;
+        var queryPart = queryIndex >= 0
+            ? baseConnectionString[queryIndex..]
+            : string.Empty;
+
+        var schemeSeparatorIndex = connectionWithoutQuery.IndexOf("://", StringComparison.Ordinal);
+        var authorityStart = schemeSeparatorIndex >= 0 ? schemeSeparatorIndex + 3 : 0;
+        var pathStart = connectionWithoutQuery.IndexOf('/', authorityStart);
+
+        if (pathStart < 0)
+        {
+            var authorityPartNoPath = connectionWithoutQuery;
+            var adjustedQueryPartNoPath = EnsureAuthSourceIfNeeded(authorityPartNoPath, queryPart);
+            return $"{authorityPartNoPath}/{databaseName}{adjustedQueryPartNoPath}";
+        }
+
+        var authorityPart = connectionWithoutQuery[..pathStart];
+        var adjustedQueryPart = EnsureAuthSourceIfNeeded(authorityPart, queryPart);
+        return $"{authorityPart}/{databaseName}{adjustedQueryPart}";
+    }
+
+    private static string EnsureAuthSourceIfNeeded(string authorityPart, string queryPart)
+    {
+        var hasCredentials = authorityPart.Contains('@', StringComparison.Ordinal);
+        var hasAuthSource = queryPart.Contains("authSource=", StringComparison.OrdinalIgnoreCase);
+
+        if (!hasCredentials || hasAuthSource)
+        {
+            return queryPart;
+        }
+
+        if (string.IsNullOrEmpty(queryPart))
+        {
+            return "?authSource=admin";
+        }
+
+        return queryPart + "&authSource=admin";
     }
 
     private static void RegisterGuidSerializer()
