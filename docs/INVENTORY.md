@@ -24,7 +24,7 @@
 
 | Métrica | Valor |
 |---------|-------|
-| **Total de Paquetes** | 59 (53 previos + 6 CDC) (+ 6 transportes planificados + 3 caching planificados + 5 tenancy planificados + 10 EDA planificados + 1 GDPR planificado + 16 microservices planificados + 8 security planificados + 14 compliance planificados + 9 TDD testing planificados) |
+| **Total de Paquetes** | 60 (53 previos + 6 CDC + 1 IdGeneration) (+ 6 transportes planificados + 3 caching planificados + 5 tenancy planificados + 10 EDA planificados + 1 GDPR planificado + 16 microservices planificados + 8 security planificados + 14 compliance planificados + 9 TDD testing planificados) |
 | **Patrones de Messaging** | 10 (+ 18 planificados) |
 | **Patrones EDA Avanzados** | 0 (+ 12 planificados) |
 | **Patrones DDD & Workflow** | 0 (+ 10 planificados) |
@@ -1314,7 +1314,7 @@ src/
 
 ---
 
-### 3. Database Providers (14 paquetes implementados + 16 patrones planificados)
+### 3. Database Providers (15 paquetes implementados + 16 patrones planificados)
 
 | Paquete | Tecnología | Bases de Datos | Estado |
 |---------|------------|----------------|--------|
@@ -1332,6 +1332,7 @@ src/
 | **Encina.MongoDB** | MongoDB Driver | MongoDB | ✅ Completo |
 | **Encina.Marten** | Marten | PostgreSQL (Event Store) | ✅ Completo |
 | **Encina.InMemory** | Channels | N/A (Testing) | ✅ Completo |
+| **Encina.IdGeneration** | Multi-strategy | Todas (type mapping) | ✅ Completo |
 
 #### Stores Implementados por Provider
 
@@ -1602,6 +1603,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | **#290** ✅ | Connection Pool Resilience | Monitoreo de pool, circuit breaker, warm-up | Media | Media | `area-connection-pool`, `area-health-checks`, `area-polly` |
 | **#291** ✅ | Query Cache Interceptor | Second-level cache para EF Core queries | Media | Media | `area-caching`, `area-pipeline` |
 | **#294** | Cursor-based Pagination | Keyset pagination O(1) vs offset O(n) | Alta | Media | `area-pagination`, `area-graphql`, `area-scalability` |
+| **#638** ✅ | Distributed ID Generation | Multi-strategy IDs (Snowflake, ULID, UUIDv7, ShardPrefixed) | Alta | Alta | `area-sharding`, `area-scalability`, `new-package` |
 
 **#283 - Read/Write Separation**:
 
@@ -1647,6 +1649,30 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - **Entity Co-Location** (#647): `IColocationGroup`, `ColocationGroup`, `ColocationGroupBuilder`, `ColocationGroupRegistry`, `[ColocatedWith]` attribute, `ColocationViolationException`, all 5 routers extended with `GetColocationGroup(Type)`, `ColocationMetrics` (3 instruments), `ColocationLog` (5 source-generated events), 3 trace attributes, 4 new error codes (`ColocationEntityNotShardable`, `ColocationShardKeyMismatch`, `ColocationDuplicateRegistration`, `ColocationSelfReference`)
 - **Test coverage**: ~880+ tests (unit, integration, guard, contract, property) + 13 benchmarks
 - Inspirado en consistent hashing (xxHash64) y MongoDB sharded cluster architecture
+
+**#638 - Distributed ID Generation** ✅ **COMPLETADO (13-feb-2026)**:
+
+- **Nuevo paquete**: `Encina.IdGeneration` con 4 estrategias de generación de IDs distribuidos
+- **Interfaces core** (en `Encina`): `IIdGenerator<TId>` (non-sharded), `IShardedIdGenerator<TId>` (shard-embedded con `ExtractShardId`)
+- **4 estrategias**:
+  - `SnowflakeId` (64-bit `long`): Configurable bit layout (41+10+12), embedded timestamp + shard/machine ID + sequence, thread-safe
+  - `UlidId` (128-bit Crockford Base32): 48-bit timestamp + 80-bit random, coordination-free, lexicographically sortable
+  - `UuidV7Id` (128-bit RFC 9562 `Guid`): Time-ordered UUID, drop-in `Guid.NewGuid()` replacement
+  - `ShardPrefixedId` (variable-length string): `{shardId}{delimiter}{sequence}` con 3 formatos (ULID, UUIDv7, TimestampRandom)
+- **4 readonly record struct** ID types con Parse/TryParse/TryParseEither, zero-allocation
+- **Railway Oriented Programming**: Todas las operaciones retornan `Either<EncinaError, TId>`
+- **4 error codes**: `ClockDriftDetected`, `SequenceExhausted`, `InvalidShardId`, `IdParseFailure`
+- **13 providers** type mapping:
+  - ADO.NET×4: `IdParameterExtensions` con `AddSnowflakeId`, `AddUlidId`, `AddUuidV7Id`, `AddShardPrefixedId`
+  - Dapper×4: `SqlMapper.TypeHandler<T>` por cada ID type (16 type handlers)
+  - EF Core×4: `ValueConverter<TId, TStore>` + `IdGenerationModelConfigurationExtensions` (4 converters)
+  - MongoDB×1: `IBsonSerializer<T>` + `IdGenerationSerializerRegistration` (4 serializers)
+- **Observability**: 4 métricas (`encina.idgen.*`), 2 traces (`Encina.IdGeneration` ActivitySource), source-generated logging
+- **Health check**: `IdGeneratorHealthCheck` con `ClockDriftThresholdMs` configurable
+- **Configuration**: `AddEncinaIdGeneration()` con `UseSnowflake()`, `UseUlid()`, `UseUuidV7()`, `UseShardPrefixed()`
+- **Test coverage**: 265+ tests (199 unit, 4 guard, 43 contract, 19 property, 14 integration files, 7 NBomber load scenarios, 20 benchmarks)
+- **Documentation**: [ADR-011](architecture/adr/011-id-generation-multi-strategy.md), [Feature Guide](features/id-generation.md), [Configuration Guide](guides/id-generation-configuration.md), [Scaling Guide](guides/id-generation-scaling.md)
+- Inspirado en Twitter Snowflake, RFC 9562 (UUIDv7), ULID Specification
 
 **#290 - Connection Pool & Resilience** ✅ **COMPLETADO (08-feb-2026)**:
 
@@ -1839,8 +1865,9 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 | `area-pagination` | Pagination patterns (offset, cursor, keyset) | #32CD32 |
 | `area-concurrency` | Concurrency control and conflict resolution | #BA55D3 |
 | `area-connection-pool` | Connection pooling and management | #5F9EA0 |
+| `area-idgeneration` | Distributed ID generation strategies | #DAA520 |
 
-##### Orden de Implementación (Actualizado enero 2026)
+##### Orden de Implementación (Actualizado febrero 2026)
 
 1. **✅ COMPLETADOS (enero 2026)**:
    - ✅ #279 (Generic Repository) - Fundamentos de data access
@@ -1865,7 +1892,8 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 
 5. **Largo plazo (Escenarios avanzados)**:
    - ~~#288 (CDC) - Integración con sistemas legacy~~ ✅ Completado (febrero 2026)
-   - #289 (Sharding) - Solo si realmente necesario
+   - ~~#289 (Sharding) - Solo si realmente necesario~~ ✅ Completado (febrero 2026)
+   - ~~#638 (Distributed ID Generation) - IDs distribuidos para sharding~~ ✅ Completado (febrero 2026)
 
 ##### Referencias de Investigación
 
@@ -1879,6 +1907,10 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - [Cursor Pagination at Slack](https://slack.engineering/evolving-api-pagination-at-slack/)
 - [GraphQL Relay Connection Spec](https://relay.dev/graphql/connections.htm)
 - [Use The Index, Luke - Pagination](https://use-the-index-luke.com/no-offset)
+- [Twitter Snowflake](https://blog.twitter.com/engineering/en_us/a/2010/announcing-snowflake) - Distributed ID generation
+- [RFC 9562 - UUIDv7](https://www.rfc-editor.org/rfc/rfc9562) - Time-ordered UUIDs
+- [ULID Specification](https://github.com/ulid/spec) - Universally Unique Lexicographically Sortable Identifier
+- [ID Generation Feature Guide](features/id-generation.md) - Documentación completa de ID Generation
 
 ---
 
@@ -3942,6 +3974,7 @@ Added in Issue #568, these benchmarks measure performance of Dapper and ADO.NET 
 |---------|------------|-------|
 | **Encina.Dapper.Benchmarks** | ~62 benchmarks | Messaging stores, Repository, SQL Builder, Dapper vs ADO comparison |
 | **Encina.ADO.Benchmarks** | ~52 benchmarks | Messaging stores, Repository, SQL Builder |
+| **Encina.IdGeneration.Benchmarks** | 20 benchmarks | 4 ID strategies, cross-strategy comparison |
 
 ##### Dapper Benchmarks
 
@@ -4002,6 +4035,34 @@ dotnet run -c Release
 dotnet run -c Release -- --filter "*OutboxStore*"
 dotnet run -c Release -- --filter "*RepositoryBenchmarks*"
 dotnet run -c Release -- --filter "*DapperVsAdo*"
+```
+
+##### ID Generation Benchmarks
+
+| Class | Description | Key Metrics |
+|-------|-------------|-------------|
+| `SnowflakeIdBenchmarks` | Snowflake generation, shard extraction | Baseline strategy |
+| `UlidIdBenchmarks` | ULID generation, toString | Coordination-free |
+| `UuidV7IdBenchmarks` | UUIDv7 generation vs `Guid.NewGuid()` | Drop-in comparison |
+| `ShardPrefixedIdBenchmarks` | 3 format variants, shard extraction | Human-readable format |
+| `IdGenerationComparisonBenchmarks` | Cross-strategy comparison with RankColumn | All 4 strategies + Guid baseline |
+
+**Encina.IdGeneration.Benchmarks:**
+- `tests/Encina.BenchmarkTests/Encina.IdGeneration.Benchmarks/Program.cs`
+- `tests/Encina.BenchmarkTests/Encina.IdGeneration.Benchmarks/SnowflakeIdBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.IdGeneration.Benchmarks/UlidIdBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.IdGeneration.Benchmarks/UuidV7IdBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.IdGeneration.Benchmarks/ShardPrefixedIdBenchmarks.cs`
+- `tests/Encina.BenchmarkTests/Encina.IdGeneration.Benchmarks/IdGenerationComparisonBenchmarks.cs`
+
+```bash
+# Run ID generation benchmarks
+cd tests/Encina.BenchmarkTests/Encina.IdGeneration.Benchmarks
+dotnet run -c Release
+
+# Run specific strategy
+dotnet run -c Release -- --filter "*Snowflake*"
+dotnet run -c Release -- --filter "*Comparison*"
 ```
 
 ---
@@ -4177,7 +4238,7 @@ dotnet run -c Release -- --filter "*DapperVsAdo*"
 |-----------|--------|-------------|
 | [v0.10.0 - DDD Foundations](https://github.com/dlrivada/Encina/milestone/7) | 31 ✅ | Value Objects, Entities, Aggregates, Specifications, ACL - **COMPLETADO** |
 | [v0.11.0 - Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) | 34 ✅ | Fakes, Respawn, WireMock, Shouldly, Bogus, FsCheck, TUnit, Pact - **COMPLETADO** |
-| [v0.12.0 - Database & Repository](https://github.com/dlrivada/Encina/milestone/9) | 22 | Repository, UoW, Bulk Ops, Pagination |
+| [v0.12.0 - Database & Repository](https://github.com/dlrivada/Encina/milestone/9) | 22 | Repository, UoW, Bulk Ops, Pagination, ID Generation |
 | [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Security, GDPR, NIS2, AI Act |
 | [v0.14.0 - Cloud-Native & Aspire](https://github.com/dlrivada/Encina/milestone/11) | 23 | Aspire, Dapr, Orleans, HealthChecks |
 | [v0.15.0 - Messaging & EIP](https://github.com/dlrivada/Encina/milestone/12) | 71 | EIP, Transports, Process Manager |
@@ -4325,7 +4386,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 |-----------|----------|-----------|------------|
 | Core | 2 | 2 | 100% |
 | Messaging | 1 | 1 | 100% |
-| Database | 14 | 14 | 100% |
+| Database | 15 | 15 | 100% |
 | Caching | 8 | 8 | 100% |
 | Transports | 8 | 8 | 100% |
 | Validation | 4 | 4 | 100% |
@@ -4336,7 +4397,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 | Observability | 1 | 1 | 100% |
 | Testing | 2 | 2 | 100% |
 | CLI | 1 | 1 | 100% |
-| **Total** | **54** | **54** | **100%** |
+| **Total** | **55** | **55** | **100%** |
 
 ### Features Pendientes Phase 2
 
@@ -6993,6 +7054,7 @@ src/
 ├── Encina.MongoDB/                  # MongoDB provider
 ├── Encina.Marten/                   # Event sourcing with Marten
 ├── Encina.InMemory/                 # In-memory message bus
+├── Encina.IdGeneration/             # ✅ (#638) Distributed ID generation (Snowflake, ULID, UUIDv7, ShardPrefixed)
 ├── Encina.Caching/                  # Caching abstractions
 ├── Encina.Caching.Memory/           # In-memory cache
 ├── Encina.Caching.Redis/            # Redis cache

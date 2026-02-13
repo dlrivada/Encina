@@ -1,5 +1,7 @@
 using Encina.AspNetCore.Modules;
 using Encina.Database;
+using Encina.IdGeneration.Configuration;
+using Encina.IdGeneration.Health;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
@@ -420,6 +422,63 @@ public static class HealthCheckBuilderExtensions
             },
             failureStatus,
             CombineTags(tags, "modules", $"module-{typeof(TModule).Name.ToLowerInvariant().Replace("module", "")}")));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the ID generation health check.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-id-generation".</param>
+    /// <param name="options">Health check options including clock drift threshold.</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check monitors ID generation infrastructure health including clock drift
+    /// detection and Snowflake machine ID configuration. If <see cref="SnowflakeOptions"/>
+    /// is registered in DI, the health check also reports machine ID and shard bit allocation.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaIdGenerationHealthCheck();
+    ///
+    /// // Or with custom threshold
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaIdGenerationHealthCheck(options: new IdGeneratorHealthCheckOptions
+    ///     {
+    ///         ClockDriftThresholdMs = 200
+    ///     });
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaIdGenerationHealthCheck(
+        this IHealthChecksBuilder builder,
+        string name = IdGeneratorHealthCheck.DefaultName,
+        IdGeneratorHealthCheckOptions? options = null,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "id-generation");
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp =>
+            {
+                var snowflakeOptions = sp.GetService<SnowflakeOptions>();
+                var timeProvider = sp.GetService<TimeProvider>() ?? TimeProvider.System;
+                return new EncinaHealthCheckAdapter(
+                    new IdGeneratorHealthCheck(options, snowflakeOptions, timeProvider));
+            },
+            failureStatus,
+            allTags));
 
         return builder;
     }

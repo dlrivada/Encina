@@ -1,4 +1,6 @@
+using Encina.IdGeneration.Diagnostics;
 using Encina.OpenTelemetry.Behaviors;
+using Encina.OpenTelemetry.IdGeneration;
 using Encina.OpenTelemetry.Sharding;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -50,6 +52,11 @@ public static class ServiceCollectionExtensions
         // being available.
         services.AddHostedService<ColocationMetricsInitializer>();
 
+        // Register ID generation metrics initialization as a hosted service.
+        // IdGenerationMetrics creates Counter and Histogram instruments on the static
+        // "Encina" meter during construction.
+        services.AddHostedService<IdGenerationMetricsInitializer>();
+
         return services;
     }
 
@@ -77,6 +84,7 @@ public static class ServiceCollectionExtensions
         {
             tracing.AddSource("Encina");
             tracing.AddSource("Encina.Sharding");
+            tracing.AddSource(IdGenerationActivitySource.SourceName);
         });
 
         builder.WithMetrics(metrics =>

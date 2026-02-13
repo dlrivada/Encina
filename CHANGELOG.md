@@ -1352,6 +1352,72 @@ await context.SaveChangesAsync(); // Events dispatched automatically
 
 **Related Issue**: [#569 - Immutable Records Support for EF Core and Domain Events](https://github.com/dlrivada/Encina/issues/569)
 
+#### Distributed ID Generation (#638)
+
+Added a multi-strategy distributed ID generation package (`Encina.IdGeneration`) with four algorithms, shard-aware generation, and full integration across all 13 database providers.
+
+**New Package**: `Encina.IdGeneration`
+
+**Four ID Strategies**:
+
+- **Snowflake** (`SnowflakeIdGenerator`): 64-bit time-ordered IDs with configurable bit allocation (41 timestamp + 10 shard + 12 sequence = 63 bits). Thread-safe with lock-based sequencing, clock drift tolerance, and shard embedding via `IShardedIdGenerator<SnowflakeId>`
+- **ULID** (`UlidIdGenerator`): 128-bit Crockford Base32 identifiers (48-bit timestamp + 80-bit random). Cryptographically random via `RandomNumberGenerator`, inherently thread-safe
+- **UUIDv7** (`UuidV7IdGenerator`): RFC 9562 time-ordered UUIDs wrapping `System.Guid`. Timestamp in MSBs for B-tree index locality, cryptographically random
+- **ShardPrefixed** (`ShardPrefixedIdGenerator`): String-based `{shardId}:{sequence}` format with pluggable sequence generation (ULID, UUIDv7, TimestampRandom) via `IShardedIdGenerator<ShardPrefixedId>`
+
+**Strongly-Typed ID Types** (4 `readonly record struct`):
+
+- **`SnowflakeId`**: Wraps `long`, implicit conversion to/from `long`, `Parse`/`TryParse`/`TryParseEither`, comparison operators
+- **`UlidId`**: Wraps Crockford Base32, `NewUlid()` factory, `GetTimestamp()`, `ToGuid()`, implicit Guid conversion
+- **`UuidV7Id`**: Wraps `Guid`, `NewUuidV7()` factory, `GetTimestamp()`, implicit Guid conversion
+- **`ShardPrefixedId`**: String-based with `ShardId`/`Sequence` properties, `Parse` with delimiter support, implicit string conversion
+
+**Core Abstractions** (`Encina` package):
+
+- **`IIdGenerator<TId>`**: Non-sharded generation returning `Either<EncinaError, TId>`
+- **`IShardedIdGenerator<TId>`**: Extends with `Generate(string shardId)` and `ExtractShardId(TId)` for shard-aware generation and reverse routing
+- **`IdGenerationErrorCodes`**: 4 stable error codes (`clock_drift_detected`, `sequence_exhausted`, `invalid_shard_id`, `id_parse_failure`)
+- **`IdGenerationErrors`**: Factory methods with consistent error metadata
+
+**Provider Type Mapping** (13 providers):
+
+- ADO.NET (4): `IdParameterExtensions` with `AddSnowflakeId`, `AddUlidId`, `AddUuidV7Id`, `AddShardPrefixedId` for SQLite, SqlServer, PostgreSQL, MySQL
+- Dapper (4): Type handlers (`SnowflakeIdTypeHandler`, `UlidIdTypeHandler`, `UuidV7IdTypeHandler`, `ShardPrefixedIdTypeHandler`) for each database
+- EF Core (4): Value converters (`SnowflakeIdValueConverter`, `UlidIdValueConverter`, `UuidV7IdValueConverter`, `ShardPrefixedIdValueConverter`) registered via `ModelBuilderExtensions`
+- MongoDB (1): BSON serializers (`SnowflakeIdBsonSerializer`, `UlidIdBsonSerializer`, `UuidV7IdBsonSerializer`, `ShardPrefixedIdBsonSerializer`)
+
+**Observability**:
+
+- 4 metric instruments via `IdGenerationMetrics`: `encina.idgen.generated` (counter), `encina.idgen.collisions` (counter), `encina.idgen.duration_ms` (histogram), `encina.idgen.sequence_exhausted` (counter)
+- 5 trace activities via `IdGenerationActivitySource`: `StartIdGeneration`, `StartShardExtraction`, `Complete`, `CompleteShardExtraction`, `Failed`
+- Source-generated structured logging via `IdGenerationLog`
+
+**Health Check**:
+
+- `IdGeneratorHealthCheck` extending `EncinaHealthCheck` with clock drift monitoring and Snowflake sequence validation
+- `IdGeneratorHealthCheckOptions` with configurable `ClockDriftThresholdMs`
+
+**Configuration**:
+
+```csharp
+services.AddEncinaIdGeneration(options =>
+{
+    options.UseSnowflake(sf => { sf.MachineId = 1; sf.EpochStart = new(2024, 1, 1, 0, 0, 0, TimeSpan.Zero); });
+    options.UseUlid();
+    options.UseUuidV7();
+    options.UseShardPrefixed(sp => { sp.Format = ShardPrefixedFormat.Ulid; });
+});
+```
+
+**Testing**: 265+ unit/guard/contract/property tests; 14 integration test files across all providers; 7 NBomber load test scenarios; 20 BenchmarkDotNet benchmarks
+
+**Documentation** (4 guides + 1 ADR):
+
+- `docs/architecture/adr/011-id-generation-multi-strategy.md` — Architecture Decision Record
+- `docs/features/id-generation.md` — Feature overview and architecture
+- `docs/guides/id-generation-configuration.md` — Strategy comparison and configuration guide
+- `docs/guides/id-generation-scaling.md` — Scaling, machine ID allocation, and migration
+
 ---
 
 ### Changed

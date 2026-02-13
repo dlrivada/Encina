@@ -492,8 +492,13 @@ Encina.Sharding.CompoundShardKey.CompoundShardKey(params string![]! components) 
 Encina.Sharding.CompoundShardKey.CompoundShardKey(System.Collections.Generic.IReadOnlyList<string!>! components) -> void
 Encina.Sharding.CompoundShardKey.ComponentCount.get -> int
 Encina.Sharding.CompoundShardKey.Components.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.CompoundShardKey.Equals(Encina.Sharding.CompoundShardKey? other) -> bool
 Encina.Sharding.CompoundShardKey.HasSecondaryComponents.get -> bool
 Encina.Sharding.CompoundShardKey.PrimaryComponent.get -> string!
+override Encina.Sharding.CompoundShardKey.Equals(object? obj) -> bool
+override Encina.Sharding.CompoundShardKey.GetHashCode() -> int
+static Encina.Sharding.CompoundShardKey.operator ==(Encina.Sharding.CompoundShardKey? left, Encina.Sharding.CompoundShardKey? right) -> bool
+static Encina.Sharding.CompoundShardKey.operator !=(Encina.Sharding.CompoundShardKey? left, Encina.Sharding.CompoundShardKey? right) -> bool
 override Encina.Sharding.CompoundShardKey.ToString() -> string!
 static Encina.Sharding.CompoundShardKey.implicit operator Encina.Sharding.CompoundShardKey!(string! singleComponent) -> Encina.Sharding.CompoundShardKey!
 Encina.Sharding.CompoundShardKeyExtractor
@@ -896,3 +901,21 @@ const Encina.Sharding.ShardingErrorCodes.ColocationEntityNotShardable = "encina.
 const Encina.Sharding.ShardingErrorCodes.ColocationShardKeyMismatch = "encina.sharding.colocation_shard_key_mismatch" -> string!
 const Encina.Sharding.ShardingErrorCodes.ColocationDuplicateRegistration = "encina.sharding.colocation_duplicate_registration" -> string!
 const Encina.Sharding.ShardingErrorCodes.ColocationSelfReference = "encina.sharding.colocation_self_reference" -> string!
+Encina.IIdGenerator
+Encina.IIdGenerator.StrategyName.get -> string!
+Encina.IIdGenerator<TId>
+Encina.IIdGenerator<TId>.Generate() -> LanguageExt.Either<Encina.EncinaError, TId>
+Encina.IShardedIdGenerator<TId>
+Encina.IShardedIdGenerator<TId>.Generate(string! shardId) -> LanguageExt.Either<Encina.EncinaError, TId>
+Encina.IShardedIdGenerator<TId>.ExtractShardId(TId id) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.IdGenerationErrorCodes
+const Encina.IdGenerationErrorCodes.ClockDriftDetected = "encina.idgen.clock_drift_detected" -> string!
+const Encina.IdGenerationErrorCodes.SequenceExhausted = "encina.idgen.sequence_exhausted" -> string!
+const Encina.IdGenerationErrorCodes.InvalidShardId = "encina.idgen.invalid_shard_id" -> string!
+const Encina.IdGenerationErrorCodes.IdParseFailure = "encina.idgen.id_parse_failure" -> string!
+Encina.IdGenerationErrors
+static Encina.IdGenerationErrors.ClockDriftDetected(long driftMilliseconds) -> Encina.EncinaError
+static Encina.IdGenerationErrors.SequenceExhausted(long maxSequence) -> Encina.EncinaError
+static Encina.IdGenerationErrors.InvalidShardId(string? shardId, string! reason) -> Encina.EncinaError
+static Encina.IdGenerationErrors.IdParseFailure(string? value, string! targetType) -> Encina.EncinaError
+static Encina.IdGenerationErrors.IdParseFailure(string? value, string! targetType, System.Exception! exception) -> Encina.EncinaError
