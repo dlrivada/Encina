@@ -40,7 +40,7 @@ Encina is a comprehensive toolkit for building robust .NET applications. Built o
 - **Soft Delete**: Automatic delete-to-update conversion with global query filters (see [docs](docs/features/soft-delete.md))
 - **Temporal Tables**: SQL Server point-in-time queries and entity history (see [docs](docs/features/temporal-tables.md))
 - **Streaming**: `IAsyncEnumerable` support via `IStreamRequest<TItem>`
-- **Change Data Capture (CDC)**: Real-time database change streaming with support for SQL Server, PostgreSQL, MySQL, MongoDB, and Debezium (HTTP + Kafka modes) (see [docs](docs/features/cdc.md))
+- **Change Data Capture (CDC)**: Real-time database change streaming with support for SQL Server, PostgreSQL, MySQL, MongoDB, and Debezium (HTTP + Kafka modes), plus sharded CDC for multi-shard topologies (see [docs](docs/features/cdc.md), [sharded CDC](docs/features/cdc-sharding.md))
 - **Database Sharding**: Horizontal partitioning with 4 routing strategies (Hash, Range, Directory, Geo), compound shard keys for multi-field routing, entity co-location for optimized local JOINs, scatter-gather queries, and MongoDB dual-mode across all 13 providers (see [docs](docs/sharding/configuration.md), [compound keys](docs/features/compound-shard-keys.md), [co-location](docs/features/sharding-colocation.md))
 - **Database Resilience**: Connection pool monitoring, circuit breakers, and warm-up across all 13 providers (see [docs](docs/features/database-resilience.md))
 - **Observability**: Built-in OpenTelemetry integration with ActivitySource and Metrics

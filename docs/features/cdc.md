@@ -15,9 +15,10 @@ This guide explains how to capture and react to database changes in real-time us
 9. [Health Checks](#health-checks)
 10. [Error Handling](#error-handling)
 11. [Provider Support](#provider-support)
-12. [Testing](#testing)
-13. [Best Practices](#best-practices)
-14. [FAQ](#faq)
+12. [Sharded CDC](#sharded-cdc)
+13. [Testing](#testing)
+14. [Best Practices](#best-practices)
+15. [FAQ](#faq)
 
 ---
 
@@ -517,6 +518,38 @@ See individual provider documentation:
 
 ---
 
+## Sharded CDC
+
+For sharded database topologies, Encina provides `IShardedCdcConnector` which aggregates per-shard `ICdcConnector` instances into a unified change stream with per-shard position tracking.
+
+### Key Features
+
+- **`IShardedCdcConnector`**: Aggregates per-shard connectors via `StreamAllShardsAsync()` or `StreamShardAsync()`
+- **`IShardedCdcPositionStore`**: Tracks positions per `(shardId, connectorId)` composite key
+- **`ShardedCdcProcessor`**: `BackgroundService` that replaces `CdcProcessor` for sharded topologies
+- **Two processing modes**: `Aggregated` (cross-shard ordering) and `PerShardParallel` (independent)
+- **Runtime topology changes**: Add/remove shards without restart
+
+### Quick Example
+
+```csharp
+services.AddEncinaCdc(config =>
+{
+    config.UseCdc()
+          .AddHandler<Order, OrderChangeHandler>()
+          .WithShardedCapture(opts =>
+          {
+              opts.AutoDiscoverShards = true;
+              opts.ProcessingMode = ShardedProcessingMode.Aggregated;
+              opts.MaxLagThreshold = TimeSpan.FromMinutes(5);
+          });
+});
+```
+
+For complete documentation, see the **[Sharded CDC Guide](cdc-sharding.md)**.
+
+---
+
 ## Testing
 
 ### Unit Testing with Test Helpers
@@ -627,7 +660,7 @@ Instead of duplicating logic across handlers, use the messaging bridge to publis
 
 ### Can I use multiple providers simultaneously?
 
-No. Each application registers one `ICdcConnector`. If you need to capture changes from multiple databases, run separate instances or use Debezium to aggregate multiple sources.
+For a single database, each application registers one `ICdcConnector`. For **sharded databases**, use `WithShardedCapture()` which aggregates per-shard connectors into a unified stream via `IShardedCdcConnector`. See the [Sharded CDC Guide](cdc-sharding.md) for details. For entirely different databases with different schemas, run separate CDC instances or use Debezium.
 
 ### What happens if a handler fails?
 

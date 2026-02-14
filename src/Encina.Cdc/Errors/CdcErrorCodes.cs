@@ -22,4 +22,10 @@ public static class CdcErrorCodes
 
     /// <summary>Failed to read or write the position store.</summary>
     public const string PositionStoreFailed = "encina.cdc.position_store_failed";
+
+    /// <summary>A referenced shard was not found in the sharded CDC connector.</summary>
+    public const string ShardNotFound = "encina.cdc.shard_not_found";
+
+    /// <summary>A per-shard CDC stream failed during sharded aggregation.</summary>
+    public const string ShardStreamFailed = "encina.cdc.shard_stream_failed";
 }

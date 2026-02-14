@@ -1,4 +1,5 @@
 using Encina.Cdc.Messaging;
+using Encina.Cdc.Sharding;
 
 namespace Encina.Cdc;
 
@@ -28,6 +29,7 @@ public sealed class CdcConfiguration
     private readonly List<TableMapping> _tableMappings = [];
     private readonly List<HandlerRegistration> _handlerRegistrations = [];
     private CdcMessagingOptions? _messagingOptions;
+    private ShardedCaptureOptions? _shardedCaptureOptions;
 
     /// <summary>
     /// Gets the configured CDC options.
@@ -48,6 +50,11 @@ public sealed class CdcConfiguration
     /// Gets the messaging bridge options, or <c>null</c> if messaging bridge is not configured.
     /// </summary>
     internal CdcMessagingOptions? MessagingOptions => _messagingOptions;
+
+    /// <summary>
+    /// Gets the sharded capture options, or <c>null</c> if sharded capture is not configured.
+    /// </summary>
+    internal ShardedCaptureOptions? ShardedCaptureOptions => _shardedCaptureOptions;
 
     /// <summary>
     /// Enables CDC processing and returns this configuration for fluent chaining.
@@ -117,6 +124,43 @@ public sealed class CdcConfiguration
         _options.UseMessagingBridge = true;
         _messagingOptions = new CdcMessagingOptions();
         configure?.Invoke(_messagingOptions);
+        return this;
+    }
+
+    /// <summary>
+    /// Enables sharded CDC capture, which processes change events from multiple
+    /// database shards using <see cref="Abstractions.IShardedCdcConnector"/>.
+    /// </summary>
+    /// <param name="configure">Optional action to configure sharded capture options.</param>
+    /// <returns>This configuration instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// When sharded capture is enabled, the <c>ShardedCdcProcessor</c> is registered
+    /// instead of the standard <c>CdcProcessor</c>. The two processors are mutually
+    /// exclusive: enabling sharded capture prevents the standard processor from being
+    /// registered to avoid conflicts.
+    /// </para>
+    /// <para>
+    /// Sharded capture requires an <see cref="Sharding.IShardTopologyProvider"/> to be
+    /// registered in the service collection. Each shard gets its own
+    /// <see cref="Abstractions.ICdcConnector"/> created via a factory delegate.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// config.WithShardedCapture(opts =>
+    /// {
+    ///     opts.ProcessingMode = ShardedProcessingMode.Aggregated;
+    ///     opts.MaxLagThreshold = TimeSpan.FromMinutes(5);
+    ///     opts.ConnectorId = "orders-sharded-cdc";
+    /// });
+    /// </code>
+    /// </example>
+    public CdcConfiguration WithShardedCapture(Action<ShardedCaptureOptions>? configure = null)
+    {
+        _options.UseShardedCapture = true;
+        _shardedCaptureOptions = new ShardedCaptureOptions();
+        configure?.Invoke(_shardedCaptureOptions);
         return this;
     }
 

@@ -137,6 +137,34 @@ public static class ActivityTagNames
     }
 
     /// <summary>
+    /// CDC (Change Data Capture) tags for sharded CDC observability.
+    /// </summary>
+    /// <remarks>
+    /// These tags track CDC connector operations, shard-level event processing,
+    /// and position tracking across sharded database topologies.
+    /// </remarks>
+    public static class Cdc
+    {
+        /// <summary>Tag name for the CDC connector identifier.</summary>
+        public const string ConnectorId = "cdc.connector_id";
+
+        /// <summary>Tag name for the shard identifier in sharded CDC.</summary>
+        public const string ShardId = "cdc.shard_id";
+
+        /// <summary>Tag name for the CDC change operation type (insert, update, delete, snapshot).</summary>
+        public const string Operation = "cdc.operation";
+
+        /// <summary>Tag name for the database table name.</summary>
+        public const string TableName = "cdc.table_name";
+
+        /// <summary>Tag name for the CDC position string representation.</summary>
+        public const string Position = "cdc.position";
+
+        /// <summary>Tag name for the number of events in a capture batch.</summary>
+        public const string EventsCount = "cdc.events_count";
+    }
+
+    /// <summary>
     /// Co-location group tags for sharding observability.
     /// </summary>
     /// <remarks>

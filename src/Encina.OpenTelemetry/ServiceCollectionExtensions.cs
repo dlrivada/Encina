@@ -1,5 +1,6 @@
 using Encina.IdGeneration.Diagnostics;
 using Encina.OpenTelemetry.Behaviors;
+using Encina.OpenTelemetry.Cdc;
 using Encina.OpenTelemetry.IdGeneration;
 using Encina.OpenTelemetry.Sharding;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,6 +58,12 @@ public static class ServiceCollectionExtensions
         // "Encina" meter during construction.
         services.AddHostedService<IdGenerationMetricsInitializer>();
 
+        // Register sharded CDC metrics initialization as a hosted service.
+        // ShardedCdcMetrics creates Counter and ObservableGauge instruments on the static
+        // "Encina" meter during construction. Registration is conditional on
+        // ShardedCdcMetricsCallbacks being available (registered by Encina.Cdc).
+        services.AddHostedService<ShardedCdcMetricsInitializer>();
+
         return services;
     }
 
@@ -84,6 +91,7 @@ public static class ServiceCollectionExtensions
         {
             tracing.AddSource("Encina");
             tracing.AddSource("Encina.Sharding");
+            tracing.AddSource("Encina.Cdc.Sharded");
             tracing.AddSource(IdGenerationActivitySource.SourceName);
         });
 

@@ -251,6 +251,56 @@ services.AddEncinaCdcSqlServer(opts =>
 
 ---
 
+#### CDC Per-Shard Connector (#646)
+
+Added sharded CDC support that aggregates change streams from multiple database shards into a unified event pipeline, with per-shard position tracking and topology-aware health checks.
+
+**Core Abstractions** (`Encina.Cdc` package):
+
+- **`IShardedCdcConnector`**: Aggregates per-shard `ICdcConnector` instances into a unified stream via `StreamAllShardsAsync()` or per-shard via `StreamShardAsync()`
+- **`IShardedCdcPositionStore`**: Persists positions per `(shardId, connectorId)` composite key with `GetPositionAsync`, `SavePositionAsync`, `DeletePositionAsync`, `GetAllPositionsAsync`
+- **`ShardedChangeEvent`**: Record wrapping `ChangeEvent` with `ShardId` and `ShardPosition` for per-shard tracking
+- **`ShardedCaptureOptions`**: Configuration for auto-discovery, processing mode, lag threshold, topology callbacks
+- **`ShardedProcessingMode`**: Enum with `Aggregated` (cross-shard ordering) and `PerShardParallel` (independent streams)
+
+**Processing & Infrastructure**:
+
+- **`ShardedCdcConnector`**: Internal implementation using `Channel<T>` for aggregated streaming with `AddConnector`/`RemoveConnector` for runtime topology changes
+- **`ShardedCdcProcessor`**: `BackgroundService` with poll-dispatch-save loop, exponential backoff retry, batch size control
+- **`InMemoryShardedCdcPositionStore`**: `ConcurrentDictionary`-based implementation with case-insensitive `ToUpperInvariant()` composite keys
+
+**Configuration** (via `CdcConfiguration.WithShardedCapture()`):
+
+```csharp
+services.AddEncinaCdc(config =>
+{
+    config.UseCdc()
+          .AddHandler<Order, OrderChangeHandler>()
+          .WithShardedCapture(opts =>
+          {
+              opts.AutoDiscoverShards = true;
+              opts.ProcessingMode = ShardedProcessingMode.Aggregated;
+              opts.MaxLagThreshold = TimeSpan.FromMinutes(5);
+              opts.ConnectorId = "orders-sharded-cdc";
+          });
+});
+```
+
+**Health Check**: `ShardedCdcHealthCheck` (extends `EncinaHealthCheck`) — reports Healthy/Degraded/Unhealthy based on shard lag and connector status
+
+**Error Codes** (2 new): `encina.cdc.shard_not_found`, `encina.cdc.shard_stream_failed`
+
+**Observability** (`Encina.OpenTelemetry` package):
+
+- `ShardedCdcMetrics`: 5 metric instruments — `encina.cdc.sharded.events_total` (counter), `encina.cdc.sharded.position_saves_total` (counter), `encina.cdc.sharded.errors_total` (counter), `encina.cdc.sharded.active_connectors` (gauge), `encina.cdc.sharded.lag_ms` (gauge)
+- 2 trace attribute constants: `encina.cdc.shard.id`, `encina.cdc.operation`
+
+**Test Coverage** (132 tests): 86 unit, 23 guard, 14 contract, 9 property
+
+**Documentation**: [`docs/features/cdc-sharding.md`](docs/features/cdc-sharding.md) — comprehensive guide with configuration, position tracking, and observability
+
+---
+
 #### Query Cache Interceptor - EF Core Second-Level Cache (#291)
 
 Added an EF Core query caching interceptor that acts as a transparent second-level cache, caching query results at the database command level and automatically invalidating them on `SaveChanges`.

@@ -130,3 +130,55 @@ Encina.Cdc.Messaging.CdcMessagingOptions.TopicPattern.get -> string!
 Encina.Cdc.Messaging.CdcMessagingOptions.TopicPattern.set -> void
 Encina.Cdc.Messaging.ICdcEventInterceptor
 Encina.Cdc.Messaging.ICdcEventInterceptor.OnEventDispatchedAsync(Encina.Cdc.ChangeEvent! changeEvent, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Cdc.ShardedChangeEvent
+Encina.Cdc.ShardedChangeEvent.ShardedChangeEvent(string! ShardId, Encina.Cdc.ChangeEvent! Event, Encina.Cdc.Abstractions.CdcPosition! ShardPosition) -> void
+Encina.Cdc.ShardedChangeEvent.ShardId.get -> string!
+Encina.Cdc.ShardedChangeEvent.ShardId.init -> void
+Encina.Cdc.ShardedChangeEvent.Event.get -> Encina.Cdc.ChangeEvent!
+Encina.Cdc.ShardedChangeEvent.Event.init -> void
+Encina.Cdc.ShardedChangeEvent.ShardPosition.get -> Encina.Cdc.Abstractions.CdcPosition!
+Encina.Cdc.ShardedChangeEvent.ShardPosition.init -> void
+Encina.Cdc.Abstractions.IShardedCdcPositionStore
+Encina.Cdc.Abstractions.IShardedCdcPositionStore.GetPositionAsync(string! shardId, string! connectorId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Cdc.Abstractions.CdcPosition!>>>!
+Encina.Cdc.Abstractions.IShardedCdcPositionStore.SavePositionAsync(string! shardId, string! connectorId, Encina.Cdc.Abstractions.CdcPosition! position, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Cdc.Abstractions.IShardedCdcPositionStore.GetAllPositionsAsync(string! connectorId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyDictionary<string!, Encina.Cdc.Abstractions.CdcPosition!>!>>!
+Encina.Cdc.Abstractions.IShardedCdcPositionStore.DeletePositionAsync(string! shardId, string! connectorId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Cdc.Abstractions.IShardedCdcConnector
+Encina.Cdc.Abstractions.IShardedCdcConnector.GetConnectorId() -> string!
+Encina.Cdc.Abstractions.IShardedCdcConnector.ActiveShardIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Cdc.Abstractions.IShardedCdcConnector.StreamAllShardsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<Encina.EncinaError, Encina.Cdc.ShardedChangeEvent!>>!
+Encina.Cdc.Abstractions.IShardedCdcConnector.StreamShardAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<Encina.EncinaError, Encina.Cdc.ChangeEvent!>>!
+Encina.Cdc.Abstractions.IShardedCdcConnector.GetAllPositionsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyDictionary<string!, Encina.Cdc.Abstractions.CdcPosition!>!>>!
+const Encina.Cdc.Errors.CdcErrorCodes.ShardNotFound = "encina.cdc.shard_not_found" -> string!
+const Encina.Cdc.Errors.CdcErrorCodes.ShardStreamFailed = "encina.cdc.shard_stream_failed" -> string!
+static Encina.Cdc.Errors.CdcErrors.ShardNotFound(string! shardId) -> Encina.EncinaError
+static Encina.Cdc.Errors.CdcErrors.ShardStreamFailed(string! shardId, System.Exception! exception) -> Encina.EncinaError
+Encina.Cdc.Messaging.CdcChangeNotification.ShardId.get -> string?
+Encina.Cdc.Messaging.CdcChangeNotification.ShardId.init -> void
+static Encina.Cdc.Messaging.CdcChangeNotification.FromChangeEvent(Encina.Cdc.ChangeEvent! changeEvent, string! topicPattern, string? shardId) -> Encina.Cdc.Messaging.CdcChangeNotification!
+Encina.Cdc.Messaging.ICdcEventInterceptor.OnShardedEventDispatchedAsync(Encina.Cdc.ChangeEvent! changeEvent, string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Cdc.CdcConfiguration.WithShardedCapture(System.Action<Encina.Cdc.Sharding.ShardedCaptureOptions!>? configure = null) -> Encina.Cdc.CdcConfiguration!
+Encina.Cdc.CdcOptions.UseShardedCapture.get -> bool
+Encina.Cdc.CdcOptions.UseShardedCapture.set -> void
+Encina.Cdc.Sharding.ShardedCaptureOptions
+Encina.Cdc.Sharding.ShardedCaptureOptions.ShardedCaptureOptions() -> void
+Encina.Cdc.Sharding.ShardedCaptureOptions.AutoDiscoverShards.get -> bool
+Encina.Cdc.Sharding.ShardedCaptureOptions.AutoDiscoverShards.set -> void
+Encina.Cdc.Sharding.ShardedCaptureOptions.ProcessingMode.get -> Encina.Cdc.Sharding.ShardedProcessingMode
+Encina.Cdc.Sharding.ShardedCaptureOptions.ProcessingMode.set -> void
+Encina.Cdc.Sharding.ShardedCaptureOptions.OnShardAdded.get -> System.Action<Encina.Sharding.ShardInfo!>?
+Encina.Cdc.Sharding.ShardedCaptureOptions.OnShardAdded.set -> void
+Encina.Cdc.Sharding.ShardedCaptureOptions.OnShardRemoved.get -> System.Action<string!>?
+Encina.Cdc.Sharding.ShardedCaptureOptions.OnShardRemoved.set -> void
+Encina.Cdc.Sharding.ShardedCaptureOptions.PositionStoreType.get -> System.Type?
+Encina.Cdc.Sharding.ShardedCaptureOptions.PositionStoreType.set -> void
+Encina.Cdc.Sharding.ShardedCaptureOptions.MaxLagThreshold.get -> System.TimeSpan
+Encina.Cdc.Sharding.ShardedCaptureOptions.MaxLagThreshold.set -> void
+Encina.Cdc.Sharding.ShardedCaptureOptions.ConnectorId.get -> string!
+Encina.Cdc.Sharding.ShardedCaptureOptions.ConnectorId.set -> void
+Encina.Cdc.Sharding.ShardedProcessingMode
+Encina.Cdc.Sharding.ShardedProcessingMode.Aggregated = 0 -> Encina.Cdc.Sharding.ShardedProcessingMode
+Encina.Cdc.Sharding.ShardedProcessingMode.PerShardParallel = 1 -> Encina.Cdc.Sharding.ShardedProcessingMode
+Encina.Cdc.Health.ShardedCdcHealthCheck
+Encina.Cdc.Health.ShardedCdcHealthCheck.ShardedCdcHealthCheck(Encina.Cdc.Abstractions.IShardedCdcConnector! connector, Encina.Cdc.Abstractions.IShardedCdcPositionStore! positionStore, System.Collections.Generic.IReadOnlyCollection<string!>? providerTags = null) -> void
+override Encina.Cdc.Health.ShardedCdcHealthCheck.CheckHealthCoreAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Encina.Messaging.Health.HealthCheckResult>!

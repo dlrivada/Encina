@@ -69,3 +69,17 @@ Encina.OpenTelemetry.Sharding.ColocationMetrics
 Encina.OpenTelemetry.Sharding.ColocationMetrics.ColocationMetrics(Encina.Sharding.Colocation.ColocationGroupRegistry! registry) -> void
 Encina.OpenTelemetry.Sharding.ColocationMetrics.RecordValidationFailure(string! rootEntityName, string! failedEntityName) -> void
 Encina.OpenTelemetry.Sharding.ColocationMetrics.RecordLocalJoin(string! groupName) -> void
+Encina.OpenTelemetry.ActivityTagNames.Cdc
+const Encina.OpenTelemetry.ActivityTagNames.Cdc.ConnectorId = "cdc.connector_id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Cdc.ShardId = "cdc.shard_id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Cdc.Operation = "cdc.operation" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Cdc.TableName = "cdc.table_name" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Cdc.Position = "cdc.position" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Cdc.EventsCount = "cdc.events_count" -> string!
+Encina.OpenTelemetry.Cdc.ShardedCdcMetrics
+Encina.OpenTelemetry.Cdc.ShardedCdcMetrics.ShardedCdcMetrics(System.Func<int>! activeConnectorsCallback, System.Func<System.Collections.Generic.IEnumerable<(string! ShardId, double LagMs)>!>! lagCallback) -> void
+Encina.OpenTelemetry.Cdc.ShardedCdcMetrics.RecordEventsProcessed(string! shardId, string! operation, long count = 1) -> void
+Encina.OpenTelemetry.Cdc.ShardedCdcMetrics.RecordPositionSave(string! shardId) -> void
+Encina.OpenTelemetry.Cdc.ShardedCdcMetrics.RecordError(string! shardId, string! errorType) -> void
+Encina.OpenTelemetry.Cdc.ShardedCdcMetricsCallbacks
+Encina.OpenTelemetry.Cdc.ShardedCdcMetricsCallbacks.ShardedCdcMetricsCallbacks(System.Func<int>! activeConnectorsCallback, System.Func<System.Collections.Generic.IEnumerable<(string! ShardId, double LagMs)>!>! lagCallback) -> void

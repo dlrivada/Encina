@@ -506,6 +506,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 | Issue | Patrón | Descripción | Prioridad | Complejidad |
 |-------|--------|-------------|-----------|-------------|
 | **#308** | CDC (Change Data Capture) | Captura de cambios en base de datos como eventos | Alta | Alta | ✅ **COMPLETADO** (feb 2026) |
+| **#646** | CDC Per-Shard Connector | Captura CDC multi-shard con posiciones por shard | Alta | Alta | ✅ **COMPLETADO** (feb 2026) |
 | **#309** | Schema Registry Integration | Governance de esquemas de eventos | Alta | Media |
 | **#310** | Event Mesh / Event Gateway | Distribución empresarial de eventos | Alta | Alta |
 | **#311** | Claim Check Pattern | Almacenamiento externo para payloads grandes | Media | Media |
@@ -534,6 +535,21 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - Documentación: [CDC Feature Guide](features/cdc.md)
 - Labels: `area-cdc`, `area-microservices`, `industry-best-practice`, `aot-compatible`
 - Referencias: [Debezium](https://debezium.io/), [CDC CQRS Pattern](https://debezium.io/blog/2025/11/28/cqrs/)
+
+**#646 - CDC Per-Shard Connector** ✅ **COMPLETADO** (febrero 2026):
+
+- `IShardedCdcConnector` para agregación de streams multi-shard
+- `IShardedCdcPositionStore` con clave compuesta `(shardId, connectorId)`
+- `ShardedChangeEvent` record con `ShardId`, `Event`, `ShardPosition`
+- `ShardedCaptureOptions` con auto-discovery, processing mode, lag threshold
+- `ShardedProcessingMode` enum: `Aggregated` vs `PerShardParallel`
+- `ShardedCdcConnector` implementación interna con `Channel<T>`
+- `ShardedCdcProcessor` `BackgroundService` con dispatch-save loop
+- `InMemoryShardedCdcPositionStore` con `ConcurrentDictionary`
+- `ShardedCdcHealthCheck` extendiendo `EncinaHealthCheck`
+- `ShardedCdcMetrics` (5 instrumentos OpenTelemetry)
+- **132 tests**: 86 unit, 23 guard, 14 contract, 9 property
+- Documentación: [Sharded CDC Guide](features/cdc-sharding.md)
 
 **#309 - Schema Registry Integration** (Alta Prioridad):
 
@@ -7124,7 +7140,7 @@ src/
 ├── Encina.HealthChecks/             # (Planned #454) Kubernetes health probes
 ├── Encina.GracefulShutdown/         # (Planned #455) Graceful termination
 ├── Encina.MultiTenancy/             # (Planned #456) Multi-tenancy support
-├── Encina.Cdc/                      # ✅ (#308/#457) CDC core abstractions + processing
+├── Encina.Cdc/                      # ✅ (#308/#457/#646) CDC core abstractions + processing + sharded CDC
 ├── Encina.Cdc.SqlServer/            # ✅ (#308/#457) SQL Server Change Tracking
 ├── Encina.Cdc.PostgreSql/           # ✅ (#308/#457) PostgreSQL Logical Replication
 ├── Encina.Cdc.MySql/                # ✅ (#308/#457) MySQL Binary Log

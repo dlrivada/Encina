@@ -63,4 +63,12 @@ public sealed class CdcOptions
     /// Default is <c>false</c>.
     /// </summary>
     public bool UseOutboxCdc { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to enable sharded CDC capture.
+    /// When enabled, the <c>ShardedCdcProcessor</c> is registered instead of
+    /// the standard <c>CdcProcessor</c> to process events from multiple shards.
+    /// Default is <c>false</c>.
+    /// </summary>
+    public bool UseShardedCapture { get; set; }
 }

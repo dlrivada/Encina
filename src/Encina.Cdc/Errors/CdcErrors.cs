@@ -68,4 +68,21 @@ public static class CdcErrors
     /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.PositionStoreFailed"/>.</returns>
     public static EncinaError PositionStoreFailed(string connectorId, Exception exception)
         => EncinaError.New(exception, $"[{CdcErrorCodes.PositionStoreFailed}] Position store operation failed for connector '{connectorId}'");
+
+    /// <summary>
+    /// Creates an error indicating a shard was not found in the sharded CDC connector.
+    /// </summary>
+    /// <param name="shardId">The shard identifier that was not found.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.ShardNotFound"/>.</returns>
+    public static EncinaError ShardNotFound(string shardId)
+        => EncinaError.New($"[{CdcErrorCodes.ShardNotFound}] Shard '{shardId}' not found in sharded CDC connector");
+
+    /// <summary>
+    /// Creates an error indicating a per-shard CDC stream failed.
+    /// </summary>
+    /// <param name="shardId">The shard identifier whose stream failed.</param>
+    /// <param name="exception">The underlying exception.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.ShardStreamFailed"/>.</returns>
+    public static EncinaError ShardStreamFailed(string shardId, Exception exception)
+        => EncinaError.New(exception, $"[{CdcErrorCodes.ShardStreamFailed}] CDC stream failed for shard '{shardId}'");
 }
