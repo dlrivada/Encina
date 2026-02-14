@@ -76,4 +76,10 @@ internal static class ActivityTagNames
     internal const string ColocationGroup = "encina.sharding.colocation.group";
     internal const string ColocationIsColocated = "encina.sharding.colocation.is_colocated";
     internal const string ColocationRootEntity = "encina.sharding.colocation.root_entity";
+
+    // Read/write separation tags
+    internal const string ReadWriteIntent = "encina.sharding.readwrite.intent";
+    internal const string ReplicaId = "encina.sharding.readwrite.replica.id";
+    internal const string ReplicaSelectionStrategy = "encina.sharding.readwrite.selection_strategy";
+    internal const string ReplicaFallbackReason = "encina.sharding.readwrite.fallback_reason";
 }

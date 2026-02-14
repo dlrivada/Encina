@@ -62,6 +62,7 @@ public static class ShardingDiagnosticsServiceCollectionExtensions
             opt.EnableRoutingMetrics = options.EnableRoutingMetrics;
             opt.EnableScatterGatherMetrics = options.EnableScatterGatherMetrics;
             opt.EnableHealthMetrics = options.EnableHealthMetrics;
+            opt.EnableReadWriteMetrics = options.EnableReadWriteMetrics;
             opt.EnableTracing = options.EnableTracing;
         });
 
@@ -81,6 +82,12 @@ public static class ShardingDiagnosticsServiceCollectionExtensions
         if (options.EnableHealthMetrics)
         {
             services.TryAddSingleton<ShardedDatabasePoolMetrics>();
+        }
+
+        // Register read/write separation metrics
+        if (options.EnableReadWriteMetrics)
+        {
+            services.TryAddSingleton<ShardedReadWriteMetrics>();
         }
 
         return services;

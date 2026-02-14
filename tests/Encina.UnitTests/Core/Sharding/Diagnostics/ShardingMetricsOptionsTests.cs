@@ -50,6 +50,20 @@ public sealed class ShardingMetricsOptionsTests
     }
 
     [Fact]
+    public void EnableSpecificationMetrics_DefaultIsTrue()
+    {
+        var options = new ShardingMetricsOptions();
+        options.EnableSpecificationMetrics.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void EnableReadWriteMetrics_DefaultIsTrue()
+    {
+        var options = new ShardingMetricsOptions();
+        options.EnableReadWriteMetrics.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Properties_CanBeModified()
     {
         var options = new ShardingMetricsOptions
@@ -59,7 +73,9 @@ public sealed class ShardingMetricsOptionsTests
             EnableScatterGatherMetrics = false,
             EnableHealthMetrics = false,
             EnableAggregationMetrics = false,
-            EnableTracing = false
+            EnableSpecificationMetrics = false,
+            EnableReadWriteMetrics = false,
+            EnableTracing = false,
         };
 
         options.HealthCheckInterval.ShouldBe(TimeSpan.FromMinutes(1));
@@ -67,6 +83,8 @@ public sealed class ShardingMetricsOptionsTests
         options.EnableScatterGatherMetrics.ShouldBeFalse();
         options.EnableHealthMetrics.ShouldBeFalse();
         options.EnableAggregationMetrics.ShouldBeFalse();
+        options.EnableSpecificationMetrics.ShouldBeFalse();
+        options.EnableReadWriteMetrics.ShouldBeFalse();
         options.EnableTracing.ShouldBeFalse();
     }
 }

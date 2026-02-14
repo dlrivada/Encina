@@ -81,6 +81,16 @@ public sealed class ShardingMetricsOptions
     public bool EnableSpecificationMetrics { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets whether read/write separation metrics are enabled.
+    /// </summary>
+    /// <value>Defaults to <c>true</c>.</value>
+    /// <remarks>
+    /// When enabled, replica selection decisions, connection latencies, fallback events,
+    /// replication lag, and unhealthy replica counts are tracked.
+    /// </remarks>
+    public bool EnableReadWriteMetrics { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets whether distributed tracing is enabled for sharding operations.
     /// </summary>
     /// <value>Defaults to <c>true</c>.</value>

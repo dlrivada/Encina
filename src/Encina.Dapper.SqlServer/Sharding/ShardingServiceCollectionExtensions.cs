@@ -3,6 +3,7 @@ using Encina.Sharding;
 using Encina.Sharding.Configuration;
 using Encina.Sharding.Data;
 using Encina.Sharding.Execution;
+using Encina.Sharding.ReplicaSelection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -104,6 +105,43 @@ public static class ShardingServiceCollectionExtensions
                 requestContext,
                 timeProvider);
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds Encina sharded read/write connection factory using Dapper with SQL Server.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Optional configuration action for sharded read/write options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method requires that <c>AddEncinaSharding&lt;TEntity&gt;</c>
+    /// from <c>Encina.Sharding</c> has been called first to register the core sharding services.
+    /// </para>
+    /// <para>
+    /// Registers <see cref="IShardedReadWriteConnectionFactory"/> (non-generic, returning
+    /// <see cref="System.Data.IDbConnection"/>). Dapper operates on <c>IDbConnection</c> and
+    /// does not need the generic typed connection factory.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddEncinaDapperShardedReadWrite(
+        this IServiceCollection services,
+        Action<ShardedReadWriteOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        var options = new ShardedReadWriteOptions();
+        configure?.Invoke(options);
+
+        services.TryAddSingleton(options);
+        services.TryAddSingleton<IReplicaHealthTracker>(sp =>
+            new ReplicaHealthTracker(options.UnhealthyReplicaRecoveryDelay, sp.GetService<TimeProvider>() ?? TimeProvider.System));
+
+        services.TryAddScoped<ShardedReadWriteConnectionFactory>();
+        services.TryAddScoped<IShardedReadWriteConnectionFactory>(sp =>
+            sp.GetRequiredService<ShardedReadWriteConnectionFactory>());
 
         return services;
     }

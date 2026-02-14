@@ -112,4 +112,22 @@ public static class ShardingErrorCodes
 
     /// <summary>An entity cannot be co-located with itself.</summary>
     public const string ColocationSelfReference = "encina.sharding.colocation_self_reference";
+
+    /// <summary>No read replicas are configured for the requested shard.</summary>
+    public const string NoReplicasConfigured = "encina.sharding.no_replicas_configured";
+
+    /// <summary>All read replicas for the shard are currently unhealthy.</summary>
+    public const string AllReplicasUnhealthy = "encina.sharding.all_replicas_unhealthy";
+
+    /// <summary>A replica connection failed during a read operation.</summary>
+    public const string ReplicaConnectionFailed = "encina.sharding.replica_connection_failed";
+
+    /// <summary>Replica selection failed (no available replicas after health filtering).</summary>
+    public const string ReplicaSelectionFailed = "encina.sharding.replica_selection_failed";
+
+    /// <summary>All replicas for the shard exceed the maximum acceptable replication lag.</summary>
+    public const string AllReplicasTooStale = "encina.sharding.all_replicas_too_stale";
+
+    /// <summary>The observed replication lag for a replica exceeds the configured threshold.</summary>
+    public const string ReplicationLagExceeded = "encina.sharding.replication_lag_exceeded";
 }

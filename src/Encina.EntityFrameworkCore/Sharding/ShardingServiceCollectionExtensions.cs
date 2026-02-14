@@ -2,6 +2,7 @@ using Encina.Sharding;
 using Encina.Sharding.Configuration;
 using Encina.Sharding.Data;
 using Encina.Sharding.Execution;
+using Encina.Sharding.ReplicaSelection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -246,6 +247,161 @@ public static class ShardingServiceCollectionExtensions
                 queryExecutor,
                 repoLogger);
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds Encina EF Core sharded read/write DbContext factory using SQL Server.
+    /// </summary>
+    /// <typeparam name="TContext">The DbContext type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Optional configuration action for sharded read/write options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method requires that <c>AddEncinaSharding&lt;TEntity&gt;</c>
+    /// from <c>Encina.Sharding</c> has been called first to register the core sharding services.
+    /// </para>
+    /// <para>
+    /// Registers <see cref="IShardedReadWriteDbContextFactory{TContext}"/> that creates
+    /// DbContext instances with read/write separation per shard using SQL Server.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddEncinaEFCoreShardedReadWriteSqlServer<TContext>(
+        this IServiceCollection services,
+        Action<ShardedReadWriteOptions>? configure = null)
+        where TContext : DbContext
+    {
+        return AddEncinaEFCoreShardedReadWriteCore<TContext>(
+            services,
+            static (builder, connectionString) => builder.UseSqlServer(connectionString),
+            configure);
+    }
+
+    /// <summary>
+    /// Adds Encina EF Core sharded read/write DbContext factory using PostgreSQL.
+    /// </summary>
+    /// <typeparam name="TContext">The DbContext type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Optional configuration action for sharded read/write options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method requires that <c>AddEncinaSharding&lt;TEntity&gt;</c>
+    /// from <c>Encina.Sharding</c> has been called first to register the core sharding services.
+    /// </para>
+    /// <para>
+    /// Registers <see cref="IShardedReadWriteDbContextFactory{TContext}"/> that creates
+    /// DbContext instances with read/write separation per shard using PostgreSQL.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddEncinaEFCoreShardedReadWritePostgreSql<TContext>(
+        this IServiceCollection services,
+        Action<ShardedReadWriteOptions>? configure = null)
+        where TContext : DbContext
+    {
+        return AddEncinaEFCoreShardedReadWriteCore<TContext>(
+            services,
+            static (builder, connectionString) => builder.UseNpgsql(connectionString),
+            configure);
+    }
+
+    /// <summary>
+    /// Adds Encina EF Core sharded read/write DbContext factory using MySQL.
+    /// </summary>
+    /// <typeparam name="TContext">The DbContext type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configureProvider">
+    /// Delegate that configures the <see cref="DbContextOptionsBuilder{TContext}"/> with a MySQL provider
+    /// and the given connection string. Required because the Pomelo MySQL provider needs a
+    /// <c>ServerVersion</c> parameter.
+    /// </param>
+    /// <param name="configure">Optional configuration action for sharded read/write options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method requires that <c>AddEncinaSharding&lt;TEntity&gt;</c>
+    /// from <c>Encina.Sharding</c> has been called first to register the core sharding services.
+    /// </para>
+    /// <para>
+    /// Registers <see cref="IShardedReadWriteDbContextFactory{TContext}"/> that creates
+    /// DbContext instances with read/write separation per shard using MySQL.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddEncinaEFCoreShardedReadWriteMySql<TContext>(
+        this IServiceCollection services,
+        Action<DbContextOptionsBuilder<TContext>, string> configureProvider,
+        Action<ShardedReadWriteOptions>? configure = null)
+        where TContext : DbContext
+    {
+        ArgumentNullException.ThrowIfNull(configureProvider);
+
+        return AddEncinaEFCoreShardedReadWriteCore<TContext>(
+            services,
+            configureProvider,
+            configure);
+    }
+
+    /// <summary>
+    /// Adds Encina EF Core sharded read/write DbContext factory using SQLite.
+    /// </summary>
+    /// <typeparam name="TContext">The DbContext type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Optional configuration action for sharded read/write options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method requires that <c>AddEncinaSharding&lt;TEntity&gt;</c>
+    /// from <c>Encina.Sharding</c> has been called first to register the core sharding services.
+    /// </para>
+    /// <para>
+    /// Registers <see cref="IShardedReadWriteDbContextFactory{TContext}"/> that creates
+    /// DbContext instances with read/write separation per shard using SQLite.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddEncinaEFCoreShardedReadWriteSqlite<TContext>(
+        this IServiceCollection services,
+        Action<ShardedReadWriteOptions>? configure = null)
+        where TContext : DbContext
+    {
+        return AddEncinaEFCoreShardedReadWriteCore<TContext>(
+            services,
+            static (builder, connectionString) => builder.UseSqlite(connectionString),
+            configure);
+    }
+
+    /// <summary>
+    /// Core registration method that configures the sharded read/write DbContext factory
+    /// with a provider-specific options builder delegate.
+    /// </summary>
+    private static IServiceCollection AddEncinaEFCoreShardedReadWriteCore<TContext>(
+        IServiceCollection services,
+        Action<DbContextOptionsBuilder<TContext>, string> configureProvider,
+        Action<ShardedReadWriteOptions>? configureOptions)
+        where TContext : DbContext
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configureProvider);
+
+        var options = new ShardedReadWriteOptions();
+        configureOptions?.Invoke(options);
+
+        services.TryAddSingleton(options);
+        services.TryAddSingleton<IReplicaHealthTracker>(sp =>
+            new ReplicaHealthTracker(options.UnhealthyReplicaRecoveryDelay, sp.GetService<TimeProvider>() ?? TimeProvider.System));
+
+        services.TryAddScoped<ShardedReadWriteDbContextFactory<TContext>>(sp =>
+        {
+            var topology = sp.GetRequiredService<ShardTopology>();
+            var rwOptions = sp.GetRequiredService<ShardedReadWriteOptions>();
+            var healthTracker = sp.GetRequiredService<IReplicaHealthTracker>();
+            return new ShardedReadWriteDbContextFactory<TContext>(
+                topology, rwOptions, healthTracker, sp, configureProvider);
+        });
+
+        services.TryAddScoped<IShardedReadWriteDbContextFactory<TContext>>(sp =>
+            sp.GetRequiredService<ShardedReadWriteDbContextFactory<TContext>>());
 
         return services;
     }

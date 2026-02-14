@@ -671,10 +671,15 @@ Encina.Sharding.ShardFailure.ShardId.get -> string!
 Encina.Sharding.ShardFailure.ShardId.init -> void
 Encina.Sharding.ShardInfo
 Encina.Sharding.ShardInfo.ConnectionString.get -> string!
+Encina.Sharding.ShardInfo.HasReplicas.get -> bool
 Encina.Sharding.ShardInfo.IsActive.get -> bool
 Encina.Sharding.ShardInfo.IsActive.init -> void
+Encina.Sharding.ShardInfo.ReplicaConnectionStrings.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.ShardInfo.ReplicaCount.get -> int
+Encina.Sharding.ShardInfo.ReplicaStrategy.get -> Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy?
+Encina.Sharding.ShardInfo.ReplicaStrategy.init -> void
 Encina.Sharding.ShardInfo.ShardId.get -> string!
-Encina.Sharding.ShardInfo.ShardInfo(string! ShardId, string! ConnectionString, int Weight = 1, bool IsActive = true) -> void
+Encina.Sharding.ShardInfo.ShardInfo(string! ShardId, string! ConnectionString, int Weight = 1, bool IsActive = true, System.Collections.Generic.IReadOnlyList<string!>? ReplicaConnectionStrings = null, Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy? ReplicaStrategy = null) -> void
 Encina.Sharding.ShardInfo.Weight.get -> int
 Encina.Sharding.ShardInfo.Weight.init -> void
 Encina.Sharding.ShardingErrorCodes
@@ -919,3 +924,155 @@ static Encina.IdGenerationErrors.SequenceExhausted(long maxSequence) -> Encina.E
 static Encina.IdGenerationErrors.InvalidShardId(string? shardId, string! reason) -> Encina.EncinaError
 static Encina.IdGenerationErrors.IdParseFailure(string? value, string! targetType) -> Encina.EncinaError
 static Encina.IdGenerationErrors.IdParseFailure(string? value, string! targetType, System.Exception! exception) -> Encina.EncinaError
+const Encina.Sharding.ShardingErrorCodes.NoReplicasConfigured = "encina.sharding.no_replicas_configured" -> string!
+const Encina.Sharding.ShardingErrorCodes.AllReplicasUnhealthy = "encina.sharding.all_replicas_unhealthy" -> string!
+const Encina.Sharding.ShardingErrorCodes.ReplicaConnectionFailed = "encina.sharding.replica_connection_failed" -> string!
+const Encina.Sharding.ShardingErrorCodes.ReplicaSelectionFailed = "encina.sharding.replica_selection_failed" -> string!
+Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy
+Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy.RoundRobin = 0 -> Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy
+Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy.Random = 1 -> Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy
+Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy.LeastLatency = 2 -> Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy
+Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy.LeastConnections = 3 -> Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy
+Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy.WeightedRandom = 4 -> Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy
+Encina.Sharding.ReplicaSelection.IShardReplicaSelector
+Encina.Sharding.ReplicaSelection.IShardReplicaSelector.SelectReplica(System.Collections.Generic.IReadOnlyList<string!>! availableReplicas) -> string!
+Encina.Sharding.ReplicaSelection.RoundRobinShardReplicaSelector
+Encina.Sharding.ReplicaSelection.RoundRobinShardReplicaSelector.RoundRobinShardReplicaSelector() -> void
+Encina.Sharding.ReplicaSelection.RoundRobinShardReplicaSelector.SelectReplica(System.Collections.Generic.IReadOnlyList<string!>! availableReplicas) -> string!
+Encina.Sharding.ReplicaSelection.RandomShardReplicaSelector
+Encina.Sharding.ReplicaSelection.RandomShardReplicaSelector.RandomShardReplicaSelector() -> void
+Encina.Sharding.ReplicaSelection.RandomShardReplicaSelector.SelectReplica(System.Collections.Generic.IReadOnlyList<string!>! availableReplicas) -> string!
+Encina.Sharding.ReplicaSelection.LeastLatencyShardReplicaSelector
+Encina.Sharding.ReplicaSelection.LeastLatencyShardReplicaSelector.LeastLatencyShardReplicaSelector() -> void
+Encina.Sharding.ReplicaSelection.LeastLatencyShardReplicaSelector.SelectReplica(System.Collections.Generic.IReadOnlyList<string!>! availableReplicas) -> string!
+Encina.Sharding.ReplicaSelection.LeastLatencyShardReplicaSelector.ReportLatency(string! replicaConnectionString, System.TimeSpan latency) -> void
+Encina.Sharding.ReplicaSelection.LeastLatencyShardReplicaSelector.Reset() -> void
+Encina.Sharding.ReplicaSelection.LeastConnectionsShardReplicaSelector
+Encina.Sharding.ReplicaSelection.LeastConnectionsShardReplicaSelector.LeastConnectionsShardReplicaSelector() -> void
+Encina.Sharding.ReplicaSelection.LeastConnectionsShardReplicaSelector.SelectReplica(System.Collections.Generic.IReadOnlyList<string!>! availableReplicas) -> string!
+Encina.Sharding.ReplicaSelection.LeastConnectionsShardReplicaSelector.IncrementConnections(string! replicaConnectionString) -> void
+Encina.Sharding.ReplicaSelection.LeastConnectionsShardReplicaSelector.DecrementConnections(string! replicaConnectionString) -> void
+Encina.Sharding.ReplicaSelection.LeastConnectionsShardReplicaSelector.GetConnectionCount(string! replicaConnectionString) -> int
+Encina.Sharding.ReplicaSelection.LeastConnectionsShardReplicaSelector.Reset() -> void
+Encina.Sharding.ReplicaSelection.WeightedRandomShardReplicaSelector
+Encina.Sharding.ReplicaSelection.WeightedRandomShardReplicaSelector.WeightedRandomShardReplicaSelector(System.Collections.Generic.IReadOnlyList<int>? weights = null) -> void
+Encina.Sharding.ReplicaSelection.WeightedRandomShardReplicaSelector.SelectReplica(System.Collections.Generic.IReadOnlyList<string!>! availableReplicas) -> string!
+Encina.Sharding.ReplicaSelection.ShardReplicaSelectorFactory
+static Encina.Sharding.ReplicaSelection.ShardReplicaSelectorFactory.Create(Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy strategy, System.Collections.Generic.IReadOnlyList<int>? weights = null) -> Encina.Sharding.ReplicaSelection.IShardReplicaSelector!
+Encina.Sharding.ReplicaSelection.ReplicaHealthState
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.FailureCount.get -> int
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.FailureCount.init -> void
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.IsHealthy.get -> bool
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.IsHealthy.init -> void
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.LastFailure.get -> System.DateTime?
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.LastFailure.init -> void
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.LastSuccess.get -> System.DateTime?
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.LastSuccess.init -> void
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.ReplicaHealthState(bool IsHealthy, System.DateTime? LastFailure, int FailureCount, System.DateTime? LastSuccess, System.TimeSpan? ObservedReplicationLag = null, System.DateTime? LagObservedAtUtc = null) -> void
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.ObservedReplicationLag.get -> System.TimeSpan?
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.ObservedReplicationLag.init -> void
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.LagObservedAtUtc.get -> System.DateTime?
+Encina.Sharding.ReplicaSelection.ReplicaHealthState.LagObservedAtUtc.init -> void
+static Encina.Sharding.ReplicaSelection.ReplicaHealthState.Healthy.get -> Encina.Sharding.ReplicaSelection.ReplicaHealthState!
+Encina.Sharding.ReplicaSelection.IReplicaHealthTracker
+Encina.Sharding.ReplicaSelection.IReplicaHealthTracker.MarkHealthy(string! shardId, string! replicaConnectionString) -> void
+Encina.Sharding.ReplicaSelection.IReplicaHealthTracker.MarkUnhealthy(string! shardId, string! replicaConnectionString) -> void
+Encina.Sharding.ReplicaSelection.IReplicaHealthTracker.GetAvailableReplicas(string! shardId, System.Collections.Generic.IReadOnlyList<string!>! allReplicas) -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.ReplicaSelection.IReplicaHealthTracker.GetHealthState(string! shardId, string! replicaConnectionString) -> Encina.Sharding.ReplicaSelection.ReplicaHealthState!
+Encina.Sharding.ReplicaSelection.IReplicaHealthTracker.GetAllHealthStates(string! shardId) -> System.Collections.Generic.IReadOnlyDictionary<string!, Encina.Sharding.ReplicaSelection.ReplicaHealthState!>!
+Encina.Sharding.ReplicaSelection.IReplicaHealthTracker.ReportReplicationLag(string! shardId, string! replicaConnectionString, System.TimeSpan lag) -> void
+Encina.Sharding.ReplicaSelection.IReplicaHealthTracker.GetAvailableReplicas(string! shardId, System.Collections.Generic.IReadOnlyList<string!>! allReplicas, System.TimeSpan? maxAcceptableLag) -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.ReplicaSelection.ReplicaHealthTracker
+Encina.Sharding.ReplicaSelection.ReplicaHealthTracker.ReplicaHealthTracker(System.TimeSpan? recoveryDelay = null, System.TimeProvider? timeProvider = null) -> void
+Encina.Sharding.ReplicaSelection.ReplicaHealthTracker.MarkHealthy(string! shardId, string! replicaConnectionString) -> void
+Encina.Sharding.ReplicaSelection.ReplicaHealthTracker.MarkUnhealthy(string! shardId, string! replicaConnectionString) -> void
+Encina.Sharding.ReplicaSelection.ReplicaHealthTracker.GetAvailableReplicas(string! shardId, System.Collections.Generic.IReadOnlyList<string!>! allReplicas) -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.ReplicaSelection.ReplicaHealthTracker.GetHealthState(string! shardId, string! replicaConnectionString) -> Encina.Sharding.ReplicaSelection.ReplicaHealthState!
+Encina.Sharding.ReplicaSelection.ReplicaHealthTracker.GetAllHealthStates(string! shardId) -> System.Collections.Generic.IReadOnlyDictionary<string!, Encina.Sharding.ReplicaSelection.ReplicaHealthState!>!
+Encina.Sharding.ReplicaSelection.ReplicaHealthTracker.ReportReplicationLag(string! shardId, string! replicaConnectionString, System.TimeSpan lag) -> void
+Encina.Sharding.ReplicaSelection.ReplicaHealthTracker.GetAvailableReplicas(string! shardId, System.Collections.Generic.IReadOnlyList<string!>! allReplicas, System.TimeSpan? maxAcceptableLag) -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.Data.IShardedReadWriteConnectionFactory
+Encina.Sharding.Data.IShardedReadWriteConnectionFactory.GetReadConnectionAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Data.IDbConnection!>>!
+Encina.Sharding.Data.IShardedReadWriteConnectionFactory.GetWriteConnectionAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Data.IDbConnection!>>!
+Encina.Sharding.Data.IShardedReadWriteConnectionFactory.GetConnectionAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Data.IDbConnection!>>!
+Encina.Sharding.Data.IShardedReadWriteConnectionFactory.GetAllReadConnectionsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyDictionary<string!, System.Data.IDbConnection!>!>>!
+Encina.Sharding.Data.IShardedReadWriteConnectionFactory.GetAllWriteConnectionsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyDictionary<string!, System.Data.IDbConnection!>!>>!
+Encina.Sharding.Data.IShardedReadWriteConnectionFactory<TConnection>
+Encina.Sharding.Data.IShardedReadWriteConnectionFactory<TConnection>.GetReadConnectionAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TConnection!>>!
+Encina.Sharding.Data.IShardedReadWriteConnectionFactory<TConnection>.GetWriteConnectionAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TConnection!>>!
+Encina.Sharding.Data.IShardedReadWriteConnectionFactory<TConnection>.GetConnectionAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TConnection!>>!
+Encina.Sharding.Data.IShardedReadWriteConnectionFactory<TConnection>.GetAllReadConnectionsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyDictionary<string!, TConnection!>!>>!
+Encina.Sharding.Data.IShardedReadWriteConnectionFactory<TConnection>.GetAllWriteConnectionsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyDictionary<string!, TConnection!>!>>!
+Encina.Sharding.ShardedReadWriteOptions
+Encina.Sharding.ShardedReadWriteOptions.ShardedReadWriteOptions() -> void
+Encina.Sharding.ShardedReadWriteOptions.DefaultReplicaStrategy.get -> Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy
+Encina.Sharding.ShardedReadWriteOptions.DefaultReplicaStrategy.set -> void
+Encina.Sharding.ShardedReadWriteOptions.ReplicaHealthCheckInterval.get -> System.TimeSpan
+Encina.Sharding.ShardedReadWriteOptions.ReplicaHealthCheckInterval.set -> void
+Encina.Sharding.ShardedReadWriteOptions.UnhealthyReplicaRecoveryDelay.get -> System.TimeSpan
+Encina.Sharding.ShardedReadWriteOptions.UnhealthyReplicaRecoveryDelay.set -> void
+Encina.Sharding.ShardedReadWriteOptions.MaxAcceptableReplicationLag.get -> System.TimeSpan?
+Encina.Sharding.ShardedReadWriteOptions.MaxAcceptableReplicationLag.set -> void
+Encina.Sharding.ShardedReadWriteOptions.FallbackToPrimaryWhenNoReplicas.get -> bool
+Encina.Sharding.ShardedReadWriteOptions.FallbackToPrimaryWhenNoReplicas.set -> void
+Encina.Sharding.ShardedReadWriteOptions.AddShard(string! shardId, string! primaryConnectionString, System.Collections.Generic.IReadOnlyList<string!>? replicaConnectionStrings = null, Encina.Sharding.ReplicaSelection.ReplicaSelectionStrategy? strategy = null) -> Encina.Sharding.ShardedReadWriteOptions!
+Encina.Sharding.Data.IShardedReadWriteDbContextFactory<TContext>
+Encina.Sharding.Data.IShardedReadWriteDbContextFactory<TContext>.CreateReadContextForShard(string! shardId) -> LanguageExt.Either<Encina.EncinaError, TContext!>
+Encina.Sharding.Data.IShardedReadWriteDbContextFactory<TContext>.CreateWriteContextForShard(string! shardId) -> LanguageExt.Either<Encina.EncinaError, TContext!>
+Encina.Sharding.Data.IShardedReadWriteDbContextFactory<TContext>.CreateContextForShard(string! shardId) -> LanguageExt.Either<Encina.EncinaError, TContext!>
+Encina.Sharding.Data.IShardedReadWriteDbContextFactory<TContext>.CreateAllReadContexts() -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyDictionary<string!, TContext!>!>
+Encina.Sharding.Data.IShardedReadWriteDbContextFactory<TContext>.CreateAllWriteContexts() -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyDictionary<string!, TContext!>!>
+Encina.Sharding.Data.IShardedReadWriteDbContextFactory<TContext>.CreateReadContextForShardAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TContext!>>
+Encina.Sharding.Data.IShardedReadWriteDbContextFactory<TContext>.CreateWriteContextForShardAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TContext!>>
+Encina.Sharding.Data.IShardedReadWriteDbContextFactory<TContext>.CreateContextForShardAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TContext!>>
+Encina.Sharding.ReplicaSelection.AcceptStaleReadsAttribute
+Encina.Sharding.ReplicaSelection.AcceptStaleReadsAttribute.AcceptStaleReadsAttribute(int maxLagMilliseconds) -> void
+Encina.Sharding.ReplicaSelection.AcceptStaleReadsAttribute.MaxLagMilliseconds.get -> int
+Encina.Sharding.ReplicaSelection.AcceptStaleReadsAttribute.MaxLag.get -> System.TimeSpan
+Encina.Sharding.ReplicaSelection.StalenessOptions
+Encina.Sharding.ReplicaSelection.StalenessOptions.StalenessOptions() -> void
+Encina.Sharding.ReplicaSelection.StalenessOptions.MaxAcceptableReplicationLag.get -> System.TimeSpan?
+Encina.Sharding.ReplicaSelection.StalenessOptions.MaxAcceptableReplicationLag.set -> void
+Encina.Sharding.ReplicaSelection.StalenessOptions.FallbackToPrimaryWhenStale.get -> bool
+Encina.Sharding.ReplicaSelection.StalenessOptions.FallbackToPrimaryWhenStale.set -> void
+Encina.Sharding.ReplicaSelection.StalenessOptions.IsEnabled.get -> bool
+const Encina.Sharding.ShardingErrorCodes.AllReplicasTooStale = "encina.sharding.all_replicas_too_stale" -> string!
+const Encina.Sharding.ShardingErrorCodes.ReplicationLagExceeded = "encina.sharding.replication_lag_exceeded" -> string!
+Encina.Sharding.Diagnostics.ShardedReadWriteMetrics
+Encina.Sharding.Diagnostics.ShardedReadWriteMetrics.ShardedReadWriteMetrics(Encina.Sharding.ShardTopology! topology, Encina.Sharding.ReplicaSelection.IReplicaHealthTracker! healthTracker) -> void
+Encina.Sharding.Diagnostics.ShardedReadWriteMetrics.RecordRoutingDecision(string! shardId, string! intent, string? replicaId = null) -> void
+Encina.Sharding.Diagnostics.ShardedReadWriteMetrics.RecordReplicaSelectionDuration(string! shardId, string! strategy, double durationMs) -> void
+Encina.Sharding.Diagnostics.ShardedReadWriteMetrics.RecordReplicaLatency(string! shardId, string! replicaId, double latencyMs) -> void
+Encina.Sharding.Diagnostics.ShardedReadWriteMetrics.RecordFallbackToPrimary(string! shardId, string! reason) -> void
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableReadWriteMetrics.get -> bool
+Encina.Sharding.Diagnostics.ShardingMetricsOptions.EnableReadWriteMetrics.set -> void
+Encina.Sharding.Health.ShardReplicaHealthCheck
+Encina.Sharding.Health.ShardReplicaHealthCheck.ShardReplicaHealthCheck(Encina.Sharding.ShardTopology! topology, Encina.Sharding.ReplicaSelection.IReplicaHealthTracker! healthTracker, Encina.Sharding.ShardedReadWriteOptions! options) -> void
+Encina.Sharding.Health.ShardReplicaHealthCheck.MinimumHealthyReplicasPerShard.get -> int
+Encina.Sharding.Health.ShardReplicaHealthCheck.MinimumHealthyReplicasPerShard.set -> void
+Encina.Sharding.Health.ShardReplicaHealthCheck.CheckReplicaHealthAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Sharding.Health.ShardReplicaHealthSummary!>!
+Encina.Sharding.Health.ShardReplicaHealthResult
+Encina.Sharding.Health.ShardReplicaHealthResult.ShardReplicaHealthResult(string! ShardId, Encina.Database.DatabaseHealthStatus Status, int HealthyReplicaCount, int TotalReplicaCount, string? Description = null) -> void
+Encina.Sharding.Health.ShardReplicaHealthResult.ShardId.get -> string!
+Encina.Sharding.Health.ShardReplicaHealthResult.ShardId.init -> void
+Encina.Sharding.Health.ShardReplicaHealthResult.Status.get -> Encina.Database.DatabaseHealthStatus
+Encina.Sharding.Health.ShardReplicaHealthResult.Status.init -> void
+Encina.Sharding.Health.ShardReplicaHealthResult.HealthyReplicaCount.get -> int
+Encina.Sharding.Health.ShardReplicaHealthResult.HealthyReplicaCount.init -> void
+Encina.Sharding.Health.ShardReplicaHealthResult.TotalReplicaCount.get -> int
+Encina.Sharding.Health.ShardReplicaHealthResult.TotalReplicaCount.init -> void
+Encina.Sharding.Health.ShardReplicaHealthResult.Description.get -> string?
+Encina.Sharding.Health.ShardReplicaHealthResult.Description.init -> void
+Encina.Sharding.Health.ShardReplicaHealthResult.IsHealthy.get -> bool
+Encina.Sharding.Health.ShardReplicaHealthResult.IsDegraded.get -> bool
+Encina.Sharding.Health.ShardReplicaHealthResult.IsUnhealthy.get -> bool
+Encina.Sharding.Health.ShardReplicaHealthSummary
+Encina.Sharding.Health.ShardReplicaHealthSummary.ShardReplicaHealthSummary(Encina.Database.DatabaseHealthStatus OverallStatus, System.Collections.Generic.IReadOnlyList<Encina.Sharding.Health.ShardReplicaHealthResult!>! ShardResults) -> void
+Encina.Sharding.Health.ShardReplicaHealthSummary.OverallStatus.get -> Encina.Database.DatabaseHealthStatus
+Encina.Sharding.Health.ShardReplicaHealthSummary.OverallStatus.init -> void
+Encina.Sharding.Health.ShardReplicaHealthSummary.ShardResults.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.Health.ShardReplicaHealthResult!>!
+Encina.Sharding.Health.ShardReplicaHealthSummary.ShardResults.init -> void
+Encina.Sharding.Health.ShardReplicaHealthSummary.AllHealthy.get -> bool
+Encina.Sharding.Health.ShardReplicaHealthSummary.ShardCount.get -> int
+Encina.Sharding.Health.ShardReplicaHealthSummary.DegradedCount.get -> int
+Encina.Sharding.Health.ShardReplicaHealthSummary.UnhealthyCount.get -> int

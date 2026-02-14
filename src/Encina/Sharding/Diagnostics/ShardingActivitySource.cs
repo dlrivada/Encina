@@ -318,6 +318,77 @@ internal static class ShardingActivitySource
     }
 
     /// <summary>
+    /// Starts a read/write connection acquisition activity.
+    /// </summary>
+    /// <param name="shardId">The shard identifier.</param>
+    /// <param name="intent">The routing intent (<c>"read"</c> or <c>"write"</c>).</param>
+    /// <returns>The started activity, or <c>null</c> if no listener is active.</returns>
+    internal static Activity? StartReadWriteConnect(string shardId, string intent)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity(
+            "Encina.Sharding.ReadWrite.Connect", ActivityKind.Client);
+        activity?.SetTag(ActivityTagNames.ShardId, shardId);
+        activity?.SetTag(ActivityTagNames.ReadWriteIntent, intent);
+        return activity;
+    }
+
+    /// <summary>
+    /// Completes a read/write connection acquisition activity with the selected replica.
+    /// </summary>
+    /// <param name="activity">The connection activity to complete.</param>
+    /// <param name="replicaId">The selected replica identifier, or <c>null</c> if primary was used.</param>
+    /// <param name="selectionStrategy">The selection strategy used.</param>
+    internal static void ReadWriteConnectCompleted(
+        Activity? activity, string? replicaId, string? selectionStrategy)
+    {
+        if (activity is null)
+        {
+            return;
+        }
+
+        if (replicaId is not null)
+        {
+            activity.SetTag(ActivityTagNames.ReplicaId, replicaId);
+        }
+
+        if (selectionStrategy is not null)
+        {
+            activity.SetTag(ActivityTagNames.ReplicaSelectionStrategy, selectionStrategy);
+        }
+
+        activity.SetStatus(ActivityStatusCode.Ok);
+        activity.Dispose();
+    }
+
+    /// <summary>
+    /// Marks a read/write connection acquisition activity as failed.
+    /// </summary>
+    /// <param name="activity">The connection activity to mark as failed.</param>
+    /// <param name="errorCode">The error code.</param>
+    /// <param name="errorMessage">The error message.</param>
+    internal static void ReadWriteConnectFailed(
+        Activity? activity, string? errorCode, string? errorMessage)
+    {
+        if (activity is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(errorCode))
+        {
+            activity.SetTag(ActivityTagNames.FailureCode, errorCode);
+        }
+
+        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity.Dispose();
+    }
+
+    /// <summary>
     /// Completes a distributed aggregation activity with result information.
     /// </summary>
     /// <param name="activity">The aggregation activity to complete.</param>

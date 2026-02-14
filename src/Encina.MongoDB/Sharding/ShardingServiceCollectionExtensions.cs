@@ -1,3 +1,4 @@
+using Encina.MongoDB.ReadWriteSeparation;
 using Encina.Sharding;
 using Encina.Sharding.Configuration;
 using Encina.Sharding.Execution;
@@ -242,5 +243,74 @@ public static class ShardingServiceCollectionExtensions
                 collectionFactory,
                 useNativeSharding: false);
         });
+    }
+
+    /// <summary>
+    /// Adds Encina MongoDB sharded read/write collection factory.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Optional configuration action for read/write separation options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method requires that <c>AddEncinaMongoDBSharding</c> has been called first
+    /// to register the core sharding services and topology.
+    /// </para>
+    /// <para>
+    /// When used with native <c>mongos</c> sharding, the factory applies MongoDB read preferences
+    /// on the default client. When used with application-level sharding, the factory creates
+    /// per-shard <see cref="IMongoClient"/> instances with appropriate read preferences.
+    /// </para>
+    /// <para>
+    /// Registers <see cref="IShardedReadWriteMongoCollectionFactory"/> that provides
+    /// read/write-separated collections per shard using MongoDB read preferences.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Native mongos sharding with read/write separation
+    /// services.AddEncinaMongoDB(options =&gt;
+    /// {
+    ///     options.ConnectionString = "mongodb://mongos:27017";
+    ///     options.DatabaseName = "MyApp";
+    /// });
+    /// services.AddEncinaMongoDBSharding&lt;Order, Guid&gt;(options =&gt;
+    /// {
+    ///     options.UseNativeSharding = true;
+    ///     options.CollectionName = "orders";
+    ///     options.IdProperty = o =&gt; o.Id;
+    /// });
+    /// services.AddEncinaMongoDBShardedReadWrite(rwOptions =&gt;
+    /// {
+    ///     rwOptions.ReadPreference = MongoReadPreference.SecondaryPreferred;
+    ///     rwOptions.ReadConcern = MongoReadConcern.Majority;
+    /// });
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaMongoDBShardedReadWrite(
+        this IServiceCollection services,
+        Action<MongoReadWriteSeparationOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        var rwOptions = new MongoReadWriteSeparationOptions();
+        configure?.Invoke(rwOptions);
+
+        services.TryAddSingleton(rwOptions);
+
+        services.TryAddSingleton<IShardedReadWriteMongoCollectionFactory>(sp =>
+        {
+            var mongoClient = sp.GetRequiredService<IMongoClient>();
+            var options = sp.GetRequiredService<MongoReadWriteSeparationOptions>();
+            var topology = sp.GetService<ShardTopology>();
+            var databaseName = sp.GetService<IOptions<EncinaMongoDbOptions>>()?.Value.DatabaseName
+                ?? "Encina";
+
+            return topology is not null
+                ? new ShardedReadWriteMongoCollectionFactory(mongoClient, databaseName, topology, options)
+                : new ShardedReadWriteMongoCollectionFactory(mongoClient, databaseName, options);
+        });
+
+        return services;
     }
 }

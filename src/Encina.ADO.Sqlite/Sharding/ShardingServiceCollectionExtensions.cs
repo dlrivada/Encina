@@ -3,6 +3,7 @@ using Encina.Sharding;
 using Encina.Sharding.Configuration;
 using Encina.Sharding.Data;
 using Encina.Sharding.Execution;
+using Encina.Sharding.ReplicaSelection;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -105,6 +106,50 @@ public static class ShardingServiceCollectionExtensions
                 requestContext,
                 timeProvider);
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds Encina sharded read/write connection factory using ADO.NET with SQLite.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Optional configuration action for sharded read/write options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method requires that <c>AddEncinaSharding&lt;TEntity&gt;</c>
+    /// from <c>Encina.Sharding</c> has been called first to register the core sharding services
+    /// (topology, router, options).
+    /// </para>
+    /// <para>
+    /// Registers:
+    /// <list type="bullet">
+    /// <item><see cref="IShardedReadWriteConnectionFactory"/> and
+    /// <see cref="IShardedReadWriteConnectionFactory{TConnection}"/> for <see cref="SqliteConnection"/></item>
+    /// <item><see cref="ShardedReadWriteOptions"/> (singleton)</item>
+    /// <item><see cref="IReplicaHealthTracker"/> (singleton)</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddEncinaADOShardedReadWrite(
+        this IServiceCollection services,
+        Action<ShardedReadWriteOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        var options = new ShardedReadWriteOptions();
+        configure?.Invoke(options);
+
+        services.TryAddSingleton(options);
+        services.TryAddSingleton<IReplicaHealthTracker>(sp =>
+            new ReplicaHealthTracker(options.UnhealthyReplicaRecoveryDelay, sp.GetService<TimeProvider>() ?? TimeProvider.System));
+
+        services.TryAddScoped<ShardedReadWriteConnectionFactory>();
+        services.TryAddScoped<IShardedReadWriteConnectionFactory>(sp =>
+            sp.GetRequiredService<ShardedReadWriteConnectionFactory>());
+        services.TryAddScoped<IShardedReadWriteConnectionFactory<SqliteConnection>>(sp =>
+            sp.GetRequiredService<ShardedReadWriteConnectionFactory>());
 
         return services;
     }

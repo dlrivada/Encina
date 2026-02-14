@@ -301,6 +301,59 @@ services.AddEncinaCdc(config =>
 
 ---
 
+#### Sharded Read/Write Separation (#644)
+
+Added per-shard read/write separation with five replica selection strategies, health-aware routing, and staleness tolerance across all 13 database providers.
+
+**Core Architecture**:
+
+- **`IShardedReadWriteConnectionFactory`**: Unified factory for shard-aware read/write connections (non-generic for Dapper, generic `<TConnection>` for ADO.NET)
+- **`IShardedReadWriteDbContextFactory<TContext>`**: EF Core variant with context-aware, explicit read, and explicit write modes
+- **`IReplicaHealthTracker`**: Thread-safe health tracking with recovery delay, replication lag filtering, and three-state model (Healthy/Degraded/Unhealthy)
+- **`ShardReplicaSelectorFactory`**: Creates and caches per-shard replica selectors based on strategy configuration
+- **`ShardedReadWriteOptions`**: Configuration with global defaults and per-shard overrides for strategy, staleness, and health parameters
+
+**Five Replica Selection Strategies** (`ReplicaSelectionStrategy` enum):
+
+- **RoundRobin** (default): `Interlocked.Increment` — lock-free, even distribution
+- **Random**: `Random.Shared.Next` — thread-safe, stateless
+- **LeastLatency**: EMA smoothing (alpha=0.3) over `ConcurrentDictionary` — routes to fastest replica
+- **LeastConnections**: `Interlocked` counters per replica — adapts to variable query durations
+- **WeightedRandom**: Cumulative weight array + binary search — heterogeneous replica capacity
+
+**Health & Failover**:
+
+- `ReplicaHealthTracker`: `ConcurrentDictionary`-based with configurable recovery delay (`UnhealthyReplicaRecoveryDelay`) and replication lag filtering (`MaxAcceptableReplicationLag`)
+- `ShardReplicaHealthCheck`: Aggregate health evaluation across all shards for ASP.NET Core health check integration
+- Configurable fallback to primary when no healthy replicas are available (`FallbackToPrimaryWhenNoReplicas`)
+
+**Staleness Tolerance**:
+
+- Global: `ShardedReadWriteOptions.DefaultMaxStaleness`
+- Per-query: `[StalenessOptions]` attribute on request/query types
+- Interacts with health tracking to filter replicas exceeding acceptable replication lag
+
+**Provider Support** (13 providers):
+
+- ADO.NET (4): `AddEncinaADOShardedReadWrite()` — SqlServer, PostgreSQL, MySQL, SQLite
+- Dapper (4): `AddEncinaDapperShardedReadWrite()` — non-generic `IShardedReadWriteConnectionFactory`
+- EF Core (4): `AddEncinaEFCoreShardedReadWrite{Provider}<TContext>()` — SqlServer, PostgreSQL, MySQL, SQLite
+- MongoDB (1): `AddEncinaMongoDBShardedReadWrite()` — `IShardedReadWriteMongoCollectionFactory`
+
+**Observability**:
+
+- 6 metric instruments under "Encina" meter: read/write operation counters, replica selection duration, failover counter, unhealthy replica gauge, replication lag histogram
+- Structured logging with shard ID, strategy, and health state in all providers
+
+**Documentation** (2 guides + 1 ADR):
+
+- `docs/architecture/adr/012-sharded-read-write-separation.md` — Architecture Decision Record
+- `docs/sharding/read-write-separation.md` — Comprehensive usage guide with configuration, strategies, staleness, health, and provider-specific setup
+
+**Testing**: 289+ tests across unit (222), guard (33), contract (27), property (7); 10 BenchmarkDotNet benchmarks (5 single-threaded + 5 concurrent with ThreadingDiagnoser); load tests for distribution fairness
+
+---
+
 #### Query Cache Interceptor - EF Core Second-Level Cache (#291)
 
 Added an EF Core query caching interceptor that acts as a transparent second-level cache, caching query results at the database command level and automatically invalidating them on `SaveChanges`.
