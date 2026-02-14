@@ -77,7 +77,8 @@ public sealed class ShardReplicaHealthCheckTests
         var check = new ShardReplicaHealthCheck(
             CreateTopology(CreateShardWithoutReplicas(Shard0)),
             Substitute.For<IReplicaHealthTracker>(),
-            DefaultOptions()) { MinimumHealthyReplicasPerShard = 3 };
+            DefaultOptions())
+        { MinimumHealthyReplicasPerShard = 3 };
 
         check.MinimumHealthyReplicasPerShard.ShouldBe(3);
     }

@@ -31,12 +31,12 @@ public static class ShardReplicaSelectorFactory
     public static IShardReplicaSelector Create(
         ReplicaSelectionStrategy strategy,
         IReadOnlyList<int>? weights = null) => strategy switch
-    {
-        ReplicaSelectionStrategy.RoundRobin => new RoundRobinShardReplicaSelector(),
-        ReplicaSelectionStrategy.Random => new RandomShardReplicaSelector(),
-        ReplicaSelectionStrategy.LeastLatency => new LeastLatencyShardReplicaSelector(),
-        ReplicaSelectionStrategy.LeastConnections => new LeastConnectionsShardReplicaSelector(),
-        ReplicaSelectionStrategy.WeightedRandom => new WeightedRandomShardReplicaSelector(weights),
-        _ => throw new ArgumentOutOfRangeException(nameof(strategy), strategy, $"Unknown replica selection strategy: {strategy}.")
-    };
+        {
+            ReplicaSelectionStrategy.RoundRobin => new RoundRobinShardReplicaSelector(),
+            ReplicaSelectionStrategy.Random => new RandomShardReplicaSelector(),
+            ReplicaSelectionStrategy.LeastLatency => new LeastLatencyShardReplicaSelector(),
+            ReplicaSelectionStrategy.LeastConnections => new LeastConnectionsShardReplicaSelector(),
+            ReplicaSelectionStrategy.WeightedRandom => new WeightedRandomShardReplicaSelector(weights),
+            _ => throw new ArgumentOutOfRangeException(nameof(strategy), strategy, $"Unknown replica selection strategy: {strategy}.")
+        };
 }
