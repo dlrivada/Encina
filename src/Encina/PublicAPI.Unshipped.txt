@@ -530,6 +530,35 @@ Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseDirectoryRouting(Encin
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseGeoRouting(System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.GeoRegion!>! regions, System.Func<string!, string!>! regionResolver, System.Action<Encina.Sharding.Routing.GeoShardRouterOptions!>? configureOptions = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseHashRouting(System.Action<Encina.Sharding.Routing.HashShardRouterOptions!>? configureOptions = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseRangeRouting(System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.ShardRange!>! ranges, System.StringComparer? comparer = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseTimeBasedRouting(System.Action<Encina.Sharding.Configuration.TimeBasedShardRouterOptions!>! configure) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.TimeBasedShardRouterOptions() -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.Period.get -> Encina.Sharding.TimeBased.ShardPeriod
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.Period.set -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.WeekStart.get -> System.DayOfWeek
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.WeekStart.set -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.ShardIdPrefix.get -> string!
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.ShardIdPrefix.set -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.AutoCreateShards.get -> bool
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.AutoCreateShards.set -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.ShardCreationLeadTime.get -> System.TimeSpan
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.ShardCreationLeadTime.set -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.TierTransitions.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.TimeBased.TierTransition!>!
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.TierTransitions.set -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.TransitionCheckInterval.get -> System.TimeSpan
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.TransitionCheckInterval.set -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.HotTierConnectionString.get -> string?
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.HotTierConnectionString.set -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.WarmTierConnectionString.get -> string?
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.WarmTierConnectionString.set -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.ColdTierConnectionString.get -> string?
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.ColdTierConnectionString.set -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.ArchivedTierConnectionString.get -> string?
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.ArchivedTierConnectionString.set -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.RetentionPeriod.get -> System.TimeSpan?
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.RetentionPeriod.set -> void
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.InitialShards.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.TimeBased.ShardTierInfo!>!
+Encina.Sharding.Configuration.TimeBasedShardRouterOptions.InitialShards.set -> void
 Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>
 Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.AddAsync(TEntity! entity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TEntity!>>!
 Encina.Sharding.IFunctionalShardedRepository<TEntity, TId>.DeleteAsync(TId id, string! shardKey, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
@@ -1206,3 +1235,151 @@ Encina.Sharding.ReferenceTables.Health.ReferenceTableHealthCheckOptions.Unhealth
 Encina.Sharding.ReferenceTables.Health.ReferenceTableHealthCheckOptions.DegradedThreshold.get -> System.TimeSpan
 Encina.Sharding.ReferenceTables.Health.ReferenceTableHealthCheckOptions.DegradedThreshold.set -> void
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.AddReferenceTable<TRefTable>(System.Action<Encina.Sharding.ReferenceTables.ReferenceTableOptions!>? configure = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
+const Encina.Sharding.ShardingErrorCodes.NoTimeBasedShards = "encina.sharding.no_time_based_shards" -> string!
+const Encina.Sharding.ShardingErrorCodes.ShardReadOnly = "encina.sharding.shard_read_only" -> string!
+const Encina.Sharding.ShardingErrorCodes.TimestampOutsideRange = "encina.sharding.timestamp_outside_range" -> string!
+Encina.Sharding.TimeBased.ShardPeriod
+Encina.Sharding.TimeBased.ShardPeriod.Daily = 0 -> Encina.Sharding.TimeBased.ShardPeriod
+Encina.Sharding.TimeBased.ShardPeriod.Weekly = 1 -> Encina.Sharding.TimeBased.ShardPeriod
+Encina.Sharding.TimeBased.ShardPeriod.Monthly = 2 -> Encina.Sharding.TimeBased.ShardPeriod
+Encina.Sharding.TimeBased.ShardPeriod.Quarterly = 3 -> Encina.Sharding.TimeBased.ShardPeriod
+Encina.Sharding.TimeBased.ShardPeriod.Yearly = 4 -> Encina.Sharding.TimeBased.ShardPeriod
+Encina.Sharding.TimeBased.ShardTier
+Encina.Sharding.TimeBased.ShardTier.Hot = 0 -> Encina.Sharding.TimeBased.ShardTier
+Encina.Sharding.TimeBased.ShardTier.Warm = 1 -> Encina.Sharding.TimeBased.ShardTier
+Encina.Sharding.TimeBased.ShardTier.Cold = 2 -> Encina.Sharding.TimeBased.ShardTier
+Encina.Sharding.TimeBased.ShardTier.Archived = 3 -> Encina.Sharding.TimeBased.ShardTier
+Encina.Sharding.TimeBased.PeriodBoundaryCalculator
+static Encina.Sharding.TimeBased.PeriodBoundaryCalculator.GetPeriodStart(System.DateTime timestamp, Encina.Sharding.TimeBased.ShardPeriod period, System.DayOfWeek weekStart = System.DayOfWeek.Monday) -> System.DateOnly
+static Encina.Sharding.TimeBased.PeriodBoundaryCalculator.GetPeriodStart(System.DateOnly date, Encina.Sharding.TimeBased.ShardPeriod period, System.DayOfWeek weekStart = System.DayOfWeek.Monday) -> System.DateOnly
+static Encina.Sharding.TimeBased.PeriodBoundaryCalculator.GetPeriodEnd(System.DateTime timestamp, Encina.Sharding.TimeBased.ShardPeriod period, System.DayOfWeek weekStart = System.DayOfWeek.Monday) -> System.DateOnly
+static Encina.Sharding.TimeBased.PeriodBoundaryCalculator.GetPeriodEnd(System.DateOnly date, Encina.Sharding.TimeBased.ShardPeriod period, System.DayOfWeek weekStart = System.DayOfWeek.Monday) -> System.DateOnly
+static Encina.Sharding.TimeBased.PeriodBoundaryCalculator.GetPeriodBoundaries(System.DateTime timestamp, Encina.Sharding.TimeBased.ShardPeriod period, System.DayOfWeek weekStart = System.DayOfWeek.Monday) -> (System.DateOnly Start, System.DateOnly End)
+static Encina.Sharding.TimeBased.PeriodBoundaryCalculator.GetPeriodBoundaries(System.DateOnly date, Encina.Sharding.TimeBased.ShardPeriod period, System.DayOfWeek weekStart = System.DayOfWeek.Monday) -> (System.DateOnly Start, System.DateOnly End)
+static Encina.Sharding.TimeBased.PeriodBoundaryCalculator.GetPeriodLabel(System.DateOnly date, Encina.Sharding.TimeBased.ShardPeriod period, System.DayOfWeek weekStart = System.DayOfWeek.Monday) -> string!
+static Encina.Sharding.TimeBased.PeriodBoundaryCalculator.EnumeratePeriods(System.DateOnly from, System.DateOnly to, Encina.Sharding.TimeBased.ShardPeriod period, System.DayOfWeek weekStart = System.DayOfWeek.Monday) -> System.Collections.Generic.IEnumerable<(System.DateOnly Start, System.DateOnly End)>!
+Encina.Sharding.TimeBased.ShardTierInfo
+Encina.Sharding.TimeBased.ShardTierInfo.ShardTierInfo(string! ShardId, Encina.Sharding.TimeBased.ShardTier CurrentTier, System.DateOnly PeriodStart, System.DateOnly PeriodEnd, bool IsReadOnly, string! ConnectionString, System.DateTime CreatedAtUtc, System.DateTime? LastTransitionAtUtc = null) -> void
+Encina.Sharding.TimeBased.ShardTierInfo.ShardId.get -> string!
+Encina.Sharding.TimeBased.ShardTierInfo.CurrentTier.get -> Encina.Sharding.TimeBased.ShardTier
+Encina.Sharding.TimeBased.ShardTierInfo.CurrentTier.init -> void
+Encina.Sharding.TimeBased.ShardTierInfo.PeriodStart.get -> System.DateOnly
+Encina.Sharding.TimeBased.ShardTierInfo.PeriodEnd.get -> System.DateOnly
+Encina.Sharding.TimeBased.ShardTierInfo.PeriodEnd.init -> void
+Encina.Sharding.TimeBased.ShardTierInfo.IsReadOnly.get -> bool
+Encina.Sharding.TimeBased.ShardTierInfo.IsReadOnly.init -> void
+Encina.Sharding.TimeBased.ShardTierInfo.ConnectionString.get -> string!
+Encina.Sharding.TimeBased.ShardTierInfo.CreatedAtUtc.get -> System.DateTime
+Encina.Sharding.TimeBased.ShardTierInfo.CreatedAtUtc.init -> void
+Encina.Sharding.TimeBased.ShardTierInfo.LastTransitionAtUtc.get -> System.DateTime?
+Encina.Sharding.TimeBased.ShardTierInfo.LastTransitionAtUtc.init -> void
+Encina.Sharding.TimeBased.TierTransition
+Encina.Sharding.TimeBased.TierTransition.TierTransition(Encina.Sharding.TimeBased.ShardTier FromTier, Encina.Sharding.TimeBased.ShardTier ToTier, System.TimeSpan AgeThreshold) -> void
+Encina.Sharding.TimeBased.TierTransition.FromTier.get -> Encina.Sharding.TimeBased.ShardTier
+Encina.Sharding.TimeBased.TierTransition.ToTier.get -> Encina.Sharding.TimeBased.ShardTier
+Encina.Sharding.TimeBased.TierTransition.ToTier.init -> void
+Encina.Sharding.TimeBased.TierTransition.AgeThreshold.get -> System.TimeSpan
+Encina.Sharding.TimeBased.ITimeBasedShardRouter
+Encina.Sharding.TimeBased.ITimeBasedShardRouter.RouteByTimestampAsync(System.DateTime timestamp, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, string!>>!
+Encina.Sharding.TimeBased.ITimeBasedShardRouter.GetShardsInRangeAsync(System.DateTime from, System.DateTime toExclusive, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>>!
+Encina.Sharding.TimeBased.ITimeBasedShardRouter.RouteWriteByTimestampAsync(System.DateTime timestamp, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, string!>>!
+Encina.Sharding.TimeBased.ITimeBasedShardRouter.GetShardTier(string! shardId) -> LanguageExt.Either<Encina.EncinaError, Encina.Sharding.TimeBased.ShardTier>
+Encina.Sharding.TimeBased.ITimeBasedShardRouter.GetShardTierInfo(string! shardId) -> LanguageExt.Either<Encina.EncinaError, Encina.Sharding.TimeBased.ShardTierInfo!>
+Encina.Sharding.TimeBased.TimeBasedShardRouter
+Encina.Sharding.TimeBased.TimeBasedShardRouter.TimeBasedShardRouter(Encina.Sharding.ShardTopology! topology, System.Collections.Generic.IEnumerable<Encina.Sharding.TimeBased.ShardTierInfo!>! tierInfos, Encina.Sharding.TimeBased.ShardPeriod period, System.DayOfWeek weekStart = System.DayOfWeek.Monday, Encina.Sharding.Colocation.ColocationGroupRegistry? colocationRegistry = null, Encina.Sharding.TimeBased.IShardFallbackCreator? fallbackCreator = null) -> void
+Encina.Sharding.TimeBased.TimeBasedShardRouter.Period.get -> Encina.Sharding.TimeBased.ShardPeriod
+Encina.Sharding.TimeBased.TimeBasedShardRouter.WeekStart.get -> System.DayOfWeek
+Encina.Sharding.TimeBased.TimeBasedShardRouter.RouteByTimestampAsync(System.DateTime timestamp, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, string!>>!
+Encina.Sharding.TimeBased.TimeBasedShardRouter.RouteWriteByTimestampAsync(System.DateTime timestamp, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, string!>>!
+Encina.Sharding.TimeBased.TimeBasedShardRouter.GetShardsInRangeAsync(System.DateTime from, System.DateTime toExclusive, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>>!
+Encina.Sharding.TimeBased.TimeBasedShardRouter.GetShardTier(string! shardId) -> LanguageExt.Either<Encina.EncinaError, Encina.Sharding.TimeBased.ShardTier>
+Encina.Sharding.TimeBased.TimeBasedShardRouter.GetShardTierInfo(string! shardId) -> LanguageExt.Either<Encina.EncinaError, Encina.Sharding.TimeBased.ShardTierInfo!>
+Encina.Sharding.TimeBased.TimeBasedShardRouter.GetShardId(string! shardKey) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.TimeBased.TimeBasedShardRouter.GetShardId(Encina.Sharding.CompoundShardKey! key) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.TimeBased.TimeBasedShardRouter.GetShardIds(Encina.Sharding.CompoundShardKey! partialKey) -> LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>
+Encina.Sharding.TimeBased.TimeBasedShardRouter.GetAllShardIds() -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Sharding.TimeBased.TimeBasedShardRouter.GetShardConnectionString(string! shardId) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.Sharding.TimeBased.TimeBasedShardRouter.GetColocationGroup(System.Type! entityType) -> Encina.Sharding.Colocation.IColocationGroup?
+const Encina.Sharding.ShardingErrorCodes.TierTransitionFailed = "encina.sharding.tier_transition_failed" -> string!
+const Encina.Sharding.ShardingErrorCodes.ArchivalFailed = "encina.sharding.archival_failed" -> string!
+const Encina.Sharding.ShardingErrorCodes.RetentionPolicyFailed = "encina.sharding.retention_policy_failed" -> string!
+Encina.Sharding.TimeBased.ITierStore
+Encina.Sharding.TimeBased.ITierStore.GetAllTierInfoAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Encina.Sharding.TimeBased.ShardTierInfo!>!>!
+Encina.Sharding.TimeBased.ITierStore.GetTierInfoAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Sharding.TimeBased.ShardTierInfo?>!
+Encina.Sharding.TimeBased.ITierStore.UpdateTierAsync(string! shardId, Encina.Sharding.TimeBased.ShardTier newTier, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+Encina.Sharding.TimeBased.ITierStore.AddShardAsync(Encina.Sharding.TimeBased.ShardTierInfo! tierInfo, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Sharding.TimeBased.ITierStore.GetShardsDueForTransitionAsync(Encina.Sharding.TimeBased.ShardTier fromTier, System.TimeSpan ageThreshold, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Encina.Sharding.TimeBased.ShardTierInfo!>!>!
+Encina.Sharding.TimeBased.InMemoryTierStore
+Encina.Sharding.TimeBased.InMemoryTierStore.InMemoryTierStore(System.TimeProvider? timeProvider = null) -> void
+Encina.Sharding.TimeBased.InMemoryTierStore.GetAllTierInfoAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Encina.Sharding.TimeBased.ShardTierInfo!>!>!
+Encina.Sharding.TimeBased.InMemoryTierStore.GetTierInfoAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Encina.Sharding.TimeBased.ShardTierInfo?>!
+Encina.Sharding.TimeBased.InMemoryTierStore.UpdateTierAsync(string! shardId, Encina.Sharding.TimeBased.ShardTier newTier, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+Encina.Sharding.TimeBased.InMemoryTierStore.AddShardAsync(Encina.Sharding.TimeBased.ShardTierInfo! tierInfo, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Sharding.TimeBased.InMemoryTierStore.GetShardsDueForTransitionAsync(Encina.Sharding.TimeBased.ShardTier fromTier, System.TimeSpan ageThreshold, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Encina.Sharding.TimeBased.ShardTierInfo!>!>!
+Encina.Sharding.TimeBased.ArchiveOptions
+Encina.Sharding.TimeBased.ArchiveOptions.ArchiveOptions(string! Destination, bool CompressData = true, bool DeleteAfterArchive = false, string! CompressionFormat = "gzip") -> void
+Encina.Sharding.TimeBased.ArchiveOptions.Destination.get -> string!
+Encina.Sharding.TimeBased.ArchiveOptions.CompressData.get -> bool
+Encina.Sharding.TimeBased.ArchiveOptions.CompressData.init -> void
+Encina.Sharding.TimeBased.ArchiveOptions.DeleteAfterArchive.get -> bool
+Encina.Sharding.TimeBased.ArchiveOptions.DeleteAfterArchive.init -> void
+Encina.Sharding.TimeBased.ArchiveOptions.CompressionFormat.get -> string!
+Encina.Sharding.TimeBased.ArchiveOptions.CompressionFormat.init -> void
+Encina.Sharding.TimeBased.IShardArchiver
+Encina.Sharding.TimeBased.IShardArchiver.TransitionTierAsync(string! shardId, Encina.Sharding.TimeBased.ShardTier newTier, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.TimeBased.IShardArchiver.ArchiveShardAsync(string! shardId, Encina.Sharding.TimeBased.ArchiveOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.TimeBased.IShardArchiver.EnforceReadOnlyAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.TimeBased.IShardArchiver.DeleteShardDataAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.TimeBased.IReadOnlyEnforcer
+Encina.Sharding.TimeBased.IReadOnlyEnforcer.EnforceReadOnlyAsync(string! shardId, string! connectionString, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.TimeBased.ShardArchiver
+Encina.Sharding.TimeBased.ShardArchiver.ShardArchiver(Encina.Sharding.TimeBased.ITierStore! tierStore, Encina.Sharding.IShardTopologyProvider! topologyProvider, Encina.Sharding.TimeBased.IReadOnlyEnforcer? readOnlyEnforcer = null) -> void
+Encina.Sharding.TimeBased.ShardArchiver.TransitionTierAsync(string! shardId, Encina.Sharding.TimeBased.ShardTier newTier, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.TimeBased.ShardArchiver.ArchiveShardAsync(string! shardId, Encina.Sharding.TimeBased.ArchiveOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.TimeBased.ShardArchiver.EnforceReadOnlyAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.TimeBased.ShardArchiver.DeleteShardDataAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+const Encina.Sharding.ShardingErrorCodes.ShardCreationFailed = "encina.sharding.shard_creation_failed" -> string!
+Encina.Sharding.TimeBased.TimeBasedShardingOptions
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.TimeBasedShardingOptions() -> void
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.Enabled.get -> bool
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.Enabled.set -> void
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.CheckInterval.get -> System.TimeSpan
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.CheckInterval.set -> void
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.Period.get -> Encina.Sharding.TimeBased.ShardPeriod
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.Period.set -> void
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.WeekStart.get -> System.DayOfWeek
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.WeekStart.set -> void
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.Transitions.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.TimeBased.TierTransition!>!
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.Transitions.set -> void
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.EnableAutoShardCreation.get -> bool
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.EnableAutoShardCreation.set -> void
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.ShardCreationLeadTime.get -> System.TimeSpan
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.ShardCreationLeadTime.set -> void
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.ShardIdPrefix.get -> string!
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.ShardIdPrefix.set -> void
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.ConnectionStringTemplate.get -> string?
+Encina.Sharding.TimeBased.TimeBasedShardingOptions.ConnectionStringTemplate.set -> void
+Encina.Sharding.TimeBased.IShardFallbackCreator
+Encina.Sharding.TimeBased.IShardFallbackCreator.CreateShardForTimestampAsync(System.DateTime timestamp, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.TimeBased.ShardTierInfo!>>!
+Encina.Sharding.TimeBased.TierTransitionScheduler
+Encina.Sharding.TimeBased.TierTransitionScheduler.TierTransitionScheduler(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Options.IOptions<Encina.Sharding.TimeBased.TimeBasedShardingOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Sharding.TimeBased.TierTransitionScheduler!>! logger, System.TimeProvider? timeProvider = null) -> void
+Encina.Sharding.TimeBased.Health.TierTransitionHealthCheckOptions
+Encina.Sharding.TimeBased.Health.TierTransitionHealthCheckOptions.TierTransitionHealthCheckOptions() -> void
+Encina.Sharding.TimeBased.Health.TierTransitionHealthCheckOptions.MaxExpectedHotAgeDays.get -> int
+Encina.Sharding.TimeBased.Health.TierTransitionHealthCheckOptions.MaxExpectedHotAgeDays.set -> void
+Encina.Sharding.TimeBased.Health.TierTransitionHealthCheckOptions.MaxExpectedWarmAgeDays.get -> int
+Encina.Sharding.TimeBased.Health.TierTransitionHealthCheckOptions.MaxExpectedWarmAgeDays.set -> void
+Encina.Sharding.TimeBased.Health.TierTransitionHealthCheckOptions.MaxExpectedColdAgeDays.get -> int
+Encina.Sharding.TimeBased.Health.TierTransitionHealthCheckOptions.MaxExpectedColdAgeDays.set -> void
+Encina.Sharding.TimeBased.Health.TierTransitionHealthCheckOptions.UnhealthyMultiplier.get -> double
+Encina.Sharding.TimeBased.Health.TierTransitionHealthCheckOptions.UnhealthyMultiplier.set -> void
+Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions
+Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.ShardCreationHealthCheckOptions() -> void
+Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.Period.get -> Encina.Sharding.TimeBased.ShardPeriod
+Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.Period.set -> void
+Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.WeekStart.get -> System.DayOfWeek
+Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.WeekStart.set -> void
+Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.ShardIdPrefix.get -> string!
+Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.ShardIdPrefix.set -> void
+Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.WarningWindowDays.get -> int
+Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.WarningWindowDays.set -> void

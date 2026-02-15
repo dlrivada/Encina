@@ -389,6 +389,49 @@ internal static class ShardingActivitySource
     }
 
     /// <summary>
+    /// Starts a time-based routing activity for resolving a timestamp to a shard.
+    /// </summary>
+    /// <param name="shardKey">The shard key (timestamp) being routed.</param>
+    /// <param name="period">The period label (e.g., "2026-02").</param>
+    /// <returns>The started activity, or <c>null</c> if no listener is active.</returns>
+    internal static Activity? StartTimeBasedRouting(string shardKey, string period)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity(
+            "Encina.Sharding.TimeBasedRoute", ActivityKind.Internal);
+        activity?.SetTag(ActivityTagNames.ShardKey, shardKey);
+        activity?.SetTag(ActivityTagNames.RouterType, "time-based");
+        activity?.SetTag(ActivityTagNames.ShardPeriod, period);
+        return activity;
+    }
+
+    /// <summary>
+    /// Starts a tier transition activity.
+    /// </summary>
+    /// <param name="shardId">The shard being transitioned.</param>
+    /// <param name="fromTier">The source tier name.</param>
+    /// <param name="toTier">The target tier name.</param>
+    /// <returns>The started activity, or <c>null</c> if no listener is active.</returns>
+    internal static Activity? StartTierTransition(string shardId, string fromTier, string toTier)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity(
+            "Encina.Sharding.TierTransition", ActivityKind.Internal);
+        activity?.SetTag(ActivityTagNames.ShardId, shardId);
+        activity?.SetTag(ActivityTagNames.TierFrom, fromTier);
+        activity?.SetTag(ActivityTagNames.TierTo, toTier);
+        return activity;
+    }
+
+    /// <summary>
     /// Completes a distributed aggregation activity with result information.
     /// </summary>
     /// <param name="activity">The aggregation activity to complete.</param>

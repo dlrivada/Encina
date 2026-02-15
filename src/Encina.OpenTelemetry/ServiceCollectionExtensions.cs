@@ -71,6 +71,12 @@ public static class ServiceCollectionExtensions
         // conditional on ReferenceTableMetricsCallbacks being available.
         services.AddHostedService<ReferenceTableMetricsInitializer>();
 
+        // Register time-based sharding metrics initialization as a hosted service.
+        // TimeBasedShardingMetrics creates Counter, Histogram, and ObservableGauge instruments
+        // on the static "Encina" meter during construction. Registration is conditional on
+        // TimeBasedShardingMetricsCallbacks being available (registered by Encina.Sharding).
+        services.AddHostedService<TimeBasedShardingMetricsInitializer>();
+
         return services;
     }
 

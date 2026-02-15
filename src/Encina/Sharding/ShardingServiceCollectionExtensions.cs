@@ -2,6 +2,7 @@ using System.Reflection;
 using Encina.Sharding.Colocation;
 using Encina.Sharding.Configuration;
 using Encina.Sharding.ReferenceTables;
+using Encina.Sharding.TimeBased;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -120,6 +121,9 @@ public static class ShardingServiceCollectionExtensions
         // Validate and register reference tables
         ValidateAndRegisterReferenceTables(services, options, topology);
 
+        // Register time-based sharding services
+        RegisterTimeBasedShardingServices(services, options, router);
+
         return services;
     }
 
@@ -137,7 +141,7 @@ public static class ShardingServiceCollectionExtensions
         {
             throw new InvalidOperationException(
                 $"No routing strategy configured for entity type '{typeof(TEntity).Name}'. " +
-                "Call UseHashRouting(), UseRangeRouting(), UseDirectoryRouting(), UseGeoRouting(), UseCompoundRouting(), or UseCustomRouting().");
+                "Call UseHashRouting(), UseRangeRouting(), UseDirectoryRouting(), UseGeoRouting(), UseCompoundRouting(), UseTimeBasedRouting(), or UseCustomRouting().");
         }
 
         foreach (var shard in options.Shards.Values)
@@ -261,6 +265,153 @@ public static class ShardingServiceCollectionExtensions
 
         services.AddSingleton<IConfigureColocationGroup>(
             new ConfigureColocationGroup(rootEntityType, colocatedList));
+    }
+
+    private static void RegisterTimeBasedShardingServices<TEntity>(
+        IServiceCollection services,
+        ShardingOptions<TEntity> options,
+        IShardRouter router)
+        where TEntity : notnull
+    {
+        var tbOptions = options.TimeBasedOptions;
+
+        if (tbOptions is null)
+        {
+            return;
+        }
+
+        ValidateTimeBasedOptions(tbOptions);
+
+        // Register the time-based router as ITimeBasedShardRouter if the router implements it
+        if (router is ITimeBasedShardRouter timeBasedRouter)
+        {
+            services.TryAddSingleton(timeBasedRouter);
+        }
+
+        // Register ITierStore (InMemoryTierStore seeded with initial shards)
+        services.TryAddSingleton<ITierStore>(sp =>
+        {
+            var timeProvider = sp.GetService<TimeProvider>();
+            var store = new InMemoryTierStore(timeProvider);
+
+            // Seed with initial shards
+            foreach (var tierInfo in tbOptions.InitialShards)
+            {
+                store.AddShardAsync(tierInfo).GetAwaiter().GetResult();
+            }
+
+            return store;
+        });
+
+        // Register IShardArchiver (default implementation)
+        services.TryAddSingleton<IShardArchiver>(sp =>
+        {
+            var tierStore = sp.GetRequiredService<ITierStore>();
+            var topologyProvider = sp.GetRequiredService<IShardTopologyProvider>();
+            var enforcer = sp.GetService<IReadOnlyEnforcer>();
+            return new ShardArchiver(tierStore, topologyProvider, enforcer);
+        });
+
+        // Register TierTransitionScheduler if tier transitions or auto-creation are configured
+        var needsScheduler = tbOptions.TierTransitions.Count > 0 || tbOptions.AutoCreateShards;
+
+        if (needsScheduler)
+        {
+            // Map TimeBasedShardRouterOptions to TimeBasedShardingOptions for the scheduler
+            services.Configure<TimeBasedShardingOptions>(schedulerOpts =>
+            {
+                schedulerOpts.Enabled = true;
+                schedulerOpts.CheckInterval = tbOptions.TransitionCheckInterval;
+                schedulerOpts.Period = tbOptions.Period;
+                schedulerOpts.WeekStart = tbOptions.WeekStart;
+                schedulerOpts.Transitions = tbOptions.TierTransitions;
+                schedulerOpts.EnableAutoShardCreation = tbOptions.AutoCreateShards;
+                schedulerOpts.ShardCreationLeadTime = tbOptions.ShardCreationLeadTime;
+                schedulerOpts.ShardIdPrefix = tbOptions.ShardIdPrefix;
+                schedulerOpts.ConnectionStringTemplate = tbOptions.HotTierConnectionString;
+            });
+
+            services.AddSingleton<IHostedService, TierTransitionScheduler>();
+        }
+    }
+
+    private static void ValidateTimeBasedOptions(TimeBasedShardRouterOptions options)
+    {
+        // Validate tier transitions don't skip tiers
+        foreach (var transition in options.TierTransitions)
+        {
+            var validTransitions = new Dictionary<ShardTier, ShardTier>
+            {
+                [ShardTier.Hot] = ShardTier.Warm,
+                [ShardTier.Warm] = ShardTier.Cold,
+                [ShardTier.Cold] = ShardTier.Archived,
+            };
+
+            if (validTransitions.TryGetValue(transition.FromTier, out var expectedTarget) &&
+                transition.ToTier != expectedTarget)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid tier transition from '{transition.FromTier}' to '{transition.ToTier}'. " +
+                    $"Tiers must not be skipped. Expected transition to '{expectedTarget}'.");
+            }
+
+            if (!validTransitions.ContainsKey(transition.FromTier))
+            {
+                throw new InvalidOperationException(
+                    $"Invalid tier transition source '{transition.FromTier}'. " +
+                    "Only Hot, Warm, and Cold tiers can be transition sources.");
+            }
+        }
+
+        // Validate connection strings are provided for tiers that have transitions targeting them
+        var targetTiers = options.TierTransitions.Select(t => t.ToTier).ToHashSet();
+
+        if (targetTiers.Contains(ShardTier.Warm) && string.IsNullOrWhiteSpace(options.WarmTierConnectionString))
+        {
+            throw new InvalidOperationException(
+                "A tier transition targets the Warm tier but no WarmTierConnectionString is configured.");
+        }
+
+        if (targetTiers.Contains(ShardTier.Cold) && string.IsNullOrWhiteSpace(options.ColdTierConnectionString))
+        {
+            throw new InvalidOperationException(
+                "A tier transition targets the Cold tier but no ColdTierConnectionString is configured.");
+        }
+
+        if (targetTiers.Contains(ShardTier.Archived) && string.IsNullOrWhiteSpace(options.ArchivedTierConnectionString))
+        {
+            throw new InvalidOperationException(
+                "A tier transition targets the Archived tier but no ArchivedTierConnectionString is configured.");
+        }
+
+        // Validate auto-creation requires a connection string template
+        if (options.AutoCreateShards && string.IsNullOrWhiteSpace(options.HotTierConnectionString))
+        {
+            throw new InvalidOperationException(
+                "AutoCreateShards is enabled but no HotTierConnectionString is configured. " +
+                "The Hot-tier connection string template is required for auto-shard creation.");
+        }
+
+        // Validate check interval is positive
+        if (options.TransitionCheckInterval <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException(
+                $"TransitionCheckInterval must be a positive duration, but was {options.TransitionCheckInterval}.");
+        }
+
+        // Validate retention period is positive if set
+        if (options.RetentionPeriod.HasValue && options.RetentionPeriod.Value <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException(
+                $"RetentionPeriod must be a positive duration, but was {options.RetentionPeriod.Value}.");
+        }
+
+        // Validate shard creation lead time is positive
+        if (options.AutoCreateShards && options.ShardCreationLeadTime <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException(
+                $"ShardCreationLeadTime must be a positive duration, but was {options.ShardCreationLeadTime}.");
+        }
     }
 
     private static void ScanColocatedWithAttributes(Type rootEntityType, HashSet<Type> colocatedTypes)

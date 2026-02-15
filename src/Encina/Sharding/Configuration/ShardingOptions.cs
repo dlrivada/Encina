@@ -1,5 +1,6 @@
 using Encina.Sharding.ReferenceTables;
 using Encina.Sharding.Routing;
+using Encina.Sharding.TimeBased;
 
 namespace Encina.Sharding.Configuration;
 
@@ -27,6 +28,7 @@ public sealed class ShardingOptions<TEntity>
     private readonly List<Type> _colocatedEntityTypes = [];
     private readonly List<ReferenceTableConfiguration> _referenceTableConfigurations = [];
     private Func<ShardTopology, IShardRouter>? _routerFactory;
+    private TimeBasedShardRouterOptions? _timeBasedOptions;
 
     /// <summary>
     /// Gets the scatter-gather options for cross-shard queries.
@@ -52,6 +54,11 @@ public sealed class ShardingOptions<TEntity>
     /// Gets the reference table configurations registered for this sharding topology.
     /// </summary>
     internal IReadOnlyList<ReferenceTableConfiguration> ReferenceTableConfigurations => _referenceTableConfigurations;
+
+    /// <summary>
+    /// Gets the time-based routing options, or null if time-based routing is not configured.
+    /// </summary>
+    internal TimeBasedShardRouterOptions? TimeBasedOptions => _timeBasedOptions;
 
     /// <summary>
     /// Declares that <typeparamref name="TColocated"/> should be co-located with
@@ -235,6 +242,85 @@ public sealed class ShardingOptions<TEntity>
     }
 
     /// <summary>
+    /// Configures time-based routing for temporal data partitioning with tier lifecycle management.
+    /// </summary>
+    /// <param name="configure">Configuration action for time-based routing options.</param>
+    /// <returns>This instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Time-based routing partitions data by time periods (daily, weekly, monthly, quarterly, yearly)
+    /// and manages shard lifecycle through tiers: Hot → Warm → Cold → Archived.
+    /// </para>
+    /// <para>
+    /// When <see cref="TimeBasedShardRouterOptions.AutoCreateShards"/> or
+    /// <see cref="TimeBasedShardRouterOptions.TierTransitions"/> are configured,
+    /// a <see cref="TierTransitionScheduler"/> background service is automatically registered.
+    /// </para>
+    /// <para>
+    /// Initial shards are provided via <see cref="TimeBasedShardRouterOptions.InitialShards"/>.
+    /// These seed both the <see cref="ITierStore"/> and the <see cref="TimeBasedShardRouter"/>.
+    /// Shards are also automatically added to the topology (no need to call <see cref="AddShard"/>
+    /// separately for initial shards).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaSharding&lt;Order&gt;(options =>
+    /// {
+    ///     options.UseTimeBasedRouting(tb =>
+    ///     {
+    ///         tb.Period = ShardPeriod.Monthly;
+    ///         tb.ShardIdPrefix = "orders";
+    ///         tb.HotTierConnectionString = "Server=hot;Database=orders_{0}";
+    ///         tb.AutoCreateShards = true;
+    ///         tb.TierTransitions =
+    ///         [
+    ///             new TierTransition(ShardTier.Hot, ShardTier.Warm, TimeSpan.FromDays(30)),
+    ///             new TierTransition(ShardTier.Warm, ShardTier.Cold, TimeSpan.FromDays(90)),
+    ///         ];
+    ///         tb.InitialShards =
+    ///         [
+    ///             new ShardTierInfo("orders-2026-02", ShardTier.Hot,
+    ///                 new DateOnly(2026, 2, 1), new DateOnly(2026, 3, 1),
+    ///                 false, "Server=hot;Database=orders_2026_02", DateTime.UtcNow),
+    ///             new ShardTierInfo("orders-2026-01", ShardTier.Warm,
+    ///                 new DateOnly(2026, 1, 1), new DateOnly(2026, 2, 1),
+    ///                 true, "Server=warm;Database=orders_2026_01", DateTime.UtcNow),
+    ///         ];
+    ///     });
+    /// });
+    /// </code>
+    /// </example>
+    public ShardingOptions<TEntity> UseTimeBasedRouting(Action<TimeBasedShardRouterOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var tbOptions = new TimeBasedShardRouterOptions();
+        configure(tbOptions);
+
+        _timeBasedOptions = tbOptions;
+
+        // Auto-register initial shards into the topology
+        foreach (var tierInfo in tbOptions.InitialShards)
+        {
+            _shards[tierInfo.ShardId] = new ShardInfo(
+                tierInfo.ShardId,
+                tierInfo.ConnectionString,
+                Weight: 1,
+                IsActive: tierInfo.CurrentTier != ShardTier.Archived);
+        }
+
+        // Set the router factory to create a TimeBasedShardRouter
+        _routerFactory = topology => new TimeBasedShardRouter(
+            topology,
+            tbOptions.InitialShards,
+            tbOptions.Period,
+            tbOptions.WeekStart);
+
+        return this;
+    }
+
+    /// <summary>
     /// Registers a reference table (broadcast table) that will be replicated to all shards
     /// in the topology for local JOINs.
     /// </summary>
@@ -303,7 +389,7 @@ public sealed class ShardingOptions<TEntity>
         {
             throw new InvalidOperationException(
                 "No routing strategy has been configured. " +
-                "Call UseHashRouting(), UseRangeRouting(), UseDirectoryRouting(), UseGeoRouting(), UseCompoundRouting(), or UseCustomRouting() before building.");
+                "Call UseHashRouting(), UseRangeRouting(), UseDirectoryRouting(), UseGeoRouting(), UseCompoundRouting(), UseTimeBasedRouting(), or UseCustomRouting() before building.");
         }
 
         return _routerFactory(topology);

@@ -185,6 +185,28 @@ public static class ActivityTagNames
     }
 
     /// <summary>
+    /// Time-based sharding tier tags for observability.
+    /// </summary>
+    /// <remarks>
+    /// These tags track tier lifecycle operations including tier transitions,
+    /// shard period context, and routing decisions by storage tier.
+    /// </remarks>
+    public static class Tiering
+    {
+        /// <summary>Tag name for the current storage tier of a shard.</summary>
+        public const string ShardTier = "shard.tier";
+
+        /// <summary>Tag name for the shard period label (e.g., "2026-02").</summary>
+        public const string ShardPeriod = "shard.period";
+
+        /// <summary>Tag name for the source tier in a tier transition.</summary>
+        public const string TierFrom = "tier.from";
+
+        /// <summary>Tag name for the target tier in a tier transition.</summary>
+        public const string TierTo = "tier.to";
+    }
+
+    /// <summary>
     /// Reference table replication tags for sharding observability.
     /// </summary>
     /// <remarks>

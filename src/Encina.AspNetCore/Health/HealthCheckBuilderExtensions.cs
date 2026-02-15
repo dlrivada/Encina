@@ -10,6 +10,8 @@ using Encina.Messaging.Scheduling;
 using Encina.Modules;
 using Encina.Sharding.ReferenceTables;
 using Encina.Sharding.ReferenceTables.Health;
+using Encina.Sharding.TimeBased;
+using Encina.Sharding.TimeBased.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using AspNetHealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
@@ -541,6 +543,123 @@ public static class HealthCheckBuilderExtensions
                 var stateStore = sp.GetRequiredService<IReferenceTableStateStore>();
                 return new EncinaHealthCheckAdapter(
                     new ReferenceTableHealthCheck(registry, stateStore, options));
+            },
+            failureStatus,
+            allTags));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the tier transition health check for time-based sharding.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-tier-transition".</param>
+    /// <param name="options">Health check options including per-tier age thresholds.</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check monitors whether tier transitions are running on schedule.
+    /// Shards that have exceeded their expected tier age are flagged as degraded or unhealthy.
+    /// </para>
+    /// <para>
+    /// Requires <see cref="ITierStore"/> to be registered in the DI container (automatically done
+    /// when time-based sharding is enabled via <c>UseTimeBasedRouting</c>).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaTierTransition();
+    ///
+    /// // Or with custom thresholds
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaTierTransition(options: new TierTransitionHealthCheckOptions
+    ///     {
+    ///         MaxExpectedHotAgeDays = 45,
+    ///         MaxExpectedWarmAgeDays = 120,
+    ///     });
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaTierTransition(
+        this IHealthChecksBuilder builder,
+        string name = TierTransitionHealthCheck.DefaultName,
+        TierTransitionHealthCheckOptions? options = null,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "sharding", "tiering");
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp =>
+            {
+                var tierStore = sp.GetRequiredService<ITierStore>();
+                var timeProvider = sp.GetService<TimeProvider>() ?? TimeProvider.System;
+                return new EncinaHealthCheckAdapter(
+                    new TierTransitionHealthCheck(tierStore, options, timeProvider));
+            },
+            failureStatus,
+            allTags));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the shard creation health check for time-based sharding.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-shard-creation".</param>
+    /// <param name="options">Health check options including period and prefix configuration.</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check monitors whether expected time-period shards exist. A missing current-period
+    /// shard is unhealthy; a missing next-period shard (when close to period end) is degraded.
+    /// </para>
+    /// <para>
+    /// Requires <see cref="ITierStore"/> to be registered in the DI container (automatically done
+    /// when time-based sharding is enabled via <c>UseTimeBasedRouting</c>).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaShardCreation(options: new ShardCreationHealthCheckOptions
+    ///     {
+    ///         Period = ShardPeriod.Monthly,
+    ///         ShardIdPrefix = "orders",
+    ///     });
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaShardCreation(
+        this IHealthChecksBuilder builder,
+        string name = ShardCreationHealthCheck.DefaultName,
+        ShardCreationHealthCheckOptions? options = null,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "sharding", "tiering");
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp =>
+            {
+                var tierStore = sp.GetRequiredService<ITierStore>();
+                var timeProvider = sp.GetService<TimeProvider>() ?? TimeProvider.System;
+                return new EncinaHealthCheckAdapter(
+                    new ShardCreationHealthCheck(tierStore, options, timeProvider));
             },
             failureStatus,
             allTags));

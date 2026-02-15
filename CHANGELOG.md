@@ -82,6 +82,53 @@ Added multi-field shard key support, enabling routing decisions based on combina
 
 - `ShardRoutingMetrics.RecordCompoundKeyExtraction()` for tracking compound key extraction with component count and router type
 
+#### Time-Based Sharding & Archival (#650)
+
+Added time-based shard partitioning with automatic tier lifecycle management (Hot → Warm → Cold → Archived), enabling data archival workflows for time-series, audit logs, and IoT data.
+
+**Core Abstractions**:
+
+- **`ITimeBasedShardRouter`**: Extends `IShardRouter` with timestamp routing (`RouteByTimestampAsync`), write routing with Hot-tier enforcement (`RouteWriteByTimestampAsync`), range queries (`GetShardsInRangeAsync`), and tier introspection
+- **`ShardPeriod`**: Enum defining partitioning granularity (Daily, Weekly, Monthly, Quarterly, Yearly)
+- **`ShardTier`**: Enum defining storage tiers (Hot, Warm, Cold, Archived) with ordered progression
+- **`ShardTierInfo`**: Immutable record combining shard identity, tier, period boundaries `[start, end)`, read-only status, and connection string
+- **`TierTransition`**: Record defining age-based rules for tier promotion with forward-only validation
+- **`PeriodBoundaryCalculator`**: Static utility for computing period start/end, labels, and enumerating contiguous periods across all 5 granularities
+
+**Tier Lifecycle Automation**:
+
+- **`TierTransitionScheduler`**: `BackgroundService` that periodically checks for shards due for tier transition and auto-creates next-period Hot shards before they're needed
+- **`IShardArchiver`** / **`ShardArchiver`**: Coordinates tier transitions, read-only enforcement, archival to external storage, and retention-based deletion via Railway Oriented Programming
+- **`ITierStore`** / **`InMemoryTierStore`**: Persists and queries shard tier metadata; in-memory implementation with `ConcurrentDictionary` for single-process deployments
+- **`IReadOnlyEnforcer`**: Provider-specific interface for database-level read-only enforcement (e.g., `ALTER DATABASE SET READ_ONLY`)
+- **`IShardFallbackCreator`**: On-demand shard creation for resilience when scheduler misses its window
+
+**Routing Implementation**:
+
+- **`TimeBasedShardRouter`**: Binary search over sorted period ranges with `FrozenDictionary` shard lookup, co-location support, and fallback creation
+- Write operations reject non-Hot shards with error code `encina.sharding.shard_read_only`
+- Prefix-based scatter-gather via `GetShardIds(CompoundShardKey)` (e.g., `"2026"` matches all 2026 periods)
+
+**Health Monitoring**:
+
+- **`TierTransitionHealthCheck`**: Reports Healthy/Degraded/Unhealthy based on shard age vs configured per-tier thresholds
+- **`ShardCreationHealthCheck`**: Reports Unhealthy if current-period shard is missing, Degraded if next-period shard is missing within warning window
+
+**Observability** (`Encina.OpenTelemetry`):
+
+- 6 metric instruments: `shards_per_tier` gauge, `oldest_hot_shard_age_days` gauge, `tier_transitions_total` counter, `auto_created_shards_total` counter, `queries_per_tier` counter, `archival_duration_ms` histogram
+
+**Error Codes** (6 codes):
+
+- `TimestampOutsideRange`, `ShardReadOnly`, `NoTimeBasedShards`, `TierTransitionFailed`, `ShardNotFound`, `RetentionPolicyFailed`
+
+**Configuration**:
+
+- **`TimeBasedShardingOptions`**: Controls scheduler interval, period, lead time, connection string template, and tier transition rules
+- **`TimeBasedShardRouterOptions`**: Per-entity fluent configuration via `UseTimeBasedRouting()`
+
+**Testing**: 227 tests across unit (161), guard (31), contract (23), and property (12) tests
+
 #### CDC Dead Letter Queue (#631)
 
 Added dead letter queue (DLQ) for CDC failed events, enabling persistence and later replay of change events that fail after exhausting all retries.

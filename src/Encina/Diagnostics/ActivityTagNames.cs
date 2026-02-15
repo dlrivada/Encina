@@ -82,4 +82,10 @@ internal static class ActivityTagNames
     internal const string ReplicaId = "encina.sharding.readwrite.replica.id";
     internal const string ReplicaSelectionStrategy = "encina.sharding.readwrite.selection_strategy";
     internal const string ReplicaFallbackReason = "encina.sharding.readwrite.fallback_reason";
+
+    // Time-based sharding tags
+    internal const string ShardTier = "shard.tier";
+    internal const string ShardPeriod = "shard.period";
+    internal const string TierFrom = "tier.from";
+    internal const string TierTo = "tier.to";
 }

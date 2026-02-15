@@ -130,4 +130,25 @@ public static class ShardingErrorCodes
 
     /// <summary>The observed replication lag for a replica exceeds the configured threshold.</summary>
     public const string ReplicationLagExceeded = "encina.sharding.replication_lag_exceeded";
+
+    /// <summary>A write operation was attempted on a read-only (non-Hot) time-based shard.</summary>
+    public const string ShardReadOnly = "encina.sharding.shard_read_only";
+
+    /// <summary>The provided timestamp does not fall within any configured time-based shard period.</summary>
+    public const string TimestampOutsideRange = "encina.sharding.timestamp_outside_range";
+
+    /// <summary>No time-based shard entries are configured in the router.</summary>
+    public const string NoTimeBasedShards = "encina.sharding.no_time_based_shards";
+
+    /// <summary>A tier transition operation failed (shard not found or update error).</summary>
+    public const string TierTransitionFailed = "encina.sharding.tier_transition_failed";
+
+    /// <summary>An archival operation failed (data export or storage error).</summary>
+    public const string ArchivalFailed = "encina.sharding.archival_failed";
+
+    /// <summary>A retention policy execution failed (shard deletion or metadata update error).</summary>
+    public const string RetentionPolicyFailed = "encina.sharding.retention_policy_failed";
+
+    /// <summary>On-demand shard creation failed during fallback routing.</summary>
+    public const string ShardCreationFailed = "encina.sharding.shard_creation_failed";
 }
