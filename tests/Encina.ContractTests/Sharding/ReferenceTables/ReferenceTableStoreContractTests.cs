@@ -1,14 +1,14 @@
 using System.Reflection;
 using Encina.Sharding.ReferenceTables;
 using Shouldly;
+using ADOMySQLRefTable = Encina.ADO.MySQL.Sharding.ReferenceTables;
+using ADOPostgreSQLRefTable = Encina.ADO.PostgreSQL.Sharding.ReferenceTables;
 using ADOSqliteRefTable = Encina.ADO.Sqlite.Sharding.ReferenceTables;
 using ADOSqlServerRefTable = Encina.ADO.SqlServer.Sharding.ReferenceTables;
-using ADOPostgreSQLRefTable = Encina.ADO.PostgreSQL.Sharding.ReferenceTables;
-using ADOMySQLRefTable = Encina.ADO.MySQL.Sharding.ReferenceTables;
+using DapperMySQLRefTable = Encina.Dapper.MySQL.Sharding.ReferenceTables;
+using DapperPostgreSQLRefTable = Encina.Dapper.PostgreSQL.Sharding.ReferenceTables;
 using DapperSqliteRefTable = Encina.Dapper.Sqlite.Sharding.ReferenceTables;
 using DapperSqlServerRefTable = Encina.Dapper.SqlServer.Sharding.ReferenceTables;
-using DapperPostgreSQLRefTable = Encina.Dapper.PostgreSQL.Sharding.ReferenceTables;
-using DapperMySQLRefTable = Encina.Dapper.MySQL.Sharding.ReferenceTables;
 using EFCoreRefTable = Encina.EntityFrameworkCore.Sharding.ReferenceTables;
 using MongoDBRefTable = Encina.MongoDB.Sharding.ReferenceTables;
 

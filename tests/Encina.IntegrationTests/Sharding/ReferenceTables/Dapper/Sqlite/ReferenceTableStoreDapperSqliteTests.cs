@@ -1,12 +1,9 @@
 using Encina.Dapper.Sqlite.Sharding.ReferenceTables;
 using Encina.Sharding.ReferenceTables;
 using Encina.TestInfrastructure.Fixtures.Sharding;
-
-using AdoSqliteStore = Encina.ADO.Sqlite.Sharding.ReferenceTables.ReferenceTableStoreADO;
-
 using Shouldly;
-
 using Xunit;
+using AdoSqliteStore = Encina.ADO.Sqlite.Sharding.ReferenceTables.ReferenceTableStoreADO;
 
 namespace Encina.IntegrationTests.Sharding.ReferenceTables.Dapper.Sqlite;
 
