@@ -6,6 +6,14 @@ This guide covers how to work with data that spans multiple shards, including sc
 
 1. [Transaction Limitations](#transaction-limitations)
 2. [Saga Pattern for Cross-Shard Workflows](#saga-pattern-for-cross-shard-workflows)
+   - [Architecture](#architecture)
+   - [Saga Data Design](#saga-data-design)
+   - [Example: Entity Transfer Between Shards](#example-entity-transfer-between-shards)
+   - [Example: Cross-Shard Funds Transfer](#example-cross-shard-funds-transfer)
+   - [Example: Cross-Shard Order Fulfillment](#example-cross-shard-order-fulfillment)
+   - [Idempotency Patterns](#idempotency-patterns)
+   - [Saga Design Guidelines](#saga-design-guidelines)
+   - [When to Use Sagas vs. Other Approaches](#when-to-use-sagas-vs-other-approaches)
 3. [Scatter-Gather Queries](#scatter-gather-queries)
 4. [Specification-Based Scatter-Gather](#specification-based-scatter-gather)
 5. [Partial Failure Handling](#partial-failure-handling)
@@ -24,21 +32,21 @@ Each shard operates as an independent database. ACID transactions apply only wit
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Transaction Boundaries                         │
-│                                                                   │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐        │
-│  │   Shard 1    │    │   Shard 2    │    │   Shard 3    │        │
-│  │              │    │              │    │              │        │
-│  │  BEGIN       │    │  BEGIN       │    │  BEGIN       │        │
-│  │  INSERT ...  │    │  UPDATE ...  │    │  DELETE ...  │        │
-│  │  UPDATE ...  │    │  INSERT ...  │    │  INSERT ...  │        │
-│  │  COMMIT ✓    │    │  COMMIT ✓    │    │  ROLLBACK ✗  │        │
-│  │              │    │              │    │              │        │
-│  │  Atomic ✓    │    │  Atomic ✓    │    │  Atomic ✓    │        │
-│  └──────────────┘    └──────────────┘    └──────────────┘        │
-│                                                                   │
-│  ✗ No cross-shard ACID guarantees                                 │
-│  ✗ Shard 3 rolled back while Shard 1 & 2 committed               │
+│                    Transaction Boundaries                       │
+│                                                                 │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
+│  │   Shard 1    │    │   Shard 2    │    │   Shard 3    │       │
+│  │              │    │              │    │              │       │
+│  │  BEGIN       │    │  BEGIN       │    │  BEGIN       │       │
+│  │  INSERT ...  │    │  UPDATE ...  │    │  DELETE ...  │       │
+│  │  UPDATE ...  │    │  INSERT ...  │    │  INSERT ...  │       │
+│  │  COMMIT ✓    │    │  COMMIT ✓   │    │  ROLLBACK ✗  │       │
+│  │              │    │              │    │              │       │
+│  │  Atomic ✓    │    │  Atomic ✓   │    │  Atomic ✓    │       │
+│  └──────────────┘    └──────────────┘    └──────────────┘       │
+│                                                                 │
+│  ✗ No cross-shard ACID guarantees                               │
+│  ✗ Shard 3 rolled back while Shard 1 & 2 committed              │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -58,7 +66,7 @@ Each shard operates as an independent database. ACID transactions apply only wit
 
 ## Saga Pattern for Cross-Shard Workflows
 
-For operations that span multiple shards, use the Saga pattern from Encina.Messaging to coordinate with compensation logic.
+For write operations that span multiple shards, use the Saga pattern from `Encina.Messaging.Sagas.LowCeremony` to coordinate steps with automatic compensation on failure.
 
 ### Architecture
 
@@ -79,77 +87,407 @@ For operations that span multiple shards, use the Saga pattern from Encina.Messa
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Example: Order Fulfillment Across Shards
+`SagaRunner` from `Encina.Messaging.Sagas.LowCeremony` handles the full lifecycle automatically:
+
+- **Step orchestration** — Executes steps sequentially, advancing state after each
+- **State persistence** — Each step is persisted to `ISagaStore` (all 13 database providers)
+- **Compensation** — On failure, runs compensation in reverse order for completed steps
+- **Timeout management** — Optional per-saga timeout via `WithTimeout`
+- **Crash recovery** — `SagaOrchestrator.GetStuckSagasAsync` detects incomplete sagas after a process restart
+
+### Saga Data Design
+
+When coordinating across shards, include shard routing information in the saga data so each step (and its compensation) can target the correct shard:
 
 ```csharp
-public class OrderFulfillmentSaga
+public sealed record CrossShardTransferData
 {
-    private readonly IFunctionalShardedRepository<Order, string> _orderRepo;
-    private readonly IFunctionalShardedRepository<Inventory, string> _inventoryRepo;
+    // Identifiers
+    public string EntityId { get; init; } = string.Empty;
 
-    public async Task<Either<EncinaError, Unit>> FulfillOrderAsync(
-        Order order, string productId, int quantity)
+    // Shard routing — each step uses these to target the right shard
+    public string SourceShardKey { get; init; } = string.Empty;
+    public string TargetShardKey { get; init; } = string.Empty;
+
+    // Completion flags — compensation only runs when the step actually completed
+    public bool InsertedInTarget { get; init; }
+    public bool DeletedFromSource { get; init; }
+}
+```
+
+**Key principles:**
+
+- Store **source and target shard keys** so compensation steps can route correctly
+- Track **completion flags** (`InsertedInTarget`, `DeletedFromSource`) for idempotent compensation — only undo what was actually done
+- Use `record` types with `init` properties and `with` expressions for immutable state transitions between steps
+
+### Example: Entity Transfer Between Shards
+
+Moving an entity from one shard to another (e.g., rebalancing, user migration):
+
+```csharp
+public class CustomerTransferService
+{
+    private readonly IFunctionalShardedRepository<Customer, string> _repo;
+    private readonly ISagaRunner _sagaRunner;
+
+    public async Task<Either<EncinaError, SagaResult<CrossShardTransferData>>>
+        TransferCustomerAsync(
+            string customerId,
+            string sourceShardKey,
+            string targetShardKey,
+            CancellationToken ct)
     {
-        // Step 1: Reserve inventory (Shard B — routed by productId)
-        var reserveResult = await ReserveInventoryAsync(productId, quantity);
+        var definition = SagaDefinition.Create<CrossShardTransferData>("CustomerTransfer")
+            .Step("Insert into target shard")
+                .Execute(async (data, ct) =>
+                {
+                    // Read from source shard
+                    var customerResult = await _repo.GetByIdAsync(
+                        customerId, data.SourceShardKey, ct);
 
-        return await reserveResult.MatchAsync(
-            RightAsync: async _ =>
-            {
-                // Step 2: Confirm order (Shard A — routed by order's shard key)
-                var confirmResult = await ConfirmOrderAsync(order);
-
-                return await confirmResult.MatchAsync(
-                    RightAsync: _ => Task.FromResult<Either<EncinaError, Unit>>(Unit.Default),
-                    LeftAsync: async error =>
+                    return await customerResult.BindAsync(async customer =>
                     {
-                        // Compensate: release the reserved inventory
-                        await ReleaseInventoryAsync(productId, quantity);
-                        return error;
+                        // Insert into target shard (AddAsync routes by shard key)
+                        var clone = customer.WithShardKey(data.TargetShardKey);
+                        var addResult = await _repo.AddAsync(clone, ct);
+                        return addResult.Map(_ =>
+                            data with { InsertedInTarget = true });
                     });
-            },
-            LeftAsync: error => Task.FromResult<Either<EncinaError, Unit>>(error));
-    }
+                })
+                .Compensate(async (data, ct) =>
+                {
+                    if (data.InsertedInTarget)
+                    {
+                        await _repo.DeleteAsync(
+                            data.EntityId, data.TargetShardKey, ct);
+                    }
+                })
+            .Step("Delete from source shard")
+                .Execute(async (data, ct) =>
+                {
+                    var deleteResult = await _repo.DeleteAsync(
+                        data.EntityId, data.SourceShardKey, ct);
+                    return deleteResult.Map(_ =>
+                        data with { DeletedFromSource = true });
+                })
+                .Compensate(async (data, ct) =>
+                {
+                    if (data.DeletedFromSource)
+                    {
+                        // Re-read from target and re-insert in source
+                        var customerResult = await _repo.GetByIdAsync(
+                            data.EntityId, data.TargetShardKey, ct);
+                        await customerResult.IfRightAsync(async customer =>
+                        {
+                            var original = customer.WithShardKey(data.SourceShardKey);
+                            await _repo.AddAsync(original, ct);
+                        });
+                    }
+                })
+            .WithTimeout(TimeSpan.FromMinutes(5))
+            .Build();
 
-    private async Task<Either<EncinaError, Unit>> ReserveInventoryAsync(
-        string productId, int quantity)
-    {
-        // Execute against the shard that owns this product
-        var inventory = await _inventoryRepo.GetByIdAsync(productId, productId);
-        return await inventory.BindAsync(async inv =>
-        {
-            inv.AvailableQuantity -= quantity;
-            return await _inventoryRepo.UpdateAsync(inv);
-        });
-    }
-
-    private async Task<Either<EncinaError, Unit>> ReleaseInventoryAsync(
-        string productId, int quantity)
-    {
-        // Compensation: restore inventory
-        var inventory = await _inventoryRepo.GetByIdAsync(productId, productId);
-        return await inventory.BindAsync(async inv =>
-        {
-            inv.AvailableQuantity += quantity;
-            return await _inventoryRepo.UpdateAsync(inv);
-        });
-    }
-
-    private async Task<Either<EncinaError, Unit>> ConfirmOrderAsync(Order order)
-    {
-        order.Status = OrderStatus.Confirmed;
-        return await _orderRepo.UpdateAsync(order);
+        return await _sagaRunner.RunAsync(definition,
+            new CrossShardTransferData
+            {
+                EntityId = customerId,
+                SourceShardKey = sourceShardKey,
+                TargetShardKey = targetShardKey,
+            }, ct);
     }
 }
 ```
 
+### Example: Cross-Shard Funds Transfer
+
+Transferring funds between accounts that live on different shards. The **debit step comes first** because insufficient funds is the most likely failure — this minimizes the number of compensations:
+
+```csharp
+public sealed record FundsTransferData
+{
+    public string SourceAccountId { get; init; } = string.Empty;
+    public string TargetAccountId { get; init; } = string.Empty;
+    public string SourceShardKey { get; init; } = string.Empty;
+    public string TargetShardKey { get; init; } = string.Empty;
+    public decimal Amount { get; init; }
+    public bool Debited { get; init; }
+    public bool Credited { get; init; }
+    public string? TransactionRef { get; init; }
+}
+
+public class FundsTransferService
+{
+    private readonly IFunctionalShardedRepository<Account, string> _accountRepo;
+    private readonly ISagaRunner _sagaRunner;
+
+    public async Task<Either<EncinaError, SagaResult<FundsTransferData>>>
+        TransferAsync(
+            string sourceAccountId, string sourceShardKey,
+            string targetAccountId, string targetShardKey,
+            decimal amount, CancellationToken ct)
+    {
+        var definition = SagaDefinition.Create<FundsTransferData>("FundsTransfer")
+            .Step("Debit source account")
+                .Execute(async (data, ct) =>
+                {
+                    var accountResult = await _accountRepo.GetByIdAsync(
+                        data.SourceAccountId, data.SourceShardKey, ct);
+
+                    return await accountResult.BindAsync(async account =>
+                    {
+                        if (account.Balance < data.Amount)
+                            return EncinaErrors.Create(
+                                "transfer.insufficient_funds",
+                                $"Insufficient balance: {account.Balance} < {data.Amount}");
+
+                        account.Balance -= data.Amount;
+                        var updateResult = await _accountRepo.UpdateAsync(account, ct);
+                        return updateResult.Map(_ =>
+                            data with { Debited = true, TransactionRef = Guid.NewGuid().ToString() });
+                    });
+                })
+                .Compensate(async (data, ct) =>
+                {
+                    if (data.Debited)
+                    {
+                        var accountResult = await _accountRepo.GetByIdAsync(
+                            data.SourceAccountId, data.SourceShardKey, ct);
+                        await accountResult.IfRightAsync(async account =>
+                        {
+                            account.Balance += data.Amount;
+                            await _accountRepo.UpdateAsync(account, ct);
+                        });
+                    }
+                })
+            .Step("Credit target account")
+                .Execute(async (data, ct) =>
+                {
+                    var accountResult = await _accountRepo.GetByIdAsync(
+                        data.TargetAccountId, data.TargetShardKey, ct);
+
+                    return await accountResult.BindAsync(async account =>
+                    {
+                        account.Balance += data.Amount;
+                        var updateResult = await _accountRepo.UpdateAsync(account, ct);
+                        return updateResult.Map(_ =>
+                            data with { Credited = true });
+                    });
+                })
+                .Compensate(async (data, ct) =>
+                {
+                    if (data.Credited)
+                    {
+                        var accountResult = await _accountRepo.GetByIdAsync(
+                            data.TargetAccountId, data.TargetShardKey, ct);
+                        await accountResult.IfRightAsync(async account =>
+                        {
+                            account.Balance -= data.Amount;
+                            await _accountRepo.UpdateAsync(account, ct);
+                        });
+                    }
+                })
+            .WithTimeout(TimeSpan.FromMinutes(2))
+            .Build();
+
+        return await _sagaRunner.RunAsync(definition,
+            new FundsTransferData
+            {
+                SourceAccountId = sourceAccountId,
+                SourceShardKey = sourceShardKey,
+                TargetAccountId = targetAccountId,
+                TargetShardKey = targetShardKey,
+                Amount = amount,
+            }, ct);
+    }
+}
+```
+
+### Example: Cross-Shard Order Fulfillment
+
+Reserving inventory (routed by product ID on Shard B) and confirming an order (routed by customer ID on Shard A):
+
+```csharp
+public sealed record OrderFulfillmentData
+{
+    public string OrderId { get; init; } = string.Empty;
+    public string CustomerShardKey { get; init; } = string.Empty;
+    public string ProductId { get; init; } = string.Empty;
+    public int Quantity { get; init; }
+    public bool InventoryReserved { get; init; }
+    public bool OrderConfirmed { get; init; }
+}
+
+public class OrderFulfillmentService
+{
+    private readonly IFunctionalShardedRepository<Order, string> _orderRepo;
+    private readonly IFunctionalShardedRepository<Inventory, string> _inventoryRepo;
+    private readonly ISagaRunner _sagaRunner;
+
+    public async Task<Either<EncinaError, SagaResult<OrderFulfillmentData>>>
+        FulfillOrderAsync(
+            string orderId, string customerShardKey,
+            string productId, int quantity,
+            CancellationToken ct)
+    {
+        var definition = SagaDefinition.Create<OrderFulfillmentData>("OrderFulfillment")
+            .Step("Reserve inventory")
+                .Execute(async (data, ct) =>
+                {
+                    // Inventory lives on the shard determined by productId
+                    var invResult = await _inventoryRepo.GetByIdAsync(
+                        data.ProductId, data.ProductId, ct);
+
+                    return await invResult.BindAsync(async inv =>
+                    {
+                        if (inv.AvailableQuantity < data.Quantity)
+                            return EncinaErrors.Create(
+                                "fulfillment.insufficient_stock",
+                                $"Only {inv.AvailableQuantity} available");
+
+                        inv.AvailableQuantity -= data.Quantity;
+                        var updateResult = await _inventoryRepo.UpdateAsync(inv, ct);
+                        return updateResult.Map(_ =>
+                            data with { InventoryReserved = true });
+                    });
+                })
+                .Compensate(async (data, ct) =>
+                {
+                    if (data.InventoryReserved)
+                    {
+                        var invResult = await _inventoryRepo.GetByIdAsync(
+                            data.ProductId, data.ProductId, ct);
+                        await invResult.IfRightAsync(async inv =>
+                        {
+                            inv.AvailableQuantity += data.Quantity;
+                            await _inventoryRepo.UpdateAsync(inv, ct);
+                        });
+                    }
+                })
+            .Step("Confirm order")
+                .Execute(async (data, ct) =>
+                {
+                    // Order lives on the shard determined by customerShardKey
+                    var orderResult = await _orderRepo.GetByIdAsync(
+                        data.OrderId, data.CustomerShardKey, ct);
+
+                    return await orderResult.BindAsync(async order =>
+                    {
+                        order.Status = OrderStatus.Confirmed;
+                        var updateResult = await _orderRepo.UpdateAsync(order, ct);
+                        return updateResult.Map(_ =>
+                            data with { OrderConfirmed = true });
+                    });
+                })
+            .WithTimeout(TimeSpan.FromMinutes(5))
+            .Build();
+
+        return await _sagaRunner.RunAsync(definition,
+            new OrderFulfillmentData
+            {
+                OrderId = orderId,
+                CustomerShardKey = customerShardKey,
+                ProductId = productId,
+                Quantity = quantity,
+            }, ct);
+    }
+}
+```
+
+### Idempotency Patterns
+
+Cross-shard sagas are more susceptible to retries and partial failures. Making every step idempotent prevents duplicate side effects.
+
+**1. Completion flags in saga data**
+
+Track whether each step actually completed so compensation only undoes real work:
+
+```csharp
+// In the compensation handler:
+if (data.InsertedInTarget)  // Only compensate if step actually succeeded
+{
+    await _repo.DeleteAsync(data.EntityId, data.TargetShardKey, ct);
+}
+```
+
+**2. Check-before-write**
+
+Read current state before modifying to detect duplicate executions:
+
+```csharp
+.Step("Reserve inventory")
+    .Execute(async (data, ct) =>
+    {
+        var inv = await _inventoryRepo.GetByIdAsync(data.ProductId, data.ProductId, ct);
+        return await inv.BindAsync(async inventory =>
+        {
+            // Guard: check if already reserved (idempotent)
+            if (inventory.ReservationRef == data.TransactionRef)
+                return data with { InventoryReserved = true };
+
+            inventory.AvailableQuantity -= data.Quantity;
+            inventory.ReservationRef = data.TransactionRef;
+            var result = await _inventoryRepo.UpdateAsync(inventory, ct);
+            return result.Map(_ => data with { InventoryReserved = true });
+        });
+    })
+```
+
+**3. Transaction reference**
+
+Pass the saga ID as an idempotency key to downstream operations. If the saga is retried, the same reference prevents duplicate processing:
+
+```csharp
+// The SagaRunner generates a unique SagaId on start
+// You can store it in saga data for use as an idempotency key
+data with { TransactionRef = sagaId.ToString() }
+```
+
+**4. Idempotent compensations**
+
+Compensations can also be retried. Use the same guard patterns:
+
+```csharp
+.Compensate(async (data, ct) =>
+{
+    if (!data.Debited) return; // Nothing to undo
+
+    var account = await _accountRepo.GetByIdAsync(data.SourceAccountId, data.SourceShardKey, ct);
+    await account.IfRightAsync(async acc =>
+    {
+        // Check if already refunded to avoid double-refund
+        if (acc.LastRefundRef == data.TransactionRef) return;
+
+        acc.Balance += data.Amount;
+        acc.LastRefundRef = data.TransactionRef;
+        await _accountRepo.UpdateAsync(acc, ct);
+    });
+})
+```
+
 ### Saga Design Guidelines
 
-1. **Each step should be idempotent** — Retrying a step produces the same result
-2. **Each step needs a compensating action** — Undo logic for when later steps fail
-3. **Order matters** — Perform the most likely-to-fail step first to minimize compensations
-4. **Track saga state** — Use `SagaState` from Encina.Messaging for persistent orchestration
-5. **Handle partial compensations** — Compensation actions can also fail; build retry logic
+1. **Each step should be idempotent** — Retrying a step must produce the same result. Use completion flags and transaction references.
+2. **Each step needs a compensating action** — Define undo logic for when later steps fail. The last step can omit compensation if there is nothing to undo.
+3. **Order matters** — Perform the most likely-to-fail step first to minimize the number of compensations. For example, debit before credit (insufficient funds is more likely than a credit failure).
+4. **Use `SagaRunner` for automatic state tracking** — Do not manually chain `MatchAsync` calls. `SagaRunner` persists state after each step, runs compensation in reverse order on failure, and handles exceptions and cancellation.
+5. **Handle partial compensations** — `SagaRunner` logs compensation failures but continues compensating remaining steps. If a compensation persistently fails, the saga enters `Failed` status for manual intervention.
+6. **Include shard identifiers in saga data** — Store source and target shard keys so each step and compensation can route to the correct shard via `IFunctionalShardedRepository`.
+7. **Use `WithTimeout` for cross-shard sagas** — Network failures between shards are more likely than within a single database. Set a timeout so stuck sagas are detected by `SagaOrchestrator.GetExpiredSagasAsync`.
+8. **Read-then-act pattern** — Always read the current entity state from the shard before modifying it. This ensures you are working with the latest data and enables idempotency checks.
+
+### When to Use Sagas vs. Other Approaches
+
+| Scenario | Approach |
+|----------|----------|
+| Single entity on one shard | Standard repository operation (ACID guaranteed) |
+| Two entities on the same shard | Single transaction via co-location |
+| Two entities on different shards | **Saga pattern** |
+| Bulk entity migration between shards | Saga per entity or batch saga |
+| Read-only query across shards | Scatter-gather (no saga needed) |
+| Entities that should always be co-located | Co-location group (prevent the problem) |
+
+> **Future consideration**: If cross-shard transfers become a frequent pattern, a thin `TransferAsync` convenience wrapper on `IFunctionalShardedRepository` could reduce boilerplate. For now, the saga approach provides full flexibility and explicit control over compensation logic.
 
 ---
 
@@ -557,11 +895,19 @@ If one shard consistently shows higher latency, investigate:
 
 ### Can I use distributed transactions across shards?
 
-Not with Encina's sharding (by design). Use the Saga pattern for workflows that span shards. MongoDB 4.2+ supports cross-shard transactions natively when using mongos, but this is a MongoDB-specific feature and not part of Encina's abstraction.
+Not with Encina's sharding (by design). Use the [Saga pattern](#saga-pattern-for-cross-shard-workflows) for workflows that span shards. MongoDB 4.2+ supports cross-shard transactions natively when using mongos, but this is a MongoDB-specific feature and not part of Encina's abstraction.
+
+### How do I use the Saga API for cross-shard writes?
+
+Use `SagaDefinition.Create<TData>()` from `Encina.Messaging.Sagas.LowCeremony` to define steps, then execute with `ISagaRunner.RunAsync()`. Each step targets a specific shard via the shard key stored in the saga data. See the [entity transfer](#example-entity-transfer-between-shards), [funds transfer](#example-cross-shard-funds-transfer), and [order fulfillment](#example-cross-shard-order-fulfillment) examples above.
+
+### What happens if the process crashes mid-saga?
+
+Saga state is persisted to `ISagaStore` after each step. On restart, use `SagaOrchestrator.GetStuckSagasAsync()` to detect incomplete sagas older than a configurable threshold (`SagaOptions.StuckSagaThreshold`, default 5 minutes). Expired sagas can be detected with `GetExpiredSagasAsync()` for sagas that used `WithTimeout`.
 
 ### What if a Saga compensation fails?
 
-Compensation actions should be idempotent and retryable. If a compensation persistently fails, the saga enters a "failed" state that requires manual intervention. Use Encina.Messaging's `SagaState` to track and recover from such failures.
+`SagaRunner` logs the compensation failure but continues compensating remaining steps (it does not abort on a single compensation failure). If a compensation persistently fails, the saga enters `Failed` status. Use `SagaOrchestrator.GetStuckSagasAsync` or `GetExpiredSagasAsync` to find these sagas for manual intervention. Compensations should be idempotent and retryable.
 
 ### How do I paginate scatter-gather results?
 
