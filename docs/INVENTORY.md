@@ -551,6 +551,18 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - **132 tests**: 86 unit, 23 guard, 14 contract, 9 property
 - Documentación: [Sharded CDC Guide](features/cdc-sharding.md)
 
+**#632 - CDC-Driven Query Cache Invalidation** ✅ **COMPLETADO** (febrero 2026):
+
+- `QueryCacheInvalidationOptions` para configuración de prefijo, canal pub/sub, filtrado de tablas y mappings
+- `QueryCacheInvalidationCdcHandler` (internal) implementa `IChangeEventHandler<JsonElement>` → `RemoveByPatternAsync`
+- `CdcTableNameResolver` (internal) con mapping explícito (case-insensitive) y schema-stripping automático
+- `CacheInvalidationSubscriberService` `IHostedService` para recibir patrones de invalidación via pub/sub
+- `CacheInvalidationSubscriberHealthCheck` extendiendo `EncinaHealthCheck`
+- **Observability**: `CacheInvalidationActivitySource` (7 métodos), `CacheInvalidationMetrics` (3 contadores), `CdcCacheInvalidationLog` (16 log events)
+- **48 tests**: 19 unit, 4 guard, 9 contract, 9 property, 7 integration
+- Documentación: [CDC Cache Invalidation Guide](features/cdc-cache-invalidation.md)
+- Complementa `QueryCacheInterceptor` cubriendo cambios de otras instancias, SQL directo, migraciones
+
 **#309 - Schema Registry Integration** (Alta Prioridad):
 
 - `ISchemaRegistry` con GetSchema, RegisterSchema, CheckCompatibility

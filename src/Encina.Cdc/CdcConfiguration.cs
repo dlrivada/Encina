@@ -1,3 +1,4 @@
+using Encina.Cdc.Caching;
 using Encina.Cdc.Messaging;
 using Encina.Cdc.Sharding;
 
@@ -30,6 +31,7 @@ public sealed class CdcConfiguration
     private readonly List<HandlerRegistration> _handlerRegistrations = [];
     private CdcMessagingOptions? _messagingOptions;
     private ShardedCaptureOptions? _shardedCaptureOptions;
+    private QueryCacheInvalidationOptions? _cacheInvalidationOptions;
 
     /// <summary>
     /// Gets the configured CDC options.
@@ -55,6 +57,11 @@ public sealed class CdcConfiguration
     /// Gets the sharded capture options, or <c>null</c> if sharded capture is not configured.
     /// </summary>
     internal ShardedCaptureOptions? ShardedCaptureOptions => _shardedCaptureOptions;
+
+    /// <summary>
+    /// Gets the cache invalidation options, or <c>null</c> if cache invalidation is not configured.
+    /// </summary>
+    internal QueryCacheInvalidationOptions? CacheInvalidationOptions => _cacheInvalidationOptions;
 
     /// <summary>
     /// Enables CDC processing and returns this configuration for fluent chaining.
@@ -161,6 +168,40 @@ public sealed class CdcConfiguration
         _options.UseShardedCapture = true;
         _shardedCaptureOptions = new ShardedCaptureOptions();
         configure?.Invoke(_shardedCaptureOptions);
+        return this;
+    }
+
+    /// <summary>
+    /// Enables CDC-driven query cache invalidation, which detects database changes
+    /// from any source (other app instances, direct SQL, migrations, external services)
+    /// and invalidates matching cache entries via <c>ICacheProvider</c>.
+    /// Optionally broadcasts invalidation to other instances via <c>IPubSubProvider</c>.
+    /// </summary>
+    /// <param name="configure">Optional action to configure cache invalidation options.</param>
+    /// <returns>This configuration instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This feature complements the existing <c>QueryCacheInterceptor</c> which only
+    /// invalidates cache entries for changes made by the same application instance.
+    /// CDC-driven invalidation covers all change sources including other instances,
+    /// direct SQL updates, and external microservices.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// config.WithCacheInvalidation(opts =>
+    /// {
+    ///     opts.CacheKeyPrefix = "sm:qc";
+    ///     opts.UsePubSubBroadcast = true;
+    ///     opts.Tables = ["Orders", "Products"];
+    /// });
+    /// </code>
+    /// </example>
+    public CdcConfiguration WithCacheInvalidation(Action<QueryCacheInvalidationOptions>? configure = null)
+    {
+        _options.UseCacheInvalidation = true;
+        _cacheInvalidationOptions = new QueryCacheInvalidationOptions();
+        configure?.Invoke(_cacheInvalidationOptions);
         return this;
     }
 

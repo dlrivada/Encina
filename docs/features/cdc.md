@@ -16,9 +16,10 @@ This guide explains how to capture and react to database changes in real-time us
 10. [Error Handling](#error-handling)
 11. [Provider Support](#provider-support)
 12. [Sharded CDC](#sharded-cdc)
-13. [Testing](#testing)
-14. [Best Practices](#best-practices)
-15. [FAQ](#faq)
+13. [Cache Invalidation](#cache-invalidation)
+14. [Testing](#testing)
+15. [Best Practices](#best-practices)
+16. [FAQ](#faq)
 
 ---
 
@@ -547,6 +548,38 @@ services.AddEncinaCdc(config =>
 ```
 
 For complete documentation, see the **[Sharded CDC Guide](cdc-sharding.md)**.
+
+---
+
+## Cache Invalidation
+
+CDC can automatically invalidate query cache entries across all application instances when database changes are detected from any source (other instances, direct SQL, migrations, external services).
+
+### Key Features
+
+- **`QueryCacheInvalidationCdcHandler`**: Translates CDC events into `RemoveByPatternAsync` calls
+- **`CacheInvalidationSubscriberService`**: Receives pub/sub messages and invalidates local cache
+- **Pattern matching**: Uses `{prefix}:*:{entityType}:*` to match `QueryCacheInterceptor` keys
+- **Resilient**: Cache/pub/sub failures never block the CDC pipeline
+
+### Quick Example
+
+```csharp
+services.AddEncinaCdc(config =>
+{
+    config.UseCdc()
+          .WithCacheInvalidation(opts =>
+          {
+              opts.Tables = ["Orders", "Products"];
+              opts.TableToEntityTypeMappings = new Dictionary<string, string>
+              {
+                  ["dbo.Orders"] = "Order"
+              };
+          });
+});
+```
+
+For complete documentation, see the **[CDC Cache Invalidation Guide](cdc-cache-invalidation.md)**.
 
 ---
 

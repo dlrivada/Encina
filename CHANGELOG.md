@@ -301,6 +301,52 @@ services.AddEncinaCdc(config =>
 
 ---
 
+#### CDC-Driven Query Cache Invalidation (#632)
+
+Added CDC-driven query cache invalidation that detects database changes from any source (other app instances, direct SQL, migrations, external microservices) and invalidates matching cache entries across all application instances via pub/sub broadcast.
+
+**Core Components** (`Encina.Cdc` package):
+
+- **`QueryCacheInvalidationOptions`**: Configuration for cache key prefix, pub/sub channel, table filtering, and explicit table-to-entity-type mappings
+- **`QueryCacheInvalidationCdcHandler`**: Internal `IChangeEventHandler<JsonElement>` that translates CDC events into `RemoveByPatternAsync` calls with pattern `{prefix}:*:{entityType}:*`
+- **`CdcTableNameResolver`**: Internal resolver with explicit mapping precedence (case-insensitive) and automatic schema stripping fallback (`dbo.Orders` → `Orders`)
+- **`CacheInvalidationSubscriberService`**: `IHostedService` that subscribes to the pub/sub channel and invalidates local cache entries when messages arrive from other instances
+
+**Configuration** (via `CdcConfiguration.WithCacheInvalidation()`):
+
+```csharp
+services.AddEncinaCdc(config =>
+{
+    config.UseCdc()
+          .WithCacheInvalidation(opts =>
+          {
+              opts.CacheKeyPrefix = "sm:qc";
+              opts.UsePubSubBroadcast = true;
+              opts.PubSubChannel = "sm:cache:invalidate";
+              opts.Tables = ["Orders", "Products"];
+              opts.TableToEntityTypeMappings = new Dictionary<string, string>
+              {
+                  ["dbo.Orders"] = "Order",
+                  ["dbo.Products"] = "Product"
+              };
+          });
+});
+```
+
+**Health Check**: `CacheInvalidationSubscriberHealthCheck` (extends `EncinaHealthCheck`) — verifies pub/sub connectivity with diagnostic data (channel, prefix)
+
+**Observability**:
+
+- `CacheInvalidationActivitySource`: 7 trace methods under `Encina.Cdc.CacheInvalidation` ActivitySource (StartInvalidation, SetResolution, InvalidationCompleted/Failed/Skipped, StartBroadcast, CompleteBroadcast)
+- `CacheInvalidationMetrics`: 3 counter instruments — `encina.cdc.cache.invalidations`, `encina.cdc.cache.broadcasts`, `encina.cdc.cache.errors`
+- `CdcCacheInvalidationLog`: 16 source-generated log events (EventIds 150-165) covering invalidation, broadcast, subscriber lifecycle, and error scenarios
+
+**Test Coverage** (48 tests): 19 unit, 4 guard, 9 contract, 9 property, 7 integration
+
+**Documentation**: [`docs/features/cdc-cache-invalidation.md`](docs/features/cdc-cache-invalidation.md) — comprehensive guide with architecture, configuration, troubleshooting
+
+---
+
 #### Sharded Read/Write Separation (#644)
 
 Added per-shard read/write separation with five replica selection strategies, health-aware routing, and staleness tolerance across all 13 database providers.

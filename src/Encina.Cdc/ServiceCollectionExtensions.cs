@@ -1,7 +1,10 @@
+using System.Text.Json;
 using Encina.Cdc.Abstractions;
+using Encina.Cdc.Caching;
 using Encina.Cdc.Messaging;
 using Encina.Cdc.Processing;
 using Encina.Cdc.Sharding;
+using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -103,6 +106,12 @@ public static class ServiceCollectionExtensions
             RegisterShardedCaptureServices(services, configuration);
         }
 
+        // Register cache invalidation services when enabled
+        if (configuration.Options.UseCacheInvalidation)
+        {
+            RegisterCacheInvalidationServices(services, configuration);
+        }
+
         // Register processor as hosted service when enabled.
         // Skip standard CdcProcessor when sharded capture is active to avoid conflicts.
         if (configuration.Options.Enabled && !configuration.Options.UseShardedCapture)
@@ -146,6 +155,36 @@ public static class ServiceCollectionExtensions
         if (configuration.Options.Enabled)
         {
             services.AddHostedService<ShardedCdcProcessor>();
+        }
+    }
+
+    private static void RegisterCacheInvalidationServices(
+        IServiceCollection services,
+        CdcConfiguration configuration)
+    {
+        var cacheInvalidationOptions = configuration.CacheInvalidationOptions
+            ?? new QueryCacheInvalidationOptions();
+
+        // Register options for IOptions<QueryCacheInvalidationOptions> injection
+        services.Configure<QueryCacheInvalidationOptions>(opts =>
+        {
+            opts.CacheKeyPrefix = cacheInvalidationOptions.CacheKeyPrefix;
+            opts.UsePubSubBroadcast = cacheInvalidationOptions.UsePubSubBroadcast;
+            opts.PubSubChannel = cacheInvalidationOptions.PubSubChannel;
+            opts.Tables = cacheInvalidationOptions.Tables;
+            opts.TableToEntityTypeMappings = cacheInvalidationOptions.TableToEntityTypeMappings;
+        });
+
+        // Register the handler as IChangeEventHandler<JsonElement> (scoped)
+        services.AddScoped<IChangeEventHandler<JsonElement>, QueryCacheInvalidationCdcHandler>();
+
+        // Register the subscriber hosted service and health check when pub/sub broadcast is enabled.
+        // The subscriber listens for invalidation patterns from other instances
+        // and invalidates local cache entries.
+        if (cacheInvalidationOptions.UsePubSubBroadcast)
+        {
+            services.AddHostedService<CacheInvalidationSubscriberService>();
+            services.AddSingleton<IEncinaHealthCheck, CacheInvalidationSubscriberHealthCheck>();
         }
     }
 }

@@ -71,4 +71,12 @@ public sealed class CdcOptions
     /// Default is <c>false</c>.
     /// </summary>
     public bool UseShardedCapture { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to enable CDC-driven query cache invalidation.
+    /// When enabled, database changes detected by CDC are translated into cache
+    /// invalidation commands and optionally broadcast to other instances via pub/sub.
+    /// Default is <c>false</c>.
+    /// </summary>
+    public bool UseCacheInvalidation { get; set; }
 }
