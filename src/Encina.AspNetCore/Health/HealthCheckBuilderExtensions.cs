@@ -8,6 +8,8 @@ using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Modules;
+using Encina.Sharding.ReferenceTables;
+using Encina.Sharding.ReferenceTables.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using AspNetHealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
@@ -476,6 +478,69 @@ public static class HealthCheckBuilderExtensions
                 var timeProvider = sp.GetService<TimeProvider>() ?? TimeProvider.System;
                 return new EncinaHealthCheckAdapter(
                     new IdGeneratorHealthCheck(options, snowflakeOptions, timeProvider));
+            },
+            failureStatus,
+            allTags));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the reference table replication health check.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-reference-table-replication".</param>
+    /// <param name="options">Health check options including staleness thresholds.</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check monitors reference table replication staleness by checking the last
+    /// replication time for each registered reference table against configurable thresholds.
+    /// Tables that have never been replicated are treated as unhealthy.
+    /// </para>
+    /// <para>
+    /// Requires <see cref="IReferenceTableRegistry"/> and <see cref="IReferenceTableStateStore"/>
+    /// to be registered in the DI container (automatically done when reference table replication
+    /// is enabled).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaReferenceTableReplication();
+    ///
+    /// // Or with custom thresholds
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaReferenceTableReplication(options: new ReferenceTableHealthCheckOptions
+    ///     {
+    ///         UnhealthyThreshold = TimeSpan.FromMinutes(10),
+    ///         DegradedThreshold = TimeSpan.FromMinutes(2)
+    ///     });
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaReferenceTableReplication(
+        this IHealthChecksBuilder builder,
+        string name = ReferenceTableHealthCheck.DefaultName,
+        ReferenceTableHealthCheckOptions? options = null,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "sharding", "replication", TagDatabase);
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp =>
+            {
+                var registry = sp.GetRequiredService<IReferenceTableRegistry>();
+                var stateStore = sp.GetRequiredService<IReferenceTableStateStore>();
+                return new EncinaHealthCheckAdapter(
+                    new ReferenceTableHealthCheck(registry, stateStore, options));
             },
             failureStatus,
             allTags));

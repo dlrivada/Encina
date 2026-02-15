@@ -2,6 +2,7 @@ using Encina.IdGeneration.Diagnostics;
 using Encina.OpenTelemetry.Behaviors;
 using Encina.OpenTelemetry.Cdc;
 using Encina.OpenTelemetry.IdGeneration;
+using Encina.OpenTelemetry.ReferenceTable;
 using Encina.OpenTelemetry.Sharding;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -64,6 +65,12 @@ public static class ServiceCollectionExtensions
         // ShardedCdcMetricsCallbacks being available (registered by Encina.Cdc).
         services.AddHostedService<ShardedCdcMetricsInitializer>();
 
+        // Register reference table replication metrics initialization as a hosted service.
+        // ReferenceTableMetrics creates Histogram, Counter, UpDownCounter, and ObservableGauge
+        // instruments on the static "Encina" meter during construction. Registration is
+        // conditional on ReferenceTableMetricsCallbacks being available.
+        services.AddHostedService<ReferenceTableMetricsInitializer>();
+
         return services;
     }
 
@@ -92,6 +99,7 @@ public static class ServiceCollectionExtensions
             tracing.AddSource("Encina");
             tracing.AddSource("Encina.Sharding");
             tracing.AddSource("Encina.Cdc.Sharded");
+            tracing.AddSource("Encina.ReferenceTable");
             tracing.AddSource(IdGenerationActivitySource.SourceName);
         });
 

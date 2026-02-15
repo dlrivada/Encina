@@ -32,6 +32,14 @@ public sealed class ShardedPostgreSqlFixture : IAsyncLifetime
         );
         """;
 
+    private static string GetReferenceTableSql(string schema) => $"""
+        CREATE TABLE IF NOT EXISTS {schema}."Country" (
+            "Id" VARCHAR(100) NOT NULL PRIMARY KEY,
+            "Code" VARCHAR(10) NOT NULL,
+            "Name" VARCHAR(200) NOT NULL
+        );
+        """;
+
     /// <summary>
     /// Gets the connection string for shard 1 (with search_path set to shard1 schema).
     /// </summary>
@@ -156,11 +164,14 @@ public sealed class ShardedPostgreSqlFixture : IAsyncLifetime
         var sql = GetShardedTableSql(schema);
         await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
+
+        command.CommandText = GetReferenceTableSql(schema);
+        await command.ExecuteNonQueryAsync();
     }
 
     private static async Task ClearSchemaDataAsync(NpgsqlConnection connection, string schema)
     {
-        var sql = $"DELETE FROM {schema}.sharded_entities;";
+        var sql = $"DELETE FROM {schema}.sharded_entities; DELETE FROM {schema}.\"Country\";";
         await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
     }

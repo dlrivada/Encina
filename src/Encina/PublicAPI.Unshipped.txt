@@ -1076,3 +1076,133 @@ Encina.Sharding.Health.ShardReplicaHealthSummary.AllHealthy.get -> bool
 Encina.Sharding.Health.ShardReplicaHealthSummary.ShardCount.get -> int
 Encina.Sharding.Health.ShardReplicaHealthSummary.DegradedCount.get -> int
 Encina.Sharding.Health.ShardReplicaHealthSummary.UnhealthyCount.get -> int
+Encina.Sharding.ReferenceTables.ReferenceTableAttribute
+Encina.Sharding.ReferenceTables.ReferenceTableAttribute.ReferenceTableAttribute() -> void
+Encina.Sharding.ReferenceTables.RefreshStrategy
+Encina.Sharding.ReferenceTables.RefreshStrategy.CdcDriven = 0 -> Encina.Sharding.ReferenceTables.RefreshStrategy
+Encina.Sharding.ReferenceTables.RefreshStrategy.Polling = 1 -> Encina.Sharding.ReferenceTables.RefreshStrategy
+Encina.Sharding.ReferenceTables.RefreshStrategy.Manual = 2 -> Encina.Sharding.ReferenceTables.RefreshStrategy
+Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.EntityNotRegistered = "encina.reference_table.entity_not_registered" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.PrimaryShardNotFound = "encina.reference_table.primary_shard_not_found" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.NoTargetShards = "encina.reference_table.no_target_shards" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.PrimaryReadFailed = "encina.reference_table.primary_read_failed" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.ReplicationPartialFailure = "encina.reference_table.replication_partial_failure" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.ReplicationFailed = "encina.reference_table.replication_failed" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.HashComputationFailed = "encina.reference_table.hash_computation_failed" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.StoreNotRegistered = "encina.reference_table.store_not_registered" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.InvalidBatchSize = "encina.reference_table.invalid_batch_size" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.InvalidPollingInterval = "encina.reference_table.invalid_polling_interval" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.MissingAttribute = "encina.reference_table.missing_attribute" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.ReplicationTimeout = "encina.reference_table.replication_timeout" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.UpsertFailed = "encina.reference_table.upsert_failed" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.GetAllFailed = "encina.reference_table.get_all_failed" -> string!
+const Encina.Sharding.ReferenceTables.ReferenceTableErrorCodes.NoPrimaryKeyFound = "encina.reference_table.no_primary_key_found" -> string!
+Encina.Sharding.ReferenceTables.EntityMetadata
+Encina.Sharding.ReferenceTables.EntityMetadata.EntityMetadata(string! TableName, Encina.Sharding.ReferenceTables.PropertyMetadata! PrimaryKey, System.Collections.Generic.IReadOnlyList<Encina.Sharding.ReferenceTables.PropertyMetadata!>! AllProperties, System.Collections.Generic.IReadOnlyList<Encina.Sharding.ReferenceTables.PropertyMetadata!>! NonKeyProperties) -> void
+Encina.Sharding.ReferenceTables.EntityMetadata.TableName.get -> string!
+Encina.Sharding.ReferenceTables.EntityMetadata.TableName.init -> void
+Encina.Sharding.ReferenceTables.EntityMetadata.PrimaryKey.get -> Encina.Sharding.ReferenceTables.PropertyMetadata!
+Encina.Sharding.ReferenceTables.EntityMetadata.PrimaryKey.init -> void
+Encina.Sharding.ReferenceTables.EntityMetadata.AllProperties.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.ReferenceTables.PropertyMetadata!>!
+Encina.Sharding.ReferenceTables.EntityMetadata.AllProperties.init -> void
+Encina.Sharding.ReferenceTables.EntityMetadata.NonKeyProperties.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.ReferenceTables.PropertyMetadata!>!
+Encina.Sharding.ReferenceTables.EntityMetadata.NonKeyProperties.init -> void
+Encina.Sharding.ReferenceTables.EntityMetadataCache
+static Encina.Sharding.ReferenceTables.EntityMetadataCache.GetOrCreate<TEntity>() -> Encina.Sharding.ReferenceTables.EntityMetadata!
+static Encina.Sharding.ReferenceTables.EntityMetadataCache.GetOrCreate(System.Type! entityType) -> Encina.Sharding.ReferenceTables.EntityMetadata!
+Encina.Sharding.ReferenceTables.PropertyMetadata
+Encina.Sharding.ReferenceTables.PropertyMetadata.PropertyMetadata(System.Reflection.PropertyInfo! Property, string! ColumnName, bool IsPrimaryKey) -> void
+Encina.Sharding.ReferenceTables.PropertyMetadata.Property.get -> System.Reflection.PropertyInfo!
+Encina.Sharding.ReferenceTables.PropertyMetadata.Property.init -> void
+Encina.Sharding.ReferenceTables.PropertyMetadata.ColumnName.get -> string!
+Encina.Sharding.ReferenceTables.PropertyMetadata.ColumnName.init -> void
+Encina.Sharding.ReferenceTables.PropertyMetadata.IsPrimaryKey.get -> bool
+Encina.Sharding.ReferenceTables.PropertyMetadata.IsPrimaryKey.init -> void
+Encina.Sharding.ReferenceTables.ReferenceTableHashComputer
+static Encina.Sharding.ReferenceTables.ReferenceTableHashComputer.ComputeHash<TEntity>(System.Collections.Generic.IReadOnlyList<TEntity!>! entities) -> string!
+Encina.Sharding.ReferenceTables.ReplicationResult
+Encina.Sharding.ReferenceTables.ReplicationResult.ReplicationResult(int RowsSynced, System.TimeSpan Duration, System.Collections.Generic.IReadOnlyList<Encina.Sharding.ReferenceTables.ShardReplicationResult!>! ShardResults, System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardFailure!>! FailedShards) -> void
+Encina.Sharding.ReferenceTables.ReplicationResult.RowsSynced.get -> int
+Encina.Sharding.ReferenceTables.ReplicationResult.RowsSynced.init -> void
+Encina.Sharding.ReferenceTables.ReplicationResult.Duration.get -> System.TimeSpan
+Encina.Sharding.ReferenceTables.ReplicationResult.Duration.init -> void
+Encina.Sharding.ReferenceTables.ReplicationResult.ShardResults.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.ReferenceTables.ShardReplicationResult!>!
+Encina.Sharding.ReferenceTables.ReplicationResult.ShardResults.init -> void
+Encina.Sharding.ReferenceTables.ReplicationResult.FailedShards.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.ShardFailure!>!
+Encina.Sharding.ReferenceTables.ReplicationResult.FailedShards.init -> void
+Encina.Sharding.ReferenceTables.ReplicationResult.IsComplete.get -> bool
+Encina.Sharding.ReferenceTables.ReplicationResult.IsPartial.get -> bool
+Encina.Sharding.ReferenceTables.ReplicationResult.TotalShardsTargeted.get -> int
+Encina.Sharding.ReferenceTables.ShardReplicationResult
+Encina.Sharding.ReferenceTables.ShardReplicationResult.ShardReplicationResult(string! ShardId, int RowsUpserted, System.TimeSpan Duration) -> void
+Encina.Sharding.ReferenceTables.ShardReplicationResult.ShardId.get -> string!
+Encina.Sharding.ReferenceTables.ShardReplicationResult.ShardId.init -> void
+Encina.Sharding.ReferenceTables.ShardReplicationResult.RowsUpserted.get -> int
+Encina.Sharding.ReferenceTables.ShardReplicationResult.RowsUpserted.init -> void
+Encina.Sharding.ReferenceTables.ShardReplicationResult.Duration.get -> System.TimeSpan
+Encina.Sharding.ReferenceTables.ShardReplicationResult.Duration.init -> void
+Encina.Sharding.ReferenceTables.IReferenceTableReplicator
+Encina.Sharding.ReferenceTables.IReferenceTableReplicator.ReplicateAsync<TEntity>(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ReferenceTables.ReplicationResult!>>!
+Encina.Sharding.ReferenceTables.IReferenceTableReplicator.ReplicateAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.ReferenceTables.ReplicationResult!>>!
+Encina.Sharding.ReferenceTables.IReferenceTableRegistry
+Encina.Sharding.ReferenceTables.IReferenceTableRegistry.IsRegistered<TEntity>() -> bool
+Encina.Sharding.ReferenceTables.IReferenceTableRegistry.IsRegistered(System.Type! entityType) -> bool
+Encina.Sharding.ReferenceTables.IReferenceTableRegistry.GetConfiguration<TEntity>() -> Encina.Sharding.ReferenceTables.ReferenceTableConfiguration!
+Encina.Sharding.ReferenceTables.IReferenceTableRegistry.GetConfiguration(System.Type! entityType) -> Encina.Sharding.ReferenceTables.ReferenceTableConfiguration!
+Encina.Sharding.ReferenceTables.IReferenceTableRegistry.TryGetConfiguration(System.Type! entityType, out Encina.Sharding.ReferenceTables.ReferenceTableConfiguration? configuration) -> bool
+Encina.Sharding.ReferenceTables.IReferenceTableRegistry.GetAllConfigurations() -> System.Collections.Generic.IReadOnlyCollection<Encina.Sharding.ReferenceTables.ReferenceTableConfiguration!>!
+Encina.Sharding.ReferenceTables.IReferenceTableStore
+Encina.Sharding.ReferenceTables.IReferenceTableStore.UpsertAsync<TEntity>(System.Collections.Generic.IEnumerable<TEntity!>! entities, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, int>>!
+Encina.Sharding.ReferenceTables.IReferenceTableStore.GetAllAsync<TEntity>(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<TEntity!>!>>!
+Encina.Sharding.ReferenceTables.IReferenceTableStore.GetHashAsync<TEntity>(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, string!>>!
+Encina.Sharding.ReferenceTables.ReferenceTableOptions
+Encina.Sharding.ReferenceTables.ReferenceTableOptions.ReferenceTableOptions() -> void
+Encina.Sharding.ReferenceTables.ReferenceTableOptions.RefreshStrategy.get -> Encina.Sharding.ReferenceTables.RefreshStrategy
+Encina.Sharding.ReferenceTables.ReferenceTableOptions.RefreshStrategy.set -> void
+Encina.Sharding.ReferenceTables.ReferenceTableOptions.PrimaryShardId.get -> string?
+Encina.Sharding.ReferenceTables.ReferenceTableOptions.PrimaryShardId.set -> void
+Encina.Sharding.ReferenceTables.ReferenceTableOptions.PollingInterval.get -> System.TimeSpan
+Encina.Sharding.ReferenceTables.ReferenceTableOptions.PollingInterval.set -> void
+Encina.Sharding.ReferenceTables.ReferenceTableOptions.BatchSize.get -> int
+Encina.Sharding.ReferenceTables.ReferenceTableOptions.BatchSize.set -> void
+Encina.Sharding.ReferenceTables.ReferenceTableOptions.SyncOnStartup.get -> bool
+Encina.Sharding.ReferenceTables.ReferenceTableOptions.SyncOnStartup.set -> void
+Encina.Sharding.ReferenceTables.ReferenceTableConfiguration
+Encina.Sharding.ReferenceTables.ReferenceTableConfiguration.ReferenceTableConfiguration(System.Type! EntityType, Encina.Sharding.ReferenceTables.ReferenceTableOptions! Options) -> void
+Encina.Sharding.ReferenceTables.ReferenceTableConfiguration.EntityType.get -> System.Type!
+Encina.Sharding.ReferenceTables.ReferenceTableConfiguration.EntityType.init -> void
+Encina.Sharding.ReferenceTables.ReferenceTableConfiguration.Options.get -> Encina.Sharding.ReferenceTables.ReferenceTableOptions!
+Encina.Sharding.ReferenceTables.ReferenceTableConfiguration.Options.init -> void
+Encina.Sharding.ReferenceTables.ReferenceTableGlobalOptions
+Encina.Sharding.ReferenceTables.ReferenceTableGlobalOptions.ReferenceTableGlobalOptions() -> void
+Encina.Sharding.ReferenceTables.ReferenceTableGlobalOptions.MaxParallelShards.get -> int
+Encina.Sharding.ReferenceTables.ReferenceTableGlobalOptions.MaxParallelShards.set -> void
+Encina.Sharding.ReferenceTables.ReferenceTableGlobalOptions.DefaultRefreshStrategy.get -> Encina.Sharding.ReferenceTables.RefreshStrategy
+Encina.Sharding.ReferenceTables.ReferenceTableGlobalOptions.DefaultRefreshStrategy.set -> void
+Encina.Sharding.ReferenceTables.ReferenceTableGlobalOptions.HealthCheckUnhealthyThreshold.get -> System.TimeSpan
+Encina.Sharding.ReferenceTables.ReferenceTableGlobalOptions.HealthCheckUnhealthyThreshold.set -> void
+Encina.Sharding.ReferenceTables.ReferenceTableGlobalOptions.HealthCheckDegradedThreshold.get -> System.TimeSpan
+Encina.Sharding.ReferenceTables.ReferenceTableGlobalOptions.HealthCheckDegradedThreshold.set -> void
+Encina.Sharding.ReferenceTables.ReferenceTableRegistry
+Encina.Sharding.ReferenceTables.ReferenceTableRegistry.ReferenceTableRegistry(System.Collections.Generic.IEnumerable<Encina.Sharding.ReferenceTables.ReferenceTableConfiguration!>! configurations) -> void
+Encina.Sharding.ReferenceTables.ReferenceTableRegistry.IsRegistered<TEntity>() -> bool
+Encina.Sharding.ReferenceTables.ReferenceTableRegistry.IsRegistered(System.Type! entityType) -> bool
+Encina.Sharding.ReferenceTables.ReferenceTableRegistry.GetConfiguration<TEntity>() -> Encina.Sharding.ReferenceTables.ReferenceTableConfiguration!
+Encina.Sharding.ReferenceTables.ReferenceTableRegistry.GetConfiguration(System.Type! entityType) -> Encina.Sharding.ReferenceTables.ReferenceTableConfiguration!
+Encina.Sharding.ReferenceTables.ReferenceTableRegistry.TryGetConfiguration(System.Type! entityType, out Encina.Sharding.ReferenceTables.ReferenceTableConfiguration? configuration) -> bool
+Encina.Sharding.ReferenceTables.ReferenceTableRegistry.GetAllConfigurations() -> System.Collections.Generic.IReadOnlyCollection<Encina.Sharding.ReferenceTables.ReferenceTableConfiguration!>!
+Encina.Sharding.ReferenceTables.IReferenceTableStoreFactory
+Encina.Sharding.ReferenceTables.IReferenceTableStoreFactory.CreateForShard(string! connectionString) -> Encina.Sharding.ReferenceTables.IReferenceTableStore!
+Encina.Sharding.ReferenceTables.IReferenceTableStateStore
+Encina.Sharding.ReferenceTables.IReferenceTableStateStore.GetLastHashAsync(System.Type! entityType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string?>!
+Encina.Sharding.ReferenceTables.IReferenceTableStateStore.SaveHashAsync(System.Type! entityType, string! hash, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Sharding.ReferenceTables.IReferenceTableStateStore.GetLastReplicationTimeAsync(System.Type! entityType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.DateTime?>!
+Encina.Sharding.ReferenceTables.IReferenceTableStateStore.SaveReplicationTimeAsync(System.Type! entityType, System.DateTime timeUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Sharding.ReferenceTables.Health.ReferenceTableHealthCheckOptions
+Encina.Sharding.ReferenceTables.Health.ReferenceTableHealthCheckOptions.ReferenceTableHealthCheckOptions() -> void
+Encina.Sharding.ReferenceTables.Health.ReferenceTableHealthCheckOptions.UnhealthyThreshold.get -> System.TimeSpan
+Encina.Sharding.ReferenceTables.Health.ReferenceTableHealthCheckOptions.UnhealthyThreshold.set -> void
+Encina.Sharding.ReferenceTables.Health.ReferenceTableHealthCheckOptions.DegradedThreshold.get -> System.TimeSpan
+Encina.Sharding.ReferenceTables.Health.ReferenceTableHealthCheckOptions.DegradedThreshold.set -> void
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.AddReferenceTable<TRefTable>(System.Action<Encina.Sharding.ReferenceTables.ReferenceTableOptions!>? configure = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!

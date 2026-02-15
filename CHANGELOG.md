@@ -354,6 +354,69 @@ Added per-shard read/write separation with five replica selection strategies, he
 
 ---
 
+#### Reference Tables / Global Data Replication (#639)
+
+Added reference table (broadcast table) replication for sharded deployments, automatically synchronizing small lookup tables from a primary shard to all target shards for local JOINs without cross-shard traffic.
+
+**Core Architecture**:
+
+- **`IReferenceTableReplicator`**: Main orchestrator for replicating reference table data from primary to all target shards with per-shard result tracking
+- **`IReferenceTableRegistry`**: Immutable frozen-dictionary registry of configured reference tables, O(1) lookup by entity type
+- **`IReferenceTableStore`**: Provider-agnostic interface for bulk upsert, read-all, and content hash operations on a single shard
+- **`IReferenceTableStoreFactory`**: Creates per-shard store instances from connection strings
+- **`IReferenceTableStateStore`**: Persists content hashes and last replication timestamps for change detection
+- **`ReferenceTableHashComputer`**: XxHash64-based deterministic content hashing with PK-ordered serialization
+- **`EntityMetadataCache`**: Reflection-based discovery and caching of `[Table]`, `[Key]`, `[Column]` attributes
+- **`[ReferenceTable]`**: Marker attribute for entity classes, optional when using explicit registration
+
+**Three Refresh Strategies** (`RefreshStrategy` enum):
+
+- **CdcDriven**: Near-real-time replication via Change Data Capture — requires configured `ICdcConnector`
+- **Polling** (default): Periodic hash-based change detection with configurable interval
+- **Manual**: Explicit replication via `IReferenceTableReplicator.ReplicateAsync<T>()`
+
+**Configuration**:
+
+```csharp
+options.AddReferenceTable<Country>(rt =>
+{
+    rt.RefreshStrategy = RefreshStrategy.Polling;
+    rt.PrimaryShardId = "shard-0";
+    rt.PollingInterval = TimeSpan.FromMinutes(10);
+    rt.BatchSize = 500;
+    rt.SyncOnStartup = true;
+});
+```
+
+**Provider Support** (13 providers):
+
+- ADO.NET (4): `ReferenceTableStoreADO` — SQLite (`INSERT OR REPLACE`), SqlServer (`MERGE`), PostgreSQL (`ON CONFLICT DO UPDATE`), MySQL (`ON DUPLICATE KEY UPDATE`)
+- Dapper (4): `ReferenceTableStoreDapper` — same SQL dialects via Dapper execution
+- EF Core (4): `ReferenceTableStoreEF<TContext>` — generic implementation using `DbContext`
+- MongoDB (1): `ReferenceTableStoreMongoDB` — `BulkWriteAsync` with `ReplaceOneModel`
+
+**Observability**:
+
+- 5 metric instruments under "Encina" meter: `encina.reference_table.replications_total`, `encina.reference_table.replication_duration_ms`, `encina.reference_table.rows_synced_total`, `encina.reference_table.errors_total`, `encina.reference_table.active_replications`
+- Activity enrichment via `ReferenceTableActivityEnricher` with 6 tag constants
+- 15 stable error codes prefixed `encina.reference_table.*`
+
+**Health Monitoring**:
+
+- `ReferenceTableHealthCheck` with three-state model (Healthy/Degraded/Unhealthy) based on replication lag thresholds
+- Configurable via `ReferenceTableHealthCheckOptions` (degraded: 1min, unhealthy: 5min defaults)
+
+**Documentation** (4 guides + 1 ADR):
+
+- `docs/architecture/adr/013-reference-tables.md` — Architecture Decision Record
+- `docs/features/reference-tables.md` — Comprehensive feature guide
+- `docs/guides/reference-tables-scaling.md` — Scaling guidance and capacity planning
+- `docs/configuration/reference-tables.md` — Configuration reference
+
+**Testing**: 247+ tests across unit (154), contract (38), guard (13), property (12), integration (30 — ADO + Dapper across 4 databases); load tests and BenchmarkDotNet benchmarks
+
+---
+
 #### Query Cache Interceptor - EF Core Second-Level Cache (#291)
 
 Added an EF Core query caching interceptor that acts as a transparent second-level cache, caching query results at the database command level and automatically invalidating them on `SaveChanges`.

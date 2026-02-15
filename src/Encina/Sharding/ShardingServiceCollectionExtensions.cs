@@ -1,8 +1,10 @@
 using System.Reflection;
 using Encina.Sharding.Colocation;
 using Encina.Sharding.Configuration;
+using Encina.Sharding.ReferenceTables;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Encina.Sharding;
 
@@ -27,6 +29,7 @@ public static class ShardingServiceCollectionExtensions
     /// <item><see cref="IShardRouter"/> - The configured routing strategy</item>
     /// <item><see cref="IShardRouter{TEntity}"/> - Entity-aware router with shard key extraction</item>
     /// <item><see cref="ColocationGroupRegistry"/> - Co-location group registry (singleton, shared)</item>
+    /// <item><see cref="IReferenceTableRegistry"/> - Reference table registry (singleton, if reference tables are configured)</item>
     /// </list>
     /// </para>
     /// <para>
@@ -114,6 +117,9 @@ public static class ShardingServiceCollectionExtensions
         // Validate and register co-location groups
         ValidateAndRegisterColocationGroups<TEntity>(services, options);
 
+        // Validate and register reference tables
+        ValidateAndRegisterReferenceTables(services, options, topology);
+
         return services;
     }
 
@@ -141,6 +147,85 @@ public static class ShardingServiceCollectionExtensions
                 throw new InvalidOperationException(
                     $"Shard '{shard.ShardId}' for entity type '{typeof(TEntity).Name}' has no connection string.");
             }
+        }
+    }
+
+    private static void ValidateAndRegisterReferenceTables<TEntity>(
+        IServiceCollection services,
+        ShardingOptions<TEntity> options,
+        ShardTopology topology)
+        where TEntity : notnull
+    {
+        var configurations = options.ReferenceTableConfigurations;
+
+        if (configurations.Count == 0)
+        {
+            return;
+        }
+
+        // Validate each reference table configuration
+        foreach (var config in configurations)
+        {
+            ValidateReferenceTableConfiguration(config, topology);
+        }
+
+        // Register the reference table registry as singleton
+        // Accumulate configurations from all AddEncinaSharding<T> calls
+        foreach (var config in configurations)
+        {
+            services.AddSingleton(config);
+        }
+
+        services.TryAddSingleton<IReferenceTableRegistry>(sp =>
+        {
+            var allConfigs = sp.GetServices<ReferenceTableConfiguration>();
+            return new ReferenceTableRegistry(allConfigs);
+        });
+
+        // Register replication engine services
+        services.TryAddSingleton<IReferenceTableStateStore, InMemoryReferenceTableStateStore>();
+        services.TryAddSingleton<IReferenceTableReplicator, ReferenceTableReplicator>();
+        services.TryAddSingleton<PollingRefreshDetector>();
+
+        // Register background replication service
+        services.AddSingleton<IHostedService, ReferenceTableReplicationService>();
+    }
+
+    private static void ValidateReferenceTableConfiguration(
+        ReferenceTableConfiguration config,
+        ShardTopology topology)
+    {
+        var entityType = config.EntityType;
+        var opts = config.Options;
+
+        // Validate: entity must have [ReferenceTable] attribute or be explicitly registered
+        // (explicit registration via AddReferenceTable<T>() is always valid)
+        // We just log a note; the attribute is informational, not mandatory when using fluent API.
+
+        // Validate primary shard exists in topology
+        if (opts.PrimaryShardId is not null && !topology.ContainsShard(opts.PrimaryShardId))
+        {
+            throw new InvalidOperationException(
+                $"Reference table '{entityType.Name}' specifies primary shard '{opts.PrimaryShardId}' " +
+                "which does not exist in the shard topology. " +
+                $"Available shards: {string.Join(", ", topology.AllShardIds)}.");
+        }
+
+        // Validate batch size
+        if (opts.BatchSize <= 0)
+        {
+            throw new InvalidOperationException(
+                $"Reference table '{entityType.Name}' has an invalid batch size ({opts.BatchSize}). " +
+                "BatchSize must be greater than zero.");
+        }
+
+        // Validate polling interval
+        if (opts.RefreshStrategy == RefreshStrategy.Polling && opts.PollingInterval <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException(
+                $"Reference table '{entityType.Name}' uses Polling refresh strategy " +
+                $"but has an invalid polling interval ({opts.PollingInterval}). " +
+                "PollingInterval must be a positive duration.");
         }
     }
 

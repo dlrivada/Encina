@@ -83,3 +83,22 @@ Encina.OpenTelemetry.Cdc.ShardedCdcMetrics.RecordPositionSave(string! shardId) -
 Encina.OpenTelemetry.Cdc.ShardedCdcMetrics.RecordError(string! shardId, string! errorType) -> void
 Encina.OpenTelemetry.Cdc.ShardedCdcMetricsCallbacks
 Encina.OpenTelemetry.Cdc.ShardedCdcMetricsCallbacks.ShardedCdcMetricsCallbacks(System.Func<int>! activeConnectorsCallback, System.Func<System.Collections.Generic.IEnumerable<(string! ShardId, double LagMs)>!>! lagCallback) -> void
+Encina.OpenTelemetry.ActivityTagNames.ReferenceTable
+const Encina.OpenTelemetry.ActivityTagNames.ReferenceTable.EntityType = "reference_table.entity_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.ReferenceTable.RowsSynced = "reference_table.rows_synced" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.ReferenceTable.ShardCount = "reference_table.shard_count" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.ReferenceTable.DurationMs = "reference_table.duration_ms" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.ReferenceTable.ChangeDetected = "reference_table.change_detected" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.ReferenceTable.HashValue = "reference_table.hash" -> string!
+Encina.OpenTelemetry.Enrichers.ReferenceTableActivityEnricher
+static Encina.OpenTelemetry.Enrichers.ReferenceTableActivityEnricher.EnrichWithReplication(System.Diagnostics.Activity? activity, string! entityType, int rowsSynced, int shardCount, double durationMs) -> void
+static Encina.OpenTelemetry.Enrichers.ReferenceTableActivityEnricher.EnrichWithChangeDetection(System.Diagnostics.Activity? activity, string! entityType, bool changeDetected, string? hash) -> void
+Encina.OpenTelemetry.ReferenceTable.ReferenceTableMetrics
+Encina.OpenTelemetry.ReferenceTable.ReferenceTableMetrics.ReferenceTableMetrics(System.Func<int>! registeredTablesCallback, System.Func<System.Collections.Generic.IEnumerable<(string! EntityType, double StalenessMs)>!>! stalenessCallback) -> void
+Encina.OpenTelemetry.ReferenceTable.ReferenceTableMetrics.RecordReplicationDuration(string! entityType, double durationMs) -> void
+Encina.OpenTelemetry.ReferenceTable.ReferenceTableMetrics.RecordRowsSynced(string! entityType, long count) -> void
+Encina.OpenTelemetry.ReferenceTable.ReferenceTableMetrics.RecordError(string! entityType, string! errorType) -> void
+Encina.OpenTelemetry.ReferenceTable.ReferenceTableMetrics.IncrementActiveReplications() -> void
+Encina.OpenTelemetry.ReferenceTable.ReferenceTableMetrics.DecrementActiveReplications() -> void
+Encina.OpenTelemetry.ReferenceTable.ReferenceTableMetricsCallbacks
+Encina.OpenTelemetry.ReferenceTable.ReferenceTableMetricsCallbacks.ReferenceTableMetricsCallbacks(System.Func<int>! registeredTablesCallback, System.Func<System.Collections.Generic.IEnumerable<(string! EntityType, double StalenessMs)>!>! stalenessCallback) -> void

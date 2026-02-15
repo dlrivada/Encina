@@ -1,8 +1,10 @@
 using Encina.MongoDB.ReadWriteSeparation;
+using Encina.MongoDB.Sharding.ReferenceTables;
 using Encina.Sharding;
 using Encina.Sharding.Configuration;
 using Encina.Sharding.Execution;
 using Encina.Sharding.Health;
+using Encina.Sharding.ReferenceTables;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -310,6 +312,29 @@ public static class ShardingServiceCollectionExtensions
                 ? new ShardedReadWriteMongoCollectionFactory(mongoClient, databaseName, topology, options)
                 : new ShardedReadWriteMongoCollectionFactory(mongoClient, databaseName, options);
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the MongoDB reference table store factory for shard-based replication.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IReferenceTableStoreFactory"/> backed by
+    /// <see cref="ReferenceTableStoreFactoryMongoDB"/>. The factory caches
+    /// <see cref="IMongoClient"/> instances per connection string and extracts the
+    /// database name from the MongoDB connection string.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddEncinaMongoDBReferenceTableStore(
+        this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton<IReferenceTableStoreFactory, ReferenceTableStoreFactoryMongoDB>();
 
         return services;
     }

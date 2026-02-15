@@ -1,3 +1,4 @@
+using Encina.Sharding.ReferenceTables;
 using Encina.Sharding.Routing;
 
 namespace Encina.Sharding.Configuration;
@@ -24,6 +25,7 @@ public sealed class ShardingOptions<TEntity>
 {
     private readonly Dictionary<string, ShardInfo> _shards = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Type> _colocatedEntityTypes = [];
+    private readonly List<ReferenceTableConfiguration> _referenceTableConfigurations = [];
     private Func<ShardTopology, IShardRouter>? _routerFactory;
 
     /// <summary>
@@ -45,6 +47,11 @@ public sealed class ShardingOptions<TEntity>
     /// Gets the co-located entity types registered for this entity.
     /// </summary>
     internal IReadOnlyList<Type> ColocatedEntityTypes => _colocatedEntityTypes;
+
+    /// <summary>
+    /// Gets the reference table configurations registered for this sharding topology.
+    /// </summary>
+    internal IReadOnlyList<ReferenceTableConfiguration> ReferenceTableConfigurations => _referenceTableConfigurations;
 
     /// <summary>
     /// Declares that <typeparamref name="TColocated"/> should be co-located with
@@ -224,6 +231,61 @@ public sealed class ShardingOptions<TEntity>
     {
         ArgumentNullException.ThrowIfNull(routerFactory);
         _routerFactory = routerFactory;
+        return this;
+    }
+
+    /// <summary>
+    /// Registers a reference table (broadcast table) that will be replicated to all shards
+    /// in the topology for local JOINs.
+    /// </summary>
+    /// <typeparam name="TRefTable">The entity type of the reference table.</typeparam>
+    /// <param name="configure">Optional configuration action for the reference table options.</param>
+    /// <returns>This instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Reference tables are small, read-heavy lookup tables (e.g., countries, currencies)
+    /// that are automatically replicated from a primary shard to all other shards. This
+    /// enables efficient local JOINs without cross-shard traffic.
+    /// </para>
+    /// <para>
+    /// The entity must either be decorated with <see cref="ReferenceTableAttribute"/> or
+    /// be explicitly registered via this method. Validation occurs at startup.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaSharding&lt;Order&gt;(options =>
+    /// {
+    ///     options.UseHashRouting()
+    ///         .AddShard("shard-0", "Server=shard0;...")
+    ///         .AddShard("shard-1", "Server=shard1;...")
+    ///         .AddReferenceTable&lt;Country&gt;(rt =>
+    ///         {
+    ///             rt.RefreshStrategy = RefreshStrategy.Polling;
+    ///             rt.PrimaryShardId = "shard-0";
+    ///         })
+    ///         .AddReferenceTable&lt;Currency&gt;();
+    /// });
+    /// </code>
+    /// </example>
+    public ShardingOptions<TEntity> AddReferenceTable<TRefTable>(
+        Action<ReferenceTableOptions>? configure = null)
+        where TRefTable : class
+    {
+        var refTableType = typeof(TRefTable);
+
+        // Prevent duplicate registrations
+        if (_referenceTableConfigurations.Any(c => c.EntityType == refTableType))
+        {
+            throw new InvalidOperationException(
+                $"Reference table '{refTableType.Name}' is already registered. " +
+                "Each reference table can only be registered once.");
+        }
+
+        var options = new ReferenceTableOptions();
+        configure?.Invoke(options);
+
+        _referenceTableConfigurations.Add(new ReferenceTableConfiguration(refTableType, options));
         return this;
     }
 

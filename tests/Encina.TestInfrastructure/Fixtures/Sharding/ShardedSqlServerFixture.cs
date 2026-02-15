@@ -32,6 +32,15 @@ public sealed class ShardedSqlServerFixture : IAsyncLifetime
         );
         """;
 
+    private const string ReferenceTableSql = """
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Country')
+        CREATE TABLE Country (
+            Id NVARCHAR(100) NOT NULL PRIMARY KEY,
+            Code NVARCHAR(10) NOT NULL,
+            Name NVARCHAR(200) NOT NULL
+        );
+        """;
+
     /// <summary>
     /// Gets the connection string for shard 1.
     /// </summary>
@@ -159,6 +168,9 @@ public sealed class ShardedSqlServerFixture : IAsyncLifetime
 
         await using var command = new SqlCommand(ShardedTableSql, connection);
         await command.ExecuteNonQueryAsync();
+
+        command.CommandText = ReferenceTableSql;
+        await command.ExecuteNonQueryAsync();
     }
 
     private static async Task ClearShardDataAsync(string connectionString)
@@ -166,7 +178,7 @@ public sealed class ShardedSqlServerFixture : IAsyncLifetime
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
 
-        await using var command = new SqlCommand("DELETE FROM ShardedEntities;", connection);
+        await using var command = new SqlCommand("DELETE FROM ShardedEntities; DELETE FROM Country;", connection);
         await command.ExecuteNonQueryAsync();
     }
 }

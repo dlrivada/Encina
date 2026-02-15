@@ -183,4 +183,32 @@ public static class ActivityTagNames
         /// <summary>Tag name for the root entity type of the co-location group.</summary>
         public const string RootEntity = "encina.sharding.colocation.root_entity";
     }
+
+    /// <summary>
+    /// Reference table replication tags for sharding observability.
+    /// </summary>
+    /// <remarks>
+    /// These tags track reference table replication operations including
+    /// entity type, rows synced, shard count, duration, and change detection.
+    /// </remarks>
+    public static class ReferenceTable
+    {
+        /// <summary>Tag name for the reference table entity type.</summary>
+        public const string EntityType = "reference_table.entity_type";
+
+        /// <summary>Tag name for the number of rows synced during replication.</summary>
+        public const string RowsSynced = "reference_table.rows_synced";
+
+        /// <summary>Tag name for the number of shards targeted during replication.</summary>
+        public const string ShardCount = "reference_table.shard_count";
+
+        /// <summary>Tag name for the replication duration in milliseconds.</summary>
+        public const string DurationMs = "reference_table.duration_ms";
+
+        /// <summary>Tag name indicating whether a change was detected during polling.</summary>
+        public const string ChangeDetected = "reference_table.change_detected";
+
+        /// <summary>Tag name for the content hash value.</summary>
+        public const string HashValue = "reference_table.hash";
+    }
 }

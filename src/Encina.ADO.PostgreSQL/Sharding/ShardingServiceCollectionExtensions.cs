@@ -1,8 +1,10 @@
 using Encina.ADO.PostgreSQL.Repository;
+using Encina.ADO.PostgreSQL.Sharding.ReferenceTables;
 using Encina.Sharding;
 using Encina.Sharding.Configuration;
 using Encina.Sharding.Data;
 using Encina.Sharding.Execution;
+using Encina.Sharding.ReferenceTables;
 using Encina.Sharding.ReplicaSelection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -150,6 +152,21 @@ public static class ShardingServiceCollectionExtensions
             sp.GetRequiredService<ShardedReadWriteConnectionFactory>());
         services.TryAddScoped<IShardedReadWriteConnectionFactory<NpgsqlConnection>>(sp =>
             sp.GetRequiredService<ShardedReadWriteConnectionFactory>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the ADO.NET PostgreSQL reference table store factory for shard-based replication.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddEncinaADOReferenceTableStore(
+        this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton<IReferenceTableStoreFactory, ReferenceTableStoreFactoryADO>();
 
         return services;
     }

@@ -1,7 +1,9 @@
+using Encina.EntityFrameworkCore.Sharding.ReferenceTables;
 using Encina.Sharding;
 using Encina.Sharding.Configuration;
 using Encina.Sharding.Data;
 using Encina.Sharding.Execution;
+using Encina.Sharding.ReferenceTables;
 using Encina.Sharding.ReplicaSelection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -402,6 +404,120 @@ public static class ShardingServiceCollectionExtensions
 
         services.TryAddScoped<IShardedReadWriteDbContextFactory<TContext>>(sp =>
             sp.GetRequiredService<ShardedReadWriteDbContextFactory<TContext>>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the EF Core reference table store factory using SQL Server as the database provider.
+    /// </summary>
+    /// <typeparam name="TContext">The <see cref="DbContext"/> type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IReferenceTableStoreFactory"/> backed by
+    /// <see cref="ReferenceTableStoreFactoryEF{TContext}"/> configured with
+    /// <c>UseSqlServer(connectionString)</c>.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddEncinaEFCoreReferenceTableStoreSqlServer<TContext>(
+        this IServiceCollection services)
+        where TContext : DbContext
+    {
+        return AddEncinaEFCoreReferenceTableStoreCore<TContext>(
+            services,
+            static (builder, connectionString) => builder.UseSqlServer(connectionString));
+    }
+
+    /// <summary>
+    /// Registers the EF Core reference table store factory using PostgreSQL as the database provider.
+    /// </summary>
+    /// <typeparam name="TContext">The <see cref="DbContext"/> type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IReferenceTableStoreFactory"/> backed by
+    /// <see cref="ReferenceTableStoreFactoryEF{TContext}"/> configured with
+    /// <c>UseNpgsql(connectionString)</c>.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddEncinaEFCoreReferenceTableStorePostgreSql<TContext>(
+        this IServiceCollection services)
+        where TContext : DbContext
+    {
+        return AddEncinaEFCoreReferenceTableStoreCore<TContext>(
+            services,
+            static (builder, connectionString) => builder.UseNpgsql(connectionString));
+    }
+
+    /// <summary>
+    /// Registers the EF Core reference table store factory using MySQL as the database provider.
+    /// </summary>
+    /// <typeparam name="TContext">The <see cref="DbContext"/> type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configureProvider">
+    /// Delegate that configures the <see cref="DbContextOptionsBuilder{TContext}"/> with a MySQL provider
+    /// and the given connection string. Required because the Pomelo MySQL provider needs a
+    /// <c>ServerVersion</c> parameter.
+    /// </param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IReferenceTableStoreFactory"/> backed by
+    /// <see cref="ReferenceTableStoreFactoryEF{TContext}"/> configured with the supplied
+    /// MySQL provider delegate.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddEncinaEFCoreReferenceTableStoreMySql<TContext>(
+        this IServiceCollection services,
+        Action<DbContextOptionsBuilder<TContext>, string> configureProvider)
+        where TContext : DbContext
+    {
+        ArgumentNullException.ThrowIfNull(configureProvider);
+
+        return AddEncinaEFCoreReferenceTableStoreCore<TContext>(
+            services,
+            configureProvider);
+    }
+
+    /// <summary>
+    /// Registers the EF Core reference table store factory using SQLite as the database provider.
+    /// </summary>
+    /// <typeparam name="TContext">The <see cref="DbContext"/> type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IReferenceTableStoreFactory"/> backed by
+    /// <see cref="ReferenceTableStoreFactoryEF{TContext}"/> configured with
+    /// <c>UseSqlite(connectionString)</c>.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddEncinaEFCoreReferenceTableStoreSqlite<TContext>(
+        this IServiceCollection services)
+        where TContext : DbContext
+    {
+        return AddEncinaEFCoreReferenceTableStoreCore<TContext>(
+            services,
+            static (builder, connectionString) => builder.UseSqlite(connectionString));
+    }
+
+    /// <summary>
+    /// Core registration method that configures the reference table store factory
+    /// with a provider-specific options builder delegate.
+    /// </summary>
+    private static IServiceCollection AddEncinaEFCoreReferenceTableStoreCore<TContext>(
+        IServiceCollection services,
+        Action<DbContextOptionsBuilder<TContext>, string> configureProvider)
+        where TContext : DbContext
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configureProvider);
+
+        services.TryAddSingleton<IReferenceTableStoreFactory>(sp =>
+            new ReferenceTableStoreFactoryEF<TContext>(sp, configureProvider));
 
         return services;
     }

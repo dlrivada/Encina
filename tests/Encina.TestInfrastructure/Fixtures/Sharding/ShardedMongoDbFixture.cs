@@ -139,6 +139,10 @@ public sealed class ShardedMongoDbFixture : IAsyncLifetime
         var database = Client!.GetDatabase(databaseName);
         var collection = database.GetCollection<BsonDocument>(CollectionName);
         await collection.DeleteManyAsync(FilterDefinition<BsonDocument>.Empty);
+
+        // Clear reference table collections
+        var countryCollection = database.GetCollection<BsonDocument>("Country");
+        await countryCollection.DeleteManyAsync(FilterDefinition<BsonDocument>.Empty);
     }
 
     private string BuildShardConnectionString(string databaseName)
