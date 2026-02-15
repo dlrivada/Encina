@@ -85,4 +85,37 @@ public static class CdcErrors
     /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.ShardStreamFailed"/>.</returns>
     public static EncinaError ShardStreamFailed(string shardId, Exception exception)
         => EncinaError.New(exception, $"[{CdcErrorCodes.ShardStreamFailed}] CDC stream failed for shard '{shardId}'");
+
+    /// <summary>
+    /// Creates an error indicating a failure to persist a CDC event to the dead letter store.
+    /// </summary>
+    /// <param name="exception">The underlying exception.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.DeadLetterStoreFailed"/>.</returns>
+    public static EncinaError DeadLetterStoreFailed(Exception exception)
+        => EncinaError.New(exception, $"[{CdcErrorCodes.DeadLetterStoreFailed}] Failed to persist event to CDC dead letter store");
+
+    /// <summary>
+    /// Creates an error indicating a dead letter entry was not found.
+    /// </summary>
+    /// <param name="id">The identifier of the dead letter entry that was not found.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.DeadLetterNotFound"/>.</returns>
+    public static EncinaError DeadLetterNotFound(Guid id)
+        => EncinaError.New($"[{CdcErrorCodes.DeadLetterNotFound}] Dead letter entry '{id}' not found");
+
+    /// <summary>
+    /// Creates an error indicating a dead letter entry has already been resolved.
+    /// </summary>
+    /// <param name="id">The identifier of the already-resolved dead letter entry.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.DeadLetterAlreadyResolved"/>.</returns>
+    public static EncinaError DeadLetterAlreadyResolved(Guid id)
+        => EncinaError.New($"[{CdcErrorCodes.DeadLetterAlreadyResolved}] Dead letter entry '{id}' has already been resolved");
+
+    /// <summary>
+    /// Creates an error indicating an invalid resolution was attempted on a dead letter entry.
+    /// </summary>
+    /// <param name="id">The identifier of the dead letter entry.</param>
+    /// <param name="resolution">The invalid resolution that was attempted.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="CdcErrorCodes.DeadLetterInvalidResolution"/>.</returns>
+    public static EncinaError DeadLetterInvalidResolution(Guid id, string resolution)
+        => EncinaError.New($"[{CdcErrorCodes.DeadLetterInvalidResolution}] Invalid resolution '{resolution}' for dead letter entry '{id}'");
 }

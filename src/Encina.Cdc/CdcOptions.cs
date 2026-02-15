@@ -79,4 +79,13 @@ public sealed class CdcOptions
     /// Default is <c>false</c>.
     /// </summary>
     public bool UseCacheInvalidation { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to enable the CDC dead letter queue.
+    /// When enabled, events that fail processing after exhausting all retries
+    /// are persisted to an <see cref="DeadLetter.ICdcDeadLetterStore"/> for
+    /// later inspection, replay, or discard.
+    /// Default is <c>false</c>.
+    /// </summary>
+    public bool UseDeadLetterQueue { get; set; }
 }

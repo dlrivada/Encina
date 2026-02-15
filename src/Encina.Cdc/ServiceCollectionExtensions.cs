@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Caching;
+using Encina.Cdc.DeadLetter;
+using Encina.Cdc.Health;
 using Encina.Cdc.Messaging;
 using Encina.Cdc.Processing;
 using Encina.Cdc.Sharding;
@@ -104,6 +106,14 @@ public static class ServiceCollectionExtensions
         if (configuration.Options.UseShardedCapture)
         {
             RegisterShardedCaptureServices(services, configuration);
+        }
+
+        // Register dead letter queue services when enabled (providers can override)
+        if (configuration.Options.UseDeadLetterQueue)
+        {
+            services.TryAddSingleton<ICdcDeadLetterStore, InMemoryCdcDeadLetterStore>();
+            services.TryAddSingleton<CdcDeadLetterHealthCheckOptions>();
+            services.AddSingleton<IEncinaHealthCheck, CdcDeadLetterHealthCheck>();
         }
 
         // Register cache invalidation services when enabled

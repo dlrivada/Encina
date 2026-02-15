@@ -17,9 +17,10 @@ This guide explains how to capture and react to database changes in real-time us
 11. [Provider Support](#provider-support)
 12. [Sharded CDC](#sharded-cdc)
 13. [Cache Invalidation](#cache-invalidation)
-14. [Testing](#testing)
-15. [Best Practices](#best-practices)
-16. [FAQ](#faq)
+14. [Dead Letter Queue](#dead-letter-queue)
+15. [Testing](#testing)
+16. [Best Practices](#best-practices)
+17. [FAQ](#faq)
 
 ---
 
@@ -484,6 +485,10 @@ Each provider includes a health check that verifies connector connectivity:
 | `encina.cdc.handler_failed` | Handler threw an exception |
 | `encina.cdc.deserialization_failed` | Failed to deserialize change event payload |
 | `encina.cdc.position_store_failed` | Failed to read/write position store |
+| `encina.cdc.dead_letter_not_found` | Dead letter entry ID does not exist |
+| `encina.cdc.dead_letter_already_resolved` | Dead letter entry was already resolved |
+| `encina.cdc.dead_letter_add_failed` | Failed to persist entry to DLQ store |
+| `encina.cdc.dead_letter_resolve_failed` | Failed to resolve DLQ entry |
 
 ### Error Factories
 
@@ -495,6 +500,10 @@ CdcErrors.StreamInterrupted(exception);
 CdcErrors.HandlerFailed("dbo.Orders", exception);
 CdcErrors.DeserializationFailed("dbo.Orders", typeof(Order), exception);
 CdcErrors.PositionStoreFailed("my-connector", exception);
+CdcErrors.DeadLetterNotFound(id);
+CdcErrors.DeadLetterAlreadyResolved(id);
+CdcErrors.DeadLetterAddFailed(exception);
+CdcErrors.DeadLetterResolveFailed(id, exception);
 ```
 
 ---
@@ -580,6 +589,152 @@ services.AddEncinaCdc(config =>
 ```
 
 For complete documentation, see the **[CDC Cache Invalidation Guide](cdc-cache-invalidation.md)**.
+
+---
+
+## Dead Letter Queue
+
+When a CDC event fails processing after exhausting all retry attempts, it can be persisted to a **Dead Letter Queue (DLQ)** for later inspection, replay, or discard. The DLQ is entirely opt-in and the processor continues to function without it.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Automatic persistence** | Failed events are dead-lettered after `MaxRetries` exhaustion |
+| **Resolution workflow** | Replay or discard individual entries via `ICdcDeadLetterStore` |
+| **Health checks** | Monitor pending DLQ entries with configurable thresholds |
+| **OpenTelemetry metrics** | Counters for add, resolve, and error operations |
+| **Graceful degradation** | DLQ store failures are logged but never crash the processor |
+| **Railway-oriented** | All operations return `Either<EncinaError, T>` |
+
+### Configuration
+
+The DLQ is enabled by registering an `ICdcDeadLetterStore` implementation. An in-memory implementation is included by default:
+
+```csharp
+services.AddEncinaCdc(config =>
+{
+    config.UseCdc()
+          .AddHandler<Order, OrderChangeHandler>()
+          .WithDeadLetterQueue(); // Registers InMemoryCdcDeadLetterStore
+});
+```
+
+For production environments, use a persistent implementation (database-backed) or provide your own:
+
+```csharp
+services.AddSingleton<ICdcDeadLetterStore, MyDatabaseDeadLetterStore>();
+```
+
+### Core Abstractions
+
+#### ICdcDeadLetterStore
+
+```csharp
+public interface ICdcDeadLetterStore
+{
+    Task<Either<EncinaError, Unit>> AddAsync(
+        CdcDeadLetterEntry entry, CancellationToken cancellationToken = default);
+
+    Task<Either<EncinaError, IReadOnlyList<CdcDeadLetterEntry>>> GetPendingAsync(
+        int maxCount, CancellationToken cancellationToken = default);
+
+    Task<Either<EncinaError, Unit>> ResolveAsync(
+        Guid id, CdcDeadLetterResolution resolution, CancellationToken cancellationToken = default);
+}
+```
+
+#### CdcDeadLetterEntry
+
+```csharp
+public sealed record CdcDeadLetterEntry(
+    Guid Id,                    // Unique entry identifier
+    ChangeEvent OriginalEvent,  // The failed change event
+    string ErrorMessage,        // Last error message
+    string StackTrace,          // Last stack trace
+    int RetryCount,             // Number of retries attempted
+    DateTime FailedAtUtc,       // When the event was dead-lettered
+    string ConnectorId,         // Source connector identifier
+    CdcDeadLetterStatus Status); // Pending, Replayed, or Discarded
+```
+
+#### CdcDeadLetterStatus / CdcDeadLetterResolution
+
+```csharp
+public enum CdcDeadLetterStatus { Pending, Replayed, Discarded }
+public enum CdcDeadLetterResolution { Replay, Discard }
+```
+
+### Resolution Workflow
+
+Query pending entries and resolve them individually:
+
+```csharp
+// Retrieve pending entries
+var pending = await dlqStore.GetPendingAsync(maxCount: 50);
+
+pending.IfRight(entries =>
+{
+    foreach (var entry in entries)
+    {
+        // Inspect the original event and error
+        logger.LogWarning("DLQ entry {Id}: {Error}", entry.Id, entry.ErrorMessage);
+
+        // Replay or discard
+        await dlqStore.ResolveAsync(entry.Id, CdcDeadLetterResolution.Replay);
+    }
+});
+```
+
+### Error Codes
+
+| Code | Description |
+|------|-------------|
+| `encina.cdc.dead_letter_not_found` | Entry ID does not exist in the store |
+| `encina.cdc.dead_letter_already_resolved` | Entry has already been resolved |
+| `encina.cdc.dead_letter_add_failed` | Failed to persist entry to the store |
+| `encina.cdc.dead_letter_resolve_failed` | Failed to resolve entry in the store |
+
+### Health Check
+
+The `CdcDeadLetterHealthCheck` reports **Degraded** when pending entries exceed a configurable threshold:
+
+```csharp
+services.AddHealthChecks()
+    .AddCheck<CdcDeadLetterHealthCheck>("cdc-dlq", tags: ["cdc"]);
+```
+
+Configure thresholds via `CdcDeadLetterHealthCheckOptions`:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `DegradedThreshold` | `int` | `10` | Pending count that triggers Degraded status |
+| `UnhealthyThreshold` | `int` | `100` | Pending count that triggers Unhealthy status |
+
+### Observability
+
+The `CdcDeadLetterMetrics` class emits OpenTelemetry counters under the `Encina.Cdc.DeadLetter` meter:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `encina.cdc.dlq.added` | Counter | Events added to the DLQ |
+| `encina.cdc.dlq.resolved` | Counter | Events resolved (replayed or discarded) |
+| `encina.cdc.dlq.errors` | Counter | DLQ operation failures |
+
+### Testing
+
+Use `FakeCdcDeadLetterStore` from `Encina.Testing.Fakes` for unit and integration tests:
+
+```csharp
+var dlqStore = new FakeCdcDeadLetterStore();
+
+// ... run processor logic ...
+
+// Verify entries were dead-lettered
+dlqStore.GetEntries().Count.ShouldBe(1);
+dlqStore.WasEventDeadLettered(entryId).ShouldBeTrue();
+dlqStore.GetEntriesByConnector("my-connector").Count.ShouldBe(1);
+```
 
 ---
 
@@ -710,6 +865,10 @@ Yes. The messaging bridge is optional. You can use `IChangeEventHandler<T>` dire
 ### How does Outbox CDC differ from the traditional Outbox Processor?
 
 The traditional `OutboxProcessor` polls the outbox table at regular intervals. `UseOutboxCdc()` replaces polling with CDC, publishing notifications immediately when new outbox rows are inserted. Both can coexist safely.
+
+### What happens to events that fail after all retries?
+
+If a `ICdcDeadLetterStore` is registered, the failed event is persisted with its error context (message, stack trace, retry count, connector ID) for later inspection. You can query pending entries, replay them, or discard them. If no DLQ store is registered, the failure is logged and the processor continues normally.
 
 ### What is the `Snapshot` operation?
 

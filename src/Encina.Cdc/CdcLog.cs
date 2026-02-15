@@ -356,4 +356,51 @@ internal static partial class CdcLog
         int activeShardCount,
         string addedShardIds,
         string removedShardIds);
+
+    // =========================================================================
+    // CDC Dead Letter Queue (EventIds 210-213)
+    // =========================================================================
+
+    /// <summary>Logs when a failed event is persisted to the dead letter queue.</summary>
+    [LoggerMessage(
+        EventId = 210,
+        Level = LogLevel.Warning,
+        Message = "Event for table '{TableName}' from connector '{ConnectorId}' moved to dead letter queue after {RetryCount} retries. Entry ID: {EntryId}")]
+    public static partial void EventDeadLettered(
+        ILogger logger,
+        string tableName,
+        string connectorId,
+        int retryCount,
+        Guid entryId);
+
+    /// <summary>Logs when persisting to the dead letter queue itself fails.</summary>
+    [LoggerMessage(
+        EventId = 211,
+        Level = LogLevel.Error,
+        Message = "Failed to persist event to CDC dead letter queue for connector '{ConnectorId}'. The failed event has been lost")]
+    public static partial void DeadLetterStoreFailed(
+        ILogger logger,
+        Exception exception,
+        string connectorId);
+
+    /// <summary>Logs when retries are exhausted and no dead letter queue is configured.</summary>
+    [LoggerMessage(
+        EventId = 212,
+        Level = LogLevel.Error,
+        Message = "Retries exhausted for connector '{ConnectorId}' and no dead letter queue is configured. The failed event has been lost")]
+    public static partial void RetriesExhaustedNoDeadLetter(
+        ILogger logger,
+        Exception exception,
+        string connectorId);
+
+    /// <summary>Logs when a dead letter entry is resolved (replayed or discarded).</summary>
+    [LoggerMessage(
+        EventId = 213,
+        Level = LogLevel.Information,
+        Message = "Dead letter entry '{EntryId}' from connector '{ConnectorId}' resolved as {ResolutionType}")]
+    public static partial void DeadLetterResolved(
+        ILogger logger,
+        Guid entryId,
+        string connectorId,
+        string resolutionType);
 }

@@ -10,8 +10,9 @@ Core Change Data Capture (CDC) infrastructure for Encina. Provides provider-agno
 - **Messaging Bridge**: Publish CDC events as `INotification` via Encina's pipeline
 - **Outbox CDC**: Replace polling-based outbox with CDC-driven processing
 - **Cache Invalidation**: Invalidate query cache entries across all instances
+- **Dead Letter Queue**: Persist failed events after retry exhaustion for inspection and replay
 - **Sharded CDC**: Aggregate change streams from multiple database shards
-- **Health Checks**: Built-in health monitoring for each connector
+- **Health Checks**: Built-in health monitoring for each connector and DLQ
 - **Railway-Oriented**: All operations return `Either<EncinaError, T>`
 
 ## Quick Start
@@ -72,6 +73,36 @@ config.WithCacheInvalidation(opts =>
 Each instance runs a `CacheInvalidationSubscriberService` that listens for invalidation patterns and calls `RemoveByPatternAsync` on the local cache.
 
 For full documentation, see [CDC Cache Invalidation Guide](../../docs/features/cdc-cache-invalidation.md).
+
+## Dead Letter Queue (DLQ)
+
+Events that fail processing after exhausting all retries can be persisted to a dead letter store for later inspection and resolution:
+
+```csharp
+services.AddEncinaCdc(config =>
+{
+    config.UseCdc()
+          .AddHandler<Order, OrderChangeHandler>()
+          .WithDeadLetterQueue(); // Registers InMemoryCdcDeadLetterStore
+});
+```
+
+Query and resolve dead-lettered events:
+
+```csharp
+var pending = await dlqStore.GetPendingAsync(maxCount: 50);
+await dlqStore.ResolveAsync(entryId, CdcDeadLetterResolution.Replay);
+```
+
+Key features:
+
+- **`ICdcDeadLetterStore`**: Pluggable store interface (`AddAsync`, `GetPendingAsync`, `ResolveAsync`)
+- **`CdcDeadLetterEntry`**: Immutable record with original event, error context, and resolution status
+- **`CdcDeadLetterHealthCheck`**: Reports Degraded/Unhealthy when pending entries exceed thresholds
+- **`CdcDeadLetterMetrics`**: OpenTelemetry counters for DLQ operations
+- **Graceful degradation**: DLQ store failures never crash the processor
+
+For full documentation, see [CDC Feature Guide — Dead Letter Queue](../../docs/features/cdc.md#dead-letter-queue).
 
 ## Provider Packages
 

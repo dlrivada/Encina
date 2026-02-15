@@ -82,6 +82,40 @@ Added multi-field shard key support, enabling routing decisions based on combina
 
 - `ShardRoutingMetrics.RecordCompoundKeyExtraction()` for tracking compound key extraction with component count and router type
 
+#### CDC Dead Letter Queue (#631)
+
+Added dead letter queue (DLQ) for CDC failed events, enabling persistence and later replay of change events that fail after exhausting all retries.
+
+**Core Abstractions** (`Encina.Cdc`):
+
+- **`ICdcDeadLetterStore`**: Interface for adding, querying, and resolving dead letter entries (ROP with `Either<EncinaError, T>`)
+- **`CdcDeadLetterEntry`**: Sealed record with `Id`, `OriginalEvent`, `ErrorMessage`, `StackTrace`, `RetryCount`, `FailedAtUtc`, `ConnectorId`, `Status`
+- **`CdcDeadLetterStatus`**: Enum with `Pending`, `Replayed`, `Discarded`
+- **`CdcDeadLetterResolution`**: Enum with `Replay`, `Discard`
+- **`InMemoryCdcDeadLetterStore`**: Default in-memory implementation (providers can override via DI)
+
+**Configuration** (opt-in):
+
+- `UseDeadLetterQueue()` fluent method on `CdcConfiguration`
+- Registers `ICdcDeadLetterStore` (default: in-memory) and health check via `ServiceCollectionExtensions`
+
+**Observability**:
+
+- 4 new error codes: `DeadLetterStoreFailed`, `DeadLetterNotFound`, `DeadLetterAlreadyResolved`, `DeadLetterInvalidResolution`
+- `CdcDeadLetterMetrics`: OpenTelemetry metrics for DLQ operations
+- `CdcDeadLetterHealthCheck`: Health check with configurable warning/critical thresholds (`CdcDeadLetterHealthCheckOptions`)
+- Log EventIds 210–213 for DLQ operations
+
+**Processor Integration**:
+
+- `CdcProcessor` accepts optional `ICdcDeadLetterStore?` — failed events are persisted after retry exhaustion
+- Graceful degradation: DLQ store failures are logged and do not crash the processor
+
+**Testing** (`Encina.Testing.Fakes`):
+
+- `FakeCdcDeadLetterStore`: Thread-safe fake with verification helpers (`WasEventDeadLettered`, `GetEntries`, `GetEntriesByConnector`, `GetResolvedEntries`)
+- 8 contract tests, 5 property-based tests, 6 unit tests (19 total)
+
 #### Distributed Aggregation Helpers for Sharding (#640)
 
 Added two-phase distributed aggregation operations (Count, Sum, Avg, Min, Max) across sharded repositories with mathematically correct combine logic.

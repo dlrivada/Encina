@@ -197,3 +197,49 @@ Encina.Cdc.Caching.QueryCacheInvalidationOptions.TableToEntityTypeMappings.set -
 Encina.Cdc.CdcConfiguration.WithCacheInvalidation(System.Action<Encina.Cdc.Caching.QueryCacheInvalidationOptions!>? configure = null) -> Encina.Cdc.CdcConfiguration!
 Encina.Cdc.CdcOptions.UseCacheInvalidation.get -> bool
 Encina.Cdc.CdcOptions.UseCacheInvalidation.set -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.CdcDeadLetterEntry(System.Guid Id, Encina.Cdc.ChangeEvent! OriginalEvent, string! ErrorMessage, string! StackTrace, int RetryCount, System.DateTime FailedAtUtc, string! ConnectorId, Encina.Cdc.DeadLetter.CdcDeadLetterStatus Status) -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.ConnectorId.get -> string!
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.ConnectorId.init -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.ErrorMessage.get -> string!
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.ErrorMessage.init -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.FailedAtUtc.get -> System.DateTime
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.FailedAtUtc.init -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.Id.get -> System.Guid
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.Id.init -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.OriginalEvent.get -> Encina.Cdc.ChangeEvent!
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.OriginalEvent.init -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.RetryCount.get -> int
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.RetryCount.init -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.StackTrace.get -> string!
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.StackTrace.init -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.Status.get -> Encina.Cdc.DeadLetter.CdcDeadLetterStatus
+Encina.Cdc.DeadLetter.CdcDeadLetterEntry.Status.init -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterResolution
+Encina.Cdc.DeadLetter.CdcDeadLetterResolution.Discard = 1 -> Encina.Cdc.DeadLetter.CdcDeadLetterResolution
+Encina.Cdc.DeadLetter.CdcDeadLetterResolution.Replay = 0 -> Encina.Cdc.DeadLetter.CdcDeadLetterResolution
+Encina.Cdc.DeadLetter.CdcDeadLetterStatus
+Encina.Cdc.DeadLetter.CdcDeadLetterStatus.Discarded = 2 -> Encina.Cdc.DeadLetter.CdcDeadLetterStatus
+Encina.Cdc.DeadLetter.CdcDeadLetterStatus.Pending = 0 -> Encina.Cdc.DeadLetter.CdcDeadLetterStatus
+Encina.Cdc.DeadLetter.CdcDeadLetterStatus.Replayed = 1 -> Encina.Cdc.DeadLetter.CdcDeadLetterStatus
+Encina.Cdc.DeadLetter.ICdcDeadLetterStore
+Encina.Cdc.DeadLetter.ICdcDeadLetterStore.AddAsync(Encina.Cdc.DeadLetter.CdcDeadLetterEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Cdc.DeadLetter.ICdcDeadLetterStore.GetPendingAsync(int maxCount, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Cdc.DeadLetter.CdcDeadLetterEntry!>!>>!
+Encina.Cdc.DeadLetter.ICdcDeadLetterStore.ResolveAsync(System.Guid id, Encina.Cdc.DeadLetter.CdcDeadLetterResolution resolution, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+const Encina.Cdc.Errors.CdcErrorCodes.DeadLetterAlreadyResolved = "encina.cdc.dead_letter_already_resolved" -> string!
+const Encina.Cdc.Errors.CdcErrorCodes.DeadLetterInvalidResolution = "encina.cdc.dead_letter_invalid_resolution" -> string!
+const Encina.Cdc.Errors.CdcErrorCodes.DeadLetterNotFound = "encina.cdc.dead_letter_not_found" -> string!
+const Encina.Cdc.Errors.CdcErrorCodes.DeadLetterStoreFailed = "encina.cdc.dead_letter_store_failed" -> string!
+static Encina.Cdc.Errors.CdcErrors.DeadLetterAlreadyResolved(System.Guid id) -> Encina.EncinaError
+static Encina.Cdc.Errors.CdcErrors.DeadLetterInvalidResolution(System.Guid id, string! resolution) -> Encina.EncinaError
+static Encina.Cdc.Errors.CdcErrors.DeadLetterNotFound(System.Guid id) -> Encina.EncinaError
+static Encina.Cdc.Errors.CdcErrors.DeadLetterStoreFailed(System.Exception! exception) -> Encina.EncinaError
+Encina.Cdc.CdcConfiguration.UseDeadLetterQueue() -> Encina.Cdc.CdcConfiguration!
+Encina.Cdc.CdcOptions.UseDeadLetterQueue.get -> bool
+Encina.Cdc.CdcOptions.UseDeadLetterQueue.set -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterHealthCheckOptions
+Encina.Cdc.DeadLetter.CdcDeadLetterHealthCheckOptions.CdcDeadLetterHealthCheckOptions() -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterHealthCheckOptions.WarningThreshold.get -> int
+Encina.Cdc.DeadLetter.CdcDeadLetterHealthCheckOptions.WarningThreshold.set -> void
+Encina.Cdc.DeadLetter.CdcDeadLetterHealthCheckOptions.CriticalThreshold.get -> int
+Encina.Cdc.DeadLetter.CdcDeadLetterHealthCheckOptions.CriticalThreshold.set -> void

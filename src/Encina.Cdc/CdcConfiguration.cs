@@ -206,6 +206,34 @@ public sealed class CdcConfiguration
     }
 
     /// <summary>
+    /// Enables the CDC dead letter queue. Events that fail processing after
+    /// exhausting all retries are persisted to an <see cref="DeadLetter.ICdcDeadLetterStore"/>
+    /// for later inspection, replay, or discard.
+    /// </summary>
+    /// <returns>This configuration instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// By default an <see cref="DeadLetter.InMemoryCdcDeadLetterStore"/> is registered.
+    /// Provider-specific packages can override the registration with a database-backed
+    /// implementation via <c>TryAddSingleton</c>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaCdc(config =>
+    /// {
+    ///     config.UseCdc()
+    ///           .UseDeadLetterQueue();
+    /// });
+    /// </code>
+    /// </example>
+    public CdcConfiguration UseDeadLetterQueue()
+    {
+        _options.UseDeadLetterQueue = true;
+        return this;
+    }
+
+    /// <summary>
     /// Enables CDC-driven outbox processing, where CDC monitors the outbox table
     /// and republishes stored notifications instead of polling-based processing.
     /// </summary>

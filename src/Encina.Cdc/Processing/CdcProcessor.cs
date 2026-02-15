@@ -1,4 +1,5 @@
 using Encina.Cdc.Abstractions;
+using Encina.Cdc.DeadLetter;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -22,6 +23,8 @@ namespace Encina.Cdc.Processing;
 /// <para>
 /// Error handling uses exponential backoff retry with configurable
 /// <see cref="CdcOptions.BaseRetryDelay"/> and <see cref="CdcOptions.MaxRetries"/>.
+/// When retries are exhausted and a <see cref="ICdcDeadLetterStore"/> is configured,
+/// the failed event is persisted for later inspection or replay.
 /// </para>
 /// </remarks>
 internal sealed class CdcProcessor : BackgroundService
@@ -29,6 +32,7 @@ internal sealed class CdcProcessor : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<CdcProcessor> _logger;
     private readonly CdcOptions _options;
+    private readonly ICdcDeadLetterStore? _deadLetterStore;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CdcProcessor"/> class.
@@ -36,10 +40,15 @@ internal sealed class CdcProcessor : BackgroundService
     /// <param name="serviceProvider">Service provider for creating scopes.</param>
     /// <param name="logger">Logger for diagnostic information.</param>
     /// <param name="options">Configuration options for CDC processing.</param>
+    /// <param name="deadLetterStore">
+    /// Optional dead letter store for persisting events that fail after exhausting all retries.
+    /// When <c>null</c>, failed events are logged and skipped.
+    /// </param>
     public CdcProcessor(
         IServiceProvider serviceProvider,
         ILogger<CdcProcessor> logger,
-        CdcOptions options)
+        CdcOptions options,
+        ICdcDeadLetterStore? deadLetterStore = null)
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
         ArgumentNullException.ThrowIfNull(logger);
@@ -48,6 +57,7 @@ internal sealed class CdcProcessor : BackgroundService
         _serviceProvider = serviceProvider;
         _logger = logger;
         _options = options;
+        _deadLetterStore = deadLetterStore;
     }
 
     /// <inheritdoc />
@@ -62,13 +72,15 @@ internal sealed class CdcProcessor : BackgroundService
         CdcLog.ProcessorStarted(_logger, _options.PollingInterval, _options.BatchSize);
 
         var consecutiveErrors = 0;
+        ChangeEvent? lastFailedEvent = null;
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await ProcessChangesAsync(stoppingToken).ConfigureAwait(false);
+                lastFailedEvent = await ProcessChangesAsync(stoppingToken).ConfigureAwait(false);
                 consecutiveErrors = 0;
+                lastFailedEvent = null;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -91,8 +103,11 @@ internal sealed class CdcProcessor : BackgroundService
                     var connector = scope.ServiceProvider.GetService<ICdcConnector>();
                     var connectorId = connector?.ConnectorId ?? "unknown";
 
-                    CdcLog.ErrorProcessingChangeEvents(_logger, ex, connectorId);
+                    await PersistToDeadLetterAsync(
+                        lastFailedEvent, ex, connectorId, stoppingToken).ConfigureAwait(false);
+
                     consecutiveErrors = 0;
+                    lastFailedEvent = null;
                     await Task.Delay(_options.PollingInterval, stoppingToken).ConfigureAwait(false);
                 }
             }
@@ -103,7 +118,7 @@ internal sealed class CdcProcessor : BackgroundService
         CdcLog.ProcessorStopped(_logger);
     }
 
-    private async Task ProcessChangesAsync(CancellationToken cancellationToken)
+    private async Task<ChangeEvent?> ProcessChangesAsync(CancellationToken cancellationToken)
     {
         using var scope = _serviceProvider.CreateScope();
         var connector = scope.ServiceProvider.GetRequiredService<ICdcConnector>();
@@ -113,6 +128,7 @@ internal sealed class CdcProcessor : BackgroundService
         var successCount = 0;
         var failureCount = 0;
         var totalCount = 0;
+        ChangeEvent? lastFailedEvent = null;
 
         await foreach (var changeResult in connector.StreamChangesAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -151,6 +167,7 @@ internal sealed class CdcProcessor : BackgroundService
                 else
                 {
                     failureCount++;
+                    lastFailedEvent = changeEvent;
                 }
             }
             else
@@ -168,11 +185,66 @@ internal sealed class CdcProcessor : BackgroundService
         {
             CdcLog.ProcessedChangeEvents(_logger, successCount, totalCount, failureCount, connector.ConnectorId);
         }
+
+        return lastFailedEvent;
     }
+
+    private async Task PersistToDeadLetterAsync(
+        ChangeEvent? failedEvent,
+        Exception exception,
+        string connectorId,
+        CancellationToken cancellationToken)
+    {
+        if (_deadLetterStore is null)
+        {
+            CdcLog.RetriesExhaustedNoDeadLetter(_logger, exception, connectorId);
+            return;
+        }
+
+        var entry = new CdcDeadLetterEntry(
+            Id: Guid.NewGuid(),
+            OriginalEvent: failedEvent ?? CreatePlaceholderEvent(connectorId),
+            ErrorMessage: exception.Message,
+            StackTrace: exception.StackTrace ?? string.Empty,
+            RetryCount: _options.MaxRetries,
+            FailedAtUtc: DateTime.UtcNow,
+            ConnectorId: connectorId,
+            Status: CdcDeadLetterStatus.Pending);
+
+        var result = await _deadLetterStore.AddAsync(entry, cancellationToken).ConfigureAwait(false);
+
+        result.Match(
+            Right: _ => CdcLog.EventDeadLettered(
+                _logger, entry.OriginalEvent.TableName, connectorId, _options.MaxRetries, entry.Id),
+            Left: _ => CdcLog.DeadLetterStoreFailed(_logger, exception, connectorId));
+    }
+
+    private static ChangeEvent CreatePlaceholderEvent(string connectorId)
+        => new(
+            TableName: "unknown",
+            Operation: ChangeOperation.Insert,
+            Before: null,
+            After: null,
+            Metadata: new ChangeMetadata(
+                Position: new PlaceholderPosition(),
+                CapturedAtUtc: DateTime.UtcNow,
+                TransactionId: null,
+                SourceDatabase: null,
+                SourceSchema: null));
 
     private TimeSpan CalculateRetryDelay(int retryCount)
     {
         var delay = _options.BaseRetryDelay * Math.Pow(2, retryCount - 1);
         return delay;
+    }
+
+    /// <summary>
+    /// Minimal position implementation used when no real event is available.
+    /// </summary>
+    private sealed class PlaceholderPosition : CdcPosition
+    {
+        public override int CompareTo(CdcPosition? other) => 0;
+        public override byte[] ToBytes() => [];
+        public override string ToString() => "placeholder";
     }
 }

@@ -1879,6 +1879,15 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
   - `Encina.Cdc.Debezium` - Debezium HTTP Consumer + Kafka Consumer
 - Integración con Outbox: `OutboxCdcHandler` reemplaza polling
 - Integración con Messaging: `CdcMessagingBridge` publica `CdcChangeNotification`
+- **Dead Letter Queue** (#631):
+  - `ICdcDeadLetterStore` - Store interface for failed CDC events
+  - `CdcDeadLetterEntry` - Dead letter entry data model (sealed record)
+  - `InMemoryCdcDeadLetterStore` - Default in-memory implementation
+  - `CdcDeadLetterStatus` / `CdcDeadLetterResolution` - Status/resolution enums
+  - `CdcDeadLetterHealthCheck` - Health check with configurable thresholds
+  - `CdcDeadLetterMetrics` - OpenTelemetry metrics for DLQ operations
+  - `FakeCdcDeadLetterStore` - Testing fake (in `Encina.Testing.Fakes`)
+  - Tests: `ICdcDeadLetterStoreContractTests`, `InMemoryCdcDeadLetterStorePropertyTests`, `CdcProcessorDeadLetterTests`
 - Documentación: [CDC Feature Guide](features/cdc.md)
 
 ##### Labels Nuevas Creadas (10)
@@ -3298,6 +3307,7 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - Verificaciones: `VerifySent<TRequest>(times)`, `VerifyPublished<TNotification>(times)`
 - `GetSentRequests()`, `GetPublishedNotifications()` para inspección
 - `FakeOutboxStore`, `FakeInboxStore`, `FakeSagaStore`, `FakeScheduledMessageStore`
+- `FakeCdcDeadLetterStore` - CDC dead letter store fake with `WasEventDeadLettered`, `GetEntries`, `GetEntriesByConnector`, `GetResolvedEntries`
 - Thread-safe, in-memory implementations
 - **Paquete**: `Encina.Testing.Fakes`
 - **Inspiración**: MediatR testing patterns, in-memory implementations
