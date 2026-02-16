@@ -260,6 +260,31 @@ public static class ActivityTagNames
     }
 
     /// <summary>
+    /// Online resharding tags for observability.
+    /// </summary>
+    /// <remarks>
+    /// These tags track the 6-phase online resharding workflow: Plan → Copy → Replicate
+    /// → Verify → Cutover → Cleanup, including per-phase progress and shard-level details.
+    /// </remarks>
+    public static class Resharding
+    {
+        /// <summary>Tag name for the resharding operation identifier.</summary>
+        public const string Id = "resharding.id";
+
+        /// <summary>Tag name for the current resharding phase.</summary>
+        public const string Phase = "resharding.phase";
+
+        /// <summary>Tag name for the source shard identifier.</summary>
+        public const string SourceShard = "resharding.source_shard";
+
+        /// <summary>Tag name for the target shard identifier.</summary>
+        public const string TargetShard = "resharding.target_shard";
+
+        /// <summary>Tag name for the number of rows affected by an operation.</summary>
+        public const string RowsAffected = "resharding.rows_affected";
+    }
+
+    /// <summary>
     /// Shard migration coordination tags for observability.
     /// </summary>
     /// <remarks>

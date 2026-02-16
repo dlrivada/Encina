@@ -235,6 +235,71 @@ services.Configure<SchemaDriftHealthCheckOptions>(options =>
 });
 ```
 
+### Resharding Metrics
+
+When using online resharding (`Encina.Sharding.Resharding`), the following metrics are automatically recorded:
+
+| Metric Name | Type | Description | Tags |
+|-------------|------|-------------|------|
+| `encina.resharding.phase_duration_ms` | Histogram | Per-phase execution duration (ms) | `resharding.id`, `resharding.phase` |
+| `encina.resharding.rows_copied_total` | Counter | Total rows copied during batch copy | `resharding.source_shard`, `resharding.target_shard` |
+| `encina.resharding.rows_per_second` | ObservableGauge | Current copy throughput | — |
+| `encina.resharding.cdc_lag_ms` | ObservableGauge | Current CDC replication lag (ms) | — |
+| `encina.resharding.verification_mismatches_total` | Counter | Verification mismatches detected | `resharding.id` |
+| `encina.resharding.cutover_duration_ms` | Histogram | Cutover phase duration (ms) | `resharding.id` |
+| `encina.resharding.active_resharding_count` | ObservableGauge | Currently active resharding operations | — |
+
+Configure resharding metrics callbacks:
+
+```csharp
+services.AddSingleton(new ReshardingMetricsCallbacks(
+    rowsPerSecondCallback: () => currentRowsPerSecond,
+    cdcLagMsCallback: () => currentCdcLagMs,
+    activeReshardingCountCallback: () => activeCount));
+```
+
+### Resharding Tracing
+
+Two trace activities are available via `ReshardingActivitySource` (`Encina.Resharding`):
+
+- **`StartReshardingExecution`**: Parent span for the entire resharding operation, tagged with `resharding.id`, `resharding.step_count`, `resharding.estimated_rows`
+- **`StartPhaseExecution`**: Per-phase child span, tagged with `resharding.id`, `resharding.phase`
+- **`Complete`**: Enriches and disposes the activity with outcome status, duration, and optional error details
+
+Activity enrichment is also available via `ReshardingActivityEnricher` for custom span decoration.
+
+### Resharding Health Check
+
+`ReshardingHealthCheck` monitors active resharding operations and classifies health:
+
+| Condition | Status | Description |
+|-----------|--------|-------------|
+| No active operations | **Healthy** | "No active resharding operations." |
+| Active and progressing | **Degraded** | "N resharding operation(s) in progress." |
+| Failed without rollback | **Unhealthy** | "N failed without rollback" |
+| Exceeded max duration | **Unhealthy** | "N exceeded max duration of Xh" |
+| State store error | **Unhealthy** | "Failed to query resharding state: ..." |
+| Timeout | **Unhealthy** | "Resharding health check timed out after Xs." |
+
+```csharp
+// Register the health check
+services.AddHealthChecks()
+    .Add(new HealthCheckRegistration(
+        "resharding",
+        sp => new ReshardingHealthCheck(
+            sp.GetRequiredService<IReshardingStateStore>(),
+            new ReshardingHealthCheckOptions()),
+        failureStatus: HealthStatus.Degraded,
+        tags: ["resharding", "sharding"]));
+
+// Configure options
+var options = new ReshardingHealthCheckOptions
+{
+    MaxReshardingDuration = TimeSpan.FromHours(4),  // Default: 2h
+    Timeout = TimeSpan.FromSeconds(15)              // Default: 30s
+};
+```
+
 ## Configuration Options
 
 ### EncinaOpenTelemetryOptions

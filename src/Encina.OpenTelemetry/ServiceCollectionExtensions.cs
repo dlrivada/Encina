@@ -4,6 +4,7 @@ using Encina.OpenTelemetry.Cdc;
 using Encina.OpenTelemetry.IdGeneration;
 using Encina.OpenTelemetry.Migrations;
 using Encina.OpenTelemetry.ReferenceTable;
+using Encina.OpenTelemetry.Resharding;
 using Encina.OpenTelemetry.Sharding;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -84,6 +85,12 @@ public static class ServiceCollectionExtensions
         // MigrationMetricsCallbacks or IShardedMigrationCoordinator being available.
         services.AddHostedService<MigrationMetricsInitializer>();
 
+        // Register resharding metrics initialization as a hosted service.
+        // ReshardingMetrics creates Counter, Histogram, and ObservableGauge instruments
+        // on the static "Encina" meter during construction. Registration is conditional on
+        // ReshardingMetricsCallbacks or IReshardingOrchestrator being available.
+        services.AddHostedService<ReshardingMetricsInitializer>();
+
         return services;
     }
 
@@ -114,6 +121,7 @@ public static class ServiceCollectionExtensions
             tracing.AddSource("Encina.Cdc.Sharded");
             tracing.AddSource("Encina.ReferenceTable");
             tracing.AddSource(MigrationActivitySource.SourceName);
+            tracing.AddSource(ReshardingActivitySource.SourceName);
             tracing.AddSource(IdGenerationActivitySource.SourceName);
         });
 

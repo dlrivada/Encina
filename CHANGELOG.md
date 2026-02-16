@@ -220,6 +220,47 @@ Added coordinated schema migration across sharded databases with four deployment
 
 **Testing**: 169 tests across unit (47), guard (54), contract (26), property (31), integration (11) tests — integration tests use real SQLite databases via `ShardedSqliteFixture`
 
+#### Online Resharding Workflow (#648)
+
+Added online resharding with a 6-phase workflow (Planning → Copying → Replicating → Verifying → CuttingOver → CleaningUp), crash recovery, automatic rollback, and full observability integration.
+
+**Core Architecture**:
+
+- **`IReshardingOrchestrator`**: Orchestrates the full lifecycle with `PlanAsync`, `ExecuteAsync`, `RollbackAsync`, `GetProgressAsync`
+- **`IReshardingStateStore`**: Persistent state for crash recovery (`SaveStateAsync`, `GetStateAsync`, `GetActiveReshardingsAsync`, `DeleteStateAsync`)
+- **`IReshardingServices`**: Application-level data operations (`CopyBatchAsync`, `ReplicateChangesAsync`, `GetReplicationLagAsync`, `VerifyDataConsistencyAsync`, `SwapTopologyAsync`, `CleanupSourceDataAsync`, `EstimateRowCountAsync`) plus 3 result records (`CopyBatchResult`, `ReplicationResult`, `VerificationResult`)
+- **`ReshardingPhaseExecutor`**: Sequential phase pipeline with `ValidateTransition`, crash recovery from last checkpoint
+- **`ReshardingState`**: Immutable state record persisted across phases with `ReshardingCheckpoint` support
+
+**6-Phase Workflow**:
+
+- **Planning**: Uses `IShardRebalancer.CalculateAffectedKeyRanges` to generate `ShardMigrationStep[]`, estimates resources via `IReshardingServices.EstimateRowCountAsync`
+- **Copying**: Batch data copy with configurable `CopyBatchSize` (default: 10,000), checkpoint resume after crash via `ReshardingCheckpoint.LastBatchPosition`
+- **Replicating**: CDC-based catch-up with configurable `CdcLagThreshold` (default: 5s), multi-pass replication tracking via `ReshardingCheckpoint.CdcPosition`
+- **Verifying**: Consistency verification with `VerificationMode` (RowCount, CountAndChecksum, Full)
+- **CuttingOver**: Atomic topology swap with `OnCutoverStarting` predicate gate and `CutoverTimeout` (default: 30s)
+- **CleaningUp**: Source data deletion with `CleanupRetentionPeriod` (default: 24h), best-effort (failures don't fail the workflow)
+
+**Configuration**:
+
+- **`ReshardingOptions`**: `CopyBatchSize` (10,000), `CdcLagThreshold` (5s), `VerificationMode` (CountAndChecksum), `CutoverTimeout` (30s), `CleanupRetentionPeriod` (24h), `OnPhaseCompleted` callback, `OnCutoverStarting` predicate
+- **`ReshardingBuilder`**: Fluent API — `CopyBatchSize`, `CdcLagThreshold`, `VerificationMode`, `CutoverTimeout`, `CleanupRetentionPeriod`, `OnPhaseCompleted()`, `OnCutoverStarting()`
+- **`WithResharding()`**: Configuration entry point on `ShardingOptions<TEntity>`
+
+**Observability** (`Encina.OpenTelemetry`):
+
+- `ReshardingMetrics`: 7 instruments — `phase_duration_ms` histogram, `rows_copied_total` counter, `rows_per_second` observable gauge, `cdc_lag_ms` observable gauge, `verification_mismatches_total` counter, `cutover_duration_ms` histogram, `active_resharding_count` observable gauge (via `ReshardingMetricsCallbacks`)
+- `ReshardingActivitySource` ("Encina.Resharding"): 2 activities (`StartReshardingExecution`, `StartPhaseExecution`) with `Complete` enrichment
+- `ReshardingActivityEnricher`: Static methods for enriching activities with plan and phase details
+- `ReshardingHealthCheck`: Three-state health (Healthy: no active, Degraded: in-progress, Unhealthy: failed/overdue/timeout/error) with `ReshardingHealthCheckOptions` (MaxReshardingDuration: 2h, Timeout: 30s)
+- `ReshardingLogMessages`: 10 source-generated structured log events with unique EventIds
+
+**Error Codes** (16 stable codes under `encina.sharding.resharding.*`):
+
+- `TopologiesIdentical`, `EmptyPlan`, `PlanGenerationFailed`, `CopyFailed`, `ReplicationFailed`, `VerificationFailed`, `CutoverTimeout`, `CutoverAborted`, `CutoverFailed`, `CleanupFailed`, `RollbackFailed`, `RollbackNotAvailable`, `ReshardingNotFound`, `InvalidPhaseTransition`, `StateStoreFailed`, `ConcurrentReshardingNotAllowed`
+
+**Testing**: 342 tests across unit (252), guard (48), contract (18), property (12), integration (12) tests
+
 #### CDC Dead Letter Queue (#631)
 
 Added dead letter queue (DLQ) for CDC failed events, enabling persistence and later replay of change events that fail after exhausting all retries.
