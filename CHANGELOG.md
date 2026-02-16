@@ -1,4 +1,4 @@
-## [Unreleased]
+## [0.12.0] - 2026-02-16 - Database & Repository
 
 ### Added
 

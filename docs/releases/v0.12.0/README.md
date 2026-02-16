@@ -1,8 +1,8 @@
 # v0.12.0 - Database & Repository
 
-> **Release Date**: In Progress
+> **Release Date**: 2026-02-16
 > **Milestone**: [v0.12.0 - Database & Repository](https://github.com/dlrivada/Encina/milestone/9)
-> **Status**: In Progress (22 issues)
+> **Status**: Completed (58 issues closed)
 
 This document captures the detailed implementation history for v0.12.0 (February 2026).
 
