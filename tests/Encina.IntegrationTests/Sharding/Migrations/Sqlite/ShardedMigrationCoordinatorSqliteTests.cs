@@ -1,18 +1,13 @@
 using System.Globalization;
-
 using Encina.Sharding;
 using Encina.Sharding.Migrations;
 using Encina.TestInfrastructure.Fixtures.Sharding;
-
 using LanguageExt;
-using static LanguageExt.Prelude;
-
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using Shouldly;
-
 using Xunit;
+using static LanguageExt.Prelude;
 
 namespace Encina.IntegrationTests.Sharding.Migrations.Sqlite;
 
@@ -112,12 +107,12 @@ public sealed class ShardedMigrationCoordinatorSqliteTests : IAsyncLifetime
     private static MigrationOptions CreateOptions(
         MigrationStrategy strategy = MigrationStrategy.Sequential,
         bool stopOnFirstFailure = true) => new()
-    {
-        Strategy = strategy,
-        StopOnFirstFailure = stopOnFirstFailure,
-        MaxParallelism = 2,
-        PerShardTimeout = TimeSpan.FromMinutes(1)
-    };
+        {
+            Strategy = strategy,
+            StopOnFirstFailure = stopOnFirstFailure,
+            MaxParallelism = 2,
+            PerShardTimeout = TimeSpan.FromMinutes(1)
+        };
 
     private static T ExtractRight<T>(Either<EncinaError, T> result)
     {
