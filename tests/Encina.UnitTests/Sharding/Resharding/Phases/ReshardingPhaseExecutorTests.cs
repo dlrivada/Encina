@@ -1,8 +1,8 @@
 using Encina.Sharding.Resharding;
 using Encina.Sharding.Resharding.Phases;
 using LanguageExt;
-using static LanguageExt.Prelude;
 using static Encina.UnitTests.Sharding.Resharding.ReshardingTestBuilders;
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Sharding.Resharding.Phases;
 
