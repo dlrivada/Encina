@@ -2,6 +2,7 @@ using System.Reflection;
 using Encina.Sharding.Colocation;
 using Encina.Sharding.Configuration;
 using Encina.Sharding.ReferenceTables;
+using Encina.Sharding.Shadow;
 using Encina.Sharding.TimeBased;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -123,6 +124,12 @@ public static class ShardingServiceCollectionExtensions
 
         // Register time-based sharding services
         RegisterTimeBasedShardingServices(services, options, router);
+
+        // Register shadow sharding services (must be after IShardRouter registration)
+        if (options.UseShadowSharding && options.ShadowSharding is not null)
+        {
+            ShadowShardingServiceCollectionExtensions.AddShadowSharding(services, options.ShadowSharding);
+        }
 
         return services;
     }

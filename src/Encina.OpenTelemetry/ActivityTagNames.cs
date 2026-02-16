@@ -207,6 +207,31 @@ public static class ActivityTagNames
     }
 
     /// <summary>
+    /// Shadow sharding tags for testing new shard topologies under production traffic.
+    /// </summary>
+    /// <remarks>
+    /// These tags track shadow routing comparisons, dual-write outcomes, and
+    /// shadow read result matching during topology migration validation.
+    /// </remarks>
+    public static class Shadow
+    {
+        /// <summary>Tag name for the production shard identifier.</summary>
+        public const string ProductionShard = "encina.sharding.shadow.production_shard";
+
+        /// <summary>Tag name for the shadow shard identifier.</summary>
+        public const string ShadowShard = "encina.sharding.shadow.shadow_shard";
+
+        /// <summary>Tag name indicating whether routing decisions match between production and shadow.</summary>
+        public const string RoutingMatch = "encina.sharding.shadow.routing_match";
+
+        /// <summary>Tag name for the outcome of a shadow write operation (success/failure).</summary>
+        public const string WriteOutcome = "encina.sharding.shadow.write_outcome";
+
+        /// <summary>Tag name indicating whether read results match between production and shadow.</summary>
+        public const string ReadResultsMatch = "encina.sharding.shadow.read_results_match";
+    }
+
+    /// <summary>
     /// Reference table replication tags for sharding observability.
     /// </summary>
     /// <remarks>

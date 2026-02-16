@@ -151,4 +151,7 @@ public static class ShardingErrorCodes
 
     /// <summary>On-demand shard creation failed during fallback routing.</summary>
     public const string ShardCreationFailed = "encina.sharding.shard_creation_failed";
+
+    /// <summary>A shadow routing operation failed.</summary>
+    public const string ShadowRoutingFailed = "encina.sharding.shadow_routing_failed";
 }

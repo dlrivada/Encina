@@ -1,5 +1,6 @@
 using Encina.Sharding.ReferenceTables;
 using Encina.Sharding.Routing;
+using Encina.Sharding.Shadow;
 using Encina.Sharding.TimeBased;
 
 namespace Encina.Sharding.Configuration;
@@ -29,6 +30,7 @@ public sealed class ShardingOptions<TEntity>
     private readonly List<ReferenceTableConfiguration> _referenceTableConfigurations = [];
     private Func<ShardTopology, IShardRouter>? _routerFactory;
     private TimeBasedShardRouterOptions? _timeBasedOptions;
+    private ShadowShardingOptions? _shadowShardingOptions;
 
     /// <summary>
     /// Gets the scatter-gather options for cross-shard queries.
@@ -59,6 +61,23 @@ public sealed class ShardingOptions<TEntity>
     /// Gets the time-based routing options, or null if time-based routing is not configured.
     /// </summary>
     internal TimeBasedShardRouterOptions? TimeBasedOptions => _timeBasedOptions;
+
+    /// <summary>
+    /// Gets a value indicating whether shadow sharding is enabled for this entity type.
+    /// </summary>
+    /// <value>
+    /// <c>true</c> if <see cref="WithShadowSharding"/> has been called; <c>false</c> by default.
+    /// </value>
+    public bool UseShadowSharding { get; private set; }
+
+    /// <summary>
+    /// Gets the shadow sharding options, or <c>null</c> if shadow sharding is not configured.
+    /// </summary>
+    /// <value>
+    /// The <see cref="ShadowShardingOptions"/> instance configured via <see cref="WithShadowSharding"/>,
+    /// or <c>null</c> if shadow sharding has not been enabled.
+    /// </value>
+    public ShadowShardingOptions? ShadowSharding => _shadowShardingOptions;
 
     /// <summary>
     /// Declares that <typeparamref name="TColocated"/> should be co-located with
@@ -317,6 +336,50 @@ public sealed class ShardingOptions<TEntity>
             tbOptions.Period,
             tbOptions.WeekStart);
 
+        return this;
+    }
+
+    /// <summary>
+    /// Enables shadow sharding for testing a new shard topology under real production traffic.
+    /// </summary>
+    /// <param name="configure">
+    /// Optional configuration action for the shadow sharding options. If <c>null</c>, the options
+    /// must have been pre-configured or the <see cref="ShadowShardingOptions.ShadowTopology"/>
+    /// property must be set before registration completes.
+    /// </param>
+    /// <returns>This instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Shadow sharding allows you to test a new shard topology alongside the production topology.
+    /// All production operations continue to use the original router; shadow operations run in
+    /// parallel (fire-and-forget for writes, percentage-based sampling for reads).
+    /// </para>
+    /// <para>
+    /// Shadow failures are logged but never affect the production path.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaSharding&lt;Order&gt;(options =>
+    /// {
+    ///     options.UseHashRouting()
+    ///         .AddShard("shard-0", "Server=shard0;...")
+    ///         .AddShard("shard-1", "Server=shard1;...")
+    ///         .WithShadowSharding(shadow =>
+    ///         {
+    ///             shadow.ShadowTopology = newTopology;
+    ///             shadow.DualWriteEnabled = true;
+    ///             shadow.ShadowReadPercentage = 10;
+    ///             shadow.CompareResults = true;
+    ///         });
+    /// });
+    /// </code>
+    /// </example>
+    public ShardingOptions<TEntity> WithShadowSharding(Action<ShadowShardingOptions>? configure = null)
+    {
+        _shadowShardingOptions ??= new ShadowShardingOptions();
+        configure?.Invoke(_shadowShardingOptions);
+        UseShadowSharding = true;
         return this;
     }
 

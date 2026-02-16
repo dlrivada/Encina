@@ -129,6 +129,40 @@ Added time-based shard partitioning with automatic tier lifecycle management (Ho
 
 **Testing**: 227 tests across unit (161), guard (31), contract (23), and property (12) tests
 
+#### Shadow Sharding (#649)
+
+Added shadow sharding for testing new shard topologies under real production traffic with zero impact. Enables phased rollouts from dual-write validation to full cutover.
+
+**Core Abstractions**:
+
+- **`IShadowShardRouter`**: Extends `IShardRouter` with shadow-specific operations (`RouteShadowAsync`, `CompareAsync`, `IsShadowEnabled`, `ShadowTopology`)
+- **`ShadowShardRouterDecorator`**: Wraps production router; all `IShardRouter` methods delegate to primary, shadow operations run against secondary topology with latency measurement
+- **`ShadowComparisonResult`**: Immutable record capturing routing comparison data (shard keys, routing match, latency measurements, optional result match, timestamp)
+- **`ShadowShardingOptions`**: Configuration with `ShadowTopology`, `DualWriteEnabled`, `ShadowReadPercentage` (0-100), `CompareResults`, `DiscrepancyHandler`, `ShadowWriteTimeout`, `ShadowRouterFactory`
+
+**Pipeline Integration**:
+
+- **`ShadowWritePipelineBehavior<TCommand, TResponse>`**: Fire-and-forget shadow write on production success with configurable timeout; shadow failures logged, never propagated
+- **`ShadowReadPipelineBehavior<TQuery, TResponse>`**: Percentage-based shadow read sampling with hash-based result comparison; discrepancies forwarded to optional handler
+
+**Configuration**:
+
+- **`WithShadowSharding()`**: Fluent extension on `ShardingOptions<TEntity>` for shadow topology setup
+- **`ShadowShardingServiceCollectionExtensions`**: DI registration for decorator, behaviors, and options
+
+**Observability** (`Encina.OpenTelemetry`):
+
+- **`ShadowShardingMetrics`**: 6 metric instruments — routing comparisons, routing mismatches, shadow writes (by outcome), write latency diff, read comparisons (by result match), read latency diff
+- **`ShadowShardingActivityEnricher`**: Trace enrichment with production/shadow shard IDs, routing match, write outcome, read results match
+- 5 trace tag constants under `ActivityTagNames.Shadow`
+- Structured logging via `ShadowShardingLog` (source-generated LoggerMessage delegates)
+
+**Error Codes** (1 code):
+
+- `encina.sharding.shadow_routing_failed`
+
+**Testing**: 90 tests across unit (55), guard (18), contract (9), property (8) tests; 5 BenchmarkDotNet benchmarks
+
 #### CDC Dead Letter Queue (#631)
 
 Added dead letter queue (DLQ) for CDC failed events, enabling persistence and later replay of change events that fail after exhausting all retries.

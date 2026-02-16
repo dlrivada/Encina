@@ -107,6 +107,21 @@ const Encina.OpenTelemetry.ActivityTagNames.Tiering.ShardTier = "shard.tier" -> 
 const Encina.OpenTelemetry.ActivityTagNames.Tiering.ShardPeriod = "shard.period" -> string!
 const Encina.OpenTelemetry.ActivityTagNames.Tiering.TierFrom = "tier.from" -> string!
 const Encina.OpenTelemetry.ActivityTagNames.Tiering.TierTo = "tier.to" -> string!
+Encina.OpenTelemetry.ActivityTagNames.Shadow
+const Encina.OpenTelemetry.ActivityTagNames.Shadow.ProductionShard = "encina.sharding.shadow.production_shard" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Shadow.ShadowShard = "encina.sharding.shadow.shadow_shard" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Shadow.RoutingMatch = "encina.sharding.shadow.routing_match" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Shadow.WriteOutcome = "encina.sharding.shadow.write_outcome" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Shadow.ReadResultsMatch = "encina.sharding.shadow.read_results_match" -> string!
+Encina.OpenTelemetry.Sharding.ShadowShardingMetrics
+Encina.OpenTelemetry.Sharding.ShadowShardingMetrics.ShadowShardingMetrics() -> void
+Encina.OpenTelemetry.Sharding.ShadowShardingMetrics.RecordRouting(bool routingMatch) -> void
+Encina.OpenTelemetry.Sharding.ShadowShardingMetrics.RecordRoutingMismatch(string! shardKeyPrefix) -> void
+Encina.OpenTelemetry.Sharding.ShadowShardingMetrics.RecordShadowWrite(string! shardId, bool success, double latencyDiffMs) -> void
+Encina.OpenTelemetry.Sharding.ShadowShardingMetrics.RecordShadowRead(bool resultsMatch, double latencyDiffMs) -> void
+Encina.OpenTelemetry.Sharding.ShadowShardingActivityEnricher
+static Encina.OpenTelemetry.Sharding.ShadowShardingActivityEnricher.EnrichWithShadowRouting(System.Diagnostics.Activity? activity, Encina.Sharding.Shadow.ShadowComparisonResult! result) -> void
+static Encina.OpenTelemetry.Sharding.ShadowShardingActivityEnricher.EnrichWithShadowWrite(System.Diagnostics.Activity? activity, string! shardId, bool success) -> void
 Encina.OpenTelemetry.Sharding.TimeBasedShardingMetrics
 Encina.OpenTelemetry.Sharding.TimeBasedShardingMetrics.TimeBasedShardingMetrics(Encina.OpenTelemetry.Sharding.TimeBasedShardingMetricsCallbacks! callbacks) -> void
 Encina.OpenTelemetry.Sharding.TimeBasedShardingMetrics.RecordTierTransition(string! fromTier, string! toTier) -> void

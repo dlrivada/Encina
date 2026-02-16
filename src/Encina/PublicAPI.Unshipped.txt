@@ -530,7 +530,10 @@ Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseDirectoryRouting(Encin
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseGeoRouting(System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.GeoRegion!>! regions, System.Func<string!, string!>! regionResolver, System.Action<Encina.Sharding.Routing.GeoShardRouterOptions!>? configureOptions = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseHashRouting(System.Action<Encina.Sharding.Routing.HashShardRouterOptions!>? configureOptions = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseRangeRouting(System.Collections.Generic.IEnumerable<Encina.Sharding.Routing.ShardRange!>! ranges, System.StringComparer? comparer = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseShadowSharding.get -> bool
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.ShadowSharding.get -> Encina.Sharding.Shadow.ShadowShardingOptions?
 Encina.Sharding.Configuration.ShardingOptions<TEntity>.UseTimeBasedRouting(System.Action<Encina.Sharding.Configuration.TimeBasedShardRouterOptions!>! configure) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
+Encina.Sharding.Configuration.ShardingOptions<TEntity>.WithShadowSharding(System.Action<Encina.Sharding.Shadow.ShadowShardingOptions!>? configure = null) -> Encina.Sharding.Configuration.ShardingOptions<TEntity>!
 Encina.Sharding.Configuration.TimeBasedShardRouterOptions
 Encina.Sharding.Configuration.TimeBasedShardRouterOptions.TimeBasedShardRouterOptions() -> void
 Encina.Sharding.Configuration.TimeBasedShardRouterOptions.Period.get -> Encina.Sharding.TimeBased.ShardPeriod
@@ -1383,3 +1386,45 @@ Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.ShardIdPrefix.g
 Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.ShardIdPrefix.set -> void
 Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.WarningWindowDays.get -> int
 Encina.Sharding.TimeBased.Health.ShardCreationHealthCheckOptions.WarningWindowDays.set -> void
+const Encina.Sharding.ShardingErrorCodes.ShadowRoutingFailed = "encina.sharding.shadow_routing_failed" -> string!
+Encina.Sharding.Shadow.IShadowShardRouter
+Encina.Sharding.Shadow.IShadowShardRouter.IsShadowEnabled.get -> bool
+Encina.Sharding.Shadow.IShadowShardRouter.ShadowTopology.get -> Encina.Sharding.ShardTopology!
+Encina.Sharding.Shadow.IShadowShardRouter.RouteShadowAsync(string! shardKey, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, string!>>!
+Encina.Sharding.Shadow.IShadowShardRouter.RouteShadowAsync(Encina.Sharding.CompoundShardKey! key, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, string!>>!
+Encina.Sharding.Shadow.IShadowShardRouter.CompareAsync(string! shardKey, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<Encina.Sharding.Shadow.ShadowComparisonResult!>!
+Encina.Sharding.Shadow.ShadowComparisonResult
+Encina.Sharding.Shadow.ShadowComparisonResult.ShadowComparisonResult(string! ShardKey, string! ProductionShardId, string! ShadowShardId, bool RoutingMatch, System.TimeSpan ProductionLatency, System.TimeSpan ShadowLatency, bool? ResultsMatch, System.DateTimeOffset ComparedAt) -> void
+Encina.Sharding.Shadow.ShadowComparisonResult.ShardKey.get -> string!
+Encina.Sharding.Shadow.ShadowComparisonResult.ShardKey.init -> void
+Encina.Sharding.Shadow.ShadowComparisonResult.ProductionShardId.get -> string!
+Encina.Sharding.Shadow.ShadowComparisonResult.ProductionShardId.init -> void
+Encina.Sharding.Shadow.ShadowComparisonResult.ShadowShardId.get -> string!
+Encina.Sharding.Shadow.ShadowComparisonResult.ShadowShardId.init -> void
+Encina.Sharding.Shadow.ShadowComparisonResult.RoutingMatch.get -> bool
+Encina.Sharding.Shadow.ShadowComparisonResult.RoutingMatch.init -> void
+Encina.Sharding.Shadow.ShadowComparisonResult.ProductionLatency.get -> System.TimeSpan
+Encina.Sharding.Shadow.ShadowComparisonResult.ProductionLatency.init -> void
+Encina.Sharding.Shadow.ShadowComparisonResult.ShadowLatency.get -> System.TimeSpan
+Encina.Sharding.Shadow.ShadowComparisonResult.ShadowLatency.init -> void
+Encina.Sharding.Shadow.ShadowComparisonResult.ResultsMatch.get -> bool?
+Encina.Sharding.Shadow.ShadowComparisonResult.ResultsMatch.init -> void
+Encina.Sharding.Shadow.ShadowComparisonResult.ComparedAt.get -> System.DateTimeOffset
+Encina.Sharding.Shadow.ShadowComparisonResult.ComparedAt.init -> void
+Encina.Sharding.Shadow.ShadowComparisonResult.LatencyDifference.get -> System.TimeSpan
+Encina.Sharding.Shadow.ShadowShardingOptions
+Encina.Sharding.Shadow.ShadowShardingOptions.ShadowShardingOptions() -> void
+Encina.Sharding.Shadow.ShadowShardingOptions.ShadowTopology.get -> Encina.Sharding.ShardTopology?
+Encina.Sharding.Shadow.ShadowShardingOptions.ShadowTopology.set -> void
+Encina.Sharding.Shadow.ShadowShardingOptions.DualWriteEnabled.get -> bool
+Encina.Sharding.Shadow.ShadowShardingOptions.DualWriteEnabled.set -> void
+Encina.Sharding.Shadow.ShadowShardingOptions.ShadowReadPercentage.get -> int
+Encina.Sharding.Shadow.ShadowShardingOptions.ShadowReadPercentage.set -> void
+Encina.Sharding.Shadow.ShadowShardingOptions.CompareResults.get -> bool
+Encina.Sharding.Shadow.ShadowShardingOptions.CompareResults.set -> void
+Encina.Sharding.Shadow.ShadowShardingOptions.DiscrepancyHandler.get -> System.Func<Encina.Sharding.Shadow.ShadowComparisonResult!, Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
+Encina.Sharding.Shadow.ShadowShardingOptions.DiscrepancyHandler.set -> void
+Encina.Sharding.Shadow.ShadowShardingOptions.ShadowRouterFactory.get -> System.Func<Encina.Sharding.ShardTopology!, Encina.Sharding.IShardRouter!>?
+Encina.Sharding.Shadow.ShadowShardingOptions.ShadowRouterFactory.set -> void
+Encina.Sharding.Shadow.ShadowShardingOptions.ShadowWriteTimeout.get -> System.TimeSpan
+Encina.Sharding.Shadow.ShadowShardingOptions.ShadowWriteTimeout.set -> void
