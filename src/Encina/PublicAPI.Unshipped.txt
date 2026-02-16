@@ -1428,3 +1428,189 @@ Encina.Sharding.Shadow.ShadowShardingOptions.ShadowRouterFactory.get -> System.F
 Encina.Sharding.Shadow.ShadowShardingOptions.ShadowRouterFactory.set -> void
 Encina.Sharding.Shadow.ShadowShardingOptions.ShadowWriteTimeout.get -> System.TimeSpan
 Encina.Sharding.Shadow.ShadowShardingOptions.ShadowWriteTimeout.set -> void
+Encina.Sharding.Migrations.DriftDetectionOptions
+Encina.Sharding.Migrations.DriftDetectionOptions.DriftDetectionOptions() -> void
+Encina.Sharding.Migrations.DriftDetectionOptions.BaselineShardId.get -> string?
+Encina.Sharding.Migrations.DriftDetectionOptions.BaselineShardId.set -> void
+Encina.Sharding.Migrations.DriftDetectionOptions.IncludeColumnDiffs.get -> bool
+Encina.Sharding.Migrations.DriftDetectionOptions.IncludeColumnDiffs.set -> void
+Encina.Sharding.Migrations.DriftDetectionOptions.ComparisonDepth.get -> Encina.Sharding.Migrations.SchemaComparisonDepth
+Encina.Sharding.Migrations.DriftDetectionOptions.ComparisonDepth.set -> void
+Encina.Sharding.Migrations.DriftDetectionOptions.IncludeIndexes.get -> bool
+Encina.Sharding.Migrations.DriftDetectionOptions.IncludeIndexes.set -> void
+Encina.Sharding.Migrations.DriftDetectionOptions.IncludeConstraints.get -> bool
+Encina.Sharding.Migrations.DriftDetectionOptions.IncludeConstraints.set -> void
+Encina.Sharding.Migrations.DriftDetectionOptions.CriticalTables.get -> System.Collections.Generic.IList<string!>!
+Encina.Sharding.Migrations.DriftDetectionOptions.CriticalTables.set -> void
+Encina.Sharding.Migrations.SchemaComparisonDepth
+Encina.Sharding.Migrations.SchemaComparisonDepth.TablesOnly = 0 -> Encina.Sharding.Migrations.SchemaComparisonDepth
+Encina.Sharding.Migrations.SchemaComparisonDepth.TablesAndColumns = 1 -> Encina.Sharding.Migrations.SchemaComparisonDepth
+Encina.Sharding.Migrations.SchemaComparisonDepth.Full = 2 -> Encina.Sharding.Migrations.SchemaComparisonDepth
+Encina.Sharding.Migrations.MigrationCoordinationOptions
+Encina.Sharding.Migrations.MigrationCoordinationOptions.MigrationCoordinationOptions() -> void
+Encina.Sharding.Migrations.MigrationCoordinationOptions.DefaultStrategy.get -> Encina.Sharding.Migrations.MigrationStrategy
+Encina.Sharding.Migrations.MigrationCoordinationOptions.DefaultStrategy.set -> void
+Encina.Sharding.Migrations.MigrationCoordinationOptions.MaxParallelism.get -> int
+Encina.Sharding.Migrations.MigrationCoordinationOptions.MaxParallelism.set -> void
+Encina.Sharding.Migrations.MigrationCoordinationOptions.StopOnFirstFailure.get -> bool
+Encina.Sharding.Migrations.MigrationCoordinationOptions.StopOnFirstFailure.set -> void
+Encina.Sharding.Migrations.MigrationCoordinationOptions.PerShardTimeout.get -> System.TimeSpan
+Encina.Sharding.Migrations.MigrationCoordinationOptions.PerShardTimeout.set -> void
+Encina.Sharding.Migrations.MigrationCoordinationOptions.OnShardMigrated.get -> System.Action<string!, Encina.Sharding.Migrations.MigrationOutcome>?
+Encina.Sharding.Migrations.MigrationCoordinationOptions.OnShardMigrated.set -> void
+Encina.Sharding.Migrations.MigrationCoordinationOptions.ValidateBeforeApply.get -> bool
+Encina.Sharding.Migrations.MigrationCoordinationOptions.ValidateBeforeApply.set -> void
+Encina.Sharding.Migrations.MigrationCoordinationOptions.DriftDetection.get -> Encina.Sharding.Migrations.DriftDetectionOptions!
+Encina.Sharding.Migrations.MigrationCoordinationBuilder
+Encina.Sharding.Migrations.MigrationCoordinationBuilder.MigrationCoordinationBuilder() -> void
+Encina.Sharding.Migrations.MigrationCoordinationBuilder.UseStrategy(Encina.Sharding.Migrations.MigrationStrategy strategy) -> Encina.Sharding.Migrations.MigrationCoordinationBuilder!
+Encina.Sharding.Migrations.MigrationCoordinationBuilder.WithMaxParallelism(int maxParallelism) -> Encina.Sharding.Migrations.MigrationCoordinationBuilder!
+Encina.Sharding.Migrations.MigrationCoordinationBuilder.StopOnFirstFailure(bool stop = true) -> Encina.Sharding.Migrations.MigrationCoordinationBuilder!
+Encina.Sharding.Migrations.MigrationCoordinationBuilder.WithPerShardTimeout(System.TimeSpan timeout) -> Encina.Sharding.Migrations.MigrationCoordinationBuilder!
+Encina.Sharding.Migrations.MigrationCoordinationBuilder.ValidateBeforeApply(bool validate = true) -> Encina.Sharding.Migrations.MigrationCoordinationBuilder!
+Encina.Sharding.Migrations.MigrationCoordinationBuilder.OnShardMigrated(System.Action<string!, Encina.Sharding.Migrations.MigrationOutcome>! callback) -> Encina.Sharding.Migrations.MigrationCoordinationBuilder!
+Encina.Sharding.Migrations.MigrationCoordinationBuilder.WithDriftDetection(System.Action<Encina.Sharding.Migrations.DriftDetectionOptions!>! configure) -> Encina.Sharding.Migrations.MigrationCoordinationBuilder!
+Encina.Sharding.Migrations.MigrationServiceCollectionExtensions
+static Encina.Sharding.Migrations.MigrationServiceCollectionExtensions.AddEncinaShardMigrationCoordination(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Sharding.Migrations.MigrationCoordinationBuilder!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Sharding.Migrations.IShardedMigrationCoordinator
+Encina.Sharding.Migrations.IShardedMigrationCoordinator.ApplyToAllShardsAsync(Encina.Sharding.Migrations.MigrationScript! script, Encina.Sharding.Migrations.MigrationOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.Migrations.MigrationResult!>>!
+Encina.Sharding.Migrations.IShardedMigrationCoordinator.RollbackAsync(Encina.Sharding.Migrations.MigrationResult! result, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.Migrations.IShardedMigrationCoordinator.DetectDriftAsync(Encina.Sharding.Migrations.DriftDetectionOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.Migrations.SchemaDriftReport!>>!
+Encina.Sharding.Migrations.IShardedMigrationCoordinator.GetProgressAsync(System.Guid migrationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.Migrations.MigrationProgress!>>!
+Encina.Sharding.Migrations.IShardedMigrationCoordinator.GetAppliedMigrationsAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>>!
+Encina.Sharding.Migrations.MigrationErrorCodes
+const Encina.Sharding.Migrations.MigrationErrorCodes.MigrationFailed = "encina.sharding.migration.migration_failed" -> string!
+const Encina.Sharding.Migrations.MigrationErrorCodes.MigrationTimeout = "encina.sharding.migration.migration_timeout" -> string!
+const Encina.Sharding.Migrations.MigrationErrorCodes.RollbackFailed = "encina.sharding.migration.rollback_failed" -> string!
+const Encina.Sharding.Migrations.MigrationErrorCodes.DriftDetected = "encina.sharding.migration.drift_detected" -> string!
+const Encina.Sharding.Migrations.MigrationErrorCodes.InvalidScript = "encina.sharding.migration.invalid_script" -> string!
+const Encina.Sharding.Migrations.MigrationErrorCodes.SchemaComparisonFailed = "encina.sharding.migration.schema_comparison_failed" -> string!
+const Encina.Sharding.Migrations.MigrationErrorCodes.MigrationNotFound = "encina.sharding.migration.migration_not_found" -> string!
+Encina.Sharding.Migrations.MigrationOptions
+Encina.Sharding.Migrations.MigrationOptions.MigrationOptions() -> void
+Encina.Sharding.Migrations.MigrationOptions.Strategy.get -> Encina.Sharding.Migrations.MigrationStrategy
+Encina.Sharding.Migrations.MigrationOptions.Strategy.set -> void
+Encina.Sharding.Migrations.MigrationOptions.MaxParallelism.get -> int
+Encina.Sharding.Migrations.MigrationOptions.MaxParallelism.set -> void
+Encina.Sharding.Migrations.MigrationOptions.StopOnFirstFailure.get -> bool
+Encina.Sharding.Migrations.MigrationOptions.StopOnFirstFailure.set -> void
+Encina.Sharding.Migrations.MigrationOptions.PerShardTimeout.get -> System.TimeSpan
+Encina.Sharding.Migrations.MigrationOptions.PerShardTimeout.set -> void
+Encina.Sharding.Migrations.MigrationOptions.ValidateBeforeApply.get -> bool
+Encina.Sharding.Migrations.MigrationOptions.ValidateBeforeApply.set -> void
+Encina.Sharding.Migrations.MigrationOutcome
+Encina.Sharding.Migrations.MigrationOutcome.Pending = 0 -> Encina.Sharding.Migrations.MigrationOutcome
+Encina.Sharding.Migrations.MigrationOutcome.InProgress = 1 -> Encina.Sharding.Migrations.MigrationOutcome
+Encina.Sharding.Migrations.MigrationOutcome.Succeeded = 2 -> Encina.Sharding.Migrations.MigrationOutcome
+Encina.Sharding.Migrations.MigrationOutcome.Failed = 3 -> Encina.Sharding.Migrations.MigrationOutcome
+Encina.Sharding.Migrations.MigrationOutcome.RolledBack = 4 -> Encina.Sharding.Migrations.MigrationOutcome
+Encina.Sharding.Migrations.MigrationProgress
+Encina.Sharding.Migrations.MigrationProgress.MigrationProgress(System.Guid MigrationId, int TotalShards, int CompletedShards, int FailedShards, string! CurrentPhase, System.Collections.Generic.IReadOnlyDictionary<string!, Encina.Sharding.Migrations.ShardMigrationStatus!>! PerShardProgress) -> void
+Encina.Sharding.Migrations.MigrationProgress.MigrationId.get -> System.Guid
+Encina.Sharding.Migrations.MigrationProgress.MigrationId.init -> void
+Encina.Sharding.Migrations.MigrationProgress.TotalShards.get -> int
+Encina.Sharding.Migrations.MigrationProgress.TotalShards.init -> void
+Encina.Sharding.Migrations.MigrationProgress.CompletedShards.get -> int
+Encina.Sharding.Migrations.MigrationProgress.CompletedShards.init -> void
+Encina.Sharding.Migrations.MigrationProgress.FailedShards.get -> int
+Encina.Sharding.Migrations.MigrationProgress.FailedShards.init -> void
+Encina.Sharding.Migrations.MigrationProgress.CurrentPhase.get -> string!
+Encina.Sharding.Migrations.MigrationProgress.CurrentPhase.init -> void
+Encina.Sharding.Migrations.MigrationProgress.PerShardProgress.get -> System.Collections.Generic.IReadOnlyDictionary<string!, Encina.Sharding.Migrations.ShardMigrationStatus!>!
+Encina.Sharding.Migrations.MigrationProgress.PerShardProgress.init -> void
+Encina.Sharding.Migrations.MigrationProgress.RemainingShards.get -> int
+Encina.Sharding.Migrations.MigrationProgress.IsFinished.get -> bool
+Encina.Sharding.Migrations.MigrationResult
+Encina.Sharding.Migrations.MigrationResult.MigrationResult(System.Guid Id, System.Collections.Generic.IReadOnlyDictionary<string!, Encina.Sharding.Migrations.ShardMigrationStatus!>! PerShardStatus, System.TimeSpan TotalDuration, System.DateTimeOffset AppliedAtUtc) -> void
+Encina.Sharding.Migrations.MigrationResult.Id.get -> System.Guid
+Encina.Sharding.Migrations.MigrationResult.Id.init -> void
+Encina.Sharding.Migrations.MigrationResult.PerShardStatus.get -> System.Collections.Generic.IReadOnlyDictionary<string!, Encina.Sharding.Migrations.ShardMigrationStatus!>!
+Encina.Sharding.Migrations.MigrationResult.PerShardStatus.init -> void
+Encina.Sharding.Migrations.MigrationResult.TotalDuration.get -> System.TimeSpan
+Encina.Sharding.Migrations.MigrationResult.TotalDuration.init -> void
+Encina.Sharding.Migrations.MigrationResult.AppliedAtUtc.get -> System.DateTimeOffset
+Encina.Sharding.Migrations.MigrationResult.AppliedAtUtc.init -> void
+Encina.Sharding.Migrations.MigrationResult.AllSucceeded.get -> bool
+Encina.Sharding.Migrations.MigrationResult.SucceededCount.get -> int
+Encina.Sharding.Migrations.MigrationResult.FailedCount.get -> int
+Encina.Sharding.Migrations.MigrationScript
+Encina.Sharding.Migrations.MigrationScript.MigrationScript(string! Id, string! UpSql, string! DownSql, string! Description, string! Checksum) -> void
+Encina.Sharding.Migrations.MigrationScript.Id.get -> string!
+Encina.Sharding.Migrations.MigrationScript.UpSql.get -> string!
+Encina.Sharding.Migrations.MigrationScript.DownSql.get -> string!
+Encina.Sharding.Migrations.MigrationScript.Description.get -> string!
+Encina.Sharding.Migrations.MigrationScript.Checksum.get -> string!
+Encina.Sharding.Migrations.MigrationStrategy
+Encina.Sharding.Migrations.MigrationStrategy.Sequential = 0 -> Encina.Sharding.Migrations.MigrationStrategy
+Encina.Sharding.Migrations.MigrationStrategy.Parallel = 1 -> Encina.Sharding.Migrations.MigrationStrategy
+Encina.Sharding.Migrations.MigrationStrategy.RollingUpdate = 2 -> Encina.Sharding.Migrations.MigrationStrategy
+Encina.Sharding.Migrations.MigrationStrategy.CanaryFirst = 3 -> Encina.Sharding.Migrations.MigrationStrategy
+Encina.Sharding.Migrations.SchemaDriftReport
+Encina.Sharding.Migrations.SchemaDriftReport.SchemaDriftReport(System.Collections.Generic.IReadOnlyList<Encina.Sharding.Migrations.ShardSchemaDiff!>! Diffs, System.DateTimeOffset DetectedAtUtc) -> void
+Encina.Sharding.Migrations.SchemaDriftReport.Diffs.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.Migrations.ShardSchemaDiff!>!
+Encina.Sharding.Migrations.SchemaDriftReport.Diffs.init -> void
+Encina.Sharding.Migrations.SchemaDriftReport.DetectedAtUtc.get -> System.DateTimeOffset
+Encina.Sharding.Migrations.SchemaDriftReport.DetectedAtUtc.init -> void
+Encina.Sharding.Migrations.SchemaDriftReport.HasDrift.get -> bool
+Encina.Sharding.Migrations.ShardMigrationStatus
+Encina.Sharding.Migrations.ShardMigrationStatus.ShardMigrationStatus(string! ShardId, Encina.Sharding.Migrations.MigrationOutcome Outcome, System.TimeSpan Duration, Encina.EncinaError? Error = null) -> void
+Encina.Sharding.Migrations.ShardMigrationStatus.ShardId.get -> string!
+Encina.Sharding.Migrations.ShardMigrationStatus.Outcome.get -> Encina.Sharding.Migrations.MigrationOutcome
+Encina.Sharding.Migrations.ShardMigrationStatus.Outcome.init -> void
+Encina.Sharding.Migrations.ShardMigrationStatus.Duration.get -> System.TimeSpan
+Encina.Sharding.Migrations.ShardMigrationStatus.Duration.init -> void
+Encina.Sharding.Migrations.ShardMigrationStatus.Error.get -> Encina.EncinaError?
+Encina.Sharding.Migrations.ShardMigrationStatus.Error.init -> void
+Encina.Sharding.Migrations.ShardSchemaDiff
+Encina.Sharding.Migrations.ShardSchemaDiff.ShardSchemaDiff(string! ShardId, string! BaselineShardId, System.Collections.Generic.IReadOnlyList<Encina.Sharding.Migrations.TableDiff!>! TableDiffs) -> void
+Encina.Sharding.Migrations.ShardSchemaDiff.ShardId.get -> string!
+Encina.Sharding.Migrations.ShardSchemaDiff.BaselineShardId.get -> string!
+Encina.Sharding.Migrations.ShardSchemaDiff.TableDiffs.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.Migrations.TableDiff!>!
+Encina.Sharding.Migrations.ShardSchemaDiff.TableDiffs.init -> void
+Encina.Sharding.Migrations.TableDiff
+Encina.Sharding.Migrations.TableDiff.TableDiff(string! TableName, Encina.Sharding.Migrations.TableDiffType DiffType, System.Collections.Generic.IReadOnlyList<string!>? ColumnDiffs = null) -> void
+Encina.Sharding.Migrations.TableDiff.TableName.get -> string!
+Encina.Sharding.Migrations.TableDiff.DiffType.get -> Encina.Sharding.Migrations.TableDiffType
+Encina.Sharding.Migrations.TableDiff.DiffType.init -> void
+Encina.Sharding.Migrations.TableDiff.ColumnDiffs.get -> System.Collections.Generic.IReadOnlyList<string!>?
+Encina.Sharding.Migrations.TableDiff.ColumnDiffs.init -> void
+Encina.Sharding.Migrations.TableDiffType
+Encina.Sharding.Migrations.TableDiffType.Missing = 0 -> Encina.Sharding.Migrations.TableDiffType
+Encina.Sharding.Migrations.TableDiffType.Extra = 1 -> Encina.Sharding.Migrations.TableDiffType
+Encina.Sharding.Migrations.TableDiffType.Modified = 2 -> Encina.Sharding.Migrations.TableDiffType
+Encina.Sharding.Migrations.IMigrationExecutor
+Encina.Sharding.Migrations.IMigrationExecutor.ExecuteSqlAsync(Encina.Sharding.ShardInfo! shardInfo, string! sql, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.Migrations.ISchemaIntrospector
+Encina.Sharding.Migrations.ISchemaIntrospector.CompareAsync(Encina.Sharding.ShardInfo! shard, Encina.Sharding.ShardInfo! baselineShard, bool includeColumnDiffs, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, Encina.Sharding.Migrations.ShardSchemaDiff!>>!
+Encina.Sharding.Migrations.IMigrationHistoryStore
+Encina.Sharding.Migrations.IMigrationHistoryStore.GetAppliedAsync(string! shardId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>>!
+Encina.Sharding.Migrations.IMigrationHistoryStore.RecordAppliedAsync(string! shardId, Encina.Sharding.Migrations.MigrationScript! script, System.TimeSpan duration, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.Migrations.IMigrationHistoryStore.RecordRolledBackAsync(string! shardId, string! migrationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.Migrations.IMigrationHistoryStore.EnsureHistoryTableExistsAsync(Encina.Sharding.ShardInfo! shardInfo, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.Migrations.IMigrationHistoryStore.ApplyHistoricalMigrationsAsync(string! shardId, System.Collections.Generic.IReadOnlyList<Encina.Sharding.Migrations.MigrationScript!>! scripts, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+Encina.Sharding.Migrations.ColumnSchema
+Encina.Sharding.Migrations.ColumnSchema.ColumnSchema(string! Name, string! DataType, bool IsNullable, string? DefaultValue = null) -> void
+Encina.Sharding.Migrations.ColumnSchema.Name.get -> string!
+Encina.Sharding.Migrations.ColumnSchema.DataType.get -> string!
+Encina.Sharding.Migrations.ColumnSchema.IsNullable.get -> bool
+Encina.Sharding.Migrations.ColumnSchema.IsNullable.init -> void
+Encina.Sharding.Migrations.ColumnSchema.DefaultValue.get -> string?
+Encina.Sharding.Migrations.ColumnSchema.DefaultValue.init -> void
+Encina.Sharding.Migrations.TableSchema
+Encina.Sharding.Migrations.TableSchema.TableSchema(string! Name, System.Collections.Generic.IReadOnlyList<Encina.Sharding.Migrations.ColumnSchema!>! Columns) -> void
+Encina.Sharding.Migrations.TableSchema.Name.get -> string!
+Encina.Sharding.Migrations.TableSchema.Columns.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.Migrations.ColumnSchema!>!
+Encina.Sharding.Migrations.TableSchema.Columns.init -> void
+Encina.Sharding.Migrations.ShardSchema
+Encina.Sharding.Migrations.ShardSchema.ShardSchema(string! ShardId, System.Collections.Generic.IReadOnlyList<Encina.Sharding.Migrations.TableSchema!>! Tables, System.DateTimeOffset IntrospectedAtUtc) -> void
+Encina.Sharding.Migrations.ShardSchema.ShardId.get -> string!
+Encina.Sharding.Migrations.ShardSchema.Tables.get -> System.Collections.Generic.IReadOnlyList<Encina.Sharding.Migrations.TableSchema!>!
+Encina.Sharding.Migrations.ShardSchema.Tables.init -> void
+Encina.Sharding.Migrations.ShardSchema.IntrospectedAtUtc.get -> System.DateTimeOffset
+Encina.Sharding.Migrations.ShardSchema.IntrospectedAtUtc.init -> void
+Encina.Sharding.Migrations.SchemaIntrospectionOptions
+Encina.Sharding.Migrations.SchemaIntrospectionOptions.SchemaIntrospectionOptions() -> void
+Encina.Sharding.Migrations.SchemaIntrospectionOptions.IncludeColumns.get -> bool
+Encina.Sharding.Migrations.SchemaIntrospectionOptions.IncludeColumns.set -> void
+Encina.Sharding.Migrations.SchemaIntrospectionOptions.TableNameFilter.get -> string?
+Encina.Sharding.Migrations.SchemaIntrospectionOptions.TableNameFilter.set -> void

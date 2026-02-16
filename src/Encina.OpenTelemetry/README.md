@@ -184,6 +184,57 @@ Encina exposes the following metrics:
 | `Encina.request.failure` | Counter | Failed requests | `request.kind`, `request.name`, `failure.reason` |
 | `Encina.request.duration` | Histogram | Request execution time (ms) | `request.kind`, `request.name` |
 
+### Migration Metrics
+
+When using sharded migration coordination (`Encina.Sharding.Migrations`), the following metrics are automatically recorded:
+
+| Metric Name | Type | Description | Labels |
+|-------------|------|-------------|--------|
+| `encina.migration.shards_migrated_total` | Counter | Shards successfully migrated | `migration.id`, `migration.strategy` |
+| `encina.migration.shards_failed_total` | Counter | Shards that failed migration | `migration.id`, `migration.strategy` |
+| `encina.migration.duration_per_shard_ms` | Histogram | Per-shard migration duration (ms) | `migration.id`, `migration.shard.id` |
+| `encina.migration.total_duration_ms` | Histogram | Total coordination duration (ms) | `migration.id`, `migration.strategy` |
+| `encina.migration.drift_detected_count` | ObservableGauge | Number of drifted shards detected | — |
+| `encina.migration.rollbacks_total` | Counter | Rollback operations executed | `migration.id` |
+
+Configure migration metrics callbacks:
+
+```csharp
+services.AddSingleton(new MigrationMetricsCallbacks(
+    driftDetectedCount: () => myDriftCounter));
+```
+
+### Migration Tracing
+
+Three trace activities are available via `MigrationActivitySource` (`Encina.Migration`):
+
+- **`StartMigrationCoordination`**: Parent span for the entire migration coordination
+- **`StartShardMigration`**: Per-shard migration span (child of coordination)
+- **`Complete`**: Enriches the coordination span with final results
+
+14 activity tags are automatically added under `ActivityTagNames.Migration.*` (e.g., `migration.id`, `migration.strategy`, `migration.shard.id`, `migration.shard.outcome`, `migration.duration_ms`).
+
+### Schema Drift Health Check
+
+`SchemaDriftHealthCheck` periodically checks for schema drift across shards and reports:
+
+- **Healthy**: No drift detected
+- **Degraded**: Drift detected in non-critical tables
+- **Unhealthy**: Drift detected in critical tables
+
+```csharp
+// Register the health check
+services.AddHealthChecks()
+    .AddCheck<SchemaDriftHealthCheck>("schema-drift");
+
+// Configure options
+services.Configure<SchemaDriftHealthCheckOptions>(options =>
+{
+    options.Timeout = TimeSpan.FromSeconds(30);
+    options.CriticalTables = ["Orders", "Customers"];
+});
+```
+
 ## Configuration Options
 
 ### EncinaOpenTelemetryOptions

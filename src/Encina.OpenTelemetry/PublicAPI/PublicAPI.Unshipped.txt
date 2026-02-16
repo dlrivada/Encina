@@ -130,3 +130,47 @@ Encina.OpenTelemetry.Sharding.TimeBasedShardingMetrics.RecordQueryPerTier(string
 Encina.OpenTelemetry.Sharding.TimeBasedShardingMetrics.RecordArchivalDuration(string! shardId, double durationMs) -> void
 Encina.OpenTelemetry.Sharding.TimeBasedShardingMetricsCallbacks
 Encina.OpenTelemetry.Sharding.TimeBasedShardingMetricsCallbacks.TimeBasedShardingMetricsCallbacks(System.Func<System.Collections.Generic.IEnumerable<(string! Tier, int Count)>!>! shardsPerTierCallback, System.Func<double?>! oldestHotShardAgeDaysCallback) -> void
+Encina.OpenTelemetry.ActivityTagNames.Migration
+const Encina.OpenTelemetry.ActivityTagNames.Migration.Id = "migration.id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.Strategy = "migration.strategy" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.ShardId = "migration.shard.id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.ShardOutcome = "migration.shard.outcome" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.ShardCount = "migration.shard_count" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.ShardsSucceeded = "migration.shards_succeeded" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.ShardsFailed = "migration.shards_failed" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.ShardsRolledBack = "migration.shards_rolled_back" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.DurationMs = "migration.duration_ms" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.RollbackDurationMs = "migration.rollback_duration_ms" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.Error = "migration.error" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.DriftDetected = "migration.drift_detected" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.DriftedShardCount = "migration.drifted_shard_count" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.BaselineShardId = "migration.baseline_shard_id" -> string!
+Encina.OpenTelemetry.Migrations.MigrationMetrics
+Encina.OpenTelemetry.Migrations.MigrationMetrics.MigrationMetrics(Encina.OpenTelemetry.Migrations.MigrationMetricsCallbacks! callbacks) -> void
+Encina.OpenTelemetry.Migrations.MigrationMetrics.RecordShardMigrated(string! migrationId, string! strategy, string! shardId) -> void
+Encina.OpenTelemetry.Migrations.MigrationMetrics.RecordShardFailed(string! migrationId, string! strategy, string! shardId) -> void
+Encina.OpenTelemetry.Migrations.MigrationMetrics.RecordRollback(string! migrationId) -> void
+Encina.OpenTelemetry.Migrations.MigrationMetrics.RecordPerShardDuration(string! migrationId, string! shardId, double durationMs) -> void
+Encina.OpenTelemetry.Migrations.MigrationMetrics.RecordTotalDuration(string! migrationId, string! strategy, double durationMs) -> void
+Encina.OpenTelemetry.Migrations.MigrationMetricsCallbacks
+Encina.OpenTelemetry.Migrations.MigrationMetricsCallbacks.MigrationMetricsCallbacks(System.Func<int>! driftDetectedCountCallback) -> void
+Encina.OpenTelemetry.Migrations.MigrationActivitySource
+const Encina.OpenTelemetry.Migrations.MigrationActivitySource.SourceName = "Encina.Migration" -> string!
+static Encina.OpenTelemetry.Migrations.MigrationActivitySource.StartMigrationCoordination(System.Guid migrationId, Encina.Sharding.Migrations.MigrationStrategy strategy, int shardCount) -> System.Diagnostics.Activity?
+static Encina.OpenTelemetry.Migrations.MigrationActivitySource.StartShardMigration(string! shardId, System.Guid migrationId) -> System.Diagnostics.Activity?
+static Encina.OpenTelemetry.Migrations.MigrationActivitySource.Complete(System.Diagnostics.Activity? activity, Encina.Sharding.Migrations.MigrationOutcome outcome, double? durationMs = null, string? errorMessage = null) -> void
+Encina.OpenTelemetry.Enrichers.MigrationActivityEnricher
+static Encina.OpenTelemetry.Enrichers.MigrationActivityEnricher.EnrichWithMigrationResult(System.Diagnostics.Activity? activity, System.Guid migrationId, Encina.Sharding.Migrations.MigrationStrategy strategy, int totalShards, int succeededCount, int failedCount, double totalDurationMs) -> void
+static Encina.OpenTelemetry.Enrichers.MigrationActivityEnricher.EnrichWithDriftDetection(System.Diagnostics.Activity? activity, bool hasDrift, int driftedShardCount, string? baselineShardId) -> void
+static Encina.OpenTelemetry.Enrichers.MigrationActivityEnricher.EnrichWithRollback(System.Diagnostics.Activity? activity, System.Guid migrationId, int shardsRolledBack, double rollbackDurationMs) -> void
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheck
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheck.SchemaDriftHealthCheck(Encina.Sharding.Migrations.IShardedMigrationCoordinator! coordinator, Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions! options) -> void
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.SchemaDriftHealthCheckOptions() -> void
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.Timeout.get -> System.TimeSpan
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.Timeout.set -> void
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.BaselineShardId.get -> string?
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.BaselineShardId.set -> void
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.CriticalTables.get -> System.Collections.Generic.IList<string!>!
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.CriticalTables.set -> void

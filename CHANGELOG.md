@@ -163,6 +163,63 @@ Added shadow sharding for testing new shard topologies under real production tra
 
 **Testing**: 90 tests across unit (55), guard (18), contract (9), property (8) tests; 5 BenchmarkDotNet benchmarks
 
+#### Schema Migration Coordination for Shards (#651)
+
+Added coordinated schema migration across sharded databases with four deployment strategies, automatic rollback, schema drift detection, and full observability integration.
+
+**Core Types** (`Encina` package):
+
+- **`MigrationScript`**: Immutable record with `Id`, `UpSql`, `DownSql`, `Description`, `Checksum` for DDL scripts
+- **`MigrationResult`**: Coordination result with `PerShardStatus`, computed `AllSucceeded`, `SucceededCount`, `FailedCount`
+- **`MigrationProgress`**: In-flight tracking with `TotalShards`, `CompletedShards`, `FailedShards`, `CurrentShard`, computed `RemainingShards`, `IsFinished`
+- **`ShardMigrationStatus`**: Per-shard state with `ShardId`, `Outcome` (Success/Failed/RolledBack/Skipped), `Duration`, optional `ErrorMessage`
+- **`MigrationOptions`**: Per-migration configuration (strategy, parallelism, timeout, stop-on-first-failure, validation)
+
+**Coordination Engine**:
+
+- **`IShardedMigrationCoordinator`**: Main interface — `ApplyToAllShardsAsync`, `RollbackAsync`, `DetectDriftAsync`, `GetProgressAsync`, `GetAppliedMigrationsAsync`
+- **`ShardedMigrationCoordinator`**: Full implementation with in-memory progress tracking, history table initialization, and per-shard error isolation
+
+**Four Migration Strategies**:
+
+- **Sequential** (`SequentialMigrationStrategy`): One shard at a time — safest, slowest
+- **Parallel** (`ParallelMigrationStrategy`): All shards simultaneously with semaphore-based throttling
+- **RollingUpdate** (`RollingUpdateStrategy`): Configurable batch size, balanced approach
+- **CanaryFirst** (`CanaryFirstStrategy`): Apply to canary shard first, then parallel to rest
+
+**Provider Abstractions**:
+
+- **`IMigrationExecutor`**: Provider-specific DDL execution (`ExecuteSqlAsync`)
+- **`IMigrationHistoryStore`**: Migration history tracking (`GetAppliedAsync`, `RecordAppliedAsync`, `RecordRolledBackAsync`, `EnsureHistoryTableExistsAsync`, `ApplyHistoricalMigrationsAsync`)
+- **`ISchemaIntrospector`**: Provider-specific schema inspection for drift detection
+
+**Schema Drift Detection**:
+
+- **`SchemaComparer`**: Core comparison logic with three depths (TablesOnly, TablesAndColumns, Full)
+- **`SchemaDriftReport`**: Aggregated drift across all shards with computed `HasDrift`
+- **`ShardSchemaDiff`**: Per-shard drift result with table diffs
+- **`TableDiff`**: Individual table difference (Missing, Extra, Modified) with optional column diffs
+- **`DriftDetectionOptions`**: Configuration with baseline shard, comparison depth, critical table tracking
+
+**Builder & DI**:
+
+- **`MigrationCoordinationBuilder`**: Fluent builder — `UseStrategy()`, `WithMaxParallelism()`, `StopOnFirstFailure()`, `WithPerShardTimeout()`, `ValidateBeforeApply()`, `OnShardMigrated()`, `WithDriftDetection()`
+- **`AddEncinaShardMigrationCoordination()`**: DI registration extension method on `IServiceCollection`
+
+**Observability** (`Encina.OpenTelemetry`):
+
+- 6 metric instruments: `shards_migrated_total` counter, `shards_failed_total` counter, `duration_per_shard_ms` histogram, `total_duration_ms` histogram, `drift_detected_count` observable gauge, `rollbacks_total` counter
+- 3 trace activities via `MigrationActivitySource`: `StartMigrationCoordination`, `StartShardMigration`, `Complete` enrichment
+- 14 activity tags under `ActivityTagNames.Migration`
+- **`SchemaDriftHealthCheck`**: Reports Unhealthy/Degraded/Healthy based on drift in critical vs non-critical tables
+- **`MigrationMetricsInitializer`**: Hosted service for metrics initialization
+
+**Error Codes** (constants in `MigrationErrorCodes`):
+
+- `NoActiveShards`, `MigrationFailed`, `RollbackFailed`, `DriftDetectionFailed`, `HistoryQueryFailed`
+
+**Testing**: 169 tests across unit (47), guard (54), contract (26), property (31), integration (11) tests — integration tests use real SQLite databases via `ShardedSqliteFixture`
+
 #### CDC Dead Letter Queue (#631)
 
 Added dead letter queue (DLQ) for CDC failed events, enabling persistence and later replay of change events that fail after exhausting all retries.

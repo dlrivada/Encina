@@ -258,4 +258,56 @@ public static class ActivityTagNames
         /// <summary>Tag name for the content hash value.</summary>
         public const string HashValue = "reference_table.hash";
     }
+
+    /// <summary>
+    /// Shard migration coordination tags for observability.
+    /// </summary>
+    /// <remarks>
+    /// These tags track migration execution, per-shard outcomes, rollback operations,
+    /// and schema drift detection across sharded database topologies.
+    /// </remarks>
+    public static class Migration
+    {
+        /// <summary>Tag name for the migration execution identifier.</summary>
+        public const string Id = "migration.id";
+
+        /// <summary>Tag name for the migration strategy used (Sequential, Parallel, etc.).</summary>
+        public const string Strategy = "migration.strategy";
+
+        /// <summary>Tag name for the shard identifier being migrated.</summary>
+        public const string ShardId = "migration.shard.id";
+
+        /// <summary>Tag name for the outcome of an individual shard migration.</summary>
+        public const string ShardOutcome = "migration.shard.outcome";
+
+        /// <summary>Tag name for the total number of shards in the migration.</summary>
+        public const string ShardCount = "migration.shard_count";
+
+        /// <summary>Tag name for the number of shards that succeeded.</summary>
+        public const string ShardsSucceeded = "migration.shards_succeeded";
+
+        /// <summary>Tag name for the number of shards that failed.</summary>
+        public const string ShardsFailed = "migration.shards_failed";
+
+        /// <summary>Tag name for the number of shards that were rolled back.</summary>
+        public const string ShardsRolledBack = "migration.shards_rolled_back";
+
+        /// <summary>Tag name for the migration duration in milliseconds.</summary>
+        public const string DurationMs = "migration.duration_ms";
+
+        /// <summary>Tag name for the rollback duration in milliseconds.</summary>
+        public const string RollbackDurationMs = "migration.rollback_duration_ms";
+
+        /// <summary>Tag name for the migration error message.</summary>
+        public const string Error = "migration.error";
+
+        /// <summary>Tag name indicating whether schema drift was detected.</summary>
+        public const string DriftDetected = "migration.drift_detected";
+
+        /// <summary>Tag name for the number of shards with detected drift.</summary>
+        public const string DriftedShardCount = "migration.drifted_shard_count";
+
+        /// <summary>Tag name for the baseline shard used for drift comparison.</summary>
+        public const string BaselineShardId = "migration.baseline_shard_id";
+    }
 }
