@@ -1210,20 +1210,53 @@ Location: <https://github.com/dlrivada/Encina/issues>
 
 Use the appropriate template when creating issues:
 
-| Template | Use Case | Label |
-|----------|----------|-------|
-| `bug_report.md` | Report bugs or unexpected behavior | `bug` |
-| `feature_request.md` | Suggest new features or enhancements | `enhancement` |
-| `technical_debt.md` | Track internal code quality issues, refactoring, test gaps | `technical-debt` |
+| Template | Prefix | Use Case | Default Label |
+|----------|--------|----------|---------------|
+| `bug_report.md` | `[BUG]` | Bugs or unexpected behavior in Encina code | `bug` |
+| `feature_request.md` | `[FEATURE]` | New features or enhancements | `enhancement` |
+| `technical_debt.md` | `[DEBT]` | Code quality issues, missing implementations, optimization | `technical-debt` |
+| `test_implementation.md` | `[TEST]` | New tests, benchmarks, load tests, coverage gaps | `area-testing` |
+| `architecture_spike.md` | `[SPIKE]` | Technical investigations, evaluations, architecture decisions | `investigation` |
+| `epic.md` | `[EPIC]` | Group related work spanning multiple issues | `epic` |
+| `refactoring.md` | `[REFACTOR]` | Code restructuring without behavior change | `enhancement` |
+| `infrastructure.md` | `[INFRA]` | CI/CD, Docker, build system, developer tooling | `area-ci-cd` |
+
+**Choosing the right template:**
+
+| Scenario | Template |
+|----------|----------|
+| Code throws wrong exception | `[BUG]` |
+| Add GDPR compliance module | `[FEATURE]` |
+| Coverage below 85%, need more tests | `[TEST]` |
+| Implement NBomber load tests for Kafka | `[TEST]` |
+| Code works but is messy / duplicated | `[DEBT]` |
+| Evaluate Aspire vs Testcontainers | `[SPIKE]` |
+| Apply Orchestrator pattern to 3 modules | `[REFACTOR]` |
+| CI workflow takes 2+ hours | `[INFRA]` |
+| 10-issue initiative with phases | `[EPIC]` |
+| Failing tests due to code bug | `[BUG]` (not `[TEST]`) |
+| Missing tests for existing code | `[TEST]` (not `[DEBT]`) |
+
+**Prefix normalization rules:**
+
+- ❌ `[TECH-DEBT]` → use `[DEBT]`
+- ❌ `[TESTING]` → use `[TEST]`
+- ❌ `[ARCHITECTURE]` / `[DECISION]` / `[REVIEW]` → use `[SPIKE]`
+- ❌ `[Phase N]` → don't use phase prefixes; use milestones instead
 
 #### When to Create Issues
 
-Nunca dejaremos sin resolver o anotar un problema identificado. Lo normal será resolver en el momento, pero si resolverlo significa cambiar significativamente el limitado contexto, lo que haremos es anotarlo, para no alvidarlo y resolverlo en otro momento con otro contexto. Para anotarlo, abriremos una Issue con el problema encintrado, y continuaremos con nuestra tarea. Al final en el resumen informaremos de las issues abiertas.
+Nunca dejaremos sin resolver o anotar un problema identificado. Lo normal será resolver en el momento, pero si resolverlo significa cambiar significativamente el limitado contexto, lo que haremos es anotarlo, para no olvidarlo y resolverlo en otro momento con otro contexto. Para anotarlo, abriremos una Issue con el problema encontrado, y continuaremos con nuestra tarea. Al final en el resumen informaremos de las issues abiertas.
 
 - **Bugs found during development** → Create immediately with `[BUG]` prefix
 - **Technical debt discovered** → Create with `[DEBT]` prefix (don't fix inline if it risks derailing current work)
 - **Feature ideas** → Create with `[FEATURE]` prefix for later discussion
-- **Failing tests** → Create with `[DEBT]` and link to specific test files
+- **Missing tests / coverage gaps** → Create with `[TEST]` prefix and link to specific packages
+- **Failing tests due to code bug** → Create with `[BUG]` (the bug is in the code, not the tests)
+- **Architecture investigations** → Create with `[SPIKE]` prefix with time-boxed scope
+- **CI/CD or build issues** → Create with `[INFRA]` prefix
+- **Large multi-issue initiatives** → Create with `[EPIC]` prefix, then create child issues
+- **Code restructuring** → Create with `[REFACTOR]` prefix (no behavior change)
 
 #### Workflow
 
