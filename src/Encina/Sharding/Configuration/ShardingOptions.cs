@@ -1,4 +1,5 @@
 using Encina.Sharding.ReferenceTables;
+using Encina.Sharding.Resharding;
 using Encina.Sharding.Routing;
 using Encina.Sharding.Shadow;
 using Encina.Sharding.TimeBased;
@@ -31,6 +32,7 @@ public sealed class ShardingOptions<TEntity>
     private Func<ShardTopology, IShardRouter>? _routerFactory;
     private TimeBasedShardRouterOptions? _timeBasedOptions;
     private ShadowShardingOptions? _shadowShardingOptions;
+    private ReshardingBuilder? _reshardingBuilder;
 
     /// <summary>
     /// Gets the scatter-gather options for cross-shard queries.
@@ -78,6 +80,19 @@ public sealed class ShardingOptions<TEntity>
     /// or <c>null</c> if shadow sharding has not been enabled.
     /// </value>
     public ShadowShardingOptions? ShadowSharding => _shadowShardingOptions;
+
+    /// <summary>
+    /// Gets a value indicating whether online resharding is enabled for this entity type.
+    /// </summary>
+    /// <value>
+    /// <c>true</c> if <see cref="WithResharding"/> has been called; <c>false</c> by default.
+    /// </value>
+    public bool UseResharding { get; private set; }
+
+    /// <summary>
+    /// Gets the resharding builder, or <c>null</c> if resharding is not configured.
+    /// </summary>
+    internal ReshardingBuilder? ReshardingBuilder => _reshardingBuilder;
 
     /// <summary>
     /// Declares that <typeparamref name="TColocated"/> should be co-located with
@@ -380,6 +395,46 @@ public sealed class ShardingOptions<TEntity>
         _shadowShardingOptions ??= new ShadowShardingOptions();
         configure?.Invoke(_shadowShardingOptions);
         UseShadowSharding = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Enables online resharding for automated data migration between shards with minimal downtime.
+    /// </summary>
+    /// <param name="configure">
+    /// Optional configuration action for the resharding builder. If <c>null</c>, default options are used.
+    /// </param>
+    /// <returns>This instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Online resharding coordinates the full 6-phase workflow: Plan → Copy → Replicate → Verify
+    /// → Cutover → Cleanup. It integrates with <see cref="Routing.IShardRebalancer"/> for plan
+    /// generation, bulk operations for data copy, and CDC for incremental replication.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaSharding&lt;Order&gt;(options =>
+    /// {
+    ///     options.UseHashRouting()
+    ///         .AddShard("shard-0", "Server=shard0;...")
+    ///         .AddShard("shard-1", "Server=shard1;...")
+    ///         .WithResharding(resharding =>
+    ///         {
+    ///             resharding.CopyBatchSize = 10_000;
+    ///             resharding.CdcLagThreshold = TimeSpan.FromSeconds(5);
+    ///             resharding.VerificationMode = VerificationMode.CountAndChecksum;
+    ///             resharding.CutoverTimeout = TimeSpan.FromSeconds(30);
+    ///             resharding.CleanupRetentionPeriod = TimeSpan.FromHours(24);
+    ///         });
+    /// });
+    /// </code>
+    /// </example>
+    public ShardingOptions<TEntity> WithResharding(Action<ReshardingBuilder>? configure = null)
+    {
+        _reshardingBuilder ??= new ReshardingBuilder();
+        configure?.Invoke(_reshardingBuilder);
+        UseResharding = true;
         return this;
     }
 

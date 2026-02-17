@@ -1,4 +1,5 @@
 using Encina.AspNetCore.Modules;
+using Encina.Caching.Health;
 using Encina.Database;
 using Encina.IdGeneration.Configuration;
 using Encina.IdGeneration.Health;
@@ -8,6 +9,8 @@ using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Modules;
+using Encina.Security.Audit;
+using Encina.Security.Audit.Health;
 using Encina.Sharding.ReferenceTables;
 using Encina.Sharding.ReferenceTables.Health;
 using Encina.Sharding.TimeBased;
@@ -661,6 +664,92 @@ public static class HealthCheckBuilderExtensions
                 return new EncinaHealthCheckAdapter(
                     new ShardCreationHealthCheck(tierStore, options, timeProvider));
             },
+            failureStatus,
+            allTags));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the audit store health check.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-audit".</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check verifies that the audit store is accessible by performing
+    /// a lightweight query. Requires <see cref="IAuditStore"/> to be registered.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaAudit();
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaAudit(
+        this IHealthChecksBuilder builder,
+        string name = AuditStoreHealthCheck.DefaultName,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "audit", "security");
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp =>
+            {
+                var store = sp.GetRequiredService<IAuditStore>();
+                return new EncinaHealthCheckAdapter(
+                    new AuditStoreHealthCheck(store));
+            },
+            failureStatus,
+            allTags));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the query cache health check.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-query-cache".</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check verifies that the cache provider is accessible. Returns degraded
+    /// when no cache provider is registered, and unhealthy on cache errors.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaQueryCache();
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaQueryCache(
+        this IHealthChecksBuilder builder,
+        string name = QueryCacheHealthCheck.DefaultName,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "cache", "query-cache");
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp => new EncinaHealthCheckAdapter(
+                new QueryCacheHealthCheck(sp)),
             failureStatus,
             allTags));
 

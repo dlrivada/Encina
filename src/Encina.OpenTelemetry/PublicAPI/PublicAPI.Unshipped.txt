@@ -130,3 +130,137 @@ Encina.OpenTelemetry.Sharding.TimeBasedShardingMetrics.RecordQueryPerTier(string
 Encina.OpenTelemetry.Sharding.TimeBasedShardingMetrics.RecordArchivalDuration(string! shardId, double durationMs) -> void
 Encina.OpenTelemetry.Sharding.TimeBasedShardingMetricsCallbacks
 Encina.OpenTelemetry.Sharding.TimeBasedShardingMetricsCallbacks.TimeBasedShardingMetricsCallbacks(System.Func<System.Collections.Generic.IEnumerable<(string! Tier, int Count)>!>! shardsPerTierCallback, System.Func<double?>! oldestHotShardAgeDaysCallback) -> void
+Encina.OpenTelemetry.ActivityTagNames.Migration
+const Encina.OpenTelemetry.ActivityTagNames.Migration.Id = "migration.id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.Strategy = "migration.strategy" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.ShardId = "migration.shard.id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.ShardOutcome = "migration.shard.outcome" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.ShardCount = "migration.shard_count" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.ShardsSucceeded = "migration.shards_succeeded" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.ShardsFailed = "migration.shards_failed" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.ShardsRolledBack = "migration.shards_rolled_back" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.DurationMs = "migration.duration_ms" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.RollbackDurationMs = "migration.rollback_duration_ms" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.Error = "migration.error" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.DriftDetected = "migration.drift_detected" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.DriftedShardCount = "migration.drifted_shard_count" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Migration.BaselineShardId = "migration.baseline_shard_id" -> string!
+Encina.OpenTelemetry.Migrations.MigrationMetrics
+Encina.OpenTelemetry.Migrations.MigrationMetrics.MigrationMetrics(Encina.OpenTelemetry.Migrations.MigrationMetricsCallbacks! callbacks) -> void
+Encina.OpenTelemetry.Migrations.MigrationMetrics.RecordShardMigrated(string! migrationId, string! strategy, string! shardId) -> void
+Encina.OpenTelemetry.Migrations.MigrationMetrics.RecordShardFailed(string! migrationId, string! strategy, string! shardId) -> void
+Encina.OpenTelemetry.Migrations.MigrationMetrics.RecordRollback(string! migrationId) -> void
+Encina.OpenTelemetry.Migrations.MigrationMetrics.RecordPerShardDuration(string! migrationId, string! shardId, double durationMs) -> void
+Encina.OpenTelemetry.Migrations.MigrationMetrics.RecordTotalDuration(string! migrationId, string! strategy, double durationMs) -> void
+Encina.OpenTelemetry.Migrations.MigrationMetricsCallbacks
+Encina.OpenTelemetry.Migrations.MigrationMetricsCallbacks.MigrationMetricsCallbacks(System.Func<int>! driftDetectedCountCallback) -> void
+Encina.OpenTelemetry.Migrations.MigrationActivitySource
+const Encina.OpenTelemetry.Migrations.MigrationActivitySource.SourceName = "Encina.Migration" -> string!
+static Encina.OpenTelemetry.Migrations.MigrationActivitySource.StartMigrationCoordination(System.Guid migrationId, Encina.Sharding.Migrations.MigrationStrategy strategy, int shardCount) -> System.Diagnostics.Activity?
+static Encina.OpenTelemetry.Migrations.MigrationActivitySource.StartShardMigration(string! shardId, System.Guid migrationId) -> System.Diagnostics.Activity?
+static Encina.OpenTelemetry.Migrations.MigrationActivitySource.Complete(System.Diagnostics.Activity? activity, Encina.Sharding.Migrations.MigrationOutcome outcome, double? durationMs = null, string? errorMessage = null) -> void
+Encina.OpenTelemetry.Enrichers.MigrationActivityEnricher
+static Encina.OpenTelemetry.Enrichers.MigrationActivityEnricher.EnrichWithMigrationResult(System.Diagnostics.Activity? activity, System.Guid migrationId, Encina.Sharding.Migrations.MigrationStrategy strategy, int totalShards, int succeededCount, int failedCount, double totalDurationMs) -> void
+static Encina.OpenTelemetry.Enrichers.MigrationActivityEnricher.EnrichWithDriftDetection(System.Diagnostics.Activity? activity, bool hasDrift, int driftedShardCount, string? baselineShardId) -> void
+static Encina.OpenTelemetry.Enrichers.MigrationActivityEnricher.EnrichWithRollback(System.Diagnostics.Activity? activity, System.Guid migrationId, int shardsRolledBack, double rollbackDurationMs) -> void
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheck
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheck.SchemaDriftHealthCheck(Encina.Sharding.Migrations.IShardedMigrationCoordinator! coordinator, Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions! options) -> void
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.SchemaDriftHealthCheckOptions() -> void
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.Timeout.get -> System.TimeSpan
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.Timeout.set -> void
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.BaselineShardId.get -> string?
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.BaselineShardId.set -> void
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.CriticalTables.get -> System.Collections.Generic.IList<string!>!
+Encina.OpenTelemetry.Migrations.SchemaDriftHealthCheckOptions.CriticalTables.set -> void
+Encina.OpenTelemetry.ActivityTagNames.Resharding
+const Encina.OpenTelemetry.ActivityTagNames.Resharding.Id = "resharding.id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Resharding.Phase = "resharding.phase" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Resharding.SourceShard = "resharding.source_shard" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Resharding.TargetShard = "resharding.target_shard" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Resharding.RowsAffected = "resharding.rows_affected" -> string!
+Encina.OpenTelemetry.Resharding.ReshardingMetrics
+Encina.OpenTelemetry.Resharding.ReshardingMetrics.ReshardingMetrics(Encina.OpenTelemetry.Resharding.ReshardingMetricsCallbacks! callbacks) -> void
+Encina.OpenTelemetry.Resharding.ReshardingMetrics.RecordPhaseDuration(System.Guid reshardingId, string! phase, double durationMs) -> void
+Encina.OpenTelemetry.Resharding.ReshardingMetrics.RecordRowsCopied(string! sourceShardId, string! targetShardId, long rowCount) -> void
+Encina.OpenTelemetry.Resharding.ReshardingMetrics.RecordVerificationMismatch(System.Guid reshardingId) -> void
+Encina.OpenTelemetry.Resharding.ReshardingMetrics.RecordCutoverDuration(System.Guid reshardingId, double durationMs) -> void
+Encina.OpenTelemetry.Resharding.ReshardingMetricsCallbacks
+Encina.OpenTelemetry.Resharding.ReshardingMetricsCallbacks.ReshardingMetricsCallbacks(System.Func<double>! rowsPerSecondCallback, System.Func<double>! cdcLagMsCallback, System.Func<int>! activeReshardingCountCallback) -> void
+Encina.OpenTelemetry.Resharding.ReshardingActivitySource
+const Encina.OpenTelemetry.Resharding.ReshardingActivitySource.SourceName = "Encina.Resharding" -> string!
+static Encina.OpenTelemetry.Resharding.ReshardingActivitySource.StartReshardingExecution(System.Guid reshardingId, int stepCount, long estimatedRows) -> System.Diagnostics.Activity?
+static Encina.OpenTelemetry.Resharding.ReshardingActivitySource.StartPhaseExecution(System.Guid reshardingId, Encina.Sharding.Resharding.ReshardingPhase phase) -> System.Diagnostics.Activity?
+static Encina.OpenTelemetry.Resharding.ReshardingActivitySource.Complete(System.Diagnostics.Activity? activity, bool succeeded, double? durationMs = null, string? errorMessage = null) -> void
+Encina.OpenTelemetry.Resharding.ReshardingActivityEnricher
+static Encina.OpenTelemetry.Resharding.ReshardingActivityEnricher.EnrichWithReshardingResult(System.Diagnostics.Activity? activity, System.Guid reshardingId, Encina.Sharding.Resharding.ReshardingPhase finalPhase, int phaseCount, double totalDurationMs) -> void
+static Encina.OpenTelemetry.Resharding.ReshardingActivityEnricher.EnrichWithShardCopy(System.Diagnostics.Activity? activity, string! sourceShardId, string! targetShardId, long rowsAffected) -> void
+static Encina.OpenTelemetry.Resharding.ReshardingActivityEnricher.EnrichWithRollback(System.Diagnostics.Activity? activity, System.Guid reshardingId, Encina.Sharding.Resharding.ReshardingPhase lastCompletedPhase, double rollbackDurationMs) -> void
+Encina.OpenTelemetry.Resharding.ReshardingHealthCheck
+Encina.OpenTelemetry.Resharding.ReshardingHealthCheck.ReshardingHealthCheck(Encina.Sharding.Resharding.IReshardingStateStore! stateStore, Encina.OpenTelemetry.Resharding.ReshardingHealthCheckOptions! options, System.TimeProvider? timeProvider = null) -> void
+Encina.OpenTelemetry.Resharding.ReshardingHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Encina.OpenTelemetry.Resharding.ReshardingHealthCheckOptions
+Encina.OpenTelemetry.Resharding.ReshardingHealthCheckOptions.ReshardingHealthCheckOptions() -> void
+Encina.OpenTelemetry.Resharding.ReshardingHealthCheckOptions.MaxReshardingDuration.get -> System.TimeSpan
+Encina.OpenTelemetry.Resharding.ReshardingHealthCheckOptions.MaxReshardingDuration.set -> void
+Encina.OpenTelemetry.Resharding.ReshardingHealthCheckOptions.Timeout.get -> System.TimeSpan
+Encina.OpenTelemetry.Resharding.ReshardingHealthCheckOptions.Timeout.set -> void
+Encina.OpenTelemetry.Resharding.ReshardingLogMessages
+static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingStarted(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId, int stepCount, long estimatedRows) -> void
+static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingPhaseStarted(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId, string! phase) -> void
+static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingPhaseCompleted(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId, string! phase, double durationMs) -> void
+static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingCopyProgress(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId, long rowsCopied, double percentComplete) -> void
+static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingCdcLagUpdate(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId, double lagMs) -> void
+static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingVerificationResult(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId, bool matched, long mismatchCount) -> void
+static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingCutoverStarted(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId) -> void
+static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingCutoverCompleted(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId, double cutoverDurationMs) -> void
+static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingFailed(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId, string! errorCode) -> void
+static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingRolledBack(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId, string! lastCompletedPhase) -> void
+Encina.OpenTelemetry.ActivityTagNames.Repository
+const Encina.OpenTelemetry.ActivityTagNames.Repository.Operation = "repository.operation" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Repository.EntityType = "repository.entity_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Repository.Provider = "repository.provider" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Repository.ResultCount = "repository.result_count" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Repository.ErrorCode = "repository.error_code" -> string!
+Encina.OpenTelemetry.ActivityTagNames.UnitOfWork
+const Encina.OpenTelemetry.ActivityTagNames.UnitOfWork.Outcome = "uow.outcome" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.UnitOfWork.AffectedRows = "uow.affected_rows" -> string!
+Encina.OpenTelemetry.ActivityTagNames.Bulk
+const Encina.OpenTelemetry.ActivityTagNames.Bulk.Operation = "bulk.operation" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Bulk.EntityType = "bulk.entity_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Bulk.Provider = "bulk.provider" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Bulk.RowsAffected = "bulk.rows_affected" -> string!
+Encina.OpenTelemetry.ActivityTagNames.SoftDelete
+const Encina.OpenTelemetry.ActivityTagNames.SoftDelete.Operation = "softdelete.operation" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.SoftDelete.EntityType = "softdelete.entity_type" -> string!
+Encina.OpenTelemetry.ActivityTagNames.Audit
+const Encina.OpenTelemetry.ActivityTagNames.Audit.EntityType = "audit.entity_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Audit.Action = "audit.action" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Audit.QueryType = "audit.query_type" -> string!
+Encina.OpenTelemetry.ActivityTagNames.Tenancy
+const Encina.OpenTelemetry.ActivityTagNames.Tenancy.TenantId = "tenancy.tenant_id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Tenancy.Strategy = "tenancy.strategy" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Tenancy.EntityType = "tenancy.entity_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Tenancy.Outcome = "tenancy.outcome" -> string!
+Encina.OpenTelemetry.ActivityTagNames.Modules
+const Encina.OpenTelemetry.ActivityTagNames.Modules.Name = "module.name" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Modules.RequestType = "module.request_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Modules.Operation = "module.operation" -> string!
+Encina.OpenTelemetry.ActivityTagNames.QueryCache
+const Encina.OpenTelemetry.ActivityTagNames.QueryCache.Outcome = "querycache.outcome" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.QueryCache.EntityType = "querycache.entity_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.QueryCache.QueryHash = "querycache.query_hash" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.QueryCache.EvictionReason = "querycache.eviction_reason" -> string!
+Encina.OpenTelemetry.ActivityTagNames.Specification
+const Encina.OpenTelemetry.ActivityTagNames.Specification.Name = "specification.name" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Specification.CriteriaCount = "specification.criteria_count" -> string!
+Encina.OpenTelemetry.Enrichers.RepositoryActivityEnricher
+static Encina.OpenTelemetry.Enrichers.RepositoryActivityEnricher.EnrichWithOperation(System.Diagnostics.Activity? activity, string! operation, string! entityType, string! provider, int? resultCount = null) -> void
+static Encina.OpenTelemetry.Enrichers.RepositoryActivityEnricher.EnrichWithError(System.Diagnostics.Activity? activity, string! operation, string! entityType, string! errorCode) -> void
+Encina.OpenTelemetry.Enrichers.TenancyActivityEnricher
+static Encina.OpenTelemetry.Enrichers.TenancyActivityEnricher.EnrichWithResolution(System.Diagnostics.Activity? activity, string? tenantId, string! strategy, string! outcome) -> void
+static Encina.OpenTelemetry.Enrichers.TenancyActivityEnricher.EnrichWithTenantScope(System.Diagnostics.Activity? activity, string! tenantId, string! entityType) -> void
+Encina.OpenTelemetry.Enrichers.AuditActivityEnricher
+static Encina.OpenTelemetry.Enrichers.AuditActivityEnricher.EnrichWithAuditRecord(System.Diagnostics.Activity? activity, string! entityType, string! action) -> void
+static Encina.OpenTelemetry.Enrichers.AuditActivityEnricher.EnrichWithAuditQuery(System.Diagnostics.Activity? activity, string! queryType, string? entityType = null) -> void
