@@ -59,7 +59,7 @@ public sealed class InboxStoreDapper : IInboxStore
         string? response,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(messageId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
         var sql = $@"
             UPDATE {_tableName}
@@ -103,8 +103,7 @@ public sealed class InboxStoreDapper : IInboxStore
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        if (batchSize <= 0)
-            throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
         var sql = $@"
             SELECT *
             FROM {_tableName}

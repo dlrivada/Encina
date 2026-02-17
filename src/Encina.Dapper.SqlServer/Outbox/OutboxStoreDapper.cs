@@ -47,10 +47,8 @@ public sealed class OutboxStoreDapper : IOutboxStore
         int maxRetries,
         CancellationToken cancellationToken = default)
     {
-        if (batchSize <= 0)
-            throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
-        if (maxRetries < 0)
-            throw new ArgumentException(StoreValidationMessages.MaxRetriesCannotBeNegative, nameof(maxRetries));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(batchSize, 0);
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
 
         var sql = $@"
             SELECT TOP (@BatchSize) *

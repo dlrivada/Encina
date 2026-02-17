@@ -103,8 +103,7 @@ public sealed class InboxStoreDapper : IInboxStore
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        if (batchSize <= 0)
-            throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 
         var sql = $@"
             SELECT TOP (@BatchSize) *
