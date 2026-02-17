@@ -335,4 +335,145 @@ public static class ActivityTagNames
         /// <summary>Tag name for the baseline shard used for drift comparison.</summary>
         public const string BaselineShardId = "migration.baseline_shard_id";
     }
+
+    /// <summary>
+    /// Repository pattern tags for data access observability.
+    /// </summary>
+    public static class Repository
+    {
+        /// <summary>Tag name for the repository operation (e.g., "get_by_id", "find", "add", "update", "remove").</summary>
+        public const string Operation = "repository.operation";
+
+        /// <summary>Tag name for the entity type being accessed.</summary>
+        public const string EntityType = "repository.entity_type";
+
+        /// <summary>Tag name for the data access provider (e.g., "ef_core", "dapper", "ado", "mongodb").</summary>
+        public const string Provider = "repository.provider";
+
+        /// <summary>Tag name for the number of results returned.</summary>
+        public const string ResultCount = "repository.result_count";
+
+        /// <summary>Tag name for the error code on failure.</summary>
+        public const string ErrorCode = "repository.error_code";
+    }
+
+    /// <summary>
+    /// Unit of Work tags for transaction lifecycle observability.
+    /// </summary>
+    public static class UnitOfWork
+    {
+        /// <summary>Tag name for the transaction outcome (committed, rolledback, error).</summary>
+        public const string Outcome = "uow.outcome";
+
+        /// <summary>Tag name for the number of rows affected by SaveChanges.</summary>
+        public const string AffectedRows = "uow.affected_rows";
+    }
+
+    /// <summary>
+    /// Bulk operations tags for batch data access observability.
+    /// </summary>
+    public static class Bulk
+    {
+        /// <summary>Tag name for the bulk operation type (insert, update, delete, merge, read).</summary>
+        public const string Operation = "bulk.operation";
+
+        /// <summary>Tag name for the entity type being operated on.</summary>
+        public const string EntityType = "bulk.entity_type";
+
+        /// <summary>Tag name for the data access provider.</summary>
+        public const string Provider = "bulk.provider";
+
+        /// <summary>Tag name for the number of rows affected.</summary>
+        public const string RowsAffected = "bulk.rows_affected";
+    }
+
+    /// <summary>
+    /// Soft delete tags for logical deletion observability.
+    /// </summary>
+    public static class SoftDelete
+    {
+        /// <summary>Tag name for the soft delete operation (delete, restore, hard_delete).</summary>
+        public const string Operation = "softdelete.operation";
+
+        /// <summary>Tag name for the entity type being soft-deleted.</summary>
+        public const string EntityType = "softdelete.entity_type";
+    }
+
+    /// <summary>
+    /// Audit trail tags for change tracking observability.
+    /// </summary>
+    public static class Audit
+    {
+        /// <summary>Tag name for the audited entity type.</summary>
+        public const string EntityType = "audit.entity_type";
+
+        /// <summary>Tag name for the audit action (created, updated, deleted).</summary>
+        public const string Action = "audit.action";
+
+        /// <summary>Tag name for the audit query type (by_entity, by_date_range, all).</summary>
+        public const string QueryType = "audit.query_type";
+    }
+
+    /// <summary>
+    /// Multi-tenancy tags for tenant isolation observability.
+    /// </summary>
+    public static class Tenancy
+    {
+        /// <summary>Tag name for the resolved tenant identifier.</summary>
+        public const string TenantId = "tenancy.tenant_id";
+
+        /// <summary>Tag name for the tenant resolution strategy.</summary>
+        public const string Strategy = "tenancy.strategy";
+
+        /// <summary>Tag name for the entity type in tenant-scoped queries.</summary>
+        public const string EntityType = "tenancy.entity_type";
+
+        /// <summary>Tag name for the resolution outcome (success, not_found, error).</summary>
+        public const string Outcome = "tenancy.outcome";
+    }
+
+    /// <summary>
+    /// Modular monolith tags for module lifecycle and dispatch observability.
+    /// </summary>
+    public static class Modules
+    {
+        /// <summary>Tag name for the module name.</summary>
+        public const string Name = "module.name";
+
+        /// <summary>Tag name for the request type dispatched to the module.</summary>
+        public const string RequestType = "module.request_type";
+
+        /// <summary>Tag name for the module lifecycle operation (start, stop).</summary>
+        public const string Operation = "module.operation";
+    }
+
+    /// <summary>
+    /// Query caching tags for cache operation observability.
+    /// </summary>
+    public static class QueryCache
+    {
+        /// <summary>Tag name for the cache lookup outcome (hit, miss).</summary>
+        public const string Outcome = "querycache.outcome";
+
+        /// <summary>Tag name for the entity type involved in the cached query.</summary>
+        public const string EntityType = "querycache.entity_type";
+
+        /// <summary>Tag name for the query hash used as cache key.</summary>
+        public const string QueryHash = "querycache.query_hash";
+
+        /// <summary>Tag name for the cache eviction reason (ttl, invalidation, manual).</summary>
+        public const string EvictionReason = "querycache.eviction_reason";
+    }
+
+    /// <summary>
+    /// Specification pattern tags for query composition observability.
+    /// </summary>
+    public static class Specification
+    {
+        /// <summary>Tag name for the specification type name.</summary>
+        public const string Name = "specification.name";
+
+        /// <summary>Tag name for the number of criteria in the specification.</summary>
+        public const string CriteriaCount = "specification.criteria_count";
+    }
 }

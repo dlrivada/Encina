@@ -217,3 +217,50 @@ static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingCutoverSt
 static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingCutoverCompleted(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId, double cutoverDurationMs) -> void
 static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingFailed(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId, string! errorCode) -> void
 static Encina.OpenTelemetry.Resharding.ReshardingLogMessages.ReshardingRolledBack(this Microsoft.Extensions.Logging.ILogger! logger, System.Guid reshardingId, string! lastCompletedPhase) -> void
+Encina.OpenTelemetry.ActivityTagNames.Repository
+const Encina.OpenTelemetry.ActivityTagNames.Repository.Operation = "repository.operation" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Repository.EntityType = "repository.entity_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Repository.Provider = "repository.provider" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Repository.ResultCount = "repository.result_count" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Repository.ErrorCode = "repository.error_code" -> string!
+Encina.OpenTelemetry.ActivityTagNames.UnitOfWork
+const Encina.OpenTelemetry.ActivityTagNames.UnitOfWork.Outcome = "uow.outcome" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.UnitOfWork.AffectedRows = "uow.affected_rows" -> string!
+Encina.OpenTelemetry.ActivityTagNames.Bulk
+const Encina.OpenTelemetry.ActivityTagNames.Bulk.Operation = "bulk.operation" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Bulk.EntityType = "bulk.entity_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Bulk.Provider = "bulk.provider" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Bulk.RowsAffected = "bulk.rows_affected" -> string!
+Encina.OpenTelemetry.ActivityTagNames.SoftDelete
+const Encina.OpenTelemetry.ActivityTagNames.SoftDelete.Operation = "softdelete.operation" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.SoftDelete.EntityType = "softdelete.entity_type" -> string!
+Encina.OpenTelemetry.ActivityTagNames.Audit
+const Encina.OpenTelemetry.ActivityTagNames.Audit.EntityType = "audit.entity_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Audit.Action = "audit.action" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Audit.QueryType = "audit.query_type" -> string!
+Encina.OpenTelemetry.ActivityTagNames.Tenancy
+const Encina.OpenTelemetry.ActivityTagNames.Tenancy.TenantId = "tenancy.tenant_id" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Tenancy.Strategy = "tenancy.strategy" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Tenancy.EntityType = "tenancy.entity_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Tenancy.Outcome = "tenancy.outcome" -> string!
+Encina.OpenTelemetry.ActivityTagNames.Modules
+const Encina.OpenTelemetry.ActivityTagNames.Modules.Name = "module.name" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Modules.RequestType = "module.request_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Modules.Operation = "module.operation" -> string!
+Encina.OpenTelemetry.ActivityTagNames.QueryCache
+const Encina.OpenTelemetry.ActivityTagNames.QueryCache.Outcome = "querycache.outcome" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.QueryCache.EntityType = "querycache.entity_type" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.QueryCache.QueryHash = "querycache.query_hash" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.QueryCache.EvictionReason = "querycache.eviction_reason" -> string!
+Encina.OpenTelemetry.ActivityTagNames.Specification
+const Encina.OpenTelemetry.ActivityTagNames.Specification.Name = "specification.name" -> string!
+const Encina.OpenTelemetry.ActivityTagNames.Specification.CriteriaCount = "specification.criteria_count" -> string!
+Encina.OpenTelemetry.Enrichers.RepositoryActivityEnricher
+static Encina.OpenTelemetry.Enrichers.RepositoryActivityEnricher.EnrichWithOperation(System.Diagnostics.Activity? activity, string! operation, string! entityType, string! provider, int? resultCount = null) -> void
+static Encina.OpenTelemetry.Enrichers.RepositoryActivityEnricher.EnrichWithError(System.Diagnostics.Activity? activity, string! operation, string! entityType, string! errorCode) -> void
+Encina.OpenTelemetry.Enrichers.TenancyActivityEnricher
+static Encina.OpenTelemetry.Enrichers.TenancyActivityEnricher.EnrichWithResolution(System.Diagnostics.Activity? activity, string? tenantId, string! strategy, string! outcome) -> void
+static Encina.OpenTelemetry.Enrichers.TenancyActivityEnricher.EnrichWithTenantScope(System.Diagnostics.Activity? activity, string! tenantId, string! entityType) -> void
+Encina.OpenTelemetry.Enrichers.AuditActivityEnricher
+static Encina.OpenTelemetry.Enrichers.AuditActivityEnricher.EnrichWithAuditRecord(System.Diagnostics.Activity? activity, string! entityType, string! action) -> void
+static Encina.OpenTelemetry.Enrichers.AuditActivityEnricher.EnrichWithAuditQuery(System.Diagnostics.Activity? activity, string! queryType, string? entityType = null) -> void
