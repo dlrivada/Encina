@@ -13,17 +13,23 @@ public sealed class InboxStoreADO : IInboxStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InboxStoreADO"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The inbox table name (default: InboxMessages).</param>
-    public InboxStoreADO(IDbConnection connection, string tableName = "InboxMessages")
+    /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
+    public InboxStoreADO(
+        IDbConnection connection,
+        string tableName = "InboxMessages",
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -112,9 +118,10 @@ public sealed class InboxStoreADO : IInboxStore
     {
         ArgumentNullException.ThrowIfNull(messageId);
 
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = datetime('now'),
+            SET ProcessedAtUtc = @NowUtc,
                 Response = @Response,
                 ErrorMessage = NULL
             WHERE MessageId = @MessageId";
@@ -123,6 +130,7 @@ public sealed class InboxStoreADO : IInboxStore
         command.CommandText = sql;
         AddParameter(command, "@MessageId", messageId);
         AddParameter(command, "@Response", response);
+        AddParameter(command, "@NowUtc", nowUtc.ToString("O"));
 
         if (_connection.State != ConnectionState.Open)
             await OpenConnectionAsync(cancellationToken);
@@ -166,10 +174,11 @@ public sealed class InboxStoreADO : IInboxStore
     {
         if (batchSize <= 0)
             throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             SELECT *
             FROM {_tableName}
-            WHERE ExpiresAtUtc < datetime('now')
+            WHERE ExpiresAtUtc < @NowUtc
               AND ProcessedAtUtc IS NOT NULL
             ORDER BY ExpiresAtUtc
             LIMIT @BatchSize";
@@ -177,6 +186,7 @@ public sealed class InboxStoreADO : IInboxStore
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
         AddParameter(command, "@BatchSize", batchSize);
+        AddParameter(command, "@NowUtc", nowUtc.ToString("O"));
 
         var messages = new List<InboxMessage>();
 

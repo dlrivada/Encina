@@ -13,17 +13,23 @@ public sealed class OutboxStoreADO : IOutboxStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxStoreADO"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The outbox table name (default: OutboxMessages).</param>
-    public OutboxStoreADO(IDbConnection connection, string tableName = "OutboxMessages")
+    /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
+    public OutboxStoreADO(
+        IDbConnection connection,
+        string tableName = "OutboxMessages",
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -36,12 +42,13 @@ public sealed class OutboxStoreADO : IOutboxStore
             throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
         if (maxRetries < 0)
             throw new ArgumentException(StoreValidationMessages.MaxRetriesCannotBeNegative, nameof(maxRetries));
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             SELECT *
             FROM {_tableName}
             WHERE ProcessedAtUtc IS NULL
               AND RetryCount < @MaxRetries
-              AND (NextRetryAtUtc IS NULL OR NextRetryAtUtc <= datetime('now'))
+              AND (NextRetryAtUtc IS NULL OR NextRetryAtUtc <= @NowUtc)
             ORDER BY CreatedAtUtc
             LIMIT @BatchSize";
 
@@ -49,6 +56,7 @@ public sealed class OutboxStoreADO : IOutboxStore
         command.CommandText = sql;
         AddParameter(command, "@BatchSize", batchSize);
         AddParameter(command, "@MaxRetries", maxRetries);
+        AddParameter(command, "@NowUtc", nowUtc.ToString("O"));
 
         var messages = new List<OutboxMessage>();
 
@@ -113,15 +121,17 @@ public sealed class OutboxStoreADO : IOutboxStore
     {
         if (messageId == Guid.Empty)
             throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmpty, nameof(messageId));
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = datetime('now'),
+            SET ProcessedAtUtc = @NowUtc,
                 ErrorMessage = NULL
             WHERE Id = @Id";
 
         using var command = _connection.CreateCommand();
         command.CommandText = sql;
         AddParameter(command, "@Id", messageId);
+        AddParameter(command, "@NowUtc", nowUtc.ToString("O"));
 
         if (_connection.State != ConnectionState.Open)
             await OpenConnectionAsync(cancellationToken);

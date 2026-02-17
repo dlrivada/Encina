@@ -13,19 +13,25 @@ public sealed class InboxStoreDapper : IInboxStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InboxStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The inbox table name (default: inboxmessages).</param>
+    /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> or <paramref name="tableName"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is empty or whitespace.</exception>
-    public InboxStoreDapper(IDbConnection connection, string tableName = "inboxmessages")
+    public InboxStoreDapper(
+        IDbConnection connection,
+        string tableName = "inboxmessages",
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -63,14 +69,15 @@ public sealed class InboxStoreDapper : IInboxStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             UPDATE {_tableName}
-            SET processedatutc = NOW() AT TIME ZONE 'UTC',
+            SET processedatutc = @NowUtc,
                 response = @Response,
                 errormessage = NULL
             WHERE messageid = @MessageId";
 
-        await _connection.ExecuteAsync(sql, new { MessageId = messageId, Response = response });
+        await _connection.ExecuteAsync(sql, new { MessageId = messageId, Response = response, NowUtc = nowUtc });
     }
 
     /// <inheritdoc />
@@ -107,15 +114,16 @@ public sealed class InboxStoreDapper : IInboxStore
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             SELECT messageid, requesttype, receivedatutc, processedatutc, expiresatutc, response, errormessage, retrycount, nextretryatutc, metadata
             FROM {_tableName}
-            WHERE expiresatutc < NOW() AT TIME ZONE 'UTC'
+            WHERE expiresatutc < @NowUtc
               AND processedatutc IS NOT NULL
             ORDER BY expiresatutc
             LIMIT @BatchSize";
 
-        var messages = await _connection.QueryAsync<InboxMessage>(sql, new { BatchSize = batchSize });
+        var messages = await _connection.QueryAsync<InboxMessage>(sql, new { BatchSize = batchSize, NowUtc = nowUtc });
         return messages.Cast<IInboxMessage>();
     }
 

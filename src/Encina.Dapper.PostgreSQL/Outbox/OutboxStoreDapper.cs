@@ -13,19 +13,25 @@ public sealed class OutboxStoreDapper : IOutboxStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The outbox table name (default: outboxmessages).</param>
+    /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> or <paramref name="tableName"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is empty or whitespace.</exception>
-    public OutboxStoreDapper(IDbConnection connection, string tableName = "outboxmessages")
+    public OutboxStoreDapper(
+        IDbConnection connection,
+        string tableName = "outboxmessages",
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -51,18 +57,19 @@ public sealed class OutboxStoreDapper : IOutboxStore
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(batchSize, 0);
         ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
 
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             SELECT id, notificationtype, content, createdatutc, processedatutc, errormessage, retrycount, nextretryatutc
             FROM {_tableName}
             WHERE processedatutc IS NULL
               AND retrycount < @MaxRetries
-              AND (nextretryatutc IS NULL OR nextretryatutc <= NOW() AT TIME ZONE 'UTC')
+              AND (nextretryatutc IS NULL OR nextretryatutc <= @NowUtc)
             ORDER BY createdatutc
             LIMIT @BatchSize";
 
         var messages = await _connection.QueryAsync<OutboxMessage>(
             sql,
-            new { BatchSize = batchSize, MaxRetries = maxRetries });
+            new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc });
 
         return messages.Cast<IOutboxMessage>();
     }
@@ -73,13 +80,14 @@ public sealed class OutboxStoreDapper : IOutboxStore
         if (messageId == Guid.Empty)
             throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmpty, nameof(messageId));
 
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             UPDATE {_tableName}
-            SET processedatutc = NOW() AT TIME ZONE 'UTC',
+            SET processedatutc = @NowUtc,
                 errormessage = NULL
             WHERE id = @MessageId";
 
-        await _connection.ExecuteAsync(sql, new { MessageId = messageId });
+        await _connection.ExecuteAsync(sql, new { MessageId = messageId, NowUtc = nowUtc });
     }
 
     /// <inheritdoc />

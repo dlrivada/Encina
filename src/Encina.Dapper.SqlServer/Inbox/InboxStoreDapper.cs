@@ -13,17 +13,23 @@ public sealed class InboxStoreDapper : IInboxStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InboxStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The inbox table name (default: InboxMessages).</param>
-    public InboxStoreDapper(IDbConnection connection, string tableName = "InboxMessages")
+    /// <param name="timeProvider">The time provider for UTC time (default: <see cref="TimeProvider.System"/>).</param>
+    public InboxStoreDapper(
+        IDbConnection connection,
+        string tableName = "InboxMessages",
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -61,14 +67,15 @@ public sealed class InboxStoreDapper : IInboxStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             UPDATE {_tableName}
-            SET ProcessedAtUtc = GETUTCDATE(),
+            SET ProcessedAtUtc = @NowUtc,
                 Response = @Response,
                 ErrorMessage = NULL
             WHERE MessageId = @MessageId";
 
-        await _connection.ExecuteAsync(sql, new { MessageId = messageId, Response = response });
+        await _connection.ExecuteAsync(sql, new { MessageId = messageId, Response = response, NowUtc = nowUtc });
     }
 
     /// <inheritdoc />
@@ -105,14 +112,15 @@ public sealed class InboxStoreDapper : IInboxStore
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var sql = $@"
             SELECT TOP (@BatchSize) *
             FROM {_tableName}
-            WHERE ExpiresAtUtc < GETUTCDATE()
+            WHERE ExpiresAtUtc < @NowUtc
               AND ProcessedAtUtc IS NOT NULL
             ORDER BY ExpiresAtUtc";
 
-        var messages = await _connection.QueryAsync<InboxMessage>(sql, new { BatchSize = batchSize });
+        var messages = await _connection.QueryAsync<InboxMessage>(sql, new { BatchSize = batchSize, NowUtc = nowUtc });
         return messages.Cast<IInboxMessage>();
     }
 
