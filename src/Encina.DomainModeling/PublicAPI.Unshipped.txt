@@ -847,3 +847,51 @@ Encina.DomainModeling.Pagination.ICursorPaginatedQuery<TItem>.PageSize.get -> in
 Encina.DomainModeling.Pagination.CursorPaginatedQueryExtensions
 static Encina.DomainModeling.Pagination.CursorPaginatedQueryExtensions.IsFirstPage<TItem>(this Encina.DomainModeling.Pagination.ICursorPaginatedQuery<TItem>! query) -> bool
 static Encina.DomainModeling.Pagination.CursorPaginatedQueryExtensions.ToPaginationOptions<TItem>(this Encina.DomainModeling.Pagination.ICursorPaginatedQuery<TItem>! query) -> Encina.DomainModeling.Pagination.CursorPaginationOptions!
+Encina.DomainModeling.Diagnostics.RepositoryMetrics
+Encina.DomainModeling.Diagnostics.RepositoryMetrics.RepositoryMetrics() -> void
+Encina.DomainModeling.Diagnostics.RepositoryMetrics.RecordOperation(string! operation, string! entityType, string! provider, double durationMs) -> void
+Encina.DomainModeling.Diagnostics.RepositoryMetrics.RecordError(string! operation, string! entityType, string! errorCode) -> void
+Encina.DomainModeling.Diagnostics.UnitOfWorkMetrics
+Encina.DomainModeling.Diagnostics.UnitOfWorkMetrics.UnitOfWorkMetrics() -> void
+Encina.DomainModeling.Diagnostics.UnitOfWorkMetrics.RecordTransaction(string! outcome, double durationMs) -> void
+Encina.DomainModeling.Diagnostics.UnitOfWorkMetrics.RecordSaveChangesRows(int rowCount) -> void
+Encina.DomainModeling.Diagnostics.BulkOperationsMetrics
+Encina.DomainModeling.Diagnostics.BulkOperationsMetrics.BulkOperationsMetrics() -> void
+Encina.DomainModeling.Diagnostics.BulkOperationsMetrics.RecordOperation(string! operation, string! entityType, string! provider, int rowsAffected, double durationMs) -> void
+Encina.DomainModeling.Diagnostics.AuditMetrics
+Encina.DomainModeling.Diagnostics.AuditMetrics.AuditMetrics() -> void
+Encina.DomainModeling.Diagnostics.AuditMetrics.RecordEntry(string! entityType, string! action) -> void
+Encina.DomainModeling.Diagnostics.AuditMetrics.RecordQueryDuration(string! queryType, double durationMs) -> void
+Encina.DomainModeling.Diagnostics.RepositoryLog
+static Encina.DomainModeling.Diagnostics.RepositoryLog.ExecutingOperation(Microsoft.Extensions.Logging.ILogger! logger, string! operation, string! entityType, string! provider) -> void
+static Encina.DomainModeling.Diagnostics.RepositoryLog.OperationCompleted(Microsoft.Extensions.Logging.ILogger! logger, string! operation, string! entityType, long durationMs, int resultCount) -> void
+static Encina.DomainModeling.Diagnostics.RepositoryLog.OperationFailed(Microsoft.Extensions.Logging.ILogger! logger, string! operation, string! entityType, string! errorCode, string! errorMessage) -> void
+static Encina.DomainModeling.Diagnostics.RepositoryLog.OperationException(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception, string! operation, string! entityType) -> void
+Encina.DomainModeling.Diagnostics.UnitOfWorkLog
+static Encina.DomainModeling.Diagnostics.UnitOfWorkLog.StartingSaveChanges(Microsoft.Extensions.Logging.ILogger! logger) -> void
+static Encina.DomainModeling.Diagnostics.UnitOfWorkLog.SaveChangesCompleted(Microsoft.Extensions.Logging.ILogger! logger, int affectedRows) -> void
+static Encina.DomainModeling.Diagnostics.UnitOfWorkLog.SaveChangesFailed(Microsoft.Extensions.Logging.ILogger! logger, string! errorMessage) -> void
+static Encina.DomainModeling.Diagnostics.UnitOfWorkLog.StartingTransaction(Microsoft.Extensions.Logging.ILogger! logger) -> void
+static Encina.DomainModeling.Diagnostics.UnitOfWorkLog.TransactionCompleted(Microsoft.Extensions.Logging.ILogger! logger, string! outcome) -> void
+static Encina.DomainModeling.Diagnostics.UnitOfWorkLog.TransactionException(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void
+Encina.DomainModeling.Diagnostics.BulkOperationsLog
+static Encina.DomainModeling.Diagnostics.BulkOperationsLog.StartingBulkOperation(Microsoft.Extensions.Logging.ILogger! logger, string! operation, string! entityType, string! provider) -> void
+static Encina.DomainModeling.Diagnostics.BulkOperationsLog.BulkOperationCompleted(Microsoft.Extensions.Logging.ILogger! logger, string! operation, string! entityType, int rowsAffected, long durationMs) -> void
+static Encina.DomainModeling.Diagnostics.BulkOperationsLog.BulkOperationFailed(Microsoft.Extensions.Logging.ILogger! logger, string! operation, string! entityType, string! errorCode, string! errorMessage) -> void
+static Encina.DomainModeling.Diagnostics.BulkOperationsLog.BulkOperationException(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception, string! operation, string! entityType) -> void
+Encina.DomainModeling.Diagnostics.SpecificationLog
+static Encina.DomainModeling.Diagnostics.SpecificationLog.EvaluatingSpecification(Microsoft.Extensions.Logging.ILogger! logger, string! specificationName, int criteriaCount) -> void
+static Encina.DomainModeling.Diagnostics.SpecificationLog.SpecificationEvaluationCompleted(Microsoft.Extensions.Logging.ILogger! logger, string! specificationName) -> void
+Encina.DomainModeling.Diagnostics.AuditLog
+static Encina.DomainModeling.Diagnostics.AuditLog.RecordingAuditEntry(Microsoft.Extensions.Logging.ILogger! logger, string! entityType, string! action) -> void
+static Encina.DomainModeling.Diagnostics.AuditLog.AuditEntryRecorded(Microsoft.Extensions.Logging.ILogger! logger, string! entityType, string! action) -> void
+static Encina.DomainModeling.Diagnostics.AuditLog.AuditEntryFailed(Microsoft.Extensions.Logging.ILogger! logger, string! entityType, string! errorMessage) -> void
+static Encina.DomainModeling.Diagnostics.AuditLog.QueryingAuditTrail(Microsoft.Extensions.Logging.ILogger! logger, string! queryType, string! entityType) -> void
+static Encina.DomainModeling.Diagnostics.AuditLog.AuditQueryCompleted(Microsoft.Extensions.Logging.ILogger! logger, int resultCount) -> void
+static Encina.DomainModeling.Diagnostics.AuditLog.AuditOperationException(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void
+Encina.DomainModeling.Diagnostics.DomainEventLog
+static Encina.DomainModeling.Diagnostics.DomainEventLog.RaisingEvent(Microsoft.Extensions.Logging.ILogger! logger, string! eventType) -> void
+static Encina.DomainModeling.Diagnostics.DomainEventLog.EventHandled(Microsoft.Extensions.Logging.ILogger! logger, string! eventType) -> void
+static Encina.DomainModeling.Diagnostics.DomainEventLog.DispatchingEvents(Microsoft.Extensions.Logging.ILogger! logger, int count) -> void
+static Encina.DomainModeling.Diagnostics.DomainEventLog.HandlerFailed(Microsoft.Extensions.Logging.ILogger! logger, string! eventType, string! errorMessage) -> void
+static Encina.DomainModeling.Diagnostics.DomainEventLog.DispatchException(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void

@@ -733,3 +733,47 @@ Encina.Messaging.Services.ConnectionWarmupHostedService
 Encina.Messaging.Services.ConnectionWarmupHostedService.ConnectionWarmupHostedService(System.Func<System.Data.IDbConnection!>! connectionFactory, int warmUpCount, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Services.ConnectionWarmupHostedService!>! logger) -> void
 Encina.Messaging.Services.ConnectionWarmupHostedService.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Encina.Messaging.Services.ConnectionWarmupHostedService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Encina.Messaging.Diagnostics.MessagingStoreMetrics
+Encina.Messaging.Diagnostics.MessagingStoreMetrics.MessagingStoreMetrics(Encina.Messaging.Diagnostics.MessagingStoreMetricsCallbacks? callbacks = null) -> void
+Encina.Messaging.Diagnostics.MessagingStoreMetrics.RecordOutboxAdded(string! messageType) -> void
+Encina.Messaging.Diagnostics.MessagingStoreMetrics.RecordOutboxProcessed(string! outcome, double durationMs) -> void
+Encina.Messaging.Diagnostics.MessagingStoreMetrics.RecordInboxReceived(string! messageType) -> void
+Encina.Messaging.Diagnostics.MessagingStoreMetrics.RecordInboxDuplicate() -> void
+Encina.Messaging.Diagnostics.MessagingStoreMetrics.RecordSagaTransition(string! sagaType, string! fromStep, string! toStep) -> void
+Encina.Messaging.Diagnostics.MessagingStoreMetrics.RecordScheduled(string! messageType) -> void
+Encina.Messaging.Diagnostics.MessagingStoreMetrics.RecordExecuted(string! outcome) -> void
+Encina.Messaging.Diagnostics.MessagingStoreMetricsCallbacks
+Encina.Messaging.Diagnostics.MessagingStoreMetricsCallbacks.MessagingStoreMetricsCallbacks(System.Func<long>! getOutboxPendingCount, System.Func<long>! getActiveSagaCount) -> void
+Encina.Messaging.Diagnostics.MessagingStoreMetricsCallbacks.GetOutboxPendingCount() -> long
+Encina.Messaging.Diagnostics.MessagingStoreMetricsCallbacks.GetActiveSagaCount() -> long
+Encina.Messaging.Diagnostics.OutboxStoreLog
+static Encina.Messaging.Diagnostics.OutboxStoreLog.AddingMessage(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, string! messageType) -> void
+static Encina.Messaging.Diagnostics.OutboxStoreLog.MessageAdded(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
+static Encina.Messaging.Diagnostics.OutboxStoreLog.FetchingPendingMessages(Microsoft.Extensions.Logging.ILogger! logger, int batchSize) -> void
+static Encina.Messaging.Diagnostics.OutboxStoreLog.FetchedPendingMessages(Microsoft.Extensions.Logging.ILogger! logger, int count) -> void
+static Encina.Messaging.Diagnostics.OutboxStoreLog.MarkingMessageAsProcessed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
+static Encina.Messaging.Diagnostics.OutboxStoreLog.OperationFailed(Microsoft.Extensions.Logging.ILogger! logger, string! errorMessage) -> void
+static Encina.Messaging.Diagnostics.OutboxStoreLog.OperationException(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void
+Encina.Messaging.Diagnostics.InboxStoreLog
+static Encina.Messaging.Diagnostics.InboxStoreLog.CheckingForDuplicate(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
+static Encina.Messaging.Diagnostics.InboxStoreLog.DuplicateDetected(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
+static Encina.Messaging.Diagnostics.InboxStoreLog.AddingMessage(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, string! messageType) -> void
+static Encina.Messaging.Diagnostics.InboxStoreLog.MessageAdded(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
+static Encina.Messaging.Diagnostics.InboxStoreLog.MarkingMessageAsProcessed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
+static Encina.Messaging.Diagnostics.InboxStoreLog.OperationFailed(Microsoft.Extensions.Logging.ILogger! logger, string! errorMessage) -> void
+static Encina.Messaging.Diagnostics.InboxStoreLog.OperationException(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void
+Encina.Messaging.Diagnostics.SagaStoreLog
+static Encina.Messaging.Diagnostics.SagaStoreLog.LoadingSaga(Microsoft.Extensions.Logging.ILogger! logger, string! sagaId, string! sagaType) -> void
+static Encina.Messaging.Diagnostics.SagaStoreLog.SagaLoaded(Microsoft.Extensions.Logging.ILogger! logger, string! sagaId, string! currentStep) -> void
+static Encina.Messaging.Diagnostics.SagaStoreLog.SavingTransition(Microsoft.Extensions.Logging.ILogger! logger, string! sagaId, string! fromStep, string! toStep) -> void
+static Encina.Messaging.Diagnostics.SagaStoreLog.SagaCompleted(Microsoft.Extensions.Logging.ILogger! logger, string! sagaId) -> void
+static Encina.Messaging.Diagnostics.SagaStoreLog.OperationFailed(Microsoft.Extensions.Logging.ILogger! logger, string! errorMessage) -> void
+static Encina.Messaging.Diagnostics.SagaStoreLog.OperationException(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void
+Encina.Messaging.Diagnostics.SchedulingStoreLog
+static Encina.Messaging.Diagnostics.SchedulingStoreLog.SchedulingMessage(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, string! messageType, System.DateTime scheduledAtUtc) -> void
+static Encina.Messaging.Diagnostics.SchedulingStoreLog.MessageCreated(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
+static Encina.Messaging.Diagnostics.SchedulingStoreLog.FetchingDueMessages(Microsoft.Extensions.Logging.ILogger! logger) -> void
+static Encina.Messaging.Diagnostics.SchedulingStoreLog.FetchedDueMessages(Microsoft.Extensions.Logging.ILogger! logger, int count) -> void
+static Encina.Messaging.Diagnostics.SchedulingStoreLog.MarkingMessageAsExecuted(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
+static Encina.Messaging.Diagnostics.SchedulingStoreLog.OperationFailed(Microsoft.Extensions.Logging.ILogger! logger, string! errorMessage) -> void
+static Encina.Messaging.Diagnostics.SchedulingStoreLog.OperationException(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void

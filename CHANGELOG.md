@@ -1,4 +1,4 @@
-## [Unreleased]
+## [0.12.0] - 2026-02-16 - Database & Repository
 
 ### Added
 
@@ -162,6 +162,104 @@ Added shadow sharding for testing new shard topologies under real production tra
 - `encina.sharding.shadow_routing_failed`
 
 **Testing**: 90 tests across unit (55), guard (18), contract (9), property (8) tests; 5 BenchmarkDotNet benchmarks
+
+#### Schema Migration Coordination for Shards (#651)
+
+Added coordinated schema migration across sharded databases with four deployment strategies, automatic rollback, schema drift detection, and full observability integration.
+
+**Core Types** (`Encina` package):
+
+- **`MigrationScript`**: Immutable record with `Id`, `UpSql`, `DownSql`, `Description`, `Checksum` for DDL scripts
+- **`MigrationResult`**: Coordination result with `PerShardStatus`, computed `AllSucceeded`, `SucceededCount`, `FailedCount`
+- **`MigrationProgress`**: In-flight tracking with `TotalShards`, `CompletedShards`, `FailedShards`, `CurrentShard`, computed `RemainingShards`, `IsFinished`
+- **`ShardMigrationStatus`**: Per-shard state with `ShardId`, `Outcome` (Success/Failed/RolledBack/Skipped), `Duration`, optional `ErrorMessage`
+- **`MigrationOptions`**: Per-migration configuration (strategy, parallelism, timeout, stop-on-first-failure, validation)
+
+**Coordination Engine**:
+
+- **`IShardedMigrationCoordinator`**: Main interface — `ApplyToAllShardsAsync`, `RollbackAsync`, `DetectDriftAsync`, `GetProgressAsync`, `GetAppliedMigrationsAsync`
+- **`ShardedMigrationCoordinator`**: Full implementation with in-memory progress tracking, history table initialization, and per-shard error isolation
+
+**Four Migration Strategies**:
+
+- **Sequential** (`SequentialMigrationStrategy`): One shard at a time — safest, slowest
+- **Parallel** (`ParallelMigrationStrategy`): All shards simultaneously with semaphore-based throttling
+- **RollingUpdate** (`RollingUpdateStrategy`): Configurable batch size, balanced approach
+- **CanaryFirst** (`CanaryFirstStrategy`): Apply to canary shard first, then parallel to rest
+
+**Provider Abstractions**:
+
+- **`IMigrationExecutor`**: Provider-specific DDL execution (`ExecuteSqlAsync`)
+- **`IMigrationHistoryStore`**: Migration history tracking (`GetAppliedAsync`, `RecordAppliedAsync`, `RecordRolledBackAsync`, `EnsureHistoryTableExistsAsync`, `ApplyHistoricalMigrationsAsync`)
+- **`ISchemaIntrospector`**: Provider-specific schema inspection for drift detection
+
+**Schema Drift Detection**:
+
+- **`SchemaComparer`**: Core comparison logic with three depths (TablesOnly, TablesAndColumns, Full)
+- **`SchemaDriftReport`**: Aggregated drift across all shards with computed `HasDrift`
+- **`ShardSchemaDiff`**: Per-shard drift result with table diffs
+- **`TableDiff`**: Individual table difference (Missing, Extra, Modified) with optional column diffs
+- **`DriftDetectionOptions`**: Configuration with baseline shard, comparison depth, critical table tracking
+
+**Builder & DI**:
+
+- **`MigrationCoordinationBuilder`**: Fluent builder — `UseStrategy()`, `WithMaxParallelism()`, `StopOnFirstFailure()`, `WithPerShardTimeout()`, `ValidateBeforeApply()`, `OnShardMigrated()`, `WithDriftDetection()`
+- **`AddEncinaShardMigrationCoordination()`**: DI registration extension method on `IServiceCollection`
+
+**Observability** (`Encina.OpenTelemetry`):
+
+- 6 metric instruments: `shards_migrated_total` counter, `shards_failed_total` counter, `duration_per_shard_ms` histogram, `total_duration_ms` histogram, `drift_detected_count` observable gauge, `rollbacks_total` counter
+- 3 trace activities via `MigrationActivitySource`: `StartMigrationCoordination`, `StartShardMigration`, `Complete` enrichment
+- 14 activity tags under `ActivityTagNames.Migration`
+- **`SchemaDriftHealthCheck`**: Reports Unhealthy/Degraded/Healthy based on drift in critical vs non-critical tables
+- **`MigrationMetricsInitializer`**: Hosted service for metrics initialization
+
+**Error Codes** (constants in `MigrationErrorCodes`):
+
+- `NoActiveShards`, `MigrationFailed`, `RollbackFailed`, `DriftDetectionFailed`, `HistoryQueryFailed`
+
+**Testing**: 169 tests across unit (47), guard (54), contract (26), property (31), integration (11) tests — integration tests use real SQLite databases via `ShardedSqliteFixture`
+
+#### Online Resharding Workflow (#648)
+
+Added online resharding with a 6-phase workflow (Planning → Copying → Replicating → Verifying → CuttingOver → CleaningUp), crash recovery, automatic rollback, and full observability integration.
+
+**Core Architecture**:
+
+- **`IReshardingOrchestrator`**: Orchestrates the full lifecycle with `PlanAsync`, `ExecuteAsync`, `RollbackAsync`, `GetProgressAsync`
+- **`IReshardingStateStore`**: Persistent state for crash recovery (`SaveStateAsync`, `GetStateAsync`, `GetActiveReshardingsAsync`, `DeleteStateAsync`)
+- **`IReshardingServices`**: Application-level data operations (`CopyBatchAsync`, `ReplicateChangesAsync`, `GetReplicationLagAsync`, `VerifyDataConsistencyAsync`, `SwapTopologyAsync`, `CleanupSourceDataAsync`, `EstimateRowCountAsync`) plus 3 result records (`CopyBatchResult`, `ReplicationResult`, `VerificationResult`)
+- **`ReshardingPhaseExecutor`**: Sequential phase pipeline with `ValidateTransition`, crash recovery from last checkpoint
+- **`ReshardingState`**: Immutable state record persisted across phases with `ReshardingCheckpoint` support
+
+**6-Phase Workflow**:
+
+- **Planning**: Uses `IShardRebalancer.CalculateAffectedKeyRanges` to generate `ShardMigrationStep[]`, estimates resources via `IReshardingServices.EstimateRowCountAsync`
+- **Copying**: Batch data copy with configurable `CopyBatchSize` (default: 10,000), checkpoint resume after crash via `ReshardingCheckpoint.LastBatchPosition`
+- **Replicating**: CDC-based catch-up with configurable `CdcLagThreshold` (default: 5s), multi-pass replication tracking via `ReshardingCheckpoint.CdcPosition`
+- **Verifying**: Consistency verification with `VerificationMode` (RowCount, CountAndChecksum, Full)
+- **CuttingOver**: Atomic topology swap with `OnCutoverStarting` predicate gate and `CutoverTimeout` (default: 30s)
+- **CleaningUp**: Source data deletion with `CleanupRetentionPeriod` (default: 24h), best-effort (failures don't fail the workflow)
+
+**Configuration**:
+
+- **`ReshardingOptions`**: `CopyBatchSize` (10,000), `CdcLagThreshold` (5s), `VerificationMode` (CountAndChecksum), `CutoverTimeout` (30s), `CleanupRetentionPeriod` (24h), `OnPhaseCompleted` callback, `OnCutoverStarting` predicate
+- **`ReshardingBuilder`**: Fluent API — `CopyBatchSize`, `CdcLagThreshold`, `VerificationMode`, `CutoverTimeout`, `CleanupRetentionPeriod`, `OnPhaseCompleted()`, `OnCutoverStarting()`
+- **`WithResharding()`**: Configuration entry point on `ShardingOptions<TEntity>`
+
+**Observability** (`Encina.OpenTelemetry`):
+
+- `ReshardingMetrics`: 7 instruments — `phase_duration_ms` histogram, `rows_copied_total` counter, `rows_per_second` observable gauge, `cdc_lag_ms` observable gauge, `verification_mismatches_total` counter, `cutover_duration_ms` histogram, `active_resharding_count` observable gauge (via `ReshardingMetricsCallbacks`)
+- `ReshardingActivitySource` ("Encina.Resharding"): 2 activities (`StartReshardingExecution`, `StartPhaseExecution`) with `Complete` enrichment
+- `ReshardingActivityEnricher`: Static methods for enriching activities with plan and phase details
+- `ReshardingHealthCheck`: Three-state health (Healthy: no active, Degraded: in-progress, Unhealthy: failed/overdue/timeout/error) with `ReshardingHealthCheckOptions` (MaxReshardingDuration: 2h, Timeout: 30s)
+- `ReshardingLogMessages`: 10 source-generated structured log events with unique EventIds
+
+**Error Codes** (16 stable codes under `encina.sharding.resharding.*`):
+
+- `TopologiesIdentical`, `EmptyPlan`, `PlanGenerationFailed`, `CopyFailed`, `ReplicationFailed`, `VerificationFailed`, `CutoverTimeout`, `CutoverAborted`, `CutoverFailed`, `CleanupFailed`, `RollbackFailed`, `RollbackNotAvailable`, `ReshardingNotFound`, `InvalidPhaseTransition`, `StateStoreFailed`, `ConcurrentReshardingNotAllowed`
+
+**Testing**: 342 tests across unit (252), guard (48), contract (18), property (12), integration (12) tests
 
 #### CDC Dead Letter Queue (#631)
 

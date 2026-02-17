@@ -2,6 +2,7 @@ using System.Reflection;
 using Encina.Sharding.Colocation;
 using Encina.Sharding.Configuration;
 using Encina.Sharding.ReferenceTables;
+using Encina.Sharding.Resharding;
 using Encina.Sharding.Shadow;
 using Encina.Sharding.TimeBased;
 using Microsoft.Extensions.DependencyInjection;
@@ -129,6 +130,12 @@ public static class ShardingServiceCollectionExtensions
         if (options.UseShadowSharding && options.ShadowSharding is not null)
         {
             ShadowShardingServiceCollectionExtensions.AddShadowSharding(services, options.ShadowSharding);
+        }
+
+        // Register resharding services
+        if (options.UseResharding && options.ReshardingBuilder is not null)
+        {
+            ReshardingServiceCollectionExtensions.AddResharding(services, options.ReshardingBuilder);
         }
 
         return services;
