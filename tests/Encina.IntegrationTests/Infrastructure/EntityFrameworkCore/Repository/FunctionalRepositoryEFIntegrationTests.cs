@@ -24,17 +24,17 @@ public class FunctionalRepositoryEFIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ClearDataAsync();
         _dbContext = _fixture.CreateDbContext();
         _repository = new FunctionalRepositoryEF<TestEntity, Guid>(_dbContext);
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _dbContext.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     #region GetByIdAsync Tests

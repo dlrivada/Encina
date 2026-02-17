@@ -36,8 +36,8 @@ public static class FailureSimulationExtensions
             ?? throw new InvalidOperationException($"Saga with ID '{sagaId}' was not found.");
 
         saga.Status = SagaStatus.TimedOut;
-        saga.TimeoutAtUtc = DateTime.UtcNow;
-        saga.LastUpdatedAtUtc = DateTime.UtcNow;
+        saga.TimeoutAtUtc = TimeProvider.System.GetUtcNow().UtcDateTime;
+        saga.LastUpdatedAtUtc = TimeProvider.System.GetUtcNow().UtcDateTime;
     }
 
     /// <summary>
@@ -61,8 +61,8 @@ public static class FailureSimulationExtensions
 
         saga.Status = SagaStatus.Failed;
         saga.ErrorMessage = errorMessage;
-        saga.CompletedAtUtc = DateTime.UtcNow;
-        saga.LastUpdatedAtUtc = DateTime.UtcNow;
+        saga.CompletedAtUtc = TimeProvider.System.GetUtcNow().UtcDateTime;
+        saga.LastUpdatedAtUtc = TimeProvider.System.GetUtcNow().UtcDateTime;
     }
 
     /// <summary>
@@ -96,7 +96,7 @@ public static class FailureSimulationExtensions
 
         message.ErrorMessage = errorMessage;
         message.RetryCount++;
-        message.NextRetryAtUtc = nextRetryAtUtc ?? DateTime.UtcNow.AddMinutes(1);
+        message.NextRetryAtUtc = nextRetryAtUtc ?? TimeProvider.System.GetUtcNow().UtcDateTime.AddMinutes(1);
     }
 
     /// <summary>
@@ -153,7 +153,7 @@ public static class FailureSimulationExtensions
 
         message.ErrorMessage = errorMessage;
         message.RetryCount++;
-        message.NextRetryAtUtc = nextRetryAtUtc ?? DateTime.UtcNow.AddMinutes(1);
+        message.NextRetryAtUtc = nextRetryAtUtc ?? TimeProvider.System.GetUtcNow().UtcDateTime.AddMinutes(1);
     }
 
     /// <summary>
@@ -174,7 +174,7 @@ public static class FailureSimulationExtensions
         var message = store.GetMessage(messageId)
             ?? throw new InvalidOperationException($"Inbox message with ID '{messageId}' was not found.");
 
-        message.ExpiresAtUtc = DateTime.UtcNow.AddDays(-1);
+        message.ExpiresAtUtc = TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(-1);
     }
 
     /// <summary>
@@ -201,7 +201,7 @@ public static class FailureSimulationExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(requestContent);
 
         var store = app.Services.GetRequiredService<FakeDeadLetterStore>();
-        var now = DateTime.UtcNow;
+        var now = TimeProvider.System.GetUtcNow().UtcDateTime;
         var deadLetterMessage = new FakeDeadLetterMessage
         {
             Id = Guid.NewGuid(),

@@ -28,9 +28,9 @@ public class UnitOfWorkDapperTests : IAsyncLifetime
         _unitOfWork = new UnitOfWorkDapper(_mockConnection, _mockServiceProvider);
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _unitOfWork.DisposeAsync();
     }

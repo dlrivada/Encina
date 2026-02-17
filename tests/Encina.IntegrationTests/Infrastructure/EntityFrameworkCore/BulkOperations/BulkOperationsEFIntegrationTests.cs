@@ -37,7 +37,7 @@ public sealed class BulkOperationsEFIntegrationTests : IAsyncLifetime
     private BulkTestDbContext _dbContext = null!;
     private BulkOperationsEF<BulkTestEntity> _bulkOps = null!;
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         var options = new DbContextOptionsBuilder<BulkTestDbContext>()
             .UseSqlite("Data Source=:memory:")
@@ -49,13 +49,13 @@ public sealed class BulkOperationsEFIntegrationTests : IAsyncLifetime
 
         _bulkOps = new BulkOperationsEF<BulkTestEntity>(_dbContext);
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _dbContext?.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     #region BulkInsertAsync Tests - Empty Collection

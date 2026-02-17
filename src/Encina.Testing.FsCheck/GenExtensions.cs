@@ -180,7 +180,7 @@ public static class GenExtensions
 
         return Gen.Select(
             Gen.Choose(-daysFromNow, daysFromNow),
-            days => DateTime.UtcNow.AddDays(days));
+            days => TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(days));
     }
 
     /// <summary>
@@ -195,12 +195,12 @@ public static class GenExtensions
 
         if (maxDaysAgo == 0)
         {
-            return Gen.Constant(DateTime.UtcNow);
+            return Gen.Constant(TimeProvider.System.GetUtcNow().UtcDateTime);
         }
 
         return Gen.Select(
             Gen.Choose(1, maxDaysAgo),
-            days => DateTime.UtcNow.AddDays(-days));
+            days => TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(-days));
     }
 
     /// <summary>
@@ -215,7 +215,7 @@ public static class GenExtensions
 
         return Gen.Select(
             Gen.Choose(1, maxDaysAhead),
-            days => DateTime.UtcNow.AddDays(days));
+            days => TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(days));
     }
 
     /// <summary>

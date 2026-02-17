@@ -34,6 +34,7 @@ public sealed class InboxOrchestrator
     private readonly InboxOptions _options;
     private readonly ILogger<InboxOrchestrator> _logger;
     private readonly IInboxMessageFactory _messageFactory;
+    private readonly TimeProvider _timeProvider;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -47,11 +48,13 @@ public sealed class InboxOrchestrator
     /// <param name="options">The inbox options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="messageFactory">Factory to create inbox messages.</param>
+    /// <param name="timeProvider">Optional time provider for testability.</param>
     public InboxOrchestrator(
         IInboxStore store,
         InboxOptions options,
         ILogger<InboxOrchestrator> logger,
-        IInboxMessageFactory messageFactory)
+        IInboxMessageFactory messageFactory,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
@@ -62,6 +65,7 @@ public sealed class InboxOrchestrator
         _options = options;
         _logger = logger;
         _messageFactory = messageFactory;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -99,7 +103,7 @@ public sealed class InboxOrchestrator
         }
 
         // Create new inbox entry
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         var newMessage = _messageFactory.Create(
             messageId,
             requestType,
@@ -188,7 +192,7 @@ public sealed class InboxOrchestrator
             await _store.MarkAsFailedAsync(
                 messageId,
                 ex.Message,
-                DateTime.UtcNow.AddMinutes(1), // Simple backoff, can be made configurable
+                _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(1), // Simple backoff, can be made configurable
                 cancellationToken).ConfigureAwait(false);
 
             throw;

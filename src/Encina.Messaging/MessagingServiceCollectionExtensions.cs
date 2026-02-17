@@ -56,6 +56,9 @@ public static class MessagingServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(config);
 
+        // Register TimeProvider for consistent timestamps across all messaging components
+        services.TryAddSingleton(TimeProvider.System);
+
         if (config.UseTransactions)
         {
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
@@ -164,6 +167,9 @@ public static class MessagingServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(config);
+
+        // Register TimeProvider for consistent timestamps across all messaging components
+        services.TryAddSingleton(TimeProvider.System);
 
         if (config.UseTransactions)
         {

@@ -12,6 +12,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
 {
     private readonly IMongoCollection<OutboxMessage> _collection;
     private readonly ILogger<OutboxStoreMongoDB> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxStoreMongoDB"/> class.
@@ -19,10 +20,12 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
     /// <param name="mongoClient">The MongoDB client.</param>
     /// <param name="options">The MongoDB options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The time provider. Defaults to <see cref="TimeProvider.System"/> if not specified.</param>
     public OutboxStoreMongoDB(
         IMongoClient mongoClient,
         IOptions<EncinaMongoDbOptions> options,
-        ILogger<OutboxStoreMongoDB> logger)
+        ILogger<OutboxStoreMongoDB> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(mongoClient);
         ArgumentNullException.ThrowIfNull(options);
@@ -32,6 +35,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
         var database = mongoClient.GetDatabase(config.DatabaseName);
         _collection = database.GetCollection<OutboxMessage>(config.Collections.Outbox);
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -61,7 +65,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
         int maxRetries,
         CancellationToken cancellationToken = default)
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         var filter = Builders<OutboxMessage>.Filter.And(
             Builders<OutboxMessage>.Filter.Eq(m => m.ProcessedAtUtc, null),
@@ -88,7 +92,7 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
     {
         var filter = Builders<OutboxMessage>.Filter.Eq(m => m.Id, messageId);
         var update = Builders<OutboxMessage>.Update
-            .Set(m => m.ProcessedAtUtc, DateTime.UtcNow);
+            .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime);
 
         var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 

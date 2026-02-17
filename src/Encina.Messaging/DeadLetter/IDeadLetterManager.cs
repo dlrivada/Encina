@@ -142,7 +142,7 @@ public sealed record ReplayResult
     {
         MessageId = messageId,
         Success = true,
-        ReplayedAtUtc = DateTime.UtcNow
+        ReplayedAtUtc = TimeProvider.System.GetUtcNow().UtcDateTime
     };
 
     /// <summary>
@@ -153,7 +153,7 @@ public sealed record ReplayResult
         MessageId = messageId,
         Success = false,
         ErrorMessage = errorMessage,
-        ReplayedAtUtc = DateTime.UtcNow
+        ReplayedAtUtc = TimeProvider.System.GetUtcNow().UtcDateTime
     };
 }
 

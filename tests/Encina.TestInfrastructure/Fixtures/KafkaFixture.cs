@@ -49,7 +49,7 @@ public sealed class KafkaFixture : IAsyncLifetime
     };
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new KafkaBuilder()
             .WithImage("confluentinc/cp-kafka:7.6.0")
@@ -60,7 +60,7 @@ public sealed class KafkaFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_container is not null)
         {

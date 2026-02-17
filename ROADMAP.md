@@ -73,7 +73,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 |---------|-----------|--------|-------|
 | **v0.10.0** | [DDD Foundations](https://github.com/dlrivada/Encina/milestone/7) | 31 | Value Objects, Entities, Aggregates, Specifications, Domain Events, ACL |
 | **v0.11.0** | [Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) | 25 | Fakes, Respawn, WireMock, Shouldly, Verify, Bogus, Architecture tests |
-| **v0.12.0** | [Database & Repository](https://github.com/dlrivada/Encina/milestone/9) | 22 | Generic Repository, Specification, Unit of Work, Bulk Operations, Pagination |
+| **v0.12.0** | [Database & Repository](https://github.com/dlrivada/Encina/milestone/9) | 58 ✅ | Generic Repository, Specification, Unit of Work, Bulk Operations, Sharding, CDC |
 | **v0.13.0** | [Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Core Security, Audit Trail, Encryption, GDPR, Consent, NIS2, AI Act |
 | **v0.14.0** | [Cloud-Native & Aspire](https://github.com/dlrivada/Encina/milestone/11) | 23 | .NET Aspire, Dapr, Service Discovery, HealthChecks, Orleans |
 | **v0.15.0** | [Messaging & EIP](https://github.com/dlrivada/Encina/milestone/12) | 71 | Enterprise Integration Patterns, Transports, Process Manager, Schema Registry |
@@ -148,29 +148,33 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 
 → [View v0.11.0 Issues](https://github.com/dlrivada/Encina/milestone/8) (Closed)
 
-##### v0.12.0 — Database & Repository
+##### v0.12.0 — Database & Repository ✅ COMPLETED (2026-02-16)
 
 *Enterprise data access patterns*
 
-**Completed:**
+> **Milestone Completed**: 58 issues closed, 0 warnings, 0 SonarCloud issues
 
-- ✅ Generic Repository Pattern [#279](https://github.com/dlrivada/Encina/issues/279) - IFunctionalRepository across all 8 remaining providers (ADO.SQLite/PostgreSQL/MySQL/Oracle, Dapper.SQLite/PostgreSQL/MySQL/Oracle)
-- ✅ Specification Pattern with EF Core/Dapper/ADO.NET/MongoDB [#280](https://github.com/dlrivada/Encina/issues/280) - QuerySpecification with ordering, pagination, keyset
+**All Features Delivered:**
+
+- ✅ Generic Repository Pattern [#279](https://github.com/dlrivada/Encina/issues/279) - IFunctionalRepository across all 13 providers
+- ✅ Specification Pattern [#280](https://github.com/dlrivada/Encina/issues/280) - QuerySpecification with EF Core/Dapper/ADO.NET/MongoDB, ordering, pagination, keyset
 - ✅ Unit of Work Pattern [#281](https://github.com/dlrivada/Encina/issues/281) - IUnitOfWork across all providers
 - ✅ Multi-Tenancy Database Support [#282](https://github.com/dlrivada/Encina/issues/282) - Tenant isolation with three strategies
-- ✅ Module Isolation by Database Permissions [#534](https://github.com/dlrivada/Encina/issues/534) - Schema-based module isolation across all providers
 - ✅ Read/Write Database Separation [#283](https://github.com/dlrivada/Encina/issues/283) - CQRS physical split with automatic routing and read replica support
-- ✅ Bulk Operations (Insert/Update/Delete) [#284](https://github.com/dlrivada/Encina/issues/284) - High-performance bulk operations up to 459x faster
-- ✅ Audit Trail Pattern (IAuditableEntity) [#286](https://github.com/dlrivada/Encina/issues/286), [#623](https://github.com/dlrivada/Encina/issues/623) - Granular interfaces, auto-population in Repository for all 13 providers (EF Core, Dapper, ADO.NET, MongoDB)
-- ✅ Soft Delete & Temporal Tables [#285](https://github.com/dlrivada/Encina/issues/285) - ISoftDeletable/ISoftDeletableEntity interfaces, SoftDeleteInterceptor, SoftDeleteRepository, global query filters, SQL Server temporal tables with point-in-time queries
+- ✅ Bulk Operations [#284](https://github.com/dlrivada/Encina/issues/284) - High-performance insert/update/delete up to 459x faster
+- ✅ Soft Delete & Temporal Tables [#285](https://github.com/dlrivada/Encina/issues/285) - ISoftDeletable, SoftDeleteInterceptor, SQL Server temporal tables
+- ✅ Audit Trail Pattern [#286](https://github.com/dlrivada/Encina/issues/286), [#623](https://github.com/dlrivada/Encina/issues/623) - Granular interfaces, auto-population for all 13 providers
+- ✅ Optimistic Concurrency [#287](https://github.com/dlrivada/Encina/issues/287) - Row versioning across all providers
+- ✅ CDC Integration [#288](https://github.com/dlrivada/Encina/issues/288) - ICdcConnector, 5 providers (SqlServer/PostgreSql/MySql/MongoDb/Debezium), messaging bridge, DLQ, query cache invalidation
+- ✅ Database Sharding [#289](https://github.com/dlrivada/Encina/issues/289) - 4 routing strategies (Hash/Range/Directory/Geo), compound shard keys, distributed aggregation, 13 providers, MongoDB dual-mode, scatter-gather, online resharding, time-based archival, ~1400+ tests
+- ✅ Connection Pool Resilience [#290](https://github.com/dlrivada/Encina/issues/290) - Health-aware connection pooling
+- ✅ Query Cache [#291](https://github.com/dlrivada/Encina/issues/291) - Specification-based query caching
+- ✅ Domain Entity Base [#292](https://github.com/dlrivada/Encina/issues/292) - Base entity classes
+- ✅ Pagination Abstractions [#293](https://github.com/dlrivada/Encina/issues/293) - PagedResult, keyset pagination
+- ✅ Module Isolation [#534](https://github.com/dlrivada/Encina/issues/534) - Schema-based module isolation across all providers
+- ✅ Immutable Records Support [#569](https://github.com/dlrivada/Encina/issues/569), [#572](https://github.com/dlrivada/Encina/issues/572) - EF Core and UnitOfWork support for immutable records
 
-**Remaining:**
-
-- Optimistic Concurrency
-- ✅ CDC Integration — **COMPLETED** (ICdcConnector, IChangeEventHandler<T>, CdcProcessor, 5 providers: SqlServer/PostgreSql/MySql/MongoDb/Debezium, messaging bridge, outbox CDC)
-- Pagination abstractions
-
-→ [View v0.12.0 Issues](https://github.com/dlrivada/Encina/milestone/9)
+→ [View v0.12.0 Issues](https://github.com/dlrivada/Encina/milestone/9) (Closed)
 
 ##### v0.13.0 — Security & Compliance
 
@@ -355,7 +359,7 @@ Key areas already completed:
   - ✅ Soft Delete & Temporal Tables [#285](https://github.com/dlrivada/Encina/issues/285) — Logical delete + SQL Server temporal tables - **COMPLETED** (ISoftDeletable interfaces, SoftDeleteInterceptor, SoftDeleteRepository, global query filters across EF Core, Dapper, ADO.NET, MongoDB; SQL Server temporal tables with point-in-time queries)
   - Audit Trail Pattern [#286](https://github.com/dlrivada/Encina/issues/286) — IAuditableEntity with CreatedAt/By, ModifiedAt/By
   - Optimistic Concurrency [#287](https://github.com/dlrivada/Encina/issues/287) — IConcurrencyAware with conflict resolution
-  - ✅ CDC Integration [#288](https://github.com/dlrivada/Encina/issues/288) — Change Data Capture with Debezium/Kafka - **COMPLETED** (ICdcConnector, IChangeEventHandler<T>, CdcProcessor, 5 providers, messaging bridge, outbox CDC, 355+ tests)
+  - ✅ CDC Integration [#288](https://github.com/dlrivada/Encina/issues/288) — Change Data Capture with Debezium/Kafka - **COMPLETED** (ICdcConnector, IChangeEventHandler<T>, CdcProcessor, 5 providers + Debezium HTTP/Kafka dual-mode, messaging bridge, outbox CDC, 498+ tests)
   - Database Sharding [#289](https://github.com/dlrivada/Encina/issues/289) — Horizontal partitioning with shard routing
   - ✅ Connection Pool Resilience [#290](https://github.com/dlrivada/Encina/issues/290) — Pool monitoring, circuit breaker, warm-up - **COMPLETED** (IDatabaseHealthMonitor across all 13 providers, ConnectionPoolStats, DatabaseCircuitBreakerPipelineBehavior, DatabaseTransientErrorPredicate, ConnectionWarmupHostedService)
   - ✅ Query Cache Interceptor [#291](https://github.com/dlrivada/Encina/issues/291) — EF Core second-level cache - **COMPLETED** (QueryCacheInterceptor with automatic invalidation on SaveChanges, DefaultQueryCacheKeyGenerator with SHA256 hashing, CachedDataReader, SqlTableExtractor, multi-tenant support, entity type exclusions, works with all 8 cache providers)

@@ -33,6 +33,7 @@ public sealed class SchedulerOrchestrator
     private readonly ILogger<SchedulerOrchestrator> _logger;
     private readonly IScheduledMessageFactory _messageFactory;
     private readonly ICronParser? _cronParser;
+    private readonly TimeProvider _timeProvider;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -47,12 +48,14 @@ public sealed class SchedulerOrchestrator
     /// <param name="logger">The logger.</param>
     /// <param name="messageFactory">Factory to create scheduled messages.</param>
     /// <param name="cronParser">Optional cron parser for recurring messages.</param>
+    /// <param name="timeProvider">Optional time provider for testability.</param>
     public SchedulerOrchestrator(
         IScheduledMessageStore store,
         SchedulingOptions options,
         ILogger<SchedulerOrchestrator> logger,
         IScheduledMessageFactory messageFactory,
-        ICronParser? cronParser = null)
+        ICronParser? cronParser = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
@@ -64,6 +67,7 @@ public sealed class SchedulerOrchestrator
         _logger = logger;
         _messageFactory = messageFactory;
         _cronParser = cronParser;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -82,7 +86,7 @@ public sealed class SchedulerOrchestrator
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        if (executeAt < DateTime.UtcNow)
+        if (executeAt < _timeProvider.GetUtcNow().UtcDateTime)
         {
             throw new ArgumentException("Scheduled time must be in the future.", nameof(executeAt));
         }
@@ -98,7 +102,7 @@ public sealed class SchedulerOrchestrator
             requestType,
             content,
             executeAt,
-            DateTime.UtcNow,
+            _timeProvider.GetUtcNow().UtcDateTime,
             isRecurring: false,
             cronExpression: null);
 
@@ -128,7 +132,7 @@ public sealed class SchedulerOrchestrator
             throw new ArgumentException("Delay must be positive.", nameof(delay));
         }
 
-        return ScheduleAsync(request, DateTime.UtcNow.Add(delay), cancellationToken);
+        return ScheduleAsync(request, _timeProvider.GetUtcNow().UtcDateTime.Add(delay), cancellationToken);
     }
 
     /// <summary>
@@ -162,7 +166,7 @@ public sealed class SchedulerOrchestrator
                 "No cron parser configured for recurring messages");
         }
 
-        var nextExecutionResult = _cronParser.GetNextOccurrence(cronExpression, DateTime.UtcNow);
+        var nextExecutionResult = _cronParser.GetNextOccurrence(cronExpression, _timeProvider.GetUtcNow().UtcDateTime);
         if (nextExecutionResult.IsLeft)
         {
             return nextExecutionResult.Match(
@@ -185,7 +189,7 @@ public sealed class SchedulerOrchestrator
             requestType,
             content,
             nextExecution,
-            DateTime.UtcNow,
+            _timeProvider.GetUtcNow().UtcDateTime,
             isRecurring: true,
             cronExpression: cronExpression);
 
@@ -297,7 +301,7 @@ public sealed class SchedulerOrchestrator
             return;
         }
 
-        var nextExecutionResult = _cronParser.GetNextOccurrence(message.CronExpression, DateTime.UtcNow);
+        var nextExecutionResult = _cronParser.GetNextOccurrence(message.CronExpression, _timeProvider.GetUtcNow().UtcDateTime);
 
         if (nextExecutionResult.IsRight)
         {
@@ -317,7 +321,7 @@ public sealed class SchedulerOrchestrator
 
     private async Task MarkAsFailedAsync(Guid messageId, string errorMessage, CancellationToken cancellationToken)
     {
-        var nextRetryAt = DateTime.UtcNow.Add(_options.BaseRetryDelay);
+        var nextRetryAt = _timeProvider.GetUtcNow().UtcDateTime.Add(_options.BaseRetryDelay);
         await _store.MarkAsFailedAsync(messageId, errorMessage, nextRetryAt, cancellationToken).ConfigureAwait(false);
     }
 }

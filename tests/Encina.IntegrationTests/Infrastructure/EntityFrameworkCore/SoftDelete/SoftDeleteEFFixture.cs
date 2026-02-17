@@ -23,13 +23,13 @@ public sealed class SoftDeleteEFFixture : IAsyncLifetime
         return new SoftDeleteTestDbContext(options);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _sqlServerFixture.InitializeAsync();
         await CreateSoftDeleteSchemaAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sqlServerFixture.DisposeAsync();
     }

@@ -12,6 +12,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
 {
     private readonly IMongoCollection<InboxMessage> _collection;
     private readonly ILogger<InboxStoreMongoDB> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InboxStoreMongoDB"/> class.
@@ -19,10 +20,12 @@ public sealed class InboxStoreMongoDB : IInboxStore
     /// <param name="mongoClient">The MongoDB client.</param>
     /// <param name="options">The MongoDB options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The time provider. Defaults to <see cref="TimeProvider.System"/> if not specified.</param>
     public InboxStoreMongoDB(
         IMongoClient mongoClient,
         IOptions<EncinaMongoDbOptions> options,
-        ILogger<InboxStoreMongoDB> logger)
+        ILogger<InboxStoreMongoDB> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(mongoClient);
         ArgumentNullException.ThrowIfNull(options);
@@ -32,6 +35,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
         var database = mongoClient.GetDatabase(config.DatabaseName);
         _collection = database.GetCollection<InboxMessage>(config.Collections.Inbox);
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -81,7 +85,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
 
         var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
         var update = Builders<InboxMessage>.Update
-            .Set(m => m.ProcessedAtUtc, DateTime.UtcNow)
+            .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
             .Set(m => m.Response, response);
 
         var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -128,7 +132,7 @@ public sealed class InboxStoreMongoDB : IInboxStore
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         var filter = Builders<InboxMessage>.Filter.Lt(m => m.ExpiresAtUtc, now);
 

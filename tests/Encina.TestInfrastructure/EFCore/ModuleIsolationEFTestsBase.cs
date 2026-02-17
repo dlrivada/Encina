@@ -103,7 +103,7 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     #region IAsyncLifetime
 
     /// <inheritdoc />
-    public virtual async Task InitializeAsync()
+    public virtual async ValueTask InitializeAsync()
     {
         if (!Fixture.IsAvailable)
         {
@@ -115,8 +115,10 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public virtual async Task DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
+        GC.SuppressFinalize(this);
+
         // Clear module context to avoid leaking state between tests
         _moduleContext.ClearModule();
 
@@ -361,11 +363,11 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     /// <summary>
     /// Verifies that a module can query entities in its own schema.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     [Trait("Category", "Integration")]
     public async Task ModuleCanQueryOwnSchema()
     {
-        Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
+        Assert.SkipUnless(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor();
@@ -392,11 +394,11 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     /// <summary>
     /// Verifies that all modules can access shared schemas.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     [Trait("Category", "Integration")]
     public async Task AllModulesCanAccessSharedSchema()
     {
-        Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
+        Assert.SkipUnless(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor();
@@ -429,11 +431,11 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     /// Verifies that queries execute normally when no module context is set.
     /// Infrastructure queries bypass validation.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     [Trait("Category", "Integration")]
     public async Task QueriesWithoutModuleContextExecuteNormally()
     {
-        Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
+        Assert.SkipUnless(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor();
@@ -450,11 +452,11 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     /// <summary>
     /// Verifies that cross-module schema access throws <see cref="ModuleIsolationViolationException"/>.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     [Trait("Category", "Integration")]
     public async Task CrossSchemaAccessThrowsModuleIsolationViolationException()
     {
-        Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
+        Assert.SkipUnless(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor();
@@ -481,11 +483,11 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     /// <summary>
     /// Verifies that the <see cref="ModuleIsolationViolationException"/> contains correct details.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     [Trait("Category", "Integration")]
     public async Task ViolationExceptionContainsCorrectDetails()
     {
-        Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
+        Assert.SkipUnless(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor();
@@ -513,11 +515,11 @@ public abstract class ModuleIsolationEFTestsBase<TFixture> : IAsyncLifetime
     /// <summary>
     /// Verifies that context switching changes validation behavior.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     [Trait("Category", "Integration")]
     public async Task ContextSwitchingChangesValidationBehavior()
     {
-        Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
+        Assert.SkipUnless(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
         await using var context = CreateDbContextWithInterceptor();

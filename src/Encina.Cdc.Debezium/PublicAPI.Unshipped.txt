@@ -6,14 +6,20 @@ Encina.Cdc.Debezium.DebeziumCdcOptions.BearerToken.set -> void
 Encina.Cdc.Debezium.DebeziumCdcOptions.DebeziumCdcOptions() -> void
 Encina.Cdc.Debezium.DebeziumCdcOptions.DebeziumServerUrl.get -> string?
 Encina.Cdc.Debezium.DebeziumCdcOptions.DebeziumServerUrl.set -> void
+Encina.Cdc.Debezium.DebeziumCdcOptions.ChannelCapacity.get -> int
+Encina.Cdc.Debezium.DebeziumCdcOptions.ChannelCapacity.set -> void
 Encina.Cdc.Debezium.DebeziumCdcOptions.EventFormat.get -> Encina.Cdc.Debezium.DebeziumEventFormat
 Encina.Cdc.Debezium.DebeziumCdcOptions.EventFormat.set -> void
+Encina.Cdc.Debezium.DebeziumCdcOptions.ListenerRetryDelay.get -> System.TimeSpan
+Encina.Cdc.Debezium.DebeziumCdcOptions.ListenerRetryDelay.set -> void
 Encina.Cdc.Debezium.DebeziumCdcOptions.ListenPath.get -> string!
 Encina.Cdc.Debezium.DebeziumCdcOptions.ListenPath.set -> void
 Encina.Cdc.Debezium.DebeziumCdcOptions.ListenPort.get -> int
 Encina.Cdc.Debezium.DebeziumCdcOptions.ListenPort.set -> void
 Encina.Cdc.Debezium.DebeziumCdcOptions.ListenUrl.get -> string!
 Encina.Cdc.Debezium.DebeziumCdcOptions.ListenUrl.set -> void
+Encina.Cdc.Debezium.DebeziumCdcOptions.MaxListenerRetries.get -> int
+Encina.Cdc.Debezium.DebeziumCdcOptions.MaxListenerRetries.set -> void
 Encina.Cdc.Debezium.DebeziumCdcPosition
 Encina.Cdc.Debezium.DebeziumCdcPosition.DebeziumCdcPosition(string! offsetJson) -> void
 Encina.Cdc.Debezium.DebeziumCdcPosition.OffsetJson.get -> string!
@@ -28,3 +34,43 @@ override Encina.Cdc.Debezium.DebeziumCdcPosition.ToBytes() -> byte[]!
 override Encina.Cdc.Debezium.DebeziumCdcPosition.ToString() -> string!
 static Encina.Cdc.Debezium.DebeziumCdcPosition.FromBytes(byte[]! bytes) -> Encina.Cdc.Debezium.DebeziumCdcPosition!
 static Encina.Cdc.Debezium.ServiceCollectionExtensions.AddEncinaCdcDebezium(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Cdc.Debezium.DebeziumCdcOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Cdc.Debezium.ServiceCollectionExtensions.AddEncinaCdcDebeziumKafka(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaHealthCheck
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaHealthCheck.DebeziumKafkaHealthCheck(Encina.Cdc.Abstractions.ICdcConnector! connector, Encina.Cdc.Abstractions.ICdcPositionStore! positionStore) -> void
+const Encina.Cdc.Debezium.Kafka.DebeziumKafkaHealthCheck.DefaultName = "encina-cdc-debezium-kafka" -> string!
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.AutoOffsetReset.get -> string!
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.AutoOffsetReset.set -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.BootstrapServers.get -> string!
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.BootstrapServers.set -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.DebeziumKafkaOptions() -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.EventFormat.get -> Encina.Cdc.Debezium.DebeziumEventFormat
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.EventFormat.set -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.GroupId.get -> string!
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.GroupId.set -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.MaxPollIntervalMs.get -> int
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.MaxPollIntervalMs.set -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.SaslMechanism.get -> string?
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.SaslMechanism.set -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.SaslPassword.get -> string?
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.SaslPassword.set -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.SaslUsername.get -> string?
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.SaslUsername.set -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.SecurityProtocol.get -> string?
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.SecurityProtocol.set -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.SessionTimeoutMs.get -> int
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.SessionTimeoutMs.set -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.SslCaLocation.get -> string?
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.SslCaLocation.set -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.Topics.get -> string![]!
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaOptions.Topics.set -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaPosition
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaPosition.DebeziumKafkaPosition(string! offsetJson, string! topic, int partition, long offset) -> void
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaPosition.Offset.get -> long
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaPosition.OffsetJson.get -> string!
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaPosition.Partition.get -> int
+Encina.Cdc.Debezium.Kafka.DebeziumKafkaPosition.Topic.get -> string!
+override Encina.Cdc.Debezium.Kafka.DebeziumKafkaPosition.CompareTo(Encina.Cdc.Abstractions.CdcPosition? other) -> int
+override Encina.Cdc.Debezium.Kafka.DebeziumKafkaPosition.ToBytes() -> byte[]!
+override Encina.Cdc.Debezium.Kafka.DebeziumKafkaPosition.ToString() -> string!
+static Encina.Cdc.Debezium.Kafka.DebeziumKafkaPosition.FromBytes(byte[]! bytes) -> Encina.Cdc.Debezium.Kafka.DebeziumKafkaPosition!

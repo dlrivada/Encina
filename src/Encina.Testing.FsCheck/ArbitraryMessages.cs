@@ -77,7 +77,7 @@ public sealed class ArbitraryInboxMessage : IInboxMessage
     public bool IsProcessed => ProcessedAtUtc.HasValue;
 
     /// <inheritdoc/>
-    public bool IsExpired() => IsExpired(DateTime.UtcNow);
+    public bool IsExpired() => IsExpired(TimeProvider.System.GetUtcNow().UtcDateTime);
 
     /// <summary>
     /// Determines whether this message has expired as of the specified time.
@@ -171,7 +171,7 @@ public sealed class ArbitraryScheduledMessage : IScheduledMessage
     public bool IsProcessed => ProcessedAtUtc.HasValue;
 
     /// <inheritdoc/>
-    public bool IsDue() => IsDue(DateTime.UtcNow);
+    public bool IsDue() => IsDue(TimeProvider.System.GetUtcNow().UtcDateTime);
 
     /// <summary>
     /// Determines whether the message is due for processing as of the specified time.

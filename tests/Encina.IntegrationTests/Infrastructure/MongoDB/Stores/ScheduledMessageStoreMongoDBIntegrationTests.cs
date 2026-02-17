@@ -30,7 +30,7 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         });
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (_fixture.IsAvailable)
         {
@@ -39,7 +39,7 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         }
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()

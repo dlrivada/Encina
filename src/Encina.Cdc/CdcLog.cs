@@ -178,4 +178,229 @@ internal static partial class CdcLog
     public static partial void NoSavedPosition(
         ILogger logger,
         string connectorId);
+
+    // =========================================================================
+    // Sharded CDC Connector (EventIds 130-136)
+    // =========================================================================
+
+    /// <summary>Logs when the sharded CDC connector initializes.</summary>
+    [LoggerMessage(
+        EventId = 130,
+        Level = LogLevel.Information,
+        Message = "Sharded CDC connector '{ConnectorId}' initialized with {ShardCount} shard(s): [{ShardIds}]")]
+    public static partial void ShardedConnectorInitialized(
+        ILogger logger,
+        string connectorId,
+        int shardCount,
+        string shardIds);
+
+    /// <summary>Logs when a per-shard CDC stream starts.</summary>
+    [LoggerMessage(
+        EventId = 131,
+        Level = LogLevel.Information,
+        Message = "Started CDC stream for shard '{ShardId}' in connector '{ConnectorId}'")]
+    public static partial void ShardStreamStarted(
+        ILogger logger,
+        string shardId,
+        string connectorId);
+
+    /// <summary>Logs when a per-shard CDC stream stops.</summary>
+    [LoggerMessage(
+        EventId = 132,
+        Level = LogLevel.Information,
+        Message = "Stopped CDC stream for shard '{ShardId}' in connector '{ConnectorId}'")]
+    public static partial void ShardStreamStopped(
+        ILogger logger,
+        string shardId,
+        string connectorId);
+
+    /// <summary>Logs when a per-shard CDC stream encounters an error.</summary>
+    [LoggerMessage(
+        EventId = 133,
+        Level = LogLevel.Error,
+        Message = "CDC stream error for shard '{ShardId}' in connector '{ConnectorId}'")]
+    public static partial void ShardStreamError(
+        ILogger logger,
+        Exception exception,
+        string shardId,
+        string connectorId);
+
+    /// <summary>Logs when a shard connector is added dynamically.</summary>
+    [LoggerMessage(
+        EventId = 134,
+        Level = LogLevel.Information,
+        Message = "Added CDC connector for shard '{ShardId}' in connector '{ConnectorId}'")]
+    public static partial void ShardConnectorAdded(
+        ILogger logger,
+        string shardId,
+        string connectorId);
+
+    /// <summary>Logs when a shard connector is removed dynamically.</summary>
+    [LoggerMessage(
+        EventId = 135,
+        Level = LogLevel.Information,
+        Message = "Removed CDC connector for shard '{ShardId}' in connector '{ConnectorId}'")]
+    public static partial void ShardConnectorRemoved(
+        ILogger logger,
+        string shardId,
+        string connectorId);
+
+    /// <summary>Logs when the sharded CDC connector is disposed.</summary>
+    [LoggerMessage(
+        EventId = 136,
+        Level = LogLevel.Information,
+        Message = "Sharded CDC connector '{ConnectorId}' disposed")]
+    public static partial void ShardedConnectorDisposed(
+        ILogger logger,
+        string connectorId);
+
+    // =========================================================================
+    // Sharded CDC Processor (EventIds 140-145)
+    // =========================================================================
+
+    /// <summary>Logs when the sharded CDC processor starts.</summary>
+    [LoggerMessage(
+        EventId = 140,
+        Level = LogLevel.Information,
+        Message = "Sharded CDC processor started. PollingInterval: {PollingInterval}, BatchSize: {BatchSize}")]
+    public static partial void ShardedProcessorStarted(
+        ILogger logger,
+        TimeSpan pollingInterval,
+        int batchSize);
+
+    /// <summary>Logs when the sharded CDC processor stops gracefully.</summary>
+    [LoggerMessage(
+        EventId = 141,
+        Level = LogLevel.Information,
+        Message = "Sharded CDC processor stopped")]
+    public static partial void ShardedProcessorStopped(ILogger logger);
+
+    /// <summary>Logs when a batch of sharded change events has been processed.</summary>
+    [LoggerMessage(
+        EventId = 142,
+        Level = LogLevel.Information,
+        Message = "Sharded CDC processed {SuccessCount}/{TotalCount} events (Failed: {FailureCount}) from connector '{ConnectorId}'")]
+    public static partial void ShardedProcessedChangeEvents(
+        ILogger logger,
+        int successCount,
+        int totalCount,
+        int failureCount,
+        string connectorId);
+
+    /// <summary>Logs when a per-shard CDC position is saved.</summary>
+    [LoggerMessage(
+        EventId = 143,
+        Level = LogLevel.Debug,
+        Message = "Saved sharded CDC position for shard '{ShardId}' connector '{ConnectorId}': {Position}")]
+    public static partial void ShardPositionSaved(
+        ILogger logger,
+        string shardId,
+        string connectorId,
+        string position);
+
+    // =========================================================================
+    // Sharded CDC Observability (EventIds 200-204)
+    // =========================================================================
+
+    /// <summary>Logs when a shard CDC connector starts capturing changes.</summary>
+    [LoggerMessage(
+        EventId = 200,
+        Level = LogLevel.Information,
+        Message = "Shard CDC connector started for shard '{ShardId}' in connector '{ConnectorId}'")]
+    public static partial void ShardCdcConnectorStarted(
+        ILogger logger,
+        string shardId,
+        string connectorId);
+
+    /// <summary>Logs when a shard CDC connector stops capturing changes.</summary>
+    [LoggerMessage(
+        EventId = 201,
+        Level = LogLevel.Information,
+        Message = "Shard CDC connector stopped for shard '{ShardId}' in connector '{ConnectorId}'")]
+    public static partial void ShardCdcConnectorStopped(
+        ILogger logger,
+        string shardId,
+        string connectorId);
+
+    /// <summary>Logs when a shard's replication lag exceeds the configured threshold.</summary>
+    [LoggerMessage(
+        EventId = 202,
+        Level = LogLevel.Warning,
+        Message = "Shard CDC lag exceeded threshold for shard '{ShardId}' in connector '{ConnectorId}'. Current lag: {LagMs}ms, Threshold: {ThresholdMs}ms")]
+    public static partial void ShardCdcLagExceeded(
+        ILogger logger,
+        string shardId,
+        string connectorId,
+        double lagMs,
+        double thresholdMs);
+
+    /// <summary>Logs when a shard CDC position is checkpointed to persistent storage.</summary>
+    [LoggerMessage(
+        EventId = 203,
+        Level = LogLevel.Debug,
+        Message = "Shard CDC position checkpointed for shard '{ShardId}' in connector '{ConnectorId}': {Position}")]
+    public static partial void ShardCdcPositionCheckpointed(
+        ILogger logger,
+        string shardId,
+        string connectorId,
+        string position);
+
+    /// <summary>Logs when the shard topology changes (shards added or removed).</summary>
+    [LoggerMessage(
+        EventId = 204,
+        Level = LogLevel.Information,
+        Message = "Shard topology changed for connector '{ConnectorId}'. Active shards: {ActiveShardCount}. Added: [{AddedShardIds}], Removed: [{RemovedShardIds}]")]
+    public static partial void ShardTopologyChanged(
+        ILogger logger,
+        string connectorId,
+        int activeShardCount,
+        string addedShardIds,
+        string removedShardIds);
+
+    // =========================================================================
+    // CDC Dead Letter Queue (EventIds 210-213)
+    // =========================================================================
+
+    /// <summary>Logs when a failed event is persisted to the dead letter queue.</summary>
+    [LoggerMessage(
+        EventId = 210,
+        Level = LogLevel.Warning,
+        Message = "Event for table '{TableName}' from connector '{ConnectorId}' moved to dead letter queue after {RetryCount} retries. Entry ID: {EntryId}")]
+    public static partial void EventDeadLettered(
+        ILogger logger,
+        string tableName,
+        string connectorId,
+        int retryCount,
+        Guid entryId);
+
+    /// <summary>Logs when persisting to the dead letter queue itself fails.</summary>
+    [LoggerMessage(
+        EventId = 211,
+        Level = LogLevel.Error,
+        Message = "Failed to persist event to CDC dead letter queue for connector '{ConnectorId}'. The failed event has been lost")]
+    public static partial void DeadLetterStoreFailed(
+        ILogger logger,
+        Exception exception,
+        string connectorId);
+
+    /// <summary>Logs when retries are exhausted and no dead letter queue is configured.</summary>
+    [LoggerMessage(
+        EventId = 212,
+        Level = LogLevel.Error,
+        Message = "Retries exhausted for connector '{ConnectorId}' and no dead letter queue is configured. The failed event has been lost")]
+    public static partial void RetriesExhaustedNoDeadLetter(
+        ILogger logger,
+        Exception exception,
+        string connectorId);
+
+    /// <summary>Logs when a dead letter entry is resolved (replayed or discarded).</summary>
+    [LoggerMessage(
+        EventId = 213,
+        Level = LogLevel.Information,
+        Message = "Dead letter entry '{EntryId}' from connector '{ConnectorId}' resolved as {ResolutionType}")]
+    public static partial void DeadLetterResolved(
+        ILogger logger,
+        Guid entryId,
+        string connectorId,
+        string resolutionType);
 }

@@ -100,25 +100,26 @@ public abstract class ModuleIsolationTestsBase<TFixture> : IAsyncLifetime
     #region IAsyncLifetime
 
     /// <inheritdoc />
-    public virtual async Task InitializeAsync()
+    public virtual async ValueTask InitializeAsync()
     {
         await ClearTestDataAsync();
     }
 
     /// <inheritdoc />
-    public virtual Task DisposeAsync()
+    public virtual ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        GC.SuppressFinalize(this);
+        return ValueTask.CompletedTask;
     }
 
     #endregion
 
     #region Schema-Scoped Query Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task SchemaScopedQuery_OrdersModuleCanQueryOwnSchema()
     {
-        Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
+        Assert.SkipUnless(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
         using var ordersConn = CreateConnectionForModule("Orders");
@@ -142,10 +143,10 @@ public abstract class ModuleIsolationTestsBase<TFixture> : IAsyncLifetime
         orders[0].OrderNumber.ShouldBe("ORD-001");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task SchemaScopedQuery_InventoryModuleCanQueryOwnSchema()
     {
-        Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
+        Assert.SkipUnless(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
         using var inventoryConn = CreateConnectionForModule("Inventory");
@@ -173,10 +174,10 @@ public abstract class ModuleIsolationTestsBase<TFixture> : IAsyncLifetime
 
     #region Cross-Schema Access Prevention Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task CrossSchemaAccess_OrdersModuleCannotAccessInventorySchema()
     {
-        Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
+        Assert.SkipUnless(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
         using var inventoryConn = CreateConnectionForModule("Inventory");
@@ -198,10 +199,10 @@ public abstract class ModuleIsolationTestsBase<TFixture> : IAsyncLifetime
         accessBlocked.ShouldBeTrue($"[{ProviderName}] Orders module should not be able to access inventory schema");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task CrossSchemaAccess_InventoryModuleCannotAccessOrdersSchema()
     {
-        Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
+        Assert.SkipUnless(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange
         using var ordersConn = CreateConnectionForModule("Orders");
@@ -227,10 +228,10 @@ public abstract class ModuleIsolationTestsBase<TFixture> : IAsyncLifetime
 
     #region Shared Schema Access Tests
 
-    [SkippableFact]
+    [Fact]
     public async Task SharedSchemaAccess_AllModulesCanReadSharedLookups()
     {
-        Skip.IfNot(SupportsSchemas, "Provider does not support schemas");
+        Assert.SkipUnless(SupportsSchemas, "Provider does not support schemas");
 
         // Arrange - Insert shared lookup
         using (var sharedConn = CreateConnectionForModule("Orders")) // Either module can access shared

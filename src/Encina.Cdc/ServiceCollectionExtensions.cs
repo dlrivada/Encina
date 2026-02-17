@@ -1,6 +1,12 @@
+using System.Text.Json;
 using Encina.Cdc.Abstractions;
+using Encina.Cdc.Caching;
+using Encina.Cdc.DeadLetter;
+using Encina.Cdc.Health;
 using Encina.Cdc.Messaging;
 using Encina.Cdc.Processing;
+using Encina.Cdc.Sharding;
+using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -37,14 +43,22 @@ public static class ServiceCollectionExtensions
     /// <list type="bullet">
     ///   <item><description><see cref="ICdcDispatcher"/> as a singleton</description></item>
     ///   <item><description><see cref="ICdcPositionStore"/> with an in-memory default (providers can override)</description></item>
-    ///   <item><description><see cref="CdcProcessor"/> as a hosted service when <see cref="CdcOptions.Enabled"/> is true</description></item>
+    ///   <item><description><see cref="CdcProcessor"/> as a hosted service when <see cref="CdcOptions.Enabled"/> is true and sharded capture is disabled</description></item>
+    ///   <item><description><see cref="ShardedCdcProcessor"/> as a hosted service when sharded capture is enabled</description></item>
     ///   <item><description>Handler registrations as scoped services</description></item>
     ///   <item><description><see cref="ICdcEventInterceptor"/> when messaging bridge is enabled</description></item>
     /// </list>
     /// </para>
     /// <para>
+    /// When sharded capture is enabled via <see cref="CdcConfiguration.WithShardedCapture"/>,
+    /// the standard <see cref="CdcProcessor"/> is NOT registered. Instead, the
+    /// <see cref="ShardedCdcProcessor"/> is registered along with the
+    /// <see cref="IShardedCdcConnector"/> and <see cref="IShardedCdcPositionStore"/>.
+    /// </para>
+    /// <para>
     /// Provider-specific packages (e.g., Encina.Cdc.SqlServer) should register their
-    /// <see cref="ICdcConnector"/> and optionally override the <see cref="ICdcPositionStore"/>.
+    /// <see cref="ICdcConnector"/> and optionally override the <see cref="ICdcPositionStore"/>
+    /// or <see cref="IShardedCdcPositionStore"/>.
     /// </para>
     /// </remarks>
     public static IServiceCollection AddEncinaCdc(
@@ -88,12 +102,99 @@ public static class ServiceCollectionExtensions
             services.AddScoped<OutboxCdcHandler>();
         }
 
-        // Register processor as hosted service when enabled
-        if (configuration.Options.Enabled)
+        // Register sharded capture services when enabled
+        if (configuration.Options.UseShardedCapture)
+        {
+            RegisterShardedCaptureServices(services, configuration);
+        }
+
+        // Register dead letter queue services when enabled (providers can override)
+        if (configuration.Options.UseDeadLetterQueue)
+        {
+            services.TryAddSingleton<ICdcDeadLetterStore, InMemoryCdcDeadLetterStore>();
+            services.TryAddSingleton<CdcDeadLetterHealthCheckOptions>();
+            services.AddSingleton<IEncinaHealthCheck, CdcDeadLetterHealthCheck>();
+        }
+
+        // Register cache invalidation services when enabled
+        if (configuration.Options.UseCacheInvalidation)
+        {
+            RegisterCacheInvalidationServices(services, configuration);
+        }
+
+        // Register processor as hosted service when enabled.
+        // Skip standard CdcProcessor when sharded capture is active to avoid conflicts.
+        if (configuration.Options.Enabled && !configuration.Options.UseShardedCapture)
         {
             services.AddHostedService<CdcProcessor>();
         }
 
         return services;
+    }
+
+    private static void RegisterShardedCaptureServices(
+        IServiceCollection services,
+        CdcConfiguration configuration)
+    {
+        var shardedOptions = configuration.ShardedCaptureOptions ?? new ShardedCaptureOptions();
+        services.AddSingleton(shardedOptions);
+
+        // Register default in-memory sharded position store (providers can override).
+        // If a custom PositionStoreType is specified, register that instead.
+        if (shardedOptions.PositionStoreType is not null)
+        {
+            services.TryAddSingleton(typeof(IShardedCdcPositionStore), shardedOptions.PositionStoreType);
+        }
+        else
+        {
+            services.TryAddSingleton<IShardedCdcPositionStore, InMemoryShardedCdcPositionStore>();
+        }
+
+        // Register ShardedCdcConnector as IShardedCdcConnector singleton.
+        // The connector factory and topology provider must be registered by the
+        // provider-specific package (e.g., Encina.Cdc.SqlServer).
+        services.TryAddSingleton<IShardedCdcConnector>(sp =>
+        {
+            var connectorFactory = sp.GetRequiredService<Func<global::Encina.Sharding.ShardInfo, ICdcConnector>>();
+            var topologyProvider = sp.GetRequiredService<global::Encina.Sharding.IShardTopologyProvider>();
+            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ShardedCdcConnector>>();
+            return new ShardedCdcConnector(shardedOptions.ConnectorId, connectorFactory, topologyProvider, logger);
+        });
+
+        // Register sharded processor as hosted service when CDC is enabled
+        if (configuration.Options.Enabled)
+        {
+            services.AddHostedService<ShardedCdcProcessor>();
+        }
+    }
+
+    private static void RegisterCacheInvalidationServices(
+        IServiceCollection services,
+        CdcConfiguration configuration)
+    {
+        var cacheInvalidationOptions = configuration.CacheInvalidationOptions
+            ?? new QueryCacheInvalidationOptions();
+
+        // Register options for IOptions<QueryCacheInvalidationOptions> injection
+        services.Configure<QueryCacheInvalidationOptions>(opts =>
+        {
+            opts.CacheKeyPrefix = cacheInvalidationOptions.CacheKeyPrefix;
+            opts.UsePubSubBroadcast = cacheInvalidationOptions.UsePubSubBroadcast;
+            opts.PubSubChannel = cacheInvalidationOptions.PubSubChannel;
+            opts.Tables = cacheInvalidationOptions.Tables;
+            opts.TableToEntityTypeMappings = cacheInvalidationOptions.TableToEntityTypeMappings;
+        });
+
+        // Register the handler as IChangeEventHandler<JsonElement> (scoped)
+        services.AddScoped<IChangeEventHandler<JsonElement>, QueryCacheInvalidationCdcHandler>();
+
+        // Register the subscriber hosted service and health check when pub/sub broadcast is enabled.
+        // The subscriber listens for invalidation patterns from other instances
+        // and invalidates local cache entries.
+        if (cacheInvalidationOptions.UsePubSubBroadcast)
+        {
+            services.AddHostedService<CacheInvalidationSubscriberService>();
+            services.AddSingleton<IEncinaHealthCheck, CacheInvalidationSubscriberHealthCheck>();
+        }
     }
 }

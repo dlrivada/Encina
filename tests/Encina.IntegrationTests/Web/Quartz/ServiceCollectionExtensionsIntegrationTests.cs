@@ -20,7 +20,7 @@ public sealed class ServiceCollectionExtensionsIntegrationTests : IAsyncLifetime
     private IScheduler? _scheduler;
     private static readonly string SchedulerName = $"ServiceExtTests_{Guid.NewGuid():N}";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Use unique scheduler name to avoid conflicts with other tests
         var properties = new NameValueCollection
@@ -34,7 +34,7 @@ public sealed class ServiceCollectionExtensionsIntegrationTests : IAsyncLifetime
         await _scheduler.Start();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_scheduler != null)
         {

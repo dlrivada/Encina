@@ -1,4 +1,4 @@
-﻿using Encina.ADO.SqlServer.Inbox;
+using Encina.ADO.SqlServer.Inbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
 using Xunit;
@@ -25,13 +25,13 @@ public sealed class InboxStoreADOTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ClearAllDataAsync();
         _store = new InboxStoreADO(_fixture.CreateConnection());
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     #region AddAsync Tests
 

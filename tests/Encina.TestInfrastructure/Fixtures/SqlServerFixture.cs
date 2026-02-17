@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Encina.TestInfrastructure.Schemas;
 using Microsoft.Data.SqlClient;
 using Testcontainers.MsSql;

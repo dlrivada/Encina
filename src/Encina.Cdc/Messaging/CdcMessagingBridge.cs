@@ -51,6 +51,25 @@ internal sealed class CdcMessagingBridge : ICdcEventInterceptor
         ChangeEvent changeEvent,
         CancellationToken cancellationToken = default)
     {
+        return await PublishNotificationAsync(changeEvent, shardId: null, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<Either<EncinaError, Unit>> OnShardedEventDispatchedAsync(
+        ChangeEvent changeEvent,
+        string shardId,
+        CancellationToken cancellationToken = default)
+    {
+        return await PublishNotificationAsync(changeEvent, shardId, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> PublishNotificationAsync(
+        ChangeEvent changeEvent,
+        string? shardId,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(changeEvent);
 
         if (!_options.ShouldPublish(changeEvent.TableName, changeEvent.Operation))
@@ -59,7 +78,7 @@ internal sealed class CdcMessagingBridge : ICdcEventInterceptor
             return Right(unit);
         }
 
-        var notification = CdcChangeNotification.FromChangeEvent(changeEvent, _options.TopicPattern);
+        var notification = CdcChangeNotification.FromChangeEvent(changeEvent, _options.TopicPattern, shardId);
 
         CdcMessagingLog.PublishingChangeNotification(
             _logger, changeEvent.TableName, changeEvent.Operation, notification.TopicName);

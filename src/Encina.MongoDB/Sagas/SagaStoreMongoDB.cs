@@ -14,6 +14,7 @@ public sealed class SagaStoreMongoDB : ISagaStore
 
     private readonly IMongoCollection<SagaState> _collection;
     private readonly ILogger<SagaStoreMongoDB> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaStoreMongoDB"/> class.
@@ -21,10 +22,12 @@ public sealed class SagaStoreMongoDB : ISagaStore
     /// <param name="mongoClient">The MongoDB client.</param>
     /// <param name="options">The MongoDB options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The time provider. Defaults to <see cref="TimeProvider.System"/> if not specified.</param>
     public SagaStoreMongoDB(
         IMongoClient mongoClient,
         IOptions<EncinaMongoDbOptions> options,
-        ILogger<SagaStoreMongoDB> logger)
+        ILogger<SagaStoreMongoDB> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(mongoClient);
         ArgumentNullException.ThrowIfNull(options);
@@ -34,6 +37,7 @@ public sealed class SagaStoreMongoDB : ISagaStore
         var database = mongoClient.GetDatabase(config.DatabaseName);
         _collection = database.GetCollection<SagaState>(config.Collections.Sagas);
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -90,7 +94,7 @@ public sealed class SagaStoreMongoDB : ISagaStore
             .Set(s => s.CurrentStep, sagaState.CurrentStep)
             .Set(s => s.CompletedAtUtc, sagaState.CompletedAtUtc)
             .Set(s => s.ErrorMessage, sagaState.ErrorMessage)
-            .Set(s => s.LastUpdatedAtUtc, DateTime.UtcNow);
+            .Set(s => s.LastUpdatedAtUtc, _timeProvider.GetUtcNow().UtcDateTime);
 
         var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 
@@ -110,7 +114,7 @@ public sealed class SagaStoreMongoDB : ISagaStore
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var threshold = DateTime.UtcNow.Subtract(olderThan);
+        var threshold = _timeProvider.GetUtcNow().UtcDateTime.Subtract(olderThan);
 
         var filter = Builders<SagaState>.Filter.And(
             Builders<SagaState>.Filter.Eq(s => s.CompletedAtUtc, null),
@@ -132,7 +136,7 @@ public sealed class SagaStoreMongoDB : ISagaStore
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         var filter = Builders<SagaState>.Filter.And(
             Builders<SagaState>.Filter.In(s => s.Status, ActiveSagaStatuses),

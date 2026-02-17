@@ -8,7 +8,7 @@ _layout: landing
 
 Encina is a lightweight, functional Encina abstraction for .NET applications that embraces Railway Oriented Programming (ROP) principles. Built on top of [LanguageExt](https://github.com/louthy/language-ext), it provides explicit request/response contracts, composable pipeline behaviors, and rich observability features for building maintainable CQRS-style applications.
 
-[![.NET Quality Gate](https://github.com/dlrivada/Encina/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/dotnet-ci.yml)
+[![.NET Quality Gate](https://github.com/dlrivada/Encina/actions/workflows/ci.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/ci.yml)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
 ![Mutation](https://img.shields.io/badge/mutation-93.74%25-4C934C.svg)
 

@@ -22,14 +22,14 @@ public sealed class SqlServerRespawnerIntegrationTests : IAsyncLifetime, IDispos
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _respawner = new SqlServerRespawner(_fixture.ConnectionString);
         await _respawner.InitializeAsync();
         await _respawner.ResetAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _respawner.DisposeAsync();
     }

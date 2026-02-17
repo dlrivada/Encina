@@ -29,7 +29,7 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Get the shared connection (do NOT dispose - it's managed by the fixture)
         var schemaConnection = _fixture.CreateConnection() as SqliteConnection;
@@ -55,7 +55,7 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private static async Task CreateExtendedTestItemsSchemaAsync(SqliteConnection connection)
     {

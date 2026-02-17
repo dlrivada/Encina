@@ -40,9 +40,9 @@ public class UnitOfWorkMongoDBTests : IAsyncLifetime
         _unitOfWork = new UnitOfWorkMongoDB(_mockMongoClient, _mockOptions, _mockServiceProvider);
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _unitOfWork.DisposeAsync();
     }

@@ -36,7 +36,7 @@ public sealed class BulkOperationsADOMySQLIntegrationTests : IAsyncLifetime, IDi
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Create connection with AllowLoadLocalInfile for MySqlBulkLoader
         var connectionStringBuilder = new MySqlConnectionStringBuilder(_fixture.ConnectionString)
@@ -54,7 +54,7 @@ public sealed class BulkOperationsADOMySQLIntegrationTests : IAsyncLifetime, IDi
         _bulkOps = new BulkOperationsMySQL<BulkTestOrder, Guid>(_connection, mapping);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await DropBulkTestTableAsync();
         if (_connection is not null)

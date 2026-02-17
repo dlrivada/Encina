@@ -17,6 +17,7 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
     private readonly IOutboxStore _outboxStore;
     private readonly IOutboxMessageFactory _messageFactory;
     private readonly ILogger<OutboxPostProcessor<TRequest, TResponse>> _logger;
+    private readonly TimeProvider _timeProvider;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -29,11 +30,13 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
     /// <param name="outboxStore">The outbox store for persisting notifications.</param>
     /// <param name="messageFactory">The factory for creating outbox messages.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">Optional time provider for testability.</param>
     /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     public OutboxPostProcessor(
         IOutboxStore outboxStore,
         IOutboxMessageFactory messageFactory,
-        ILogger<OutboxPostProcessor<TRequest, TResponse>> logger)
+        ILogger<OutboxPostProcessor<TRequest, TResponse>> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(outboxStore);
         ArgumentNullException.ThrowIfNull(messageFactory);
@@ -42,6 +45,7 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
         _outboxStore = outboxStore;
         _messageFactory = messageFactory;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -77,7 +81,7 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
                         Guid.NewGuid(),
                         notificationType,
                         content,
-                        DateTime.UtcNow);
+                        _timeProvider.GetUtcNow().UtcDateTime);
 
                     await _outboxStore.AddAsync(outboxMessage, cancellationToken).ConfigureAwait(false);
                 }

@@ -13,17 +13,20 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScheduledMessageStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The scheduled messages table name (default: ScheduledMessages).</param>
-    public ScheduledMessageStoreDapper(IDbConnection connection, string tableName = "ScheduledMessages")
+    /// <param name="timeProvider">Optional time provider for testability. Defaults to <see cref="TimeProvider.System"/>.</param>
+    public ScheduledMessageStoreDapper(IDbConnection connection, string tableName = "ScheduledMessages", TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -124,7 +127,7 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
     {
         if (messageId == Guid.Empty)
             throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmptyGuid, nameof(messageId));
-        if (nextScheduledAtUtc < DateTime.UtcNow)
+        if (nextScheduledAtUtc < _timeProvider.GetUtcNow().UtcDateTime)
             throw new ArgumentException(StoreValidationMessages.NextScheduledDateCannotBeInPast, nameof(nextScheduledAtUtc));
 
         var sql = $@"

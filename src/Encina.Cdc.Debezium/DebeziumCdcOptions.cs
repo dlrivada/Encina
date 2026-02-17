@@ -49,4 +49,23 @@ public sealed class DebeziumCdcOptions
     /// Gets or sets the expected event format from Debezium Server.
     /// </summary>
     public DebeziumEventFormat EventFormat { get; set; } = DebeziumEventFormat.CloudEvents;
+
+    /// <summary>
+    /// Gets or sets the maximum number of events to buffer in the internal channel.
+    /// When the channel is full, the HTTP listener returns 503 (Service Unavailable)
+    /// to apply backpressure to Debezium Server.
+    /// </summary>
+    public int ChannelCapacity { get; set; } = 1000;
+
+    /// <summary>
+    /// Gets or sets the maximum number of retries when the HTTP listener fails to start.
+    /// Uses exponential backoff between retries.
+    /// </summary>
+    public int MaxListenerRetries { get; set; } = 5;
+
+    /// <summary>
+    /// Gets or sets the base delay between listener start retries.
+    /// Exponential backoff is applied: delay * 2^(attempt-1).
+    /// </summary>
+    public TimeSpan ListenerRetryDelay { get; set; } = TimeSpan.FromSeconds(2);
 }

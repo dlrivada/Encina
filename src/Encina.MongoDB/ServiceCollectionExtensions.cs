@@ -63,6 +63,9 @@ public static class ServiceCollectionExtensions
 
         services.Configure(configure);
 
+        // Register TimeProvider for consistent timestamps across all MongoDB components
+        services.TryAddSingleton(TimeProvider.System);
+
         // Register MongoDB client if not already registered
         services.TryAddSingleton<IMongoClient>(sp =>
             new MongoClient(options.ConnectionString));

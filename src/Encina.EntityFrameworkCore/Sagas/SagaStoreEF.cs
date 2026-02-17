@@ -15,16 +15,19 @@ namespace Encina.EntityFrameworkCore.Sagas;
 public sealed class SagaStoreEF : ISagaStore
 {
     private readonly DbContext _dbContext;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaStoreEF"/> class.
     /// </summary>
     /// <param name="dbContext">The database context.</param>
+    /// <param name="timeProvider">The time provider for obtaining current UTC time. Defaults to <see cref="TimeProvider.System"/>.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="dbContext"/> is null.</exception>
-    public SagaStoreEF(DbContext dbContext)
+    public SagaStoreEF(DbContext dbContext, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         _dbContext = dbContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -62,7 +65,7 @@ public sealed class SagaStoreEF : ISagaStore
         }
 
         // EF Core tracks changes automatically, no need for explicit Update call
-        efSaga.LastUpdatedAtUtc = DateTime.UtcNow;
+        efSaga.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
         return Task.CompletedTask;
     }
@@ -73,7 +76,7 @@ public sealed class SagaStoreEF : ISagaStore
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var threshold = DateTime.UtcNow.Subtract(olderThan);
+        var threshold = _timeProvider.GetUtcNow().UtcDateTime.Subtract(olderThan);
 
         var sagas = await _dbContext.Set<SagaState>()
             .Where(s =>
@@ -91,7 +94,7 @@ public sealed class SagaStoreEF : ISagaStore
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         var sagas = await _dbContext.Set<SagaState>()
             .Where(s =>

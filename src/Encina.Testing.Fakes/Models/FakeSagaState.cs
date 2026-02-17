@@ -28,7 +28,7 @@ public sealed class FakeSagaState : ISagaState
     public int CurrentStep { get; set; }
 
     /// <inheritdoc />
-    public DateTime StartedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime StartedAtUtc { get; set; } = TimeProvider.System.GetUtcNow().UtcDateTime;
 
     /// <inheritdoc />
     public DateTime? CompletedAtUtc { get; set; }
@@ -37,7 +37,7 @@ public sealed class FakeSagaState : ISagaState
     public string? ErrorMessage { get; set; }
 
     /// <inheritdoc />
-    public DateTime LastUpdatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime LastUpdatedAtUtc { get; set; } = TimeProvider.System.GetUtcNow().UtcDateTime;
 
     /// <inheritdoc />
     public DateTime? TimeoutAtUtc { get; set; }

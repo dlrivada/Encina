@@ -193,58 +193,178 @@ Guards.TryValidate(bool condition, string paramName, out EncinaError error, stri
 
 ## Design Philosophy
 
-### Consistent with Encina's Internal Guards
+### Two Approaches: Try-Pattern and Ensure (Choose Your Style)
 
-Encina uses the **Try-pattern** internally for all guard validations:
+Encina provides **two complementary approaches** for ROP guard validation. Both are fully supported — use whichever fits your team's style and the specific scenario.
+
+#### Approach 1: Try-Pattern (Imperative Style)
+
+The `Guards` static class uses the **Try-pattern**: methods return `bool` for success/failure and provide error details via `out EncinaError`. This is the same pattern used internally by Encina (`EncinaBehaviorGuards`, `EncinaRequestGuards`).
 
 ```csharp
-// Encina's internal pattern (EncinaBehaviorGuards)
-if (!EncinaBehaviorGuards.TryValidateRequest(behaviorType, request, out var failure))
+public async Task<Either<EncinaError, OrderId>> Handle(CancelOrder cmd, CancellationToken ct)
 {
-    return Left<EncinaError, TResponse>(failure);
-}
+    var order = await _orders.FindById(cmd.OrderId, ct);
 
-// Encina.GuardClauses follows the same pattern
-if (!Guards.TryValidateNotNull(order, nameof(order), out var error))
-{
-    return Left<EncinaError, Unit>(error);
+    // Guard: order exists
+    if (!Guards.TryValidateNotNull(order, nameof(order), out var error,
+        message: $"Order {cmd.OrderId} not found"))
+        return Left<EncinaError, OrderId>(error);
+
+    // Guard: order is in correct state
+    if (!Guards.TryValidate(order.Status == OrderStatus.Pending, nameof(order), out error,
+        message: "Only pending orders can be cancelled"))
+        return Left<EncinaError, OrderId>(error);
+
+    // Guard: amount is positive
+    if (!Guards.TryValidatePositive(order.TotalAmount, nameof(order.TotalAmount), out error))
+        return Left<EncinaError, OrderId>(error);
+
+    order.Cancel();
+    await _orders.Save(order, ct);
+    return Right<EncinaError, OrderId>(order.Id);
 }
 ```
 
-**Key design principles**:
+**When to prefer Try-Pattern:**
 
-1. **Try-pattern**: Methods return `bool` with `out` parameter for errors
-2. **Explicit**: Caller decides what to do with validation failures
-3. **ROP-friendly**: Errors are `EncinaError` instances ready for `Either`
-4. **Consistent**: Same pattern used throughout Encina
+- ✅ Familiar imperative code flow (if/return)
+- ✅ Each guard is explicit and self-contained
+- ✅ Easy to debug (breakpoints on each guard)
+- ✅ Rich structured metadata per guard (parameter name, type, guard kind, actual value)
+- ✅ Best for developers coming from traditional C#/.NET
 
-### Why Not Extension Methods?
+#### Approach 2: Ensure Extension (Functional Style)
 
-We considered functional-style extension methods (from the analysis document):
+The `EitherExtensions.Ensure()` method (from `Encina.DomainModeling`) enables fluent, chainable validation:
 
 ```csharp
-// Considered but not implemented
-return order
-    .GuardNotNull(nameof(order))
-    .Bind(o => o.GuardCanBeCancelled())
-    .BindAsync(async o => { ... });
+public async Task<Either<EncinaError, OrderId>> Handle(CancelOrder cmd, CancellationToken ct)
+{
+    var order = await _orders.FindById(cmd.OrderId, ct);
+
+    return Right<EncinaError, Order>(order!)
+        .Ensure(
+            o => o is not null,
+            _ => EncinaErrors.Create("order.not_found", $"Order {cmd.OrderId} not found"))
+        .Ensure(
+            o => o.Status == OrderStatus.Pending,
+            o => EncinaErrors.Create("order.invalid_status", $"Order is {o.Status}, expected Pending"))
+        .Ensure(
+            o => o.TotalAmount > 0,
+            o => EncinaErrors.Create("order.invalid_amount", $"Amount {o.TotalAmount} is not positive"))
+        .Map(o =>
+        {
+            o.Cancel();
+            return o.Id;
+        });
+}
 ```
 
-**We chose static helpers instead** to match Encina's internal conventions:
+**When to prefer Ensure:**
 
-- Consistent with `EncinaBehaviorGuards`, `EncinaRequestGuards`
-- More explicit and predictable
-- Familiar to developers already using Encina
-- No extension method pollution
+- ✅ Chainable — compose multiple validations fluently
+- ✅ No temporary variables (`out var error`)
+- ✅ Natural for developers familiar with functional programming
+- ✅ Reads as a pipeline of constraints
+- ✅ Pairs well with `Bind`, `Map`, `BindAsync`, `Tap`
+
+#### Side-by-Side Comparison
+
+| Aspect | Try-Pattern (`Guards`) | Ensure (`EitherExtensions`) |
+|--------|----------------------|---------------------------|
+| **Style** | Imperative (if/return) | Functional (chain) |
+| **Package** | `Encina.GuardClauses` | `Encina.DomainModeling` |
+| **Structured metadata** | Automatic (guard type, param, value) | Manual (you build `EncinaError`) |
+| **Debugging** | Breakpoint per guard | Breakpoint on lambda |
+| **Composability** | Sequential guards | Fluent chains |
+| **Learning curve** | Low (familiar C# patterns) | Medium (functional programming) |
+| **Best for** | State validation, preconditions | Domain invariants, pipelines |
+
+#### Mixing Both Styles
+
+You can freely mix both approaches in the same codebase. A common pattern is to use Try-Pattern for individual preconditions and Ensure for chained domain rules:
+
+```csharp
+public Either<EncinaError, Order> CreateOrder(Customer customer, IEnumerable<OrderItem> items)
+{
+    // Preconditions with Try-Pattern
+    if (!Guards.TryValidateNotNull(customer, nameof(customer), out var error))
+        return Left<EncinaError, Order>(error);
+
+    if (!Guards.TryValidateNotEmpty(items, nameof(items), out error))
+        return Left<EncinaError, Order>(error);
+
+    // Domain rules with Ensure
+    return Right<EncinaError, Customer>(customer)
+        .Ensure(
+            c => c.IsActive,
+            c => EncinaErrors.Create("customer.inactive", $"Customer {c.Id} is not active"))
+        .Ensure(
+            c => c.CreditLimit > 0,
+            c => EncinaErrors.Create("customer.no_credit", $"Customer {c.Id} has no credit limit"))
+        .Map(c => new Order(c.Id, items.ToList()));
+}
+```
+
+### Why Not Only Extension Methods?
+
+We considered offering *only* functional-style extension methods, but chose to also provide the Try-Pattern static helpers:
+
+- Consistent with `EncinaBehaviorGuards`, `EncinaRequestGuards` (Encina's internal conventions)
+- More explicit and predictable for imperative code
+- Familiar to the majority of .NET developers
+- No extension method pollution on all types
+- Automatic structured metadata without manual `EncinaError` construction
+
+### Design Decision: ObjectDisposedException and ROP
+
+.NET 7+ provides `ObjectDisposedException.ThrowIf(bool, object)` for detecting disposed objects. Encina **intentionally does not provide** an ROP equivalent (`TryValidateNotDisposed`) because:
+
+1. **Programming error, not domain error**: A disposed object is a bug in resource lifecycle management, not a recoverable domain condition. It should never happen in production code that is correctly written.
+
+2. **Exceptions are appropriate here**: Unlike domain validation (where we want `Either<EncinaError, T>` to flow through the railway), a disposed object indicates a **broken invariant at the infrastructure level**. The correct response is to throw, not to return `Left`.
+
+3. **Not a domain concept**: Guard clauses in Encina are designed for **domain invariants** and **state validation**. Disposal state is an infrastructure concern that belongs in the infrastructure layer, not the domain.
+
+**Recommended approach**: Use standard .NET `ObjectDisposedException.ThrowIf()` for disposal checks:
+
+```csharp
+public class OrderRepository : IOrderRepository, IDisposable
+{
+    private bool _disposed;
+
+    public async Task<Order?> FindById(OrderId id, CancellationToken ct)
+    {
+        // ✅ Use .NET's built-in throw helper — this IS a programming error
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // Domain logic continues with ROP...
+        var order = await _context.Orders.FindAsync(id, ct);
+        if (!Guards.TryValidateNotNull(order, nameof(order), out var error))
+            return null; // or handle via ROP
+        return order;
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _context.Dispose();
+    }
+}
+```
+
+**Rule of thumb**: If the error represents a **domain condition** (order not found, invalid state, business rule violation) → use ROP (`Either<EncinaError, T>`). If the error represents a **programming bug** (null reference, disposed object, thread safety violation) → throw an exception.
 
 ## Comparison with Other Libraries
 
-| Library | Purpose | When to Use |
-|---------|---------|-------------|
-| **FluentValidation** | Complex input validation | Validating user requests with complex rules |
-| **DataAnnotations** | Simple input validation | Validating user requests with attributes |
-| **MiniValidator** | Lightweight input validation | Validating user requests in Minimal APIs |
-| **GuardClauses** | Defensive programming | Protecting domain invariants & state validation |
+| Library | Purpose | Style | When to Use |
+|---------|---------|-------|-------------|
+| **FluentValidation** | Complex input validation | Pipeline behavior | Validating user requests with complex rules |
+| **DataAnnotations** | Simple input validation | Pipeline behavior | Validating user requests with attributes |
+| **MiniValidator** | Lightweight input validation | Pipeline behavior | Validating user requests in Minimal APIs |
+| **GuardClauses (Try-Pattern)** | Defensive programming | Imperative | Protecting domain invariants & state validation |
+| **EitherExtensions.Ensure** | Functional guards | Functional | Chaining domain constraints in pipelines |
 
 ### Example: Complete Validation Strategy
 
@@ -473,15 +593,49 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 - 🐛 [Issue Tracker](https://github.com/dlrivada/Encina/issues)
 - 💬 [Discussions](https://github.com/dlrivada/Encina/discussions)
 
+## ROP vs Exceptions: When to Use What
+
+Encina follows a clear principle: **domain errors flow through the railway; programming bugs throw exceptions**.
+
+| Scenario | Pattern | Why |
+|----------|---------|-----|
+| Order not found after DB query | `Guards.TryValidateNotNull` → `Either` | Recoverable domain condition |
+| Invalid business state | `Guards.TryValidate` → `Either` | Domain rule violation |
+| Negative quantity in domain model | `Guards.TryValidatePositive` → `Either` | Domain invariant |
+| Value out of allowed range | `Guards.TryValidateInRange` → `Either` | Business constraint |
+| Null constructor argument in domain model | `throw` via Guards or `ArgumentNullException.ThrowIfNull` | Programming error (broken contract) |
+| Disposed object accessed | `ObjectDisposedException.ThrowIf` | Infrastructure bug |
+| Thread safety violation | `throw InvalidOperationException` | Programming error |
+| Unexpected enum value | `throw ArgumentOutOfRangeException` | Programming error |
+
+### .NET 10 Throw Helpers vs Encina Guards
+
+.NET 8–10 introduced static throw helpers (`ThrowIfNull`, `ThrowIfNegative`, `ThrowIfLessThan`, etc.) across `ArgumentNullException`, `ArgumentException`, `ArgumentOutOfRangeException`, and `ObjectDisposedException`. These are **exception-based** and designed for traditional guard clauses.
+
+Encina's `Guards.TryValidateXxx` methods provide **ROP-compatible equivalents** that return errors through the railway instead of throwing:
+
+```csharp
+// .NET 10 (exception-based) — use in constructors, infrastructure code
+ArgumentOutOfRangeException.ThrowIfNegativeOrZero(quantity);
+
+// Encina (ROP-based) — use in handlers, domain services, anywhere you use Either
+if (!Guards.TryValidatePositive(quantity, nameof(quantity), out var error))
+    return Left<EncinaError, OrderId>(error);
+```
+
+**Both coexist in the same codebase**. Use .NET throw helpers where exceptions are appropriate, and Encina guards where ROP flow is needed.
+
 ## Summary
 
 **GuardClauses** completes Encina's validation ecosystem:
 
 - **Input Validation** (before handler): FluentValidation, DataAnnotations, MiniValidator
-- **Defensive Programming** (inside handler/domain): **GuardClauses**
+- **Defensive Programming** (inside handler/domain): **GuardClauses** (Try-Pattern) or **EitherExtensions.Ensure** (Functional)
+- **Programming Error Detection** (infrastructure): .NET built-in throw helpers
 
 Use the right tool for the right job:
 
-- Validate user input → Use input validation libraries
-- Protect domain invariants → Use **GuardClauses**
-- Validate state & preconditions → Use **GuardClauses**
+- Validate user input → Use input validation libraries (pipeline behaviors)
+- Protect domain invariants (imperative) → Use **Guards.TryValidateXxx**
+- Chain domain constraints (functional) → Use **EitherExtensions.Ensure**
+- Detect programming bugs → Use .NET **ThrowIfXxx** helpers

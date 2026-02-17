@@ -16,12 +16,12 @@ public sealed class EncinaPactFixtureTests : IAsyncLifetime, IDisposable
         _sut = new EncinaPactFixture { PactDirectory = _testPactDir };
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _sut.InitializeAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sut.DisposeAsync();
     }

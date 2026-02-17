@@ -1,0 +1,157 @@
+namespace Encina.Sharding;
+
+/// <summary>
+/// Error codes emitted by the Encina sharding infrastructure.
+/// </summary>
+/// <remarks>
+/// <para>
+/// All error codes follow the <c>encina.sharding.*</c> namespace convention and are returned
+/// inside <c>Either&lt;EncinaError, T&gt;</c> results throughout the sharding API. These codes
+/// are also emitted as OpenTelemetry tags (<c>encina.sharding.error.code</c>) on routing and
+/// scatter-gather activity spans, enabling correlation between ROP error paths and distributed
+/// traces.
+/// </para>
+/// <para>
+/// Error codes are stable string constants suitable for alerting rules, log filters, and
+/// dashboard queries. They never change between releases.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// // Error codes appear in Either results
+/// Either&lt;EncinaError, string&gt; result = router.GetShardId("my-key");
+///
+/// result.Match(
+///     Right: shardId => logger.LogInformation("Routed to {ShardId}", shardId),
+///     Left: error =>
+///     {
+///         // error.Code is one of ShardingErrorCodes constants
+///         if (error.Code == ShardingErrorCodes.ShardNotFound)
+///             logger.LogWarning("Shard topology may be stale");
+///         else if (error.Code == ShardingErrorCodes.ShardKeyEmpty)
+///             logger.LogError("Entity is missing a shard key");
+///     });
+/// </code>
+/// </example>
+public static class ShardingErrorCodes
+{
+    /// <summary>Shard key is not configured on the entity.</summary>
+    public const string ShardKeyNotConfigured = "encina.sharding.shard_key_not_configured";
+
+    /// <summary>Shard key value is null or empty.</summary>
+    public const string ShardKeyEmpty = "encina.sharding.shard_key_empty";
+
+    /// <summary>The requested shard was not found in the topology.</summary>
+    public const string ShardNotFound = "encina.sharding.shard_not_found";
+
+    /// <summary>The shard key does not match any configured range.</summary>
+    public const string KeyOutsideRange = "encina.sharding.key_outside_range";
+
+    /// <summary>Overlapping ranges were detected during configuration.</summary>
+    public const string OverlappingRanges = "encina.sharding.overlapping_ranges";
+
+    /// <summary>The shard topology has no active shards.</summary>
+    public const string NoActiveShards = "encina.sharding.no_active_shards";
+
+    /// <summary>The shard router is not configured.</summary>
+    public const string RouterNotConfigured = "encina.sharding.router_not_configured";
+
+    /// <summary>A shard ID is missing a connection string.</summary>
+    public const string MissingConnectionString = "encina.sharding.missing_connection_string";
+
+    /// <summary>A geo region was not found and no fallback is configured.</summary>
+    public const string RegionNotFound = "encina.sharding.region_not_found";
+
+    /// <summary>Scatter-gather operation timed out.</summary>
+    public const string ScatterGatherTimeout = "encina.sharding.scatter_gather_timeout";
+
+    /// <summary>Partial failures occurred during scatter-gather.</summary>
+    public const string ScatterGatherPartialFailure = "encina.sharding.scatter_gather_partial_failure";
+
+    /// <summary>A cache operation failed during sharding.</summary>
+    public const string CacheOperationFailed = "encina.sharding.cache_operation_failed";
+
+    /// <summary>A topology refresh operation failed.</summary>
+    public const string TopologyRefreshFailed = "encina.sharding.topology_refresh_failed";
+
+    /// <summary>A compound shard key has no components.</summary>
+    public const string CompoundShardKeyEmpty = "encina.sharding.compound_shard_key_empty";
+
+    /// <summary>A component within a compound shard key is null or empty.</summary>
+    public const string CompoundShardKeyComponentEmpty = "encina.sharding.compound_shard_key_component_empty";
+
+    /// <summary>Multiple properties share the same <see cref="ShardKeyAttribute.Order"/> value.</summary>
+    public const string DuplicateShardKeyOrder = "encina.sharding.duplicate_shard_key_order";
+
+    /// <summary>A partial key routing operation failed because the router does not support prefix routing.</summary>
+    public const string PartialKeyRoutingFailed = "encina.sharding.partial_key_routing_failed";
+
+    /// <summary>A distributed aggregation operation failed entirely (all shards failed).</summary>
+    public const string AggregationFailed = "encina.sharding.aggregation_failed";
+
+    /// <summary>Partial failures occurred during a distributed aggregation.</summary>
+    public const string AggregationPartialFailure = "encina.sharding.aggregation_partial_failure";
+
+    /// <summary>A specification-based scatter-gather query failed entirely (all shards failed).</summary>
+    public const string SpecificationScatterGatherFailed = "encina.sharding.specification_scatter_gather_failed";
+
+    /// <summary>Partial failures occurred during a specification-based scatter-gather query.</summary>
+    public const string SpecificationScatterGatherPartialFailure = "encina.sharding.specification_scatter_gather_partial_failure";
+
+    /// <summary>The pagination merge phase failed during a cross-shard paginated query.</summary>
+    public const string PaginationMergeFailed = "encina.sharding.pagination_merge_failed";
+
+    /// <summary>A co-located entity is not shardable (does not implement IShardable, ICompoundShardable, or have [ShardKey]).</summary>
+    public const string ColocationEntityNotShardable = "encina.sharding.colocation_entity_not_shardable";
+
+    /// <summary>Shard key types are incompatible between root and co-located entity.</summary>
+    public const string ColocationShardKeyMismatch = "encina.sharding.colocation_shard_key_mismatch";
+
+    /// <summary>An entity is already registered in a different co-location group.</summary>
+    public const string ColocationDuplicateRegistration = "encina.sharding.colocation_duplicate_registration";
+
+    /// <summary>An entity cannot be co-located with itself.</summary>
+    public const string ColocationSelfReference = "encina.sharding.colocation_self_reference";
+
+    /// <summary>No read replicas are configured for the requested shard.</summary>
+    public const string NoReplicasConfigured = "encina.sharding.no_replicas_configured";
+
+    /// <summary>All read replicas for the shard are currently unhealthy.</summary>
+    public const string AllReplicasUnhealthy = "encina.sharding.all_replicas_unhealthy";
+
+    /// <summary>A replica connection failed during a read operation.</summary>
+    public const string ReplicaConnectionFailed = "encina.sharding.replica_connection_failed";
+
+    /// <summary>Replica selection failed (no available replicas after health filtering).</summary>
+    public const string ReplicaSelectionFailed = "encina.sharding.replica_selection_failed";
+
+    /// <summary>All replicas for the shard exceed the maximum acceptable replication lag.</summary>
+    public const string AllReplicasTooStale = "encina.sharding.all_replicas_too_stale";
+
+    /// <summary>The observed replication lag for a replica exceeds the configured threshold.</summary>
+    public const string ReplicationLagExceeded = "encina.sharding.replication_lag_exceeded";
+
+    /// <summary>A write operation was attempted on a read-only (non-Hot) time-based shard.</summary>
+    public const string ShardReadOnly = "encina.sharding.shard_read_only";
+
+    /// <summary>The provided timestamp does not fall within any configured time-based shard period.</summary>
+    public const string TimestampOutsideRange = "encina.sharding.timestamp_outside_range";
+
+    /// <summary>No time-based shard entries are configured in the router.</summary>
+    public const string NoTimeBasedShards = "encina.sharding.no_time_based_shards";
+
+    /// <summary>A tier transition operation failed (shard not found or update error).</summary>
+    public const string TierTransitionFailed = "encina.sharding.tier_transition_failed";
+
+    /// <summary>An archival operation failed (data export or storage error).</summary>
+    public const string ArchivalFailed = "encina.sharding.archival_failed";
+
+    /// <summary>A retention policy execution failed (shard deletion or metadata update error).</summary>
+    public const string RetentionPolicyFailed = "encina.sharding.retention_policy_failed";
+
+    /// <summary>On-demand shard creation failed during fallback routing.</summary>
+    public const string ShardCreationFailed = "encina.sharding.shard_creation_failed";
+
+    /// <summary>A shadow routing operation failed.</summary>
+    public const string ShadowRoutingFailed = "encina.sharding.shadow_routing_failed";
+}

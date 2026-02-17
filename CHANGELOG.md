@@ -1,6 +1,400 @@
-## [Unreleased]
+## [0.12.0] - 2026-02-16 - Database & Repository
 
 ### Added
+
+#### Database Sharding (#289)
+
+Added comprehensive database sharding with four routing strategies, support for all 13 database providers, and full observability integration.
+
+**Core Architecture**:
+
+- **`IShardRouter`**: Abstraction for shard key → shard ID mapping with four implementations
+- **`ShardTopology`**: Immutable shard configuration with connection metadata per shard
+- **`ShardKeyExtractor`**: Extracts shard keys via `IShardable` interface or `[ShardKey]` attribute (cached reflection)
+- **`EntityShardRouter<TEntity>`**: Combines extraction and routing into a single pipeline step
+- **`IShardedQueryExecutor`**: Scatter-gather engine for cross-shard queries with partial failure handling
+
+**Four Routing Strategies**:
+
+- **Hash** (`HashShardRouter`): xxHash64 + consistent hashing with 150 virtual nodes per shard, ~1/N data movement on rebalance via `IShardRebalancer`
+- **Range** (`RangeShardRouter`): Sorted boundary binary search, overlap detection at construction time
+- **Directory** (`DirectoryShardRouter`): Explicit key-to-shard mapping via `IShardDirectoryStore` (pluggable backends)
+- **Geo** (`GeoShardRouter`): Region-based routing with fallback chains and cycle detection
+
+**Provider Support** (13 providers):
+
+- ADO.NET: `AddEncinaADOSharding<TEntity, TId>()` — SQLite, SqlServer, PostgreSQL, MySQL
+- Dapper: `AddEncinaDapperSharding<TEntity, TId>()` — reuses ADO's `IShardedConnectionFactory`
+- EF Core: `AddEncinaEFCoreSharding{Provider}<TContext, TEntity, TId>()` — SQLite, SqlServer, PostgreSQL, MySQL
+- MongoDB: `AddEncinaMongoDBSharding<TEntity, TId>()` — dual-mode (native mongos + app-level routing)
+
+**Observability**:
+
+- 7 metric instruments under "Encina" meter (route decisions, route latency, scatter duration, partial failures, active queries, per-shard duration, active shards gauge)
+- 3 trace activities under "Encina.Sharding" ActivitySource (Routing, ScatterGather, ShardQuery)
+- 13 stable error codes prefixed `encina.sharding.*`
+
+**Health Monitoring**:
+
+- `ShardHealthResult` with three-state model (Healthy/Degraded/Unhealthy)
+- `ShardedHealthSummary` with aggregate status calculation
+- Configurable health check interval via `ShardingMetricsOptions`
+
+**Documentation** (5 guides + 1 ADR):
+
+- `docs/architecture/adr/010-database-sharding.md` — Architecture Decision Record
+- `docs/sharding/configuration.md` — Complete configuration reference
+- `docs/sharding/scaling-guidance.md` — Shard key selection, capacity planning, rebalancing
+- `docs/sharding/mongodb.md` — MongoDB dual-mode (native vs app-level)
+- `docs/sharding/cross-shard-operations.md` — Scatter-gather, Saga pattern, partial failures
+
+**Testing**: ~680+ tests across unit, integration, guard, contract, property tests; 13 BenchmarkDotNet benchmarks
+
+#### Compound Shard Keys (#641)
+
+Added multi-field shard key support, enabling routing decisions based on combinations of entity properties (e.g., tenant + region, country + category).
+
+**Core Abstractions**:
+
+- **`CompoundShardKey`**: Immutable record holding ordered components with implicit conversion from `string` and pipe-delimited `ToString()`
+- **`ICompoundShardable`**: Interface for entities that expose a compound shard key via `GetCompoundShardKey()`
+- **`CompoundShardKeyExtractor`**: Static extractor with priority resolution: `ICompoundShardable` → multiple `[ShardKey]` attributes → `IShardable` → single `[ShardKey]`
+- **`ShardKeyAttribute.Order`**: New property for specifying component order in compound keys (0-based)
+
+**Routing Infrastructure**:
+
+- **`CompoundShardRouter`**: Routes each key component through a dedicated strategy (hash, range, directory, geo) and combines results via configurable `ShardIdCombiner`
+- **`CompoundShardRouterOptions`**: Configuration with per-component router dictionary and combiner function (default: hyphen-join)
+- **`IShardRouter.GetShardId(CompoundShardKey)`**: New default interface method for compound routing (falls back to `ToString()` + single-key routing)
+- **`IShardRouter.GetShardIds(CompoundShardKey)`**: Partial key routing for scatter-gather queries with prefix keys
+- All four existing routers (Hash, Range, Directory, Geo) extended with compound key overloads
+
+**Configuration**:
+
+- **`CompoundRoutingBuilder`**: Fluent builder with `Component()`, `HashComponent()`, `RangeComponent()`, `DirectoryComponent()`, `GeoComponent()`, and `CombineWith()`
+- **`ShardingOptions<TEntity>.UseCompoundRouting()`**: Entry point for configuring compound routing per entity type
+
+**Error Codes** (4 new):
+
+- `CompoundShardKeyEmpty`, `CompoundShardKeyComponentEmpty`, `DuplicateShardKeyOrder`, `PartialKeyRoutingFailed`
+
+**Observability**:
+
+- `ShardRoutingMetrics.RecordCompoundKeyExtraction()` for tracking compound key extraction with component count and router type
+
+#### Time-Based Sharding & Archival (#650)
+
+Added time-based shard partitioning with automatic tier lifecycle management (Hot → Warm → Cold → Archived), enabling data archival workflows for time-series, audit logs, and IoT data.
+
+**Core Abstractions**:
+
+- **`ITimeBasedShardRouter`**: Extends `IShardRouter` with timestamp routing (`RouteByTimestampAsync`), write routing with Hot-tier enforcement (`RouteWriteByTimestampAsync`), range queries (`GetShardsInRangeAsync`), and tier introspection
+- **`ShardPeriod`**: Enum defining partitioning granularity (Daily, Weekly, Monthly, Quarterly, Yearly)
+- **`ShardTier`**: Enum defining storage tiers (Hot, Warm, Cold, Archived) with ordered progression
+- **`ShardTierInfo`**: Immutable record combining shard identity, tier, period boundaries `[start, end)`, read-only status, and connection string
+- **`TierTransition`**: Record defining age-based rules for tier promotion with forward-only validation
+- **`PeriodBoundaryCalculator`**: Static utility for computing period start/end, labels, and enumerating contiguous periods across all 5 granularities
+
+**Tier Lifecycle Automation**:
+
+- **`TierTransitionScheduler`**: `BackgroundService` that periodically checks for shards due for tier transition and auto-creates next-period Hot shards before they're needed
+- **`IShardArchiver`** / **`ShardArchiver`**: Coordinates tier transitions, read-only enforcement, archival to external storage, and retention-based deletion via Railway Oriented Programming
+- **`ITierStore`** / **`InMemoryTierStore`**: Persists and queries shard tier metadata; in-memory implementation with `ConcurrentDictionary` for single-process deployments
+- **`IReadOnlyEnforcer`**: Provider-specific interface for database-level read-only enforcement (e.g., `ALTER DATABASE SET READ_ONLY`)
+- **`IShardFallbackCreator`**: On-demand shard creation for resilience when scheduler misses its window
+
+**Routing Implementation**:
+
+- **`TimeBasedShardRouter`**: Binary search over sorted period ranges with `FrozenDictionary` shard lookup, co-location support, and fallback creation
+- Write operations reject non-Hot shards with error code `encina.sharding.shard_read_only`
+- Prefix-based scatter-gather via `GetShardIds(CompoundShardKey)` (e.g., `"2026"` matches all 2026 periods)
+
+**Health Monitoring**:
+
+- **`TierTransitionHealthCheck`**: Reports Healthy/Degraded/Unhealthy based on shard age vs configured per-tier thresholds
+- **`ShardCreationHealthCheck`**: Reports Unhealthy if current-period shard is missing, Degraded if next-period shard is missing within warning window
+
+**Observability** (`Encina.OpenTelemetry`):
+
+- 6 metric instruments: `shards_per_tier` gauge, `oldest_hot_shard_age_days` gauge, `tier_transitions_total` counter, `auto_created_shards_total` counter, `queries_per_tier` counter, `archival_duration_ms` histogram
+
+**Error Codes** (6 codes):
+
+- `TimestampOutsideRange`, `ShardReadOnly`, `NoTimeBasedShards`, `TierTransitionFailed`, `ShardNotFound`, `RetentionPolicyFailed`
+
+**Configuration**:
+
+- **`TimeBasedShardingOptions`**: Controls scheduler interval, period, lead time, connection string template, and tier transition rules
+- **`TimeBasedShardRouterOptions`**: Per-entity fluent configuration via `UseTimeBasedRouting()`
+
+**Testing**: 227 tests across unit (161), guard (31), contract (23), and property (12) tests
+
+#### Shadow Sharding (#649)
+
+Added shadow sharding for testing new shard topologies under real production traffic with zero impact. Enables phased rollouts from dual-write validation to full cutover.
+
+**Core Abstractions**:
+
+- **`IShadowShardRouter`**: Extends `IShardRouter` with shadow-specific operations (`RouteShadowAsync`, `CompareAsync`, `IsShadowEnabled`, `ShadowTopology`)
+- **`ShadowShardRouterDecorator`**: Wraps production router; all `IShardRouter` methods delegate to primary, shadow operations run against secondary topology with latency measurement
+- **`ShadowComparisonResult`**: Immutable record capturing routing comparison data (shard keys, routing match, latency measurements, optional result match, timestamp)
+- **`ShadowShardingOptions`**: Configuration with `ShadowTopology`, `DualWriteEnabled`, `ShadowReadPercentage` (0-100), `CompareResults`, `DiscrepancyHandler`, `ShadowWriteTimeout`, `ShadowRouterFactory`
+
+**Pipeline Integration**:
+
+- **`ShadowWritePipelineBehavior<TCommand, TResponse>`**: Fire-and-forget shadow write on production success with configurable timeout; shadow failures logged, never propagated
+- **`ShadowReadPipelineBehavior<TQuery, TResponse>`**: Percentage-based shadow read sampling with hash-based result comparison; discrepancies forwarded to optional handler
+
+**Configuration**:
+
+- **`WithShadowSharding()`**: Fluent extension on `ShardingOptions<TEntity>` for shadow topology setup
+- **`ShadowShardingServiceCollectionExtensions`**: DI registration for decorator, behaviors, and options
+
+**Observability** (`Encina.OpenTelemetry`):
+
+- **`ShadowShardingMetrics`**: 6 metric instruments — routing comparisons, routing mismatches, shadow writes (by outcome), write latency diff, read comparisons (by result match), read latency diff
+- **`ShadowShardingActivityEnricher`**: Trace enrichment with production/shadow shard IDs, routing match, write outcome, read results match
+- 5 trace tag constants under `ActivityTagNames.Shadow`
+- Structured logging via `ShadowShardingLog` (source-generated LoggerMessage delegates)
+
+**Error Codes** (1 code):
+
+- `encina.sharding.shadow_routing_failed`
+
+**Testing**: 90 tests across unit (55), guard (18), contract (9), property (8) tests; 5 BenchmarkDotNet benchmarks
+
+#### Schema Migration Coordination for Shards (#651)
+
+Added coordinated schema migration across sharded databases with four deployment strategies, automatic rollback, schema drift detection, and full observability integration.
+
+**Core Types** (`Encina` package):
+
+- **`MigrationScript`**: Immutable record with `Id`, `UpSql`, `DownSql`, `Description`, `Checksum` for DDL scripts
+- **`MigrationResult`**: Coordination result with `PerShardStatus`, computed `AllSucceeded`, `SucceededCount`, `FailedCount`
+- **`MigrationProgress`**: In-flight tracking with `TotalShards`, `CompletedShards`, `FailedShards`, `CurrentShard`, computed `RemainingShards`, `IsFinished`
+- **`ShardMigrationStatus`**: Per-shard state with `ShardId`, `Outcome` (Success/Failed/RolledBack/Skipped), `Duration`, optional `ErrorMessage`
+- **`MigrationOptions`**: Per-migration configuration (strategy, parallelism, timeout, stop-on-first-failure, validation)
+
+**Coordination Engine**:
+
+- **`IShardedMigrationCoordinator`**: Main interface — `ApplyToAllShardsAsync`, `RollbackAsync`, `DetectDriftAsync`, `GetProgressAsync`, `GetAppliedMigrationsAsync`
+- **`ShardedMigrationCoordinator`**: Full implementation with in-memory progress tracking, history table initialization, and per-shard error isolation
+
+**Four Migration Strategies**:
+
+- **Sequential** (`SequentialMigrationStrategy`): One shard at a time — safest, slowest
+- **Parallel** (`ParallelMigrationStrategy`): All shards simultaneously with semaphore-based throttling
+- **RollingUpdate** (`RollingUpdateStrategy`): Configurable batch size, balanced approach
+- **CanaryFirst** (`CanaryFirstStrategy`): Apply to canary shard first, then parallel to rest
+
+**Provider Abstractions**:
+
+- **`IMigrationExecutor`**: Provider-specific DDL execution (`ExecuteSqlAsync`)
+- **`IMigrationHistoryStore`**: Migration history tracking (`GetAppliedAsync`, `RecordAppliedAsync`, `RecordRolledBackAsync`, `EnsureHistoryTableExistsAsync`, `ApplyHistoricalMigrationsAsync`)
+- **`ISchemaIntrospector`**: Provider-specific schema inspection for drift detection
+
+**Schema Drift Detection**:
+
+- **`SchemaComparer`**: Core comparison logic with three depths (TablesOnly, TablesAndColumns, Full)
+- **`SchemaDriftReport`**: Aggregated drift across all shards with computed `HasDrift`
+- **`ShardSchemaDiff`**: Per-shard drift result with table diffs
+- **`TableDiff`**: Individual table difference (Missing, Extra, Modified) with optional column diffs
+- **`DriftDetectionOptions`**: Configuration with baseline shard, comparison depth, critical table tracking
+
+**Builder & DI**:
+
+- **`MigrationCoordinationBuilder`**: Fluent builder — `UseStrategy()`, `WithMaxParallelism()`, `StopOnFirstFailure()`, `WithPerShardTimeout()`, `ValidateBeforeApply()`, `OnShardMigrated()`, `WithDriftDetection()`
+- **`AddEncinaShardMigrationCoordination()`**: DI registration extension method on `IServiceCollection`
+
+**Observability** (`Encina.OpenTelemetry`):
+
+- 6 metric instruments: `shards_migrated_total` counter, `shards_failed_total` counter, `duration_per_shard_ms` histogram, `total_duration_ms` histogram, `drift_detected_count` observable gauge, `rollbacks_total` counter
+- 3 trace activities via `MigrationActivitySource`: `StartMigrationCoordination`, `StartShardMigration`, `Complete` enrichment
+- 14 activity tags under `ActivityTagNames.Migration`
+- **`SchemaDriftHealthCheck`**: Reports Unhealthy/Degraded/Healthy based on drift in critical vs non-critical tables
+- **`MigrationMetricsInitializer`**: Hosted service for metrics initialization
+
+**Error Codes** (constants in `MigrationErrorCodes`):
+
+- `NoActiveShards`, `MigrationFailed`, `RollbackFailed`, `DriftDetectionFailed`, `HistoryQueryFailed`
+
+**Testing**: 169 tests across unit (47), guard (54), contract (26), property (31), integration (11) tests — integration tests use real SQLite databases via `ShardedSqliteFixture`
+
+#### Online Resharding Workflow (#648)
+
+Added online resharding with a 6-phase workflow (Planning → Copying → Replicating → Verifying → CuttingOver → CleaningUp), crash recovery, automatic rollback, and full observability integration.
+
+**Core Architecture**:
+
+- **`IReshardingOrchestrator`**: Orchestrates the full lifecycle with `PlanAsync`, `ExecuteAsync`, `RollbackAsync`, `GetProgressAsync`
+- **`IReshardingStateStore`**: Persistent state for crash recovery (`SaveStateAsync`, `GetStateAsync`, `GetActiveReshardingsAsync`, `DeleteStateAsync`)
+- **`IReshardingServices`**: Application-level data operations (`CopyBatchAsync`, `ReplicateChangesAsync`, `GetReplicationLagAsync`, `VerifyDataConsistencyAsync`, `SwapTopologyAsync`, `CleanupSourceDataAsync`, `EstimateRowCountAsync`) plus 3 result records (`CopyBatchResult`, `ReplicationResult`, `VerificationResult`)
+- **`ReshardingPhaseExecutor`**: Sequential phase pipeline with `ValidateTransition`, crash recovery from last checkpoint
+- **`ReshardingState`**: Immutable state record persisted across phases with `ReshardingCheckpoint` support
+
+**6-Phase Workflow**:
+
+- **Planning**: Uses `IShardRebalancer.CalculateAffectedKeyRanges` to generate `ShardMigrationStep[]`, estimates resources via `IReshardingServices.EstimateRowCountAsync`
+- **Copying**: Batch data copy with configurable `CopyBatchSize` (default: 10,000), checkpoint resume after crash via `ReshardingCheckpoint.LastBatchPosition`
+- **Replicating**: CDC-based catch-up with configurable `CdcLagThreshold` (default: 5s), multi-pass replication tracking via `ReshardingCheckpoint.CdcPosition`
+- **Verifying**: Consistency verification with `VerificationMode` (RowCount, CountAndChecksum, Full)
+- **CuttingOver**: Atomic topology swap with `OnCutoverStarting` predicate gate and `CutoverTimeout` (default: 30s)
+- **CleaningUp**: Source data deletion with `CleanupRetentionPeriod` (default: 24h), best-effort (failures don't fail the workflow)
+
+**Configuration**:
+
+- **`ReshardingOptions`**: `CopyBatchSize` (10,000), `CdcLagThreshold` (5s), `VerificationMode` (CountAndChecksum), `CutoverTimeout` (30s), `CleanupRetentionPeriod` (24h), `OnPhaseCompleted` callback, `OnCutoverStarting` predicate
+- **`ReshardingBuilder`**: Fluent API — `CopyBatchSize`, `CdcLagThreshold`, `VerificationMode`, `CutoverTimeout`, `CleanupRetentionPeriod`, `OnPhaseCompleted()`, `OnCutoverStarting()`
+- **`WithResharding()`**: Configuration entry point on `ShardingOptions<TEntity>`
+
+**Observability** (`Encina.OpenTelemetry`):
+
+- `ReshardingMetrics`: 7 instruments — `phase_duration_ms` histogram, `rows_copied_total` counter, `rows_per_second` observable gauge, `cdc_lag_ms` observable gauge, `verification_mismatches_total` counter, `cutover_duration_ms` histogram, `active_resharding_count` observable gauge (via `ReshardingMetricsCallbacks`)
+- `ReshardingActivitySource` ("Encina.Resharding"): 2 activities (`StartReshardingExecution`, `StartPhaseExecution`) with `Complete` enrichment
+- `ReshardingActivityEnricher`: Static methods for enriching activities with plan and phase details
+- `ReshardingHealthCheck`: Three-state health (Healthy: no active, Degraded: in-progress, Unhealthy: failed/overdue/timeout/error) with `ReshardingHealthCheckOptions` (MaxReshardingDuration: 2h, Timeout: 30s)
+- `ReshardingLogMessages`: 10 source-generated structured log events with unique EventIds
+
+**Error Codes** (16 stable codes under `encina.sharding.resharding.*`):
+
+- `TopologiesIdentical`, `EmptyPlan`, `PlanGenerationFailed`, `CopyFailed`, `ReplicationFailed`, `VerificationFailed`, `CutoverTimeout`, `CutoverAborted`, `CutoverFailed`, `CleanupFailed`, `RollbackFailed`, `RollbackNotAvailable`, `ReshardingNotFound`, `InvalidPhaseTransition`, `StateStoreFailed`, `ConcurrentReshardingNotAllowed`
+
+**Testing**: 342 tests across unit (252), guard (48), contract (18), property (12), integration (12) tests
+
+#### CDC Dead Letter Queue (#631)
+
+Added dead letter queue (DLQ) for CDC failed events, enabling persistence and later replay of change events that fail after exhausting all retries.
+
+**Core Abstractions** (`Encina.Cdc`):
+
+- **`ICdcDeadLetterStore`**: Interface for adding, querying, and resolving dead letter entries (ROP with `Either<EncinaError, T>`)
+- **`CdcDeadLetterEntry`**: Sealed record with `Id`, `OriginalEvent`, `ErrorMessage`, `StackTrace`, `RetryCount`, `FailedAtUtc`, `ConnectorId`, `Status`
+- **`CdcDeadLetterStatus`**: Enum with `Pending`, `Replayed`, `Discarded`
+- **`CdcDeadLetterResolution`**: Enum with `Replay`, `Discard`
+- **`InMemoryCdcDeadLetterStore`**: Default in-memory implementation (providers can override via DI)
+
+**Configuration** (opt-in):
+
+- `UseDeadLetterQueue()` fluent method on `CdcConfiguration`
+- Registers `ICdcDeadLetterStore` (default: in-memory) and health check via `ServiceCollectionExtensions`
+
+**Observability**:
+
+- 4 new error codes: `DeadLetterStoreFailed`, `DeadLetterNotFound`, `DeadLetterAlreadyResolved`, `DeadLetterInvalidResolution`
+- `CdcDeadLetterMetrics`: OpenTelemetry metrics for DLQ operations
+- `CdcDeadLetterHealthCheck`: Health check with configurable warning/critical thresholds (`CdcDeadLetterHealthCheckOptions`)
+- Log EventIds 210–213 for DLQ operations
+
+**Processor Integration**:
+
+- `CdcProcessor` accepts optional `ICdcDeadLetterStore?` — failed events are persisted after retry exhaustion
+- Graceful degradation: DLQ store failures are logged and do not crash the processor
+
+**Testing** (`Encina.Testing.Fakes`):
+
+- `FakeCdcDeadLetterStore`: Thread-safe fake with verification helpers (`WasEventDeadLettered`, `GetEntries`, `GetEntriesByConnector`, `GetResolvedEntries`)
+- 8 contract tests, 5 property-based tests, 6 unit tests (19 total)
+
+#### Distributed Aggregation Helpers for Sharding (#640)
+
+Added two-phase distributed aggregation operations (Count, Sum, Avg, Min, Max) across sharded repositories with mathematically correct combine logic.
+
+**Core Abstractions** (`Encina` package):
+
+- **`IShardedAggregationSupport<TEntity, TId>`**: Interface for providers implementing distributed aggregation
+- **`ShardAggregatePartial<TValue>`**: Immutable record for per-shard intermediate results (Sum, Count, Min, Max)
+- **`AggregationResult<T>`**: Final result record with `Value`, `ShardsQueried`, `FailedShards`, `Duration`, and `IsPartial`
+- **`AggregationCombiner`**: Static class with five combine methods using mathematically correct two-phase aggregation
+- **`ShardedAggregationExtensions`**: Extension methods on `IFunctionalShardedRepository<TEntity, TId>` for Count, Sum, Avg, Min, Max
+
+**Key Design Decision**: Average uses `totalSum / totalCount` (not average-of-averages) to prevent incorrect results when shards have unequal row counts.
+
+**Provider Support** (13 providers):
+
+- ADO.NET (4): `BuildAggregationSql` + `GetColumnNameFromSelector` on `SpecificationSqlBuilder`, 5 aggregation methods on `FunctionalShardedRepositoryADO`
+- Dapper (4): Same pattern with `IDictionary<string, object?>` parameters and `QuerySingleAsync` execution
+- EF Core (4): LINQ-based aggregation via `DbContext.Set<T>()` with `CountAsync`, `SumAsync`, etc.
+- MongoDB (1): `AggregationPipelineBuilder<TEntity>` with `$match`, `$group`, `$count` stages
+
+**Observability**:
+
+- 2 new metric instruments: `encina.sharding.aggregation.duration` (histogram), `encina.sharding.aggregation.partial_results` (counter)
+- 2 new trace activities: `Encina.Sharding.Aggregation` (parent), `Encina.Sharding.ShardAggregation` (per-shard)
+- `ShardingMetricsOptions.EnableAggregationMetrics` (default: `true`)
+- 2 new error codes: `AggregationFailed`, `AggregationPartialFailure`
+
+**Testing**: 105+ new unit tests covering AggregationCombiner, AggregationResult, ShardedAggregationExtensions, and diagnostics
+
+**Documentation**: `docs/features/distributed-aggregations.md` — comprehensive guide with architecture, edge cases, and provider-specific details
+
+#### Specification-Based Scatter-Gather for Sharding (#652)
+
+Added specification-based scatter-gather queries across shards, enabling reuse of domain specifications for cross-shard operations with per-shard metadata, pagination, and observability.
+
+**Core Abstractions** (`Encina.DomainModeling` package):
+
+- **`IShardedSpecificationSupport<TEntity, TId>`**: Interface for providers implementing specification-based scatter-gather (4 methods)
+- **`ShardedSpecificationExtensions`**: Extension methods on `IFunctionalShardedRepository` for `QueryAllShardsAsync`, `QueryAllShardsPagedAsync`, `CountAllShardsAsync`, `QueryShardsAsync`
+- **`ScatterGatherResultMerger`**: Static class for merging per-shard results with ordering from specifications
+
+**Result Types** (`Encina` package):
+
+- **`ShardedSpecificationResult<T>`**: Merged results with `ItemsPerShard`, `DurationPerShard`, `FailedShards`, `IsComplete`, `IsPartial`
+- **`ShardedPagedResult<T>`**: Cross-shard paginated results with `TotalCount`, `TotalPages`, `HasNextPage`, `HasPreviousPage`, `CountPerShard`
+- **`ShardedCountResult`**: Lightweight count-only result with per-shard breakdown
+- **`ShardedPaginationOptions`**: Configuration with `Page`, `PageSize`, and `Strategy`
+- **`ShardedPaginationStrategy`**: Two strategies — `OverfetchAndMerge` (simple, correct) and `EstimateAndDistribute` (efficient, approximate)
+
+**Provider Support** (13 providers via 10 implementations):
+
+- ADO.NET (4): `FunctionalShardedRepositoryADO` implements `IShardedSpecificationSupport` — SQLite, SqlServer, PostgreSQL, MySQL
+- Dapper (4): `FunctionalShardedRepositoryDapper` implements `IShardedSpecificationSupport` — SQLite, SqlServer, PostgreSQL, MySQL
+- EF Core (4 via 1 generic): `FunctionalShardedRepositoryEF` implements `IShardedSpecificationSupport` — SQLite, SqlServer, PostgreSQL, MySQL
+- MongoDB (1): `FunctionalShardedRepositoryMongoDB` implements `IShardedSpecificationSupport`
+
+**Observability**:
+
+- 4 new metric instruments: `encina.sharding.specification.queries_total` (counter), `encina.sharding.specification.merge.duration_ms` (histogram), `encina.sharding.specification.items_per_shard` (histogram), `encina.sharding.specification.shard_fan_out` (histogram)
+- 3 new activity methods on `ShardingActivitySource`: `StartSpecificationScatterGather`, `SetPaginationContext`, `CompleteSpecificationScatterGather`
+- `ShardingMetricsOptions.EnableSpecificationMetrics` (default: `true`)
+- Structured logging with specification type, operation kind, and merge duration in all providers
+
+**Testing**: 109+ tests across unit (67), guard (15), contract (14), property (13); 5 BenchmarkDotNet benchmarks for merge/pagination overhead
+
+**Documentation**: `docs/features/specification-scatter-gather.md` — comprehensive guide with architecture, pagination strategies, and provider examples
+
+#### Entity Co-Location Groups for Sharding (#647)
+
+Added co-location group support for sharded entities, ensuring related entities (e.g., Order + OrderItem) are always stored on the same shard for efficient local JOINs and shard-local transactions.
+
+**Core Abstractions** (`Encina` package):
+
+- **`IColocationGroup`**: Interface exposing `RootEntity`, `ColocatedEntities`, and `SharedShardKeyProperty`
+- **`ColocationGroup`**: Immutable sealed record implementing `IColocationGroup`
+- **`ColocationGroupBuilder`**: Fluent builder with `WithRootEntity<T>()`, `AddColocatedEntity<T>()`, `WithSharedShardKeyProperty()`, `Build()`
+- **`ColocationGroupRegistry`**: Thread-safe singleton registry with O(1) bidirectional lookups (entity → group, root → group)
+- **`[ColocatedWith(typeof(Root))]`**: Declarative attribute for child entities (`AllowMultiple = false`, `Inherited = false`)
+- **`ColocationViolationException`**: Startup validation exception with `RootEntityType`, `FailedEntityType`, `Reason`, and `ToEncinaError()`
+
+**Router Integration** (all 5 routers):
+
+- `HashShardRouter`, `RangeShardRouter`, `DirectoryShardRouter`, `GeoShardRouter`, `CompoundShardRouter`: all accept optional `ColocationGroupRegistry` in constructor
+- `IShardRouter.GetColocationGroup(Type)`: new default interface method returning `IColocationGroup?` (default: `null`)
+- `ShardTopology`: extended with `ColocationGroupRegistry` support
+
+**Error Codes** (4 new):
+
+- `ColocationEntityNotShardable`, `ColocationShardKeyMismatch`, `ColocationDuplicateRegistration`, `ColocationSelfReference`
+
+**Observability** (`Encina.OpenTelemetry` package):
+
+- `ColocationMetrics`: 3 metric instruments — `encina.sharding.colocation.groups_registered` (gauge), `encina.sharding.colocation.validation_failures_total` (counter), `encina.sharding.colocation.local_joins_total` (counter)
+- 3 trace attribute constants: `encina.sharding.colocation.group`, `encina.sharding.colocation.is_colocated`, `encina.sharding.colocation.root_entity`
+- `ColocationLog`: 5 source-generated log events (EventIds 620-624)
+
+**Testing**: 97 new tests across unit (44), guard (8), contract (28), property (18)
+
+**Documentation**: `docs/features/sharding-colocation.md` — comprehensive guide with configuration, validation rules, and observability
 
 #### Change Data Capture (CDC) Pattern (#308)
 
@@ -47,7 +441,15 @@ services.AddEncinaCdcSqlServer(opts =>
 | `Encina.Cdc.PostgreSql` | Logical Replication (WAL) | `PostgresCdcPosition` (LSN) |
 | `Encina.Cdc.MySql` | Binary Log Replication | `MySqlCdcPosition` (GTID/binlog) |
 | `Encina.Cdc.MongoDb` | Change Streams | `MongoCdcPosition` (resume token) |
-| `Encina.Cdc.Debezium` | HTTP Consumer | `DebeziumCdcPosition` (offset JSON) |
+| `Encina.Cdc.Debezium` | HTTP Consumer + Kafka Consumer | `DebeziumCdcPosition` / `DebeziumKafkaPosition` |
+
+**Debezium Dual-Mode Support**:
+
+- **HTTP Mode** (`AddEncinaCdcDebezium`): Receives events from Debezium Server via HTTP POST with bounded channel backpressure
+- **Kafka Mode** (`AddEncinaCdcDebeziumKafka`): Consumes Debezium change events from Kafka topics with consumer group scaling
+- Shared `DebeziumEventMapper` for consistent CloudEvents/Flat format parsing across both modes
+- SASL/SSL security configuration for Kafka connections
+- Mutual exclusivity via `TryAddSingleton` — first registered mode wins
 
 **Messaging Integration**:
 
@@ -56,9 +458,221 @@ services.AddEncinaCdcSqlServer(opts =>
 - **`CdcChangeNotification`**: `INotification` wrapper with topic name from configurable pattern
 - **`CdcMessagingOptions`**: Table/operation filtering and topic pattern configuration
 
-**Test Coverage** (355+ tests):
+**Test Coverage** (498+ tests):
 
-- ~156 unit tests, ~55 integration tests, ~50 guard tests, ~47 contract tests, ~47 property tests
+- ~232 unit tests, ~60 integration tests, ~69 guard tests, ~71 contract tests, ~66 property tests
+
+---
+
+#### CDC Per-Shard Connector (#646)
+
+Added sharded CDC support that aggregates change streams from multiple database shards into a unified event pipeline, with per-shard position tracking and topology-aware health checks.
+
+**Core Abstractions** (`Encina.Cdc` package):
+
+- **`IShardedCdcConnector`**: Aggregates per-shard `ICdcConnector` instances into a unified stream via `StreamAllShardsAsync()` or per-shard via `StreamShardAsync()`
+- **`IShardedCdcPositionStore`**: Persists positions per `(shardId, connectorId)` composite key with `GetPositionAsync`, `SavePositionAsync`, `DeletePositionAsync`, `GetAllPositionsAsync`
+- **`ShardedChangeEvent`**: Record wrapping `ChangeEvent` with `ShardId` and `ShardPosition` for per-shard tracking
+- **`ShardedCaptureOptions`**: Configuration for auto-discovery, processing mode, lag threshold, topology callbacks
+- **`ShardedProcessingMode`**: Enum with `Aggregated` (cross-shard ordering) and `PerShardParallel` (independent streams)
+
+**Processing & Infrastructure**:
+
+- **`ShardedCdcConnector`**: Internal implementation using `Channel<T>` for aggregated streaming with `AddConnector`/`RemoveConnector` for runtime topology changes
+- **`ShardedCdcProcessor`**: `BackgroundService` with poll-dispatch-save loop, exponential backoff retry, batch size control
+- **`InMemoryShardedCdcPositionStore`**: `ConcurrentDictionary`-based implementation with case-insensitive `ToUpperInvariant()` composite keys
+
+**Configuration** (via `CdcConfiguration.WithShardedCapture()`):
+
+```csharp
+services.AddEncinaCdc(config =>
+{
+    config.UseCdc()
+          .AddHandler<Order, OrderChangeHandler>()
+          .WithShardedCapture(opts =>
+          {
+              opts.AutoDiscoverShards = true;
+              opts.ProcessingMode = ShardedProcessingMode.Aggregated;
+              opts.MaxLagThreshold = TimeSpan.FromMinutes(5);
+              opts.ConnectorId = "orders-sharded-cdc";
+          });
+});
+```
+
+**Health Check**: `ShardedCdcHealthCheck` (extends `EncinaHealthCheck`) — reports Healthy/Degraded/Unhealthy based on shard lag and connector status
+
+**Error Codes** (2 new): `encina.cdc.shard_not_found`, `encina.cdc.shard_stream_failed`
+
+**Observability** (`Encina.OpenTelemetry` package):
+
+- `ShardedCdcMetrics`: 5 metric instruments — `encina.cdc.sharded.events_total` (counter), `encina.cdc.sharded.position_saves_total` (counter), `encina.cdc.sharded.errors_total` (counter), `encina.cdc.sharded.active_connectors` (gauge), `encina.cdc.sharded.lag_ms` (gauge)
+- 2 trace attribute constants: `encina.cdc.shard.id`, `encina.cdc.operation`
+
+**Test Coverage** (132 tests): 86 unit, 23 guard, 14 contract, 9 property
+
+**Documentation**: [`docs/features/cdc-sharding.md`](docs/features/cdc-sharding.md) — comprehensive guide with configuration, position tracking, and observability
+
+---
+
+#### CDC-Driven Query Cache Invalidation (#632)
+
+Added CDC-driven query cache invalidation that detects database changes from any source (other app instances, direct SQL, migrations, external microservices) and invalidates matching cache entries across all application instances via pub/sub broadcast.
+
+**Core Components** (`Encina.Cdc` package):
+
+- **`QueryCacheInvalidationOptions`**: Configuration for cache key prefix, pub/sub channel, table filtering, and explicit table-to-entity-type mappings
+- **`QueryCacheInvalidationCdcHandler`**: Internal `IChangeEventHandler<JsonElement>` that translates CDC events into `RemoveByPatternAsync` calls with pattern `{prefix}:*:{entityType}:*`
+- **`CdcTableNameResolver`**: Internal resolver with explicit mapping precedence (case-insensitive) and automatic schema stripping fallback (`dbo.Orders` → `Orders`)
+- **`CacheInvalidationSubscriberService`**: `IHostedService` that subscribes to the pub/sub channel and invalidates local cache entries when messages arrive from other instances
+
+**Configuration** (via `CdcConfiguration.WithCacheInvalidation()`):
+
+```csharp
+services.AddEncinaCdc(config =>
+{
+    config.UseCdc()
+          .WithCacheInvalidation(opts =>
+          {
+              opts.CacheKeyPrefix = "sm:qc";
+              opts.UsePubSubBroadcast = true;
+              opts.PubSubChannel = "sm:cache:invalidate";
+              opts.Tables = ["Orders", "Products"];
+              opts.TableToEntityTypeMappings = new Dictionary<string, string>
+              {
+                  ["dbo.Orders"] = "Order",
+                  ["dbo.Products"] = "Product"
+              };
+          });
+});
+```
+
+**Health Check**: `CacheInvalidationSubscriberHealthCheck` (extends `EncinaHealthCheck`) — verifies pub/sub connectivity with diagnostic data (channel, prefix)
+
+**Observability**:
+
+- `CacheInvalidationActivitySource`: 7 trace methods under `Encina.Cdc.CacheInvalidation` ActivitySource (StartInvalidation, SetResolution, InvalidationCompleted/Failed/Skipped, StartBroadcast, CompleteBroadcast)
+- `CacheInvalidationMetrics`: 3 counter instruments — `encina.cdc.cache.invalidations`, `encina.cdc.cache.broadcasts`, `encina.cdc.cache.errors`
+- `CdcCacheInvalidationLog`: 16 source-generated log events (EventIds 150-165) covering invalidation, broadcast, subscriber lifecycle, and error scenarios
+
+**Test Coverage** (48 tests): 19 unit, 4 guard, 9 contract, 9 property, 7 integration
+
+**Documentation**: [`docs/features/cdc-cache-invalidation.md`](docs/features/cdc-cache-invalidation.md) — comprehensive guide with architecture, configuration, troubleshooting
+
+---
+
+#### Sharded Read/Write Separation (#644)
+
+Added per-shard read/write separation with five replica selection strategies, health-aware routing, and staleness tolerance across all 13 database providers.
+
+**Core Architecture**:
+
+- **`IShardedReadWriteConnectionFactory`**: Unified factory for shard-aware read/write connections (non-generic for Dapper, generic `<TConnection>` for ADO.NET)
+- **`IShardedReadWriteDbContextFactory<TContext>`**: EF Core variant with context-aware, explicit read, and explicit write modes
+- **`IReplicaHealthTracker`**: Thread-safe health tracking with recovery delay, replication lag filtering, and three-state model (Healthy/Degraded/Unhealthy)
+- **`ShardReplicaSelectorFactory`**: Creates and caches per-shard replica selectors based on strategy configuration
+- **`ShardedReadWriteOptions`**: Configuration with global defaults and per-shard overrides for strategy, staleness, and health parameters
+
+**Five Replica Selection Strategies** (`ReplicaSelectionStrategy` enum):
+
+- **RoundRobin** (default): `Interlocked.Increment` — lock-free, even distribution
+- **Random**: `Random.Shared.Next` — thread-safe, stateless
+- **LeastLatency**: EMA smoothing (alpha=0.3) over `ConcurrentDictionary` — routes to fastest replica
+- **LeastConnections**: `Interlocked` counters per replica — adapts to variable query durations
+- **WeightedRandom**: Cumulative weight array + binary search — heterogeneous replica capacity
+
+**Health & Failover**:
+
+- `ReplicaHealthTracker`: `ConcurrentDictionary`-based with configurable recovery delay (`UnhealthyReplicaRecoveryDelay`) and replication lag filtering (`MaxAcceptableReplicationLag`)
+- `ShardReplicaHealthCheck`: Aggregate health evaluation across all shards for ASP.NET Core health check integration
+- Configurable fallback to primary when no healthy replicas are available (`FallbackToPrimaryWhenNoReplicas`)
+
+**Staleness Tolerance**:
+
+- Global: `ShardedReadWriteOptions.DefaultMaxStaleness`
+- Per-query: `[StalenessOptions]` attribute on request/query types
+- Interacts with health tracking to filter replicas exceeding acceptable replication lag
+
+**Provider Support** (13 providers):
+
+- ADO.NET (4): `AddEncinaADOShardedReadWrite()` — SqlServer, PostgreSQL, MySQL, SQLite
+- Dapper (4): `AddEncinaDapperShardedReadWrite()` — non-generic `IShardedReadWriteConnectionFactory`
+- EF Core (4): `AddEncinaEFCoreShardedReadWrite{Provider}<TContext>()` — SqlServer, PostgreSQL, MySQL, SQLite
+- MongoDB (1): `AddEncinaMongoDBShardedReadWrite()` — `IShardedReadWriteMongoCollectionFactory`
+
+**Observability**:
+
+- 6 metric instruments under "Encina" meter: read/write operation counters, replica selection duration, failover counter, unhealthy replica gauge, replication lag histogram
+- Structured logging with shard ID, strategy, and health state in all providers
+
+**Documentation** (2 guides + 1 ADR):
+
+- `docs/architecture/adr/012-sharded-read-write-separation.md` — Architecture Decision Record
+- `docs/sharding/read-write-separation.md` — Comprehensive usage guide with configuration, strategies, staleness, health, and provider-specific setup
+
+**Testing**: 289+ tests across unit (222), guard (33), contract (27), property (7); 10 BenchmarkDotNet benchmarks (5 single-threaded + 5 concurrent with ThreadingDiagnoser); load tests for distribution fairness
+
+---
+
+#### Reference Tables / Global Data Replication (#639)
+
+Added reference table (broadcast table) replication for sharded deployments, automatically synchronizing small lookup tables from a primary shard to all target shards for local JOINs without cross-shard traffic.
+
+**Core Architecture**:
+
+- **`IReferenceTableReplicator`**: Main orchestrator for replicating reference table data from primary to all target shards with per-shard result tracking
+- **`IReferenceTableRegistry`**: Immutable frozen-dictionary registry of configured reference tables, O(1) lookup by entity type
+- **`IReferenceTableStore`**: Provider-agnostic interface for bulk upsert, read-all, and content hash operations on a single shard
+- **`IReferenceTableStoreFactory`**: Creates per-shard store instances from connection strings
+- **`IReferenceTableStateStore`**: Persists content hashes and last replication timestamps for change detection
+- **`ReferenceTableHashComputer`**: XxHash64-based deterministic content hashing with PK-ordered serialization
+- **`EntityMetadataCache`**: Reflection-based discovery and caching of `[Table]`, `[Key]`, `[Column]` attributes
+- **`[ReferenceTable]`**: Marker attribute for entity classes, optional when using explicit registration
+
+**Three Refresh Strategies** (`RefreshStrategy` enum):
+
+- **CdcDriven**: Near-real-time replication via Change Data Capture — requires configured `ICdcConnector`
+- **Polling** (default): Periodic hash-based change detection with configurable interval
+- **Manual**: Explicit replication via `IReferenceTableReplicator.ReplicateAsync<T>()`
+
+**Configuration**:
+
+```csharp
+options.AddReferenceTable<Country>(rt =>
+{
+    rt.RefreshStrategy = RefreshStrategy.Polling;
+    rt.PrimaryShardId = "shard-0";
+    rt.PollingInterval = TimeSpan.FromMinutes(10);
+    rt.BatchSize = 500;
+    rt.SyncOnStartup = true;
+});
+```
+
+**Provider Support** (13 providers):
+
+- ADO.NET (4): `ReferenceTableStoreADO` — SQLite (`INSERT OR REPLACE`), SqlServer (`MERGE`), PostgreSQL (`ON CONFLICT DO UPDATE`), MySQL (`ON DUPLICATE KEY UPDATE`)
+- Dapper (4): `ReferenceTableStoreDapper` — same SQL dialects via Dapper execution
+- EF Core (4): `ReferenceTableStoreEF<TContext>` — generic implementation using `DbContext`
+- MongoDB (1): `ReferenceTableStoreMongoDB` — `BulkWriteAsync` with `ReplaceOneModel`
+
+**Observability**:
+
+- 5 metric instruments under "Encina" meter: `encina.reference_table.replications_total`, `encina.reference_table.replication_duration_ms`, `encina.reference_table.rows_synced_total`, `encina.reference_table.errors_total`, `encina.reference_table.active_replications`
+- Activity enrichment via `ReferenceTableActivityEnricher` with 6 tag constants
+- 15 stable error codes prefixed `encina.reference_table.*`
+
+**Health Monitoring**:
+
+- `ReferenceTableHealthCheck` with three-state model (Healthy/Degraded/Unhealthy) based on replication lag thresholds
+- Configurable via `ReferenceTableHealthCheckOptions` (degraded: 1min, unhealthy: 5min defaults)
+
+**Documentation** (4 guides + 1 ADR):
+
+- `docs/architecture/adr/013-reference-tables.md` — Architecture Decision Record
+- `docs/features/reference-tables.md` — Comprehensive feature guide
+- `docs/guides/reference-tables-scaling.md` — Scaling guidance and capacity planning
+- `docs/configuration/reference-tables.md` — Configuration reference
+
+**Testing**: 247+ tests across unit (154), contract (38), guard (13), property (12), integration (30 — ADO + Dapper across 4 databases); load tests and BenchmarkDotNet benchmarks
 
 ---
 
@@ -1162,6 +1776,120 @@ await context.SaveChangesAsync(); // Events dispatched automatically
 - Created `docs/features/immutable-domain-models.md` feature guide
 
 **Related Issue**: [#569 - Immutable Records Support for EF Core and Domain Events](https://github.com/dlrivada/Encina/issues/569)
+
+#### Distributed ID Generation (#638)
+
+Added a multi-strategy distributed ID generation package (`Encina.IdGeneration`) with four algorithms, shard-aware generation, and full integration across all 13 database providers.
+
+**New Package**: `Encina.IdGeneration`
+
+**Four ID Strategies**:
+
+- **Snowflake** (`SnowflakeIdGenerator`): 64-bit time-ordered IDs with configurable bit allocation (41 timestamp + 10 shard + 12 sequence = 63 bits). Thread-safe with lock-based sequencing, clock drift tolerance, and shard embedding via `IShardedIdGenerator<SnowflakeId>`
+- **ULID** (`UlidIdGenerator`): 128-bit Crockford Base32 identifiers (48-bit timestamp + 80-bit random). Cryptographically random via `RandomNumberGenerator`, inherently thread-safe
+- **UUIDv7** (`UuidV7IdGenerator`): RFC 9562 time-ordered UUIDs wrapping `System.Guid`. Timestamp in MSBs for B-tree index locality, cryptographically random
+- **ShardPrefixed** (`ShardPrefixedIdGenerator`): String-based `{shardId}:{sequence}` format with pluggable sequence generation (ULID, UUIDv7, TimestampRandom) via `IShardedIdGenerator<ShardPrefixedId>`
+
+**Strongly-Typed ID Types** (4 `readonly record struct`):
+
+- **`SnowflakeId`**: Wraps `long`, implicit conversion to/from `long`, `Parse`/`TryParse`/`TryParseEither`, comparison operators
+- **`UlidId`**: Wraps Crockford Base32, `NewUlid()` factory, `GetTimestamp()`, `ToGuid()`, implicit Guid conversion
+- **`UuidV7Id`**: Wraps `Guid`, `NewUuidV7()` factory, `GetTimestamp()`, implicit Guid conversion
+- **`ShardPrefixedId`**: String-based with `ShardId`/`Sequence` properties, `Parse` with delimiter support, implicit string conversion
+
+**Core Abstractions** (`Encina` package):
+
+- **`IIdGenerator<TId>`**: Non-sharded generation returning `Either<EncinaError, TId>`
+- **`IShardedIdGenerator<TId>`**: Extends with `Generate(string shardId)` and `ExtractShardId(TId)` for shard-aware generation and reverse routing
+- **`IdGenerationErrorCodes`**: 4 stable error codes (`clock_drift_detected`, `sequence_exhausted`, `invalid_shard_id`, `id_parse_failure`)
+- **`IdGenerationErrors`**: Factory methods with consistent error metadata
+
+**Provider Type Mapping** (13 providers):
+
+- ADO.NET (4): `IdParameterExtensions` with `AddSnowflakeId`, `AddUlidId`, `AddUuidV7Id`, `AddShardPrefixedId` for SQLite, SqlServer, PostgreSQL, MySQL
+- Dapper (4): Type handlers (`SnowflakeIdTypeHandler`, `UlidIdTypeHandler`, `UuidV7IdTypeHandler`, `ShardPrefixedIdTypeHandler`) for each database
+- EF Core (4): Value converters (`SnowflakeIdValueConverter`, `UlidIdValueConverter`, `UuidV7IdValueConverter`, `ShardPrefixedIdValueConverter`) registered via `ModelBuilderExtensions`
+- MongoDB (1): BSON serializers (`SnowflakeIdBsonSerializer`, `UlidIdBsonSerializer`, `UuidV7IdBsonSerializer`, `ShardPrefixedIdBsonSerializer`)
+
+**Observability**:
+
+- 4 metric instruments via `IdGenerationMetrics`: `encina.idgen.generated` (counter), `encina.idgen.collisions` (counter), `encina.idgen.duration_ms` (histogram), `encina.idgen.sequence_exhausted` (counter)
+- 5 trace activities via `IdGenerationActivitySource`: `StartIdGeneration`, `StartShardExtraction`, `Complete`, `CompleteShardExtraction`, `Failed`
+- Source-generated structured logging via `IdGenerationLog`
+
+**Health Check**:
+
+- `IdGeneratorHealthCheck` extending `EncinaHealthCheck` with clock drift monitoring and Snowflake sequence validation
+- `IdGeneratorHealthCheckOptions` with configurable `ClockDriftThresholdMs`
+
+**Configuration**:
+
+```csharp
+services.AddEncinaIdGeneration(options =>
+{
+    options.UseSnowflake(sf => { sf.MachineId = 1; sf.EpochStart = new(2024, 1, 1, 0, 0, 0, TimeSpan.Zero); });
+    options.UseUlid();
+    options.UseUuidV7();
+    options.UseShardPrefixed(sp => { sp.Format = ShardPrefixedFormat.Ulid; });
+});
+```
+
+**Testing**: 265+ unit/guard/contract/property tests; 14 integration test files across all providers; 7 NBomber load test scenarios; 20 BenchmarkDotNet benchmarks
+
+**Documentation** (4 guides + 1 ADR):
+
+- `docs/architecture/adr/011-id-generation-multi-strategy.md` — Architecture Decision Record
+- `docs/features/id-generation.md` — Feature overview and architecture
+- `docs/guides/id-generation-configuration.md` — Strategy comparison and configuration guide
+- `docs/guides/id-generation-scaling.md` — Scaling, machine ID allocation, and migration
+
+---
+
+### Changed
+
+#### Replace DateTime.UtcNow with TimeProvider Injection (#543)
+
+Replaced all ~205 occurrences of `DateTime.UtcNow` across ~112 source files with `TimeProvider` injection, enabling deterministic time control in tests. This is a **breaking change** for classes with public constructors that now accept an optional `TimeProvider?` parameter.
+
+**Pattern Applied**:
+
+```csharp
+// Before
+var now = DateTime.UtcNow;
+
+// After (constructor injection)
+public SomeClass(..., TimeProvider? timeProvider = null)
+{
+    _timeProvider = timeProvider ?? TimeProvider.System;
+}
+var now = _timeProvider.GetUtcNow().UtcDateTime;
+```
+
+**Packages Affected** (all source packages):
+
+| Category | Packages |
+|----------|----------|
+| **Encina.Messaging** | SagaOrchestrator, SchedulerOrchestrator, RecoverabilityPipelineBehavior, RecoverabilityContext, DeadLetterOrchestrator, InboxOrchestrator, OutboxOrchestrator, ContentRouter, OutboxPostProcessor, DelayedRetryScheduler, RoutingSlipRunner, health checks |
+| **Encina.EntityFrameworkCore** | OutboxProcessor, SagaStoreEF, ScheduledMessageStoreEF, QueryCacheInterceptor, InboxStoreEF, OutboxStoreEF, TemporalRepositoryEF |
+| **Encina.MongoDB** | SagaStoreMongoDB, ScheduledMessageStoreMongoDB, InboxStoreMongoDB, OutboxStoreMongoDB |
+| **ADO.NET (4 providers)** | OutboxProcessor (retry time calculation) |
+| **Dapper (4 providers)** | OutboxProcessor, SagaStoreDapper, ScheduledMessageStoreDapper |
+| **Encina.Caching** | DistributedIdempotencyPipelineBehavior, QueryCachingPipelineBehavior |
+| **Encina.Caching.Redis** | RedisCacheProvider, RedisDistributedLockProvider |
+| **Encina.DistributedLock** | RedisDistributedLockProvider, SqlServerDistributedLockProvider, InMemoryDistributedLockProvider |
+| **Encina.Cdc** | All 5 CDC connectors + DebeziumEventMapper |
+| **Encina.DomainModeling** | DomainEventEnvelope, IDomainEvent, IIntegrationEvent, AuditLogEntry, InMemoryAuditLogStore, pagination cursors |
+| **Encina.Marten** | MartenProjectionManager, SnapshotAwareAggregateRepository |
+| **Encina.Redis.PubSub** | RedisPubSubMessagePublisher |
+| **Encina.Security.Audit** | IAuditStore, AuditQuery |
+| **Encina.Aspire.Testing** | FailureSimulationExtensions |
+| **Encina.Testing.*** | Fakes (stores, models, providers), Bogus, FsCheck |
+
+**DI Registration**: Added `services.TryAddSingleton(TimeProvider.System)` to all `ServiceCollectionExtensions` entry points.
+
+**Model Classes**: ADO, Dapper, EF Core, and MongoDB model classes (`InboxMessage`, `ScheduledMessage`) use `TimeProvider.System` directly in `IsExpired()`/`IsDue()` methods (parameterless interface contract).
+
+**Related Issue**: [#543 - Replace DateTime.UtcNow with TimeProvider injection](https://github.com/dlrivada/Encina/issues/543)
 
 ---
 

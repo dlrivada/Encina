@@ -23,17 +23,17 @@ public sealed class FunctionalRepositoryEFMySqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _fixture.ClearAllDataAsync();
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_ValidEntity_PersistsToDatabase()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -60,10 +60,10 @@ public sealed class FunctionalRepositoryEFMySqlTests : IAsyncLifetime
         stored!.Name.ShouldBe("Test Entity");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetByIdAsync_ExistingEntity_ReturnsEntity()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -90,10 +90,10 @@ public sealed class FunctionalRepositoryEFMySqlTests : IAsyncLifetime
         result.IfRight(e => e.Name.ShouldBe("Existing Entity"));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListAsync_WithEntities_ReturnsAll()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
@@ -115,10 +115,10 @@ public sealed class FunctionalRepositoryEFMySqlTests : IAsyncLifetime
         result.IfRight(list => list.Count.ShouldBe(2));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task DeleteAsync_ExistingEntity_RemovesFromDatabase()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 for EF Core 10 compatibility");
 
         // Arrange
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();

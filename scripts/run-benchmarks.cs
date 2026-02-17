@@ -21,7 +21,11 @@ var arguments = string.Join(' ', new[]
     "--artifacts",
     Quote(outputDirectory),
     "--exporters",
-    "csv,html,github"
+    "csv",
+    "html",
+    "github",
+    "--filter",
+    "*"
 });
 
 var psi = new ProcessStartInfo("dotnet", arguments)

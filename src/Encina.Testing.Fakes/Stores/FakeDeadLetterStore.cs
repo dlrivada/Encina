@@ -21,6 +21,16 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     private readonly ConcurrentBag<Guid> _replayedMessageIds = new();
     private readonly ConcurrentBag<Guid> _deletedMessageIds = new();
     private readonly object _lock = new();
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FakeDeadLetterStore"/> class.
+    /// </summary>
+    /// <param name="timeProvider">Optional time provider for controlling time in tests. Defaults to <see cref="TimeProvider.System"/>.</param>
+    public FakeDeadLetterStore(TimeProvider? timeProvider = null)
+    {
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     /// <summary>
     /// Gets a snapshot of all messages currently in the store.
@@ -211,7 +221,7 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     {
         if (_messages.TryGetValue(messageId, out var message))
         {
-            message.ReplayedAtUtc = DateTime.UtcNow;
+            message.ReplayedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
             message.ReplayResult = replayResult;
 
             lock (_lock)

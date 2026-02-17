@@ -12,6 +12,7 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
 {
     private readonly IMongoCollection<ScheduledMessage> _collection;
     private readonly ILogger<ScheduledMessageStoreMongoDB> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScheduledMessageStoreMongoDB"/> class.
@@ -19,10 +20,12 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
     /// <param name="mongoClient">The MongoDB client.</param>
     /// <param name="options">The MongoDB options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The time provider. Defaults to <see cref="TimeProvider.System"/> if not specified.</param>
     public ScheduledMessageStoreMongoDB(
         IMongoClient mongoClient,
         IOptions<EncinaMongoDbOptions> options,
-        ILogger<ScheduledMessageStoreMongoDB> logger)
+        ILogger<ScheduledMessageStoreMongoDB> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(mongoClient);
         ArgumentNullException.ThrowIfNull(options);
@@ -32,6 +35,7 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
         var database = mongoClient.GetDatabase(config.DatabaseName);
         _collection = database.GetCollection<ScheduledMessage>(config.Collections.ScheduledMessages);
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -65,7 +69,7 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
         int maxRetries,
         CancellationToken cancellationToken = default)
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         var filter = Builders<ScheduledMessage>.Filter.And(
             Builders<ScheduledMessage>.Filter.Eq(m => m.ProcessedAtUtc, null),
@@ -93,8 +97,8 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
     {
         var filter = Builders<ScheduledMessage>.Filter.Eq(m => m.Id, messageId);
         var update = Builders<ScheduledMessage>.Update
-            .Set(m => m.ProcessedAtUtc, DateTime.UtcNow)
-            .Set(m => m.LastExecutedAtUtc, DateTime.UtcNow);
+            .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
+            .Set(m => m.LastExecutedAtUtc, _timeProvider.GetUtcNow().UtcDateTime);
 
         var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 

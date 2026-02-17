@@ -1,11 +1,20 @@
 using Encina.AspNetCore.Modules;
+using Encina.Caching.Health;
 using Encina.Database;
+using Encina.IdGeneration.Configuration;
+using Encina.IdGeneration.Health;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Modules;
+using Encina.Security.Audit;
+using Encina.Security.Audit.Health;
+using Encina.Sharding.ReferenceTables;
+using Encina.Sharding.ReferenceTables.Health;
+using Encina.Sharding.TimeBased;
+using Encina.Sharding.TimeBased.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using AspNetHealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
@@ -420,6 +429,329 @@ public static class HealthCheckBuilderExtensions
             },
             failureStatus,
             CombineTags(tags, "modules", $"module-{typeof(TModule).Name.ToLowerInvariant().Replace("module", "")}")));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the ID generation health check.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-id-generation".</param>
+    /// <param name="options">Health check options including clock drift threshold.</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check monitors ID generation infrastructure health including clock drift
+    /// detection and Snowflake machine ID configuration. If <see cref="SnowflakeOptions"/>
+    /// is registered in DI, the health check also reports machine ID and shard bit allocation.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaIdGenerationHealthCheck();
+    ///
+    /// // Or with custom threshold
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaIdGenerationHealthCheck(options: new IdGeneratorHealthCheckOptions
+    ///     {
+    ///         ClockDriftThresholdMs = 200
+    ///     });
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaIdGenerationHealthCheck(
+        this IHealthChecksBuilder builder,
+        string name = IdGeneratorHealthCheck.DefaultName,
+        IdGeneratorHealthCheckOptions? options = null,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "id-generation");
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp =>
+            {
+                var snowflakeOptions = sp.GetService<SnowflakeOptions>();
+                var timeProvider = sp.GetService<TimeProvider>() ?? TimeProvider.System;
+                return new EncinaHealthCheckAdapter(
+                    new IdGeneratorHealthCheck(options, snowflakeOptions, timeProvider));
+            },
+            failureStatus,
+            allTags));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the reference table replication health check.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-reference-table-replication".</param>
+    /// <param name="options">Health check options including staleness thresholds.</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check monitors reference table replication staleness by checking the last
+    /// replication time for each registered reference table against configurable thresholds.
+    /// Tables that have never been replicated are treated as unhealthy.
+    /// </para>
+    /// <para>
+    /// Requires <see cref="IReferenceTableRegistry"/> and <see cref="IReferenceTableStateStore"/>
+    /// to be registered in the DI container (automatically done when reference table replication
+    /// is enabled).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaReferenceTableReplication();
+    ///
+    /// // Or with custom thresholds
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaReferenceTableReplication(options: new ReferenceTableHealthCheckOptions
+    ///     {
+    ///         UnhealthyThreshold = TimeSpan.FromMinutes(10),
+    ///         DegradedThreshold = TimeSpan.FromMinutes(2)
+    ///     });
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaReferenceTableReplication(
+        this IHealthChecksBuilder builder,
+        string name = ReferenceTableHealthCheck.DefaultName,
+        ReferenceTableHealthCheckOptions? options = null,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "sharding", "replication", TagDatabase);
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp =>
+            {
+                var registry = sp.GetRequiredService<IReferenceTableRegistry>();
+                var stateStore = sp.GetRequiredService<IReferenceTableStateStore>();
+                return new EncinaHealthCheckAdapter(
+                    new ReferenceTableHealthCheck(registry, stateStore, options));
+            },
+            failureStatus,
+            allTags));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the tier transition health check for time-based sharding.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-tier-transition".</param>
+    /// <param name="options">Health check options including per-tier age thresholds.</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check monitors whether tier transitions are running on schedule.
+    /// Shards that have exceeded their expected tier age are flagged as degraded or unhealthy.
+    /// </para>
+    /// <para>
+    /// Requires <see cref="ITierStore"/> to be registered in the DI container (automatically done
+    /// when time-based sharding is enabled via <c>UseTimeBasedRouting</c>).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaTierTransition();
+    ///
+    /// // Or with custom thresholds
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaTierTransition(options: new TierTransitionHealthCheckOptions
+    ///     {
+    ///         MaxExpectedHotAgeDays = 45,
+    ///         MaxExpectedWarmAgeDays = 120,
+    ///     });
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaTierTransition(
+        this IHealthChecksBuilder builder,
+        string name = TierTransitionHealthCheck.DefaultName,
+        TierTransitionHealthCheckOptions? options = null,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "sharding", "tiering");
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp =>
+            {
+                var tierStore = sp.GetRequiredService<ITierStore>();
+                var timeProvider = sp.GetService<TimeProvider>() ?? TimeProvider.System;
+                return new EncinaHealthCheckAdapter(
+                    new TierTransitionHealthCheck(tierStore, options, timeProvider));
+            },
+            failureStatus,
+            allTags));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the shard creation health check for time-based sharding.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-shard-creation".</param>
+    /// <param name="options">Health check options including period and prefix configuration.</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check monitors whether expected time-period shards exist. A missing current-period
+    /// shard is unhealthy; a missing next-period shard (when close to period end) is degraded.
+    /// </para>
+    /// <para>
+    /// Requires <see cref="ITierStore"/> to be registered in the DI container (automatically done
+    /// when time-based sharding is enabled via <c>UseTimeBasedRouting</c>).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaShardCreation(options: new ShardCreationHealthCheckOptions
+    ///     {
+    ///         Period = ShardPeriod.Monthly,
+    ///         ShardIdPrefix = "orders",
+    ///     });
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaShardCreation(
+        this IHealthChecksBuilder builder,
+        string name = ShardCreationHealthCheck.DefaultName,
+        ShardCreationHealthCheckOptions? options = null,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "sharding", "tiering");
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp =>
+            {
+                var tierStore = sp.GetRequiredService<ITierStore>();
+                var timeProvider = sp.GetService<TimeProvider>() ?? TimeProvider.System;
+                return new EncinaHealthCheckAdapter(
+                    new ShardCreationHealthCheck(tierStore, options, timeProvider));
+            },
+            failureStatus,
+            allTags));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the audit store health check.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-audit".</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check verifies that the audit store is accessible by performing
+    /// a lightweight query. Requires <see cref="IAuditStore"/> to be registered.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaAudit();
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaAudit(
+        this IHealthChecksBuilder builder,
+        string name = AuditStoreHealthCheck.DefaultName,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "audit", "security");
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp =>
+            {
+                var store = sp.GetRequiredService<IAuditStore>();
+                return new EncinaHealthCheckAdapter(
+                    new AuditStoreHealthCheck(store));
+            },
+            failureStatus,
+            allTags));
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the query cache health check.
+    /// </summary>
+    /// <param name="builder">The health checks builder.</param>
+    /// <param name="name">The name of the health check. Defaults to "encina-query-cache".</param>
+    /// <param name="tags">Additional tags to apply.</param>
+    /// <param name="failureStatus">The failure status to use.</param>
+    /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This health check verifies that the cache provider is accessible. Returns degraded
+    /// when no cache provider is registered, and unhealthy on cache errors.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services
+    ///     .AddHealthChecks()
+    ///     .AddEncinaQueryCache();
+    /// </code>
+    /// </example>
+    public static IHealthChecksBuilder AddEncinaQueryCache(
+        this IHealthChecksBuilder builder,
+        string name = QueryCacheHealthCheck.DefaultName,
+        IEnumerable<string>? tags = null,
+        AspNetHealthStatus? failureStatus = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var allTags = CombineTags(tags, "cache", "query-cache");
+
+        builder.Add(new HealthCheckRegistration(
+            name,
+            sp => new EncinaHealthCheckAdapter(
+                new QueryCacheHealthCheck(sp)),
+            failureStatus,
+            allTags));
 
         return builder;
     }

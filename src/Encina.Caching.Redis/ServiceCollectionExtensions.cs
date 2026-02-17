@@ -127,6 +127,9 @@ public static class ServiceCollectionExtensions
         Action<RedisCacheOptions>? configureCacheOptions,
         Action<RedisLockOptions>? configureLockOptions)
     {
+        // Register TimeProvider
+        services.TryAddSingleton(TimeProvider.System);
+
         // Register the connection multiplexer
         services.TryAddSingleton(connectionFactory);
 

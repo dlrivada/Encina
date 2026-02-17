@@ -34,7 +34,7 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         using var schemaConnection = _fixture.CreateConnection() as NpgsqlConnection;
         if (schemaConnection != null)
@@ -68,7 +68,7 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
             _connection, _mapping, _tenantProvider, _tenancyOptions);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _connection?.Dispose();
         await _fixture.ClearAllDataAsync();

@@ -45,15 +45,15 @@ public sealed class TenancyEFMySqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         // MySQL EF Core is not yet supported - all tests will be skipped
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     #region Query Filter Tests

@@ -20,7 +20,7 @@ public class SqlServerDistributedLockIntegrationTests : IAsyncLifetime
             .Build();
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _sqlContainer.StartAsync();
 
@@ -30,7 +30,7 @@ public class SqlServerDistributedLockIntegrationTests : IAsyncLifetime
             NullLogger<SqlServerDistributedLockProvider>.Instance);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sqlContainer.DisposeAsync();
     }

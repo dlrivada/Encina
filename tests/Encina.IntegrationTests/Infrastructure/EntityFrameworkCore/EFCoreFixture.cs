@@ -20,12 +20,12 @@ public sealed class EFCoreFixture : IAsyncLifetime
         return new TestEFDbContext(options);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _sqlServerFixture.InitializeAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sqlServerFixture.DisposeAsync();
     }

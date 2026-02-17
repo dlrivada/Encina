@@ -20,13 +20,13 @@ public sealed class SagaStoreADOTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ClearAllDataAsync();
         _store = new SagaStoreADO(_fixture.CreateConnection());
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidSaga_ShouldPersist()

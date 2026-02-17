@@ -7,7 +7,7 @@ using Encina.Dapper.SqlServer.Repository;
 using Encina.TestInfrastructure.Fixtures;
 using Microsoft.Data.SqlClient;
 using Xunit;
-using Xunit.Abstractions;
+using Xunit;
 
 using HashSet = System.Collections.Generic.HashSet<string>;
 
@@ -37,7 +37,7 @@ public sealed class BulkOperationsPerformanceTests : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _connection = _fixture.CreateConnection();
         await CreatePerformanceTestTableAsync();
@@ -46,7 +46,7 @@ public sealed class BulkOperationsPerformanceTests : IAsyncLifetime
         _bulkOps = new BulkOperationsDapper<PerformanceTestOrder, Guid>(_connection, mapping);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await DropPerformanceTestTableAsync();
         _connection?.Dispose();

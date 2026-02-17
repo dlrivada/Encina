@@ -108,6 +108,9 @@ public static class ServiceCollectionExtensions
         Func<IServiceProvider, IConnectionMultiplexer> connectionFactory,
         Action<RedisLockOptions>? configure)
     {
+        // Register TimeProvider
+        services.TryAddSingleton(TimeProvider.System);
+
         // Register the connection multiplexer
         services.TryAddSingleton(connectionFactory);
 

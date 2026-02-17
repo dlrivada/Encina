@@ -17,21 +17,25 @@ public sealed class DeadLetterHealthCheck : EncinaHealthCheck
 {
     private readonly IDeadLetterStore _store;
     private readonly DeadLetterHealthCheckOptions _options;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DeadLetterHealthCheck"/> class.
     /// </summary>
     /// <param name="store">The dead letter store.</param>
     /// <param name="options">Health check options.</param>
+    /// <param name="timeProvider">Optional time provider for testability.</param>
     public DeadLetterHealthCheck(
         IDeadLetterStore store,
-        DeadLetterHealthCheckOptions? options = null)
+        DeadLetterHealthCheckOptions? options = null,
+        TimeProvider? timeProvider = null)
         : base("encina-deadletter", ["encina", "messaging", "deadletter"])
     {
         ArgumentNullException.ThrowIfNull(store);
 
         _store = store;
         _options = options ?? new DeadLetterHealthCheckOptions();
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -56,7 +60,7 @@ public sealed class DeadLetterHealthCheck : EncinaHealthCheck
                 new DeadLetterFilter
                 {
                     ExcludeReplayed = true,
-                    DeadLetteredBeforeUtc = DateTime.UtcNow.Subtract(_options.OldMessageThreshold.Value)
+                    DeadLetteredBeforeUtc = _timeProvider.GetUtcNow().UtcDateTime.Subtract(_options.OldMessageThreshold.Value)
                 },
                 skip: 0,
                 take: 1,

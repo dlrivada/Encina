@@ -135,4 +135,345 @@ public static class ActivityTagNames
         /// <summary>Tag name for the saga error message.</summary>
         public const string Error = "saga.error";
     }
+
+    /// <summary>
+    /// CDC (Change Data Capture) tags for sharded CDC observability.
+    /// </summary>
+    /// <remarks>
+    /// These tags track CDC connector operations, shard-level event processing,
+    /// and position tracking across sharded database topologies.
+    /// </remarks>
+    public static class Cdc
+    {
+        /// <summary>Tag name for the CDC connector identifier.</summary>
+        public const string ConnectorId = "cdc.connector_id";
+
+        /// <summary>Tag name for the shard identifier in sharded CDC.</summary>
+        public const string ShardId = "cdc.shard_id";
+
+        /// <summary>Tag name for the CDC change operation type (insert, update, delete, snapshot).</summary>
+        public const string Operation = "cdc.operation";
+
+        /// <summary>Tag name for the database table name.</summary>
+        public const string TableName = "cdc.table_name";
+
+        /// <summary>Tag name for the CDC position string representation.</summary>
+        public const string Position = "cdc.position";
+
+        /// <summary>Tag name for the number of events in a capture batch.</summary>
+        public const string EventsCount = "cdc.events_count";
+    }
+
+    /// <summary>
+    /// Co-location group tags for sharding observability.
+    /// </summary>
+    /// <remarks>
+    /// These tags track co-location group membership and routing decisions,
+    /// enabling visibility into whether related entities are being correctly
+    /// placed on the same shard.
+    /// </remarks>
+    public static class Colocation
+    {
+        /// <summary>Tag name for the co-location group name (root entity type name).</summary>
+        public const string Group = "encina.sharding.colocation.group";
+
+        /// <summary>Tag name indicating whether the routed entity belongs to a co-location group.</summary>
+        public const string IsColocated = "encina.sharding.colocation.is_colocated";
+
+        /// <summary>Tag name for the root entity type of the co-location group.</summary>
+        public const string RootEntity = "encina.sharding.colocation.root_entity";
+    }
+
+    /// <summary>
+    /// Time-based sharding tier tags for observability.
+    /// </summary>
+    /// <remarks>
+    /// These tags track tier lifecycle operations including tier transitions,
+    /// shard period context, and routing decisions by storage tier.
+    /// </remarks>
+    public static class Tiering
+    {
+        /// <summary>Tag name for the current storage tier of a shard.</summary>
+        public const string ShardTier = "shard.tier";
+
+        /// <summary>Tag name for the shard period label (e.g., "2026-02").</summary>
+        public const string ShardPeriod = "shard.period";
+
+        /// <summary>Tag name for the source tier in a tier transition.</summary>
+        public const string TierFrom = "tier.from";
+
+        /// <summary>Tag name for the target tier in a tier transition.</summary>
+        public const string TierTo = "tier.to";
+    }
+
+    /// <summary>
+    /// Shadow sharding tags for testing new shard topologies under production traffic.
+    /// </summary>
+    /// <remarks>
+    /// These tags track shadow routing comparisons, dual-write outcomes, and
+    /// shadow read result matching during topology migration validation.
+    /// </remarks>
+    public static class Shadow
+    {
+        /// <summary>Tag name for the production shard identifier.</summary>
+        public const string ProductionShard = "encina.sharding.shadow.production_shard";
+
+        /// <summary>Tag name for the shadow shard identifier.</summary>
+        public const string ShadowShard = "encina.sharding.shadow.shadow_shard";
+
+        /// <summary>Tag name indicating whether routing decisions match between production and shadow.</summary>
+        public const string RoutingMatch = "encina.sharding.shadow.routing_match";
+
+        /// <summary>Tag name for the outcome of a shadow write operation (success/failure).</summary>
+        public const string WriteOutcome = "encina.sharding.shadow.write_outcome";
+
+        /// <summary>Tag name indicating whether read results match between production and shadow.</summary>
+        public const string ReadResultsMatch = "encina.sharding.shadow.read_results_match";
+    }
+
+    /// <summary>
+    /// Reference table replication tags for sharding observability.
+    /// </summary>
+    /// <remarks>
+    /// These tags track reference table replication operations including
+    /// entity type, rows synced, shard count, duration, and change detection.
+    /// </remarks>
+    public static class ReferenceTable
+    {
+        /// <summary>Tag name for the reference table entity type.</summary>
+        public const string EntityType = "reference_table.entity_type";
+
+        /// <summary>Tag name for the number of rows synced during replication.</summary>
+        public const string RowsSynced = "reference_table.rows_synced";
+
+        /// <summary>Tag name for the number of shards targeted during replication.</summary>
+        public const string ShardCount = "reference_table.shard_count";
+
+        /// <summary>Tag name for the replication duration in milliseconds.</summary>
+        public const string DurationMs = "reference_table.duration_ms";
+
+        /// <summary>Tag name indicating whether a change was detected during polling.</summary>
+        public const string ChangeDetected = "reference_table.change_detected";
+
+        /// <summary>Tag name for the content hash value.</summary>
+        public const string HashValue = "reference_table.hash";
+    }
+
+    /// <summary>
+    /// Online resharding tags for observability.
+    /// </summary>
+    /// <remarks>
+    /// These tags track the 6-phase online resharding workflow: Plan → Copy → Replicate
+    /// → Verify → Cutover → Cleanup, including per-phase progress and shard-level details.
+    /// </remarks>
+    public static class Resharding
+    {
+        /// <summary>Tag name for the resharding operation identifier.</summary>
+        public const string Id = "resharding.id";
+
+        /// <summary>Tag name for the current resharding phase.</summary>
+        public const string Phase = "resharding.phase";
+
+        /// <summary>Tag name for the source shard identifier.</summary>
+        public const string SourceShard = "resharding.source_shard";
+
+        /// <summary>Tag name for the target shard identifier.</summary>
+        public const string TargetShard = "resharding.target_shard";
+
+        /// <summary>Tag name for the number of rows affected by an operation.</summary>
+        public const string RowsAffected = "resharding.rows_affected";
+    }
+
+    /// <summary>
+    /// Shard migration coordination tags for observability.
+    /// </summary>
+    /// <remarks>
+    /// These tags track migration execution, per-shard outcomes, rollback operations,
+    /// and schema drift detection across sharded database topologies.
+    /// </remarks>
+    public static class Migration
+    {
+        /// <summary>Tag name for the migration execution identifier.</summary>
+        public const string Id = "migration.id";
+
+        /// <summary>Tag name for the migration strategy used (Sequential, Parallel, etc.).</summary>
+        public const string Strategy = "migration.strategy";
+
+        /// <summary>Tag name for the shard identifier being migrated.</summary>
+        public const string ShardId = "migration.shard.id";
+
+        /// <summary>Tag name for the outcome of an individual shard migration.</summary>
+        public const string ShardOutcome = "migration.shard.outcome";
+
+        /// <summary>Tag name for the total number of shards in the migration.</summary>
+        public const string ShardCount = "migration.shard_count";
+
+        /// <summary>Tag name for the number of shards that succeeded.</summary>
+        public const string ShardsSucceeded = "migration.shards_succeeded";
+
+        /// <summary>Tag name for the number of shards that failed.</summary>
+        public const string ShardsFailed = "migration.shards_failed";
+
+        /// <summary>Tag name for the number of shards that were rolled back.</summary>
+        public const string ShardsRolledBack = "migration.shards_rolled_back";
+
+        /// <summary>Tag name for the migration duration in milliseconds.</summary>
+        public const string DurationMs = "migration.duration_ms";
+
+        /// <summary>Tag name for the rollback duration in milliseconds.</summary>
+        public const string RollbackDurationMs = "migration.rollback_duration_ms";
+
+        /// <summary>Tag name for the migration error message.</summary>
+        public const string Error = "migration.error";
+
+        /// <summary>Tag name indicating whether schema drift was detected.</summary>
+        public const string DriftDetected = "migration.drift_detected";
+
+        /// <summary>Tag name for the number of shards with detected drift.</summary>
+        public const string DriftedShardCount = "migration.drifted_shard_count";
+
+        /// <summary>Tag name for the baseline shard used for drift comparison.</summary>
+        public const string BaselineShardId = "migration.baseline_shard_id";
+    }
+
+    /// <summary>
+    /// Repository pattern tags for data access observability.
+    /// </summary>
+    public static class Repository
+    {
+        /// <summary>Tag name for the repository operation (e.g., "get_by_id", "find", "add", "update", "remove").</summary>
+        public const string Operation = "repository.operation";
+
+        /// <summary>Tag name for the entity type being accessed.</summary>
+        public const string EntityType = "repository.entity_type";
+
+        /// <summary>Tag name for the data access provider (e.g., "ef_core", "dapper", "ado", "mongodb").</summary>
+        public const string Provider = "repository.provider";
+
+        /// <summary>Tag name for the number of results returned.</summary>
+        public const string ResultCount = "repository.result_count";
+
+        /// <summary>Tag name for the error code on failure.</summary>
+        public const string ErrorCode = "repository.error_code";
+    }
+
+    /// <summary>
+    /// Unit of Work tags for transaction lifecycle observability.
+    /// </summary>
+    public static class UnitOfWork
+    {
+        /// <summary>Tag name for the transaction outcome (committed, rolledback, error).</summary>
+        public const string Outcome = "uow.outcome";
+
+        /// <summary>Tag name for the number of rows affected by SaveChanges.</summary>
+        public const string AffectedRows = "uow.affected_rows";
+    }
+
+    /// <summary>
+    /// Bulk operations tags for batch data access observability.
+    /// </summary>
+    public static class Bulk
+    {
+        /// <summary>Tag name for the bulk operation type (insert, update, delete, merge, read).</summary>
+        public const string Operation = "bulk.operation";
+
+        /// <summary>Tag name for the entity type being operated on.</summary>
+        public const string EntityType = "bulk.entity_type";
+
+        /// <summary>Tag name for the data access provider.</summary>
+        public const string Provider = "bulk.provider";
+
+        /// <summary>Tag name for the number of rows affected.</summary>
+        public const string RowsAffected = "bulk.rows_affected";
+    }
+
+    /// <summary>
+    /// Soft delete tags for logical deletion observability.
+    /// </summary>
+    public static class SoftDelete
+    {
+        /// <summary>Tag name for the soft delete operation (delete, restore, hard_delete).</summary>
+        public const string Operation = "softdelete.operation";
+
+        /// <summary>Tag name for the entity type being soft-deleted.</summary>
+        public const string EntityType = "softdelete.entity_type";
+    }
+
+    /// <summary>
+    /// Audit trail tags for change tracking observability.
+    /// </summary>
+    public static class Audit
+    {
+        /// <summary>Tag name for the audited entity type.</summary>
+        public const string EntityType = "audit.entity_type";
+
+        /// <summary>Tag name for the audit action (created, updated, deleted).</summary>
+        public const string Action = "audit.action";
+
+        /// <summary>Tag name for the audit query type (by_entity, by_date_range, all).</summary>
+        public const string QueryType = "audit.query_type";
+    }
+
+    /// <summary>
+    /// Multi-tenancy tags for tenant isolation observability.
+    /// </summary>
+    public static class Tenancy
+    {
+        /// <summary>Tag name for the resolved tenant identifier.</summary>
+        public const string TenantId = "tenancy.tenant_id";
+
+        /// <summary>Tag name for the tenant resolution strategy.</summary>
+        public const string Strategy = "tenancy.strategy";
+
+        /// <summary>Tag name for the entity type in tenant-scoped queries.</summary>
+        public const string EntityType = "tenancy.entity_type";
+
+        /// <summary>Tag name for the resolution outcome (success, not_found, error).</summary>
+        public const string Outcome = "tenancy.outcome";
+    }
+
+    /// <summary>
+    /// Modular monolith tags for module lifecycle and dispatch observability.
+    /// </summary>
+    public static class Modules
+    {
+        /// <summary>Tag name for the module name.</summary>
+        public const string Name = "module.name";
+
+        /// <summary>Tag name for the request type dispatched to the module.</summary>
+        public const string RequestType = "module.request_type";
+
+        /// <summary>Tag name for the module lifecycle operation (start, stop).</summary>
+        public const string Operation = "module.operation";
+    }
+
+    /// <summary>
+    /// Query caching tags for cache operation observability.
+    /// </summary>
+    public static class QueryCache
+    {
+        /// <summary>Tag name for the cache lookup outcome (hit, miss).</summary>
+        public const string Outcome = "querycache.outcome";
+
+        /// <summary>Tag name for the entity type involved in the cached query.</summary>
+        public const string EntityType = "querycache.entity_type";
+
+        /// <summary>Tag name for the query hash used as cache key.</summary>
+        public const string QueryHash = "querycache.query_hash";
+
+        /// <summary>Tag name for the cache eviction reason (ttl, invalidation, manual).</summary>
+        public const string EvictionReason = "querycache.eviction_reason";
+    }
+
+    /// <summary>
+    /// Specification pattern tags for query composition observability.
+    /// </summary>
+    public static class Specification
+    {
+        /// <summary>Tag name for the specification type name.</summary>
+        public const string Name = "specification.name";
+
+        /// <summary>Tag name for the number of criteria in the specification.</summary>
+        public const string CriteriaCount = "specification.criteria_count";
+    }
 }

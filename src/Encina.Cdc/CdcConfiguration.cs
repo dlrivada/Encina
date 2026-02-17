@@ -1,4 +1,6 @@
+using Encina.Cdc.Caching;
 using Encina.Cdc.Messaging;
+using Encina.Cdc.Sharding;
 
 namespace Encina.Cdc;
 
@@ -28,6 +30,8 @@ public sealed class CdcConfiguration
     private readonly List<TableMapping> _tableMappings = [];
     private readonly List<HandlerRegistration> _handlerRegistrations = [];
     private CdcMessagingOptions? _messagingOptions;
+    private ShardedCaptureOptions? _shardedCaptureOptions;
+    private QueryCacheInvalidationOptions? _cacheInvalidationOptions;
 
     /// <summary>
     /// Gets the configured CDC options.
@@ -48,6 +52,16 @@ public sealed class CdcConfiguration
     /// Gets the messaging bridge options, or <c>null</c> if messaging bridge is not configured.
     /// </summary>
     internal CdcMessagingOptions? MessagingOptions => _messagingOptions;
+
+    /// <summary>
+    /// Gets the sharded capture options, or <c>null</c> if sharded capture is not configured.
+    /// </summary>
+    internal ShardedCaptureOptions? ShardedCaptureOptions => _shardedCaptureOptions;
+
+    /// <summary>
+    /// Gets the cache invalidation options, or <c>null</c> if cache invalidation is not configured.
+    /// </summary>
+    internal QueryCacheInvalidationOptions? CacheInvalidationOptions => _cacheInvalidationOptions;
 
     /// <summary>
     /// Enables CDC processing and returns this configuration for fluent chaining.
@@ -117,6 +131,105 @@ public sealed class CdcConfiguration
         _options.UseMessagingBridge = true;
         _messagingOptions = new CdcMessagingOptions();
         configure?.Invoke(_messagingOptions);
+        return this;
+    }
+
+    /// <summary>
+    /// Enables sharded CDC capture, which processes change events from multiple
+    /// database shards using <see cref="Abstractions.IShardedCdcConnector"/>.
+    /// </summary>
+    /// <param name="configure">Optional action to configure sharded capture options.</param>
+    /// <returns>This configuration instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// When sharded capture is enabled, the <c>ShardedCdcProcessor</c> is registered
+    /// instead of the standard <c>CdcProcessor</c>. The two processors are mutually
+    /// exclusive: enabling sharded capture prevents the standard processor from being
+    /// registered to avoid conflicts.
+    /// </para>
+    /// <para>
+    /// Sharded capture requires an <see cref="Sharding.IShardTopologyProvider"/> to be
+    /// registered in the service collection. Each shard gets its own
+    /// <see cref="Abstractions.ICdcConnector"/> created via a factory delegate.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// config.WithShardedCapture(opts =>
+    /// {
+    ///     opts.ProcessingMode = ShardedProcessingMode.Aggregated;
+    ///     opts.MaxLagThreshold = TimeSpan.FromMinutes(5);
+    ///     opts.ConnectorId = "orders-sharded-cdc";
+    /// });
+    /// </code>
+    /// </example>
+    public CdcConfiguration WithShardedCapture(Action<ShardedCaptureOptions>? configure = null)
+    {
+        _options.UseShardedCapture = true;
+        _shardedCaptureOptions = new ShardedCaptureOptions();
+        configure?.Invoke(_shardedCaptureOptions);
+        return this;
+    }
+
+    /// <summary>
+    /// Enables CDC-driven query cache invalidation, which detects database changes
+    /// from any source (other app instances, direct SQL, migrations, external services)
+    /// and invalidates matching cache entries via <c>ICacheProvider</c>.
+    /// Optionally broadcasts invalidation to other instances via <c>IPubSubProvider</c>.
+    /// </summary>
+    /// <param name="configure">Optional action to configure cache invalidation options.</param>
+    /// <returns>This configuration instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This feature complements the existing <c>QueryCacheInterceptor</c> which only
+    /// invalidates cache entries for changes made by the same application instance.
+    /// CDC-driven invalidation covers all change sources including other instances,
+    /// direct SQL updates, and external microservices.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// config.WithCacheInvalidation(opts =>
+    /// {
+    ///     opts.CacheKeyPrefix = "sm:qc";
+    ///     opts.UsePubSubBroadcast = true;
+    ///     opts.Tables = ["Orders", "Products"];
+    /// });
+    /// </code>
+    /// </example>
+    public CdcConfiguration WithCacheInvalidation(Action<QueryCacheInvalidationOptions>? configure = null)
+    {
+        _options.UseCacheInvalidation = true;
+        _cacheInvalidationOptions = new QueryCacheInvalidationOptions();
+        configure?.Invoke(_cacheInvalidationOptions);
+        return this;
+    }
+
+    /// <summary>
+    /// Enables the CDC dead letter queue. Events that fail processing after
+    /// exhausting all retries are persisted to an <see cref="DeadLetter.ICdcDeadLetterStore"/>
+    /// for later inspection, replay, or discard.
+    /// </summary>
+    /// <returns>This configuration instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// By default an <see cref="DeadLetter.InMemoryCdcDeadLetterStore"/> is registered.
+    /// Provider-specific packages can override the registration with a database-backed
+    /// implementation via <c>TryAddSingleton</c>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaCdc(config =>
+    /// {
+    ///     config.UseCdc()
+    ///           .UseDeadLetterQueue();
+    /// });
+    /// </code>
+    /// </example>
+    public CdcConfiguration UseDeadLetterQueue()
+    {
+        _options.UseDeadLetterQueue = true;
         return this;
     }
 

@@ -108,7 +108,7 @@ public abstract class ContainerFixtureBase<TContainer> : IAsyncLifetime
     /// Initializes and starts the container.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await InitializeAsync(CancellationToken.None);
     }
@@ -135,8 +135,10 @@ public abstract class ContainerFixtureBase<TContainer> : IAsyncLifetime
     /// to prevent teardown failures from masking test failures.
     /// </remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+        GC.SuppressFinalize(this);
+
         if (_container is null)
         {
             return;

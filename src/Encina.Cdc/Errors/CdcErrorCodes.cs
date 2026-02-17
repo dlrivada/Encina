@@ -22,4 +22,22 @@ public static class CdcErrorCodes
 
     /// <summary>Failed to read or write the position store.</summary>
     public const string PositionStoreFailed = "encina.cdc.position_store_failed";
+
+    /// <summary>A referenced shard was not found in the sharded CDC connector.</summary>
+    public const string ShardNotFound = "encina.cdc.shard_not_found";
+
+    /// <summary>A per-shard CDC stream failed during sharded aggregation.</summary>
+    public const string ShardStreamFailed = "encina.cdc.shard_stream_failed";
+
+    /// <summary>Failed to persist a CDC event to the dead letter store.</summary>
+    public const string DeadLetterStoreFailed = "encina.cdc.dead_letter_store_failed";
+
+    /// <summary>A dead letter entry with the specified identifier was not found.</summary>
+    public const string DeadLetterNotFound = "encina.cdc.dead_letter_not_found";
+
+    /// <summary>The dead letter entry has already been resolved (replayed or discarded).</summary>
+    public const string DeadLetterAlreadyResolved = "encina.cdc.dead_letter_already_resolved";
+
+    /// <summary>The specified dead letter resolution is not valid for the current entry state.</summary>
+    public const string DeadLetterInvalidResolution = "encina.cdc.dead_letter_invalid_resolution";
 }

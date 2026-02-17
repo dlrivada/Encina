@@ -1,8 +1,7 @@
 using ArchUnitNET.Fluent;
 using ArchUnitNET.Loader;
-using ArchUnitNET.xUnit;
+using ArchUnitNET.xUnitV3;
 using Xunit;
-using Xunit.Sdk;
 using ReflectionAssembly = System.Reflection.Assembly;
 
 namespace Encina.Testing.Architecture;
@@ -234,10 +233,10 @@ public abstract class EncinaArchitectureTestBase
     /// <remarks>
     /// This test is skipped if <see cref="DomainNamespace"/> is not configured.
     /// </remarks>
-    [SkippableFact]
+    [Fact]
     public virtual void DomainShouldNotDependOnMessaging()
     {
-        Skip.If(string.IsNullOrWhiteSpace(DomainNamespace), "DomainNamespace not configured; skipping test.");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(DomainNamespace), "DomainNamespace not configured; skipping test.");
 
         CheckRule(EncinaArchitectureRules.DomainShouldNotDependOnMessaging(DomainNamespace));
     }
@@ -248,10 +247,10 @@ public abstract class EncinaArchitectureTestBase
     /// <remarks>
     /// This test is skipped if layer namespaces are not configured.
     /// </remarks>
-    [SkippableFact]
+    [Fact]
     public virtual void LayersShouldBeProperlySeparated()
     {
-        Skip.If(
+        Assert.SkipWhen(
             string.IsNullOrWhiteSpace(DomainNamespace) ||
             string.IsNullOrWhiteSpace(ApplicationNamespace) ||
             string.IsNullOrWhiteSpace(InfrastructureNamespace),
@@ -272,10 +271,10 @@ public abstract class EncinaArchitectureTestBase
     /// Verifies that classes ending with "Handler" implement IRequestHandler, ICommandHandler,
     /// IQueryHandler, or INotificationHandler.
     /// </remarks>
-    [SkippableFact]
+    [Fact]
     public virtual void HandlersShouldImplementCorrectInterface()
     {
-        Skip.IfNot(EnableCqrsPatternRules,
+        Assert.SkipUnless(EnableCqrsPatternRules,
             "CQRS pattern rules are disabled. Override EnableCqrsPatternRules to enable. " +
             "See Encina.Testing.Architecture README for details.");
 
@@ -288,10 +287,10 @@ public abstract class EncinaArchitectureTestBase
     /// <remarks>
     /// Verifies that classes ending with "Command" implement ICommand&lt;TResponse&gt; or ICommand.
     /// </remarks>
-    [SkippableFact]
+    [Fact]
     public virtual void CommandsShouldImplementICommand()
     {
-        Skip.IfNot(EnableCqrsPatternRules,
+        Assert.SkipUnless(EnableCqrsPatternRules,
             "CQRS pattern rules are disabled. Override EnableCqrsPatternRules to enable. " +
             "See Encina.Testing.Architecture README for details.");
 
@@ -304,10 +303,10 @@ public abstract class EncinaArchitectureTestBase
     /// <remarks>
     /// Verifies that classes ending with "Query" implement IQuery&lt;TResponse&gt; or IQuery.
     /// </remarks>
-    [SkippableFact]
+    [Fact]
     public virtual void QueriesShouldImplementIQuery()
     {
-        Skip.IfNot(EnableCqrsPatternRules,
+        Assert.SkipUnless(EnableCqrsPatternRules,
             "CQRS pattern rules are disabled. Override EnableCqrsPatternRules to enable. " +
             "See Encina.Testing.Architecture README for details.");
 
@@ -320,10 +319,10 @@ public abstract class EncinaArchitectureTestBase
     /// <remarks>
     /// Ensures proper separation between application layer (handlers) and presentation layer (controllers).
     /// </remarks>
-    [SkippableFact]
+    [Fact]
     public virtual void HandlersShouldNotDependOnControllers()
     {
-        Skip.IfNot(EnableCqrsPatternRules,
+        Assert.SkipUnless(EnableCqrsPatternRules,
             "CQRS pattern rules are disabled. Override EnableCqrsPatternRules to enable. " +
             "See Encina.Testing.Architecture README for details.");
 
@@ -340,10 +339,10 @@ public abstract class EncinaArchitectureTestBase
     /// <remarks>
     /// Verifies that classes with "Behavior" suffix implement IPipelineBehavior&lt;,&gt;.
     /// </remarks>
-    [SkippableFact]
+    [Fact]
     public virtual void PipelineBehaviorsShouldImplementCorrectInterface()
     {
-        Skip.IfNot(EnablePipelineBehaviorRules,
+        Assert.SkipUnless(EnablePipelineBehaviorRules,
             "Pipeline behavior rules are disabled. Override EnablePipelineBehaviorRules to enable. " +
             "See Encina.Testing.Architecture README for details.");
 
@@ -360,10 +359,10 @@ public abstract class EncinaArchitectureTestBase
     /// <remarks>
     /// Ensures saga data classes are sealed for proper serialization and instantiation.
     /// </remarks>
-    [SkippableFact]
+    [Fact]
     public virtual void SagaDataShouldBeSealed()
     {
-        Skip.IfNot(EnableSagaPatternRules,
+        Assert.SkipUnless(EnableSagaPatternRules,
             "Saga pattern rules are disabled. Override EnableSagaPatternRules to enable. " +
             "See Encina.Testing.Architecture README for details.");
 

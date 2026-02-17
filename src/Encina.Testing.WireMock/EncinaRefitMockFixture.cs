@@ -84,7 +84,7 @@ public sealed class EncinaRefitMockFixture<TApiClient> : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         _server = WireMockServer.Start(new WireMockServerSettings
         {
@@ -98,11 +98,11 @@ public sealed class EncinaRefitMockFixture<TApiClient> : IAsyncLifetime
 
         _serviceProvider = services.BuildServiceProvider();
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_serviceProvider is IAsyncDisposable asyncDisposable)
         {

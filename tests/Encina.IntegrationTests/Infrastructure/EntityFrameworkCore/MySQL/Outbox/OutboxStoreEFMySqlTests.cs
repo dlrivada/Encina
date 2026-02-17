@@ -23,32 +23,32 @@ public sealed class OutboxStoreEFMySqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    [SkippableFact]
+    [Fact]
     public async Task AddAsync_WithRealDatabase_ShouldPersistMessage()
     {
         // Skip until Pomelo v10 is released
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 (EF Core 10 compatible). See: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/pull/2019");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 (EF Core 10 compatible). See: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/pull/2019");
 
         // This code will execute once Pomelo v10 is available
         await using var context = _fixture.CreateDbContext<TestEFDbContext>();
         await Task.CompletedTask; // Placeholder
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetPendingMessagesAsync_WithMultipleMessages_ShouldReturnUnprocessedOnly()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 (EF Core 10 compatible).");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 (EF Core 10 compatible).");
         await Task.CompletedTask;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task MarkAsProcessedAsync_ShouldUpdateTimestampAndClearError()
     {
-        Skip.If(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 (EF Core 10 compatible).");
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 (EF Core 10 compatible).");
         await Task.CompletedTask;
     }
 }

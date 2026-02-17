@@ -35,7 +35,7 @@ public sealed class ModuleIsolationEFMySqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         // MySQL EF Core is not yet supported - all tests will be skipped
         // Configure module isolation options for when tests become available
@@ -50,12 +50,12 @@ public sealed class ModuleIsolationEFMySqlTests : IAsyncLifetime
         _schemaRegistry = new ModuleSchemaRegistry(_isolationOptions);
         _moduleContext = new TestModuleExecutionContext();
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     #region Schema Registry Validation Tests

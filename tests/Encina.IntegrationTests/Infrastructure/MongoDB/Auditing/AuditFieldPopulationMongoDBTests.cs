@@ -42,11 +42,11 @@ public class AuditFieldPopulationMongoDBTests : IAsyncLifetime
         _mockRequestContext.UserId.Returns(TestUserId);
     }
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         if (!_fixture.IsAvailable)
         {
-            return Task.CompletedTask;
+            return ValueTask.CompletedTask;
         }
 
         var database = _fixture.Database!;
@@ -82,10 +82,10 @@ public class AuditFieldPopulationMongoDBTests : IAsyncLifetime
             _mockRequestContext,
             _fakeTimeProvider);
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_fixture.IsAvailable && _fixture.Database is not null)
         {

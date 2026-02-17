@@ -161,5 +161,5 @@ public sealed class FakeInboxMessage : IInboxMessage
     public bool IsProcessed => ProcessedAtUtc.HasValue;
 
     /// <inheritdoc/>
-    public bool IsExpired() => DateTime.UtcNow > ExpiresAtUtc;
+    public bool IsExpired() => TimeProvider.System.GetUtcNow().UtcDateTime > ExpiresAtUtc;
 }

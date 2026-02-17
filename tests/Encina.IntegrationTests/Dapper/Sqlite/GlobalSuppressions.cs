@@ -5,9 +5,9 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Dapper.Sqlite.IntegrationTests")]
-[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Dapper.Sqlite.Tests.Inbox")]
-[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Dapper.Sqlite.Tests.Outbox")]
-[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Dapper.Sqlite.Tests.Sagas")]
-[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con ámbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Dapper.Sqlite.Tests.Scheduling")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con Ã¡mbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Dapper.Sqlite.IntegrationTests")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con Ã¡mbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Dapper.Sqlite.Tests.Inbox")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con Ã¡mbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Dapper.Sqlite.Tests.Outbox")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con Ã¡mbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Dapper.Sqlite.Tests.Sagas")]
+[assembly: SuppressMessage("Style", "IDE0160:Convertir en namespace con Ã¡mbito de bloque", Justification = "<pendiente>", Scope = "namespace", Target = "~N:Encina.Dapper.Sqlite.Tests.Scheduling")]
 

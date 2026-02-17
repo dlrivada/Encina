@@ -28,7 +28,7 @@ public class RefitClientIntegrationTests : IClassFixture<EncinaWireMockFixture>,
         _fixture = fixture;
     }
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         _fixture.Reset();
 
@@ -48,10 +48,10 @@ public class RefitClientIntegrationTests : IClassFixture<EncinaWireMockFixture>,
         _todoApi = _serviceProvider.GetRequiredService<ITodoApi>();
         _headersApi = _serviceProvider.GetRequiredService<IHttpHeadersApi>();
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_serviceProvider is IAsyncDisposable asyncDisposable)
         {

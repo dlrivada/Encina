@@ -21,13 +21,13 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
         _database = database;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _database.ClearAllDataAsync();
         _store = new ScheduledMessageStoreDapper(_database.CreateConnection());
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task AddAsync_ValidMessage_ShouldPersist()

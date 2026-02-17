@@ -12,7 +12,7 @@ public sealed class ModuleIntegrationExamples : IAsyncLifetime
 {
     private ModuleTestFixture<TestModule>? _fixture;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _fixture = new ModuleTestFixture<TestModule>()
             .ConfigureServices(services =>
@@ -24,7 +24,7 @@ public sealed class ModuleIntegrationExamples : IAsyncLifetime
         await _fixture.InitializeAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_fixture is not null)
         {

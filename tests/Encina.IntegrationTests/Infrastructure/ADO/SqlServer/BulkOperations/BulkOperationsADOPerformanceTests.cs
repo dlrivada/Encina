@@ -4,7 +4,7 @@ using Encina.ADO.SqlServer.BulkOperations;
 using Encina.TestInfrastructure.Fixtures;
 using Microsoft.Data.SqlClient;
 using Xunit;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Encina.IntegrationTests.Infrastructure.ADO.SqlServer.BulkOperations;
 
@@ -31,7 +31,7 @@ public sealed class BulkOperationsADOPerformanceTests : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _connection = _fixture.CreateConnection();
         await EnsureConnectionOpenAsync();
@@ -74,7 +74,7 @@ public sealed class BulkOperationsADOPerformanceTests : IAsyncLifetime
         _bulkOps = new BulkOperationsADO<ADOPerformanceEntity, Guid>(_connection, mapping);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await EnsureConnectionOpenAsync();
 

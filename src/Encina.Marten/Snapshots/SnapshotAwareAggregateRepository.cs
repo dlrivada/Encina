@@ -25,6 +25,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
     private readonly EncinaMartenOptions _options;
     private readonly AggregateSnapshotConfig _snapshotConfig;
     private readonly EventMetadataEnrichmentService? _enrichmentService;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SnapshotAwareAggregateRepository{TAggregate}"/> class.
@@ -35,13 +36,15 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
     /// <param name="enrichers">Optional collection of metadata enrichers.</param>
+    /// <param name="timeProvider">The time provider. If <c>null</c>, <see cref="TimeProvider.System"/> is used.</param>
     public SnapshotAwareAggregateRepository(
         IDocumentSession session,
         ISnapshotStore<TAggregate> snapshotStore,
         IRequestContext requestContext,
         ILogger<SnapshotAwareAggregateRepository<TAggregate>> logger,
         IOptions<EncinaMartenOptions> options,
-        IEnumerable<IEventMetadataEnricher>? enrichers = null)
+        IEnumerable<IEventMetadataEnricher>? enrichers = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(snapshotStore);
@@ -55,6 +58,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         _logger = logger;
         _options = options.Value;
         _snapshotConfig = _options.Snapshots.GetConfigFor<TAggregate>();
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         // Create enrichment service if metadata tracking is enabled
         if (_options.Metadata.IsAnyMetadataEnabled())
@@ -423,7 +427,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
                 aggregate.Id,
                 aggregate.Version,
                 aggregate,
-                DateTime.UtcNow);
+                _timeProvider.GetUtcNow().UtcDateTime);
 
             if (_options.Snapshots.AsyncSnapshotCreation)
             {

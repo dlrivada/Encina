@@ -1,83 +1,145 @@
 root = true
 
+# Default formatting for all files
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# XML/CSPROJ files use 2-space indentation
+[*.{xml,csproj,props,targets,slnx}]
+indent_size = 2
+
+# JSON/YAML files use 2-space indentation
+[*.{json,yml,yaml}]
+indent_size = 2
+
 [*.cs]
 dotnet_sort_system_directives_first = true
 
+# --- Code style: 'this.' qualification ---
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_qualification_for_event = false:warning
+
+# --- Code style: var usage ---
 # IDE0008: Use explicit type instead of 'var' - Allow var usage (project preference)
 csharp_style_var_for_built_in_types = true:silent
 csharp_style_var_when_type_is_apparent = true:silent
 csharp_style_var_elsewhere = true:silent
 dotnet_diagnostic.IDE0008.severity = none
 
-# IDE0058: Expression value is never used - Common with fluent APIs and fire-and-forget
-dotnet_diagnostic.IDE0058.severity = none
-
-# IDE0160: Use file-scoped namespace - Project uses file-scoped namespaces
-csharp_style_namespace_declarations = file_scoped:silent
-dotnet_diagnostic.IDE0160.severity = none
-
+# --- Code style: expression preferences ---
 # IDE0011: Add braces - Allow single-line statements without braces
 csharp_prefer_braces = when_multiline:silent
 dotnet_diagnostic.IDE0011.severity = none
-
-# IDE0039: Use local function instead of lambda - Lambdas are fine
-dotnet_diagnostic.IDE0039.severity = none
 
 # IDE0022: Use expression body for method - Allow both styles
 csharp_style_expression_bodied_methods = when_on_single_line:silent
 dotnet_diagnostic.IDE0022.severity = none
 
-# IDE0046: Use conditional expression - Prefer readability over terseness
-dotnet_diagnostic.IDE0046.severity = none
-
 # IDE0028: Use collection initializer - Allow explicit Add calls
 dotnet_diagnostic.IDE0028.severity = none
-
-# IDE0290: Use primary constructor - C#12 feature, not enforced
-dotnet_diagnostic.IDE0290.severity = none
-
-# IDE0300/IDE0301/IDE0305: Collection expressions - C#12 feature, not enforced
-dotnet_diagnostic.IDE0300.severity = none
-dotnet_diagnostic.IDE0301.severity = none
-dotnet_diagnostic.IDE0305.severity = none
 
 # IDE0037: Use inferred member name - Allow explicit names
 dotnet_diagnostic.IDE0037.severity = none
 
-# IDE0052: Remove unread private member - Can be false positive with reflection
-dotnet_diagnostic.IDE0052.severity = suggestion
+# IDE0039: Use local function instead of lambda - Lambdas are fine
+dotnet_diagnostic.IDE0039.severity = none
 
-# IDE0059: Unnecessary value assignment - Can be intentional for debugging
-dotnet_diagnostic.IDE0059.severity = suggestion
-
-# IDE0350: Lambda expression can be simplified - Not always clearer
-dotnet_diagnostic.IDE0350.severity = none
-
-# IDE0090: Simplify new expression - Allow explicit type in new()
-dotnet_diagnostic.IDE0090.severity = none
+# IDE0046: Use conditional expression - Prefer readability over terseness
+dotnet_diagnostic.IDE0046.severity = none
 
 # IDE0048: Add parentheses for clarity - Allow developer judgment
 dotnet_diagnostic.IDE0048.severity = none
 
-# IDE0330: Prefer System.Threading.Lock - .NET 9+ feature
-dotnet_diagnostic.IDE0330.severity = none
+# IDE0052: Remove unread private member - Can be false positive with reflection
+dotnet_diagnostic.IDE0052.severity = suggestion
+
+# IDE0058: Expression value is never used - Common with fluent APIs and fire-and-forget
+dotnet_diagnostic.IDE0058.severity = none
+
+# IDE0059: Unnecessary value assignment - Can be intentional for debugging
+dotnet_diagnostic.IDE0059.severity = suggestion
+
+# IDE0090: Simplify new expression - Allow explicit type in new()
+dotnet_diagnostic.IDE0090.severity = none
 
 # IDE0130: Namespace does not match folder structure - Intentional for clean API surface
 dotnet_diagnostic.IDE0130.severity = none
 
-# Enable analyzers but surface them as suggestions initially so we can adopt rules incrementally.
-dotnet_analyzer_diagnostic.category-Design.severity = suggestion
-dotnet_analyzer_diagnostic.category-Documentation.severity = suggestion
-dotnet_analyzer_diagnostic.category-Globalization.severity = suggestion
-dotnet_analyzer_diagnostic.category-Interoperability.severity = suggestion
-dotnet_analyzer_diagnostic.category-Maintainability.severity = suggestion
-dotnet_analyzer_diagnostic.category-Naming.severity = suggestion
-dotnet_analyzer_diagnostic.category-Performance.severity = suggestion
-dotnet_analyzer_diagnostic.category-Reliability.severity = suggestion
-dotnet_analyzer_diagnostic.category-Security.severity = suggestion
-dotnet_analyzer_diagnostic.category-SingleFile.severity = suggestion
-dotnet_analyzer_diagnostic.category-Style.severity = suggestion
-dotnet_analyzer_diagnostic.category-Usage.severity = suggestion
+# IDE0160: Use file-scoped namespace - Project uses file-scoped namespaces
+csharp_style_namespace_declarations = file_scoped:silent
+dotnet_diagnostic.IDE0160.severity = none
+
+# IDE0290: Use primary constructor - Not enforced
+dotnet_diagnostic.IDE0290.severity = none
+
+# IDE0300/IDE0301/IDE0305: Collection expressions - Not enforced
+dotnet_diagnostic.IDE0300.severity = none
+dotnet_diagnostic.IDE0301.severity = none
+dotnet_diagnostic.IDE0305.severity = none
+
+# IDE0330: Prefer System.Threading.Lock
+dotnet_diagnostic.IDE0330.severity = none
+
+# IDE0350: Lambda expression can be simplified - Not always clearer
+dotnet_diagnostic.IDE0350.severity = none
+
+# --- Code analysis: logging ---
+
+# CA1848: Use the LoggerMessage delegates - Future optimization
+dotnet_diagnostic.CA1848.severity = suggestion
+
+# CA1873: Logging parameter evaluation may be expensive - Future optimization
+dotnet_diagnostic.CA1873.severity = suggestion
+
+# --- Naming conventions ---
+
+# Interfaces must begin with 'I'
+dotnet_naming_rule.interface_should_begin_with_i.severity = error
+dotnet_naming_rule.interface_should_begin_with_i.symbols = interface
+dotnet_naming_rule.interface_should_begin_with_i.style = begins_with_i
+dotnet_naming_symbols.interface.applicable_kinds = interface
+dotnet_naming_style.begins_with_i.required_prefix = I
+dotnet_naming_style.begins_with_i.capitalization = pascal_case
+
+# Async methods must end with 'Async'
+dotnet_naming_rule.async_methods_end_in_async.severity = warning
+dotnet_naming_rule.async_methods_end_in_async.symbols = any_async_methods
+dotnet_naming_rule.async_methods_end_in_async.style = end_in_async
+dotnet_naming_symbols.any_async_methods.applicable_kinds = method
+dotnet_naming_symbols.any_async_methods.applicable_accessibilities = *
+dotnet_naming_symbols.any_async_methods.required_modifiers = async
+dotnet_naming_style.end_in_async.required_suffix = Async
+dotnet_naming_style.end_in_async.capitalization = pascal_case
+
+# Constants should be PascalCase
+dotnet_naming_rule.constants_should_be_pascal_case.severity = warning
+dotnet_naming_rule.constants_should_be_pascal_case.symbols = constants
+dotnet_naming_rule.constants_should_be_pascal_case.style = pascal_case_style
+dotnet_naming_symbols.constants.applicable_kinds = field
+dotnet_naming_symbols.constants.required_modifiers = const
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+
+# Private fields should be _camelCase
+dotnet_naming_rule.private_fields_should_be_camel_case.severity = warning
+dotnet_naming_rule.private_fields_should_be_camel_case.symbols = private_fields
+dotnet_naming_rule.private_fields_should_be_camel_case.style = underscore_camel_case
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private, private_protected
+dotnet_naming_style.underscore_camel_case.required_prefix = _
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case
+
+# --- Analyzer severity ---
+
+# All analyzers default to suggestion for incremental adoption.
+# This covers .NET (CA*), SonarAnalyzer (S*), Meziantou (MA*), and Roslynator (RCS*).
+# Promote specific rules to warning/error as the codebase is cleaned up.
+dotnet_analyzer_diagnostic.severity = suggestion
 
 # PublicApiAnalyzers - Track public API surface changes
 dotnet_diagnostic.RS0016.severity = error
@@ -91,10 +153,16 @@ dotnet_diagnostic.RS0041.severity = warning
 
 [tests/**/*.cs]
 dotnet_diagnostic.CA1707.severity = none
+# CA1816: GC.SuppressFinalize - xUnit v3 IAsyncLifetime uses ValueTask DisposeAsync() which triggers this
+dotnet_diagnostic.CA1816.severity = none
 # Thread.Sleep is acceptable in tests for simulating delays
 dotnet_diagnostic.CA2007.severity = none
 # xUnit1004: Test methods should not be skipped - Skips have documented reasons
 dotnet_diagnostic.xUnit1004.severity = none
+# Async suffix not enforced in tests - test method names describe behavior, not convention
+dotnet_naming_rule.async_methods_end_in_async.severity = none
 
 [benchmarks/**/*.cs]
 dotnet_diagnostic.CA1707.severity = none
+# Async suffix not enforced in benchmarks
+dotnet_naming_rule.async_methods_end_in_async.severity = none

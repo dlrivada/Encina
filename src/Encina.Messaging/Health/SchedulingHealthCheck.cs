@@ -22,18 +22,21 @@ public class SchedulingHealthCheck : EncinaHealthCheck
 {
     private readonly IScheduledMessageStore _store;
     private readonly SchedulingHealthCheckOptions _options;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SchedulingHealthCheck"/> class.
     /// </summary>
     /// <param name="store">The scheduled message store to check.</param>
     /// <param name="options">Health check options.</param>
-    public SchedulingHealthCheck(IScheduledMessageStore store, SchedulingHealthCheckOptions? options = null)
+    /// <param name="timeProvider">Optional time provider for testability.</param>
+    public SchedulingHealthCheck(IScheduledMessageStore store, SchedulingHealthCheckOptions? options = null, TimeProvider? timeProvider = null)
         : base("encina-scheduling", ["ready", "database", "messaging"])
     {
         ArgumentNullException.ThrowIfNull(store);
         _store = store;
         _options = options ?? new SchedulingHealthCheckOptions();
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -46,7 +49,7 @@ public class SchedulingHealthCheck : EncinaHealthCheck
             cancellationToken).ConfigureAwait(false);
 
         var overdueCount = 0;
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         foreach (var message in dueMessages)
         {

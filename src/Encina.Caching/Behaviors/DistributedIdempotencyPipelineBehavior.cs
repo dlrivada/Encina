@@ -35,6 +35,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
     private readonly ICacheProvider _cacheProvider;
     private readonly CachingOptions _options;
     private readonly ILogger<DistributedIdempotencyPipelineBehavior<TRequest, TResponse>> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DistributedIdempotencyPipelineBehavior{TRequest, TResponse}"/> class.
@@ -42,10 +43,12 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
     /// <param name="cacheProvider">The cache provider.</param>
     /// <param name="options">The caching options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The time provider for testing.</param>
     public DistributedIdempotencyPipelineBehavior(
         ICacheProvider cacheProvider,
         IOptions<CachingOptions> options,
-        ILogger<DistributedIdempotencyPipelineBehavior<TRequest, TResponse>> logger)
+        ILogger<DistributedIdempotencyPipelineBehavior<TRequest, TResponse>> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(cacheProvider);
         ArgumentNullException.ThrowIfNull(options);
@@ -54,6 +57,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
         _cacheProvider = cacheProvider;
         _options = options.Value;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -115,7 +119,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
             // Mark as in progress
             var inProgressEntry = new IdempotencyEntry<TResponse>
             {
-                StartedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = _timeProvider.GetUtcNow().UtcDateTime,
                 IsSuccess = false
             };
 
@@ -144,10 +148,11 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
                 Right: _ => (false, default(EncinaError)),
                 Left: e => (true, e));
 
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
             var entry = new IdempotencyEntry<TResponse>
             {
-                StartedAtUtc = DateTime.UtcNow,
-                CompletedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = nowUtc,
+                CompletedAtUtc = nowUtc,
                 IsSuccess = result.IsRight,
                 Response = result.Match(Right: v => v, Left: _ => default),
                 HasError = hasError,

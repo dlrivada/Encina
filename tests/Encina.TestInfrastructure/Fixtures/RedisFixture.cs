@@ -137,7 +137,7 @@ public sealed class RedisFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new RedisBuilder()
             .WithImage("redis:7-alpine")
@@ -150,7 +150,7 @@ public sealed class RedisFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (Connection is not null)
         {

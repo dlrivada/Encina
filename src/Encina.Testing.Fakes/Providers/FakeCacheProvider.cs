@@ -30,6 +30,7 @@ public sealed class FakeCacheProvider : ICacheProvider, IDisposable
     private readonly ConcurrentBag<string> _getOperations = new();
     private readonly object _lock = new();
     private readonly Timer? _expirationTimer;
+    private readonly TimeProvider _timeProvider;
     private bool _disposed;
 
     /// <summary>
@@ -97,8 +98,10 @@ public sealed class FakeCacheProvider : ICacheProvider, IDisposable
     /// If true, enables a background timer that checks for expired entries every second.
     /// Default is false for performance in most test scenarios.
     /// </param>
-    public FakeCacheProvider(bool enableExpirationTimer = false)
+    /// <param name="timeProvider">Optional time provider for controlling time in tests. Defaults to <see cref="TimeProvider.System"/>.</param>
+    public FakeCacheProvider(bool enableExpirationTimer = false, TimeProvider? timeProvider = null)
     {
+        _timeProvider = timeProvider ?? TimeProvider.System;
         if (enableExpirationTimer)
         {
             _expirationTimer = new Timer(
@@ -142,7 +145,7 @@ public sealed class FakeCacheProvider : ICacheProvider, IDisposable
         ThrowIfSimulatingErrors();
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-        var entry = new CacheEntry(value, expiration);
+        var entry = new CacheEntry(value, expiration, _timeProvider);
         _cache[key] = entry;
 
         lock (_lock)
@@ -239,7 +242,7 @@ public sealed class FakeCacheProvider : ICacheProvider, IDisposable
         ThrowIfSimulatingErrors();
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-        var entry = new CacheEntry(value, absoluteExpiration, slidingExpiration);
+        var entry = new CacheEntry(value, absoluteExpiration, slidingExpiration, _timeProvider);
         _cache[key] = entry;
 
         lock (_lock)
@@ -429,6 +432,7 @@ public sealed class FakeCacheProvider : ICacheProvider, IDisposable
         private readonly DateTime _createdAt;
         private readonly TimeSpan? _absoluteExpiration;
         private readonly TimeSpan? _slidingExpiration;
+        private readonly TimeProvider _timeProvider;
         private DateTime _lastAccessedAt;
 
         public object? Value { get; }
@@ -437,7 +441,7 @@ public sealed class FakeCacheProvider : ICacheProvider, IDisposable
         {
             get
             {
-                var now = DateTime.UtcNow;
+                var now = _timeProvider.GetUtcNow().UtcDateTime;
 
                 // Check absolute expiration
                 if (_absoluteExpiration.HasValue && now >= _createdAt + _absoluteExpiration.Value)
@@ -455,18 +459,20 @@ public sealed class FakeCacheProvider : ICacheProvider, IDisposable
             }
         }
 
-        public CacheEntry(object? value, TimeSpan? expiration)
+        public CacheEntry(object? value, TimeSpan? expiration, TimeProvider timeProvider)
         {
+            _timeProvider = timeProvider;
             Value = value;
-            _createdAt = DateTime.UtcNow;
+            _createdAt = _timeProvider.GetUtcNow().UtcDateTime;
             _lastAccessedAt = _createdAt;
             _absoluteExpiration = expiration;
         }
 
-        public CacheEntry(object? value, TimeSpan? absoluteExpiration, TimeSpan? slidingExpiration)
+        public CacheEntry(object? value, TimeSpan? absoluteExpiration, TimeSpan? slidingExpiration, TimeProvider timeProvider)
         {
+            _timeProvider = timeProvider;
             Value = value;
-            _createdAt = DateTime.UtcNow;
+            _createdAt = _timeProvider.GetUtcNow().UtcDateTime;
             _lastAccessedAt = _createdAt;
             _absoluteExpiration = absoluteExpiration;
             _slidingExpiration = slidingExpiration;
@@ -476,7 +482,7 @@ public sealed class FakeCacheProvider : ICacheProvider, IDisposable
         {
             if (_slidingExpiration.HasValue)
             {
-                _lastAccessedAt = DateTime.UtcNow;
+                _lastAccessedAt = _timeProvider.GetUtcNow().UtcDateTime;
             }
         }
     }

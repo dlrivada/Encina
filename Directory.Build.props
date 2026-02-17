@@ -1,7 +1,7 @@
 <Project>
   <!-- Encina Version -->
   <PropertyGroup>
-    <VersionPrefix>0.11.0</VersionPrefix>
+    <VersionPrefix>0.12.0</VersionPrefix>
     <VersionSuffix>alpha</VersionSuffix>
   </PropertyGroup>
 
@@ -18,6 +18,22 @@
     <WarningsAsErrors>$(WarningsAsErrors);CS*;IL*;NU*;IDE*;SYSLIB*</WarningsAsErrors>
   </PropertyGroup>
 
+  <!-- Static Code Analyzers (all projects) -->
+  <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+    <PackageReference Include="Meziantou.Analyzer">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="SonarAnalyzer.CSharp">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Roslynator.Analyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
   <PropertyGroup>
     <_ProjectDirectoryNormalized>$([System.String]::Copy('$(MSBuildProjectDirectory)').Replace('\\','/').ToLowerInvariant())</_ProjectDirectoryNormalized>
   </PropertyGroup>
@@ -25,6 +41,14 @@
   <PropertyGroup Condition="$([System.String]::Copy('$(_ProjectDirectoryNormalized)').Contains('/tests/'))">
     <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
   </PropertyGroup>
+
+  <!-- xunit.analyzers (test projects only) -->
+  <ItemGroup Condition="$([System.String]::Copy('$(_ProjectDirectoryNormalized)').Contains('/tests/'))">
+    <PackageReference Include="xunit.analyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
 
   <!-- Explicitly mark src projects as MAIN for SonarCloud coverage analysis -->
   <PropertyGroup Condition="$([System.String]::Copy('$(_ProjectDirectoryNormalized)').Contains('/src/'))">

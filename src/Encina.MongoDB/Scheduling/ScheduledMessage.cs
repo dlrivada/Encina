@@ -68,7 +68,8 @@ public sealed class ScheduledMessage : IScheduledMessage
     public bool IsProcessed => ProcessedAtUtc.HasValue;
 
     /// <inheritdoc />
-    public bool IsDue() => DateTime.UtcNow >= ScheduledAtUtc;
+    public bool IsDue() =>
+        TimeProvider.System.GetUtcNow().UtcDateTime >= ScheduledAtUtc;
 
     /// <inheritdoc />
     public bool IsDeadLettered(int maxRetries) => RetryCount >= maxRetries;

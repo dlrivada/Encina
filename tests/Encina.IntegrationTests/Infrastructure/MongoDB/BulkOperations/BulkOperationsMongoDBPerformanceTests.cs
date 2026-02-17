@@ -5,7 +5,7 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using Xunit;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Encina.IntegrationTests.Infrastructure.MongoDB.BulkOperations;
 
@@ -30,21 +30,21 @@ public sealed class BulkOperationsMongoDBPerformanceTests : IAsyncLifetime
         _output = output;
     }
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         if (!_fixture.IsAvailable)
         {
             _output.WriteLine("MongoDB container not available - skipping tests");
-            return Task.CompletedTask;
+            return ValueTask.CompletedTask;
         }
 
         _collection = _fixture.Database!.GetCollection<MongoPerformanceEntity>("PerformanceEntities");
         _bulkOps = new BulkOperationsMongoDB<MongoPerformanceEntity, string>(_collection, e => e.Id);
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_fixture.IsAvailable && _fixture.Database is not null)
         {

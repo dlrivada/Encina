@@ -1,4 +1,4 @@
-﻿using Encina.Dapper.Sqlite.Scheduling;
+using Encina.Dapper.Sqlite.Scheduling;
 
 namespace Encina.TestInfrastructure.Builders;
 

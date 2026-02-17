@@ -39,7 +39,7 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _connection = (_fixture.CreateConnection() as SqliteConnection)!;
 
@@ -60,7 +60,7 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private static async Task CreatePrefixedTablesAsync(SqliteConnection connection)
     {

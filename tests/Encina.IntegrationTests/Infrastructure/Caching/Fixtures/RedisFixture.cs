@@ -1,4 +1,4 @@
-﻿using StackExchange.Redis;
+using StackExchange.Redis;
 using Testcontainers.Redis;
 
 namespace Encina.IntegrationTests.Infrastructure.Caching.Fixtures;
@@ -26,7 +26,7 @@ public class RedisFixture : IAsyncLifetime
     public bool IsAvailable => _container is not null && Connection is not null;
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         try
         {
@@ -46,7 +46,7 @@ public class RedisFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (Connection is not null)
         {

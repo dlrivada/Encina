@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Encina;
 using Encina.NBomber.Scenarios.Brokers;
 using Encina.NBomber.Scenarios.Caching;
+using Encina.NBomber.Scenarios.IdGeneration;
 using Encina.NBomber.Scenarios.Locking;
 using Encina.NBomber.Scenarios.Messaging;
 using LanguageExt;
@@ -43,8 +44,25 @@ MessagingScenarioRunner? messagingRunner = null;
 CachingScenarioRunner? cachingRunner = null;
 LockingScenarioRunner? lockingRunner = null;
 BrokerScenarioRunner? brokerRunner = null;
+IdGenerationScenarioRunner? idGenRunner = null;
 
-if (options.IsMessagingScenario)
+if (options.IsIdGenerationScenario)
+{
+    // Auto-detect feature from scenario name if not explicitly set via --idgen-feature
+    var idGenFeature = options.Scenario switch
+    {
+        NbomberScenarios.IdGenSnowflake => IdGenerationFeature.Snowflake,
+        NbomberScenarios.IdGenUlid => IdGenerationFeature.Ulid,
+        NbomberScenarios.IdGenUuidV7 => IdGenerationFeature.UuidV7,
+        NbomberScenarios.IdGenShardPrefixed => IdGenerationFeature.ShardPrefixed,
+        _ => options.IdGenerationFeature
+    };
+
+    Console.WriteLine($"ID Generation Feature: {idGenFeature}");
+    idGenRunner = new IdGenerationScenarioRunner(idGenFeature, options.SendRate, options.Duration);
+    scenarios = await idGenRunner.CreateScenariosAsync().ConfigureAwait(false);
+}
+else if (options.IsMessagingScenario)
 {
     Console.WriteLine($"Messaging Feature: {options.MessagingFeature}");
     messagingRunner = new MessagingScenarioRunner(options.MessagingFeature);
@@ -108,6 +126,11 @@ if (lockingRunner is not null)
 if (brokerRunner is not null)
 {
     await brokerRunner.DisposeAsync().ConfigureAwait(false);
+}
+
+if (idGenRunner is not null)
+{
+    await idGenRunner.DisposeAsync().ConfigureAwait(false);
 }
 
 Console.WriteLine();
@@ -262,6 +285,13 @@ internal static class NbomberScenarios
     internal const string BrokerNATS = "broker-nats";
     internal const string BrokerMQTT = "broker-mqtt";
     internal const string BrokerAll = "broker-all";
+
+    // ID generation scenarios
+    internal const string IdGenSnowflake = "idgen-snowflake";
+    internal const string IdGenUlid = "idgen-ulid";
+    internal const string IdGenUuidV7 = "idgen-uuidv7";
+    internal const string IdGenShardPrefixed = "idgen-shardprefixed";
+    internal const string IdGenAll = "idgen-all";
 }
 
 /// <summary>
@@ -381,6 +411,16 @@ internal sealed class NbomberOptions
     /// </summary>
     public bool IsBrokerScenario => Scenario?.StartsWith("broker-", StringComparison.OrdinalIgnoreCase) == true;
 
+    /// <summary>
+    /// Gets a value indicating whether this is an ID generation scenario.
+    /// </summary>
+    public bool IsIdGenerationScenario => Scenario?.StartsWith("idgen-", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>
+    /// ID generation feature to test (snowflake, ulid, uuidv7, shardprefixed, all).
+    /// </summary>
+    public IdGenerationFeature IdGenerationFeature { get; set; } = IdGenerationFeature.All;
+
     public bool RequiresPublishWarmUp => Scenario == NbomberScenarios.MixedTraffic && PublishRate > 0;
 
     public void Normalize()
@@ -484,6 +524,9 @@ internal sealed class NbomberOptions
                 case "--broker-provider" when TryReadValue(args, ref index, out var brokerProvider):
                     overrides[current] = brokerProvider;
                     break;
+                case "--idgen-feature" when TryReadValue(args, ref index, out var idGenFeature):
+                    overrides[current] = idGenFeature;
+                    break;
             }
         }
 
@@ -562,6 +605,9 @@ internal sealed class NbomberOptions
                 case "--broker-provider":
                     options.BrokerProvider = value;
                     ValidateBrokerProvider(value);
+                    break;
+                case "--idgen-feature":
+                    options.IdGenerationFeature = ParseIdGenerationFeature(value);
                     break;
             }
         }
@@ -661,6 +707,19 @@ internal sealed class NbomberOptions
             "mqtt" => BrokerFeature.MQTT,
             "all" => BrokerFeature.All,
             _ => throw new ArgumentException($"Invalid broker feature '{value}'. Valid values: rabbitmq, kafka, nats, mqtt, all")
+        };
+    }
+
+    private static IdGenerationFeature ParseIdGenerationFeature(string value)
+    {
+        return value.ToLowerInvariant() switch
+        {
+            "snowflake" or "snow" => IdGenerationFeature.Snowflake,
+            "ulid" => IdGenerationFeature.Ulid,
+            "uuidv7" or "uuid" => IdGenerationFeature.UuidV7,
+            "shardprefixed" or "shard" => IdGenerationFeature.ShardPrefixed,
+            "all" => IdGenerationFeature.All,
+            _ => throw new ArgumentException($"Invalid ID generation feature '{value}'. Valid values: snowflake, ulid, uuidv7, shardprefixed, all")
         };
     }
 
@@ -792,6 +851,11 @@ internal sealed class NbomberOptions
             BrokerProvider = profile.BrokerProvider;
             ValidateBrokerProvider(profile.BrokerProvider);
         }
+
+        if (!string.IsNullOrEmpty(profile.IdGenerationFeature))
+        {
+            IdGenerationFeature = ParseIdGenerationFeature(profile.IdGenerationFeature);
+        }
     }
 
     private static bool TryReadValue(string[] args, ref int index, out string value)
@@ -867,6 +931,11 @@ internal sealed class NbomberProfile
     /// Broker provider name (rabbitmq, kafka, nats, mqtt).
     /// </summary>
     public string? BrokerProvider { get; set; }
+
+    /// <summary>
+    /// ID generation feature to test (snowflake, ulid, uuidv7, shardprefixed, all).
+    /// </summary>
+    public string? IdGenerationFeature { get; set; }
 }
 
 internal sealed record PingCommand(long Id) : IRequest<int>;

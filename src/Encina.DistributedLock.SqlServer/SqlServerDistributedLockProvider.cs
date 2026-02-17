@@ -20,15 +20,18 @@ public sealed partial class SqlServerDistributedLockProvider : IDistributedLockP
     private readonly string _connectionString;
     private readonly SqlServerLockOptions _options;
     private readonly ILogger<SqlServerDistributedLockProvider> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SqlServerDistributedLockProvider"/> class.
     /// </summary>
     /// <param name="options">The lock options containing the connection string.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The time provider for testing.</param>
     public SqlServerDistributedLockProvider(
         IOptions<SqlServerLockOptions> options,
-        ILogger<SqlServerDistributedLockProvider> logger)
+        ILogger<SqlServerDistributedLockProvider> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -37,6 +40,7 @@ public sealed partial class SqlServerDistributedLockProvider : IDistributedLockP
         _connectionString = _options.ConnectionString
             ?? throw new ArgumentException("ConnectionString is required", nameof(options));
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -64,9 +68,9 @@ public sealed partial class SqlServerDistributedLockProvider : IDistributedLockP
 
             if (result >= 0) // 0 or positive means lock acquired
             {
-                var now = DateTime.UtcNow;
+                var now = _timeProvider.GetUtcNow().UtcDateTime;
                 LogLockAcquired(_logger, resource, lockId);
-                return new LockHandle(connection, lockKey, lockId, resource, now, now.Add(expiry), _logger);
+                return new LockHandle(connection, lockKey, lockId, resource, now, now.Add(expiry), _logger, _timeProvider);
             }
 
             // Lock not acquired, clean up connection
@@ -104,9 +108,9 @@ public sealed partial class SqlServerDistributedLockProvider : IDistributedLockP
 
             if (result >= 0)
             {
-                var now = DateTime.UtcNow;
+                var now = _timeProvider.GetUtcNow().UtcDateTime;
                 LogLockAcquired(_logger, resource, lockId);
-                return new LockHandle(connection, lockKey, lockId, resource, now, now.Add(expiry), _logger);
+                return new LockHandle(connection, lockKey, lockId, resource, now, now.Add(expiry), _logger, _timeProvider);
             }
 
             // This shouldn't happen with infinite wait, but handle it anyway
@@ -233,6 +237,7 @@ public sealed partial class SqlServerDistributedLockProvider : IDistributedLockP
         private readonly SqlConnection _connection;
         private readonly string _lockKey;
         private readonly ILogger _logger;
+        private readonly TimeProvider _timeProvider;
         private bool _disposed;
 
         public LockHandle(
@@ -242,7 +247,8 @@ public sealed partial class SqlServerDistributedLockProvider : IDistributedLockP
             string resource,
             DateTime acquiredAtUtc,
             DateTime expiresAtUtc,
-            ILogger logger)
+            ILogger logger,
+            TimeProvider timeProvider)
         {
             _connection = connection;
             _lockKey = lockKey;
@@ -251,6 +257,7 @@ public sealed partial class SqlServerDistributedLockProvider : IDistributedLockP
             AcquiredAtUtc = acquiredAtUtc;
             ExpiresAtUtc = expiresAtUtc;
             _logger = logger;
+            _timeProvider = timeProvider;
         }
 
         public string Resource { get; }
@@ -267,7 +274,7 @@ public sealed partial class SqlServerDistributedLockProvider : IDistributedLockP
             }
 
             // SQL Server locks are held until released - just update the expected expiry
-            ExpiresAtUtc = DateTime.UtcNow.Add(extension);
+            ExpiresAtUtc = _timeProvider.GetUtcNow().UtcDateTime.Add(extension);
             return Task.FromResult(true);
         }
 

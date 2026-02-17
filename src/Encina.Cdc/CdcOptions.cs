@@ -63,4 +63,29 @@ public sealed class CdcOptions
     /// Default is <c>false</c>.
     /// </summary>
     public bool UseOutboxCdc { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to enable sharded CDC capture.
+    /// When enabled, the <c>ShardedCdcProcessor</c> is registered instead of
+    /// the standard <c>CdcProcessor</c> to process events from multiple shards.
+    /// Default is <c>false</c>.
+    /// </summary>
+    public bool UseShardedCapture { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to enable CDC-driven query cache invalidation.
+    /// When enabled, database changes detected by CDC are translated into cache
+    /// invalidation commands and optionally broadcast to other instances via pub/sub.
+    /// Default is <c>false</c>.
+    /// </summary>
+    public bool UseCacheInvalidation { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to enable the CDC dead letter queue.
+    /// When enabled, events that fail processing after exhausting all retries
+    /// are persisted to an <see cref="DeadLetter.ICdcDeadLetterStore"/> for
+    /// later inspection, replay, or discard.
+    /// Default is <c>false</c>.
+    /// </summary>
+    public bool UseDeadLetterQueue { get; set; }
 }

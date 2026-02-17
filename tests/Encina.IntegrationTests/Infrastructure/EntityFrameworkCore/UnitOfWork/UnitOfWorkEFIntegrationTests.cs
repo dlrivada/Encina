@@ -26,7 +26,7 @@ public class UnitOfWorkEFIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ClearDataAsync();
         _dbContext = _fixture.CreateDbContext();
@@ -34,7 +34,7 @@ public class UnitOfWorkEFIntegrationTests : IAsyncLifetime
         _unitOfWork = new UnitOfWorkEF(_dbContext, _serviceProvider);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _unitOfWork.DisposeAsync();
         _dbContext.Dispose();

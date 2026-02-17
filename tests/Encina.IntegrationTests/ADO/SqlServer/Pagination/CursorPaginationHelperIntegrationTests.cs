@@ -29,7 +29,7 @@ public class CursorPaginationHelperIntegrationTests : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _connection = new SqlConnection(_fixture.ConnectionString);
         await _connection.OpenAsync();
@@ -39,7 +39,7 @@ public class CursorPaginationHelperIntegrationTests : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await ClearDataAsync();
         await _connection.DisposeAsync();

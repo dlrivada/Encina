@@ -17,7 +17,7 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
     private TestDbContext? _dbContext;
     private InboxStoreEF? _store;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseInMemoryDatabase($"InboxPropertyTests_{Guid.NewGuid()}")
@@ -29,7 +29,7 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
         await _dbContext.Database.EnsureCreatedAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_dbContext != null)
         {

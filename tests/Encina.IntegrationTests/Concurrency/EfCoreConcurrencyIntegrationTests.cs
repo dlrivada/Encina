@@ -28,17 +28,17 @@ public class EfCoreConcurrencyIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ClearDataAsync();
         _dbContext = _fixture.CreateDbContext();
         _repository = new FunctionalRepositoryEF<VersionedTestEntity, Guid>(_dbContext);
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _dbContext.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     #region Versioned Update Tests
@@ -378,7 +378,7 @@ public sealed class ConcurrencyEFFixture : IAsyncLifetime
         return new ConcurrencyTestDbContext(options);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _sqlServerFixture.InitializeAsync();
 
@@ -390,7 +390,7 @@ public sealed class ConcurrencyEFFixture : IAsyncLifetime
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sqlServerFixture.DisposeAsync();
     }

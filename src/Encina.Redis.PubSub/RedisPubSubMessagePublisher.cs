@@ -15,6 +15,7 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
     private readonly ISubscriber _subscriber;
     private readonly ILogger<RedisPubSubMessagePublisher> _logger;
     private readonly EncinaRedisPubSubOptions _options;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RedisPubSubMessagePublisher"/> class.
@@ -22,10 +23,12 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
     /// <param name="redis">The Redis connection multiplexer.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
+    /// <param name="timeProvider">The time provider. If <c>null</c>, <see cref="TimeProvider.System"/> is used.</param>
     public RedisPubSubMessagePublisher(
         IConnectionMultiplexer redis,
         ILogger<RedisPubSubMessagePublisher> logger,
-        IOptions<EncinaRedisPubSubOptions> options)
+        IOptions<EncinaRedisPubSubOptions> options,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(redis);
         ArgumentNullException.ThrowIfNull(logger);
@@ -34,6 +37,7 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
         _subscriber = redis.GetSubscriber();
         _logger = logger;
         _options = options.Value;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -55,7 +59,7 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
             {
                 MessageType = typeof(TMessage).FullName ?? typeof(TMessage).Name,
                 Payload = message,
-                TimestampUtc = DateTime.UtcNow
+                TimestampUtc = _timeProvider.GetUtcNow().UtcDateTime
             });
 
             var subscriberCount = await _subscriber.PublishAsync(

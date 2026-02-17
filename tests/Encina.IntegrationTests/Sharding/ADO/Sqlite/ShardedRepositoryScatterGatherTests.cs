@@ -1,0 +1,185 @@
+using Encina.ADO.Sqlite.Sharding;
+using Encina.Sharding;
+using Encina.Sharding.Data;
+using Encina.TestInfrastructure.Fixtures.Sharding;
+
+using LanguageExt;
+
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
+
+using Shouldly;
+
+using Xunit;
+
+namespace Encina.IntegrationTests.Sharding.ADO.Sqlite;
+
+/// <summary>
+/// Integration tests for sharded repository scatter-gather operations using ADO.NET with SQLite.
+/// </summary>
+[Collection("Sharding-ADO-Sqlite")]
+[Trait("Category", "Integration")]
+[Trait("Database", "SQLite")]
+public sealed class ShardedRepositoryScatterGatherTests : IAsyncLifetime
+{
+    private readonly ShardedSqliteFixture _fixture;
+    private ServiceProvider _serviceProvider = null!;
+
+    public ShardedRepositoryScatterGatherTests(ShardedSqliteFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    public async ValueTask InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaSharding<ShardedTestEntity>(options =>
+        {
+            options.UseHashRouting()
+                .AddShard("shard-1", _fixture.Shard1ConnectionString)
+                .AddShard("shard-2", _fixture.Shard2ConnectionString)
+                .AddShard("shard-3", _fixture.Shard3ConnectionString);
+        });
+
+        services.AddEncinaADOSharding<ShardedTestEntity, string>(mapping =>
+        {
+            mapping.ToTable("ShardedEntities")
+                .HasId(e => e.Id)
+                .MapProperty(e => e.ShardKey, "ShardKey")
+                .MapProperty(e => e.Name, "Name")
+                .MapProperty(e => e.Value, "Value")
+                .MapProperty(e => e.CreatedAtUtc, "CreatedAtUtc");
+        });
+
+        _serviceProvider = services.BuildServiceProvider();
+
+        // Seed data across shards
+        await SeedTestDataAsync();
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _serviceProvider?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+    [Fact]
+    public async Task QueryAllShardsAsync_ShouldReturnResultsFromAllShards()
+    {
+        // Arrange
+        using var scope = _serviceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IFunctionalShardedRepository<ShardedTestEntity, string>>();
+
+        // Act
+        var result = await repo.QueryAllShardsAsync(
+            async (shardId, ct) =>
+            {
+                // Use the connection factory to query each shard
+                var connectionFactory = scope.ServiceProvider.GetRequiredService<IShardedConnectionFactory<SqliteConnection>>();
+                var connResult = await connectionFactory.GetConnectionAsync(shardId, ct);
+
+                return await connResult.MatchAsync(
+                    RightAsync: async conn =>
+                    {
+                        var entities = new List<ShardedTestEntity>();
+                        using var command = conn.CreateCommand();
+                        command.CommandText = "SELECT Id, ShardKey, Name, Value, CreatedAtUtc FROM ShardedEntities";
+                        using var reader = await command.ExecuteReaderAsync(ct);
+                        while (await reader.ReadAsync(ct))
+                        {
+                            entities.Add(new ShardedTestEntity
+                            {
+                                Id = reader.GetString(0),
+                                ShardKey = reader.GetString(1),
+                                Name = reader.GetString(2),
+                                Value = reader.IsDBNull(3) ? null : reader.GetString(3),
+                                CreatedAtUtc = DateTime.Parse(reader.GetString(4), System.Globalization.CultureInfo.InvariantCulture)
+                            });
+                        }
+                        return Either<EncinaError, IReadOnlyList<ShardedTestEntity>>.Right(entities);
+                    },
+                    Left: error => Either<EncinaError, IReadOnlyList<ShardedTestEntity>>.Left(error));
+            },
+            CancellationToken.None);
+
+        // Assert
+        result.IsRight.ShouldBeTrue("QueryAllShardsAsync should succeed");
+        _ = result.IfRight(queryResult =>
+        {
+            queryResult.Results.Count.ShouldBeGreaterThan(0, "Should have results from seeded data");
+            queryResult.IsComplete.ShouldBeTrue("All shards should succeed");
+        });
+    }
+
+    [Fact]
+    public async Task QueryAllShardsAsync_EmptyShards_ShouldReturnEmptyResults()
+    {
+        // Arrange — clear all data first
+        await _fixture.ClearAllDataAsync();
+
+        using var scope = _serviceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IFunctionalShardedRepository<ShardedTestEntity, string>>();
+
+        // Act
+        var result = await repo.QueryAllShardsAsync(
+            async (shardId, ct) =>
+            {
+                var connectionFactory = scope.ServiceProvider.GetRequiredService<IShardedConnectionFactory<SqliteConnection>>();
+                var connResult = await connectionFactory.GetConnectionAsync(shardId, ct);
+
+                return await connResult.MatchAsync(
+                    RightAsync: async conn =>
+                    {
+                        using var command = conn.CreateCommand();
+                        command.CommandText = "SELECT Id, ShardKey, Name, Value, CreatedAtUtc FROM ShardedEntities";
+                        using var reader = await command.ExecuteReaderAsync(ct);
+                        var entities = new List<ShardedTestEntity>();
+                        while (await reader.ReadAsync(ct))
+                        {
+                            entities.Add(new ShardedTestEntity
+                            {
+                                Id = reader.GetString(0),
+                                ShardKey = reader.GetString(1),
+                                Name = reader.GetString(2),
+                                Value = reader.IsDBNull(3) ? null : reader.GetString(3)
+                            });
+                        }
+                        return Either<EncinaError, IReadOnlyList<ShardedTestEntity>>.Right(entities);
+                    },
+                    Left: error => Either<EncinaError, IReadOnlyList<ShardedTestEntity>>.Left(error));
+            },
+            CancellationToken.None);
+
+        // Assert
+        result.IsRight.ShouldBeTrue("QueryAllShardsAsync on empty shards should succeed");
+        _ = result.IfRight(queryResult =>
+        {
+            queryResult.Results.Count.ShouldBe(0, "Should have no results");
+            queryResult.IsComplete.ShouldBeTrue("All shards should succeed even with no data");
+        });
+    }
+
+    private async Task SeedTestDataAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IFunctionalShardedRepository<ShardedTestEntity, string>>();
+
+        // Seed 10 entities with different shard keys to distribute across shards
+        for (var i = 0; i < 10; i++)
+        {
+            var entity = new ShardedTestEntity
+            {
+                Id = $"seed-{i}",
+                ShardKey = $"customer-{i}",
+                Name = $"Seeded Entity {i}",
+                Value = $"value-{i}"
+            };
+
+            await repo.AddAsync(entity);
+        }
+    }
+}

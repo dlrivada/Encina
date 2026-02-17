@@ -32,7 +32,7 @@ public class ModuleIsolationADOIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _connection = (_fixture.CreateConnection() as SqlConnection)!;
         await ModuleIsolationSchema.CreateAllModuleSchemasAsync(_connection);
@@ -50,7 +50,7 @@ public class ModuleIsolationADOIntegrationTests : IAsyncLifetime
         _moduleContext = new TestModuleExecutionContext();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_connection is not null)
         {

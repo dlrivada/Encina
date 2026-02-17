@@ -13,19 +13,22 @@ public sealed class SagaStoreDapper : ISagaStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The saga state table name (default: sagastates).</param>
+    /// <param name="timeProvider">Optional time provider for testability. Defaults to <see cref="TimeProvider.System"/>.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> or <paramref name="tableName"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is empty or whitespace.</exception>
-    public SagaStoreDapper(IDbConnection connection, string tableName = "sagastates")
+    public SagaStoreDapper(IDbConnection connection, string tableName = "sagastates", TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -87,7 +90,7 @@ public sealed class SagaStoreDapper : ISagaStore
         if (batchSize <= 0)
             throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
 
-        var thresholdUtc = DateTime.UtcNow.Subtract(olderThan);
+        var thresholdUtc = _timeProvider.GetUtcNow().UtcDateTime.Subtract(olderThan);
 
         var sql = $@"
             SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc

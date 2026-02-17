@@ -21,12 +21,13 @@ namespace Encina.Cdc.Debezium;
 /// to a <see cref="Channel{T}"/> by <see cref="DebeziumHttpListener"/>.
 /// </para>
 /// <para>
-/// Debezium op codes are mapped as follows:
-/// <list type="bullet">
-///   <item><description><c>c</c> (create) and <c>r</c> (read/snapshot) → <see cref="ChangeOperation.Insert"/></description></item>
-///   <item><description><c>u</c> (update) → <see cref="ChangeOperation.Update"/></description></item>
-///   <item><description><c>d</c> (delete) → <see cref="ChangeOperation.Delete"/></description></item>
-/// </list>
+/// On startup, the connector retrieves the last saved position from the
+/// <see cref="ICdcPositionStore"/> and skips events that have already been processed,
+/// enabling resume-from-position after restarts.
+/// </para>
+/// <para>
+/// Event parsing is delegated to <see cref="DebeziumEventMapper"/> which supports
+/// both CloudEvents and Flat formats with proper validation.
 /// </para>
 /// </remarks>
 internal sealed class DebeziumCdcConnector : ICdcConnector
@@ -35,6 +36,7 @@ internal sealed class DebeziumCdcConnector : ICdcConnector
     private readonly ChannelReader<JsonElement> _channelReader;
     private readonly ICdcPositionStore _positionStore;
     private readonly ILogger<DebeziumCdcConnector> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DebeziumCdcConnector"/> class.
@@ -43,11 +45,13 @@ internal sealed class DebeziumCdcConnector : ICdcConnector
     /// <param name="channel">The channel providing Debezium events.</param>
     /// <param name="positionStore">Position store for tracking progress.</param>
     /// <param name="logger">Logger for diagnostics.</param>
+    /// <param name="timeProvider">The time provider for testing.</param>
     public DebeziumCdcConnector(
         DebeziumCdcOptions options,
         Channel<JsonElement> channel,
         ICdcPositionStore positionStore,
-        ILogger<DebeziumCdcConnector> logger)
+        ILogger<DebeziumCdcConnector> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(channel);
@@ -58,6 +62,7 @@ internal sealed class DebeziumCdcConnector : ICdcConnector
         _channelReader = channel.Reader;
         _positionStore = positionStore;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -94,7 +99,9 @@ internal sealed class DebeziumCdcConnector : ICdcConnector
     public async IAsyncEnumerable<Either<EncinaError, ChangeEvent>> StreamChangesAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        CdcLog.NoSavedPosition(_logger, ConnectorId);
+        // Retrieve saved position for resume-from-position logic
+        var resumePosition = await GetResumePositionAsync(cancellationToken).ConfigureAwait(false);
+        var passedResumePoint = resumePosition is null;
 
         await foreach (var eventJson in _channelReader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -103,111 +110,58 @@ internal sealed class DebeziumCdcConnector : ICdcConnector
                 yield break;
             }
 
-            yield return _options.EventFormat switch
+            var result = DebeziumEventMapper.MapEvent(eventJson, _options.EventFormat, _logger, _timeProvider);
+
+            // Skip events that were already processed before restart
+            if (!passedResumePoint && result.IsRight)
             {
-                DebeziumEventFormat.CloudEvents => ParseCloudEvent(eventJson),
-                DebeziumEventFormat.Flat => ParseFlatEvent(eventJson),
-                _ => ParseCloudEvent(eventJson)
-            };
+                var changeEvent = (ChangeEvent)result;
+                if (changeEvent.Metadata.Position is DebeziumCdcPosition pos &&
+                    pos.CompareTo(resumePosition) <= 0)
+                {
+                    DebeziumCdcLog.EventSkippedAlreadyProcessed(_logger);
+                    continue;
+                }
+
+                passedResumePoint = true;
+            }
+
+            yield return result;
         }
     }
 
-    private static Either<EncinaError, ChangeEvent> ParseCloudEvent(JsonElement eventJson)
+    /// <summary>
+    /// Retrieves the last saved position from the position store for resume logic.
+    /// Returns <c>null</c> if no saved position exists or if retrieval fails.
+    /// </summary>
+    private async Task<DebeziumCdcPosition?> GetResumePositionAsync(CancellationToken cancellationToken)
     {
         try
         {
-            // CloudEvents envelope: type, source, data
-            var data = eventJson.TryGetProperty("data", out var dataElement)
-                ? dataElement
-                : eventJson;
+            var positionResult = await _positionStore.GetPositionAsync(ConnectorId, cancellationToken)
+                .ConfigureAwait(false);
 
-            return ParseDebeziumPayload(data);
+            if (positionResult.IsRight)
+            {
+                var optPosition = (LanguageExt.Option<CdcPosition>)positionResult;
+                if (optPosition.IsSome)
+                {
+                    var position = (CdcPosition)optPosition;
+                    if (position is DebeziumCdcPosition debeziumPosition)
+                    {
+                        DebeziumCdcLog.ResumingFromPosition(_logger, debeziumPosition.ToString());
+                        return debeziumPosition;
+                    }
+                }
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return Left(CdcErrors.StreamInterrupted(ex));
+            // Log but don't fail — start from beginning if position retrieval fails
+            DebeziumCdcLog.PositionRetrievalFailed(_logger, ex, ConnectorId);
         }
+
+        CdcLog.NoSavedPosition(_logger, ConnectorId);
+        return null;
     }
-
-    private static Either<EncinaError, ChangeEvent> ParseFlatEvent(JsonElement eventJson)
-    {
-        try
-        {
-            return ParseDebeziumPayload(eventJson);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            return Left(CdcErrors.StreamInterrupted(ex));
-        }
-    }
-
-    private static Either<EncinaError, ChangeEvent> ParseDebeziumPayload(JsonElement payload)
-    {
-        // Debezium envelope: { "before": {...}, "after": {...}, "source": {...}, "op": "c|u|d|r" }
-        var opCode = payload.TryGetProperty("op", out var opElement)
-            ? opElement.GetString() ?? "c"
-            : "c";
-
-        var operation = MapDebeziumOperation(opCode);
-
-        // Extract source metadata
-        string? database = null;
-        string? schema = null;
-        string? table = "unknown";
-        string? offsetJson = null;
-
-        if (payload.TryGetProperty("source", out var source))
-        {
-            if (source.TryGetProperty("db", out var db))
-            {
-                database = db.GetString();
-            }
-
-            if (source.TryGetProperty("schema", out var schemaElement))
-            {
-                schema = schemaElement.GetString();
-            }
-
-            if (source.TryGetProperty("table", out var tableElement))
-            {
-                table = tableElement.GetString() ?? "unknown";
-            }
-
-            offsetJson = source.GetRawText();
-        }
-
-        var tableName = string.IsNullOrEmpty(schema)
-            ? table
-            : $"{schema}.{table}";
-
-        var position = new DebeziumCdcPosition(offsetJson ?? "{\"op\":\"" + opCode + "\"}");
-        var metadata = new ChangeMetadata(
-            position,
-            DateTime.UtcNow,
-            TransactionId: null,
-            SourceDatabase: database,
-            SourceSchema: schema);
-
-        object? before = payload.TryGetProperty("before", out var beforeElement) &&
-                         beforeElement.ValueKind != JsonValueKind.Null
-            ? beforeElement
-            : null;
-
-        object? after = payload.TryGetProperty("after", out var afterElement) &&
-                        afterElement.ValueKind != JsonValueKind.Null
-            ? afterElement
-            : null;
-
-        return Right<EncinaError, ChangeEvent>(
-            new ChangeEvent(tableName!, operation, before, after, metadata));
-    }
-
-    private static ChangeOperation MapDebeziumOperation(string opCode) => opCode switch
-    {
-        "c" => ChangeOperation.Insert,
-        "r" => ChangeOperation.Snapshot,
-        "u" => ChangeOperation.Update,
-        "d" => ChangeOperation.Delete,
-        _ => ChangeOperation.Insert
-    };
 }

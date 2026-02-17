@@ -41,4 +41,51 @@ internal static class ActivityTagNames
     internal const string ItemType = "Encina.item_type";
     internal const string ItemName = "Encina.item_name";
     internal const string StreamItemCount = "Encina.stream_item_count";
+
+    // Sharding tags
+    internal const string ShardId = "db.shard.id";
+    internal const string ShardKey = "db.shard.key";
+    internal const string ShardCount = "encina.sharding.shard.count";
+    internal const string RouterType = "encina.sharding.router.type";
+    internal const string ScatterGatherStrategy = "encina.sharding.scatter.strategy";
+
+    // Compound shard key tags
+    internal const string CompoundKeyComponents = "encina.sharding.compound_key.components";
+    internal const string CompoundKeyPartial = "encina.sharding.compound_key.partial";
+    internal const string CompoundKeyStrategyPerComponent = "encina.sharding.compound_key.strategy_per_component";
+
+    // Aggregation tags
+    internal const string AggregationOperationType = "encina.sharding.aggregation.operation";
+    internal const string AggregationShardsQueried = "encina.sharding.aggregation.shards_queried";
+    internal const string AggregationShardsFailed = "encina.sharding.aggregation.shards_failed";
+    internal const string AggregationShardsSucceeded = "encina.sharding.aggregation.shards_succeeded";
+    internal const string AggregationResultValue = "encina.sharding.aggregation.result_value";
+    internal const string AggregationIsPartial = "encina.sharding.aggregation.is_partial";
+
+    // Specification scatter-gather tags
+    internal const string SpecificationType = "encina.sharding.specification.type";
+    internal const string SpecificationOperationKind = "encina.sharding.specification.operation";
+    internal const string PaginationStrategy = "encina.sharding.specification.pagination.strategy";
+    internal const string PaginationPage = "encina.sharding.specification.pagination.page";
+    internal const string PaginationPageSize = "encina.sharding.specification.pagination.page_size";
+    internal const string SpecificationTotalItems = "encina.sharding.specification.total_items";
+    internal const string SpecificationShardFanOut = "encina.sharding.specification.shard_fan_out";
+    internal const string SpecificationMergeDurationMs = "encina.sharding.specification.merge.duration_ms";
+
+    // Co-location tags
+    internal const string ColocationGroup = "encina.sharding.colocation.group";
+    internal const string ColocationIsColocated = "encina.sharding.colocation.is_colocated";
+    internal const string ColocationRootEntity = "encina.sharding.colocation.root_entity";
+
+    // Read/write separation tags
+    internal const string ReadWriteIntent = "encina.sharding.readwrite.intent";
+    internal const string ReplicaId = "encina.sharding.readwrite.replica.id";
+    internal const string ReplicaSelectionStrategy = "encina.sharding.readwrite.selection_strategy";
+    internal const string ReplicaFallbackReason = "encina.sharding.readwrite.fallback_reason";
+
+    // Time-based sharding tags
+    internal const string ShardTier = "shard.tier";
+    internal const string ShardPeriod = "shard.period";
+    internal const string TierFrom = "tier.from";
+    internal const string TierTo = "tier.to";
 }

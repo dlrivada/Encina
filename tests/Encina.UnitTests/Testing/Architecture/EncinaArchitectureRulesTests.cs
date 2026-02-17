@@ -1,5 +1,5 @@
 using ArchUnitNET.Loader;
-using ArchUnitNET.xUnit;
+using ArchUnitNET.xUnitV3;
 using Encina.Testing.Architecture;
 using Shouldly;
 

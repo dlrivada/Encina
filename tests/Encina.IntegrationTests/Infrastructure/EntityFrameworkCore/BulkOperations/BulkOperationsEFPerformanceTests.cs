@@ -4,7 +4,7 @@ using Encina.TestInfrastructure.Fixtures;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.BulkOperations;
 
@@ -31,7 +31,7 @@ public sealed class BulkOperationsEFPerformanceTests : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var options = new DbContextOptionsBuilder<EFPerformanceDbContext>()
             .UseSqlServer(_fixture.ConnectionString)
@@ -75,7 +75,7 @@ public sealed class BulkOperationsEFPerformanceTests : IAsyncLifetime
         _bulkOps = new BulkOperationsEF<EFPerformanceEntity>(_dbContext);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _dbContext.Database.ExecuteSqlRawAsync(
             "IF OBJECT_ID('EFPerformanceEntities', 'U') IS NOT NULL DROP TABLE EFPerformanceEntities");

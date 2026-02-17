@@ -1,5 +1,5 @@
 using PactNet.Infrastructure.Outputters;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Encina.Testing.Pact;
 

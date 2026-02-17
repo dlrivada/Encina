@@ -55,7 +55,7 @@ public class WireMockContainerFixture : IAsyncLifetime
     public string BaseUrl => Container.GetPublicUrl();
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new WireMockContainerBuilder()
             .WithAutoRemove(true)
@@ -66,12 +66,14 @@ public class WireMockContainerFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_container is not null)
         {
             await _container.DisposeAsync().ConfigureAwait(false);
         }
+
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>

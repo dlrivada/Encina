@@ -1,8 +1,8 @@
 # v0.12.0 - Database & Repository
 
-> **Release Date**: In Progress
+> **Release Date**: 2026-02-16
 > **Milestone**: [v0.12.0 - Database & Repository](https://github.com/dlrivada/Encina/milestone/9)
-> **Status**: In Progress (22 issues)
+> **Status**: Completed (58 issues closed)
 
 This document captures the detailed implementation history for v0.12.0 (February 2026).
 
@@ -24,13 +24,97 @@ v0.12.0 focuses on database and repository patterns, completing the data access 
 | #286 | Audit Trail | Pendiente |
 | #287 | Optimistic Concurrency | Completado |
 | #288 | CDC Integration | **Completado** |
-| #289 | Sharding | Pendiente |
+| #289 | Sharding | **Completado** |
 | #290 | Connection Pool Resilience | **Completado** |
 | #291 | Query Cache | **Completado** |
 | #292 | Domain Entity Base | Completado |
 | #293 | Pagination Abstractions | **Completado** |
 | #294 | Cursor Pagination | Pendiente |
 | #534 | Module Isolation | Completado |
+
+---
+
+## Week of February 10, 2026
+
+### February 10 - Database Sharding (#289)
+
+**Issue**: [#289 - Database Sharding](https://github.com/dlrivada/Encina/issues/289)
+
+Implemented comprehensive database sharding with four routing strategies, scatter-gather query execution, and MongoDB dual-mode support across all 13 database providers.
+
+#### Phases 1-9: Core Implementation & Testing
+
+**Files Created**:
+
+**Encina** (core abstractions):
+
+- `src/Encina/Sharding/IShardable.cs` - Entity shard key interface
+- `src/Encina/Sharding/ShardKeyAttribute.cs` - Attribute-based shard key extraction
+- `src/Encina/Sharding/ShardKeyExtractor.cs` - Cached reflection extraction
+- `src/Encina/Sharding/EntityShardRouter.cs` - Combined extraction + routing
+- `src/Encina/Sharding/ShardTopology.cs` - Immutable shard configuration
+- `src/Encina/Sharding/ShardInfo.cs` - Shard connection metadata
+- `src/Encina/Sharding/Routing/IShardRouter.cs` - Core routing abstraction
+- `src/Encina/Sharding/Routing/HashShardRouter.cs` - xxHash64 + consistent hashing (150 virtual nodes)
+- `src/Encina/Sharding/Routing/RangeShardRouter.cs` - Sorted boundary binary search
+- `src/Encina/Sharding/Routing/DirectoryShardRouter.cs` - Key-to-shard lookup
+- `src/Encina/Sharding/Routing/GeoShardRouter.cs` - Region-based with fallback chains
+- `src/Encina/Sharding/Routing/IShardRebalancer.cs` - Topology change planning
+- `src/Encina/Sharding/Routing/IShardDirectoryStore.cs` - Pluggable directory backend
+- `src/Encina/Sharding/Query/IShardedQueryExecutor.cs` - Scatter-gather engine
+- `src/Encina/Sharding/Query/ScatterGatherOptions.cs` - Query configuration
+- `src/Encina/Sharding/Query/ShardedQueryResult.cs` - Results with partial failure tracking
+- `src/Encina/Sharding/Health/ShardHealthResult.cs` - Three-state health model
+- `src/Encina/Sharding/Health/ShardedHealthSummary.cs` - Aggregate health
+- `src/Encina/Sharding/Diagnostics/ShardingMetrics.cs` - 7 OpenTelemetry instruments
+- `src/Encina/Sharding/Diagnostics/ShardingTracing.cs` - 3 trace activities
+- `src/Encina/Sharding/ShardingErrorCodes.cs` - 13 stable error codes
+
+**Provider Factories** (13 providers):
+
+- `src/Encina.ADO.Sqlite/Sharding/` - SQLite sharded connection factory
+- `src/Encina.ADO.SqlServer/Sharding/` - SQL Server sharded connection factory
+- `src/Encina.ADO.PostgreSQL/Sharding/` - PostgreSQL sharded connection factory
+- `src/Encina.ADO.MySQL/Sharding/` - MySQL sharded connection factory
+- `src/Encina.Dapper.Sqlite/Sharding/` - Reuses ADO factory
+- `src/Encina.Dapper.SqlServer/Sharding/` - Reuses ADO factory
+- `src/Encina.Dapper.PostgreSQL/Sharding/` - Reuses ADO factory
+- `src/Encina.Dapper.MySQL/Sharding/` - Reuses ADO factory
+- `src/Encina.EntityFrameworkCore.Sqlite/Sharding/` - Sharded DbContext factory
+- `src/Encina.EntityFrameworkCore.SqlServer/Sharding/` - Sharded DbContext factory
+- `src/Encina.EntityFrameworkCore.PostgreSQL/Sharding/` - Sharded DbContext factory
+- `src/Encina.EntityFrameworkCore.MySQL/Sharding/` - Sharded DbContext factory
+- `src/Encina.MongoDB/Sharding/` - Dual-mode (native mongos + app-level)
+
+#### Phase 9: Testing (~680+ tests)
+
+| Test Type | Count | Location |
+|-----------|-------|----------|
+| Unit Tests | ~300 | `tests/Encina.UnitTests/Sharding/` |
+| Guard Tests | ~120 | `tests/Encina.GuardTests/Sharding/` |
+| Contract Tests | ~80 | `tests/Encina.ContractTests/Sharding/` |
+| Property Tests | ~100 | `tests/Encina.PropertyTests/Sharding/` |
+| Integration Tests | ~80 | `tests/Encina.IntegrationTests/Sharding/` |
+| Benchmarks | 13 | `tests/Encina.BenchmarkTests/Sharding/` |
+| **Total** | **~680+** | |
+
+#### Phase 10: Documentation (5 guides + 1 ADR)
+
+- `docs/architecture/adr/010-database-sharding.md` — Architecture Decision Record
+- `docs/sharding/configuration.md` — Complete configuration reference (~25KB)
+- `docs/sharding/scaling-guidance.md` — Shard key selection, capacity planning, rebalancing (~16KB)
+- `docs/sharding/mongodb.md` — MongoDB dual-mode (native vs app-level) (~15KB)
+- `docs/sharding/cross-shard-operations.md` — Scatter-gather, Saga pattern, partial failures (~20KB)
+- Enhanced XML documentation in 8 source files with `<remarks>` and `<example>` tags
+
+#### Key Design Decisions
+
+- **Provider-agnostic**: Same `IShardRouter` + `ShardTopology` abstraction across all 13 providers
+- **Dapper reuses ADO**: Zero extra factory classes — Dapper sharding requires ADO registration first
+- **MongoDB dual-mode**: `UseNativeSharding` flag for native mongos (production) vs app-level routing (dev/test)
+- **No cross-shard 2PC**: Use Saga pattern from Encina.Messaging for distributed workflows
+- **Sub-microsecond routing**: Pre-computed ring (Hash), sorted arrays (Range), O(1) dictionary (Directory)
+- **Observable**: Full OpenTelemetry integration with `HasListeners()` guards for zero-cost when disabled
 
 ---
 
@@ -68,15 +152,19 @@ Implemented provider-agnostic Change Data Capture (CDC) with support for 5 datab
 - `src/Encina.Cdc.PostgreSql/` - PostgreSQL Logical Replication (WAL)
 - `src/Encina.Cdc.MySql/` - MySQL Binary Log (GTID + binlog position)
 - `src/Encina.Cdc.MongoDb/` - MongoDB Change Streams (resume token)
-- `src/Encina.Cdc.Debezium/` - Debezium HTTP Consumer (CloudEvents/Flat)
+- `src/Encina.Cdc.Debezium/` - Debezium HTTP Consumer + Kafka Consumer (CloudEvents/Flat)
 
-#### Phase 5: Testing (355+ tests)
+**Debezium Kafka Consumer Integration** (Phase 2):
 
-- ~156 unit tests
-- ~55 integration tests
-- ~50 guard tests
-- ~47 contract tests
-- ~47 property tests
+- `src/Encina.Cdc.Debezium/Kafka/DebeziumKafkaConnector.cs` - Kafka consumer connector
+- `src/Encina.Cdc.Debezium/Kafka/DebeziumKafkaOptions.cs` - Kafka configuration (12 properties)
+- `src/Encina.Cdc.Debezium/Kafka/DebeziumKafkaPosition.cs` - Topic/partition/offset position
+- `src/Encina.Cdc.Debezium/Kafka/DebeziumKafkaHealthCheck.cs` - Kafka health check
+
+#### Phase 5: Testing (498+ tests)
+
+- ~232 unit tests, ~60 integration tests, ~69 guard tests, ~71 contract tests, ~66 property tests
+- Debezium-specific: ~143 tests (76 unit + 19 guard + 24 contract + 19 property + 5 integration)
 
 #### Phase 6: Documentation (10 docs)
 
@@ -420,6 +508,127 @@ var pagedDtos = await dbContext.Orders
 | Pagination Guard Tests | 25 | - |
 | Build Warnings | 0 | 0 ✅ |
 | Code Coverage | TBD | ≥85% |
+
+---
+
+## February 11 - TimeProvider Injection (#543)
+
+**Issue**: [#543 - Replace DateTime.UtcNow with TimeProvider injection](https://github.com/dlrivada/Encina/issues/543)
+
+Replaced all ~205 occurrences of `DateTime.UtcNow` across ~112 source files with `TimeProvider` injection for deterministic time control in tests.
+
+### Pattern Applied
+
+```csharp
+// Constructor injection (optional parameter, defaults to system clock)
+public SomeClass(..., TimeProvider? timeProvider = null)
+{
+    _timeProvider = timeProvider ?? TimeProvider.System;
+}
+
+// Usage
+var now = _timeProvider.GetUtcNow().UtcDateTime;
+```
+
+### Scope
+
+| Category | Files Modified | Occurrences |
+|----------|---------------|-------------|
+| Encina.Messaging | 13 | 34 |
+| Encina.EntityFrameworkCore | 9 | 15 |
+| Encina.MongoDB | 6 | 11 |
+| ADO.NET (4 providers) | 12 | 12 |
+| Dapper (4 providers) | 18 | 20+ |
+| Caching + Distributed Lock | 7 | 18 |
+| CDC Connectors | 5 | 9 |
+| DomainModeling | 8 | 7 |
+| Marten | 2 | 6 |
+| Testing.* | 15 | 25 |
+| Other (Redis PubSub, Security, Aspire) | ~10 | ~15 |
+| **Total** | **~112** | **~205** |
+
+### DI Registration
+
+Added `services.TryAddSingleton(TimeProvider.System)` to all `ServiceCollectionExtensions`:
+
+- `Encina.Messaging` (MessagingServiceCollectionExtensions)
+- `Encina.EntityFrameworkCore` (ServiceCollectionExtensions)
+- `Encina.MongoDB` (ServiceCollectionExtensions)
+- `Encina.Caching.Redis` (ServiceCollectionExtensions)
+- `Encina.DistributedLock.Redis` (ServiceCollectionExtensions)
+- `Encina.DistributedLock.SqlServer` (ServiceCollectionExtensions)
+- All 5 CDC provider `ServiceCollectionExtensions`
+
+### Model Classes (Interface Contract)
+
+ADO, Dapper, EF Core, and MongoDB `InboxMessage.IsExpired()` and `ScheduledMessage.IsDue()` use `TimeProvider.System.GetUtcNow().UtcDateTime` directly (parameterless interface contract from `IInboxMessage`/`IScheduledMessage`).
+
+### PublicAPI Updates
+
+Updated `PublicAPI.Unshipped.txt` for packages with changed public constructor signatures:
+
+- `Encina.Caching` (2 constructors)
+- `Encina.Caching.Redis` (2 constructors)
+- `Encina.DistributedLock.Redis` (1 constructor)
+- `Encina.DistributedLock.SqlServer` (1 constructor)
+
+### Test Impact
+
+- Contract test `QueryCachingContractTests` updated: expected 6 constructor parameters (was 5)
+- All tests pass: Unit (10,373), Guard (1,191), Contract (422), Property (530)
+
+---
+
+### 2026-02-12 - Specification-Based Scatter-Gather (#652)
+
+#### Phase 1: Core Abstractions
+
+**New files created in `Encina` package:**
+
+- `src/Encina/Sharding/ShardedSpecificationResult.cs` — Merged results with per-shard metadata
+- `src/Encina/Sharding/ShardedPagedResult.cs` — Cross-shard paginated results
+- `src/Encina/Sharding/ShardedCountResult.cs` — Lightweight count-only result
+- `src/Encina/Sharding/ShardedPaginationOptions.cs` — Pagination configuration
+- `src/Encina/Sharding/ShardedPaginationStrategy.cs` — Two merge strategies
+
+**New files created in `Encina.DomainModeling` package:**
+
+- `src/Encina.DomainModeling/Sharding/IShardedSpecificationSupport.cs` — Interface (4 methods)
+- `src/Encina.DomainModeling/Sharding/ShardedSpecificationExtensions.cs` — Extension methods
+- `src/Encina.DomainModeling/Sharding/ScatterGatherResultMerger.cs` — Result merge/order/paginate
+
+#### Phase 2: Provider Implementations (13 providers)
+
+All 10 provider repositories implement `IShardedSpecificationSupport<TEntity, TId>`:
+
+- ADO.NET: SqlServer, Sqlite, PostgreSQL, MySQL
+- Dapper: SqlServer, Sqlite, PostgreSQL, MySQL
+- EF Core: Generic implementation covering SqlServer, Sqlite, PostgreSQL, MySQL
+- MongoDB: Single implementation
+
+#### Phase 3: Observability
+
+- 4 new specification metrics on `ShardRoutingMetrics` (queries counter, merge duration histogram, items-per-shard histogram, fan-out histogram)
+- 3 new activity methods on `ShardingActivitySource` (internal tracing)
+- `EnableSpecificationMetrics` option on `ShardingMetricsOptions`
+- Structured logging with specification type, operation kind, and merge timing in all 10 providers
+
+#### Phase 4: Testing (109+ new tests)
+
+| Test Type | Count | File |
+|-----------|-------|------|
+| UnitTests (result types) | 36 | `tests/Encina.UnitTests/Core/Sharding/Specification/` |
+| UnitTests (merger + extensions) | 31 | `tests/Encina.UnitTests/DomainModeling/Sharding/` |
+| GuardTests | 15 | `tests/Encina.GuardTests/Database/Sharding/` |
+| ContractTests | 14 | `tests/Encina.ContractTests/Database/Sharding/` |
+| PropertyTests | 13 | `tests/Encina.PropertyTests/Database/Sharding/` |
+| BenchmarkTests | 5 | `tests/Encina.BenchmarkTests/Encina.Benchmarks/Sharding/` |
+
+#### Phase 5: Documentation
+
+- `docs/features/specification-scatter-gather.md` — Comprehensive feature guide
+- Updated `docs/sharding/cross-shard-operations.md` with specification section
+- Updated `CHANGELOG.md` with feature entry
 
 ---
 

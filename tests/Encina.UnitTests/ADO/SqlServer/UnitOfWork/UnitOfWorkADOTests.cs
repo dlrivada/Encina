@@ -28,9 +28,9 @@ public class UnitOfWorkADOTests : IAsyncLifetime
         _unitOfWork = new UnitOfWorkADO(_mockConnection, _mockServiceProvider);
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _unitOfWork.DisposeAsync();
     }

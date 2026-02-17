@@ -57,7 +57,7 @@ public sealed class MongoDbReplicaSetFixture : IAsyncLifetime
     private bool _isReplicaSetInitialized;
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new MongoDbBuilder()
             .WithImage("mongo:7")
@@ -79,7 +79,7 @@ public sealed class MongoDbReplicaSetFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_container is not null)
         {

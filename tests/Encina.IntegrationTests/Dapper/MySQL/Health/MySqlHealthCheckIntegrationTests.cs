@@ -22,9 +22,9 @@ public sealed class MySqlHealthCheckIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task CheckHealthAsync_WhenDatabaseIsRunning_ReturnsHealthy()

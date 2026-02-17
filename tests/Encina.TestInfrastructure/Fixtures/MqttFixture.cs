@@ -40,7 +40,7 @@ public sealed class MqttFixture : IAsyncLifetime
     public bool IsAvailable => _container is not null && _client is not null && _client.IsConnected;
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new ContainerBuilder()
             .WithImage("eclipse-mosquitto:2")
@@ -78,7 +78,7 @@ public sealed class MqttFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_client is not null)
         {

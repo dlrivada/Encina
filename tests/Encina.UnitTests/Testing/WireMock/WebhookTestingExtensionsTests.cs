@@ -14,8 +14,8 @@ public sealed class WebhookTestingExtensionsTests : IAsyncLifetime
 {
     private readonly EncinaWireMockFixture _fixture = new();
 
-    public Task InitializeAsync() => _fixture.InitializeAsync();
-    public Task DisposeAsync() => _fixture.DisposeAsync();
+    public ValueTask InitializeAsync() => _fixture.InitializeAsync();
+    public ValueTask DisposeAsync() => _fixture.DisposeAsync();
 
     [Fact]
     public async Task SetupWebhookEndpoint_ShouldAcceptPostRequests()

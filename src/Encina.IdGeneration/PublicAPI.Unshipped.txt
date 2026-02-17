@@ -1,0 +1,159 @@
+#nullable enable
+const Encina.IdGeneration.Health.IdGeneratorHealthCheck.DefaultName = "encina-id-generation" -> string!
+const Encina.IdGeneration.ShardPrefixedId.Delimiter = ':' -> char
+const Encina.IdGeneration.UlidId.StringLength = 26 -> int
+Encina.IdGeneration.Configuration.IdGenerationOptions
+Encina.IdGeneration.Configuration.IdGenerationOptions.IdGenerationOptions() -> void
+Encina.IdGeneration.Configuration.IdGenerationOptions.ShardPrefixedEnabled.get -> bool
+Encina.IdGeneration.Configuration.IdGenerationOptions.ShardPrefixedOptions.get -> Encina.IdGeneration.Configuration.ShardPrefixedOptions!
+Encina.IdGeneration.Configuration.IdGenerationOptions.SnowflakeEnabled.get -> bool
+Encina.IdGeneration.Configuration.IdGenerationOptions.SnowflakeOptions.get -> Encina.IdGeneration.Configuration.SnowflakeOptions!
+Encina.IdGeneration.Configuration.IdGenerationOptions.UlidEnabled.get -> bool
+Encina.IdGeneration.Configuration.IdGenerationOptions.UseShardPrefixed(System.Action<Encina.IdGeneration.Configuration.ShardPrefixedOptions!>? configure = null) -> Encina.IdGeneration.Configuration.IdGenerationOptions!
+Encina.IdGeneration.Configuration.IdGenerationOptions.UseSnowflake(System.Action<Encina.IdGeneration.Configuration.SnowflakeOptions!>? configure = null) -> Encina.IdGeneration.Configuration.IdGenerationOptions!
+Encina.IdGeneration.Configuration.IdGenerationOptions.UseUlid() -> Encina.IdGeneration.Configuration.IdGenerationOptions!
+Encina.IdGeneration.Configuration.IdGenerationOptions.UseUuidV7() -> Encina.IdGeneration.Configuration.IdGenerationOptions!
+Encina.IdGeneration.Configuration.IdGenerationOptions.UuidV7Enabled.get -> bool
+Encina.IdGeneration.Configuration.ShardPrefixedFormat
+Encina.IdGeneration.Configuration.ShardPrefixedFormat.TimestampRandom = 2 -> Encina.IdGeneration.Configuration.ShardPrefixedFormat
+Encina.IdGeneration.Configuration.ShardPrefixedFormat.Ulid = 0 -> Encina.IdGeneration.Configuration.ShardPrefixedFormat
+Encina.IdGeneration.Configuration.ShardPrefixedFormat.UuidV7 = 1 -> Encina.IdGeneration.Configuration.ShardPrefixedFormat
+Encina.IdGeneration.Configuration.ShardPrefixedOptions
+Encina.IdGeneration.Configuration.ShardPrefixedOptions.Delimiter.get -> char
+Encina.IdGeneration.Configuration.ShardPrefixedOptions.Delimiter.set -> void
+Encina.IdGeneration.Configuration.ShardPrefixedOptions.Format.get -> Encina.IdGeneration.Configuration.ShardPrefixedFormat
+Encina.IdGeneration.Configuration.ShardPrefixedOptions.Format.set -> void
+Encina.IdGeneration.Configuration.ShardPrefixedOptions.ShardPrefixedOptions() -> void
+Encina.IdGeneration.Configuration.SnowflakeOptions
+Encina.IdGeneration.Configuration.SnowflakeOptions.ClockDriftToleranceMs.get -> long
+Encina.IdGeneration.Configuration.SnowflakeOptions.ClockDriftToleranceMs.set -> void
+Encina.IdGeneration.Configuration.SnowflakeOptions.EpochStart.get -> System.DateTimeOffset
+Encina.IdGeneration.Configuration.SnowflakeOptions.EpochStart.set -> void
+Encina.IdGeneration.Configuration.SnowflakeOptions.MachineId.get -> long
+Encina.IdGeneration.Configuration.SnowflakeOptions.MachineId.set -> void
+Encina.IdGeneration.Configuration.SnowflakeOptions.MaxMachineId.get -> long
+Encina.IdGeneration.Configuration.SnowflakeOptions.MaxSequence.get -> long
+Encina.IdGeneration.Configuration.SnowflakeOptions.SequenceBits.get -> int
+Encina.IdGeneration.Configuration.SnowflakeOptions.SequenceBits.set -> void
+Encina.IdGeneration.Configuration.SnowflakeOptions.ShardBits.get -> int
+Encina.IdGeneration.Configuration.SnowflakeOptions.ShardBits.set -> void
+Encina.IdGeneration.Configuration.SnowflakeOptions.SnowflakeOptions() -> void
+Encina.IdGeneration.Configuration.SnowflakeOptions.TimestampBits.get -> int
+Encina.IdGeneration.Configuration.SnowflakeOptions.TimestampBits.set -> void
+Encina.IdGeneration.Diagnostics.IdGenerationMetrics
+Encina.IdGeneration.Diagnostics.IdGenerationMetrics.IdGenerationMetrics() -> void
+Encina.IdGeneration.Diagnostics.IdGenerationMetrics.RecordCollision(string! strategy) -> void
+Encina.IdGeneration.Diagnostics.IdGenerationMetrics.RecordDuration(string! strategy, double durationMs) -> void
+Encina.IdGeneration.Diagnostics.IdGenerationMetrics.RecordGenerated(string! strategy, string? shardId = null) -> void
+Encina.IdGeneration.Diagnostics.IdGenerationMetrics.RecordSequenceExhausted() -> void
+Encina.IdGeneration.Generators.ShardPrefixedIdGenerator
+Encina.IdGeneration.Generators.ShardPrefixedIdGenerator.ExtractShardId(Encina.IdGeneration.ShardPrefixedId id) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.IdGeneration.Generators.ShardPrefixedIdGenerator.Generate() -> LanguageExt.Either<Encina.EncinaError, Encina.IdGeneration.ShardPrefixedId>
+Encina.IdGeneration.Generators.ShardPrefixedIdGenerator.Generate(string! shardId) -> LanguageExt.Either<Encina.EncinaError, Encina.IdGeneration.ShardPrefixedId>
+Encina.IdGeneration.Generators.ShardPrefixedIdGenerator.ShardPrefixedIdGenerator(Encina.IdGeneration.Configuration.ShardPrefixedOptions! options, System.TimeProvider? timeProvider = null) -> void
+Encina.IdGeneration.Generators.ShardPrefixedIdGenerator.StrategyName.get -> string!
+Encina.IdGeneration.Generators.SnowflakeIdGenerator
+Encina.IdGeneration.Generators.SnowflakeIdGenerator.ExtractShardId(Encina.IdGeneration.SnowflakeId id) -> LanguageExt.Either<Encina.EncinaError, string!>
+Encina.IdGeneration.Generators.SnowflakeIdGenerator.Generate() -> LanguageExt.Either<Encina.EncinaError, Encina.IdGeneration.SnowflakeId>
+Encina.IdGeneration.Generators.SnowflakeIdGenerator.Generate(string! shardId) -> LanguageExt.Either<Encina.EncinaError, Encina.IdGeneration.SnowflakeId>
+Encina.IdGeneration.Generators.SnowflakeIdGenerator.SnowflakeIdGenerator(Encina.IdGeneration.Configuration.SnowflakeOptions! options, System.TimeProvider? timeProvider = null) -> void
+Encina.IdGeneration.Generators.SnowflakeIdGenerator.StrategyName.get -> string!
+Encina.IdGeneration.Generators.UlidIdGenerator
+Encina.IdGeneration.Generators.UlidIdGenerator.Generate() -> LanguageExt.Either<Encina.EncinaError, Encina.IdGeneration.UlidId>
+Encina.IdGeneration.Generators.UlidIdGenerator.StrategyName.get -> string!
+Encina.IdGeneration.Generators.UlidIdGenerator.UlidIdGenerator(System.TimeProvider? timeProvider = null) -> void
+Encina.IdGeneration.Generators.UuidV7IdGenerator
+Encina.IdGeneration.Generators.UuidV7IdGenerator.Generate() -> LanguageExt.Either<Encina.EncinaError, Encina.IdGeneration.UuidV7Id>
+Encina.IdGeneration.Generators.UuidV7IdGenerator.StrategyName.get -> string!
+Encina.IdGeneration.Generators.UuidV7IdGenerator.UuidV7IdGenerator(System.TimeProvider? timeProvider = null) -> void
+Encina.IdGeneration.Health.IdGeneratorHealthCheck
+Encina.IdGeneration.Health.IdGeneratorHealthCheck.IdGeneratorHealthCheck(Encina.IdGeneration.Health.IdGeneratorHealthCheckOptions? options = null, Encina.IdGeneration.Configuration.SnowflakeOptions? snowflakeOptions = null, System.TimeProvider? timeProvider = null) -> void
+Encina.IdGeneration.Health.IdGeneratorHealthCheckOptions
+Encina.IdGeneration.Health.IdGeneratorHealthCheckOptions.ClockDriftThresholdMs.get -> long
+Encina.IdGeneration.Health.IdGeneratorHealthCheckOptions.ClockDriftThresholdMs.set -> void
+Encina.IdGeneration.Health.IdGeneratorHealthCheckOptions.IdGeneratorHealthCheckOptions() -> void
+Encina.IdGeneration.ServiceCollectionExtensions
+Encina.IdGeneration.ShardPrefixedId
+Encina.IdGeneration.ShardPrefixedId.CompareTo(Encina.IdGeneration.ShardPrefixedId other) -> int
+Encina.IdGeneration.ShardPrefixedId.CompareTo(object? obj) -> int
+Encina.IdGeneration.ShardPrefixedId.Equals(Encina.IdGeneration.ShardPrefixedId other) -> bool
+Encina.IdGeneration.ShardPrefixedId.IsEmpty.get -> bool
+Encina.IdGeneration.ShardPrefixedId.Sequence.get -> string!
+Encina.IdGeneration.ShardPrefixedId.ShardId.get -> string!
+Encina.IdGeneration.ShardPrefixedId.ShardPrefixedId() -> void
+Encina.IdGeneration.ShardPrefixedId.ShardPrefixedId(string! shardId, string! sequence) -> void
+Encina.IdGeneration.SnowflakeId
+Encina.IdGeneration.SnowflakeId.CompareTo(Encina.IdGeneration.SnowflakeId other) -> int
+Encina.IdGeneration.SnowflakeId.CompareTo(object? obj) -> int
+Encina.IdGeneration.SnowflakeId.IsEmpty.get -> bool
+Encina.IdGeneration.SnowflakeId.SnowflakeId() -> void
+Encina.IdGeneration.SnowflakeId.SnowflakeId(long value) -> void
+Encina.IdGeneration.SnowflakeId.Value.get -> long
+Encina.IdGeneration.UlidId
+Encina.IdGeneration.UlidId.CompareTo(Encina.IdGeneration.UlidId other) -> int
+Encina.IdGeneration.UlidId.CompareTo(object? obj) -> int
+Encina.IdGeneration.UlidId.Equals(Encina.IdGeneration.UlidId other) -> bool
+Encina.IdGeneration.UlidId.GetTimestamp() -> System.DateTimeOffset
+Encina.IdGeneration.UlidId.IsEmpty.get -> bool
+Encina.IdGeneration.UlidId.ToGuid() -> System.Guid
+Encina.IdGeneration.UlidId.UlidId() -> void
+Encina.IdGeneration.UlidId.UlidId(System.Guid value) -> void
+Encina.IdGeneration.UlidId.UlidId(System.ReadOnlySpan<byte> bytes) -> void
+Encina.IdGeneration.UuidV7Id
+Encina.IdGeneration.UuidV7Id.CompareTo(Encina.IdGeneration.UuidV7Id other) -> int
+Encina.IdGeneration.UuidV7Id.CompareTo(object? obj) -> int
+Encina.IdGeneration.UuidV7Id.GetTimestamp() -> System.DateTimeOffset
+Encina.IdGeneration.UuidV7Id.IsEmpty.get -> bool
+Encina.IdGeneration.UuidV7Id.UuidV7Id() -> void
+Encina.IdGeneration.UuidV7Id.UuidV7Id(System.Guid value) -> void
+Encina.IdGeneration.UuidV7Id.Value.get -> System.Guid
+override Encina.IdGeneration.ShardPrefixedId.GetHashCode() -> int
+override Encina.IdGeneration.ShardPrefixedId.ToString() -> string!
+override Encina.IdGeneration.SnowflakeId.ToString() -> string!
+override Encina.IdGeneration.UlidId.GetHashCode() -> int
+override Encina.IdGeneration.UlidId.ToString() -> string!
+override Encina.IdGeneration.UuidV7Id.ToString() -> string!
+static Encina.IdGeneration.ServiceCollectionExtensions.AddEncinaIdGeneration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.IdGeneration.Configuration.IdGenerationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.IdGeneration.ShardPrefixedId.Empty.get -> Encina.IdGeneration.ShardPrefixedId
+static Encina.IdGeneration.ShardPrefixedId.implicit operator string!(Encina.IdGeneration.ShardPrefixedId id) -> string!
+static Encina.IdGeneration.ShardPrefixedId.operator <(Encina.IdGeneration.ShardPrefixedId left, Encina.IdGeneration.ShardPrefixedId right) -> bool
+static Encina.IdGeneration.ShardPrefixedId.operator <=(Encina.IdGeneration.ShardPrefixedId left, Encina.IdGeneration.ShardPrefixedId right) -> bool
+static Encina.IdGeneration.ShardPrefixedId.operator >(Encina.IdGeneration.ShardPrefixedId left, Encina.IdGeneration.ShardPrefixedId right) -> bool
+static Encina.IdGeneration.ShardPrefixedId.operator >=(Encina.IdGeneration.ShardPrefixedId left, Encina.IdGeneration.ShardPrefixedId right) -> bool
+static Encina.IdGeneration.ShardPrefixedId.Parse(string! s) -> Encina.IdGeneration.ShardPrefixedId
+static Encina.IdGeneration.ShardPrefixedId.TryParse(string? s, out Encina.IdGeneration.ShardPrefixedId result) -> bool
+static Encina.IdGeneration.ShardPrefixedId.TryParseEither(string? s) -> LanguageExt.Either<Encina.EncinaError, Encina.IdGeneration.ShardPrefixedId>
+static Encina.IdGeneration.SnowflakeId.Empty.get -> Encina.IdGeneration.SnowflakeId
+static Encina.IdGeneration.SnowflakeId.implicit operator Encina.IdGeneration.SnowflakeId(long value) -> Encina.IdGeneration.SnowflakeId
+static Encina.IdGeneration.SnowflakeId.implicit operator long(Encina.IdGeneration.SnowflakeId id) -> long
+static Encina.IdGeneration.SnowflakeId.operator <(Encina.IdGeneration.SnowflakeId left, Encina.IdGeneration.SnowflakeId right) -> bool
+static Encina.IdGeneration.SnowflakeId.operator <=(Encina.IdGeneration.SnowflakeId left, Encina.IdGeneration.SnowflakeId right) -> bool
+static Encina.IdGeneration.SnowflakeId.operator >(Encina.IdGeneration.SnowflakeId left, Encina.IdGeneration.SnowflakeId right) -> bool
+static Encina.IdGeneration.SnowflakeId.operator >=(Encina.IdGeneration.SnowflakeId left, Encina.IdGeneration.SnowflakeId right) -> bool
+static Encina.IdGeneration.SnowflakeId.Parse(string! s) -> Encina.IdGeneration.SnowflakeId
+static Encina.IdGeneration.SnowflakeId.TryParse(string? s, out Encina.IdGeneration.SnowflakeId result) -> bool
+static Encina.IdGeneration.SnowflakeId.TryParseEither(string? s) -> LanguageExt.Either<Encina.EncinaError, Encina.IdGeneration.SnowflakeId>
+static Encina.IdGeneration.UlidId.Empty.get -> Encina.IdGeneration.UlidId
+static Encina.IdGeneration.UlidId.implicit operator Encina.IdGeneration.UlidId(System.Guid value) -> Encina.IdGeneration.UlidId
+static Encina.IdGeneration.UlidId.implicit operator System.Guid(Encina.IdGeneration.UlidId id) -> System.Guid
+static Encina.IdGeneration.UlidId.NewUlid() -> Encina.IdGeneration.UlidId
+static Encina.IdGeneration.UlidId.NewUlid(System.DateTimeOffset timestamp) -> Encina.IdGeneration.UlidId
+static Encina.IdGeneration.UlidId.operator <(Encina.IdGeneration.UlidId left, Encina.IdGeneration.UlidId right) -> bool
+static Encina.IdGeneration.UlidId.operator <=(Encina.IdGeneration.UlidId left, Encina.IdGeneration.UlidId right) -> bool
+static Encina.IdGeneration.UlidId.operator >(Encina.IdGeneration.UlidId left, Encina.IdGeneration.UlidId right) -> bool
+static Encina.IdGeneration.UlidId.operator >=(Encina.IdGeneration.UlidId left, Encina.IdGeneration.UlidId right) -> bool
+static Encina.IdGeneration.UlidId.Parse(string! s) -> Encina.IdGeneration.UlidId
+static Encina.IdGeneration.UlidId.TryParse(string? s, out Encina.IdGeneration.UlidId result) -> bool
+static Encina.IdGeneration.UlidId.TryParseEither(string? s) -> LanguageExt.Either<Encina.EncinaError, Encina.IdGeneration.UlidId>
+static Encina.IdGeneration.UuidV7Id.Empty.get -> Encina.IdGeneration.UuidV7Id
+static Encina.IdGeneration.UuidV7Id.implicit operator Encina.IdGeneration.UuidV7Id(System.Guid value) -> Encina.IdGeneration.UuidV7Id
+static Encina.IdGeneration.UuidV7Id.implicit operator System.Guid(Encina.IdGeneration.UuidV7Id id) -> System.Guid
+static Encina.IdGeneration.UuidV7Id.NewUuidV7() -> Encina.IdGeneration.UuidV7Id
+static Encina.IdGeneration.UuidV7Id.NewUuidV7(System.DateTimeOffset timestamp) -> Encina.IdGeneration.UuidV7Id
+static Encina.IdGeneration.UuidV7Id.operator <(Encina.IdGeneration.UuidV7Id left, Encina.IdGeneration.UuidV7Id right) -> bool
+static Encina.IdGeneration.UuidV7Id.operator <=(Encina.IdGeneration.UuidV7Id left, Encina.IdGeneration.UuidV7Id right) -> bool
+static Encina.IdGeneration.UuidV7Id.operator >(Encina.IdGeneration.UuidV7Id left, Encina.IdGeneration.UuidV7Id right) -> bool
+static Encina.IdGeneration.UuidV7Id.operator >=(Encina.IdGeneration.UuidV7Id left, Encina.IdGeneration.UuidV7Id right) -> bool
+static Encina.IdGeneration.UuidV7Id.Parse(string! s) -> Encina.IdGeneration.UuidV7Id
+static Encina.IdGeneration.UuidV7Id.TryParse(string? s, out Encina.IdGeneration.UuidV7Id result) -> bool
+static Encina.IdGeneration.UuidV7Id.TryParseEither(string? s) -> LanguageExt.Either<Encina.EncinaError, Encina.IdGeneration.UuidV7Id>

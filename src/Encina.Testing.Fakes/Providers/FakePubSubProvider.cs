@@ -29,6 +29,16 @@ public sealed class FakePubSubProvider : IPubSubProvider
     private readonly ConcurrentDictionary<string, ConcurrentBag<Func<string, Task>>> _subscriptions = new();
     private readonly ConcurrentDictionary<string, ConcurrentBag<Func<string, string, Task>>> _patternSubscriptions = new();
     private readonly object _lock = new();
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FakePubSubProvider"/> class.
+    /// </summary>
+    /// <param name="timeProvider">Optional time provider for controlling time in tests. Defaults to <see cref="TimeProvider.System"/>.</param>
+    public FakePubSubProvider(TimeProvider? timeProvider = null)
+    {
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     /// <summary>
     /// Gets all published messages grouped by channel.
@@ -93,7 +103,7 @@ public sealed class FakePubSubProvider : IPubSubProvider
         ThrowIfSimulatingErrors();
         ArgumentException.ThrowIfNullOrWhiteSpace(channel);
 
-        var publishedMessage = new PublishedMessage(channel, message, DateTime.UtcNow);
+        var publishedMessage = new PublishedMessage(channel, message, _timeProvider.GetUtcNow().UtcDateTime);
 
         var bag = _publishedMessages.GetOrAdd(channel, _ => new ConcurrentBag<PublishedMessage>());
         bag.Add(publishedMessage);

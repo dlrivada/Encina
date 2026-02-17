@@ -32,6 +32,7 @@ internal sealed class MySqlCdcConnector : ICdcConnector
     private readonly MySqlCdcOptions _options;
     private readonly ICdcPositionStore _positionStore;
     private readonly ILogger<MySqlCdcConnector> _logger;
+    private readonly TimeProvider _timeProvider;
     private readonly Dictionary<long, TableMapEvent> _tableMap = new();
 
     /// <summary>
@@ -40,10 +41,12 @@ internal sealed class MySqlCdcConnector : ICdcConnector
     /// <param name="options">MySQL CDC options.</param>
     /// <param name="positionStore">Position store for tracking progress.</param>
     /// <param name="logger">Logger for diagnostics.</param>
+    /// <param name="timeProvider">The time provider for testing.</param>
     public MySqlCdcConnector(
         MySqlCdcOptions options,
         ICdcPositionStore positionStore,
-        ILogger<MySqlCdcConnector> logger)
+        ILogger<MySqlCdcConnector> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(positionStore);
@@ -52,6 +55,7 @@ internal sealed class MySqlCdcConnector : ICdcConnector
         _options = options;
         _positionStore = positionStore;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -182,7 +186,7 @@ internal sealed class MySqlCdcConnector : ICdcConnector
 
             var metadata = new ChangeMetadata(
                 position,
-                DateTime.UtcNow,
+                _timeProvider.GetUtcNow().UtcDateTime,
                 TransactionId: null,
                 SourceDatabase: GetDatabaseName(writeRows.TableId),
                 SourceSchema: null);
@@ -204,7 +208,7 @@ internal sealed class MySqlCdcConnector : ICdcConnector
 
             var metadata = new ChangeMetadata(
                 position,
-                DateTime.UtcNow,
+                _timeProvider.GetUtcNow().UtcDateTime,
                 TransactionId: null,
                 SourceDatabase: GetDatabaseName(updateRows.TableId),
                 SourceSchema: null);
@@ -225,7 +229,7 @@ internal sealed class MySqlCdcConnector : ICdcConnector
 
             var metadata = new ChangeMetadata(
                 position,
-                DateTime.UtcNow,
+                _timeProvider.GetUtcNow().UtcDateTime,
                 TransactionId: null,
                 SourceDatabase: GetDatabaseName(deleteRows.TableId),
                 SourceSchema: null);

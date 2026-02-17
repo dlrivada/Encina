@@ -50,7 +50,7 @@ public sealed class MongoDbFixture : IAsyncLifetime
     public IMongoDatabase? Database => Client?.GetDatabase(DatabaseName);
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Register GUID serializer once (thread-safe)
         RegisterGuidSerializer();
@@ -68,7 +68,7 @@ public sealed class MongoDbFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_container is not null)
         {

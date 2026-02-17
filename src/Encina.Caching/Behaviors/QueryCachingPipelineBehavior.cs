@@ -31,6 +31,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
     private readonly ICacheKeyGenerator _keyGenerator;
     private readonly CachingOptions _options;
     private readonly ILogger<QueryCachingPipelineBehavior<TRequest, TResponse>> _logger;
+    private readonly TimeProvider _timeProvider;
     private static readonly CacheAttribute? CacheAttribute = typeof(TRequest).GetCustomAttribute<CacheAttribute>();
 
     /// <summary>
@@ -40,11 +41,13 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
     /// <param name="keyGenerator">The cache key generator.</param>
     /// <param name="options">The caching options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The time provider for testing.</param>
     public QueryCachingPipelineBehavior(
         ICacheProvider cacheProvider,
         ICacheKeyGenerator keyGenerator,
         IOptions<CachingOptions> options,
-        ILogger<QueryCachingPipelineBehavior<TRequest, TResponse>> logger)
+        ILogger<QueryCachingPipelineBehavior<TRequest, TResponse>> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(cacheProvider);
         ArgumentNullException.ThrowIfNull(keyGenerator);
@@ -55,6 +58,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         _keyGenerator = keyGenerator;
         _options = options.Value;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -146,7 +150,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
             var entry = new CacheEntry<TResponse>
             {
                 Value = result.Match(Right: v => v, Left: _ => default!),
-                CachedAtUtc = DateTime.UtcNow
+                CachedAtUtc = _timeProvider.GetUtcNow().UtcDateTime
             };
 
             await StoreCacheEntryAsync(entry, cacheKey, cancellationToken).ConfigureAwait(false);

@@ -28,7 +28,7 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         using var schemaConnection = _fixture.CreateConnection() as NpgsqlConnection;
         if (schemaConnection != null)
@@ -52,7 +52,7 @@ public class ExtendedFunctionalRepositoryADOIntegrationTests : IAsyncLifetime
         _repository = new FunctionalRepositoryADO<ExtendedTestItem, Guid>(_connection, _mapping);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _connection?.Dispose();
         await _fixture.ClearAllDataAsync();

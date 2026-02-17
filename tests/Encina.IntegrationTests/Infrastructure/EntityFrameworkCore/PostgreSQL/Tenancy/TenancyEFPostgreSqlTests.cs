@@ -36,7 +36,7 @@ public sealed class TenancyEFPostgreSqlTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (!_fixture.IsAvailable)
             return;
@@ -49,7 +49,7 @@ public sealed class TenancyEFPostgreSqlTests : IAsyncLifetime
         await ClearDataAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_fixture.IsAvailable)
         {

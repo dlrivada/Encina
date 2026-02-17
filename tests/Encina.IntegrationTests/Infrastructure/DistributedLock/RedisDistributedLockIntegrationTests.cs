@@ -23,7 +23,7 @@ public class RedisDistributedLockIntegrationTests : IAsyncLifetime
             .Build();
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _redisContainer.StartAsync();
         _connection = await ConnectionMultiplexer.ConnectAsync(_redisContainer.GetConnectionString());
@@ -33,7 +33,7 @@ public class RedisDistributedLockIntegrationTests : IAsyncLifetime
             NullLogger<RedisDistributedLockProvider>.Instance);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_connection is not null)
         {

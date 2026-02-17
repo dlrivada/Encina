@@ -58,7 +58,7 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         _options?.ReadConnectionStrings.FirstOrDefault() ?? PrimaryConnectionString;
 
     /// <inheritdoc />
-    public override async Task InitializeAsync()
+    public override async ValueTask InitializeAsync()
     {
         if (!_fixture.IsAvailable)
             return;
@@ -82,7 +82,7 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
     }
 
     /// <inheritdoc />
-    public override async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         try
         {

@@ -23,6 +23,8 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
 
+        services.TryAddSingleton(TimeProvider.System);
+
         var options = new PostgresCdcOptions();
         configure(options);
 

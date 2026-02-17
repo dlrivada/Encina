@@ -38,13 +38,13 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         // Always clear routing context after tests
         DatabaseRoutingContext.Clear();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     #region Test Request Types

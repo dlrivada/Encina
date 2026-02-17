@@ -61,6 +61,9 @@ public static class ServiceCollectionExtensions
         string connectionString,
         Action<SqlServerLockOptions>? configure)
     {
+        // Register TimeProvider
+        services.TryAddSingleton(TimeProvider.System);
+
         var options = new SqlServerLockOptions
         {
             ConnectionString = connectionString

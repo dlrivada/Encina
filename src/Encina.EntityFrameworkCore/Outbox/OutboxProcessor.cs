@@ -34,6 +34,7 @@ public sealed class OutboxProcessor : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly OutboxOptions _options;
     private readonly ILogger<OutboxProcessor> _logger;
+    private readonly TimeProvider _timeProvider;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -45,11 +46,13 @@ public sealed class OutboxProcessor : BackgroundService
     /// <param name="serviceProvider">The service provider for creating scopes.</param>
     /// <param name="options">The outbox options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">The time provider for obtaining current UTC time. Defaults to <see cref="TimeProvider.System"/>.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceProvider"/>, <paramref name="options"/>, or <paramref name="logger"/> is null.</exception>
     public OutboxProcessor(
         IServiceProvider serviceProvider,
         OutboxOptions options,
-        ILogger<OutboxProcessor> logger)
+        ILogger<OutboxProcessor> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
         ArgumentNullException.ThrowIfNull(options);
@@ -58,6 +61,7 @@ public sealed class OutboxProcessor : BackgroundService
         _serviceProvider = serviceProvider;
         _options = options;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -111,7 +115,7 @@ public sealed class OutboxProcessor : BackgroundService
         DbContext dbContext,
         CancellationToken cancellationToken)
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         return await dbContext.Set<OutboxMessage>()
             .Where(m =>
@@ -164,7 +168,7 @@ public sealed class OutboxProcessor : BackgroundService
 
             await encina.Publish(notification, cancellationToken);
 
-            message.ProcessedAtUtc = DateTime.UtcNow;
+            message.ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
             message.ErrorMessage = null;
 
             Log.PublishedNotification(_logger, notification.GetType().Name, message.Id);
@@ -221,6 +225,6 @@ public sealed class OutboxProcessor : BackgroundService
     private DateTime CalculateNextRetry(int retryCount)
     {
         var delay = _options.BaseRetryDelay * Math.Pow(2, retryCount - 1);
-        return DateTime.UtcNow.Add(delay);
+        return _timeProvider.GetUtcNow().UtcDateTime.Add(delay);
     }
 }

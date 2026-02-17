@@ -39,7 +39,7 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (!_fixture.IsAvailable)
             return;
@@ -62,7 +62,7 @@ public class ModuleIsolationDapperIntegrationTests : IAsyncLifetime
         _moduleContext = new TestModuleExecutionContext();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _connection?.Dispose();
         await _fixture.ClearAllDataAsync();

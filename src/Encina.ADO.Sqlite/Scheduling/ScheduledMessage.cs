@@ -80,8 +80,9 @@ public sealed class ScheduledMessage : IScheduledMessage
         if (ProcessedAtUtc.HasValue && !IsRecurring)
             return false;
 
+        var now = TimeProvider.System.GetUtcNow().UtcDateTime;
         var compareTime = NextRetryAtUtc ?? ScheduledAtUtc;
-        return DateTime.UtcNow >= compareTime;
+        return now >= compareTime;
     }
 
     /// <inheritdoc />

@@ -23,7 +23,7 @@ namespace Encina.Security.Audit;
 /// {
 ///     UserId = "user-123",
 ///     Outcome = AuditOutcome.Failure,
-///     FromUtc = DateTime.UtcNow.AddDays(-7),
+///     FromUtc = TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(-7),
 ///     PageSize = 100
 /// };
 ///
@@ -169,7 +169,7 @@ public sealed record AuditQuery
     /// var query = AuditQuery.Builder()
     ///     .ForUser("user-123")
     ///     .WithOutcome(AuditOutcome.Failure)
-    ///     .InDateRange(DateTime.UtcNow.AddDays(-7), DateTime.UtcNow)
+    ///     .InDateRange(TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(-7), TimeProvider.System.GetUtcNow().UtcDateTime)
     ///     .WithPageSize(100)
     ///     .Build();
     /// </code>

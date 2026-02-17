@@ -119,9 +119,7 @@ public sealed class InboxMessage : IInboxMessage
     /// </summary>
     public bool IsProcessed => ProcessedAtUtc.HasValue && ErrorMessage == null;
 
-    /// <summary>
-    /// Gets a value indicating whether this message has expired.
-    /// </summary>
-    /// <returns>True if the message has expired.</returns>
-    public bool IsExpired() => ExpiresAtUtc <= DateTime.UtcNow;
+    /// <inheritdoc />
+    public bool IsExpired() =>
+        ExpiresAtUtc <= TimeProvider.System.GetUtcNow().UtcDateTime;
 }

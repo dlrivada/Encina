@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Diagnostics.CodeAnalysis;
 using Encina.TestInfrastructure.Schemas;
 using Microsoft.Data.Sqlite;
@@ -110,7 +110,7 @@ public sealed class SqliteFixture : DatabaseFixture<SqliteConnection>
     }
 
     /// <inheritdoc />
-    public override async Task InitializeAsync()
+    public override async ValueTask InitializeAsync()
     {
         // If already initialized by lazy init, skip
         if (_initialized)
@@ -124,12 +124,15 @@ public sealed class SqliteFixture : DatabaseFixture<SqliteConnection>
     }
 
     /// <inheritdoc />
-    public override Task DisposeAsync()
+#pragma warning disable CA2215 // Intentionally not calling base.DisposeAsync() - SQLite in-memory needs different disposal
+    public override ValueTask DisposeAsync()
+#pragma warning restore CA2215
     {
+        GC.SuppressFinalize(this);
         // Dispose the connection (this destroys the in-memory database)
         _connection?.Dispose();
         _initialized = false;
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>

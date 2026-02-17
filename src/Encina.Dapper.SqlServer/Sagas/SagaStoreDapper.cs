@@ -13,17 +13,20 @@ public sealed class SagaStoreDapper : ISagaStore
 {
     private readonly IDbConnection _connection;
     private readonly string _tableName;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaStoreDapper"/> class.
     /// </summary>
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The saga state table name (default: SagaStates).</param>
-    public SagaStoreDapper(IDbConnection connection, string tableName = "SagaStates")
+    /// <param name="timeProvider">Optional time provider for testability. Defaults to <see cref="TimeProvider.System"/>.</param>
+    public SagaStoreDapper(IDbConnection connection, string tableName = "SagaStates", TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
         _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -85,7 +88,7 @@ public sealed class SagaStoreDapper : ISagaStore
         if (batchSize <= 0)
             throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
 
-        var thresholdUtc = DateTime.UtcNow.Subtract(olderThan);
+        var thresholdUtc = _timeProvider.GetUtcNow().UtcDateTime.Subtract(olderThan);
 
         var sql = $@"
             SELECT TOP (@BatchSize) *

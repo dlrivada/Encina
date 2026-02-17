@@ -38,9 +38,9 @@ public class UnitOfWorkEFTests : IAsyncLifetime
         _unitOfWork = new UnitOfWorkEF(_dbContext, _serviceProvider);
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _unitOfWork.DisposeAsync();
         await _dbContext.DisposeAsync();

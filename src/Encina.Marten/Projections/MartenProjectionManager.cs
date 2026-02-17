@@ -17,6 +17,7 @@ public sealed class MartenProjectionManager : IProjectionManager
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MartenProjectionManager> _logger;
     private readonly ProjectionRegistry _registry;
+    private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<string, ProjectionStatus> _statuses = new();
 
     /// <summary>
@@ -26,11 +27,13 @@ public sealed class MartenProjectionManager : IProjectionManager
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="registry">The projection registry.</param>
+    /// <param name="timeProvider">The time provider. If <c>null</c>, <see cref="TimeProvider.System"/> is used.</param>
     public MartenProjectionManager(
         IDocumentStore store,
         IServiceProvider serviceProvider,
         ILogger<MartenProjectionManager> logger,
-        ProjectionRegistry registry)
+        ProjectionRegistry registry,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(serviceProvider);
@@ -41,6 +44,7 @@ public sealed class MartenProjectionManager : IProjectionManager
         _serviceProvider = serviceProvider;
         _logger = logger;
         _registry = registry;
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         InitializeStatuses();
     }
@@ -121,7 +125,7 @@ public sealed class MartenProjectionManager : IProjectionManager
             status.State = ProjectionState.Rebuilding;
             status.IsRebuilding = true;
             status.RebuildProgressPercent = 0;
-            status.StartedAtUtc = DateTime.UtcNow;
+            status.StartedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
             status.ErrorMessage = null;
         });
     }
@@ -150,7 +154,7 @@ public sealed class MartenProjectionManager : IProjectionManager
             status.State = ProjectionState.Stopped;
             status.IsRebuilding = false;
             status.RebuildProgressPercent = 100;
-            status.LastProcessedAtUtc = DateTime.UtcNow;
+            status.LastProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
         });
 
         ProjectionLog.CompletedRebuild(_logger, projectionName, 0);
@@ -264,7 +268,7 @@ public sealed class MartenProjectionManager : IProjectionManager
             status.RebuildProgressPercent = progressPercent;
             status.LastProcessedPosition = position;
             status.EventsProcessed = eventsProcessed;
-            status.LastProcessedAtUtc = DateTime.UtcNow;
+            status.LastProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
         });
 
         ProjectionLog.RebuildProgress(_logger, projectionName, progressPercent, eventsProcessed);
@@ -280,7 +284,7 @@ public sealed class MartenProjectionManager : IProjectionManager
             status.RebuildProgressPercent = 100;
             status.LastProcessedPosition = position;
             status.EventsProcessed = eventsProcessed;
-            status.LastProcessedAtUtc = DateTime.UtcNow;
+            status.LastProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
         });
 
         ProjectionLog.CompletedRebuild(_logger, projectionName, eventsProcessed);
@@ -373,7 +377,7 @@ public sealed class MartenProjectionManager : IProjectionManager
         UpdateStatus(registration.ProjectionName, status =>
         {
             status.State = ProjectionState.Running;
-            status.StartedAtUtc = DateTime.UtcNow;
+            status.StartedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
             status.ErrorMessage = null;
         });
 

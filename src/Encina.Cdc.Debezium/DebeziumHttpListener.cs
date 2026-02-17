@@ -18,6 +18,13 @@ namespace Encina.Cdc.Debezium;
 /// and accepts incoming Debezium events. It validates the bearer token if configured
 /// and writes valid events to the internal channel.
 /// </para>
+/// <para>
+/// Resilience features:
+/// <list type="bullet">
+///   <item><description>Retry with exponential backoff on listener start failure</description></item>
+///   <item><description>Backpressure via HTTP 503 when the bounded channel is full</description></item>
+/// </list>
+/// </para>
 /// </remarks>
 internal sealed class DebeziumHttpListener : BackgroundService
 {
@@ -56,8 +63,7 @@ internal sealed class DebeziumHttpListener : BackgroundService
 
         try
         {
-            listener.Start();
-            DebeziumCdcLog.ListenerStarted(_logger, prefix);
+            await StartListenerWithRetryAsync(listener, prefix, stoppingToken).ConfigureAwait(false);
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -88,6 +94,42 @@ internal sealed class DebeziumHttpListener : BackgroundService
             listener.Stop();
             listener.Close();
             DebeziumCdcLog.ListenerStopped(_logger);
+        }
+    }
+
+    /// <summary>
+    /// Starts the HTTP listener with retry and exponential backoff.
+    /// Throws after <see cref="DebeziumCdcOptions.MaxListenerRetries"/> failed attempts.
+    /// </summary>
+    private async Task StartListenerWithRetryAsync(
+        HttpListener listener,
+        string prefix,
+        CancellationToken stoppingToken)
+    {
+        var retryCount = 0;
+
+        while (true)
+        {
+            try
+            {
+                listener.Start();
+                DebeziumCdcLog.ListenerStarted(_logger, prefix);
+                return;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                retryCount++;
+
+                if (retryCount > _options.MaxListenerRetries)
+                {
+                    DebeziumCdcLog.ListenerStartFailed(_logger, ex, retryCount);
+                    throw;
+                }
+
+                var delay = _options.ListenerRetryDelay * Math.Pow(2, retryCount - 1);
+                DebeziumCdcLog.ListenerRetrying(_logger, retryCount, _options.MaxListenerRetries, delay);
+                await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
+            }
         }
     }
 
@@ -133,7 +175,14 @@ internal sealed class DebeziumHttpListener : BackgroundService
         {
             var eventJson = JsonDocument.Parse(body).RootElement.Clone();
 
-            await _channelWriter.WriteAsync(eventJson, cancellationToken).ConfigureAwait(false);
+            // Apply backpressure: return 503 when the bounded channel is full
+            if (!_channelWriter.TryWrite(eventJson))
+            {
+                DebeziumCdcLog.ChannelFull(_logger, _options.ChannelCapacity);
+                response.StatusCode = 503;
+                response.Close();
+                return;
+            }
 
             DebeziumCdcLog.EventReceived(_logger);
 

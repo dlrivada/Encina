@@ -16,6 +16,7 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
     private readonly IDelayedRetryStore _store;
     private readonly IDelayedRetryMessageFactory _messageFactory;
     private readonly ILogger<DelayedRetryScheduler> _logger;
+    private readonly TimeProvider _timeProvider;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -28,10 +29,12 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
     /// <param name="store">The delayed retry store.</param>
     /// <param name="messageFactory">The message factory.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">Optional time provider for testability.</param>
     public DelayedRetryScheduler(
         IDelayedRetryStore store,
         IDelayedRetryMessageFactory messageFactory,
-        ILogger<DelayedRetryScheduler> logger)
+        ILogger<DelayedRetryScheduler> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(messageFactory);
@@ -40,6 +43,7 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
         _store = store;
         _messageFactory = messageFactory;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -61,7 +65,7 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
         var requestContent = JsonSerializer.Serialize(request, JsonOptions);
         var contextContent = SerializeContext(context);
 
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         var executeAt = now.Add(delay);
 
         var messageData = new DelayedRetryMessageData(

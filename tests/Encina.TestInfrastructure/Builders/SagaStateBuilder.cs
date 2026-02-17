@@ -1,4 +1,4 @@
-﻿using Encina.Dapper.Sqlite.Sagas;
+using Encina.Dapper.Sqlite.Sagas;
 
 namespace Encina.TestInfrastructure.Builders;
 

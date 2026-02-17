@@ -64,7 +64,7 @@ public class ReadWriteSeparationADOIntegrationTests : ReadWriteSeparationTestsBa
         _options?.ReadConnectionStrings.FirstOrDefault() ?? PrimaryConnectionString;
 
     /// <inheritdoc />
-    public override async Task InitializeAsync()
+    public override async ValueTask InitializeAsync()
     {
         if (!_initialized)
         {
@@ -107,7 +107,7 @@ public class ReadWriteSeparationADOIntegrationTests : ReadWriteSeparationTestsBa
     }
 
     /// <inheritdoc />
-    public override async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         try
         {

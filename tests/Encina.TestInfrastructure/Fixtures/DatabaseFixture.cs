@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Testcontainers.MsSql;
 using Testcontainers.MySql;
 using Testcontainers.PostgreSql;
@@ -57,7 +57,7 @@ public abstract class DatabaseFixture<TContainer> : IAsyncLifetime
     /// <summary>
     /// xUnit lifecycle: Initialize the container and schema.
     /// </summary>
-    public virtual async Task InitializeAsync()
+    public virtual async ValueTask InitializeAsync()
     {
         Container = await CreateContainerAsync();
 
@@ -83,8 +83,10 @@ public abstract class DatabaseFixture<TContainer> : IAsyncLifetime
     /// <summary>
     /// xUnit lifecycle: Cleanup schema and stop container.
     /// </summary>
-    public virtual async Task DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
+        GC.SuppressFinalize(this);
+
         // Drop schema
         try
         {

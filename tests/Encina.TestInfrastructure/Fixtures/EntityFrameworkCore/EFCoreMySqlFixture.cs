@@ -59,13 +59,13 @@ public sealed class EFCoreMySqlFixture : IEFCoreFixture
     }
 
     /// <inheritdoc />
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _mySqlFixture.InitializeAsync();
     }
 
     /// <inheritdoc />
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _mySqlFixture.DisposeAsync();
     }

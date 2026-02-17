@@ -33,6 +33,7 @@ internal sealed class PostgresCdcConnector : ICdcConnector
     private readonly PostgresCdcOptions _options;
     private readonly ICdcPositionStore _positionStore;
     private readonly ILogger<PostgresCdcConnector> _logger;
+    private readonly TimeProvider _timeProvider;
     private readonly Dictionary<uint, RelationMessage> _relations = new();
 
     /// <summary>
@@ -41,10 +42,12 @@ internal sealed class PostgresCdcConnector : ICdcConnector
     /// <param name="options">PostgreSQL CDC options.</param>
     /// <param name="positionStore">Position store for tracking progress.</param>
     /// <param name="logger">Logger for diagnostics.</param>
+    /// <param name="timeProvider">The time provider for testing.</param>
     public PostgresCdcConnector(
         PostgresCdcOptions options,
         ICdcPositionStore positionStore,
-        ILogger<PostgresCdcConnector> logger)
+        ILogger<PostgresCdcConnector> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(positionStore);
@@ -53,6 +56,7 @@ internal sealed class PostgresCdcConnector : ICdcConnector
         _options = options;
         _positionStore = positionStore;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -199,7 +203,7 @@ internal sealed class PostgresCdcConnector : ICdcConnector
         }
     }
 
-    private static async Task<Either<EncinaError, ChangeEvent>> MapInsertMessageAsync(InsertMessage message)
+    private async Task<Either<EncinaError, ChangeEvent>> MapInsertMessageAsync(InsertMessage message)
     {
         try
         {
@@ -209,7 +213,7 @@ internal sealed class PostgresCdcConnector : ICdcConnector
 
             var metadata = new ChangeMetadata(
                 position,
-                DateTime.UtcNow,
+                _timeProvider.GetUtcNow().UtcDateTime,
                 TransactionId: null,
                 SourceDatabase: null,
                 SourceSchema: message.Relation.Namespace);
@@ -223,7 +227,7 @@ internal sealed class PostgresCdcConnector : ICdcConnector
         }
     }
 
-    private static async Task<Either<EncinaError, ChangeEvent>> MapUpdateMessageAsync(UpdateMessage message)
+    private async Task<Either<EncinaError, ChangeEvent>> MapUpdateMessageAsync(UpdateMessage message)
     {
         try
         {
@@ -243,7 +247,7 @@ internal sealed class PostgresCdcConnector : ICdcConnector
 
             var metadata = new ChangeMetadata(
                 position,
-                DateTime.UtcNow,
+                _timeProvider.GetUtcNow().UtcDateTime,
                 TransactionId: null,
                 SourceDatabase: null,
                 SourceSchema: message.Relation.Namespace);
@@ -257,7 +261,7 @@ internal sealed class PostgresCdcConnector : ICdcConnector
         }
     }
 
-    private static async Task<Either<EncinaError, ChangeEvent>> MapDeleteMessageAsync(DeleteMessage message)
+    private async Task<Either<EncinaError, ChangeEvent>> MapDeleteMessageAsync(DeleteMessage message)
     {
         try
         {
@@ -276,7 +280,7 @@ internal sealed class PostgresCdcConnector : ICdcConnector
 
             var metadata = new ChangeMetadata(
                 position,
-                DateTime.UtcNow,
+                _timeProvider.GetUtcNow().UtcDateTime,
                 TransactionId: null,
                 SourceDatabase: null,
                 SourceSchema: message.Relation.Namespace);

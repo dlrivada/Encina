@@ -36,7 +36,7 @@ public sealed class BulkOperationsDapperIntegrationTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _connection = _fixture.CreateConnection();
 
@@ -48,7 +48,7 @@ public sealed class BulkOperationsDapperIntegrationTests : IAsyncLifetime
         _bulkOps = new BulkOperationsDapper<BulkTestOrder, Guid>(_connection, mapping);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await DropBulkTestTableAsync();
         _connection?.Dispose();
