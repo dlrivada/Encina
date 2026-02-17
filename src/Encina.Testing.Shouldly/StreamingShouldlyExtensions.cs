@@ -3,7 +3,7 @@ using Shouldly;
 
 namespace Encina.Testing.Shouldly;
 
-// For streaming-first variants (infinite/large streams), see GitHub Issue #529.
+// Streaming-first variants (infinite/large streams) implemented per GitHub Issue #529.
 
 /// <summary>
 /// Shouldly assertion extensions for <see cref="IAsyncEnumerable{T}"/> of <see cref="Either{L,R}"/> types.
@@ -18,8 +18,12 @@ namespace Encina.Testing.Shouldly;
 /// <para>
 /// <strong>Not suitable for infinite or very large streams:</strong> Because the stream is fully consumed,
 /// these methods will hang indefinitely on infinite streams and may cause <see cref="OutOfMemoryException"/>
-/// on very large streams. For such scenarios, consider using <see cref="FirstShouldBeSuccessAsync{TLeft,TRight}"/>
-/// or <see cref="FirstShouldBeErrorAsync{TLeft,TRight}"/> which only consume the first item.
+/// on very large streams. For such scenarios, consider using the streaming-first variants:
+/// <see cref="ShouldContainSuccessStreamingAsync{TLeft,TRight}"/>,
+/// <see cref="ShouldContainErrorStreamingAsync{TLeft,TRight}"/>,
+/// <see cref="FirstOrDefaultSuccessAsync{TLeft,TRight}"/>,
+/// <see cref="FirstShouldBeSuccessAsync{TLeft,TRight}"/>,
+/// or <see cref="FirstShouldBeErrorAsync{TLeft,TRight}"/> which iterate without full materialization.
 /// </para>
 /// <para>
 /// All async methods respect the provided <see cref="CancellationToken"/>, allowing cancellation during
@@ -161,8 +165,8 @@ public static class StreamingShouldlyExtensions
     /// O(n) memory usage. Not suitable for infinite or very large streams.
     /// </para>
     /// <para>
-    /// For large streams where early termination is desired, consider using a streaming-first variant
-    /// (not yet implemented) that iterates until the first match is found.
+    /// For large streams where early termination is desired, use <see cref="ShouldContainSuccessStreamingAsync{TLeft,TRight}"/>
+    /// or <see cref="ShouldContainErrorStreamingAsync{TLeft,TRight}"/> which iterate until the first match is found.
     /// </para>
     /// </remarks>
     public static async Task<TRight> ShouldContainSuccessAsync<TLeft, TRight>(
@@ -189,8 +193,8 @@ public static class StreamingShouldlyExtensions
     /// O(n) memory usage. Not suitable for infinite or very large streams.
     /// </para>
     /// <para>
-    /// For large streams where early termination is desired, consider using a streaming-first variant
-    /// (not yet implemented) that iterates until the first match is found.
+    /// For large streams where early termination is desired, use <see cref="ShouldContainSuccessStreamingAsync{TLeft,TRight}"/>
+    /// or <see cref="ShouldContainErrorStreamingAsync{TLeft,TRight}"/> which iterate until the first match is found.
     /// </para>
     /// </remarks>
     public static async Task<TLeft> ShouldContainErrorAsync<TLeft, TRight>(
@@ -513,6 +517,136 @@ public static class StreamingShouldlyExtensions
         }
 
         throw new ShouldAssertException(customMessage ?? "Expected at least one result but the stream was empty");
+    }
+
+    #endregion
+
+    #region Streaming-First Assertions (O(1) memory, infinite-safe)
+
+    /// <summary>
+    /// Iterates the stream until the first success (Right) is found and returns it immediately.
+    /// </summary>
+    /// <typeparam name="TLeft">The error type.</typeparam>
+    /// <typeparam name="TRight">The success type.</typeparam>
+    /// <param name="source">The async enumerable of Either results to search.</param>
+    /// <param name="customMessage">Optional custom failure message.</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the enumeration.</param>
+    /// <returns>The first success value found in the stream.</returns>
+    /// <exception cref="ShouldAssertException">Thrown when the stream ends without a success value.</exception>
+    /// <remarks>
+    /// <para>
+    /// <strong>Streaming-friendly:</strong> This method iterates the stream element by element and returns
+    /// as soon as a Right value is found, without collecting previous items. O(1) memory usage.
+    /// Safe for infinite or very large streams (with appropriate cancellation).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Test infinite event stream - stops at first success
+    /// var firstSuccess = await eventStream
+    ///     .ShouldContainSuccessStreamingAsync();
+    /// </code>
+    /// </example>
+    public static async Task<TRight> ShouldContainSuccessStreamingAsync<TLeft, TRight>(
+        this IAsyncEnumerable<Either<TLeft, TRight>> source,
+        string? customMessage = null,
+        CancellationToken cancellationToken = default)
+    {
+        await foreach (var item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            if (item.IsRight)
+            {
+                return item.ShouldBeSuccess();
+            }
+        }
+
+        throw new ShouldAssertException(
+            customMessage ?? "Expected at least one success (Right) in the stream but none was found");
+    }
+
+    /// <summary>
+    /// Iterates the stream until the first error (Left) is found and returns it immediately.
+    /// </summary>
+    /// <typeparam name="TLeft">The error type.</typeparam>
+    /// <typeparam name="TRight">The success type.</typeparam>
+    /// <param name="source">The async enumerable of Either results to search.</param>
+    /// <param name="customMessage">Optional custom failure message.</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the enumeration.</param>
+    /// <returns>The first error value found in the stream.</returns>
+    /// <exception cref="ShouldAssertException">Thrown when the stream ends without an error value.</exception>
+    /// <remarks>
+    /// <para>
+    /// <strong>Streaming-friendly:</strong> This method iterates the stream element by element and returns
+    /// as soon as a Left value is found, without collecting previous items. O(1) memory usage.
+    /// Safe for infinite or very large streams (with appropriate cancellation).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Assert on large stream without memory pressure
+    /// var firstError = await largeDataStream
+    ///     .ShouldContainErrorStreamingAsync();
+    /// </code>
+    /// </example>
+    public static async Task<TLeft> ShouldContainErrorStreamingAsync<TLeft, TRight>(
+        this IAsyncEnumerable<Either<TLeft, TRight>> source,
+        string? customMessage = null,
+        CancellationToken cancellationToken = default)
+    {
+        await foreach (var item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            if (item.IsLeft)
+            {
+                return item.ShouldBeError();
+            }
+        }
+
+        throw new ShouldAssertException(
+            customMessage ?? "Expected at least one error (Left) in the stream but none was found");
+    }
+
+    /// <summary>
+    /// Returns the first success (Right) value from the stream, or <c>default</c> if none is found.
+    /// </summary>
+    /// <typeparam name="TLeft">The error type.</typeparam>
+    /// <typeparam name="TRight">The success type.</typeparam>
+    /// <param name="source">The async enumerable of Either results to search.</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the enumeration.</param>
+    /// <returns>The first success value, or <c>default(TRight)</c> if the stream contains no success values.</returns>
+    /// <remarks>
+    /// <para>
+    /// <strong>Streaming-friendly:</strong> This method iterates the stream element by element and returns
+    /// as soon as a Right value is found, without collecting previous items. O(1) memory usage.
+    /// Safe for infinite or very large streams (with appropriate cancellation).
+    /// </para>
+    /// <para>
+    /// Unlike <see cref="ShouldContainSuccessStreamingAsync{TLeft,TRight}"/>, this method does not throw
+    /// if no success value is found — it returns <c>default</c> instead.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Try to find first success, returns null/default if none found
+    /// var result = await stream.FirstOrDefaultSuccessAsync();
+    /// if (result is not null)
+    /// {
+    ///     // Use result
+    /// }
+    /// </code>
+    /// </example>
+    public static async Task<TRight?> FirstOrDefaultSuccessAsync<TLeft, TRight>(
+        this IAsyncEnumerable<Either<TLeft, TRight>> source,
+        CancellationToken cancellationToken = default)
+    {
+        await foreach (var item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            if (item.IsRight)
+            {
+                return item.ShouldBeSuccess();
+            }
+        }
+
+        return default;
     }
 
     #endregion
