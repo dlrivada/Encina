@@ -2,6 +2,7 @@ using Encina.Cdc;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Sharding;
 using Encina.Sharding;
+using Encina.Testing;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -189,14 +190,8 @@ public sealed class ShardedCdcConnectorTests
         var factory = Substitute.For<Func<ShardInfo, ICdcConnector>>();
 
         var connector = new ShardedCdcConnector("test", factory, provider, Logger);
-        var events = new List<Either<EncinaError, ShardedChangeEvent>>();
 
-        await foreach (var evt in connector.StreamAllShardsAsync())
-        {
-            events.Add(evt);
-        }
-
-        events.Count.ShouldBe(0);
+        await connector.StreamAllShardsAsync().ShouldBeEmptyAsync();
     }
 
     [Fact]
@@ -219,15 +214,9 @@ public sealed class ShardedCdcConnectorTests
             shard.ShardId == "shard-1" ? mockConnector1 : mockConnector2;
 
         var connector = new ShardedCdcConnector("test", factory, provider, Logger);
-        var events = new List<Either<EncinaError, ShardedChangeEvent>>();
 
-        await foreach (var evt in connector.StreamAllShardsAsync())
-        {
-            events.Add(evt);
-        }
-
-        events.Count.ShouldBe(2);
-        events.ShouldAllBe(e => e.IsRight);
+        var successes = await connector.StreamAllShardsAsync().ShouldAllBeSuccessAsync();
+        successes.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -253,15 +242,9 @@ public sealed class ShardedCdcConnectorTests
             shard.ShardId == "shard-1" ? mockConnector1 : mockConnector2;
 
         var connector = new ShardedCdcConnector("test", factory, provider, Logger);
-        var events = new List<Either<EncinaError, ShardedChangeEvent>>();
-
-        await foreach (var evt in connector.StreamAllShardsAsync())
-        {
-            events.Add(evt);
-        }
 
         // Should contain the successful event from shard-1 and the error from shard-2
-        events.Count.ShouldBeGreaterThanOrEqualTo(1);
+        await connector.StreamAllShardsAsync().ShouldNotBeEmptyAsync();
     }
 
     #endregion
@@ -281,15 +264,9 @@ public sealed class ShardedCdcConnectorTests
         Func<ShardInfo, ICdcConnector> factory = _ => mockConnector;
 
         var connector = new ShardedCdcConnector("test", factory, provider, Logger);
-        var events = new List<Either<EncinaError, ChangeEvent>>();
 
-        await foreach (var evt in connector.StreamShardAsync("shard-1"))
-        {
-            events.Add(evt);
-        }
-
-        events.Count.ShouldBe(1);
-        events[0].IsRight.ShouldBeTrue();
+        var successes = await connector.StreamShardAsync("shard-1").ShouldAllBeSuccessAsync();
+        successes.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -300,15 +277,9 @@ public sealed class ShardedCdcConnectorTests
         Func<ShardInfo, ICdcConnector> factory = _ => CreateMockConnector("shard-1");
 
         var connector = new ShardedCdcConnector("test", factory, provider, Logger);
-        var events = new List<Either<EncinaError, ChangeEvent>>();
 
-        await foreach (var evt in connector.StreamShardAsync("non-existent"))
-        {
-            events.Add(evt);
-        }
-
-        events.Count.ShouldBe(1);
-        events[0].IsLeft.ShouldBeTrue();
+        var errors = await connector.StreamShardAsync("non-existent").ShouldAllBeErrorAsync();
+        errors.Count.ShouldBe(1);
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Encina.gRPC;
+using Encina.Testing;
 
 namespace Encina.UnitTests.gRPC;
 
@@ -135,20 +136,9 @@ public sealed class GrpcEncinaServiceTests
         // Arrange
         var data = JsonSerializer.SerializeToUtf8Bytes(new { });
 
-        // Act
-        var results = new List<LanguageExt.Either<EncinaError, byte[]>>();
-        await foreach (var result in _service.StreamAsync("SomeType", data))
-        {
-            results.Add(result);
-        }
-
-        // Assert
-        results.Count.ShouldBe(1);
-        results[0].IsLeft.ShouldBeTrue();
-        results[0].IfLeft(error =>
-        {
-            error.GetCode().IfSome(code => code.ShouldBe("GRPC_STREAMING_NOT_IMPLEMENTED"));
-        });
+        // Act & Assert
+        await _service.StreamAsync("SomeType", data)
+            .ShouldAllHaveErrorCodeAsync("GRPC_STREAMING_NOT_IMPLEMENTED");
     }
 
     [Fact]
@@ -341,16 +331,10 @@ public sealed class GrpcEncinaServiceTests
         using var cts = new CancellationTokenSource();
         var data = JsonSerializer.SerializeToUtf8Bytes(new { });
 
-        // Act
-        var results = new List<LanguageExt.Either<EncinaError, byte[]>>();
-        await foreach (var result in _service.StreamAsync("SomeType", data, cts.Token))
-        {
-            results.Add(result);
-        }
-
-        // Assert
-        results.Count.ShouldBe(1);
-        results[0].IsLeft.ShouldBeTrue();
+        // Act & Assert
+        var errors = await _service.StreamAsync("SomeType", data, cts.Token)
+            .ShouldHaveErrorCountAsync(1);
+        errors.Count.ShouldBe(1);
     }
 
     // Test notification type for serialization tests
