@@ -1,3 +1,64 @@
+## [Unreleased] - v0.13.0 - Security & Compliance
+
+### Added
+
+#### Encina.Security — Core Security Abstractions and Pipeline Behavior (#394)
+
+Added the `Encina.Security` package providing attribute-based, transport-agnostic security at the CQRS pipeline level. Operates independently of ASP.NET Core, ensuring consistent authorization enforcement across HTTP, messaging, gRPC, and serverless transports.
+
+**Core Abstractions**:
+
+- **`ISecurityContext`**: Immutable security context carrying identity, roles, permissions, and tenant info
+- **`ISecurityContextAccessor`**: Request-scoped accessor using `AsyncLocal<T>` for async flow
+- **`IPermissionEvaluator`**: Extensible permission evaluation (default: in-memory set lookup)
+- **`IResourceOwnershipEvaluator`**: Resource ownership verification (default: cached reflection)
+- **`SecurityContext`**: Claims-based implementation with configurable claim type extraction
+- **`SecurityOptions`**: Configuration for claim types, default auth policy, health check opt-in
+
+**Seven Security Attributes** (declarative, composable):
+
+- **`[AllowAnonymous]`**: Bypasses all security checks (pipeline short-circuit)
+- **`[DenyAnonymous]`**: Requires authenticated identity
+- **`[RequireRole("Admin", "Manager")]`**: OR-based role check
+- **`[RequireAllRoles("Admin", "Auditor")]`**: AND-based role check
+- **`[RequirePermission("orders:read")]`**: Permission check via `IPermissionEvaluator` (supports OR/AND via `RequireAll`)
+- **`[RequireClaim("department", "finance")]`**: Claim existence/value check
+- **`[RequireOwnership("OwnerId")]`**: Resource ownership via `IResourceOwnershipEvaluator`
+
+**Pipeline Behavior**:
+
+- **`SecurityPipelineBehavior<TRequest, TResponse>`**: Evaluates security attributes in priority order, short-circuits on first failure with `EncinaError` (Railway Oriented Programming)
+- Configurable evaluation order via `SecurityAttribute.Order` property
+- `RequireAuthenticatedByDefault` option for global authentication enforcement
+- `ThrowOnMissingSecurityContext` option for strict context validation
+
+**Error Codes** (6 structured errors via `SecurityErrors`):
+
+- `security.unauthenticated`, `security.insufficient_roles`, `security.permission_denied`
+- `security.claim_missing`, `security.not_owner`, `security.missing_context`
+- All errors include structured metadata (`requestType`, `stage`, `userId`, `requirement`)
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Security` ActivitySource with tags: `security.request_type`, `security.user_id`, `security.outcome`, `security.denial_reason`
+- 4 metric instruments under `Encina.Security` Meter: `security.authorization.total`, `.allowed`, `.denied` (counters), `.duration` (histogram in ms)
+- 5 structured log events (EventId 8000–8004) using `LoggerMessage.Define` for zero-allocation logging
+
+**Health Check**:
+
+- **`SecurityHealthCheck`**: Verifies all security services are registered and resolvable from DI
+- Opt-in via `SecurityOptions.AddHealthCheck = true`
+- Tags: `encina`, `security`, `ready`
+
+**DI Registration**:
+
+- `services.AddEncinaSecurity()` with `TryAdd` semantics — register custom evaluators before calling to override defaults
+- Configurable via `Action<SecurityOptions>` delegate
+
+**Testing**: 420 unit tests across 6 test classes covering all attributes, pipeline behavior, evaluators, DI registration, and observability (tracing, metrics, logging, health checks).
+
+---
+
 ## [0.12.0] - 2026-02-16 - Database & Repository
 
 ### Added

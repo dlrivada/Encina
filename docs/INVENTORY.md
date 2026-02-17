@@ -5581,15 +5581,20 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 
 ##### Tier 1: Crítica Prioridad (Foundational Security)
 
-**#394 - Encina.Security - Core Security Abstractions**:
+**#394 - Encina.Security - Core Security Abstractions** ✅ **IMPLEMENTADO (Feb 2026)**:
 
-- `ISecurityContext` con `CurrentPrincipal`, `Permissions`, `Roles`, `Claims`
-- `IPermissionEvaluator<TResource>` para evaluación dinámica de permisos
-- `SecurityPipelineBehavior<TRequest, TResponse>` con evaluación declarativa
-- `[Authorize]`, `[RequirePermission]`, `[RequireRole]`, `[RequireClaim]` atributos
-- RBAC (Role-Based), ABAC (Attribute-Based), Permission-based authorization
-- **Nuevo paquete planificado**: `Encina.Security`
-- **Demanda de comunidad**: MUY ALTA - Patrón fundamental para enterprise
+- ✅ `ISecurityContext` con `User`, `UserId`, `TenantId`, `Permissions`, `Roles`, `IsAuthenticated`
+- ✅ `ISecurityContextAccessor` con `AsyncLocal<T>` para flujo async
+- ✅ `IPermissionEvaluator` para evaluación dinámica de permisos (OR/AND logic)
+- ✅ `IResourceOwnershipEvaluator` para verificación de ownership con reflection cacheada
+- ✅ `SecurityPipelineBehavior<TRequest, TResponse>` con evaluación declarativa y short-circuit
+- ✅ 7 atributos de seguridad: `[AllowAnonymous]`, `[DenyAnonymous]`, `[RequireRole]`, `[RequireAllRoles]`, `[RequirePermission]`, `[RequireClaim]`, `[RequireOwnership]`
+- ✅ `SecurityOptions` con claim types configurables y `RequireAuthenticatedByDefault`
+- ✅ `SecurityErrors` con 6 error codes estructurados (`security.unauthenticated`, etc.)
+- ✅ `SecurityHealthCheck` para verificación de servicios DI
+- ✅ OpenTelemetry: ActivitySource + Meter (4 instruments) + 5 log events (EventId 8000–8004)
+- ✅ 420 unit tests (6 test classes)
+- **Paquete**: `Encina.Security`
 - Labels: `area-security`, `area-authentication`, `area-authorization`, `area-pipeline`, `industry-best-practice`, `owasp-pattern`, `aot-compatible`
 - Referencias: [Spring Security](https://spring.io/projects/spring-security), [NestJS Guards](https://docs.nestjs.com/guards), [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
 
@@ -5700,7 +5705,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 
 | Paquete | Issue | Descripción | Prioridad |
 |---------|-------|-------------|-----------|
-| `Encina.Security` | #394 | Core security abstractions, RBAC, policies | Crítica |
+| `Encina.Security` | #394 ✅ | Core security abstractions, RBAC, policies (IMPLEMENTADO) | Crítica |
 | `Encina.Security.Audit` | #395 ✅ | Audit trail logging (IMPLEMENTADO) | Crítica |
 | `Encina.Security.Encryption` | #396 | Field-level encryption | Alta |
 | `Encina.Security.PII` | #397 | PII masking and protection | Alta |
