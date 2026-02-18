@@ -205,20 +205,20 @@ public class JsonRoPAExporterTests
     private static ProcessingActivity CreateActivity(
         string name = "Order Processing",
         Type? requestType = null) => new()
-    {
-        Id = Guid.NewGuid(),
-        Name = name,
-        Purpose = "Fulfill orders",
-        LawfulBasis = LawfulBasis.Contract,
-        CategoriesOfDataSubjects = ["Customers"],
-        CategoriesOfPersonalData = ["Name", "Email"],
-        Recipients = ["Shipping Provider"],
-        ThirdCountryTransfers = null,
-        Safeguards = null,
-        RetentionPeriod = TimeSpan.FromDays(2555),
-        SecurityMeasures = "AES-256",
-        RequestType = requestType ?? typeof(JsonRoPAExporterTests),
-        CreatedAtUtc = FixedTime,
-        LastUpdatedAtUtc = FixedTime
-    };
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            Purpose = "Fulfill orders",
+            LawfulBasis = LawfulBasis.Contract,
+            CategoriesOfDataSubjects = ["Customers"],
+            CategoriesOfPersonalData = ["Name", "Email"],
+            Recipients = ["Shipping Provider"],
+            ThirdCountryTransfers = null,
+            Safeguards = null,
+            RetentionPeriod = TimeSpan.FromDays(2555),
+            SecurityMeasures = "AES-256",
+            RequestType = requestType ?? typeof(JsonRoPAExporterTests),
+            CreatedAtUtc = FixedTime,
+            LastUpdatedAtUtc = FixedTime
+        };
 }

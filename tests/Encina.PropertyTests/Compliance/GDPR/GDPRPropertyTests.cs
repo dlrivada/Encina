@@ -161,18 +161,18 @@ public class GDPRPropertyTests
         Type requestType,
         string name = "Test",
         string purpose = "Testing") => new()
-    {
-        Id = Guid.NewGuid(),
-        Name = name,
-        Purpose = purpose,
-        LawfulBasis = LawfulBasis.Contract,
-        CategoriesOfDataSubjects = ["Users"],
-        CategoriesOfPersonalData = ["Email"],
-        Recipients = [],
-        RetentionPeriod = TimeSpan.FromDays(365),
-        SecurityMeasures = "Encryption",
-        RequestType = requestType,
-        CreatedAtUtc = DateTimeOffset.UtcNow,
-        LastUpdatedAtUtc = DateTimeOffset.UtcNow
-    };
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            Purpose = purpose,
+            LawfulBasis = LawfulBasis.Contract,
+            CategoriesOfDataSubjects = ["Users"],
+            CategoriesOfPersonalData = ["Email"],
+            Recipients = [],
+            RetentionPeriod = TimeSpan.FromDays(365),
+            SecurityMeasures = "Encryption",
+            RequestType = requestType,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            LastUpdatedAtUtc = DateTimeOffset.UtcNow
+        };
 }
