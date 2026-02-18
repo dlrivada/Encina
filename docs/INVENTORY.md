@@ -30,8 +30,8 @@
 | **Patrones DDD & Workflow** | 0 (+ 10 planificados) |
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
-| **Patrones Security** | 1 implementado (#395 Audit Trail) (+ 7 planificados: #394, #396-#401) |
-| **Patrones Compliance (GDPR/EU)** | 0 (+ 14 planificados: #402-#415) |
+| **Patrones Security** | 2 implementados (#394 Core Security, #395 Audit Trail) (+ 6 planificados: #396-#401) |
+| **Patrones Compliance (GDPR/EU)** | 1 implementado (#402 GDPR Core/RoPA) (+ 13 planificados: #403-#415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
 | **Providers de Caching** | 8 (+ 13 mejoras planificadas) |

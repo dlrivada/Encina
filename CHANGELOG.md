@@ -59,6 +59,63 @@ Added the `Encina.Security` package providing attribute-based, transport-agnosti
 
 ---
 
+#### Encina.Compliance.GDPR — Core GDPR Abstractions and RoPA (#402)
+
+Added the `Encina.Compliance.GDPR` package providing declarative, attribute-based GDPR compliance at the CQRS pipeline level. Implements Articles 5, 6, 30, 32, and 37-39 with automatic Record of Processing Activities (RoPA) generation.
+
+**Core Abstractions**:
+
+- **`IProcessingActivityRegistry`**: Central registry for GDPR Article 30 processing activities with `Option<ProcessingActivity>` return type
+- **`IGDPRComplianceValidator`**: Extensible compliance validation (default: `DefaultGDPRComplianceValidator`)
+- **`IDataProtectionOfficer`**: DPO contact information (Articles 37-39)
+- **`ProcessingActivity`**: Immutable record with purpose, lawful basis, data categories, subjects, retention, security measures
+- **`ComplianceResult`**: Compliant / CompliantWithWarnings / NonCompliant states
+- **`LawfulBasis`**: Six GDPR Article 6(1) lawful bases enum
+
+**Two Declarative Attributes**:
+
+- **`[ProcessingActivity(...)]`**: Full Article 30 declaration with purpose, lawful basis, data categories, subjects, retention, security measures
+- **`[ProcessesPersonalData]`**: Lightweight marker indicating personal data processing (requires registry entry)
+
+**Pipeline Behavior**:
+
+- **`GDPRCompliancePipelineBehavior<TRequest, TResponse>`**: Validates processing activities at pipeline level
+- Two enforcement modes: `Enforce` (block non-compliant) and `WarnOnly` (log and proceed)
+- `BlockUnregisteredProcessing` option for strict registry enforcement
+- Requests without GDPR attributes bypass all checks (zero overhead)
+
+**RoPA Export** (Article 30 compliance):
+
+- **`JsonRoPAExporter`**: Export RoPA as structured JSON
+- **`CsvRoPAExporter`**: Export RoPA as CSV for regulatory submission
+- **`RoPAExportMetadata`**: Controller info, DPO, export timestamp
+- **`RoPAExportResult`**: Export content with byte array, content type, activity count
+
+**Auto-Registration**:
+
+- Scan assemblies for `[ProcessingActivity]` attributes at startup via `IHostedService`
+- Configurable via `GDPROptions.AssembliesToScan` and `GDPROptions.AutoRegisterFromAttributes`
+- Idempotent: duplicate registrations are skipped
+
+**Error Codes** (4 structured errors via `GDPRErrors`):
+
+- `gdpr.unregistered_activity`, `gdpr.compliance_validation_failed`
+- `gdpr.registry_lookup_failed`, `gdpr.ropa_export_serialization_failed`
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.GDPR` ActivitySource with lawful basis tags
+- Structured log events using `LoggerMessage.Define` (zero-allocation)
+- Optional health check verifying registry population and DI configuration
+
+**DI Registration**:
+
+- `services.AddEncinaGDPR()` with `TryAdd` semantics — register custom implementations before calling to override defaults
+
+**Testing**: 135 tests across 4 test projects (100 unit, 11 guard, 8 property, 16 contract).
+
+---
+
 ## [0.12.0] - 2026-02-16 - Database & Repository
 
 ### Added

@@ -1,0 +1,171 @@
+#nullable enable
+Encina.Compliance.GDPR.ComplianceResult
+Encina.Compliance.GDPR.ComplianceResult.Errors.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.GDPR.ComplianceResult.IsCompliant.get -> bool
+Encina.Compliance.GDPR.ComplianceResult.Warnings.get -> System.Collections.Generic.IReadOnlyList<string!>!
+static Encina.Compliance.GDPR.ComplianceResult.Compliant() -> Encina.Compliance.GDPR.ComplianceResult!
+static Encina.Compliance.GDPR.ComplianceResult.CompliantWithWarnings(params string![]! warnings) -> Encina.Compliance.GDPR.ComplianceResult!
+static Encina.Compliance.GDPR.ComplianceResult.NonCompliant(params string![]! errors) -> Encina.Compliance.GDPR.ComplianceResult!
+static Encina.Compliance.GDPR.ComplianceResult.NonCompliant(System.Collections.Generic.IReadOnlyList<string!>! errors, System.Collections.Generic.IReadOnlyList<string!>! warnings) -> Encina.Compliance.GDPR.ComplianceResult!
+Encina.Compliance.GDPR.DataProtectionOfficer
+Encina.Compliance.GDPR.DataProtectionOfficer.DataProtectionOfficer(string! Name, string! Email, string? Phone = null) -> void
+Encina.Compliance.GDPR.DataProtectionOfficer.Email.get -> string!
+Encina.Compliance.GDPR.DataProtectionOfficer.Email.init -> void
+Encina.Compliance.GDPR.DataProtectionOfficer.Name.get -> string!
+Encina.Compliance.GDPR.DataProtectionOfficer.Name.init -> void
+Encina.Compliance.GDPR.DataProtectionOfficer.Phone.get -> string?
+Encina.Compliance.GDPR.DataProtectionOfficer.Phone.init -> void
+Encina.Compliance.GDPR.ProcessesPersonalDataAttribute
+Encina.Compliance.GDPR.ProcessesPersonalDataAttribute.ProcessesPersonalDataAttribute() -> void
+Encina.Compliance.GDPR.ProcessingActivityAttribute
+Encina.Compliance.GDPR.ProcessingActivityAttribute.DataCategories.get -> string![]!
+Encina.Compliance.GDPR.ProcessingActivityAttribute.DataCategories.set -> void
+Encina.Compliance.GDPR.ProcessingActivityAttribute.DataSubjects.get -> string![]!
+Encina.Compliance.GDPR.ProcessingActivityAttribute.DataSubjects.set -> void
+Encina.Compliance.GDPR.ProcessingActivityAttribute.LawfulBasis.get -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.GDPR.ProcessingActivityAttribute.LawfulBasis.set -> void
+Encina.Compliance.GDPR.ProcessingActivityAttribute.ProcessingActivityAttribute() -> void
+Encina.Compliance.GDPR.ProcessingActivityAttribute.Purpose.get -> string!
+Encina.Compliance.GDPR.ProcessingActivityAttribute.Purpose.set -> void
+Encina.Compliance.GDPR.ProcessingActivityAttribute.Recipients.get -> string![]!
+Encina.Compliance.GDPR.ProcessingActivityAttribute.Recipients.set -> void
+Encina.Compliance.GDPR.ProcessingActivityAttribute.RetentionDays.get -> int
+Encina.Compliance.GDPR.ProcessingActivityAttribute.RetentionDays.set -> void
+Encina.Compliance.GDPR.ProcessingActivityAttribute.Safeguards.get -> string?
+Encina.Compliance.GDPR.ProcessingActivityAttribute.Safeguards.set -> void
+Encina.Compliance.GDPR.ProcessingActivityAttribute.SecurityMeasures.get -> string!
+Encina.Compliance.GDPR.ProcessingActivityAttribute.SecurityMeasures.set -> void
+Encina.Compliance.GDPR.ProcessingActivityAttribute.ThirdCountryTransfers.get -> string?
+Encina.Compliance.GDPR.ProcessingActivityAttribute.ThirdCountryTransfers.set -> void
+Encina.Compliance.GDPR.IDataProtectionOfficer
+Encina.Compliance.GDPR.IDataProtectionOfficer.Email.get -> string!
+Encina.Compliance.GDPR.IDataProtectionOfficer.Name.get -> string!
+Encina.Compliance.GDPR.IDataProtectionOfficer.Phone.get -> string?
+Encina.Compliance.GDPR.IGDPRComplianceValidator
+Encina.Compliance.GDPR.IGDPRComplianceValidator.ValidateAsync<TRequest>(TRequest request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.GDPR.ComplianceResult!>>
+Encina.Compliance.GDPR.IProcessingActivityRegistry
+Encina.Compliance.GDPR.IProcessingActivityRegistry.GetActivityByRequestTypeAsync(System.Type! requestType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.GDPR.ProcessingActivity!>>>
+Encina.Compliance.GDPR.IProcessingActivityRegistry.GetAllActivitiesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.GDPR.ProcessingActivity!>!>>
+Encina.Compliance.GDPR.IProcessingActivityRegistry.RegisterActivityAsync(Encina.Compliance.GDPR.ProcessingActivity! activity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.GDPR.IProcessingActivityRegistry.UpdateActivityAsync(Encina.Compliance.GDPR.ProcessingActivity! activity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.GDPR.LawfulBasis.Consent = 0 -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.GDPR.LawfulBasis.Contract = 1 -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.GDPR.LawfulBasis.LegalObligation = 2 -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.GDPR.LawfulBasis.LegitimateInterests = 5 -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.GDPR.LawfulBasis.PublicTask = 4 -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.GDPR.LawfulBasis.VitalInterests = 3 -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.GDPR.ProcessingActivity
+Encina.Compliance.GDPR.ProcessingActivity.CategoriesOfDataSubjects.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.GDPR.ProcessingActivity.CategoriesOfDataSubjects.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.CategoriesOfPersonalData.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.GDPR.ProcessingActivity.CategoriesOfPersonalData.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.CreatedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.GDPR.ProcessingActivity.CreatedAtUtc.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.Id.get -> System.Guid
+Encina.Compliance.GDPR.ProcessingActivity.Id.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.LastUpdatedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.GDPR.ProcessingActivity.LastUpdatedAtUtc.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.LawfulBasis.get -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.GDPR.ProcessingActivity.LawfulBasis.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.Name.get -> string!
+Encina.Compliance.GDPR.ProcessingActivity.Name.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.Purpose.get -> string!
+Encina.Compliance.GDPR.ProcessingActivity.Purpose.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.Recipients.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.GDPR.ProcessingActivity.Recipients.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.RequestType.get -> System.Type!
+Encina.Compliance.GDPR.ProcessingActivity.RequestType.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.RetentionPeriod.get -> System.TimeSpan
+Encina.Compliance.GDPR.ProcessingActivity.RetentionPeriod.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.Safeguards.get -> string?
+Encina.Compliance.GDPR.ProcessingActivity.Safeguards.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.SecurityMeasures.get -> string!
+Encina.Compliance.GDPR.ProcessingActivity.SecurityMeasures.init -> void
+Encina.Compliance.GDPR.ProcessingActivity.ThirdCountryTransfers.get -> string?
+Encina.Compliance.GDPR.ProcessingActivity.ThirdCountryTransfers.init -> void
+Encina.Compliance.GDPR.InMemoryProcessingActivityRegistry
+Encina.Compliance.GDPR.InMemoryProcessingActivityRegistry.InMemoryProcessingActivityRegistry() -> void
+Encina.Compliance.GDPR.InMemoryProcessingActivityRegistry.RegisterActivityAsync(Encina.Compliance.GDPR.ProcessingActivity! activity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.GDPR.InMemoryProcessingActivityRegistry.GetAllActivitiesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.GDPR.ProcessingActivity!>!>>
+Encina.Compliance.GDPR.InMemoryProcessingActivityRegistry.GetActivityByRequestTypeAsync(System.Type! requestType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.GDPR.ProcessingActivity!>>>
+Encina.Compliance.GDPR.InMemoryProcessingActivityRegistry.UpdateActivityAsync(Encina.Compliance.GDPR.ProcessingActivity! activity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.GDPR.InMemoryProcessingActivityRegistry.AutoRegisterFromAssemblies(System.Collections.Generic.IEnumerable<System.Reflection.Assembly!>! assemblies, System.TimeProvider? timeProvider = null) -> int
+Encina.Compliance.GDPR.GDPREnforcementMode
+Encina.Compliance.GDPR.GDPREnforcementMode.Enforce = 0 -> Encina.Compliance.GDPR.GDPREnforcementMode
+Encina.Compliance.GDPR.GDPREnforcementMode.WarnOnly = 1 -> Encina.Compliance.GDPR.GDPREnforcementMode
+Encina.Compliance.GDPR.GDPROptions
+Encina.Compliance.GDPR.GDPROptions.GDPROptions() -> void
+Encina.Compliance.GDPR.GDPROptions.BlockUnregisteredProcessing.get -> bool
+Encina.Compliance.GDPR.GDPROptions.BlockUnregisteredProcessing.set -> void
+Encina.Compliance.GDPR.GDPROptions.AutoRegisterFromAttributes.get -> bool
+Encina.Compliance.GDPR.GDPROptions.AutoRegisterFromAttributes.set -> void
+Encina.Compliance.GDPR.GDPROptions.EnforcementMode.get -> Encina.Compliance.GDPR.GDPREnforcementMode
+Encina.Compliance.GDPR.GDPROptions.EnforcementMode.set -> void
+Encina.Compliance.GDPR.GDPRErrors
+const Encina.Compliance.GDPR.GDPRErrors.UnregisteredActivityCode = "gdpr.unregistered_activity" -> string!
+const Encina.Compliance.GDPR.GDPRErrors.ComplianceValidationFailedCode = "gdpr.compliance_validation_failed" -> string!
+const Encina.Compliance.GDPR.GDPRErrors.RegistryLookupFailedCode = "gdpr.registry_lookup_failed" -> string!
+static Encina.Compliance.GDPR.GDPRErrors.UnregisteredActivity(System.Type! requestType) -> Encina.EncinaError
+static Encina.Compliance.GDPR.GDPRErrors.ComplianceValidationFailed(System.Type! requestType, System.Collections.Generic.IReadOnlyList<string!>! errors) -> Encina.EncinaError
+static Encina.Compliance.GDPR.GDPRErrors.RegistryLookupFailed(System.Type! requestType, Encina.EncinaError innerError) -> Encina.EncinaError
+Encina.Compliance.GDPR.GDPRCompliancePipelineBehavior<TRequest, TResponse>
+Encina.Compliance.GDPR.GDPRCompliancePipelineBehavior<TRequest, TResponse>.GDPRCompliancePipelineBehavior(Encina.Compliance.GDPR.IProcessingActivityRegistry! registry, Encina.Compliance.GDPR.IGDPRComplianceValidator! validator, Microsoft.Extensions.Options.IOptions<Encina.Compliance.GDPR.GDPROptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.GDPR.GDPRCompliancePipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Compliance.GDPR.GDPRCompliancePipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Compliance.GDPR.GDPROptions.ControllerName.get -> string?
+Encina.Compliance.GDPR.GDPROptions.ControllerName.set -> void
+Encina.Compliance.GDPR.GDPROptions.ControllerEmail.get -> string?
+Encina.Compliance.GDPR.GDPROptions.ControllerEmail.set -> void
+Encina.Compliance.GDPR.GDPROptions.DataProtectionOfficer.get -> Encina.Compliance.GDPR.IDataProtectionOfficer?
+Encina.Compliance.GDPR.GDPROptions.DataProtectionOfficer.set -> void
+Encina.Compliance.GDPR.GDPROptions.AssembliesToScan.get -> System.Collections.Generic.List<System.Reflection.Assembly!>!
+Encina.Compliance.GDPR.DefaultGDPRComplianceValidator
+Encina.Compliance.GDPR.DefaultGDPRComplianceValidator.DefaultGDPRComplianceValidator() -> void
+Encina.Compliance.GDPR.DefaultGDPRComplianceValidator.ValidateAsync<TRequest>(TRequest request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.GDPR.ComplianceResult!>>
+Encina.Compliance.GDPR.ServiceCollectionExtensions
+static Encina.Compliance.GDPR.ServiceCollectionExtensions.AddEncinaGDPR(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Compliance.GDPR.GDPROptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Compliance.GDPR.Export.IRoPAExporter
+Encina.Compliance.GDPR.Export.IRoPAExporter.ContentType.get -> string!
+Encina.Compliance.GDPR.Export.IRoPAExporter.FileExtension.get -> string!
+Encina.Compliance.GDPR.Export.IRoPAExporter.ExportAsync(System.Collections.Generic.IReadOnlyList<Encina.Compliance.GDPR.ProcessingActivity!>! activities, Encina.Compliance.GDPR.Export.RoPAExportMetadata! metadata, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.GDPR.Export.RoPAExportResult!>>
+Encina.Compliance.GDPR.Export.RoPAExportMetadata
+Encina.Compliance.GDPR.Export.RoPAExportMetadata.RoPAExportMetadata(string! ControllerName, string! ControllerEmail, System.DateTimeOffset ExportedAtUtc, Encina.Compliance.GDPR.IDataProtectionOfficer? DataProtectionOfficer = null) -> void
+Encina.Compliance.GDPR.Export.RoPAExportMetadata.ControllerName.get -> string!
+Encina.Compliance.GDPR.Export.RoPAExportMetadata.ControllerName.init -> void
+Encina.Compliance.GDPR.Export.RoPAExportMetadata.ControllerEmail.get -> string!
+Encina.Compliance.GDPR.Export.RoPAExportMetadata.ControllerEmail.init -> void
+Encina.Compliance.GDPR.Export.RoPAExportMetadata.ExportedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.GDPR.Export.RoPAExportMetadata.ExportedAtUtc.init -> void
+Encina.Compliance.GDPR.Export.RoPAExportMetadata.DataProtectionOfficer.get -> Encina.Compliance.GDPR.IDataProtectionOfficer?
+Encina.Compliance.GDPR.Export.RoPAExportMetadata.DataProtectionOfficer.init -> void
+Encina.Compliance.GDPR.Export.RoPAExportResult
+Encina.Compliance.GDPR.Export.RoPAExportResult.RoPAExportResult(byte[]! Content, string! ContentType, string! FileExtension, int ActivityCount, System.DateTimeOffset ExportedAtUtc) -> void
+Encina.Compliance.GDPR.Export.RoPAExportResult.Content.get -> byte[]!
+Encina.Compliance.GDPR.Export.RoPAExportResult.Content.init -> void
+Encina.Compliance.GDPR.Export.RoPAExportResult.ContentType.get -> string!
+Encina.Compliance.GDPR.Export.RoPAExportResult.ContentType.init -> void
+Encina.Compliance.GDPR.Export.RoPAExportResult.FileExtension.get -> string!
+Encina.Compliance.GDPR.Export.RoPAExportResult.FileExtension.init -> void
+Encina.Compliance.GDPR.Export.RoPAExportResult.ActivityCount.get -> int
+Encina.Compliance.GDPR.Export.RoPAExportResult.ActivityCount.init -> void
+Encina.Compliance.GDPR.Export.RoPAExportResult.ExportedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.GDPR.Export.RoPAExportResult.ExportedAtUtc.init -> void
+Encina.Compliance.GDPR.Export.JsonRoPAExporter
+Encina.Compliance.GDPR.Export.JsonRoPAExporter.JsonRoPAExporter() -> void
+Encina.Compliance.GDPR.Export.JsonRoPAExporter.ContentType.get -> string!
+Encina.Compliance.GDPR.Export.JsonRoPAExporter.FileExtension.get -> string!
+Encina.Compliance.GDPR.Export.JsonRoPAExporter.ExportAsync(System.Collections.Generic.IReadOnlyList<Encina.Compliance.GDPR.ProcessingActivity!>! activities, Encina.Compliance.GDPR.Export.RoPAExportMetadata! metadata, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.GDPR.Export.RoPAExportResult!>>
+Encina.Compliance.GDPR.Export.CsvRoPAExporter
+Encina.Compliance.GDPR.Export.CsvRoPAExporter.CsvRoPAExporter() -> void
+Encina.Compliance.GDPR.Export.CsvRoPAExporter.ContentType.get -> string!
+Encina.Compliance.GDPR.Export.CsvRoPAExporter.FileExtension.get -> string!
+Encina.Compliance.GDPR.Export.CsvRoPAExporter.ExportAsync(System.Collections.Generic.IReadOnlyList<Encina.Compliance.GDPR.ProcessingActivity!>! activities, Encina.Compliance.GDPR.Export.RoPAExportMetadata! metadata, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.GDPR.Export.RoPAExportResult!>>
+Encina.Compliance.GDPR.Export.RoPAExportErrors
+const Encina.Compliance.GDPR.Export.RoPAExportErrors.SerializationFailedCode = "gdpr.ropa_export_serialization_failed" -> string!
+static Encina.Compliance.GDPR.Export.RoPAExportErrors.SerializationFailed(string! format, string! reason) -> Encina.EncinaError
+Encina.Compliance.GDPR.GDPROptions.AddHealthCheck.get -> bool
+Encina.Compliance.GDPR.GDPROptions.AddHealthCheck.set -> void
+Encina.Compliance.GDPR.Health.GDPRHealthCheck
+Encina.Compliance.GDPR.Health.GDPRHealthCheck.GDPRHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.GDPR.Health.GDPRHealthCheck!>! logger) -> void
+const Encina.Compliance.GDPR.Health.GDPRHealthCheck.DefaultName = "encina-gdpr" -> string!
+Encina.Compliance.GDPR.Health.GDPRHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!

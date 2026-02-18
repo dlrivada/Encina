@@ -180,11 +180,17 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 
 *Production-ready for EU/GDPR*
 
-- Core Security abstractions
+**Completed:**
+
+- ✅ Core Security abstractions [#394](https://github.com/dlrivada/Encina/issues/394) - `Encina.Security` with 7 security attributes, `SecurityPipelineBehavior`, RBAC/Permission-based auth, OpenTelemetry tracing
+- ✅ GDPR Core (RoPA) [#402](https://github.com/dlrivada/Encina/issues/402) - `Encina.Compliance.GDPR` with `[ProcessingActivity]` attribute, `GDPRCompliancePipelineBehavior`, JSON/CSV RoPA export, auto-registration
+
+**Remaining:**
+
 - ~~Audit Trail logging~~ (Moved to v0.12.0 as #286)
 - Field-Level Encryption
 - PII Masking
-- GDPR Core (RoPA, Consent, Data Subject Rights)
+- Consent Management, Data Subject Rights
 - Data Residency enforcement
 - NIS2 Directive compliance
 - AI Act compliance
