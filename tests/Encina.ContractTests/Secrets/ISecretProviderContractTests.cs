@@ -1,7 +1,8 @@
 #pragma warning disable CA1859 // Contract tests intentionally use interface types to verify contracts
 
-using Encina.Secrets;
 using System.Reflection;
+
+using Encina.Secrets;
 
 namespace Encina.ContractTests.Secrets;
 
